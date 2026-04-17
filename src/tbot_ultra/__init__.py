@@ -1,0 +1,2 @@
+"""Local Travian automation helper."""
+

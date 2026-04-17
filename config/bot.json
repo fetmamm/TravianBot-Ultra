@@ -1,0 +1,10 @@
+{
+  "server_name": "SS-Travi PRO 1024x",
+  "base_url": "https://pro.ss-travi.com",
+  "login_path": "/login.php",
+  "village_overview_path": "/dorf1.php",
+  "headless": false,
+  "timeout_ms": 15000,
+  "manual_login_timeout_seconds": 180
+}
+
