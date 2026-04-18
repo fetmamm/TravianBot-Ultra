@@ -16,6 +16,11 @@ class BotConfig:
     headless: bool
     timeout_ms: int
     manual_login_timeout_seconds: int
+    loop_interval_seconds: int
+    loop_tasks: list[str]
+    github_releases_url: str
+    human_like_enabled: bool
+    human_like_speed: str
 
 
 @dataclass(frozen=True)
@@ -44,6 +49,8 @@ def load_dotenv(path: Path | None = None) -> None:
 def load_bot_config(path: Path | None = None) -> BotConfig:
     config_path = path or ROOT_DIR / "config" / "bot.json"
     data = json.loads(config_path.read_text(encoding="utf-8"))
+    raw_loop_tasks = data.get("loop_tasks", ["status"])
+    loop_tasks = raw_loop_tasks if isinstance(raw_loop_tasks, list) else ["status"]
 
     return BotConfig(
         server_name=str(data["server_name"]),
@@ -53,6 +60,11 @@ def load_bot_config(path: Path | None = None) -> BotConfig:
         headless=bool(data.get("headless", False)),
         timeout_ms=int(data.get("timeout_ms", 15000)),
         manual_login_timeout_seconds=int(data.get("manual_login_timeout_seconds", 180)),
+        loop_interval_seconds=int(data.get("loop_interval_seconds", 60)),
+        loop_tasks=[str(task) for task in loop_tasks],
+        github_releases_url=str(data.get("github_releases_url", "")),
+        human_like_enabled=bool(data.get("human_like_enabled", False)),
+        human_like_speed=str(data.get("human_like_speed", "medium")),
     )
 
 
@@ -66,6 +78,11 @@ def save_bot_config(config: BotConfig, path: Path | None = None) -> None:
         "headless": config.headless,
         "timeout_ms": config.timeout_ms,
         "manual_login_timeout_seconds": config.manual_login_timeout_seconds,
+        "loop_interval_seconds": config.loop_interval_seconds,
+        "loop_tasks": config.loop_tasks,
+        "github_releases_url": config.github_releases_url,
+        "human_like_enabled": config.human_like_enabled,
+        "human_like_speed": config.human_like_speed,
     }
     config_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 

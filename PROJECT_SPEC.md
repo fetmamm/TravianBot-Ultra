@@ -98,6 +98,5 @@ Funktioner som inte måste byggas först men som kan läggas till senare:
 - Automatiska farms/farmlistor
 - Avancerad scanning av kartan
 - Avancerad rapportanalys
-- Smart prioritering av kö baserat på situation
 
 

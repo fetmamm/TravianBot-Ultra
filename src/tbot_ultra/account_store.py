@@ -12,6 +12,8 @@ class StoredAccount:
     name: str
     username: str
     password: str
+    server_name: str = "PRO 1024x"
+    server_url: str = "https://pro.ss-travi.com"
 
 
 def normalize_account_name(name: str) -> str:
@@ -52,6 +54,8 @@ def list_accounts(path: Path = ENV_PATH) -> list[StoredAccount]:
                 name=name,
                 username=values.get(f"{prefix}USERNAME", ""),
                 password=values.get(f"{prefix}PASSWORD", ""),
+                server_name=values.get(f"{prefix}SERVER_NAME", ""),
+                server_url=values.get(f"{prefix}SERVER_URL", ""),
             )
         )
 
@@ -77,6 +81,8 @@ def save_account(account: StoredAccount, set_active: bool = True, path: Path = E
     prefix = f"TBOT_{account_name.upper()}_"
     values[f"{prefix}USERNAME"] = account.username.strip()
     values[f"{prefix}PASSWORD"] = account.password
+    values[f"{prefix}SERVER_NAME"] = account.server_name.strip()
+    values[f"{prefix}SERVER_URL"] = account.server_url.strip().rstrip("/")
 
     write_env(values, path)
 
@@ -93,6 +99,8 @@ def delete_account(account_name: str, path: Path = ENV_PATH) -> None:
     prefix = f"TBOT_{normalized_name.upper()}_"
     values.pop(f"{prefix}USERNAME", None)
     values.pop(f"{prefix}PASSWORD", None)
+    values.pop(f"{prefix}SERVER_NAME", None)
+    values.pop(f"{prefix}SERVER_URL", None)
     values["TBOT_ACCOUNTS"] = ",".join(names)
 
     if values.get("TBOT_ACTIVE_ACCOUNT") == normalized_name:
@@ -118,6 +126,8 @@ def write_env(values: dict[str, str], path: Path = ENV_PATH) -> None:
         prefix = f"TBOT_{name.upper()}_"
         lines.append(f"{prefix}USERNAME={values.get(f'{prefix}USERNAME', '')}")
         lines.append(f"{prefix}PASSWORD={values.get(f'{prefix}PASSWORD', '')}")
+        lines.append(f"{prefix}SERVER_NAME={values.get(f'{prefix}SERVER_NAME', '')}")
+        lines.append(f"{prefix}SERVER_URL={values.get(f'{prefix}SERVER_URL', '')}")
         lines.append("")
 
     path.write_text("\n".join(lines), encoding="utf-8")

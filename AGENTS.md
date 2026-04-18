@@ -25,5 +25,5 @@
 
 ## Svarformat
 - Ge bara den kod eller funktion som faktiskt behöver ändras, inte hela programmet, om jag inte ber om det.
-- Förklara kort vad du ändrade.
+- Förklara kort vad du ändrade. Inget onödigt.
 - Peka ut exakt var koden ska placeras om det inte är uppenbart.

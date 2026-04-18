@@ -5,6 +5,13 @@
   "village_overview_path": "/dorf1.php",
   "headless": false,
   "timeout_ms": 15000,
-  "manual_login_timeout_seconds": 180
+  "manual_login_timeout_seconds": 180,
+  "loop_interval_seconds": 60,
+  "loop_tasks": [
+    "status",
+    "scan_all_villages"
+  ],
+  "github_releases_url": "",
+  "human_like_enabled": true,
+  "human_like_speed": "slow"
 }
-
