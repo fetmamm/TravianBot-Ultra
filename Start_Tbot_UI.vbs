@@ -2,13 +2,14 @@ Set shell = CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
 
 projectDir = fso.GetParentFolderName(WScript.ScriptFullName)
-pythonw = projectDir & "\.venv\Scripts\pythonw.exe"
-runPy = projectDir & "\run.py"
+dotnetExe = "C:\Program Files\dotnet\dotnet.exe"
+projectPath = projectDir & "\src\TbotUltra.Desktop\TbotUltra.Desktop.csproj"
 
-If fso.FileExists(pythonw) Then
-    shell.CurrentDirectory = projectDir
-    shell.Run """" & pythonw & """ """ & runPy & """ ui", 0, False
+If Not fso.FileExists(dotnetExe) Then
+    MsgBox ".NET SDK is missing. Install .NET 8 SDK first.", vbExclamation, "Tbot Ultra"
+ElseIf Not fso.FileExists(projectPath) Then
+    MsgBox "Desktop project file is missing: " & projectPath, vbExclamation, "Tbot Ultra"
 Else
-    MsgBox "The local Python environment is missing. Run Start_Tbot.bat once first.", vbExclamation, "Tbot Ultra"
+    shell.CurrentDirectory = projectDir
+    shell.Run """" & dotnetExe & """ run --project """ & projectPath & """ -c Debug", 0, False
 End If
-

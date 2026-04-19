@@ -1,0 +1,73 @@
+<Window x:Class="TbotUltra.Desktop.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Settings"
+        Height="560"
+        Width="760"
+        MinHeight="520"
+        MinWidth="700"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="180" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,8,8" VerticalAlignment="Center" Text="Server name" />
+            <TextBox x:Name="ServerNameTextBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,8" IsReadOnly="True" />
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,8,8" VerticalAlignment="Center" Text="Base URL" />
+            <TextBox x:Name="BaseUrlTextBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,8" IsReadOnly="True" />
+
+            <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,8,8" VerticalAlignment="Center" Text="Login path" />
+            <TextBox x:Name="LoginPathTextBox" Grid.Row="2" Grid.Column="1" Margin="0,0,0,8" />
+
+            <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,0,8,8" VerticalAlignment="Center" Text="Village overview path" />
+            <TextBox x:Name="VillagePathTextBox" Grid.Row="3" Grid.Column="1" Margin="0,0,0,8" />
+
+            <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,0,8,8" VerticalAlignment="Center" Text="Timeout (ms)" />
+            <TextBox x:Name="TimeoutTextBox" Grid.Row="4" Grid.Column="1" Margin="0,0,0,8" />
+
+            <TextBlock Grid.Row="5" Grid.Column="0" Margin="0,0,8,8" VerticalAlignment="Center" Text="Manual login timeout (s)" />
+            <TextBox x:Name="ManualTimeoutTextBox" Grid.Row="5" Grid.Column="1" Margin="0,0,0,8" />
+
+            <TextBlock Grid.Row="6" Grid.Column="0" Margin="0,0,8,8" VerticalAlignment="Center" Text="Loop interval (s)" />
+            <TextBox x:Name="LoopIntervalTextBox" Grid.Row="6" Grid.Column="1" Margin="0,0,0,8" />
+
+            <TextBlock Grid.Row="7" Grid.Column="0" Margin="0,0,8,8" VerticalAlignment="Center" Text="Loop tasks (comma)" />
+            <TextBox x:Name="LoopTasksTextBox" Grid.Row="7" Grid.Column="1" Margin="0,0,0,8" />
+
+            <TextBlock Grid.Row="8" Grid.Column="0" Margin="0,0,8,8" VerticalAlignment="Center" Text="Human-like speed" />
+            <TextBox x:Name="HumanSpeedTextBox" Grid.Row="8" Grid.Column="1" Margin="0,0,0,8" />
+
+            <StackPanel Grid.Row="9" Grid.Column="1" Orientation="Vertical">
+                <CheckBox x:Name="HeadlessCheckBox" Margin="0,0,0,6" Content="Headless" />
+                <CheckBox x:Name="HumanLikeCheckBox" Margin="0,0,0,6" Content="Human-like enabled" />
+                <TextBlock x:Name="InfoTextBlock" TextWrapping="Wrap" Foreground="#334155" />
+            </StackPanel>
+        </Grid>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button x:Name="SaveButton" Width="100" Margin="0,0,8,0" Content="Save" Click="SaveButton_Click" />
+            <Button x:Name="CancelButtonControl" Width="100" Content="Cancel" Click="CancelButton_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

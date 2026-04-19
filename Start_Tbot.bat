@@ -2,48 +2,22 @@
 setlocal
 cd /d "%~dp0"
 
-echo Starting Tbot Ultra...
+echo Starting Tbot Ultra C# Desktop...
 echo.
 
-if not exist ".env" (
-    echo No .env file found.
-    echo Creating .env from .env.example.
-    copy ".env.example" ".env" >nul
-)
-
-if not exist ".venv\Scripts\python.exe" (
-    echo Creating local Python environment...
-    py -m venv .venv
-    if errorlevel 1 goto error
-)
-
-".venv\Scripts\python.exe" -m pip --version >nul 2>nul
+"C:\Program Files\dotnet\dotnet.exe" --list-sdks >nul 2>nul
 if errorlevel 1 (
-    echo Installing pip in local Python environment...
-    ".venv\Scripts\python.exe" -m ensurepip --upgrade --default-pip
-    if errorlevel 1 goto error
+    echo .NET SDK is missing. Install .NET 8 SDK and try again.
+    pause
+    exit /b 1
 )
 
-".venv\Scripts\python.exe" -c "import playwright" >nul 2>nul
+"C:\Program Files\dotnet\dotnet.exe" run --project src\TbotUltra.Desktop\TbotUltra.Desktop.csproj -c Debug
 if errorlevel 1 (
-    echo Installing Python packages...
-    ".venv\Scripts\python.exe" -m pip install -r requirements.txt
-    if errorlevel 1 goto error
+    echo.
+    echo Failed to start the desktop app.
+    pause
+    exit /b 1
 )
 
-echo Checking Playwright browser...
-".venv\Scripts\python.exe" -m playwright install chromium
-if errorlevel 1 goto error
-
-echo.
-echo Opening Tbot Ultra UI...
-".venv\Scripts\python.exe" run.py ui
-echo.
-pause
 exit /b 0
-
-:error
-echo.
-echo Something went wrong. Read the error above.
-pause
-exit /b 1

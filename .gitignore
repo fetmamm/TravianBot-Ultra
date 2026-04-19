@@ -6,4 +6,6 @@ __pycache__/
 .pytest_cache/
 playwright/.auth/
 logs/
+**/bin/
+**/obj/
 
