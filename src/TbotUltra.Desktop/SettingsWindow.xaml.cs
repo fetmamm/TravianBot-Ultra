@@ -8,6 +8,7 @@ public partial class SettingsWindow : Window
 {
     private readonly BotConfigStore _store;
     private JsonObject _config = [];
+    private bool _isClosing;
 
     public SettingsWindow(BotConfigStore store)
     {
@@ -19,76 +20,28 @@ public partial class SettingsWindow : Window
     private void LoadConfig()
     {
         _config = _store.Load();
-
-        ServerNameTextBox.Text = _config["server_name"]?.GetValue<string>() ?? string.Empty;
-        BaseUrlTextBox.Text = _config["base_url"]?.GetValue<string>() ?? string.Empty;
-        LoginPathTextBox.Text = _config["login_path"]?.GetValue<string>() ?? "/login.php";
-        VillagePathTextBox.Text = _config["village_overview_path"]?.GetValue<string>() ?? "/dorf1.php";
-        TimeoutTextBox.Text = (_config["timeout_ms"]?.GetValue<int>() ?? 15000).ToString();
-        ManualTimeoutTextBox.Text = (_config["manual_login_timeout_seconds"]?.GetValue<int>() ?? 180).ToString();
-        LoopIntervalTextBox.Text = (_config["loop_interval_seconds"]?.GetValue<int>() ?? 60).ToString();
-        HumanSpeedTextBox.Text = _config["human_like_speed"]?.GetValue<string>() ?? "medium";
         HeadlessCheckBox.IsChecked = _config["headless"]?.GetValue<bool>() ?? false;
         HumanLikeCheckBox.IsChecked = _config["human_like_enabled"]?.GetValue<bool>() ?? false;
-
-        var tasks = _config["loop_tasks"] as JsonArray;
-        LoopTasksTextBox.Text = tasks is null
-            ? "status"
-            : string.Join(",", tasks.Select(item => item?.GetValue<string>() ?? string.Empty).Where(item => item.Length > 0));
-
-        InfoTextBlock.Text = "Server and Base URL are managed via the server dropdown/Accounts. Other values can be edited here.";
+        AllowGoldSpendingCheckBox.IsChecked = _config["allow_gold_spending"]?.GetValue<bool>() ?? false;
+        AllowSilverSpendingCheckBox.IsChecked = _config["allow_silver_spending"]?.GetValue<bool>() ?? false;
+        GoldLimitSlider.Value = Math.Clamp(_config["gold_limit"]?.GetValue<int>() ?? 100, 0, 200);
+        SilverLimitSlider.Value = Math.Clamp(_config["silver_limit"]?.GetValue<int>() ?? 100, 0, 200);
+        UpdateLimitLabels();
     }
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
         try
         {
-            if (!int.TryParse(TimeoutTextBox.Text.Trim(), out var timeoutMs) || timeoutMs < 1000)
-            {
-                throw new InvalidOperationException("Timeout must be an integer >= 1000.");
-            }
-
-            if (!int.TryParse(ManualTimeoutTextBox.Text.Trim(), out var manualTimeout) || manualTimeout < 1)
-            {
-                throw new InvalidOperationException("Manual login timeout must be an integer >= 1.");
-            }
-
-            if (!int.TryParse(LoopIntervalTextBox.Text.Trim(), out var loopInterval) || loopInterval < 1)
-            {
-                throw new InvalidOperationException("Loop interval must be an integer >= 1.");
-            }
-
-            var tasks = LoopTasksTextBox.Text
-                .Split(',', StringSplitOptions.RemoveEmptyEntries)
-                .Select(task => task.Trim())
-                .Where(task => task.Length > 0)
-                .ToList();
-            if (tasks.Count == 0)
-            {
-                tasks.Add("status");
-            }
-
-            _config["server_name"] = ServerNameTextBox.Text.Trim();
-            _config["base_url"] = BaseUrlTextBox.Text.Trim().TrimEnd('/');
-            _config["login_path"] = LoginPathTextBox.Text.Trim();
-            _config["village_overview_path"] = VillagePathTextBox.Text.Trim();
-            _config["timeout_ms"] = timeoutMs;
-            _config["manual_login_timeout_seconds"] = manualTimeout;
-            _config["loop_interval_seconds"] = loopInterval;
-            _config["human_like_speed"] = HumanSpeedTextBox.Text.Trim();
             _config["headless"] = HeadlessCheckBox.IsChecked == true;
             _config["human_like_enabled"] = HumanLikeCheckBox.IsChecked == true;
-
-            var taskArray = new JsonArray();
-            foreach (var task in tasks)
-            {
-                taskArray.Add(task);
-            }
-
-            _config["loop_tasks"] = taskArray;
+            _config["allow_gold_spending"] = AllowGoldSpendingCheckBox.IsChecked == true;
+            _config["allow_silver_spending"] = AllowSilverSpendingCheckBox.IsChecked == true;
+            _config["gold_limit"] = (int)Math.Round(GoldLimitSlider.Value);
+            _config["silver_limit"] = (int)Math.Round(SilverLimitSlider.Value);
             _store.Save(_config);
 
-            InfoTextBlock.Text = "Settings saved.";
+            _isClosing = true;
             DialogResult = true;
             Close();
         }
@@ -100,7 +53,50 @@ public partial class SettingsWindow : Window
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
     {
+        _isClosing = true;
         DialogResult = false;
         Close();
+    }
+
+    private void SettingsWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (_isClosing)
+        {
+            return;
+        }
+
+        _isClosing = true;
+    }
+
+    private void ResetButton_Click(object sender, RoutedEventArgs e)
+    {
+        HeadlessCheckBox.IsChecked = false;
+        HumanLikeCheckBox.IsChecked = false;
+        AllowGoldSpendingCheckBox.IsChecked = false;
+        AllowSilverSpendingCheckBox.IsChecked = false;
+        GoldLimitSlider.Value = 100;
+        SilverLimitSlider.Value = 100;
+        UpdateLimitLabels();
+    }
+
+    private void GoldLimitSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        UpdateLimitLabels();
+    }
+
+    private void SilverLimitSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        UpdateLimitLabels();
+    }
+
+    private void UpdateLimitLabels()
+    {
+        if (GoldLimitTextBlock is null || SilverLimitTextBlock is null)
+        {
+            return;
+        }
+
+        GoldLimitTextBlock.Text = $"Gold limit: {(int)Math.Round(GoldLimitSlider.Value)}";
+        SilverLimitTextBlock.Text = $"Silver limit: {(int)Math.Round(SilverLimitSlider.Value)}";
     }
 }

@@ -1,18 +1,49 @@
+using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Accounts;
 using TbotUltra.Worker.Configuration;
+using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Infrastructure;
+using Microsoft.Playwright;
 
 namespace TbotUltra.Worker.Services;
 
 public sealed class BotTaskRunner
 {
+    private static readonly IReadOnlyDictionary<string, Func<TaskExecutionContext, Task>> TaskHandlers =
+        new Dictionary<string, Func<TaskExecutionContext, Task>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["status"] = ExecuteStatusAsync,
+            ["scan_all_villages"] = ExecuteScanAllVillagesAsync,
+            ["account_snapshot"] = ExecuteAccountSnapshotAsync,
+            ["upgrade_resource_to_level"] = ExecuteUpgradeResourceToLevelAsync,
+            ["upgrade_resource_to_max"] = ExecuteUpgradeResourceToMaxAsync,
+            ["upgrade_all_resources_to_level"] = ExecuteUpgradeAllResourcesToLevelAsync,
+            ["upgrade_building_to_level"] = ExecuteUpgradeBuildingToLevelAsync,
+            ["upgrade_building_to_max"] = ExecuteUpgradeBuildingToMaxAsync,
+            ["construct_building"] = ExecuteConstructBuildingAsync,
+            ["account_full_analysis"] = ExecuteAccountFullAnalysisAsync,
+            ["demolish_building_to_level"] = ExecuteDemolishBuildingToLevelAsync,
+            ["hero_manage"] = ExecuteHeroManageAsync,
+        };
+
     private readonly IAccountProvider _accountProvider;
     private readonly ProjectContext _projectContext;
+    private readonly AccountAnalysisStore _accountAnalysisStore;
+    private readonly SemaphoreSlim _sessionGate = new(1, 1);
+    private BrowserSession? _sharedVisibleSession;
+    private IPage? _sharedVisiblePage;
+    private string? _sharedVisibleAccountName;
+    private string? _sharedVisibleBaseUrl;
+    private int _browserClosedByUserSignal;
 
     public BotTaskRunner(IAccountProvider accountProvider, ProjectContext projectContext)
     {
         _accountProvider = accountProvider;
         _projectContext = projectContext;
+        _accountAnalysisStore = new AccountAnalysisStore(projectContext.RootPath);
     }
+
+    public static IReadOnlyList<string> RegisteredTaskNames => TaskHandlers.Keys.ToList();
 
     public async Task ExecuteOnceAsync(
         BotOptions options,
@@ -21,175 +52,597 @@ public sealed class BotTaskRunner
         string? accountName = null,
         CancellationToken cancellationToken = default)
     {
-        var account = _accountProvider.LoadAccount(accountName);
         var tasks = tasksOverride?.ToList() ?? (options.LoopTasks is { Count: > 0 } configuredTasks ? configuredTasks : ["status"]);
-
-        log($"Starting tick for server {options.ServerName} with account {account.Name}.");
-        log($"Tasks: {string.Join(",", tasks)}");
-
-        await using var browserSession = new BrowserSession(options, account, _projectContext.RootPath);
-        var page = await browserSession.OpenPageAsync(cancellationToken);
-        var client = new TravianClient(
-            page,
+        await ExecuteWithClientAsync(
             options,
-            account,
+            log,
+            accountName,
             interactive: false,
-            browserVisible: !options.Headless,
-            statusCallback: log);
-
-        await client.LoginAsync(cancellationToken);
-        foreach (var taskName in tasks)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            if (string.Equals(taskName, "status", StringComparison.OrdinalIgnoreCase))
+            cancellationToken,
+            async client =>
             {
-                var status = await client.ReadVillageStatusAsync(cancellationToken);
-                log($"Village status read. ActiveVillage={status.ActiveVillage}, Villages={status.Villages.Count}, Resources={status.Resources.Count}, ResourceFields={status.ResourceFields.Count}, Buildings={status.Buildings.Count}, Queue={status.BuildQueue.Count}");
-                continue;
-            }
+                log($"Starting tick for server {options.ServerName}.");
+                log($"Tasks: {string.Join(",", tasks)}");
 
-            if (string.Equals(taskName, "scan_all_villages", StringComparison.OrdinalIgnoreCase))
-            {
-                var statuses = await client.ReadAllVillageStatusesAsync(cancellationToken);
-                log($"All villages scanned. StatusCount={statuses.Count}");
-                continue;
-            }
-
-            if (string.Equals(taskName, "account_snapshot", StringComparison.OrdinalIgnoreCase))
-            {
-                var snapshot = await client.ReadAccountSnapshotAsync(cancellationToken);
-                log($"Account snapshot read. Tribe={snapshot.Tribe}, ActiveVillage={snapshot.ActiveVillage}, VillageCount={snapshot.VillageCount}, ServerTimeUtc={snapshot.ServerTimeUtc}");
-                continue;
-            }
-
-            if (string.Equals(taskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase))
-            {
-                if (options.ResourceUpgradeSlotId is null || options.ResourceUpgradeTargetLevel is null)
+                await client.LoginAsync(cancellationToken);
+                await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken);
+                var context = new TaskExecutionContext(this, options, client, log, cancellationToken);
+                foreach (var taskName in tasks)
                 {
-                    log($"Task '{taskName}' requires config values resource_upgrade_slot_id and resource_upgrade_target_level.");
-                    continue;
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (!TaskCatalog.IsAllowed(taskName))
+                    {
+                        log($"Task '{taskName}' is not allowed.");
+                        continue;
+                    }
+
+                    if (!TaskHandlers.TryGetValue(taskName, out var handler))
+                    {
+                        log($"Task '{taskName}' is allowed but not implemented yet.");
+                        continue;
+                    }
+
+                    await handler(context);
                 }
+            });
+    }
 
-                var result = await client.UpgradeResourceToLevelAsync(
-                    options.ResourceUpgradeSlotId.Value,
-                    options.ResourceUpgradeTargetLevel.Value,
-                    cancellationToken);
-                log(result);
-                continue;
-            }
-
-            if (string.Equals(taskName, "upgrade_resource_to_max", StringComparison.OrdinalIgnoreCase))
+    public async Task<bool> IsLoggedInAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        var isLoggedIn = false;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
             {
-                if (options.ResourceUpgradeSlotId is null)
-                {
-                    log($"Task '{taskName}' requires config value resource_upgrade_slot_id.");
-                    continue;
-                }
+                isLoggedIn = await client.CheckLoggedInAsync(cancellationToken);
+            });
 
-                var result = await client.UpgradeResourceToMaxAsync(
-                    options.ResourceUpgradeSlotId.Value,
-                    options.ResourceUpgradeMaxAttempts,
-                    cancellationToken);
-                log(result);
-                continue;
-            }
-
-            if (string.Equals(taskName, "upgrade_all_resources_to_level", StringComparison.OrdinalIgnoreCase))
-            {
-                if (options.ResourceUpgradeTargetLevel is null)
-                {
-                    log($"Task '{taskName}' requires config value resource_upgrade_target_level.");
-                    continue;
-                }
-
-                var result = await client.UpgradeAllResourcesToLevelAsync(
-                    options.ResourceUpgradeTargetLevel.Value,
-                    cancellationToken);
-                log(result);
-                continue;
-            }
-
-            if (string.Equals(taskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase))
-            {
-                if (options.BuildingUpgradeSlotId is null || options.BuildingUpgradeTargetLevel is null)
-                {
-                    log($"Task '{taskName}' requires config values building_upgrade_slot_id and building_upgrade_target_level.");
-                    continue;
-                }
-
-                var result = await client.UpgradeBuildingToLevelAsync(
-                    options.BuildingUpgradeSlotId.Value,
-                    options.BuildingUpgradeTargetLevel.Value,
-                    cancellationToken);
-                log(result);
-                continue;
-            }
-
-            if (string.Equals(taskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase))
-            {
-                if (options.BuildingUpgradeSlotId is null)
-                {
-                    log($"Task '{taskName}' requires config value building_upgrade_slot_id.");
-                    continue;
-                }
-
-                var result = await client.UpgradeBuildingToMaxAsync(
-                    options.BuildingUpgradeSlotId.Value,
-                    options.BuildingUpgradeMaxAttempts,
-                    cancellationToken);
-                log(result);
-                continue;
-            }
-
-            if (string.Equals(taskName, "construct_building", StringComparison.OrdinalIgnoreCase))
-            {
-                if (options.BuildingConstructSlotId is null || options.BuildingConstructGid is null)
-                {
-                    log($"Task '{taskName}' requires config values building_construct_slot_id and building_construct_gid.");
-                    continue;
-                }
-
-                var buildingName = string.IsNullOrWhiteSpace(options.BuildingConstructName)
-                    ? $"gid {options.BuildingConstructGid.Value}"
-                    : options.BuildingConstructName;
-
-                var result = await client.ConstructBuildingAsync(
-                    options.BuildingConstructSlotId.Value,
-                    options.BuildingConstructGid.Value,
-                    buildingName,
-                    cancellationToken);
-                log(result);
-                continue;
-            }
-
-            log($"Task '{taskName}' is not migrated in C# yet.");
-        }
-
-        await browserSession.SaveStateAsync();
+        return isLoggedIn;
     }
 
     public async Task ExecuteLoginAsync(
         BotOptions options,
         Action<string> log,
         string? accountName = null,
+        CancellationToken cancellationToken = default,
+        bool keepBrowserOpenAfterLogin = false)
+    {
+        _ = keepBrowserOpenAfterLogin;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: true,
+            cancellationToken,
+            async client =>
+            {
+                log($"Starting login for server {options.ServerName}.");
+                await client.LoginAsync(cancellationToken);
+                await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken);
+                log("Login completed and browser session saved.");
+                if (!options.Headless)
+                {
+                    log("Browser stays open (headless is disabled).");
+                }
+            });
+    }
+
+    public async Task<VillageStatus> ReadVillageStatusAsync(
+        BotOptions options,
+        Action<string> log,
+        string? villageName = null,
+        string? villageUrl = null,
+        string? accountName = null,
         CancellationToken cancellationToken = default)
     {
-        var account = _accountProvider.LoadAccount(accountName);
-        log($"Starting login for server {options.ServerName} with account {account.Name}.");
+        VillageStatus? status = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                log($"Reading village status for server {options.ServerName}.");
+                await client.LoginAsync(cancellationToken);
+                await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken, villageName, villageUrl);
+                status = await client.ReadVillageStatusAsync(cancellationToken);
+            });
 
-        await using var browserSession = new BrowserSession(options, account, _projectContext.RootPath);
-        var page = await browserSession.OpenPageAsync(cancellationToken);
-        var client = new TravianClient(
+        return status ?? throw new InvalidOperationException("Could not read village status.");
+    }
+
+    public async Task<VillageStatus> ReadVillageResourceStatusAsync(
+        BotOptions options,
+        Action<string> log,
+        string? villageName = null,
+        string? villageUrl = null,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        VillageStatus? status = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                log($"Reading village resource status for server {options.ServerName}.");
+                await client.LoginAsync(cancellationToken);
+                await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken, villageName, villageUrl);
+                status = await client.ReadVillageResourceStatusAsync(cancellationToken);
+            });
+
+        return status ?? throw new InvalidOperationException("Could not read village resource status.");
+    }
+
+    public async Task<InboxStatus> ReadInboxStatusAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        InboxStatus? status = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                log($"Reading inbox status for server {options.ServerName}.");
+                status = await client.ReadInboxStatusAsync(cancellationToken);
+            });
+
+        return status ?? new InboxStatus();
+    }
+
+    public async Task ExecuteLogoutAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                log($"Starting logout for server {options.ServerName}.");
+                await client.LogoutAsync(cancellationToken);
+                log("Logout completed.");
+            });
+    }
+
+    public async Task MarkMessagesAsReadAsync(
+        BotOptions options,
+        Action<string> log,
+        string? villageName = null,
+        string? villageUrl = null,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken, villageName, villageUrl);
+                var changed = await client.MarkMessagesAsReadAsync(cancellationToken);
+                log(changed ? "Messages marked as read." : "No unread messages to mark as read.");
+            });
+    }
+
+    public async Task MarkReportsAsReadAsync(
+        BotOptions options,
+        Action<string> log,
+        string? villageName = null,
+        string? villageUrl = null,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken, villageName, villageUrl);
+                var changed = await client.MarkReportsAsReadAsync(cancellationToken);
+                log(changed ? "Reports marked as read." : "No unread reports to mark as read.");
+            });
+    }
+
+    public async Task ShutdownAsync(Action<string>? log = null)
+    {
+        await _sessionGate.WaitAsync();
+        try
+        {
+            if (_sharedVisibleSession is null)
+            {
+                return;
+            }
+
+            try
+            {
+                await _sharedVisibleSession.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                log?.Invoke($"Error while closing shared browser: {ex.Message}");
+            }
+            finally
+            {
+                _sharedVisibleSession = null;
+                _sharedVisiblePage = null;
+                _sharedVisibleAccountName = null;
+                _sharedVisibleBaseUrl = null;
+            }
+        }
+        finally
+        {
+            _sessionGate.Release();
+        }
+    }
+
+    private async Task ExecuteWithClientAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName,
+        bool interactive,
+        CancellationToken cancellationToken,
+        Func<TravianClient, Task> action)
+    {
+        var account = _accountProvider.LoadAccount(accountName);
+        await _sessionGate.WaitAsync(cancellationToken);
+        try
+        {
+            var lease = await AcquireClientLeaseAsync(options, account, log, interactive, cancellationToken);
+            try
+            {
+                await action(lease.Client);
+            }
+            finally
+            {
+                await FinalizeLeaseAsync(lease, log);
+            }
+        }
+        finally
+        {
+            _sessionGate.Release();
+        }
+    }
+
+    private async Task<ClientLease> AcquireClientLeaseAsync(
+        BotOptions options,
+        AccountOptions account,
+        Action<string> log,
+        bool interactive,
+        CancellationToken cancellationToken)
+    {
+        if (options.Headless)
+        {
+            var session = new BrowserSession(options, account, _projectContext.RootPath);
+            var page = await session.OpenPageAsync(cancellationToken);
+            var client = CreateClient(page, options, account, interactive, log);
+            return new ClientLease(session, client, false);
+        }
+
+        var desiredBaseUrl = options.BaseUrl.TrimEnd('/');
+        var mustReplaceSession =
+            _sharedVisibleSession is null ||
+            _sharedVisiblePage is null ||
+            _sharedVisiblePage.IsClosed ||
+            !string.Equals(_sharedVisibleAccountName, account.Name, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(_sharedVisibleBaseUrl, desiredBaseUrl, StringComparison.OrdinalIgnoreCase);
+
+        if (_sharedVisiblePage is not null && _sharedVisiblePage.IsClosed)
+        {
+            Interlocked.Exchange(ref _browserClosedByUserSignal, 1);
+            log("Shared browser window was closed. A new browser session will be created.");
+        }
+
+        if (mustReplaceSession)
+        {
+            if (_sharedVisibleSession is not null)
+            {
+                try
+                {
+                    await _sharedVisibleSession.DisposeAsync();
+                }
+                catch (Exception ex)
+                {
+                    log($"Shared browser cleanup failed: {ex.Message}");
+                }
+            }
+
+            var session = new BrowserSession(options, account, _projectContext.RootPath, headlessOverride: false);
+            var page = await session.OpenPageAsync(cancellationToken);
+            _sharedVisibleSession = session;
+            _sharedVisiblePage = page;
+            _sharedVisibleAccountName = account.Name;
+            _sharedVisibleBaseUrl = desiredBaseUrl;
+            log("Opened shared browser window.");
+        }
+
+        var sharedClient = CreateClient(_sharedVisiblePage!, options, account, interactive, log);
+        return new ClientLease(_sharedVisibleSession!, sharedClient, true);
+    }
+
+    public bool ConsumeBrowserClosedByUserSignal()
+    {
+        return Interlocked.Exchange(ref _browserClosedByUserSignal, 0) == 1;
+    }
+
+    private TravianClient CreateClient(
+        IPage page,
+        BotOptions options,
+        AccountOptions account,
+        bool interactive,
+        Action<string> log)
+    {
+        return new TravianClient(
             page,
             options,
             account,
-            interactive: true,
+            interactive: interactive,
             browserVisible: !options.Headless,
+            projectRoot: _projectContext.RootPath,
             statusCallback: log);
+    }
 
-        await client.LoginAsync(cancellationToken);
-        await browserSession.SaveStateAsync();
-        log("Login completed and browser session saved.");
+    private async Task FinalizeLeaseAsync(ClientLease lease, Action<string> log)
+    {
+        try
+        {
+            await lease.Session.SaveStateAsync();
+        }
+        catch (Exception ex)
+        {
+            log($"Could not save browser state: {ex.Message}");
+        }
+
+        if (!lease.KeepOpen)
+        {
+            await lease.Session.DisposeAsync();
+        }
+    }
+
+    private static async Task ExecuteStatusAsync(TaskExecutionContext context)
+    {
+        var status = await context.Client.ReadVillageStatusAsync(context.CancellationToken);
+        context.Log($"Village status read. ActiveVillage={status.ActiveVillage}, Villages={status.Villages.Count}, Resources={status.Resources.Count}, ResourceFields={status.ResourceFields.Count}, Buildings={status.Buildings.Count}, Queue={status.BuildQueue.Count}");
+    }
+
+    private static async Task ExecuteScanAllVillagesAsync(TaskExecutionContext context)
+    {
+        var statuses = await context.Client.ReadAllVillageStatusesAsync(context.CancellationToken);
+        context.Log($"All villages scanned. StatusCount={statuses.Count}");
+    }
+
+    private static async Task ExecuteAccountSnapshotAsync(TaskExecutionContext context)
+    {
+        var snapshot = await context.Client.ReadAccountSnapshotAsync(context.CancellationToken);
+        context.Log($"Account snapshot read. Tribe={snapshot.Tribe}, ActiveVillage={snapshot.ActiveVillage}, VillageCount={snapshot.VillageCount}, ServerTimeUtc={snapshot.ServerTimeUtc}");
+    }
+
+    private static async Task ExecuteUpgradeResourceToLevelAsync(TaskExecutionContext context)
+    {
+        if (context.Options.ResourceUpgradeSlotId is null || context.Options.ResourceUpgradeTargetLevel is null)
+        {
+            context.Log("Task 'upgrade_resource_to_level' requires config values resource_upgrade_slot_id and resource_upgrade_target_level.");
+            return;
+        }
+
+        var result = await context.Client.UpgradeResourceToLevelAsync(
+            context.Options.ResourceUpgradeSlotId.Value,
+            context.Options.ResourceUpgradeTargetLevel.Value,
+            context.CancellationToken);
+        context.Log(result);
+        ThrowIfTaskBlocked("upgrade_resource_to_level", result);
+    }
+
+    private static async Task ExecuteUpgradeResourceToMaxAsync(TaskExecutionContext context)
+    {
+        if (context.Options.ResourceUpgradeSlotId is null)
+        {
+            context.Log("Task 'upgrade_resource_to_max' requires config value resource_upgrade_slot_id.");
+            return;
+        }
+
+        var result = await context.Client.UpgradeResourceToMaxAsync(
+            context.Options.ResourceUpgradeSlotId.Value,
+            context.Options.ResourceUpgradeMaxAttempts,
+            context.CancellationToken);
+        context.Log(result);
+        ThrowIfTaskBlocked("upgrade_resource_to_max", result);
+    }
+
+    private static async Task ExecuteUpgradeAllResourcesToLevelAsync(TaskExecutionContext context)
+    {
+        if (context.Options.ResourceUpgradeTargetLevel is null)
+        {
+            context.Log("Task 'upgrade_all_resources_to_level' requires config value resource_upgrade_target_level.");
+            return;
+        }
+
+        var result = await context.Client.UpgradeAllResourcesToLevelAsync(
+            context.Options.ResourceUpgradeTargetLevel.Value,
+            context.CancellationToken);
+        context.Log(result);
+        ThrowIfTaskBlocked("upgrade_all_resources_to_level", result);
+    }
+
+    private static async Task ExecuteUpgradeBuildingToLevelAsync(TaskExecutionContext context)
+    {
+        if (context.Options.BuildingUpgradeSlotId is null || context.Options.BuildingUpgradeTargetLevel is null)
+        {
+            context.Log("Task 'upgrade_building_to_level' requires config values building_upgrade_slot_id and building_upgrade_target_level.");
+            return;
+        }
+
+        var result = await context.Client.UpgradeBuildingToLevelAsync(
+            context.Options.BuildingUpgradeSlotId.Value,
+            context.Options.BuildingUpgradeTargetLevel.Value,
+            context.CancellationToken);
+        context.Log(result);
+        ThrowIfTaskBlocked("upgrade_building_to_level", result);
+    }
+
+    private static async Task ExecuteUpgradeBuildingToMaxAsync(TaskExecutionContext context)
+    {
+        if (context.Options.BuildingUpgradeSlotId is null)
+        {
+            context.Log("Task 'upgrade_building_to_max' requires config value building_upgrade_slot_id.");
+            return;
+        }
+
+        var result = await context.Client.UpgradeBuildingToMaxAsync(
+            context.Options.BuildingUpgradeSlotId.Value,
+            context.Options.BuildingUpgradeMaxAttempts,
+            context.CancellationToken);
+        context.Log(result);
+        ThrowIfTaskBlocked("upgrade_building_to_max", result);
+    }
+
+    private static async Task ExecuteConstructBuildingAsync(TaskExecutionContext context)
+    {
+        if (context.Options.BuildingConstructSlotId is null || context.Options.BuildingConstructGid is null)
+        {
+            context.Log("Task 'construct_building' requires config values building_construct_slot_id and building_construct_gid.");
+            return;
+        }
+
+        var buildingName = string.IsNullOrWhiteSpace(context.Options.BuildingConstructName)
+            ? $"gid {context.Options.BuildingConstructGid.Value}"
+            : context.Options.BuildingConstructName;
+
+        var result = await context.Client.ConstructBuildingAsync(
+            context.Options.BuildingConstructSlotId.Value,
+            context.Options.BuildingConstructGid.Value,
+            buildingName,
+            context.CancellationToken);
+        context.Log(result);
+        ThrowIfTaskBlocked("construct_building", result);
+    }
+
+    private static async Task ExecuteAccountFullAnalysisAsync(TaskExecutionContext context)
+    {
+        var analysis = await context.Client.ReadAccountAnalysisSnapshotAsync(context.CancellationToken);
+        var completed = analysis with
+        {
+            SchemaVersion = AccountAnalysisConstants.CurrentSchemaVersion,
+            AccountName = context.Client.AccountName,
+            ServerUrl = context.Client.ServerUrl,
+            AnalyzedAtUtc = DateTimeOffset.UtcNow,
+        };
+
+        context.Runner._accountAnalysisStore.Save(completed);
+        context.Log($"Account analysis saved for '{completed.AccountName}'. Tribe={completed.Tribe}, GoldClub={completed.GoldClubEnabled}, Catalog={completed.BuildingCatalog.Count}.");
+    }
+
+    private static async Task ExecuteDemolishBuildingToLevelAsync(TaskExecutionContext context)
+    {
+        if (string.IsNullOrWhiteSpace(context.Options.TargetBuildingSlotOrName) || context.Options.TargetLevel is null)
+        {
+            context.Log("Task 'demolish_building_to_level' requires config values target_building_slot_or_name and target_level.");
+            return;
+        }
+
+        var result = await context.Client.DemolishBuildingToLevelAsync(
+            context.Options.TargetBuildingSlotOrName,
+            context.Options.TargetLevel.Value,
+            context.CancellationToken);
+        context.Log(result);
+    }
+
+    private static async Task ExecuteHeroManageAsync(TaskExecutionContext context)
+    {
+        var result = await context.Client.ManageHeroAsync(
+            context.Options.HeroMinHpForAdventure,
+            context.Options.HeroAutoRevive,
+            context.Options.HeroStatPriority,
+            context.CancellationToken);
+        context.Log(result);
+    }
+
+    private static void ThrowIfTaskBlocked(string taskName, string result)
+    {
+        if (string.IsNullOrWhiteSpace(result))
+        {
+            return;
+        }
+
+        var value = result.ToLowerInvariant();
+        var isBlocked =
+            value.Contains(" blocked ")
+            || value.Contains("blocked (")
+            || value.Contains("no resource slot could be upgraded")
+            || value.Contains("cannot be built yet")
+            || value.Contains("cannot be upgraded yet")
+            || value.Contains("is not listed by the server")
+            || value.Contains("cannot be built in slot")
+            || value.Contains("reports max level reached");
+
+        if (!isBlocked)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException($"Task '{taskName}' could not execute successfully: {result}");
+    }
+
+    private sealed record TaskExecutionContext(
+        BotTaskRunner Runner,
+        BotOptions Options,
+        TravianClient Client,
+        Action<string> Log,
+        CancellationToken CancellationToken);
+
+    private sealed record ClientLease(
+        BrowserSession Session,
+        TravianClient Client,
+        bool KeepOpen);
+
+    private static async Task TrySwitchToTargetVillageAsync(
+        TravianClient client,
+        BotOptions options,
+        Action<string> log,
+        CancellationToken cancellationToken,
+        string? explicitVillageName = null,
+        string? explicitVillageUrl = null)
+    {
+        var targetName = string.IsNullOrWhiteSpace(explicitVillageName) ? options.TargetVillageName : explicitVillageName;
+        var targetUrl = string.IsNullOrWhiteSpace(explicitVillageUrl) ? options.TargetVillageUrl : explicitVillageUrl;
+        if (string.IsNullOrWhiteSpace(targetName) && string.IsNullOrWhiteSpace(targetUrl))
+        {
+            return;
+        }
+
+        await client.SwitchToVillageAsync(targetName, targetUrl, cancellationToken);
+        var label = !string.IsNullOrWhiteSpace(targetName) ? targetName : targetUrl;
+        log($"Target village applied: {label}");
     }
 }

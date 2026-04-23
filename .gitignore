@@ -6,6 +6,6 @@ __pycache__/
 .pytest_cache/
 playwright/.auth/
 logs/
+temp_build_out/
 **/bin/
 **/obj/
-

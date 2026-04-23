@@ -1,3 +1,4 @@
+using TbotUltra.Core.Configuration;
 using TbotUltra.Worker.Configuration;
 
 namespace TbotUltra.Worker.Services;

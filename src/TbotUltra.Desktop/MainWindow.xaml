@@ -1,123 +1,655 @@
-﻿<Window x:Class="TbotUltra.Desktop.MainWindow"
+<Window x:Class="TbotUltra.Desktop.MainWindow"
+        x:Name="RootWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="Tbot Ultra"
-        Height="760"
-        Width="1100"
+        Height="740"
+        Width="1180"
         MinHeight="640"
-        MinWidth="900"
-        Background="#F2F4F7">
-    <Grid Margin="10">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+        MinWidth="980"
+        Background="#F3F4F6">
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="9,3" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="Background" Value="#E5E7EB" />
+            <Setter Property="Foreground" Value="#111827" />
+            <Setter Property="BorderBrush" Value="#D1D5DB" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
 
-        <Grid Grid.Row="0" Margin="0,0,0,6">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
+        <Style x:Key="SidebarNavButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+            <Setter Property="Background" Value="#F3F4F6" />
+            <Setter Property="BorderBrush" Value="#F3F4F6" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
 
-            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="Tbot Ultra" FontSize="36" FontWeight="SemiBold" Margin="0,0,20,0" />
-                <TextBlock Text="Account" VerticalAlignment="Center" Foreground="#4B5563" Margin="0,0,8,0" />
-                <Button x:Name="AccountsButton" Content="Accounts" MinWidth="92" Height="30" Margin="0,0,12,0" Click="AccountsButton_Click" />
-                <Button x:Name="LoginButton" Content="Login" MinWidth="92" Height="30" Margin="0,0,8,0" Background="#2563EB" Foreground="White" Click="LoginButton_Click" />
-                <Button x:Name="LogoutButton" Content="Logout" MinWidth="92" Height="30" Margin="0,0,12,0" Click="LogoutButton_Click" />
-                <Button x:Name="CheckStatusButton" Content="Check village status" MinWidth="160" Height="30" Margin="0,0,10,0" Click="CheckStatusButton_Click" />
-                <Button x:Name="StartLoopButton" Content=">" Width="34" Height="30" Margin="0,0,4,0" Click="StartLoopButton_Click" />
-                <Button x:Name="StopLoopButton" Content="||" Width="34" Height="30" Margin="0,0,8,0" Click="StopLoopButton_Click" IsEnabled="False" />
-                <Button x:Name="RunOnceButton" Content="!" Width="34" Height="30" Margin="0,0,4,0" Click="RunOnceButton_Click" />
-                <Button x:Name="HelpButton" Content="?" Width="34" Height="30" Margin="0,0,4,0" Click="HelpButton_Click" />
-                <Button x:Name="ReloadButton" Content="v" Width="34" Height="30" Margin="0,0,4,0" Click="ReloadButton_Click" />
-                <Button x:Name="InstallButton" Content="i" Width="34" Height="30" Margin="0,0,4,0" Click="InstallButton_Click" />
-                <Button x:Name="SettingsButton" Content="⚙" Width="34" Height="30" Click="SettingsButton_Click" />
-            </StackPanel>
-        </Grid>
+        <Style x:Key="ResourceLevelBadgeStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Padding" Value="8,2" />
+            <Setter Property="MinWidth" Value="52" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsMaxLevel}" Value="True">
+                    <Setter Property="Foreground" Value="#6B7280" />
+                    <Setter Property="BorderBrush" Value="#9CA3AF" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
 
-        <Grid Grid.Row="1" Margin="0,0,0,8">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="180" />
-                <ColumnDefinition Width="220" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="236" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
 
-            <ComboBox x:Name="ServerComboBox"
-                      Grid.Column="0"
-                      Height="26"
-                      Margin="0,0,14,0"
-                      DisplayMemberPath="Name"
-                      SelectionChanged="ServerComboBox_SelectionChanged" />
-            <ComboBox x:Name="VillageComboBox" Grid.Column="1" Height="26" Margin="0,0,14,0" />
-            <TextBlock x:Name="VillagesInfoTextBlock" Grid.Column="2" VerticalAlignment="Center" Margin="0,0,14,0" Text="Villages: -" Foreground="#4B5563" />
-            <TextBlock x:Name="TribeInfoTextBlock" Grid.Column="3" VerticalAlignment="Center" Margin="0,0,14,0" Text="Tribe: -" Foreground="#4B5563" />
-            <TextBlock x:Name="LastScanInfoTextBlock" Grid.Column="4" VerticalAlignment="Center" Margin="0,0,14,0" Text="Last scan: -" Foreground="#4B5563" />
-            <TextBlock x:Name="BrowserInfoTextBlock" Grid.Column="5" VerticalAlignment="Center" Margin="0,0,14,0" Text="Browser: idle" Foreground="#4B5563" />
-            <TextBlock x:Name="ClockTextBlock" Grid.Column="6" VerticalAlignment="Center" Text="Time: -" Foreground="#374151" HorizontalAlignment="Right" />
-        </Grid>
-
-        <TabControl Grid.Row="2" Margin="0,0,0,8">
-            <TabItem Header="Dashboard" />
-            <TabItem Header="Resources" />
-            <TabItem Header="Buildings" />
-            <TabItem Header="Queue" />
-        </TabControl>
-
-        <Border Grid.Row="3" BorderThickness="1" BorderBrush="#C9CED6" Background="#F8FAFC" CornerRadius="4">
-            <Grid Margin="8">
+        <Border Grid.Column="0" Background="#EFEFEF" BorderBrush="#D1D5DB" BorderThickness="0,0,1,0">
+            <Grid Margin="10,8,10,8">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
 
-                <Button x:Name="ScanAllVillagesButton" Grid.Row="0" Grid.Column="0" Height="34" Margin="0,0,8,10" Content="Scan all villages" Background="#2563EB" Foreground="White" Click="ScanAllVillagesButton_Click" />
-                <Button x:Name="OpenVerificationBrowserButton" Grid.Row="0" Grid.Column="1" Height="34" Margin="8,0,0,10" Content="Open verification browser" Click="OpenVerificationBrowserButton_Click" />
+                <StackPanel Grid.Row="0" Margin="0,0,0,8">
+                    <TextBlock Text="Tbot Ultra" FontSize="26" FontWeight="SemiBold" Foreground="#111827" />
+                    <TextBlock Text="Version: xxx" Foreground="#6B7280" Margin="0,2,0,0" />
+                </StackPanel>
 
-                <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="Overview" FontSize="24" FontWeight="SemiBold" Margin="0,4,0,8" />
-                <TextBlock x:Name="SummaryTextBlock" Grid.Row="2" Grid.ColumnSpan="2" Text="Run Check village status to populate the views." Margin="0,0,0,10" Foreground="#1F2937" />
+                <Border Grid.Row="1" Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
+                    <StackPanel>
+                        <TextBlock Text="Account" Foreground="#6B7280" Margin="0,0,0,5" />
+                        <ComboBox x:Name="AccountComboBox"
+                                  Height="30"
+                                  DisplayMemberPath="PickerName"
+                                  SelectionChanged="AccountComboBox_SelectionChanged" />
+                        <TextBlock x:Name="ActiveAccountInfoTextBlock"
+                                   Margin="0,6,0,0"
+                                   Foreground="#4B5563"
+                                   Text="Account: - | Server: -" />
+                    </StackPanel>
+                </Border>
 
-                <TextBox x:Name="LogTextBox"
-                         Grid.Row="3"
-                         Grid.ColumnSpan="2"
-                         FontFamily="Consolas"
-                         FontSize="13"
-                         IsReadOnly="True"
-                         TextWrapping="Wrap"
-                         VerticalScrollBarVisibility="Auto"
-                         HorizontalScrollBarVisibility="Auto"
-                         AcceptsReturn="True" />
+                <Border Grid.Row="2" Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="LoginButton"
+                                Grid.Column="0"
+                                Margin="0,0,3,0"
+                                Content="Login"
+                                Background="#030826"
+                                Foreground="White"
+                                BorderBrush="#030826"
+                                Click="LoginButton_Click" />
+                        <Button x:Name="LogoutButton"
+                                Grid.Column="1"
+                                Margin="3,0,0,0"
+                                Content="Logout"
+                                Click="LogoutButton_Click" />
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="3" Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
+                    <StackPanel>
+                        <TextBlock Text="Village" Foreground="#6B7280" Margin="0,0,0,5" />
+                        <ComboBox x:Name="VillageComboBox" Height="28" />
+                    </StackPanel>
+                </Border>
+
+                <StackPanel Grid.Row="4">
+                    <Button Style="{StaticResource SidebarNavButtonStyle}" Content="Dashboard" Tag="dashboard" Click="SidebarNavButton_Click" />
+                    <Button Style="{StaticResource SidebarNavButtonStyle}" Content="Resources" Tag="resources" Click="SidebarNavButton_Click" />
+                    <Button Style="{StaticResource SidebarNavButtonStyle}" Content="Building" Tag="buildings" Click="SidebarNavButton_Click" />
+                    <Button Style="{StaticResource SidebarNavButtonStyle}" Content="Queue" Tag="queue" Click="SidebarNavButton_Click" />
+                    <Button x:Name="LogsNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Logs" Tag="logs" Click="SidebarNavButton_Click" />
+                    <Button x:Name="InboxNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Messages / Reports" Tag="inbox" Click="SidebarNavButton_Click" />
+                </StackPanel>
+
+                <Border Grid.Row="5" Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="7">
+                    <StackPanel>
+                        <Border x:Name="LoopStateBadge"
+                                Background="#6B7280"
+                                CornerRadius="10"
+                                Padding="8,2,8,2"
+                                Margin="0,0,0,6"
+                                HorizontalAlignment="Left">
+                            <TextBlock x:Name="LoopStateTextBlock"
+                                       Text="State: idle"
+                                       Foreground="White"
+                                       FontWeight="SemiBold" />
+                        </Border>
+
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Button x:Name="StartLoopButton"
+                                    Grid.Column="0"
+                                    Content="Start bot"
+                                    Background="#030826"
+                                    Foreground="White"
+                                    BorderBrush="#030826"
+                                    Click="StartLoopButton_Click" />
+                            <Button x:Name="StopBotButton"
+                                    Grid.Column="1"
+                                    Content="&#9632;"
+                                    Width="30"
+                                    Padding="0"
+                                    Margin="6,0,0,0"
+                                    Click="StopBotButton_Click"
+                                    ToolTip="Stop bot" />
+                        </Grid>
+
+                        <Grid Margin="0,0,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Button x:Name="SettingsButton"
+                                    Grid.Column="0"
+                                    Content="Settings"
+                                    Click="SettingsButton_Click"
+                                    Margin="0,0,6,0" />
+                            <Button x:Name="SupportButton"
+                                    Grid.Column="1"
+                                    Content="&#xE715;"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    Width="30"
+                                    Padding="0"
+                                    Margin="6,0,0,0"
+                                    ToolTip="Support"
+                                    Click="SupportButton_Click" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
             </Grid>
         </Border>
 
-        <StatusBar Grid.Row="4" Margin="0,8,0,0" Background="#E5E7EB">
-            <StatusBarItem>
-                <TextBlock Text="Status" FontWeight="SemiBold" />
-            </StatusBarItem>
-            <Separator />
-            <StatusBarItem>
-                <TextBlock x:Name="StatusTextBlock" Text="Ready." />
-            </StatusBarItem>
-            <Separator />
-            <StatusBarItem>
-                <TextBlock x:Name="LoopStateTextBlock" Text="Loop: stopped" />
-            </StatusBarItem>
-        </StatusBar>
+        <Grid Grid.Column="1" Margin="12,8,12,8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0" Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,8">
+                <DockPanel>
+                    <TextBlock x:Name="BrowserInfoTextBlock" Text="Browser: idle" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Left" />
+                    <TextBlock x:Name="ClockTextBlock" Text="Time: -" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Left" />
+                    <TextBlock x:Name="StatusTextBlock" Text="Ready." Foreground="#111827" FontWeight="SemiBold" />
+                </DockPanel>
+            </Border>
+
+            <StatusBar Grid.Row="1" Margin="0,0,0,8" Background="#E5E7EB">
+                <StatusBarItem>
+                    <TextBlock Text="Status" FontWeight="SemiBold" />
+                </StatusBarItem>
+            </StatusBar>
+
+            <Border Grid.Row="2"
+                    Margin="0,56,0,0"
+                    Background="#F9FAFB"
+                    BorderBrush="#E5E7EB"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="8">
+                <TabControl x:Name="MainTabControl" Background="Transparent" BorderThickness="0">
+                    <TabControl.ItemContainerStyle>
+                        <Style TargetType="TabItem">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </Style>
+                    </TabControl.ItemContainerStyle>
+
+                <TabItem Header="Dashboard">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Text="Dashboard" FontSize="32" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,10" />
+
+                        <Grid Grid.Row="1" Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="9" Padding="14" Margin="0,0,8,0">
+                                <StackPanel>
+                                    <TextBlock Text="Villages" Foreground="#4B5563" FontSize="20" />
+                                    <TextBlock x:Name="VillagesInfoTextBlock" Margin="0,6,0,0" Text="Villages: -" FontSize="32" Foreground="#111827" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="1" Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="9" Padding="14" Margin="0,0,8,0">
+                                <StackPanel>
+                                    <TextBlock Text="Population / Tribe" Foreground="#4B5563" FontSize="20" />
+                                    <TextBlock x:Name="TribeInfoTextBlock" Margin="0,6,0,0" Text="Tribe: -" FontSize="32" Foreground="#111827" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="2" Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="9" Padding="14">
+                                <StackPanel>
+                                    <TextBlock Text="Activity" Foreground="#4B5563" FontSize="20" />
+                                    <TextBlock x:Name="LastScanInfoTextBlock" Margin="0,6,0,0" Text="Last scan: -" FontSize="32" Foreground="#111827" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <WrapPanel Grid.Row="2" Margin="0,0,0,8">
+                            <Button x:Name="CheckStatusButton" Height="32" Content="Check village status" MinWidth="150" Click="CheckStatusButton_Click" />
+                            <Button x:Name="ScanAllVillagesButton" Height="32" Content="Scan all villages" Background="#030826" Foreground="White" BorderBrush="#030826" Click="ScanAllVillagesButton_Click" />
+                        </WrapPanel>
+
+                        <Border Grid.Row="3" Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="9" Padding="12">
+                            <StackPanel>
+                                <TextBlock Text="Overview" FontSize="20" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,6" />
+                                <TextBlock x:Name="SummaryTextBlock" Text="Run Check village status to populate the views." Foreground="#374151" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </TabItem>
+
+                <TabItem Header="Resources">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                            <Button x:Name="LoadResourcesButton" Content="↻" Width="42" FontSize="16" Click="LoadResourcesButton_Click" ToolTip="Refresh resources" />
+                            <TextBlock Text="Target level" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <ComboBox x:Name="ResourceTargetLevelComboBox" Width="90" Margin="0,0,8,0" />
+                            <Button x:Name="UpgradeAllResourcesButton" Content="Upgrade all to level" Width="160" Click="UpgradeAllResourcesButton_Click" />
+                        </StackPanel>
+                        <Border Grid.Row="1" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="10" Background="#FFFFFF" Padding="12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                    <TextBlock Text="Woodcutter" Foreground="#0F766E" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                    <ItemsControl ItemsSource="{Binding WoodFields, ElementName=RootWindow}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="#E4F2F1" CornerRadius="6" Padding="8" Margin="0,0,0,6">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock VerticalAlignment="Center" Text="{Binding Name}" />
+                                                        <Button Grid.Column="1"
+                                                                Tag="{Binding}"
+                                                                Content="{Binding LevelLabel}"
+                                                                Style="{StaticResource ResourceLevelBadgeStyle}"
+                                                                Foreground="#134E4A"
+                                                                Background="#A5E1DA"
+                                                                BorderBrush="#74CCC2"
+                                                                Click="ResourceLevelBadge_Click"
+                                                                ToolTip="Click to queue +1 level upgrade." />
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="1" Margin="8,0">
+                                    <TextBlock Text="Clay Pit" Foreground="#DC4C1D" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                    <ItemsControl ItemsSource="{Binding ClayFields, ElementName=RootWindow}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="#FDECE5" CornerRadius="6" Padding="8" Margin="0,0,0,6">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock VerticalAlignment="Center" Text="{Binding Name}" />
+                                                        <Button Grid.Column="1"
+                                                                Tag="{Binding}"
+                                                                Content="{Binding LevelLabel}"
+                                                                Style="{StaticResource ResourceLevelBadgeStyle}"
+                                                                Foreground="#7C2D12"
+                                                                Background="#F9C9AF"
+                                                                BorderBrush="#F2A57E"
+                                                                Click="ResourceLevelBadge_Click"
+                                                                ToolTip="Click to queue +1 level upgrade." />
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2" Margin="8,0">
+                                    <TextBlock Text="Iron Mine" Foreground="#334155" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                    <ItemsControl ItemsSource="{Binding IronFields, ElementName=RootWindow}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="#EAF0F4" CornerRadius="6" Padding="8" Margin="0,0,0,6">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock VerticalAlignment="Center" Text="{Binding Name}" />
+                                                        <Button Grid.Column="1"
+                                                                Tag="{Binding}"
+                                                                Content="{Binding LevelLabel}"
+                                                                Style="{StaticResource ResourceLevelBadgeStyle}"
+                                                                Foreground="#1E293B"
+                                                                Background="#B7C7D4"
+                                                                BorderBrush="#92ABC0"
+                                                                Click="ResourceLevelBadge_Click"
+                                                                ToolTip="Click to queue +1 level upgrade." />
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="3" Margin="8,0,0,0">
+                                    <TextBlock Text="Cropland" Foreground="#C47F00" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                    <ItemsControl ItemsSource="{Binding CroplandFields, ElementName=RootWindow}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="#FFF5DF" CornerRadius="6" Padding="8" Margin="0,0,0,6">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock VerticalAlignment="Center" Text="{Binding Name}" />
+                                                        <Button Grid.Column="1"
+                                                                Tag="{Binding}"
+                                                                Content="{Binding LevelLabel}"
+                                                                Style="{StaticResource ResourceLevelBadgeStyle}"
+                                                                Foreground="#7C5C0B"
+                                                                Background="#F7E3A3"
+                                                                BorderBrush="#EACD73"
+                                                                Click="ResourceLevelBadge_Click"
+                                                                ToolTip="Click to queue +1 level upgrade." />
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <DataGrid x:Name="ResourcesDataGrid" Visibility="Collapsed" />
+                        <TextBlock x:Name="ResourcesInfoTextBlock" Grid.Row="2" Margin="0,8,0,0" Foreground="#065F46" Text="Resources not loaded yet." />
+                    </Grid>
+                </TabItem>
+
+                <TabItem Header="Buildings">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                            <Button x:Name="LoadBuildingsButton" Content="Load buildings" Width="120" Click="LoadBuildingsButton_Click" />
+                            <TextBlock Text="Category" VerticalAlignment="Center" Margin="8,0,6,0" />
+                            <ComboBox x:Name="BuildingCategoryComboBox" Width="160" SelectionChanged="BuildingCategoryComboBox_SelectionChanged" />
+                        </StackPanel>
+
+                        <Grid Grid.Row="1" Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="8" Padding="8" Margin="0,0,8,0">
+                                <StackPanel>
+                                    <TextBlock Text="Construct" FontWeight="SemiBold" Margin="0,0,0,6" />
+                                    <TextBlock Text="Slot" />
+                                    <TextBox x:Name="ConstructSlotTextBox" Text="19" Margin="0,2,0,6" />
+                                    <TextBlock Text="Building" />
+                                    <ComboBox x:Name="ConstructBuildingComboBox" DisplayMemberPath="DisplayLabel" Margin="0,2,0,4" />
+                                    <TextBlock Text="{Binding SelectedItem.Requirements, ElementName=ConstructBuildingComboBox}" Foreground="#64748B" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                    <Button x:Name="QueueConstructBuildingButton" Content="Queue construct" Click="QueueConstructBuildingButton_Click" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="1" Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="8" Padding="8" Margin="0,0,8,0">
+                                <StackPanel>
+                                    <TextBlock Text="Upgrade" FontWeight="SemiBold" Margin="0,0,0,6" />
+                                    <TextBlock Text="Slot" />
+                                    <TextBox x:Name="UpgradeSlotTextBox" Text="19" Margin="0,2,0,6" />
+                                    <TextBlock Text="Target level" />
+                                    <TextBox x:Name="UpgradeTargetLevelTextBox" Text="2" Margin="0,2,0,6" />
+                                    <WrapPanel>
+                                        <Button x:Name="QueueUpgradeBuildingButton" Content="Queue to level" Width="120" Click="QueueUpgradeBuildingButton_Click" />
+                                        <Button x:Name="QueueUpgradeBuildingMaxButton" Content="Queue max" Width="100" Margin="6,0,0,0" Click="QueueUpgradeBuildingMaxButton_Click" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="2" Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="8" Padding="8">
+                                <StackPanel>
+                                    <TextBlock Text="Demolish / Hero" FontWeight="SemiBold" Margin="0,0,0,6" />
+                                    <TextBlock Text="Building" />
+                                    <ComboBox x:Name="DemolishBuildingComboBox" DisplayMemberPath="Name" Margin="0,2,0,6" />
+                                    <TextBlock Text="Demolish target level" />
+                                    <TextBox x:Name="DemolishTargetLevelTextBox" Text="0" Margin="0,2,0,6" />
+                                    <Button x:Name="QueueDemolishButton" Content="Queue demolish" Margin="0,0,0,10" Click="QueueDemolishButton_Click" />
+                                    <Separator Margin="0,0,0,8" />
+                                    <TextBlock Text="Hero min HP for adventure" />
+                                    <TextBox x:Name="HeroMinHpTextBox" Text="60" Margin="0,2,0,6" />
+                                    <CheckBox x:Name="HeroAutoReviveCheckBox" Content="Auto revive" IsChecked="True" Margin="0,0,0,6" />
+                                    <TextBlock Text="Stat priority (csv)" />
+                                    <TextBox x:Name="HeroStatPriorityTextBox" Text="offense,resource,regeneration" Margin="0,2,0,6" />
+                                    <Button x:Name="QueueHeroManageButton" Content="Queue hero manage" Click="QueueHeroManageButton_Click" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <DataGrid x:Name="BuildingsDataGrid"
+                                  Grid.Row="2"
+                                  AutoGenerateColumns="False"
+                                  IsReadOnly="True"
+                                  CanUserAddRows="False"
+                                  CanUserDeleteRows="False"
+                                  BorderBrush="#D1D5DB"
+                                  BorderThickness="1">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Slot" Width="*" Binding="{Binding SlotId}" />
+                                <DataGridTextColumn Header="Building" Width="2*" Binding="{Binding Name}" />
+                                <DataGridTextColumn Header="Level" Width="*" Binding="{Binding LevelLabel}" />
+                                <DataGridTextColumn Header="Category" Width="*" Binding="{Binding Category}" />
+                                <DataGridTextColumn Header="Requirements" Width="2*" Binding="{Binding Requirements}" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <TextBlock x:Name="BuildingsInfoTextBlock" Grid.Row="3" Margin="0,8,0,0" Foreground="#334155" Text="Load buildings to manage construct/upgrade/demolish/hero." />
+                    </Grid>
+                </TabItem>
+
+                <TabItem Header="Queue">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                            <Border BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="6" Padding="4" Margin="0,0,8,0">
+                                <WrapPanel>
+                                    <Button x:Name="QueueAddButton" Content="Add" Width="82" Click="QueueAddButton_Click" />
+                                    <Button x:Name="QueueRemoveButton" Content="Remove" Width="82" Margin="0" Click="QueueRemoveButton_Click" />
+                                </WrapPanel>
+                            </Border>
+                            <Border BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="6" Padding="4" Margin="0,0,8,0">
+                                <WrapPanel>
+                                    <Button x:Name="QueueMoveUpButton" Content="Move up" Width="82" Click="QueueMoveUpButton_Click" />
+                                    <Button x:Name="QueueMoveDownButton" Content="Move down" Width="82" Margin="0" Click="QueueMoveDownButton_Click" />
+                                </WrapPanel>
+                            </Border>
+                            <Border BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="6" Padding="4">
+                                <WrapPanel>
+                                    <Button x:Name="QueueRetryButton" Content="Retry" Width="82" Click="QueueRetryButton_Click" />
+                                    <Button x:Name="QueueRefreshButton" Content="Refresh" Width="82" Click="QueueRefreshButton_Click" />
+                                    <Button x:Name="QueueClearButton" Content="Clear queue" Width="92" Margin="0" Click="QueueClearButton_Click" />
+                                </WrapPanel>
+                            </Border>
+                        </StackPanel>
+                        <DataGrid x:Name="QueueDataGrid"
+                                  Grid.Row="1"
+                                  AutoGenerateColumns="False"
+                                  IsReadOnly="True"
+                                  SelectionMode="Single"
+                                  SelectionUnit="FullRow"
+                                  CanUserAddRows="False"
+                                  CanUserDeleteRows="False"
+                                  CanUserReorderColumns="False"
+                                  BorderBrush="#D1D5DB"
+                                  BorderThickness="1">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Task" Width="2*" Binding="{Binding TaskName}" />
+                                <DataGridTextColumn Header="Priority" Width="*" Binding="{Binding Priority}" />
+                                <DataGridTextColumn Header="Status" Width="*" Binding="{Binding Status}" />
+                                <DataGridTextColumn Header="Retries" Width="*" Binding="{Binding Retries}" />
+                                <DataGridTextColumn Header="Max retries" Width="*" Binding="{Binding MaxRetries}" />
+                                <DataGridTextColumn Header="Next try (Server time)" Width="2*" Binding="{Binding NextAttemptAtServer}" />
+                                <DataGridTextColumn Header="Created (Server time)" Width="2*" Binding="{Binding CreatedAtServer}" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                        <TextBlock x:Name="BuildQueueStatusTextBlock" Grid.Row="2" Margin="0,8,0,0" Foreground="#1F2937" Text="Build queue: -" />
+                        <TextBlock x:Name="QueueInfoTextBlock" Grid.Row="3" Margin="0,4,0,0" Foreground="#334155" Text="Queue loaded." />
+                    </Grid>
+                </TabItem>
+
+                <TabItem Header="Logs">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TabControl x:Name="TerminalAlarmTabControl" Grid.Row="0" Margin="0,0,0,8">
+                            <TabItem Header="Log">
+                                <Border Background="#020617" Padding="8">
+                                    <ListBox x:Name="TerminalListBox"
+                                             Background="#020617"
+                                             Foreground="#93C5FD"
+                                             BorderThickness="0"
+                                             FontFamily="Consolas"
+                                             FontSize="13"
+                                             SelectionMode="Single"
+                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </Border>
+                            </TabItem>
+                            <TabItem Header="Alarms">
+                                <Border Background="#110D0D" Padding="8">
+                                    <ListBox x:Name="AlarmListBox"
+                                             Background="#110D0D"
+                                             Foreground="#FCA5A5"
+                                             BorderThickness="0"
+                                             FontFamily="Consolas"
+                                             FontSize="13"
+                                             SelectionMode="Single"
+                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </Border>
+                            </TabItem>
+                        </TabControl>
+                        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <TextBlock x:Name="CopyFeedbackTextBlock"
+                                       Text=""
+                                       Foreground="#16A34A"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,10,0"
+                                       Visibility="Collapsed" />
+                            <Button x:Name="PopoutLogsButton" Content="Pop out" Margin="0,0,8,0" Padding="10,4" Click="PopoutLogsButton_Click" />
+                            <Button x:Name="CopyCurrentTabButton" Content="Copy" Margin="0,0,8,0" Padding="10,4" Click="CopyCurrentTabButton_Click" />
+                            <Button x:Name="AcknowledgeAlarmButton" Content="Acknowledge alarms" Margin="0,0,8,0" Padding="10,4" Click="AcknowledgeAlarmButton_Click" />
+                            <Button x:Name="ClearCurrentLogButton" Content="Clear" Padding="10,4" Click="ClearCurrentLogButton_Click" />
+                        </StackPanel>
+                    </Grid>
+                </TabItem>
+
+                <TabItem Header="Inbox">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Text="Messages / Reports" FontSize="24" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,8" />
+                        <Grid Grid.Row="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,8,0">
+                                <StackPanel>
+                                    <TextBlock Text="Messages" FontSize="20" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,6" />
+                                    <TextBlock x:Name="MessageUnreadTextBlock" Text="Unread: -" Foreground="#374151" Margin="0,0,0,10" />
+                                    <Button x:Name="MarkMessagesReadButton" Width="120" Margin="0" Content="Mark as read" Click="MarkMessagesReadButton_Click" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="1" Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="8" Padding="12" Margin="8,0,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="Reports" FontSize="20" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,6" />
+                                    <TextBlock x:Name="ReportsUnreadTextBlock" Text="Unread: -" Foreground="#374151" Margin="0,0,0,10" />
+                                    <Button x:Name="MarkReportsReadButton" Width="120" Margin="0" Content="Mark as read" Click="MarkReportsReadButton_Click" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </Grid>
+                </TabItem>
+                </TabControl>
+            </Border>
+
+        </Grid>
+
     </Grid>
 </Window>
+
+
+
+

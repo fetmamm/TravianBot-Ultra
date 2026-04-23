@@ -1,3 +1,4 @@
+using TbotUltra.Core.Configuration;
 using TbotUltra.Worker.Configuration;
 
 namespace TbotUltra.Worker.Services;
@@ -21,7 +22,7 @@ public sealed class EnvAccountProvider : IAccountProvider
 
     public AccountOptions LoadAccount(string? accountName = null)
     {
-        var envValues = ReadEnvFile(_envPath);
+        var envValues = EnvFileParser.ReadValues(_envPath);
         var selectedName = accountName
             ?? GetValue("TBOT_ACTIVE_ACCOUNT", envValues)
             ?? "main";
@@ -54,36 +55,6 @@ public sealed class EnvAccountProvider : IAccountProvider
             ServerName = serverName,
             ServerUrl = serverUrl,
         };
-    }
-
-    private static Dictionary<string, string> ReadEnvFile(string envPath)
-    {
-        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        if (!File.Exists(envPath))
-        {
-            return values;
-        }
-
-        foreach (var rawLine in File.ReadAllLines(envPath))
-        {
-            var line = rawLine.Trim();
-            if (line.Length == 0 || line.StartsWith('#') || !line.Contains('='))
-            {
-                continue;
-            }
-
-            var splitIndex = line.IndexOf('=');
-            var key = line[..splitIndex].Trim();
-            var value = line[(splitIndex + 1)..].Trim().Trim('"').Trim('\'');
-            if (key.Length == 0)
-            {
-                continue;
-            }
-
-            values[key] = value;
-        }
-
-        return values;
     }
 
     private static string? GetValue(string key, Dictionary<string, string> fileValues)

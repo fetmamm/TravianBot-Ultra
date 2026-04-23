@@ -1,15 +1,20 @@
 using System.IO;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Core.Configuration;
+using TbotUltra.Worker.Services;
 
 namespace TbotUltra.Desktop.Services;
 
 public sealed class EnvAccountStore
 {
     private readonly string _envPath;
+    private readonly AccountAnalysisStore _analysisStore;
 
     public EnvAccountStore(string envPath)
     {
         _envPath = envPath;
+        var root = Path.GetDirectoryName(envPath) ?? Directory.GetCurrentDirectory();
+        _analysisStore = new AccountAnalysisStore(root);
     }
 
     public string ActiveAccountName()
@@ -24,6 +29,7 @@ public sealed class EnvAccountStore
     {
         var values = ReadValues();
         var names = ParseAccountNames(values);
+        var active = ActiveAccountName();
 
         return names.Select(name =>
         {
@@ -35,6 +41,8 @@ public sealed class EnvAccountStore
                 Password = values.GetValueOrDefault($"{prefix}PASSWORD", string.Empty),
                 ServerName = values.GetValueOrDefault($"{prefix}SERVER_NAME", string.Empty),
                 ServerUrl = values.GetValueOrDefault($"{prefix}SERVER_URL", string.Empty),
+                IsActive = string.Equals(name, active, StringComparison.OrdinalIgnoreCase),
+                IsAnalyzed = _analysisStore.IsAnalyzed(name),
             };
         }).ToList();
     }
@@ -112,32 +120,7 @@ public sealed class EnvAccountStore
 
     private Dictionary<string, string> ReadValues()
     {
-        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        if (!File.Exists(_envPath))
-        {
-            return values;
-        }
-
-        foreach (var rawLine in File.ReadAllLines(_envPath))
-        {
-            var line = rawLine.Trim();
-            if (line.Length == 0 || line.StartsWith('#') || !line.Contains('='))
-            {
-                continue;
-            }
-
-            var split = line.IndexOf('=');
-            var key = line[..split].Trim();
-            var value = line[(split + 1)..].Trim().Trim('"').Trim('\'');
-            if (key.Length == 0)
-            {
-                continue;
-            }
-
-            values[key] = value;
-        }
-
-        return values;
+        return EnvFileParser.ReadValues(_envPath);
     }
 
     private void WriteValues(Dictionary<string, string> values)

@@ -1,6 +1,6 @@
 {
-  "server_name": "SS-Travi PRO 1024x",
-  "base_url": "https://pro.ss-travi.com",
+  "server_name": "SS-Travi MEGA 1000000x",
+  "base_url": "https://mga.ss-travi.com",
   "login_path": "/login.php",
   "village_overview_path": "/dorf1.php",
   "headless": false,
@@ -12,6 +12,10 @@
     "scan_all_villages"
   ],
   "github_releases_url": "",
-  "human_like_enabled": true,
-  "human_like_speed": "slow"
+  "human_like_enabled": false,
+  "human_like_speed": "slow",
+  "allow_gold_spending": false,
+  "allow_silver_spending": false,
+  "gold_limit": 100,
+  "silver_limit": 100
 }

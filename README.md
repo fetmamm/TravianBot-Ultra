@@ -13,6 +13,7 @@ Travian bot project for automating tasks on a private server.
 ### Configuration
 The app reads:
 - `config/bot.json`
+- `config/queue.json`
 - `.env`
 
 Example task names in `loop_tasks`:
@@ -31,3 +32,10 @@ Additional task parameters are also read from `config/bot.json` (resource/buildi
 ## Status
 - Runtime and UI are fully C# (`TbotUltra.Desktop` + `TbotUltra.Worker`).
 - Root-level Python launch/dependency files are removed.
+- Queue system is persisted in `config/queue.json` and managed from the Queue tab in the desktop UI.
+
+## Smoke check
+- Run `Smoke_Check.bat`
+- or run:
+  - `dotnet build TbotUltra.sln -c Debug`
+  - `dotnet test src/TbotUltra.Worker.Tests/TbotUltra.Worker.Tests.csproj -c Debug`

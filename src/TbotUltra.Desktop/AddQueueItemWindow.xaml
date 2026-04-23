@@ -1,0 +1,61 @@
+<Window x:Class="TbotUltra.Desktop.AddQueueItemWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Add Queue Item"
+        Height="430"
+        Width="680"
+        MinHeight="380"
+        MinWidth="620"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,8,8" VerticalAlignment="Center" Text="Task" />
+            <ComboBox x:Name="TaskComboBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,8" />
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,8,8" VerticalAlignment="Center" Text="Priority" />
+            <TextBox x:Name="PriorityTextBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,8" Text="0" />
+
+            <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,8,8" VerticalAlignment="Center" Text="Max retries" />
+            <TextBox x:Name="MaxRetriesTextBox" Grid.Row="2" Grid.Column="1" Margin="0,0,0,8" Text="3" />
+
+            <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,0,8,8" VerticalAlignment="Top" Text="Payload (JSON)" />
+            <TextBox x:Name="PayloadTextBox"
+                     Grid.Row="3"
+                     Grid.Column="1"
+                     Margin="0,0,0,8"
+                     Text="{}"
+                     FontFamily="Consolas"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     VerticalScrollBarVisibility="Auto" />
+
+            <TextBlock x:Name="InfoTextBlock"
+                       Grid.Row="4"
+                       Grid.ColumnSpan="2"
+                       Foreground="#334155"
+                       Text="Use payload only when task-specific values must override bot.json." />
+        </Grid>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button x:Name="CreateButton" Width="100" Margin="0,0,8,0" Content="Create" Click="CreateButton_Click" />
+            <Button x:Name="CancelButtonControl" Width="100" Content="Cancel" Click="CancelButton_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

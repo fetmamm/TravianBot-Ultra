@@ -4,9 +4,15 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TbotUltra.Worker", "src\TbotUltra.Worker\TbotUltra.Worker.csproj", "{833BF1A0-047D-451A-8A45-CC3D99B81D26}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TbotUltra.Core", "src\TbotUltra.Core\TbotUltra.Core.csproj", "{7EAC2B77-63A5-4024-8F58-7CE98AAFA85D}"
+EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{4DB016DB-616D-4F47-9E33-5644E60918AA}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TbotUltra.Desktop", "src\TbotUltra.Desktop\TbotUltra.Desktop.csproj", "{54CE6168-B208-4B7D-BD63-79325F76EC68}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TbotUltra.Worker.Tests", "src\TbotUltra.Worker.Tests\TbotUltra.Worker.Tests.csproj", "{C6B170DA-510E-492F-9BDA-AABB83F4C4B6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TbotUltra.Desktop.Tests", "src\TbotUltra.Desktop.Tests\TbotUltra.Desktop.Tests.csproj", "{43DC0D70-E50D-4910-894E-286D0F249070}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -18,15 +24,30 @@ Global
 		{833BF1A0-047D-451A-8A45-CC3D99B81D26}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{833BF1A0-047D-451A-8A45-CC3D99B81D26}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{833BF1A0-047D-451A-8A45-CC3D99B81D26}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7EAC2B77-63A5-4024-8F58-7CE98AAFA85D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7EAC2B77-63A5-4024-8F58-7CE98AAFA85D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7EAC2B77-63A5-4024-8F58-7CE98AAFA85D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7EAC2B77-63A5-4024-8F58-7CE98AAFA85D}.Release|Any CPU.Build.0 = Release|Any CPU
 		{54CE6168-B208-4B7D-BD63-79325F76EC68}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{54CE6168-B208-4B7D-BD63-79325F76EC68}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{54CE6168-B208-4B7D-BD63-79325F76EC68}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{54CE6168-B208-4B7D-BD63-79325F76EC68}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C6B170DA-510E-492F-9BDA-AABB83F4C4B6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C6B170DA-510E-492F-9BDA-AABB83F4C4B6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C6B170DA-510E-492F-9BDA-AABB83F4C4B6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C6B170DA-510E-492F-9BDA-AABB83F4C4B6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{43DC0D70-E50D-4910-894E-286D0F249070}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{43DC0D70-E50D-4910-894E-286D0F249070}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{43DC0D70-E50D-4910-894E-286D0F249070}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{43DC0D70-E50D-4910-894E-286D0F249070}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
+		{7EAC2B77-63A5-4024-8F58-7CE98AAFA85D} = {4DB016DB-616D-4F47-9E33-5644E60918AA}
 		{54CE6168-B208-4B7D-BD63-79325F76EC68} = {4DB016DB-616D-4F47-9E33-5644E60918AA}
+		{C6B170DA-510E-492F-9BDA-AABB83F4C4B6} = {4DB016DB-616D-4F47-9E33-5644E60918AA}
+		{43DC0D70-E50D-4910-894E-286D0F249070} = {4DB016DB-616D-4F47-9E33-5644E60918AA}
 	EndGlobalSection
 EndGlobal

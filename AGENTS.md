@@ -4,6 +4,7 @@
 - Hellre robust och lätt kod att felsöka än "perfekt" men svårförståelig kod.
 - Försök att använda samma struktur, stil och namngivning som redan finns i projektet.
 - Skriv tydlig och praktisk kod framför smart men svårläst kod.
+- All kod skrivs på engelska. Om ett program skapas ska UI vara på engelska.
 
 ## Vid ändringar
 - Ändra inte befintliga funktioner i onödan.
@@ -25,5 +26,5 @@
 
 ## Svarformat
 - Ge bara den kod eller funktion som faktiskt behöver ändras, inte hela programmet, om jag inte ber om det.
-- Förklara kort vad du ändrade. Inget onödigt.
-- Peka ut exakt var koden ska placeras om det inte är uppenbart.
+- Förklara kort sammanfattat vad du ändrade.
+- Om du rekommenderar fler ändringar eller har förbättringsförslag skriv det.

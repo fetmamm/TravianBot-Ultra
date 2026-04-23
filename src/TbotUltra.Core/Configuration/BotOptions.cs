@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.Extensions.Configuration;
 
-namespace TbotUltra.Worker.Configuration;
+namespace TbotUltra.Core.Configuration;
 
 public sealed class BotOptions
 {
@@ -48,6 +48,24 @@ public sealed class BotOptions
     [ConfigurationKeyName("human_like_speed")]
     public string HumanLikeSpeed { get; init; } = "medium";
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.TargetVillageName)]
+    public string TargetVillageName { get; init; } = string.Empty;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TargetVillageUrl)]
+    public string TargetVillageUrl { get; init; } = string.Empty;
+
+    [ConfigurationKeyName("allow_gold_spending")]
+    public bool AllowGoldSpending { get; init; }
+
+    [ConfigurationKeyName("allow_silver_spending")]
+    public bool AllowSilverSpending { get; init; }
+
+    [ConfigurationKeyName("gold_limit")]
+    public int GoldLimit { get; init; } = 100;
+
+    [ConfigurationKeyName("silver_limit")]
+    public int SilverLimit { get; init; } = 100;
+
     [ConfigurationKeyName("resource_upgrade_slot_id")]
     public int? ResourceUpgradeSlotId { get; init; }
 
@@ -74,4 +92,22 @@ public sealed class BotOptions
 
     [ConfigurationKeyName("building_construct_name")]
     public string BuildingConstructName { get; init; } = string.Empty;
+
+    [ConfigurationKeyName("target_building_slot_or_name")]
+    public string TargetBuildingSlotOrName { get; init; } = string.Empty;
+
+    [ConfigurationKeyName("target_level")]
+    public int? TargetLevel { get; init; }
+
+    [ConfigurationKeyName("hero_min_hp_for_adventure")]
+    public int HeroMinHpForAdventure { get; init; } = 60;
+
+    [ConfigurationKeyName("hero_auto_revive")]
+    public bool HeroAutoRevive { get; init; } = true;
+
+    [ConfigurationKeyName("hero_stat_priority")]
+    public string HeroStatPriority { get; init; } = "offense,resource,regeneration";
+
+    [ConfigurationKeyName("upgrade_selector_profile")]
+    public string UpgradeSelectorProfile { get; init; } = "auto";
 }
