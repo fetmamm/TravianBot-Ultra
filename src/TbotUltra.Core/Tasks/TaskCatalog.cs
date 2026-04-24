@@ -13,6 +13,7 @@ public static class TaskCatalog
         "upgrade_building_to_level",
         "upgrade_building_to_max",
         "construct_building",
+        "load_buildings_snapshot",
         "account_full_analysis",
         "demolish_building_to_level",
         "hero_manage",

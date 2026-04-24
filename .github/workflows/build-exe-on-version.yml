@@ -1,0 +1,35 @@
+name: Build EXE On Version Change
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - VERSION
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore TbotUltra.sln
+
+      - name: Build
+        run: dotnet build TbotUltra.sln -c Release --no-restore
+
+      - name: Publish Desktop EXE
+        run: dotnet publish src/TbotUltra.Desktop/TbotUltra.Desktop.csproj -c Release -r win-x64 --self-contained false -o temp_build_out/publish
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tbot-ultra-desktop-win-x64
+          path: temp_build_out/publish/**

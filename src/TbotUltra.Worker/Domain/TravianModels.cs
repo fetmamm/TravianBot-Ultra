@@ -1,6 +1,6 @@
 namespace TbotUltra.Worker.Domain;
 
-public sealed record Village(string Name, string? Url);
+public sealed record Village(string Name, string? Url, bool? IsCapital = null);
 
 public sealed record AccountSnapshot(
     string Tribe,

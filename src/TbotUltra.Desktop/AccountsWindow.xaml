@@ -22,13 +22,25 @@
         <Border Grid.Column="0" Grid.Row="0" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="6">
             <DockPanel Margin="8">
                 <TextBlock DockPanel.Dock="Top" Text="Accounts" FontWeight="SemiBold" Margin="0,0,0,8" />
+                <Grid DockPanel.Dock="Top" Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="70" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Account name" FontWeight="SemiBold" Foreground="#475569" />
+                    <TextBlock Grid.Column="1" Text="Analyzed" FontWeight="SemiBold" Foreground="#475569" HorizontalAlignment="Right" />
+                </Grid>
                 <ListBox x:Name="AccountsListBox"
                          SelectionChanged="AccountsListBox_SelectionChanged"
                          MouseDoubleClick="AccountsListBox_MouseDoubleClick">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="{Binding Username}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="70" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding Username}" TextTrimming="CharacterEllipsis">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Foreground" Value="#111827" />
@@ -41,10 +53,22 @@
                                         </Style>
                                     </TextBlock.Style>
                                 </TextBlock>
-                                <TextBlock Margin="8,0,0,0"
-                                           Foreground="#475569"
-                                           Text="{Binding AnalysisStatus, StringFormat=Analyzed: {0}}" />
-                            </StackPanel>
+                                <TextBlock Grid.Column="1"
+                                           HorizontalAlignment="Right"
+                                           Text="{Binding AnalysisStatus}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="#DC2626" />
+                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsAnalyzed}" Value="True">
+                                                    <Setter Property="Foreground" Value="#16A34A" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
@@ -52,18 +76,19 @@
         </Border>
 
         <Border Grid.Column="2" Grid.Row="0" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="6">
-            <Grid Margin="12">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="150" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <Grid.RowDefinitions>
+                <Grid Margin="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
 
                 <TextBlock Grid.Row="0" Grid.Column="0" Text="Username" Margin="0,0,8,8" VerticalAlignment="Center" />
                 <TextBox x:Name="UsernameTextBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,8" TextChanged="EditorField_Changed" />
@@ -111,6 +136,13 @@
                 <TextBlock x:Name="ServerUrlTextBlock" Grid.Row="3" Grid.Column="1" Margin="0,0,0,8" VerticalAlignment="Center" Foreground="#475569" />
 
                 <TextBlock x:Name="InfoTextBlock" Grid.Row="4" Grid.ColumnSpan="2" TextWrapping="Wrap" Foreground="#334155" />
+                <Button x:Name="RunAnalysisButton"
+                        Grid.Row="5"
+                        Grid.ColumnSpan="2"
+                        Content="Run analysis"
+                        HorizontalAlignment="Left"
+                        Margin="0,8,0,0"
+                        Click="RunAnalysisButton_Click" />
             </Grid>
         </Border>
 

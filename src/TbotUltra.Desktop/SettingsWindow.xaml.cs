@@ -25,7 +25,7 @@ public partial class SettingsWindow : Window
         AllowGoldSpendingCheckBox.IsChecked = _config["allow_gold_spending"]?.GetValue<bool>() ?? false;
         AllowSilverSpendingCheckBox.IsChecked = _config["allow_silver_spending"]?.GetValue<bool>() ?? false;
         GoldLimitSlider.Value = Math.Clamp(_config["gold_limit"]?.GetValue<int>() ?? 100, 0, 200);
-        SilverLimitSlider.Value = Math.Clamp(_config["silver_limit"]?.GetValue<int>() ?? 100, 0, 200);
+        SilverLimitSlider.Value = Math.Clamp(_config["silver_limit"]?.GetValue<int>() ?? 100, 0, 1000);
         UpdateLimitLabels();
     }
 
@@ -47,7 +47,7 @@ public partial class SettingsWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "Save settings", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show(this, ex.Message, "Save settings", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -100,3 +100,4 @@ public partial class SettingsWindow : Window
         SilverLimitTextBlock.Text = $"Silver limit: {(int)Math.Round(SilverLimitSlider.Value)}";
     }
 }
+

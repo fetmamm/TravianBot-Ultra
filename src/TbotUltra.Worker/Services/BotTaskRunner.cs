@@ -4,6 +4,7 @@ using TbotUltra.Worker.Configuration;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Infrastructure;
 using Microsoft.Playwright;
+using System.Text.Json;
 
 namespace TbotUltra.Worker.Services;
 
@@ -12,17 +13,31 @@ public sealed class BotTaskRunner
     private static readonly IReadOnlyDictionary<string, Func<TaskExecutionContext, Task>> TaskHandlers =
         new Dictionary<string, Func<TaskExecutionContext, Task>>(StringComparer.OrdinalIgnoreCase)
         {
+            // Reads and logs the current village status, including villages, resources, buildings, and build queue.
             ["status"] = ExecuteStatusAsync,
+            // Scans and reads the status of all villages in the account.
             ["scan_all_villages"] = ExecuteScanAllVillagesAsync,
+            // Reads and logs a snapshot of the account, including tribe, active village, and village count.
             ["account_snapshot"] = ExecuteAccountSnapshotAsync,
+            // Upgrades a specific resource field (by slot ID) to a target level.
             ["upgrade_resource_to_level"] = ExecuteUpgradeResourceToLevelAsync,
+            // Upgrades a specific resource field (by slot ID) to its maximum possible level.
             ["upgrade_resource_to_max"] = ExecuteUpgradeResourceToMaxAsync,
+            // Upgrades all resource fields to a target level.
             ["upgrade_all_resources_to_level"] = ExecuteUpgradeAllResourcesToLevelAsync,
+            // Upgrades a specific building (by slot ID) to a target level.
             ["upgrade_building_to_level"] = ExecuteUpgradeBuildingToLevelAsync,
+            // Upgrades a specific building (by slot ID) to its maximum possible level.
             ["upgrade_building_to_max"] = ExecuteUpgradeBuildingToMaxAsync,
+            // Constructs a new building in a specified slot using its GID.
             ["construct_building"] = ExecuteConstructBuildingAsync,
+            // Loads the current village's building status and saves a JSON snapshot to disk.
+            ["load_buildings_snapshot"] = ExecuteLoadBuildingsSnapshotAsync,
+            // Performs a full analysis of the account (tribe, gold club, building catalog) and saves it.
             ["account_full_analysis"] = ExecuteAccountFullAnalysisAsync,
+            // Demolishes a specified building to a target level.
             ["demolish_building_to_level"] = ExecuteDemolishBuildingToLevelAsync,
+            // Manages hero actions: revives if dead, allocates points, and sends on adventures if HP allows.
             ["hero_manage"] = ExecuteHeroManageAsync,
         };
 
@@ -82,7 +97,9 @@ public sealed class BotTaskRunner
                         continue;
                     }
 
+                    log($"[{taskName} STARTED]");
                     await handler(context);
+                    log($"[{taskName} COMPLETED]");
                 }
             });
     }
@@ -207,6 +224,28 @@ public sealed class BotTaskRunner
             });
 
         return status ?? new InboxStatus();
+    }
+
+    public async Task NavigateToVillageResourceFieldsAsync(
+        BotOptions options,
+        Action<string> log,
+        string? villageName = null,
+        string? villageUrl = null,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken, villageName, villageUrl);
+                await client.NavigateToResourceFieldsAsync(cancellationToken);
+            });
     }
 
     public async Task ExecuteLogoutAsync(
@@ -563,6 +602,34 @@ public sealed class BotTaskRunner
         context.Log($"Account analysis saved for '{completed.AccountName}'. Tribe={completed.Tribe}, GoldClub={completed.GoldClubEnabled}, Catalog={completed.BuildingCatalog.Count}.");
     }
 
+    private static async Task ExecuteLoadBuildingsSnapshotAsync(TaskExecutionContext context)
+    {
+        var status = await context.Client.ReadVillageStatusAsync(context.CancellationToken);
+        var activeAccount = context.Runner._accountProvider.LoadAccount().Name;
+        var safeAccount = string.IsNullOrWhiteSpace(activeAccount) ? "main" : activeAccount.Trim().ToLowerInvariant();
+        var outputDir = Path.Combine(context.Runner._projectContext.RootPath, "temp_build_out", "buildings-snapshots");
+        Directory.CreateDirectory(outputDir);
+        var outputPath = Path.Combine(outputDir, $"{safeAccount}.json");
+
+        var payload = new
+        {
+            account = activeAccount,
+            activeVillage = status.ActiveVillage,
+            tribe = status.Tribe,
+            buildings = status.Buildings.Select(building => new
+            {
+                slotId = building.SlotId,
+                name = building.Name,
+                level = building.Level,
+                url = building.Url,
+                gid = building.Gid,
+            }).ToList(),
+        };
+
+        await File.WriteAllTextAsync(outputPath, JsonSerializer.Serialize(payload), context.CancellationToken);
+        context.Log($"Loaded {status.Buildings.Count} building slots. Snapshot saved at {outputPath}.");
+    }
+
     private static async Task ExecuteDemolishBuildingToLevelAsync(TaskExecutionContext context)
     {
         if (string.IsNullOrWhiteSpace(context.Options.TargetBuildingSlotOrName) || context.Options.TargetLevel is null)
@@ -599,7 +666,6 @@ public sealed class BotTaskRunner
         var isBlocked =
             value.Contains(" blocked ")
             || value.Contains("blocked (")
-            || value.Contains("no resource slot could be upgraded")
             || value.Contains("cannot be built yet")
             || value.Contains("cannot be upgraded yet")
             || value.Contains("is not listed by the server")

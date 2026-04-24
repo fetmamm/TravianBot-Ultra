@@ -26,7 +26,7 @@ public partial class ServerListWindow : Window
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
-        var warning = MessageBox.Show(
+        var warning = AppDialog.Show(
             this,
             "Changing server URLs is not recommended and may break login or actions.\n\nPress OK to save anyway, or Cancel to abort.",
             "Warning",
@@ -49,7 +49,7 @@ public partial class ServerListWindow : Window
 
             if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp))
             {
-                MessageBox.Show(this, $"Invalid URL for '{name}'.", "Save server list", MessageBoxButton.OK, MessageBoxImage.Warning);
+                AppDialog.Show(this, $"Invalid URL for '{name}'.", "Save server list", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -62,7 +62,7 @@ public partial class ServerListWindow : Window
 
         if (validated.Count == 0)
         {
-            MessageBox.Show(this, "Server list cannot be empty.", "Save server list", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show(this, "Server list cannot be empty.", "Save server list", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -129,7 +129,7 @@ public partial class ServerListWindow : Window
             return true;
         }
 
-        var result = MessageBox.Show(
+        var result = AppDialog.Show(
             this,
             "You have unsaved server URL changes.\n\nYes: Save changes\nNo: Discard changes\nCancel: Stay on this window",
             "Unsaved changes",
@@ -169,3 +169,4 @@ public partial class ServerListWindow : Window
                 .Select(item => $"{(item.Name ?? string.Empty).Trim()}::{(item.BaseUrl ?? string.Empty).Trim().TrimEnd('/')}"));
     }
 }
+

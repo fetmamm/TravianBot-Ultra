@@ -28,6 +28,8 @@ public sealed partial class TravianClient
         Exception? lastError = null;
         for (var attempt = 1; attempt <= attempts; attempt++)
         {
+            await TryDismissContinuePromptAsync();
+
             try
             {
                 await action();
@@ -42,6 +44,7 @@ public sealed partial class TravianClient
                 lastError = ex;
                 if (ex is PlaywrightException pwx && IsTransientExecutionContextError(pwx) && attempt < attempts)
                 {
+                    await TryDismissContinuePromptAsync();
                     Notify($"{label} hit transient navigation context error on attempt {attempt}/{attempts}. Retrying...");
                     await Task.Delay(250 * attempt);
                     continue;
@@ -65,6 +68,8 @@ public sealed partial class TravianClient
     {
         for (var attempt = 1; attempt <= attempts; attempt++)
         {
+            await TryDismissContinuePromptAsync();
+
             var result = await action();
             if (result)
             {

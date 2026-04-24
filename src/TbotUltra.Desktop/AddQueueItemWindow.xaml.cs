@@ -64,7 +64,7 @@ public partial class AddQueueItemWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "Add queue item", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show(this, ex.Message, "Add queue item", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -74,3 +74,4 @@ public partial class AddQueueItemWindow : Window
         Close();
     }
 }
+

@@ -48,8 +48,17 @@ public sealed partial class TravianClient
     private readonly bool _interactive;
     private readonly bool _browserVisible;
     private readonly string _projectRoot;
+    private readonly string _capitalCachePath;
     private readonly Action<string>? _statusCallback;
+    private readonly object _capitalCacheSync = new();
+    private readonly Dictionary<string, CapitalCacheEntry> _capitalCacheByKey = new(StringComparer.OrdinalIgnoreCase);
+    private bool _capitalCacheLoaded;
     private DateTimeOffset? _serverTimeUtc;
+    private static readonly JsonSerializerOptions CapitalCacheJsonOptions = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
 
     public TravianClient(
         IPage page,
@@ -68,6 +77,7 @@ public sealed partial class TravianClient
         _projectRoot = string.IsNullOrWhiteSpace(projectRoot)
             ? Directory.GetCurrentDirectory()
             : projectRoot;
+        _capitalCachePath = Path.Combine(_projectRoot, "config", "cache", "capital-state.json");
         _statusCallback = statusCallback;
     }
 
@@ -79,13 +89,15 @@ public sealed partial class TravianClient
         await PauseForManualStepIfVisibleAsync("Manual verification appeared before login.", cancellationToken);
         if (await IsLoggedInAsync())
         {
-            Notify("Already logged in.");
             return;
         }
+
+        Notify("LoginAsync started");
 
         var loggedInFromCurrentPage = await TryLoginUsingCurrentPageAsync(cancellationToken);
         if (loggedInFromCurrentPage)
         {
+            await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
             return;
         }
 
@@ -93,7 +105,7 @@ public sealed partial class TravianClient
         await PauseForManualStepIfVisibleAsync("Manual verification appeared on the login page.", cancellationToken);
         if (await IsLoggedInAsync())
         {
-            Notify("Already logged in.");
+            await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
             return;
         }
 
@@ -138,6 +150,8 @@ public sealed partial class TravianClient
         {
             throw new InvalidOperationException("Login did not complete successfully.");
         }
+
+        await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
     }
 
     private async Task<bool> TryLoginUsingCurrentPageAsync(CancellationToken cancellationToken)
@@ -206,6 +220,7 @@ public sealed partial class TravianClient
 
     public async Task LogoutAsync(CancellationToken cancellationToken = default)
     {
+        Notify("LogoutAsync started");
         await GotoAsync(_config.VillageOverviewPath, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared before logout.", cancellationToken);
         if (!await IsLoggedInAsync())
@@ -257,22 +272,33 @@ public sealed partial class TravianClient
 
     public async Task<VillageStatus> ReadVillageStatusAsync(CancellationToken cancellationToken = default)
     {
-        await GotoAsync(_config.VillageOverviewPath, cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the village overview.", cancellationToken);
+        Notify("ReadVillageStatusAsync started");
+        if (!IsCurrentUrlForPath(_config.VillageOverviewPath))
+        {
+            await GotoAsync(_config.VillageOverviewPath, cancellationToken);
+            await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the village overview.", cancellationToken);
+        }
+
         await EnsureLoggedInAsync();
         return await ReadCurrentVillageStatusAsync(cancellationToken);
     }
 
     public async Task<VillageStatus> ReadVillageResourceStatusAsync(CancellationToken cancellationToken = default)
     {
-        await GotoAsync("/dorf1.php", cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening resource fields.", cancellationToken);
+        Notify("ReadVillageResourceStatusAsync started");
+        if (!IsCurrentUrlForPath("/dorf1.php"))
+        {
+            await GotoAsync("/dorf1.php", cancellationToken);
+            await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening resource fields.", cancellationToken);
+        }
+
         await EnsureLoggedInAsync();
         return await ReadCurrentVillageResourceStatusAsync(cancellationToken);
     }
 
     public async Task<InboxStatus> ReadInboxStatusAsync(CancellationToken cancellationToken = default)
     {
+        Notify("ReadInboxStatusAsync started");
         await EnsureLoggedInAsync();
         var unreadInbox = await ReadUnreadInboxCountsAsync(cancellationToken);
         return new InboxStatus(
@@ -280,14 +306,27 @@ public sealed partial class TravianClient
             UnreadReports: unreadInbox.UnreadReports);
     }
 
+    public async Task NavigateToResourceFieldsAsync(CancellationToken cancellationToken = default)
+    {
+        Notify("NavigateToResourceFieldsAsync started");
+        if (!IsCurrentUrlForPath("/dorf1.php"))
+        {
+            await GotoAsync("/dorf1.php", cancellationToken);
+        }
+
+        await EnsureLoggedInAsync();
+    }
+
     public async Task<bool> CheckLoggedInAsync(CancellationToken cancellationToken = default)
     {
+        Notify("CheckLoggedInAsync started");
         cancellationToken.ThrowIfCancellationRequested();
         return await IsLoggedInAsync();
     }
 
     public async Task<AccountSnapshot> ReadAccountSnapshotAsync(CancellationToken cancellationToken = default)
     {
+        Notify("ReadAccountSnapshotAsync started");
         await GotoAsync(_config.VillageOverviewPath, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading account info.", cancellationToken);
         await EnsureLoggedInAsync();
@@ -303,9 +342,11 @@ public sealed partial class TravianClient
 
     public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(CancellationToken cancellationToken = default)
     {
+        Notify("ReadAccountAnalysisSnapshotAsync started");
         await GotoAsync(_config.VillageOverviewPath, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading account analysis.", cancellationToken);
         await EnsureLoggedInAsync();
+        await RefreshCapitalStateForActiveVillageAsync(cancellationToken);
 
         var tribe = await ReadTribeAsync(cancellationToken);
         var goldClubEnabled = await ReadGoldClubEnabledAsync(cancellationToken);
@@ -326,6 +367,7 @@ public sealed partial class TravianClient
         int targetLevel,
         CancellationToken cancellationToken = default)
     {
+        Notify("DemolishBuildingToLevelAsync started");
         if (targetLevel < 0)
         {
             throw new InvalidOperationException("Demolish target level must be >= 0.");
@@ -376,6 +418,7 @@ public sealed partial class TravianClient
         string statPriority,
         CancellationToken cancellationToken = default)
     {
+        Notify("ManageHeroAsync started");
         await GotoAsync("/hero.php", cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening hero page.", cancellationToken);
         await EnsureLoggedInAsync();
@@ -422,18 +465,16 @@ public sealed partial class TravianClient
 
     public async Task<bool> MarkMessagesAsReadAsync(CancellationToken cancellationToken = default)
     {
+        Notify("MarkMessagesAsReadAsync started");
         await EnsureLoggedInAsync();
         await GotoAsync("/nachrichten.php", cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening messages.", cancellationToken);
         return await TryMarkInboxItemsAsReadAsync(
             markSelectors:
             [
-                "button:has-text('Mark all as read')",
-                "button:has-text('mark all read')",
-                "a:has-text('Mark all as read')",
-                "a:has-text('mark all read')",
-                "button:has-text('Als gelesen markieren')",
-                "a:has-text('Als gelesen markieren')",
+                "button",
+                "a",
+                ".markAllRead",
                 "button[title*='read' i]",
                 "a[title*='read' i]",
             ],
@@ -449,18 +490,15 @@ public sealed partial class TravianClient
 
     public async Task<bool> MarkReportsAsReadAsync(CancellationToken cancellationToken = default)
     {
+        Notify("MarkReportsAsReadAsync started");
         await EnsureLoggedInAsync();
         await GotoAsync("/berichte.php", cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening reports.", cancellationToken);
         return await TryMarkInboxItemsAsReadAsync(
             markSelectors:
             [
-                "button:has-text('Mark all as read')",
-                "button:has-text('mark all read')",
-                "a:has-text('Mark all as read')",
-                "a:has-text('mark all read')",
-                "button:has-text('Als gelesen markieren')",
-                "a:has-text('Als gelesen markieren')",
+                "button",
+                "a",
                 "button[title*='read' i]",
                 "a[title*='read' i]",
                 ".markAllRead",
@@ -477,6 +515,7 @@ public sealed partial class TravianClient
 
     public async Task<IReadOnlyList<VillageStatus>> ReadAllVillageStatusesAsync(CancellationToken cancellationToken = default)
     {
+        Notify("ReadAllVillageStatusesAsync started");
         await GotoAsync(_config.VillageOverviewPath, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the village overview.", cancellationToken);
         await EnsureLoggedInAsync();
@@ -514,6 +553,7 @@ public sealed partial class TravianClient
 
     public async Task<string> UpgradeResourceToLevelAsync(int slotId, int targetLevel, CancellationToken cancellationToken = default)
     {
+        Notify("UpgradeResourceToLevelAsync started");
         if (slotId < 1 || slotId > 18)
         {
             throw new InvalidOperationException($"Resource slot {slotId} is outside the resource field range.");
@@ -525,62 +565,82 @@ public sealed partial class TravianClient
         }
 
         var upgrades = 0;
+        var transientRetries = 0;
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-
-            var snapshot = await ReadResourceProgressSnapshotAsync(cancellationToken);
-            var field = snapshot.ResourceFields.FirstOrDefault(item => item.SlotId == slotId);
-            var currentLevel = field?.Level;
-            if (currentLevel is null)
+            try
             {
-                throw new InvalidOperationException($"Could not read level for resource slot {slotId}.");
+                var snapshot = await ReadResourceProgressSnapshotAsync(cancellationToken);
+                var field = snapshot.ResourceFields.FirstOrDefault(item => item.SlotId == slotId);
+                var currentLevel = field?.Level;
+                if (currentLevel is null)
+                {
+                    throw new InvalidOperationException($"Could not read level for resource slot {slotId}.");
+                }
+
+                if (currentLevel >= targetLevel)
+                {
+                    return $"Resource slot {slotId} is level {currentLevel}. Target {targetLevel} reached after {upgrades} upgrades.";
+                }
+
+                var queueFingerprintBefore = BuildQueueFingerprint(snapshot.BuildQueue);
+                var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: false);
+                var detectedMax = actionability.DetectedMaxLevel;
+                var effectiveTarget = detectedMax is int maxLevel ? Math.Min(targetLevel, maxLevel) : targetLevel;
+                Notify($"Resource slot {slotId}: level={currentLevel}, target={effectiveTarget}, max={detectedMax}, outcome={actionability.Outcome}.");
+
+                if (currentLevel >= effectiveTarget)
+                {
+                    return $"Resource slot {slotId} is level {currentLevel}. Target {effectiveTarget} reached after {upgrades} upgrades.";
+                }
+
+                if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByMaxLevel)
+                {
+                    var resolvedMax = detectedMax ?? currentLevel.Value;
+                    return $"Resource slot {slotId} appears maxed at level {resolvedMax}. No upgrade performed.";
+                }
+
+                if (actionability.Outcome != UpgradeAttemptOutcome.CanUpgrade)
+                {
+                    return $"Resource slot {slotId} blocked ({actionability.Outcome}): {actionability.Reason}";
+                }
+
+                var expectedWaitSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken);
+                await ClickDetectedUpgradeCandidateAsync(slotId, actionability.CandidateIndex, cancellationToken);
+                await NavigateToResourceFieldsAfterUpgradeClickAsync(cancellationToken);
+                upgrades += 1;
+                var progress = await WaitForResourceLevelAdvanceAsync(
+                    slotId,
+                    currentLevel.Value,
+                    queueFingerprintBefore,
+                    expectedWaitSeconds,
+                    cancellationToken);
+                if (progress.Advanced)
+                {
+                    transientRetries = 0;
+                    continue;
+                }
+
+                if (progress.QueuedOrInProgress)
+                {
+                    return $"Resource slot {slotId} blocked (QueuedOrInProgress): Upgrade triggered but no immediate level increase; evidence={progress.Evidence} queue_wait_seconds=15";
+                }
+
+                return $"Resource slot {slotId} blocked (NoImmediateProgress): Upgrade triggered but level is still {currentLevel} and no queue/in-progress evidence was detected queue_wait_seconds=6";
             }
-
-            var queueFingerprintBefore = BuildQueueFingerprint(snapshot.BuildQueue);
-            var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: true);
-            var detectedMax = actionability.DetectedMaxLevel;
-            var effectiveTarget = detectedMax is int maxLevel ? Math.Min(targetLevel, maxLevel) : targetLevel;
-            Notify($"Resource slot {slotId}: level={currentLevel}, target={effectiveTarget}, max={detectedMax}, outcome={actionability.Outcome}.");
-
-            if (currentLevel >= effectiveTarget)
+            catch (Exception ex) when (IsTransientExecutionContextException(ex) && transientRetries < 6)
             {
-                return $"Resource slot {slotId} is level {currentLevel}. Target {effectiveTarget} reached after {upgrades} upgrades.";
+                transientRetries += 1;
+                Notify($"UpgradeResourceToLevelAsync transient navigation context error at slot {slotId} ({transientRetries}/6). Retrying...");
+                await Task.Delay(250 * transientRetries, cancellationToken);
             }
-
-            if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByMaxLevel)
-            {
-                var resolvedMax = detectedMax ?? currentLevel.Value;
-                return $"Resource slot {slotId} appears maxed at level {resolvedMax}. No upgrade performed.";
-            }
-
-            if (actionability.Outcome != UpgradeAttemptOutcome.CanUpgrade)
-            {
-                return $"Resource slot {slotId} blocked ({actionability.Outcome}): {actionability.Reason}";
-            }
-
-            upgrades += 1;
-            var progress = await WaitForResourceLevelAdvanceAsync(
-                slotId,
-                currentLevel.Value,
-                queueFingerprintBefore,
-                cancellationToken);
-            if (progress.Advanced)
-            {
-                continue;
-            }
-
-            if (progress.QueuedOrInProgress)
-            {
-                return $"Upgrade triggered for resource slot {slotId}. No immediate level increase, but queue/in-progress evidence was detected ({progress.Evidence}).";
-            }
-
-            return $"Upgrade triggered for resource slot {slotId}, but level is still {currentLevel} and no queue/in-progress evidence was detected.";
         }
     }
 
     public async Task<string> UpgradeResourceToMaxAsync(int slotId, int maxAttempts = 30, CancellationToken cancellationToken = default)
     {
+        Notify("UpgradeResourceToMaxAsync started");
         if (slotId < 1 || slotId > 18)
         {
             throw new InvalidOperationException($"Resource slot {slotId} is outside the resource field range.");
@@ -600,7 +660,7 @@ public sealed partial class TravianClient
             }
 
             var queueFingerprintBefore = BuildQueueFingerprint(snapshot.BuildQueue);
-            var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: true);
+            var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: false);
             var detectedMax = actionability.DetectedMaxLevel;
             Notify($"Resource max loop slot {slotId}: level={currentLevel}, detectedMax={detectedMax}, outcome={actionability.Outcome}.");
 
@@ -615,11 +675,15 @@ public sealed partial class TravianClient
                 return $"Resource slot {slotId} blocked ({actionability.Outcome}): {actionability.Reason}. Upgrades made: {upgrades}.";
             }
 
+            var expectedWaitSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken);
+            await ClickDetectedUpgradeCandidateAsync(slotId, actionability.CandidateIndex, cancellationToken);
+            await NavigateToResourceFieldsAfterUpgradeClickAsync(cancellationToken);
             upgrades += 1;
             var progress = await WaitForResourceLevelAdvanceAsync(
                 slotId,
                 currentLevel.Value,
                 queueFingerprintBefore,
+                expectedWaitSeconds,
                 cancellationToken);
             if (!progress.Advanced)
             {
@@ -637,91 +701,194 @@ public sealed partial class TravianClient
 
     public async Task<string> UpgradeAllResourcesToLevelAsync(int targetLevel, CancellationToken cancellationToken = default)
     {
+        Notify($"Starting upgrade of all resources to level {targetLevel}.");
         if (targetLevel < 0)
         {
             throw new InvalidOperationException("Target level must be 0 or higher.");
         }
 
         var upgrades = 0;
+        var knownLevelsBySlot = new Dictionary<int, int>();
+        var transientRetries = 0;
+        int? currentTransientSlot = null;
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            await GotoAsync("/dorf1.php", cancellationToken);
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading resource fields.", cancellationToken);
-            await EnsureLoggedInAsync();
-            var resourceFields = await ReadResourceFieldsAsync(cancellationToken);
-            var buildQueue = await ReadBuildQueueAsync(cancellationToken);
-            var isCapital = await ReadIsCapitalAsync(cancellationToken);
-
-            var fallbackMax = ResolveResourceMaxLevelFallback(isCapital);
-            var candidates = resourceFields
-                .Where(field => field.SlotId is not null && field.Level is not null)
-                .OrderBy(field => field.Level ?? 0)
-                .ThenBy(field => field.SlotId ?? 999)
-                .ToList();
-
-            var attemptedAny = false;
-            var blockReasons = new List<string>();
-
-            foreach (var candidate in candidates)
+            try
             {
-                var slot = candidate.SlotId ?? 0;
-                var level = candidate.Level ?? 0;
-                var preliminaryTarget = Math.Min(targetLevel, fallbackMax);
+                await GotoAsync("/dorf1.php", cancellationToken);
+                await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading resource fields.", cancellationToken);
+                await EnsureLoggedInAsync();
+                var resourceFields = await ReadResourceFieldsAsync(cancellationToken);
+                NotifyResourceLevelIncreases(knownLevelsBySlot, resourceFields);
+                knownLevelsBySlot = BuildResourceLevelMap(resourceFields);
+                var buildQueue = await ReadBuildQueueAsync(cancellationToken);
+                var queueWaitSeconds = ResolveShortestQueueDurationSeconds(buildQueue);
 
-                if (level >= preliminaryTarget)
+                if (queueWaitSeconds is int waitSeconds && waitSeconds > 0)
                 {
+                    Notify($"Resource queue busy for about {waitSeconds}s before the next upgrade attempt. queue_wait_seconds={waitSeconds}");
+                    await Task.Delay(TimeSpan.FromSeconds(waitSeconds + 1), cancellationToken);
+                    transientRetries = 0;
                     continue;
                 }
 
-                var actionability = await AnalyzeUpgradeActionabilityAsync(slot, cancellationToken, performClick: true);
-                var cap = actionability.DetectedMaxLevel ?? fallbackMax;
-                var effectiveTarget = Math.Min(targetLevel, cap);
-                if (level >= effectiveTarget)
-                {
-                    continue;
-                }
+                var fallbackMax = 40;
+                var candidates = resourceFields
+                    .Where(field => field.SlotId is not null && field.Level is not null)
+                    .OrderBy(field => field.Level ?? 0)
+                    .ThenBy(field => field.SlotId ?? 999)
+                    .ToList();
 
-                if (actionability.Outcome == UpgradeAttemptOutcome.CanUpgrade)
+                var attemptedAny = false;
+                var blockReasons = new List<string>();
+
+                foreach (var candidate in candidates)
                 {
-                    attemptedAny = true;
-                    upgrades += 1;
-                    var queueFingerprintBefore = BuildQueueFingerprint(buildQueue);
-                    var progress = await WaitForResourceLevelAdvanceAsync(
-                        slot,
-                        level,
-                        queueFingerprintBefore,
-                        cancellationToken);
-                    if (!progress.Advanced)
+                    var slot = candidate.SlotId ?? 0;
+                    currentTransientSlot = slot;
+                    var level = candidate.Level ?? 0;
+                    var preliminaryTarget = Math.Min(targetLevel, fallbackMax);
+
+                    if (level >= preliminaryTarget)
                     {
-                        if (progress.QueuedOrInProgress)
-                        {
-                            return $"Upgrade triggered for slot {slot} (level {level}), no immediate level increase, but queue/in-progress evidence was detected ({progress.Evidence}). Upgrades made: {upgrades}.";
-                        }
-
-                        return $"Upgrade triggered for slot {slot} (level {level}), but no immediate level increase and no queue/in-progress evidence detected. Upgrades made: {upgrades}.";
+                        continue;
                     }
 
-                    goto NextLoopTick;
+                    var actionability = await AnalyzeUpgradeActionabilityAsync(slot, cancellationToken, performClick: false);
+                    var cap = actionability.DetectedMaxLevel ?? fallbackMax;
+                    var effectiveTarget = Math.Min(targetLevel, cap);
+                    if (level >= effectiveTarget)
+                    {
+                        continue;
+                    }
+
+                    if (actionability.Outcome == UpgradeAttemptOutcome.CanUpgrade)
+                    {
+                        attemptedAny = true;
+                        await ClickDetectedUpgradeCandidateAsync(slot, actionability.CandidateIndex, cancellationToken);
+                        await NavigateToResourceFieldsAfterUpgradeClickAsync(cancellationToken);
+                        upgrades += 1;
+                        var waitAfterStartSeconds = actionability.QueueWaitSeconds;
+                        if (waitAfterStartSeconds is int preRead && (preRead <= 0 || preRead > 7200))
+                        {
+                            waitAfterStartSeconds = null;
+                        }
+
+                        if (!waitAfterStartSeconds.HasValue)
+                        {
+                            var queueAfterStart = await ReadBuildQueueAsync(cancellationToken);
+                            waitAfterStartSeconds = ResolveShortestQueueDurationSeconds(queueAfterStart);
+                        }
+
+                        if (waitAfterStartSeconds is int detectedWait && detectedWait > 0)
+                        {
+                            Notify($"Resource slot {slot} queued. Waiting about {detectedWait}s for completion. queue_wait_seconds={detectedWait}");
+                            await Task.Delay(TimeSpan.FromSeconds(detectedWait + 1), cancellationToken);
+                            transientRetries = 0;
+                            goto NextLoopTick;
+                        }
+
+                        // Fallback for edge cases where no queue timer is exposed.
+                        await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+                        transientRetries = 0;
+                        goto NextLoopTick;
+                    }
+
+                    if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByQueue
+                        && actionability.QueueWaitSeconds is int blockedWaitSeconds
+                        && blockedWaitSeconds > 0)
+                    {
+                        Notify($"Resource queue busy for about {blockedWaitSeconds}s before retrying slot {slot}. queue_wait_seconds={blockedWaitSeconds}");
+                        await Task.Delay(TimeSpan.FromSeconds(blockedWaitSeconds + 1), cancellationToken);
+                        transientRetries = 0;
+                        goto NextLoopTick;
+                    }
+
+                    blockReasons.Add($"slot {slot}: {actionability.Outcome} ({actionability.Reason})");
                 }
 
-                blockReasons.Add($"slot {slot}: {actionability.Outcome} ({actionability.Reason})");
-            }
+                if (!attemptedAny)
+                {
+                    if (blockReasons.Count == 0)
+                    {
+                        return $"All resource fields are at or above target level {targetLevel}. Upgrades made: {upgrades}.";
+                    }
 
-            if (!attemptedAny)
+                    var reasonSuffix = blockReasons.Count > 0 ? $" Blockers: {string.Join(", ", blockReasons)}." : string.Empty;
+                    if (!IsCurrentUrlForPath("/dorf1.php"))
+                    {
+                        await GotoAsync("/dorf1.php", cancellationToken);
+                    }
+
+                    return $"No resource slot could be upgraded toward level {targetLevel}. Upgrades made: {upgrades}.{reasonSuffix}";
+                }
+
+                transientRetries = 0;
+                currentTransientSlot = null;
+
+            NextLoopTick:
+                ;
+            }
+            catch (Exception ex) when (IsTransientExecutionContextException(ex) && transientRetries < 8)
             {
-                var reasonSuffix = blockReasons.Count > 0 ? $" Blockers: {string.Join(", ", blockReasons)}." : string.Empty;
-                return $"No resource slot could be upgraded toward level {targetLevel}. Upgrades made: {upgrades}.{reasonSuffix}";
+                transientRetries += 1;
+                if (currentTransientSlot is int slotId)
+                {
+                    Notify($"Upgrade-all hit transient navigation context error at slot {slotId} ({transientRetries}/8). Retrying...");
+                }
+                else
+                {
+                    Notify($"Upgrade-all hit transient navigation context error ({transientRetries}/8). Retrying...");
+                }
+                await Task.Delay(300 * transientRetries, cancellationToken);
+            }
+        }
+    }
+
+    private static Dictionary<int, int> BuildResourceLevelMap(IReadOnlyList<ResourceField> fields)
+    {
+        var map = new Dictionary<int, int>();
+        foreach (var field in fields)
+        {
+            if (field.SlotId is not int slotId || field.Level is not int level)
+            {
+                continue;
             }
 
-        NextLoopTick:
-            ;
+            map[slotId] = level;
+        }
+
+        return map;
+    }
+
+    private void NotifyResourceLevelIncreases(
+        IReadOnlyDictionary<int, int> knownLevelsBySlot,
+        IReadOnlyList<ResourceField> currentFields)
+    {
+        foreach (var field in currentFields)
+        {
+            if (field.SlotId is not int slotId || field.Level is not int currentLevel)
+            {
+                continue;
+            }
+
+            if (!knownLevelsBySlot.TryGetValue(slotId, out var previousLevel))
+            {
+                continue;
+            }
+
+            if (currentLevel > previousLevel)
+            {
+                Notify($"Resource slot {slotId} level increased from {previousLevel} to {currentLevel}.");
+            }
         }
     }
 
     public async Task<string> UpgradeBuildingToLevelAsync(int slotId, int targetLevel, CancellationToken cancellationToken = default)
     {
+        Notify("UpgradeBuildingToLevelAsync started");
         if (slotId < 19)
         {
             throw new InvalidOperationException($"Building slot {slotId} is outside the building range.");
@@ -787,6 +954,7 @@ public sealed partial class TravianClient
 
     public async Task<string> UpgradeBuildingToMaxAsync(int slotId, int maxAttempts = 30, CancellationToken cancellationToken = default)
     {
+        Notify("UpgradeBuildingToMaxAsync started");
         if (slotId < 19)
         {
             throw new InvalidOperationException($"Building slot {slotId} is outside the building range.");
@@ -847,6 +1015,7 @@ public sealed partial class TravianClient
 
     public async Task<string> ConstructBuildingAsync(int slotId, int gid, string name, CancellationToken cancellationToken = default)
     {
+        Notify("ConstructBuildingAsync started");
         if (slotId < 19)
         {
             throw new InvalidOperationException($"Building slot {slotId} is outside the building range.");
@@ -935,6 +1104,7 @@ public sealed partial class TravianClient
 
     public async Task<IReadOnlyList<ServerBuildChoice>> ReadAvailableBuildingsForSlotAsync(int slotId, CancellationToken cancellationToken = default)
     {
+        Notify("ReadAvailableBuildingsForSlotAsync started");
         if (slotId < 19)
         {
             throw new InvalidOperationException($"Building slot {slotId} is outside the building range.");
@@ -948,6 +1118,8 @@ public sealed partial class TravianClient
 
     public async Task SwitchToVillageAsync(string villageName = "", string? villageUrl = null, CancellationToken cancellationToken = default)
     {
+        var activeVillageBeforeSwitch = await TryReadActiveVillageNameSafeAsync(cancellationToken);
+
         if (!string.IsNullOrWhiteSpace(villageUrl))
         {
             await GotoAsync(villageUrl, cancellationToken);
@@ -973,12 +1145,18 @@ public sealed partial class TravianClient
 
         await PauseForManualStepIfVisibleAsync($"Manual verification appeared while switching to village '{villageName}'.", cancellationToken);
         await EnsureLoggedInAsync();
+        var activeVillageAfterSwitch = await TryReadActiveVillageNameSafeAsync(cancellationToken);
+        if (!string.Equals(activeVillageBeforeSwitch, activeVillageAfterSwitch, StringComparison.OrdinalIgnoreCase))
+        {
+            await RefreshCapitalStateForActiveVillageAsync(cancellationToken);
+        }
     }
 
     private async Task<VillageStatus> ReadCurrentVillageStatusAsync(CancellationToken cancellationToken)
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared before reading village status.", cancellationToken);
         var villages = await ReadVillagesAsync(cancellationToken);
+        var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
         var buildQueue = await ReadBuildQueueAsync(cancellationToken);
         var remaining = ResolveShortestQueueDurationSeconds(buildQueue);
         var currency = await ReadCurrencyAsync(cancellationToken);
@@ -989,7 +1167,7 @@ public sealed partial class TravianClient
         var forecasts = BuildResourceForecasts(resources, capacities, productionByHour);
 
         return new VillageStatus(
-            ActiveVillage: await ReadActiveVillageNameAsync(cancellationToken),
+            ActiveVillage: activeVillage,
             Villages: villages,
             Resources: resources,
             ResourceFields: await ReadResourceFieldsAsync(cancellationToken),
@@ -1003,7 +1181,7 @@ public sealed partial class TravianClient
             ActiveBuildCount: buildQueue.Count,
             BuildQueueRemainingSeconds: remaining,
             BuildQueueRemainingText: remaining is int left ? FormatDuration(left) : string.Empty,
-            IsCapital: await ReadIsCapitalAsync(cancellationToken),
+            IsCapital: TryGetCachedCapitalState(activeVillage),
             ServerTimeUtc: _serverTimeUtc,
             UnreadMessages: unreadInbox.UnreadMessages,
             UnreadReports: unreadInbox.UnreadReports,
@@ -1016,6 +1194,7 @@ public sealed partial class TravianClient
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared before reading resource status.", cancellationToken);
         var villages = await ReadVillagesAsync(cancellationToken);
+        var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
         var buildQueue = await ReadBuildQueueAsync(cancellationToken);
         var remaining = ResolveShortestQueueDurationSeconds(buildQueue);
         var currency = await ReadCurrencyAsync(cancellationToken);
@@ -1026,7 +1205,7 @@ public sealed partial class TravianClient
         var forecasts = BuildResourceForecasts(resources, capacities, productionByHour);
 
         return new VillageStatus(
-            ActiveVillage: await ReadActiveVillageNameAsync(cancellationToken),
+            ActiveVillage: activeVillage,
             Villages: villages,
             Resources: resources,
             ResourceFields: await ReadResourceFieldsAsync(cancellationToken),
@@ -1040,7 +1219,7 @@ public sealed partial class TravianClient
             ActiveBuildCount: buildQueue.Count,
             BuildQueueRemainingSeconds: remaining,
             BuildQueueRemainingText: remaining is int left ? FormatDuration(left) : string.Empty,
-            IsCapital: null,
+            IsCapital: TryGetCachedCapitalState(activeVillage),
             ServerTimeUtc: _serverTimeUtc,
             UnreadMessages: unreadInbox.UnreadMessages,
             UnreadReports: unreadInbox.UnreadReports,
@@ -1068,6 +1247,45 @@ public sealed partial class TravianClient
         });
         await PauseForManualStepIfVisibleAsync("Manual verification appeared after navigation.", cancellationToken);
         await TryDismissContinuePromptAsync(cancellationToken);
+    }
+
+    private bool IsCurrentUrlForPath(string pathOrUrl)
+    {
+        if (string.IsNullOrWhiteSpace(_page.Url))
+        {
+            return false;
+        }
+
+        try
+        {
+            if (!Uri.TryCreate(_page.Url, UriKind.Absolute, out var currentUri))
+            {
+                return false;
+            }
+
+            string expectedPath;
+            if (pathOrUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!Uri.TryCreate(pathOrUrl, UriKind.Absolute, out var expectedUri))
+                {
+                    return false;
+                }
+
+                expectedPath = expectedUri.AbsolutePath;
+            }
+            else
+            {
+                expectedPath = pathOrUrl.StartsWith('/')
+                    ? pathOrUrl
+                    : "/" + pathOrUrl;
+            }
+
+            return string.Equals(currentUri.AbsolutePath, expectedPath, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private async Task EnsureLoggedInAsync()
@@ -1103,6 +1321,7 @@ public sealed partial class TravianClient
             var loggedInSelectors = new[]
             {
                 "a[href*='logout']",
+                "img[alt*='Logout' i]",
                 "a[href*='dorf1.php']",
                 "a[href*='dorf2.php']",
                 "#sidebarBoxVillagelist",
@@ -1341,6 +1560,12 @@ public sealed partial class TravianClient
 
     private async Task<ILocator?> FindContinuePromptLocatorAsync(int timeoutMs)
     {
+        var directContinueLink = _page.Locator("a[href*='dorf1.php?ok']");
+        if (await directContinueLink.CountAsync() > 0 && await IsLocatorVisibleAsync(directContinueLink.First, timeoutMs))
+        {
+            return directContinueLink.First;
+        }
+
         var textSelectors = new[]
         {
             "button",
@@ -1365,7 +1590,12 @@ public sealed partial class TravianClient
                     continue;
                 }
 
-                if (!string.Equals(text, "Continue", StringComparison.OrdinalIgnoreCase))
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    continue;
+                }
+
+                if (text.IndexOf("Continue", StringComparison.OrdinalIgnoreCase) < 0)
                 {
                     continue;
                 }
@@ -1400,7 +1630,12 @@ public sealed partial class TravianClient
                     continue;
                 }
 
-                if (!string.Equals(value?.Trim(), "Continue", StringComparison.OrdinalIgnoreCase))
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    continue;
+                }
+
+                if (value.IndexOf("Continue", StringComparison.OrdinalIgnoreCase) < 0)
                 {
                     continue;
                 }
@@ -1578,7 +1813,14 @@ public sealed partial class TravianClient
         raw ??= [];
         return raw
             .Where(v => v.Count > 0 && !string.IsNullOrWhiteSpace(v[0]))
-            .Select(v => new Village(v[0], ResolveUrl(v.Count > 1 ? v[1] : string.Empty)))
+            .Select(v =>
+            {
+                var name = v[0];
+                return new Village(
+                    Name: name,
+                    Url: ResolveUrl(v.Count > 1 ? v[1] : string.Empty),
+                    IsCapital: TryGetCachedCapitalState(name));
+            })
             .ToList();
     }
 
@@ -1867,13 +2109,15 @@ public sealed partial class TravianClient
                     readFirstNumber([
                       '#silver',
                       '#silverValue',
-                      '[id*="silver" i]',
-                      '[class*="silver" i]',
+                      '[id^="ajaxReplaceableSilverAmount_"]',
+                      '.ajaxReplaceableSilverAmount',
+                      '#sidebarBoxActiveVillage #silver',
+                      '#sidebarBoxActiveVillage .silver',
                       "font[color='#B3B3B3']",
                       "font[color='#b3b3b3']"
                     ])
                     ?? readFromHtmlPattern(/<font[^>]*color=["']#b3b3b3["'][^>]*>([^<]+)/i)
-                    ?? readFromLabel(['silver', 'silber', 'auction', 'auktion']);
+                    ?? readFromLabel(['silver', 'silber']);
 
                   return { gold, silver };
                 }
@@ -1908,8 +2152,10 @@ public sealed partial class TravianClient
             [
                 "#silver",
                 "#silverValue",
-                "[id*='silver' i]",
-                "[class*='silver' i]",
+                "[id^='ajaxReplaceableSilverAmount_']",
+                ".ajaxReplaceableSilverAmount",
+                "#sidebarBoxActiveVillage #silver",
+                "#sidebarBoxActiveVillage .silver",
                 "font[color='#B3B3B3']",
                 "font[color='#b3b3b3']"
             ],
@@ -1996,6 +2242,8 @@ public sealed partial class TravianClient
             """
             () => {
               const selectors = [
+                '#villageNameField',
+                '#villageNameField.boxTitle',
                 '.villageList .active',
                 '#villageList .active',
                 '#sidebarBoxVillagelist .active',
@@ -2439,7 +2687,7 @@ public sealed partial class TravianClient
             """);
     }
 
-    private async Task<bool?> ReadIsCapitalAsync(CancellationToken cancellationToken)
+    private async Task<bool?> ReadIsCapitalAsync(string villageName, CancellationToken cancellationToken)
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading capital state.", cancellationToken);
         var previousUrl = _page.Url;
@@ -2449,23 +2697,20 @@ public sealed partial class TravianClient
             await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading player profile.", cancellationToken);
             var result = await _page.EvaluateAsync<string>(
                 """
-                () => {
-                  const bodyText = (document.body?.innerText || '').toLowerCase();
-                  if (document.querySelector('.capital, [class*="capital"], [id*="capital"], [data-capital="1"], [data-capital="true"]')) {
-                    return 'true';
+                (vName) => {
+                  const clean = (v) => (v || '').replace(/\s+/g, ' ').trim();
+                  const capitalSpan = document.querySelector('span.mainVillage');
+                  if (!capitalSpan) return 'unknown';
+                  // Walk up from the span and check text content against the village name
+                  let el = capitalSpan.parentElement;
+                  for (let depth = 0; depth < 8 && el && el !== document.body; depth++, el = el.parentElement) {
+                    const text = clean(el.textContent || '');
+                    if (text.toLowerCase().includes(vName.toLowerCase())) return 'true';
                   }
-
-                  if (/(capital|hauptstadt|huvudstad|capitale)\s*(village|byen|by|village)?/i.test(bodyText)) {
-                    return 'true';
-                  }
-
-                  if (/(not\s+capital|non\s+capital|ingen\s+huvudstad|keine\s+hauptstadt)/i.test(bodyText)) {
-                    return 'false';
-                  }
-
-                  return 'unknown';
+                  return 'false';
                 }
-                """);
+                """,
+                villageName);
 
             return result?.ToLowerInvariant() switch
             {
@@ -2483,11 +2728,260 @@ public sealed partial class TravianClient
         }
     }
 
+    private async Task RefreshCapitalStateForActiveVillageAsync(CancellationToken cancellationToken)
+    {
+        var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(activeVillage))
+        {
+            return;
+        }
+
+        var isCapital = await ReadIsCapitalAsync(activeVillage, cancellationToken);
+        SaveCachedCapitalState(activeVillage, isCapital);
+    }
+
+    private async Task RefreshCapitalStatesFromPlayerProfileAsync(CancellationToken cancellationToken)
+    {
+        var villages = await ReadVillagesAsync(cancellationToken);
+        if (villages.Count == 0)
+        {
+            await RefreshCapitalStateForActiveVillageAsync(cancellationToken);
+            return;
+        }
+
+        var villageNames = villages
+            .Where(v => !string.IsNullOrWhiteSpace(v.Name))
+            .Select(v => v.Name!.Trim())
+            .ToArray();
+
+        if (villageNames.Length == 0)
+        {
+            await RefreshCapitalStateForActiveVillageAsync(cancellationToken);
+            return;
+        }
+
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading capital states.", cancellationToken);
+        var previousUrl = _page.Url;
+        try
+        {
+            await GotoAsync("/spieler.php", cancellationToken);
+            await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading player profile villages.", cancellationToken);
+            await EnsureLoggedInAsync();
+
+            // Pass the known village names into JS so we can match by text content near span.mainVillage.
+            // This works regardless of whether the server uses newdid links or other structures.
+            var capitalName = await _page.EvaluateAsync<string>(
+                """
+                (villageNames) => {
+                  const clean = (v) => (v || '').replace(/\s+/g, ' ').trim();
+                  const capitalSpan = document.querySelector('span.mainVillage');
+                  if (!capitalSpan) return '';
+                  // Walk up the DOM from the capital span and check text against known village names
+                  let el = capitalSpan.parentElement;
+                  for (let depth = 0; depth < 8 && el && el !== document.body; depth++, el = el.parentElement) {
+                    const text = clean(el.textContent || '').toLowerCase();
+                    for (let i = 0; i < villageNames.length; i++) {
+                      if (text.includes(villageNames[i].toLowerCase())) return villageNames[i];
+                    }
+                  }
+                  return '';
+                }
+                """,
+                villageNames);
+
+            if (string.IsNullOrWhiteSpace(capitalName))
+            {
+                // Can't determine capital from page — don't overwrite cache with wrong data
+                Notify("Capital detection: span.mainVillage not found or village name not matched on spieler.php — skipping cache update.");
+                return;
+            }
+
+            Notify($"Capital detection: identified capital village as '{capitalName}'.");
+
+            foreach (var name in villageNames)
+            {
+                SaveCachedCapitalState(name, string.Equals(name, capitalName, StringComparison.OrdinalIgnoreCase));
+            }
+        }
+        finally
+        {
+            if (!string.IsNullOrWhiteSpace(previousUrl))
+            {
+                await GotoAsync(previousUrl, cancellationToken);
+            }
+        }
+    }
+
+    private async Task<string?> TryReadActiveVillageNameSafeAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await ReadActiveVillageNameAsync(cancellationToken);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private bool? TryGetCachedCapitalState(string villageName)
+    {
+        if (string.IsNullOrWhiteSpace(villageName))
+        {
+            return null;
+        }
+
+        EnsureCapitalCacheLoaded();
+        var key = BuildCapitalCacheKey(villageName);
+        lock (_capitalCacheSync)
+        {
+            return _capitalCacheByKey.TryGetValue(key, out var entry)
+                ? entry.IsCapital
+                : null;
+        }
+    }
+
+    private void SaveCachedCapitalState(string villageName, bool? isCapital)
+    {
+        if (string.IsNullOrWhiteSpace(villageName))
+        {
+            return;
+        }
+
+        lock (_capitalCacheSync)
+        {
+            EnsureCapitalCacheLoadedUnderLock();
+            var key = BuildCapitalCacheKey(villageName);
+            if (isCapital is null)
+            {
+                return;
+            }
+
+            _capitalCacheByKey[key] = new CapitalCacheEntry
+            {
+                AccountName = _account.Name,
+                ServerUrl = _config.BaseUrl.TrimEnd('/'),
+                VillageName = villageName,
+                IsCapital = isCapital,
+                UpdatedAtUtc = DateTimeOffset.UtcNow,
+            };
+
+            PersistCapitalCacheUnderLock();
+        }
+    }
+
+    private void EnsureCapitalCacheLoaded()
+    {
+        lock (_capitalCacheSync)
+        {
+            EnsureCapitalCacheLoadedUnderLock();
+        }
+    }
+
+    private void EnsureCapitalCacheLoadedUnderLock()
+    {
+        if (_capitalCacheLoaded)
+        {
+            return;
+        }
+
+        _capitalCacheLoaded = true;
+        _capitalCacheByKey.Clear();
+        if (!File.Exists(_capitalCachePath))
+        {
+            return;
+        }
+
+        try
+        {
+            var raw = File.ReadAllText(_capitalCachePath);
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return;
+            }
+
+            var document = JsonSerializer.Deserialize<CapitalCacheDocument>(raw, CapitalCacheJsonOptions);
+            if (document?.Entries is null)
+            {
+                return;
+            }
+
+            foreach (var entry in document.Entries)
+            {
+                if (string.IsNullOrWhiteSpace(entry.VillageName))
+                {
+                    continue;
+                }
+
+                var key = BuildCapitalCacheKey(entry.AccountName, entry.ServerUrl, entry.VillageName);
+                _capitalCacheByKey[key] = entry;
+            }
+        }
+        catch (Exception ex)
+        {
+            Notify($"Could not load capital cache: {ex.Message}");
+        }
+    }
+
+    private void PersistCapitalCacheUnderLock()
+    {
+        try
+        {
+            var directory = Path.GetDirectoryName(_capitalCachePath);
+            if (string.IsNullOrWhiteSpace(directory))
+            {
+                throw new InvalidOperationException("Capital cache path is invalid.");
+            }
+
+            Directory.CreateDirectory(directory);
+            var document = new CapitalCacheDocument
+            {
+                Entries = _capitalCacheByKey.Values
+                    .OrderBy(item => item.AccountName, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(item => item.ServerUrl, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(item => item.VillageName, StringComparer.OrdinalIgnoreCase)
+                    .ToList(),
+            };
+            File.WriteAllText(_capitalCachePath, JsonSerializer.Serialize(document, CapitalCacheJsonOptions));
+        }
+        catch (Exception ex)
+        {
+            Notify($"Could not save capital cache: {ex.Message}");
+        }
+    }
+
+    private string BuildCapitalCacheKey(string villageName)
+    {
+        return BuildCapitalCacheKey(_account.Name, _config.BaseUrl.TrimEnd('/'), villageName);
+    }
+
+    private static string BuildCapitalCacheKey(string accountName, string serverUrl, string villageName)
+    {
+        return string.Join(
+            "|",
+            NormalizeCacheKeyPart(accountName),
+            NormalizeCacheKeyPart(serverUrl),
+            NormalizeCacheKeyPart(villageName));
+    }
+
+    private static string NormalizeCacheKeyPart(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return value.Trim().ToLowerInvariant();
+    }
+
     private async Task<IReadOnlyList<ResourceField>> ReadResourceFieldsAsync(CancellationToken cancellationToken)
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading resource fields.", cancellationToken);
-        var rawFieldsJson = await _page.EvaluateAsync<string>(
-            """
+        string rawFieldsJson = string.Empty;
+        await RetryAsync("read resource fields snapshot", async () =>
+        {
+            rawFieldsJson = await _page.EvaluateAsync<string>(
+                """
             () => {
               const fieldTypes = {
                 1: 'wood',
@@ -2502,16 +2996,43 @@ public sealed partial class TravianClient
                 crop: 'Cropland',
                 unknown: 'Unknown field'
               };
-              const slotFallbackTypes = {
-                1: 'wood', 2: 'clay', 3: 'iron', 4: 'crop', 5: 'wood', 6: 'clay',
-                7: 'iron', 8: 'crop', 9: 'crop', 10: 'wood', 11: 'iron', 12: 'crop',
-                13: 'crop', 14: 'iron', 15: 'clay', 16: 'wood', 17: 'crop', 18: 'clay'
+
+              const parseSlotIdFromText = (value) => {
+                if (!value) return null;
+                const idMatch = String(value).match(/[?&]id=(\d+)/i);
+                if (idMatch) return Number(idMatch[1]);
+                const aidMatch = String(value).match(/(?:^|[^a-z])aid[_:=\s-]?(\d{2})/i);
+                if (aidMatch) return Number(aidMatch[1]);
+                const slotMatch = String(value).match(/(?:^|[^a-z])slot[_:=\s-]?(\d{2})/i);
+                if (slotMatch) return Number(slotMatch[1]);
+                return null;
               };
 
-              const parseSlotId = (href) => {
-                if (!href) return null;
-                const match = href.match(/[?&]id=(\d+)/);
-                return match ? Number(match[1]) : null;
+              const parseSlotId = (element, href) => {
+                const fromHref = parseSlotIdFromText(href);
+                if (fromHref !== null) return fromHref;
+
+                if (!element || typeof element.getAttribute !== 'function') return null;
+                const attrs = [
+                  element.getAttribute('data-aid'),
+                  element.getAttribute('aid'),
+                  element.getAttribute('data-id'),
+                  element.getAttribute('data-slot'),
+                  element.getAttribute('data-targetid'),
+                  element.getAttribute('data-target-id'),
+                  element.getAttribute('href'),
+                  element.getAttribute('data-href'),
+                  element.getAttribute('onclick'),
+                  element.id || '',
+                  element.className || ''
+                ];
+
+                for (const attr of attrs) {
+                  const fromAttr = parseSlotIdFromText(attr);
+                  if (fromAttr !== null) return fromAttr;
+                }
+
+                return null;
               };
 
               const directText = (element) => {
@@ -2561,11 +3082,20 @@ public sealed partial class TravianClient
                 const gidMatch = text.match(/(?:^|\s|_|-)gid[_-]?(\d+)(?:\s|$|_|-)/);
                 if (gidMatch && fieldTypes[Number(gidMatch[1])]) return fieldTypes[Number(gidMatch[1])];
 
+                // Travian often puts gid class on a parent container (e.g. <div class="field gid4">).
+                const gidEl = element.closest('[class*="gid"]');
+                if (gidEl) {
+                  const ancestorGidMatch = (gidEl.className || '').toLowerCase().match(/(?:^|\s)gid[_-]?(\d+)(?:\s|$)/);
+                  if (ancestorGidMatch && fieldTypes[Number(ancestorGidMatch[1])]) {
+                    return fieldTypes[Number(ancestorGidMatch[1])];
+                  }
+                }
+
                 if (text.includes('wood') || text.includes('lumber') || text.includes('trä')) return 'wood';
                 if (text.includes('clay') || text.includes('lera')) return 'clay';
                 if (text.includes('iron') || text.includes('järn')) return 'iron';
                 if (text.includes('crop') || text.includes('wheat') || text.includes('gröda')) return 'crop';
-                return slotFallbackTypes[slotId] || 'unknown';
+                return 'unknown';
               };
 
               const parseName = (fieldType, element) => {
@@ -2607,7 +3137,7 @@ public sealed partial class TravianClient
               for (const selector of selectors) {
                 for (const element of document.querySelectorAll(selector)) {
                   const href = element.getAttribute('href');
-                  const slotId = parseSlotId(href);
+                  const slotId = parseSlotId(element, href);
                   if (slotId === null || slotId > 18) continue;
                   const key = String(slotId);
                   if (seen.has(key)) continue;
@@ -2626,25 +3156,19 @@ public sealed partial class TravianClient
               return JSON.stringify(fields);
             }
             """);
+        });
 
         var rawFields = string.IsNullOrWhiteSpace(rawFieldsJson)
             ? new List<ResourceFieldJs>()
             : JsonSerializer.Deserialize<List<ResourceFieldJs>>(rawFieldsJson) ?? new List<ResourceFieldJs>();
 
         rawFields ??= [];
-        var fallbackTypes = new Dictionary<int, string>
-        {
-            [1] = "wood", [2] = "clay", [3] = "iron", [4] = "crop", [5] = "wood", [6] = "clay",
-            [7] = "iron", [8] = "crop", [9] = "crop", [10] = "wood", [11] = "iron", [12] = "crop",
-            [13] = "crop", [14] = "iron", [15] = "clay", [16] = "wood", [17] = "crop", [18] = "clay",
-        };
-        var fallbackNames = new Dictionary<string, string>
+        var fieldTypeNames = new Dictionary<string, string>
         {
             ["wood"] = "Woodcutter",
             ["clay"] = "Clay pit",
             ["iron"] = "Iron mine",
             ["crop"] = "Cropland",
-            ["unknown"] = "Unknown field",
         };
 
         var fields = rawFields.Select(item =>
@@ -2652,7 +3176,7 @@ public sealed partial class TravianClient
             var fieldType = string.IsNullOrWhiteSpace(item.FieldType) ? "unknown" : item.FieldType!;
             var name = !string.IsNullOrWhiteSpace(item.Name)
                 ? item.Name!
-                : fallbackNames.GetValueOrDefault(fieldType, "Unknown field");
+                : fieldTypeNames.GetValueOrDefault(fieldType, "Unknown field");
             return new ResourceField(item.SlotId, fieldType, name, item.Level, ResolveUrl(item.Href));
         }).ToList();
 
@@ -2664,11 +3188,10 @@ public sealed partial class TravianClient
                 continue;
             }
 
-            var fieldType = fallbackTypes.GetValueOrDefault(slotId, "unknown");
             fields.Add(new ResourceField(
                 SlotId: slotId,
-                FieldType: fieldType,
-                Name: fallbackNames.GetValueOrDefault(fieldType, "Unknown field"),
+                FieldType: "unknown",
+                Name: "Unknown field",
                 Level: null,
                 Url: ResolveUrl($"build.php?id={slotId}")));
         }
@@ -2678,13 +3201,20 @@ public sealed partial class TravianClient
 
     private async Task<IReadOnlyList<Building>> ReadBuildingsAsync(CancellationToken cancellationToken)
     {
-        await GotoAsync("/dorf2.php", cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the building overview.", cancellationToken);
+        if (!IsCurrentUrlForPath("/dorf2.php"))
+        {
+            await GotoAsync("/dorf2.php", cancellationToken);
+            await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the building overview.", cancellationToken);
+        }
+
         await EnsureLoggedInAsync();
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading buildings.", cancellationToken);
 
-        var rawBuildingsJson = await _page.EvaluateAsync<string>(
-            """
+        string rawBuildingsJson = string.Empty;
+        await RetryAsync("read building slots snapshot", async () =>
+        {
+            rawBuildingsJson = await _page.EvaluateAsync<string>(
+                """
             () => {
               const buildingNames = {
                 10: 'Warehouse',
@@ -2721,10 +3251,42 @@ public sealed partial class TravianClient
                 44: 'Command Center'
               };
 
-              const parseSlotId = (href) => {
-                if (!href) return null;
-                const match = href.match(/[?&]id=(\d+)/);
-                return match ? Number(match[1]) : null;
+              const parseSlotIdFromText = (value) => {
+                if (!value) return null;
+                const idMatch = String(value).match(/[?&]id=(\d+)/i);
+                if (idMatch) return Number(idMatch[1]);
+                const aidMatch = String(value).match(/(?:^|[^a-z])aid[_:=\s-]?(\d{2})/i);
+                if (aidMatch) return Number(aidMatch[1]);
+                const slotMatch = String(value).match(/(?:^|[^a-z])slot[_:=\s-]?(\d{2})/i);
+                if (slotMatch) return Number(slotMatch[1]);
+                return null;
+              };
+
+              const parseSlotId = (element, href) => {
+                const fromHref = parseSlotIdFromText(href);
+                if (fromHref !== null) return fromHref;
+                if (!element || typeof element.getAttribute !== 'function') return null;
+
+                const attrs = [
+                  element.getAttribute('data-aid'),
+                  element.getAttribute('aid'),
+                  element.getAttribute('data-id'),
+                  element.getAttribute('data-slot'),
+                  element.getAttribute('data-targetid'),
+                  element.getAttribute('data-target-id'),
+                  element.getAttribute('href'),
+                  element.getAttribute('data-href'),
+                  element.getAttribute('onclick'),
+                  element.id || '',
+                  element.className || ''
+                ];
+
+                for (const attr of attrs) {
+                  const fromAttr = parseSlotIdFromText(attr);
+                  if (fromAttr !== null) return fromAttr;
+                }
+
+                return null;
               };
 
               const directText = (element) => {
@@ -2773,15 +3335,18 @@ public sealed partial class TravianClient
               };
 
               const parseGid = (text) => {
-                const match = text.match(/(?:^|\s|_|-)gid[_-]?(\d+)(?:\s|$|_|-)/i);
+                const match = text.match(/(?:^|\s|_|-)gid[_:=\s-]?(\d+)(?:\s|$|_|-)/i);
                 return match ? Number(match[1]) : null;
               };
 
               const parseLevel = (text) => {
                 const match = text.match(/(?:^|\s|_|-)level[_-]?(\d{1,2})(?:\s|$|_|-)/i)
                   || text.match(/(?:^|\s|_|-)lvl(?:e|_)?(\d{1,2})(?:\s|$|_|-)/i)
+                  || text.match(/(?:^|\s|_|-)l(?:evel)?[_:=\s-]?(\d{1,2})(?:\s|$|_|-)/i)
                   || text.match(/(?:level|niveau|lvl|niv\.?|stufe)[^0-9]*(\d{1,2})/i);
-                return match ? Number(match[1]) : null;
+                if (match) return Number(match[1]);
+                const numericOnly = text.match(/(?:^|\D)(\d{1,2})(?:\D|$)/);
+                return numericOnly ? Number(numericOnly[1]) : null;
               };
 
               const parseName = (text, direct, gid, slotId) => {
@@ -2828,7 +3393,17 @@ public sealed partial class TravianClient
                 'area[href*="build.php?id="]',
                 '#village_map a[href*="build.php?id="]',
                 '#villageContent a[href*="build.php?id="]',
+                '#village_map [data-href*="build.php?id="]',
+                '#villageContent [data-href*="build.php?id="]',
+                '#village_map [onclick*="build.php?id="]',
+                '#villageContent [onclick*="build.php?id="]',
+                '#village_map [data-aid]',
+                '#villageContent [data-aid]',
+                '#village_map .level.maxLevel',
+                '#villageContent .level.maxLevel',
+                '.level.maxLevel',
                 '.buildingSlot a[href*="build.php?id="]',
+                '.buildingSlot',
                 'a[href*="build.php?id="]'
               ];
 
@@ -2836,9 +3411,12 @@ public sealed partial class TravianClient
               const buildings = [];
               for (const selector of selectors) {
                 for (const element of document.querySelectorAll(selector)) {
-                  const href = element.getAttribute('href');
-                  const slotId = parseSlotId(href);
-                  if (slotId === null || slotId < 19) continue;
+                  const href = element.getAttribute('href')
+                    || element.getAttribute('data-href')
+                    || element.getAttribute('onclick')
+                    || '';
+                  const slotId = parseSlotId(element, href);
+                  if (slotId === null || slotId < 19 || slotId > 40) continue;
                   if (seenSlots.has(slotId)) continue;
                   seenSlots.add(slotId);
 
@@ -2859,6 +3437,7 @@ public sealed partial class TravianClient
               return JSON.stringify(buildings);
             }
             """);
+        });
 
         var rawBuildings = string.IsNullOrWhiteSpace(rawBuildingsJson)
             ? new List<BuildingJs>()
@@ -2891,7 +3470,7 @@ public sealed partial class TravianClient
                   const text = (element.textContent || '').replace(/\s+/g, ' ').trim();
                   if (!text || seen.has(text)) continue;
                   seen.add(text);
-                  const timeElement = element.querySelector('.timer, .countdown, [id^="timer"]');
+                  const timeElement = element.querySelector('.timer, .countdown, .value, [counting="down"], [id^="timer"]');
                   const timeLeft = timeElement ? (timeElement.textContent || '').trim() : null;
                   items.push({ text, timeLeft });
                 }
@@ -3101,7 +3680,7 @@ public sealed partial class TravianClient
                   for (const selector of selectors) {
                     for (const node of document.querySelectorAll(selector)) {
                       const text = clean(`${node.textContent || ''} ${node.getAttribute('title') || ''} ${node.getAttribute('aria-label') || ''}`);
-                      if (text.includes('mark all') || text.includes('als gelesen') || text.includes('read')) {
+                      if (text.includes('mark as read') || text.includes('mark all') || text.includes('als gelesen') || text.includes('read')) {
                         node.click();
                         return true;
                       }
@@ -3194,9 +3773,17 @@ public sealed partial class TravianClient
                         return maxMatch ? Number(maxMatch[1]) : null;
                       };
 
+                      const noneHints = Array.from(document.querySelectorAll('span.none, div.none, .none'))
+                        .map((node) => clean(node.textContent || '').toLowerCase())
+                        .filter((text) => text.length > 0);
+                      const workersBusyHint = noneHints.find((text) => /all\s*workers\s*are\s*busy/.test(text)) || null;
+                      const resourcesAvailableHint = noneHints.find((text) => /resources\s*will\s*be\s*available/.test(text)) || null;
+
                       const blockedByMax = /max(?:imum)?\s*level|max\s*reached|maxlevel|already\s*max/i.test(pageText);
-                      const blockedByQueue = /building\s*queue|construction\s*queue|under\s*construction|queue\s*full|busy|occupied|cannot\s*start/i.test(pageText);
-                      const blockedByResources = /not\s*enough|insufficient|resources|lumber|clay|iron|crop|wood|missing\s*resources|requires\s*more/i.test(pageText);
+                      const blockedByQueue = !!workersBusyHint
+                        || /building\s*queue|construction\s*queue|under\s*construction|queue\s*full|busy|occupied|cannot\s*start/i.test(pageText);
+                      const blockedByResources = !!resourcesAvailableHint
+                        || /not\s*enough|insufficient|resources|lumber|clay|iron|crop|wood|missing\s*resources|requires\s*more/i.test(pageText);
                       const parseDurationSeconds = (raw) => {
                         const text = clean(raw || '');
                         if (!text) {
@@ -3230,13 +3817,18 @@ public sealed partial class TravianClient
                         const timerSelectors = [
                           '.buildingList .timer',
                           '.buildingList .countdown',
+                          '.buildingList .value',
                           '#building_contract .timer',
                           '#building_contract .countdown',
+                          '#building_contract .value',
                           '.underConstruction .timer',
                           '.underConstruction .countdown',
+                          '.underConstruction .value',
                           '[id^="timer"]',
+                          '[counting="down"]',
                           '.timer',
-                          '.countdown'
+                          '.countdown',
+                          '.value'
                         ];
 
                         for (const selector of timerSelectors) {
@@ -3248,9 +3840,33 @@ public sealed partial class TravianClient
                             }
                           }
                         }
+                        return null;
+                      };
 
-                        const fallback = parseDurationSeconds(pageText);
-                        return fallback && fallback > 0 ? fallback : null;
+                      const detectResourceWaitSeconds = () => {
+                        const sources = [];
+                        if (resourcesAvailableHint) {
+                          sources.push(resourcesAvailableHint);
+                        }
+                        for (const node of document.querySelectorAll('span.none, div.none, .none, .contract, .errorMessage, .error')) {
+                          const text = clean(node.textContent || '');
+                          if (!text) {
+                            continue;
+                          }
+
+                          if (/resources\s*will\s*be\s*available/i.test(text) || /not\s*enough|insufficient|missing\s*resources/i.test(text)) {
+                            sources.push(text);
+                          }
+                        }
+
+                        for (const source of sources) {
+                          const seconds = parseDurationSeconds(source);
+                          if (seconds && seconds > 0) {
+                            return seconds;
+                          }
+                        }
+
+                        return null;
                       };
 
                       const score = (candidate) => {
@@ -3316,6 +3932,7 @@ public sealed partial class TravianClient
                           outcome: 'CanUpgrade',
                           reason: `Detected candidate '${clickOrder[0].text.slice(0, 80)}'`,
                           detectedMaxLevel: detectMaxLevel(),
+                          queueWaitSeconds: detectQueueWaitSeconds(),
                           candidateIndex: clickOrder[0].candidateIndex,
                           summary: picked.slice(0, 8)
                         });
@@ -3334,7 +3951,9 @@ public sealed partial class TravianClient
                         const queueWaitSeconds = detectQueueWaitSeconds();
                         return JSON.stringify({
                           outcome: 'BlockedByQueue',
-                          reason: 'Page indicates building queue/slot is busy.',
+                          reason: workersBusyHint
+                            ? `Page indicates workers are busy: '${workersBusyHint.slice(0, 120)}'.`
+                            : 'Page indicates building queue/slot is busy.',
                           detectedMaxLevel: detectMaxLevel(),
                           queueWaitSeconds,
                           summary: picked.slice(0, 8)
@@ -3342,10 +3961,14 @@ public sealed partial class TravianClient
                       }
 
                       if (blockedByResources) {
+                        const resourceWaitSeconds = detectResourceWaitSeconds();
                         return JSON.stringify({
                           outcome: 'BlockedByResources',
-                          reason: 'Page indicates not enough resources.',
+                          reason: resourcesAvailableHint
+                            ? `Page indicates resources are not ready yet: '${resourcesAvailableHint.slice(0, 120)}'.`
+                            : 'Page indicates not enough resources.',
                           detectedMaxLevel: detectMaxLevel(),
+                          queueWaitSeconds: resourceWaitSeconds,
                           summary: picked.slice(0, 8)
                         });
                       }
@@ -3371,7 +3994,9 @@ public sealed partial class TravianClient
                 var reason = string.IsNullOrWhiteSpace(parsed?.Reason)
                     ? "Unknown actionability result."
                     : parsed!.Reason!;
-                if (outcome == UpgradeAttemptOutcome.BlockedByQueue && parsed?.QueueWaitSeconds is int waitSeconds && waitSeconds > 0)
+                if ((outcome == UpgradeAttemptOutcome.BlockedByQueue || outcome == UpgradeAttemptOutcome.BlockedByResources)
+                    && parsed?.QueueWaitSeconds is int waitSeconds
+                    && waitSeconds > 0)
                 {
                     reason = $"{reason} queue_wait_seconds={waitSeconds}";
                 }
@@ -3407,6 +4032,7 @@ public sealed partial class TravianClient
                     Reason: reason,
                     DetectedMaxLevel: parsed?.DetectedMaxLevel,
                     QueueWaitSeconds: parsed?.QueueWaitSeconds,
+                    CandidateIndex: parsed?.CandidateIndex,
                     DebugSummary: summary);
             }
             catch (ManualVerificationRequiredException)
@@ -3447,19 +4073,21 @@ public sealed partial class TravianClient
         await PauseForManualStepIfVisibleAsync("Manual verification appeared after clicking detected upgrade candidate.", cancellationToken);
     }
 
+    private async Task NavigateToResourceFieldsAfterUpgradeClickAsync(CancellationToken cancellationToken)
+    {
+        await GotoAsync("/dorf1.php", cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while returning to resource fields after upgrade click.", cancellationToken);
+        await EnsureLoggedInAsync();
+    }
+
     private static int MaxLevelForBuilding(Building building)
     {
-        if (building.Gid is int gid && BuildingMaxLevelsByGid.TryGetValue(gid, out var maxLevel))
+        if (building.Gid is int gid)
         {
-            return maxLevel;
+            return BuildingCatalogService.MaxLevelFor(gid);
         }
 
-        if (building.Name.Contains("cranny", StringComparison.OrdinalIgnoreCase))
-        {
-            return 10;
-        }
-
-        return 20;
+        return 40;
     }
 
     private async Task<int> ResolveBuildingMaxLevelAsync(Building building, int slotId, CancellationToken cancellationToken)
@@ -3481,7 +4109,7 @@ public sealed partial class TravianClient
 
     private static int ResolveResourceMaxLevelFallback(bool? isCapital)
     {
-        return isCapital == true ? 20 : 10;
+        return isCapital == true ? 40 : 10;
     }
 
     private static UpgradeAttemptOutcome ParseUpgradeOutcome(string? value)
@@ -3500,19 +4128,36 @@ public sealed partial class TravianClient
         int slotId,
         int previousLevel,
         string queueFingerprintBefore,
+        int? expectedWaitSeconds,
         CancellationToken cancellationToken)
     {
         ResourceProgressSnapshot? latestSnapshot = null;
-        for (var i = 0; i < 4; i++)
+        if (expectedWaitSeconds is int seconds && seconds > 0)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            await Task.Delay(400, cancellationToken);
+            var clamped = Math.Min(seconds, 12 * 60 * 60);
+            Notify($"Resource slot {slotId} upgrade duration detected: {FormatDuration(clamped)}. Waiting before status check. queue_wait_seconds={clamped}");
+            await Task.Delay(TimeSpan.FromSeconds(clamped + 0.5), cancellationToken);
             latestSnapshot = await ReadResourceProgressSnapshotAsync(cancellationToken);
             var current = latestSnapshot.ResourceFields.FirstOrDefault(field => field.SlotId == slotId)?.Level;
             if (current is int currentLevel && currentLevel > previousLevel)
             {
                 Notify($"Resource slot {slotId} level increased from {previousLevel} to {currentLevel}.");
                 return new UpgradeProgressResult(true, false, "level advanced");
+            }
+        }
+        else
+        {
+            for (var i = 0; i < 4; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await Task.Delay(400, cancellationToken);
+                latestSnapshot = await ReadResourceProgressSnapshotAsync(cancellationToken);
+                var current = latestSnapshot.ResourceFields.FirstOrDefault(field => field.SlotId == slotId)?.Level;
+                if (current is int currentLevel && currentLevel > previousLevel)
+                {
+                    Notify($"Resource slot {slotId} level increased from {previousLevel} to {currentLevel}.");
+                    return new UpgradeProgressResult(true, false, "level advanced");
+                }
             }
         }
 
@@ -3530,6 +4175,71 @@ public sealed partial class TravianClient
         }
 
         return new UpgradeProgressResult(false, false, "no queue or level change");
+    }
+
+    private async Task<int?> ReadUpgradeDurationSecondsOnCurrentPageAsync(CancellationToken cancellationToken)
+    {
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading upgrade duration.", cancellationToken);
+        var rawJson = await _page.EvaluateAsync<string>(
+            """
+            () => {
+              const clean = (value) => (value || '').replace(/\s+/g, ' ').trim();
+              const isDuration = (value) => /\d{1,3}\s*:\s*\d{1,2}(?:\s*:\s*\d{1,2})?/.test(value) || /\b\d+\s*(?:min|minute|sec|second)s?\b/i.test(value);
+              const found = [];
+              const seen = new Set();
+              const pushIfDuration = (value) => {
+                const text = clean(value);
+                if (!text || !isDuration(text) || seen.has(text)) return;
+                seen.add(text);
+                found.push(text);
+              };
+
+              // Prefer explicit upgrade duration element (same area as the upgrade button).
+              const directSelectors = [
+                '.inlineIcon.duration .value',
+                '.inlineIcon.duration .timer',
+                '.inlineIcon.duration'
+              ];
+              for (const selector of directSelectors) {
+                for (const node of document.querySelectorAll(selector)) {
+                  pushIfDuration(node.textContent);
+                }
+              }
+
+              const blocks = [
+                ...document.querySelectorAll('.upgradeBuilding, .contract, .contractWrapper, .build_details, #contract, form[action*="build.php"]')
+              ];
+              for (const block of blocks) {
+                const nodes = block.querySelectorAll('.timer, .countdown, .value, [counting="down"], [id^="timer"]');
+                for (const node of nodes) {
+                  pushIfDuration(node.textContent);
+                }
+              }
+
+              return JSON.stringify(found);
+            }
+            """);
+
+        var raw = string.IsNullOrWhiteSpace(rawJson)
+            ? new List<string>()
+            : JsonSerializer.Deserialize<List<string>>(rawJson) ?? new List<string>();
+        if (raw.Count == 0)
+        {
+            return null;
+        }
+
+        var candidateSeconds = raw
+            .Select(ParseDurationToSeconds)
+            .Where(value => value.HasValue && value.Value > 0)
+            .Select(value => value!.Value)
+            .ToList();
+        if (candidateSeconds.Count == 0)
+        {
+            return null;
+        }
+
+        // Prefer the shortest detected upgrade timer; first-hit can be an unrelated countdown.
+        return candidateSeconds.Min();
     }
 
     private async Task<ResourceProgressSnapshot> ReadResourceProgressSnapshotAsync(CancellationToken cancellationToken)
@@ -3611,9 +4321,9 @@ public sealed partial class TravianClient
                     .Select(building => building.Level!.Value)
                     .DefaultIfEmpty(0)
                     .Max();
-                if (highest < 20)
+                if (highest < 40)
                 {
-                    throw new InvalidOperationException($"{name} can only be duplicated after an existing one reaches level 20.");
+                    throw new InvalidOperationException($"{name} can only be duplicated after an existing one reaches level 40.");
                 }
             }
         }
@@ -3936,6 +4646,7 @@ public sealed partial class TravianClient
         string Reason,
         int? DetectedMaxLevel,
         int? QueueWaitSeconds,
+        int? CandidateIndex,
         string DebugSummary);
 
     private sealed record UpgradeProgressResult(
@@ -4050,6 +4761,39 @@ public sealed partial class TravianClient
 
         [JsonPropertyName("unreadReports")]
         public int UnreadReports { get; init; }
+    }
+
+    private sealed class CapitalCacheDocument
+    {
+        [JsonPropertyName("entries")]
+        public List<CapitalCacheEntry> Entries { get; init; } = [];
+    }
+
+    private sealed class CapitalCacheEntry
+    {
+        [JsonPropertyName("accountName")]
+        public string AccountName { get; init; } = string.Empty;
+
+        [JsonPropertyName("serverUrl")]
+        public string ServerUrl { get; init; } = string.Empty;
+
+        [JsonPropertyName("villageName")]
+        public string VillageName { get; init; } = string.Empty;
+
+        [JsonPropertyName("isCapital")]
+        public bool? IsCapital { get; init; }
+
+        [JsonPropertyName("updatedAtUtc")]
+        public DateTimeOffset UpdatedAtUtc { get; init; }
+    }
+
+    private sealed class PlayerProfileVillageCapitalJs
+    {
+        [JsonPropertyName("name")]
+        public string? Name { get; init; }
+
+        [JsonPropertyName("isCapital")]
+        public bool IsCapital { get; init; }
     }
 
     private sealed class HeroStatusJs

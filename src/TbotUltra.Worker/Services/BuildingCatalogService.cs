@@ -139,9 +139,12 @@ public static class BuildingCatalogService
 
     public static int MaxLevelFor(int gid)
     {
-        return BuildingMaxLevelsByGid.TryGetValue(gid, out var level)
-            ? level
-            : 20;
+        if (BuildingMaxLevelsByGid.TryGetValue(gid, out var level) && level > 20)
+        {
+            return level;
+        }
+
+        return 40;
     }
 
     public static bool IsSingleInstance(int gid)

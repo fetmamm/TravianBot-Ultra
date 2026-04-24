@@ -15,6 +15,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
+taskkill /IM TbotUltra.Desktop.exe /F >nul 2>nul
 "C:\Program Files\dotnet\dotnet.exe" build "%PROJECT%" -c Debug -nologo
 if errorlevel 1 (
     echo.

@@ -24,6 +24,7 @@ public partial class AccountsWindow : Window
     private string _baselineUsername = string.Empty;
     private string _baselinePassword = string.Empty;
     private string _baselineServerUrl = string.Empty;
+    public bool RequestedRunAnalysisForActiveAccount { get; private set; }
     private bool _suppressSelectionChanged;
     private bool _isClosing;
 
@@ -131,7 +132,7 @@ public partial class AccountsWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "Set active account", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show(this, ex.Message, "Set active account", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -171,6 +172,13 @@ public partial class AccountsWindow : Window
         SaveEditor(isUpdate: true);
     }
 
+    private void RunAnalysisButton_Click(object sender, RoutedEventArgs e)
+    {
+        RequestedRunAnalysisForActiveAccount = true;
+        DialogResult = true;
+        Close();
+    }
+
     private bool SaveEditor(bool isUpdate)
     {
         try
@@ -205,7 +213,7 @@ public partial class AccountsWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "Save account", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show(this, ex.Message, "Save account", MessageBoxButton.OK, MessageBoxImage.Warning);
             return false;
         }
     }
@@ -217,7 +225,7 @@ public partial class AccountsWindow : Window
             return;
         }
 
-        var confirm = MessageBox.Show(this, $"Delete account '{selected.Username}'?", "Delete account", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        var confirm = AppDialog.Show(this, $"Delete account '{selected.Username}'?", "Delete account", MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (confirm != MessageBoxResult.Yes)
         {
             return;
@@ -234,7 +242,7 @@ public partial class AccountsWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "Delete account", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show(this, ex.Message, "Delete account", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -450,7 +458,7 @@ public partial class AccountsWindow : Window
             return true;
         }
 
-        var result = MessageBox.Show(
+        var result = AppDialog.Show(
             this,
             "You have unsaved changes.\n\nYes: Save changes\nNo: Discard changes\nCancel: Stay on this window",
             "Unsaved changes",
@@ -475,6 +483,7 @@ public partial class AccountsWindow : Window
         SaveButton.IsEnabled = !_editingExistingAccount;
         UpdateButton.IsEnabled = _editingExistingAccount && HasUnsavedChanges();
         DeleteButton.IsEnabled = _editingExistingAccount;
+        RunAnalysisButton.IsEnabled = !string.IsNullOrWhiteSpace(_activeAccountName);
     }
 
     private static string NormalizeAccountNameFromUsername(string username)
@@ -491,3 +500,4 @@ public partial class AccountsWindow : Window
         return joined;
     }
 }
+

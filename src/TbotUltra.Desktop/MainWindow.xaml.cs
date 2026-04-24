@@ -1,9 +1,11 @@
 using System.Diagnostics;
 using System.IO;
 using System.Collections.ObjectModel;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -21,8 +23,10 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow : Window
 {
-    private const string ManageAccountsOptionName = "__manage_accounts__";
+    private const int ResourceFieldMaxLevel = 40;
+    private const int NonCapitalResourceMaxLevel = 10;
     private readonly string _projectRoot;
+    private readonly string _versionPath;
     private readonly string _botConfigPath;
     private readonly string _envPath;
     private readonly string _queuePath;
@@ -49,13 +53,20 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<BuildingSlotRow> _demolishableBuildings = [];
     private readonly Dictionary<int, DateTimeOffset> _resourceClickCooldownBySlot = new();
     private readonly Dictionary<int, (int Target, DateTimeOffset At)> _resourceLastQueuedTargetBySlot = new();
+    private readonly Dictionary<int, int> _resourcePendingTargetBySlot = new();
+    private readonly Dictionary<int, DateTimeOffset> _buildingClickCooldownBySlot = new();
+    private readonly Dictionary<int, (int Target, DateTimeOffset At)> _buildingLastQueuedTargetBySlot = new();
+    private readonly Dictionary<int, (string Name, DateTimeOffset At)> _buildingLastQueuedConstructBySlot = new();
     private readonly HashSet<string> _analysisPromptDismissed = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly IReadOnlyDictionary<int, (double Left, double Top)> BuildingSlotLayoutById = CreateBuildingSlotLayout();
 
     private CancellationTokenSource? _loopCts;
     private CancellationTokenSource? _operationCts;
+    private CancellationTokenSource? _villageSwitchCts;
     private Task? _loopTask;
     private bool _chromiumEnsured;
     private bool _suppressAccountSelectionChange;
+    private bool _suppressVillageSelectionChange;
     private TimeSpan _queueServerTimeOffset;
     private int _lastUnreadMessages;
     private int _lastUnreadReports;
@@ -65,23 +76,38 @@ public partial class MainWindow : Window
     private readonly CancellationTokenSource _queueAutoRunCts = new();
     private CancellationTokenSource? _autoQueueRunCts;
     private readonly SemaphoreSlim _inboxRefreshGate = new(1, 1);
+    private readonly DispatcherTimer _queueUiRefreshTimer;
     private Window? _logsPopupWindow;
+    private Window? _queuePopupWindow;
+    private ListBox? _logsPopupLogList;
+    private ListBox? _logsPopupAlarmList;
+    private Button? _activeSidebarButton;
+    private Guid? _pendingQueueUiSelectId;
     private volatile bool _autoQueueRunning;
     private volatile bool _uiBusy;
     private volatile bool _isAppClosing;
     private volatile bool _inboxAutoEnabled;
     private volatile bool _loopStopRequested;
     private volatile bool _queueStopRequested;
+    private volatile bool _isLoggedIn;
+    private volatile bool _browserSessionLikelyOpen;
+    private int _activeVillageResourceMaxLevel = NonCapitalResourceMaxLevel;
     private int _buildQueueRemainingSeconds = -1;
     private int _buildQueueActiveCount;
     private int _unacknowledgedAlarmCount;
+    private bool _manualVerificationAlarmActive;
     private DateTimeOffset _lastVerificationPopupAt = DateTimeOffset.MinValue;
+    private DateTimeOffset _inlineWaitUntilUtc = DateTimeOffset.MinValue;
+    private bool _logDragSelecting;
+    private int _logDragAnchorIndex = -1;
+    private ListBox? _logDragSourceList;
     private VillageStatus? _lastBuildingStatus;
 
     public ObservableCollection<ResourceFieldRow> WoodFields => _woodFields;
     public ObservableCollection<ResourceFieldRow> ClayFields => _clayFields;
     public ObservableCollection<ResourceFieldRow> IronFields => _ironFields;
     public ObservableCollection<ResourceFieldRow> CroplandFields => _croplandFields;
+    public ObservableCollection<BuildingSlotRow> BuildingSlots => _buildingRows;
 
     public MainWindow()
     {
@@ -89,6 +115,7 @@ public partial class MainWindow : Window
         TryApplyWindowIcon();
 
         _projectRoot = ProjectRootLocator.FindProjectRoot();
+        _versionPath = Path.Combine(_projectRoot, "VERSION");
         _botConfigPath = Path.Combine(_projectRoot, "config", "bot.json");
         _envPath = Path.Combine(_projectRoot, ".env");
         _queuePath = Path.Combine(_projectRoot, "config", "queue.json");
@@ -115,6 +142,7 @@ public partial class MainWindow : Window
         {
             UpdateClockText();
             HandleBrowserClosedSignal();
+            UpdateExecutionStateIndicator();
         };
         _clockTimer.Start();
 
@@ -129,29 +157,45 @@ public partial class MainWindow : Window
         _buildQueueCountdownTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _buildQueueCountdownTimer.Tick += (_, _) => TickBuildQueueCountdown();
         _buildQueueCountdownTimer.Start();
+        _queueUiRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(280) };
+        _queueUiRefreshTimer.Tick += (_, _) =>
+        {
+            _queueUiRefreshTimer.Stop();
+            var selectId = _pendingQueueUiSelectId;
+            _pendingQueueUiSelectId = null;
+            RefreshQueueUi(selectId);
+        };
 
         _queueServerTimeOffset = ResolveQueueServerTimeOffset();
 
         TerminalListBox.ItemsSource = _terminalEntries;
         AlarmListBox.ItemsSource = _alarmEntries;
         AlarmListBox.SelectionChanged += (_, _) => UpdateTerminalAlarmUi();
+        TerminalListBox.SelectionChanged += (_, _) => UpdateTerminalAlarmUi();
+        TerminalListBox.PreviewMouseLeftButtonDown += LogListBox_PreviewMouseLeftButtonDown;
+        TerminalListBox.PreviewMouseMove += LogListBox_PreviewMouseMove;
+        TerminalListBox.PreviewMouseLeftButtonUp += LogListBox_PreviewMouseLeftButtonUp;
+        AlarmListBox.PreviewMouseLeftButtonDown += LogListBox_PreviewMouseLeftButtonDown;
+        AlarmListBox.PreviewMouseMove += LogListBox_PreviewMouseMove;
+        AlarmListBox.PreviewMouseLeftButtonUp += LogListBox_PreviewMouseLeftButtonUp;
         TerminalAlarmTabControl.SelectionChanged += (_, _) => UpdateTerminalAlarmUi();
+        PreviewMouseDown += MainWindow_PreviewMouseDown;
 
         VillageComboBox.ItemsSource = new[]
         {
-            new VillageSelectionItem { Name = "-", Url = string.Empty },
+            new VillageSelectionItem { Name = "-", DisplayName = "-", Url = string.Empty },
         };
         VillageComboBox.SelectedIndex = 0;
         VillageComboBox.SelectionChanged += VillageComboBox_SelectionChanged;
-        ResourceTargetLevelComboBox.ItemsSource = Enumerable.Range(1, 20).ToList();
+        ResourceTargetLevelComboBox.ItemsSource = Enumerable.Range(1, 40).ToList();
         ResourceTargetLevelComboBox.SelectedItem = 10;
         BuildingCategoryComboBox.ItemsSource = new[] { "all", "infrastructure", "army_buildings", "resource_buildings" };
         BuildingCategoryComboBox.SelectedIndex = 0;
-        BuildingsDataGrid.ItemsSource = _buildingRows;
         ConstructBuildingComboBox.ItemsSource = _buildingCatalogOptions;
         DemolishBuildingComboBox.ItemsSource = _demolishableBuildings;
 
         LoadConfigToUi();
+        LoadVersionToUi();
         RefreshQueueUi();
         Closing += MainWindow_Closing;
         SetLoopIndicator(false);
@@ -160,6 +204,7 @@ public partial class MainWindow : Window
         AppendLog("Desktop app started.");
         UpdateTerminalAlarmUi();
         UpdateLoginButtonsVisual(false);
+        UpdateSidebarSelection(DashboardNavButton);
     }
 
     private void TryApplyWindowIcon()
@@ -207,7 +252,26 @@ public partial class MainWindow : Window
             UpdateInboxButtons(0, 0);
         }
 
-        _ = PromptAccountAnalysisIfNeededAsync(_accountStore.ActiveAccountName());
+    }
+
+    private void LoadVersionToUi()
+    {
+        try
+        {
+            var version = File.Exists(_versionPath)
+                ? File.ReadAllText(_versionPath).Trim()
+                : "dev";
+            if (string.IsNullOrWhiteSpace(version))
+            {
+                version = "dev";
+            }
+
+            VersionTextBlock.Text = $"Version: {version}";
+        }
+        catch
+        {
+            VersionTextBlock.Text = "Version: -";
+        }
     }
 
     private void EnqueueQuickTask(string taskName, string description, Dictionary<string, string>? payload = null)
@@ -227,15 +291,127 @@ public partial class MainWindow : Window
                 payload[BotOptionPayloadKeys.TargetVillageUrl] = selectedVillageUrl;
             }
 
-            var item = _botService.Enqueue(taskName, payload, priority: 0, maxRetries: 3);
-            RefreshQueueUi(selectId: item.Id);
-            AppendLog($"Queued task: {taskName} (priority={item.Priority}, maxRetries={item.MaxRetries}).");
-            _ = TriggerQueueAutoRunAsync();
+            QueueItem? item;
+            if (string.Equals(taskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase)
+                && TryReadResourceUpgradePayload(payload, out var slotId, out var targetLevel))
+            {
+                item = EnqueueResourceUpgradeTaskCoalesced(
+                    payload,
+                    slotId,
+                    targetLevel,
+                    out var effectiveTargetLevel,
+                    out var enqueued,
+                    out var removedCount);
+                SetPendingResourceLevel(slotId, effectiveTargetLevel);
+                if (enqueued && item is not null)
+                {
+                    var removedSuffix = removedCount > 0 ? $", removed {removedCount} stale item(s)" : string.Empty;
+                    AppendLog($"Queued task: {taskName} slot={slotId} target={effectiveTargetLevel} (priority={item.Priority}, maxRetries={item.MaxRetries}{removedSuffix}).");
+                }
+                else
+                {
+                    AppendLog($"Skipped duplicate queue item: {taskName} slot={slotId} target={effectiveTargetLevel} (already queued/running).");
+                }
+            }
+            else
+            {
+                item = _botService.Enqueue(taskName, payload, priority: 0, maxRetries: 3);
+                AppendLog($"Queued task: {taskName} (priority={item.Priority}, maxRetries={item.MaxRetries}).");
+            }
+
+            RequestQueueUiRefresh(selectId: item?.Id);
+            TriggerQueueAutoRunFromEnqueue();
         }
         catch (Exception ex)
         {
             AppendLog($"Could not queue task '{taskName}': {ex.Message}");
         }
+    }
+
+    private static bool TryReadResourceUpgradePayload(IReadOnlyDictionary<string, string> payload, out int slotId, out int targetLevel)
+    {
+        slotId = 0;
+        targetLevel = 0;
+        if (!payload.TryGetValue(BotOptionPayloadKeys.ResourceUpgradeSlotId, out var slotRaw)
+            || !int.TryParse(slotRaw, out slotId))
+        {
+            return false;
+        }
+
+        if (!payload.TryGetValue(BotOptionPayloadKeys.ResourceUpgradeTargetLevel, out var targetRaw)
+            || !int.TryParse(targetRaw, out targetLevel))
+        {
+            return false;
+        }
+
+        if (slotId < 1 || slotId > 18 || targetLevel <= 0)
+        {
+            return false;
+        }
+
+        targetLevel = Math.Clamp(targetLevel, 1, ResourceFieldMaxLevel);
+        return true;
+    }
+
+    private static bool IsActiveResourceQueueStatus(QueueStatus status)
+    {
+        return status is QueueStatus.Pending or QueueStatus.Paused or QueueStatus.Running;
+    }
+
+    private QueueItem? EnqueueResourceUpgradeTaskCoalesced(
+        Dictionary<string, string> payload,
+        int slotId,
+        int requestedTargetLevel,
+        out int effectiveTargetLevel,
+        out bool enqueued,
+        out int removedCount)
+    {
+        var relatedItems = _botService.GetQueueItemsForDisplay()
+            .Where(item => string.Equals(item.TaskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase))
+            .Where(item => IsActiveResourceQueueStatus(item.Status))
+            .Select(item =>
+            {
+                var parsed = TryReadResourceUpgradePayload(item.Payload, out var parsedSlotId, out var parsedTargetLevel);
+                return new
+                {
+                    Item = item,
+                    Parsed = parsed,
+                    SlotId = parsedSlotId,
+                    TargetLevel = parsedTargetLevel,
+                };
+            })
+            .Where(item => item.Parsed && item.SlotId == slotId)
+            .ToList();
+
+        var highestExistingTarget = relatedItems.Count == 0
+            ? 0
+            : relatedItems.Max(item => item.TargetLevel);
+        effectiveTargetLevel = Math.Max(requestedTargetLevel, highestExistingTarget);
+
+        if (highestExistingTarget >= requestedTargetLevel)
+        {
+            enqueued = false;
+            removedCount = 0;
+            return relatedItems
+                .OrderByDescending(item => item.TargetLevel)
+                .ThenBy(item => item.Item.CreatedAt)
+                .Select(item => item.Item)
+                .FirstOrDefault();
+        }
+
+        removedCount = 0;
+        foreach (var related in relatedItems.Where(item => item.Item.Status is QueueStatus.Pending or QueueStatus.Paused))
+        {
+            if (_botService.RemoveQueueItem(related.Item.Id))
+            {
+                removedCount += 1;
+            }
+        }
+
+        payload[BotOptionPayloadKeys.ResourceUpgradeTargetLevel] = effectiveTargetLevel.ToString();
+        var created = _botService.Enqueue("upgrade_resource_to_level", payload, priority: 0, maxRetries: 3);
+        enqueued = true;
+        return created;
     }
 
     private async void LoginButton_Click(object sender, RoutedEventArgs e)
@@ -252,28 +428,23 @@ public partial class MainWindow : Window
             BrowserInfoTextBlock.Text = "Browser: starting";
 
             await EnsureChromiumInstalledAsync();
-            var alreadyLoggedIn = await _botService.IsLoggedInAsync(options, AppendLog, operationToken);
-            if (alreadyLoggedIn)
-            {
-                AppendLog("Already logged in. Skipping login submit.");
-            }
-            else
-            {
-                AppendLog("Login started.");
-                await _botService.ExecuteLoginAsync(
-                    options,
-                    AppendLog,
-                    keepBrowserOpenAfterLogin: !options.Headless,
-                    cancellationToken: operationToken);
-                AppendLog("Login finished.");
-            }
+            AppendLog("Login started.");
+            await _botService.ExecuteLoginAsync(
+                options,
+                AppendLog,
+                keepBrowserOpenAfterLogin: !options.Headless,
+                cancellationToken: operationToken);
+            AppendLog("Login finished.");
 
             BrowserInfoTextBlock.Text = "Browser: idle";
             StatusTextBlock.Text = "Login completed.";
             UpdateLoginButtonsVisual(true);
+            _isLoggedIn = true;
+            _browserSessionLikelyOpen = !options.Headless;
             _inboxAutoEnabled = true;
             await RefreshInboxIndicatorsAsync(logErrors: true, force: true);
-            await LoadResourcesAfterUpgradeAsync(operationToken, resourceOnly: true);
+            await LoadCurrentVillageViewsAfterLoginAsync(options, operationToken);
+            await PromptAccountAnalysisIfNeededAsync(_accountStore.ActiveAccountName());
             CompleteOperation(operationId, operationSw, "Login completed.");
         }
         catch (OperationCanceledException)
@@ -285,6 +456,7 @@ public partial class MainWindow : Window
         {
             BrowserInfoTextBlock.Text = "Browser: error";
             StatusTextBlock.Text = "Login failed.";
+            _browserSessionLikelyOpen = false;
             FailOperation(operationId, operationSw, ex);
         }
         finally
@@ -319,6 +491,8 @@ public partial class MainWindow : Window
 
             StatusTextBlock.Text = "Logged out.";
             UpdateLoginButtonsVisual(false);
+            _isLoggedIn = false;
+            _browserSessionLikelyOpen = false;
             _inboxAutoEnabled = false;
             UpdateInboxButtons(0, 0);
             CompleteOperation(operationId, operationSw, "Logout completed.");
@@ -350,8 +524,30 @@ public partial class MainWindow : Window
         {
             Owner = this,
         };
-        window.ShowDialog();
+        var result = window.ShowDialog();
+        var runAnalysisRequested = result == true && window.RequestedRunAnalysisForActiveAccount;
         LoadConfigToUi();
+        if (runAnalysisRequested)
+        {
+            await EnsureLoggedInForAnalysisAsync();
+            var activeAccount = _accountStore.ActiveAccountName();
+            EnqueueQuickTask("account_full_analysis", $"Run full analysis for account {activeAccount}");
+            StatusTextBlock.Text = $"Queued full analysis for '{activeAccount}'.";
+        }
+    }
+
+    private async void RunActiveAccountAnalysisButton_Click(object sender, RoutedEventArgs e)
+    {
+        var activeAccount = _accountStore.ActiveAccountName();
+        if (string.IsNullOrWhiteSpace(activeAccount))
+        {
+            StatusTextBlock.Text = "No active account selected.";
+            return;
+        }
+
+        await EnsureLoggedInForAnalysisAsync();
+        EnqueueQuickTask("account_full_analysis", $"Run full analysis for account {activeAccount}");
+        StatusTextBlock.Text = $"Queued full analysis for '{activeAccount}'.";
     }
 
     private void AccountComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -363,13 +559,6 @@ public partial class MainWindow : Window
 
         if (AccountComboBox.SelectedItem is not AccountEntry selected)
         {
-            return;
-        }
-
-        if (string.Equals(selected.Name, ManageAccountsOptionName, StringComparison.OrdinalIgnoreCase))
-        {
-            RefreshAccountPicker();
-            AccountsButton_Click(sender, new RoutedEventArgs());
             return;
         }
 
@@ -388,7 +577,6 @@ public partial class MainWindow : Window
             LoadConfigToUi();
             _inboxAutoEnabled = false;
             UpdateInboxButtons(0, 0);
-            _ = PromptAccountAnalysisIfNeededAsync(selected.Name);
         }
         catch (Exception ex)
         {
@@ -401,6 +589,73 @@ public partial class MainWindow : Window
 
     private void ScanAllVillagesButton_Click(object sender, RoutedEventArgs e) => EnqueueQuickTask("scan_all_villages", "Scan all villages");
 
+    private async void ResetProgramButton_Click(object sender, RoutedEventArgs e)
+    {
+        var answer = AppDialog.Show(
+            "This will reset internal state, stop running operations, and clear queue data.\n\nThe program will remain open.\n\nContinue?",
+            "Reset program",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+        if (answer != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        await ResetProgramInternalAsync();
+    }
+
+    private async Task ResetProgramInternalAsync()
+    {
+        try
+        {
+            _loopStopRequested = true;
+            _queueStopRequested = true;
+            _operationCts?.Cancel();
+            _autoQueueRunCts?.Cancel();
+            _loopCts?.Cancel();
+            _villageSwitchCts?.Cancel();
+
+            var stopDeadline = DateTime.UtcNow.AddSeconds(8);
+            while (DateTime.UtcNow < stopDeadline)
+            {
+                if (!_uiBusy && !_autoQueueRunning && (_loopTask is null || _loopTask.IsCompleted))
+                {
+                    break;
+                }
+
+                await Task.Delay(120);
+            }
+
+            _botService.ClearQueue();
+            _resourceClickCooldownBySlot.Clear();
+            _resourceLastQueuedTargetBySlot.Clear();
+            _resourcePendingTargetBySlot.Clear();
+            _buildingClickCooldownBySlot.Clear();
+            _buildingLastQueuedTargetBySlot.Clear();
+            _buildingLastQueuedConstructBySlot.Clear();
+            _buildQueueActiveCount = 0;
+            _buildQueueRemainingSeconds = -1;
+            _activeVillageResourceMaxLevel = NonCapitalResourceMaxLevel;
+            _lastBuildingStatus = null;
+            _analysisPromptDismissed.Clear();
+
+            SetResourceRows([]);
+            _buildingRows.Clear();
+            _demolishableBuildings.Clear();
+            BuildQueueStatusTextBlock.Text = "Build queue: idle";
+
+            RefreshQueueUi();
+            UpdateExecutionStateIndicator();
+            StatusTextBlock.Text = "Program reset completed.";
+            AppendLog("Program reset completed. Internal state, running actions, and queue were reset.");
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Program reset failed: {ex.Message}");
+        }
+    }
+
     private async void LoadResourcesButton_Click(object sender, RoutedEventArgs e)
     {
         var operationId = BeginOperation("LoadResources");
@@ -410,10 +665,13 @@ public partial class MainWindow : Window
         ToggleUiBusy(true);
         try
         {
-            var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            var options = LoadBotOptions();
             AppendLog($"[{operationId}] INFO server={options.ServerName}, headless={options.Headless}");
             await EnsureChromiumInstalledAsync();
-            var status = await ReadVillageStatusWithRetryAsync(options, operationToken, resourceOnly: true);
+            var status = await ReadVillageStatusWithRetryAsync(options, operationToken, resourceOnly: true, forceCurrentVillage: true);
+            var queuedTargetsBySlot = GetQueuedResourceTargetsBySlot();
+            var resourceMaxLevel = ResolveResourceMaxLevelFromStatus(status);
+            _resourcePendingTargetBySlot.Clear();
 
             var rows = status.ResourceFields
                 .Where(item => item.SlotId is not null)
@@ -426,7 +684,7 @@ public partial class MainWindow : Window
                     Level = item.Level,
                     Url = item.Url ?? string.Empty,
                     PendingTargetLevel = null,
-                    IsMaxLevel = (item.Level ?? 0) >= 20,
+                    IsMaxLevel = (item.Level ?? 0) >= resourceMaxLevel,
                 })
                 .ToList();
 
@@ -456,7 +714,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void UpgradeAllResourcesButton_Click(object sender, RoutedEventArgs e)
+    private async void UpgradeAllResourcesButton_Click(object sender, RoutedEventArgs e)
     {
         var operationId = BeginOperation("UpgradeAllResources");
         if (ResourceTargetLevelComboBox.SelectedItem is not int targetLevel)
@@ -465,18 +723,71 @@ public partial class MainWindow : Window
             return;
         }
 
+        _operationCts = new CancellationTokenSource();
+        var operationToken = _operationCts.Token;
+        ToggleUiBusy(true);
         try
         {
+            await EnsureChromiumInstalledAsync();
+            var options = LoadBotOptions();
+            var status = await ReadVillageStatusWithRetryAsync(options, operationToken, resourceOnly: true, forceCurrentVillage: true);
+            var resourceMaxLevel = ResolveResourceMaxLevelFromStatus(status);
+            var requestedTargetLevel = Math.Min(targetLevel, resourceMaxLevel);
+            _resourcePendingTargetBySlot.Clear();
+            var rows = status.ResourceFields
+                .Where(item => item.SlotId is not null && item.Level is not null)
+                .Select(item => new ResourceFieldRow
+                {
+                    SlotId = item.SlotId ?? 0,
+                    FieldType = item.FieldType,
+                    Name = item.Name,
+                    Level = item.Level,
+                    Url = item.Url ?? string.Empty,
+                    PendingTargetLevel = null,
+                    IsMaxLevel = (item.Level ?? 0) >= resourceMaxLevel,
+                })
+                .ToList();
+
+            SetResourceRows(rows);
+            ApplyVillageStatusToUi(status);
+
+            var orderedUpgrades = rows
+                .Where(row => (row.Level ?? 0) < requestedTargetLevel)
+                .OrderBy(row => row.Level ?? 0)
+                .ThenBy(row => row.SlotId)
+                .ToList();
+
+            if (orderedUpgrades.Count == 0)
+            {
+                AppendLog($"[{operationId}] OK 0.0s | All resource fields are already at or above level {requestedTargetLevel}.");
+                return;
+            }
+
             var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
-                [BotOptionPayloadKeys.ResourceUpgradeTargetLevel] = targetLevel.ToString(),
+                [BotOptionPayloadKeys.ResourceUpgradeTargetLevel] = requestedTargetLevel.ToString(),
             };
-            EnqueueQuickTask("upgrade_all_resources_to_level", $"Upgrade all resources to level {targetLevel}", payload);
-            AppendLog($"[{operationId}] OK 0.0s | Queued upgrade-all to level {targetLevel}. Auto-run started.");
+
+            var item = _botService.Enqueue("upgrade_all_resources_to_level", payload, priority: 0, maxRetries: 3);
+            RequestQueueUiRefresh(selectId: item.Id);
+            TriggerQueueAutoRunFromEnqueue();
+            AppendLog($"[{operationId}] OK 0.0s | Queued upgrade-all toward level {requestedTargetLevel}. The worker will upgrade the lowest resource field first.");
+        }
+        catch (OperationCanceledException)
+        {
+            ClearPendingResourceLevelsFromUi();
+            StatusTextBlock.Text = "Upgrade all resources paused.";
+            AppendLog("Upgrade all resources paused.");
         }
         catch (Exception ex)
         {
             AppendLog($"[{operationId}] FAIL 0.0s | {FormatExceptionForLog(ex)}");
+        }
+        finally
+        {
+            ToggleUiBusy(false);
+            _operationCts?.Dispose();
+            _operationCts = null;
         }
     }
 
@@ -489,23 +800,50 @@ public partial class MainWindow : Window
 
     private void StartLoopButton_Click(object sender, RoutedEventArgs e)
     {
+        if (!_isLoggedIn)
+        {
+            return;
+        }
+
+        if (ContinuousRunToggleButton.IsChecked != true)
+        {
+            if (_autoQueueRunning || _uiBusy)
+            {
+                _queueStopRequested = true;
+                _operationCts?.Cancel();
+                _autoQueueRunCts?.Cancel();
+                AppendLog("Pause requested. Function cancellation sent.");
+                return;
+            }
+
+            _queueStopRequested = false;
+            ResumePausedQueueItems();
+            _ = TriggerQueueAutoRunAsync();
+            AppendLog("Function queue start requested.");
+            return;
+        }
+
         if (_autoQueueRunning)
         {
             _queueStopRequested = true;
-            AppendLog("Pause requested. Queue will stop after current action.");
+            _autoQueueRunCts?.Cancel();
+            _operationCts?.Cancel();
+            AppendLog("Pause requested. Queue cancellation sent.");
             return;
         }
 
         if (_uiBusy && (_loopTask is null || _loopTask.IsCompleted))
         {
-            AppendLog("A function is currently running. It will complete before bot can pause/start.");
+            _operationCts?.Cancel();
+            AppendLog("Pause requested. Function cancellation sent.");
             return;
         }
 
         if (_loopTask is not null && !_loopTask.IsCompleted)
         {
             _loopStopRequested = true;
-            AppendLog("Pause requested. Loop will stop after current action.");
+            _loopCts?.Cancel();
+            AppendLog("Pause requested. Loop cancellation sent.");
             return;
         }
 
@@ -561,7 +899,16 @@ public partial class MainWindow : Window
                     await LoadResourcesAfterUpgradeAsync(token, resourceOnly: true);
                                 }
                             }
+                            else if (string.Equals(next.TaskName, "load_buildings_snapshot", StringComparison.OrdinalIgnoreCase))
+                            {
+                                await LoadBuildingsSnapshotIntoUiAsync(token);
+                            }
                             AppendLog($"Queue item succeeded: {next.TaskName}");
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            _botService.MarkQueueItemDeferred(next.Id, TimeSpan.Zero);
+                            AppendLog($"Queue item paused: {next.TaskName}");
                         }
                         catch (Exception ex)
                         {
@@ -633,9 +980,17 @@ public partial class MainWindow : Window
 
     private void StopBotButton_Click(object sender, RoutedEventArgs e)
     {
-        _loopStopRequested = true;
         _queueStopRequested = true;
-        AppendLog("Graceful stop requested. Current action will finish first.");
+        _operationCts?.Cancel();
+        _autoQueueRunCts?.Cancel();
+        if (ContinuousRunToggleButton.IsChecked == true)
+        {
+            _loopStopRequested = true;
+            _loopCts?.Cancel();
+        }
+
+        ClearPendingResourceLevelsFromUi();
+        AppendLog("Stop requested. Cancellation sent to running actions.");
     }
 
     private void SidebarNavButton_Click(object sender, RoutedEventArgs e)
@@ -657,24 +1012,56 @@ public partial class MainWindow : Window
             case "buildings":
                 MainTabControl.SelectedIndex = 2;
                 break;
-            case "queue":
+            case "hero":
                 MainTabControl.SelectedIndex = 3;
                 break;
-            case "logs":
+            case "farming":
                 MainTabControl.SelectedIndex = 4;
                 break;
-            case "inbox":
+            case "queue":
                 MainTabControl.SelectedIndex = 5;
+                break;
+            case "logs":
+                MainTabControl.SelectedIndex = 6;
+                break;
+            case "inbox":
+                MainTabControl.SelectedIndex = 7;
                 break;
             default:
                 MainTabControl.SelectedIndex = 0;
                 break;
         }
+
+        UpdateSidebarSelection(button);
+    }
+
+    private void UpdateSidebarSelection(Button selectedButton)
+    {
+        var navButtons = new[]
+        {
+            DashboardNavButton,
+            ResourcesNavButton,
+            BuildingsNavButton,
+            HeroNavButton,
+            FarmingNavButton,
+            QueueNavButton,
+            LogsNavButton,
+            InboxNavButton,
+        };
+
+        foreach (var nav in navButtons)
+        {
+            nav.BorderThickness = new Thickness(1);
+            nav.BorderBrush = new SolidColorBrush(Color.FromRgb(243, 244, 246));
+        }
+
+        _activeSidebarButton = selectedButton;
+        selectedButton.BorderBrush = new SolidColorBrush(Color.FromRgb(15, 23, 42));
     }
 
     private void HelpButton_Click(object sender, RoutedEventArgs e)
     {
-        MessageBox.Show(this,
+        AppDialog.Show(this,
             "Use Login first.\nCheck village status and Scan all villages add tasks to queue.\nStart/Stop controls loop execution.",
             "Help",
             MessageBoxButton.OK,
@@ -729,7 +1116,7 @@ public partial class MainWindow : Window
             var item = _botService.Enqueue(window.TaskName, payload, window.Priority, window.MaxRetries);
             AppendLog($"Queue item added: {item.TaskName} (priority={item.Priority}).");
             RefreshQueueUi();
-            _ = TriggerQueueAutoRunAsync();
+            TriggerQueueAutoRunFromEnqueue();
         }
         catch (Exception ex)
         {
@@ -811,9 +1198,15 @@ public partial class MainWindow : Window
     {
         try
         {
+            _loopStopRequested = true;
+            _queueStopRequested = true;
+            _operationCts?.Cancel();
+            _autoQueueRunCts?.Cancel();
+            _loopCts?.Cancel();
             _botService.ClearQueue();
-            AppendLog("Queue cleared.");
+            ClearPendingResourceLevelsFromUi();
             RefreshQueueUi();
+            AppendLog("Queue cleared and running actions stopped.");
         }
         catch (Exception ex)
         {
@@ -824,6 +1217,81 @@ public partial class MainWindow : Window
     private void QueueRefreshButton_Click(object sender, RoutedEventArgs e)
     {
         RefreshQueueUi();
+    }
+
+    private void QueuePopoutButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_queuePopupWindow is not null)
+        {
+            _queuePopupWindow.Activate();
+            return;
+        }
+
+        var activeGrid = new DataGrid
+        {
+            AutoGenerateColumns = false,
+            IsReadOnly = true,
+            CanUserAddRows = false,
+            CanUserDeleteRows = false,
+            CanUserReorderColumns = false,
+            BorderBrush = new SolidColorBrush(Color.FromRgb(209, 213, 219)),
+            BorderThickness = new Thickness(1),
+            Margin = new Thickness(0, 0, 0, 8),
+            ItemsSource = QueueDataGrid.ItemsSource,
+        };
+        activeGrid.Columns.Add(new DataGridTextColumn { Header = "Task", Binding = new Binding("TaskName"), Width = new DataGridLength(2, DataGridLengthUnitType.Star) });
+        activeGrid.Columns.Add(new DataGridTextColumn { Header = "Status", Binding = new Binding("Status"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        activeGrid.Columns.Add(new DataGridTextColumn { Header = "Retries", Binding = new Binding("Retries"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        activeGrid.Columns.Add(new DataGridTextColumn { Header = "Next try", Binding = new Binding("NextAttemptAtServer"), Width = new DataGridLength(2, DataGridLengthUnitType.Star) });
+
+        var historyGrid = new DataGrid
+        {
+            AutoGenerateColumns = false,
+            IsReadOnly = true,
+            CanUserAddRows = false,
+            CanUserDeleteRows = false,
+            CanUserReorderColumns = false,
+            BorderBrush = new SolidColorBrush(Color.FromRgb(209, 213, 219)),
+            BorderThickness = new Thickness(1),
+            ItemsSource = QueueHistoryDataGrid.ItemsSource,
+        };
+        historyGrid.Columns.Add(new DataGridTextColumn { Header = "Completed task", Binding = new Binding("TaskName"), Width = new DataGridLength(2, DataGridLengthUnitType.Star) });
+        historyGrid.Columns.Add(new DataGridTextColumn { Header = "Status", Binding = new Binding("Status"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        historyGrid.Columns.Add(new DataGridTextColumn { Header = "Created", Binding = new Binding("CreatedAtServer"), Width = new DataGridLength(2, DataGridLengthUnitType.Star) });
+
+        var closeButton = new Button
+        {
+            Content = "Close",
+            Width = 90,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 8, 0, 0),
+        };
+
+        var root = new Grid();
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        root.Children.Add(activeGrid);
+        Grid.SetRow(historyGrid, 1);
+        root.Children.Add(historyGrid);
+        Grid.SetRow(closeButton, 2);
+        root.Children.Add(closeButton);
+
+        _queuePopupWindow = new Window
+        {
+            Title = "Queue",
+            Width = 700,
+            Height = 400,
+            MinWidth = 580,
+            MinHeight = 320,
+            Content = root,
+            WindowStartupLocation = WindowStartupLocation.Manual,
+            Left = Left + Width + 10,
+            Top = Top + 30,
+        };
+        closeButton.Click += (_, _) => _queuePopupWindow?.Close();
+        _queuePopupWindow.Closed += (_, _) => _queuePopupWindow = null;
+        _queuePopupWindow.Show();
     }
 
     private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
@@ -839,7 +1307,9 @@ public partial class MainWindow : Window
             _loopStopRequested = true;
             _queueStopRequested = true;
             _loopCts?.Cancel();
+            _villageSwitchCts?.Cancel();
             _queueAutoRunCts.Cancel();
+            ClosePopupWindows();
 
             // Do not block UI shutdown indefinitely; close shared browser best-effort.
             var shutdownTask = _botService.ShutdownAsync(AppendLog);
@@ -852,10 +1322,25 @@ public partial class MainWindow : Window
             {
                 _botService.ClearQueue();
             }
+            _villageSwitchCts?.Dispose();
+            _villageSwitchCts = null;
         }
         catch (Exception ex)
         {
             AppendLog($"Could not clear queue on shutdown: {ex.Message}");
+        }
+    }
+
+    private void ClosePopupWindows()
+    {
+        try
+        {
+            _logsPopupWindow?.Close();
+            _queuePopupWindow?.Close();
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Could not close popup windows: {ex.Message}");
         }
     }
 
@@ -979,12 +1464,27 @@ public partial class MainWindow : Window
                     CreatedAtServer = FormatQueueServerTime(item.CreatedAt),
                 })
                 .ToList();
+            var activeRows = rows
+                .Where(row => row.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused or QueueStatus.Failed)
+                .ToList();
+            var historyRows = rows
+                .Where(row => row.Status == QueueStatus.Succeeded)
+                .ToList();
+            var nowUtc = DateTimeOffset.UtcNow;
+            var hasRunningQueueItems = ordered.Any(item => item.Status == QueueStatus.Running);
+            var hasDeferredQueueItems = ordered.Any(item =>
+                item.Status == QueueStatus.Pending &&
+                item.NextAttemptAt > nowUtc);
+            var hasPausedQueueItems = ordered.Any(item => item.Status == QueueStatus.Paused);
+            var hasInlineWait = _inlineWaitUntilUtc > nowUtc;
 
-            QueueDataGrid.ItemsSource = rows;
+            QueueDataGrid.ItemsSource = activeRows;
+            QueueHistoryDataGrid.ItemsSource = historyRows;
+            SyncPendingResourceTargetsInUi();
 
             if (selectId.HasValue)
             {
-                var selected = rows.FirstOrDefault(item => item.Id == selectId.Value);
+                var selected = activeRows.FirstOrDefault(item => item.Id == selectId.Value);
                 if (selected is not null)
                 {
                     QueueDataGrid.SelectedItem = selected;
@@ -993,12 +1493,28 @@ public partial class MainWindow : Window
 
             var offsetLabel = _queueServerTimeOffset.ToString(@"hh\:mm");
             var offsetPrefix = _queueServerTimeOffset < TimeSpan.Zero ? "-" : "+";
-            var state = (_loopTask is not null && !_loopTask.IsCompleted)
-                ? "Loop running"
-                : _autoQueueRunning
-                    ? "Function running"
-                    : "Idle";
-            QueueInfoTextBlock.Text = $"Queue items: {rows.Count} | State: {state} | Server time offset: UTC{offsetPrefix}{offsetLabel}";
+            var state = (hasDeferredQueueItems && !hasRunningQueueItems && !_uiBusy) || hasInlineWait
+                ? "Waiting"
+                : (_loopTask is not null && !_loopTask.IsCompleted)
+                    ? "Loop running"
+                    : _autoQueueRunning || _uiBusy
+                        ? "Function running"
+                        : hasPausedQueueItems
+                            ? "Paused"
+                            : "Idle";
+            QueueInfoTextBlock.Text = $"Queue active: {activeRows.Count} | Queue done: {historyRows.Count} | State: {state} | Server time offset: UTC{offsetPrefix}{offsetLabel}";
+            if (_queuePopupWindow?.Content is Grid queuePopupRoot && queuePopupRoot.Children.Count >= 2)
+            {
+                if (queuePopupRoot.Children[0] is DataGrid popupActiveGrid)
+                {
+                    popupActiveGrid.ItemsSource = activeRows;
+                }
+
+                if (queuePopupRoot.Children[1] is DataGrid popupHistoryGrid)
+                {
+                    popupHistoryGrid.ItemsSource = historyRows;
+                }
+            }
             UpdateExecutionStateIndicator();
         }
         catch (Exception ex)
@@ -1011,17 +1527,42 @@ public partial class MainWindow : Window
 
     private void RefreshQueueUiOnUiThread(Guid? selectId = null)
     {
-        if (Dispatcher.CheckAccess())
+        RequestQueueUiRefresh(selectId);
+    }
+
+    private void RequestQueueUiRefresh(Guid? selectId = null, bool immediate = false)
+    {
+        if (!Dispatcher.CheckAccess())
         {
-            RefreshQueueUi(selectId);
+            _ = Dispatcher.BeginInvoke(() => RequestQueueUiRefresh(selectId, immediate));
             return;
         }
 
-        _ = Dispatcher.BeginInvoke(() => RefreshQueueUi(selectId));
+        if (selectId.HasValue)
+        {
+            _pendingQueueUiSelectId = selectId;
+        }
+
+        if (immediate)
+        {
+            _queueUiRefreshTimer.Stop();
+            var immediateSelectId = _pendingQueueUiSelectId;
+            _pendingQueueUiSelectId = null;
+            RefreshQueueUi(immediateSelectId);
+            return;
+        }
+
+        _queueUiRefreshTimer.Stop();
+        _queueUiRefreshTimer.Start();
     }
 
     private async Task PromptAccountAnalysisIfNeededAsync(string accountName)
     {
+        if (!_isLoggedIn)
+        {
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(accountName))
         {
             return;
@@ -1039,7 +1580,7 @@ public partial class MainWindow : Window
 
         await Dispatcher.InvokeAsync(() =>
         {
-            var result = MessageBox.Show(
+            var result = AppDialog.Show(
                 this,
                 $"Account '{accountName}' has no saved full analysis.\n\nRun full analysis now?",
                 "Account analysis",
@@ -1058,6 +1599,28 @@ public partial class MainWindow : Window
         });
     }
 
+    private async Task EnsureLoggedInForAnalysisAsync()
+    {
+        if (_isLoggedIn)
+        {
+            return;
+        }
+
+        LoginButton_Click(this, new RoutedEventArgs());
+        var startedAt = DateTimeOffset.UtcNow;
+        while ((DateTimeOffset.UtcNow - startedAt).TotalSeconds < 45)
+        {
+            if (_isLoggedIn)
+            {
+                return;
+            }
+
+            await Task.Delay(250);
+        }
+
+        throw new InvalidOperationException("Could not complete login before running account analysis.");
+    }
+
     private bool IsAnalysisDone(string accountName)
     {
         try
@@ -1070,43 +1633,10 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void LoadBuildingsButton_Click(object sender, RoutedEventArgs e)
+    private void LoadBuildingsButton_Click(object sender, RoutedEventArgs e)
     {
-        var operationId = BeginOperation("LoadBuildings");
-        var operationSw = Stopwatch.StartNew();
-        _operationCts = new CancellationTokenSource();
-        var operationToken = _operationCts.Token;
-        ToggleUiBusy(true);
-        try
-        {
-            var options = ApplySelectedVillageToOptions(LoadBotOptions());
-            await EnsureChromiumInstalledAsync();
-            var status = await _botService.ReadVillageStatusAsync(
-                options,
-                AppendLog,
-                GetSelectedVillageName(),
-                GetSelectedVillageUrl(),
-                operationToken);
-
-            _lastBuildingStatus = status;
-            PopulateBuildingsTab(status);
-            CompleteOperation(operationId, operationSw, $"Loaded {status.Buildings.Count} building slots.");
-        }
-        catch (OperationCanceledException)
-        {
-            StatusTextBlock.Text = "Load buildings paused.";
-            AppendLog("Load buildings paused.");
-        }
-        catch (Exception ex)
-        {
-            FailOperation(operationId, operationSw, ex);
-        }
-        finally
-        {
-            ToggleUiBusy(false);
-            _operationCts?.Dispose();
-            _operationCts = null;
-        }
+        EnqueueQuickTask("load_buildings_snapshot", "Load buildings snapshot");
+        BuildingsInfoTextBlock.Text = "Queued buildings load.";
     }
 
     private void BuildingCategoryComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1117,6 +1647,286 @@ public partial class MainWindow : Window
         }
 
         PopulateBuildingCatalogOptions(_lastBuildingStatus);
+    }
+
+    private void BuildingSlotCircleButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_lastBuildingStatus is null)
+        {
+            BuildingsInfoTextBlock.Text = "Load buildings first.";
+            return;
+        }
+
+        if (sender is not FrameworkElement { Tag: BuildingSlotRow row })
+        {
+            return;
+        }
+
+        if (row.IsOccupied)
+        {
+            QueueSingleBuildingUpgradeFromSlot(row.SlotId);
+            return;
+        }
+
+        ConstructSlotTextBox.Text = row.SlotId.ToString();
+        ShowConstructChoicesForSlot(row.SlotId, sender as FrameworkElement ?? this);
+    }
+
+    private void QueueSingleBuildingUpgradeFromSlot(int slotId)
+    {
+        var row = _buildingRows.FirstOrDefault(item => item.SlotId == slotId);
+        if (row is null || !row.IsOccupied)
+        {
+            BuildingsInfoTextBlock.Text = $"Slot {slotId} is empty. Choose a building to construct.";
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (_buildingClickCooldownBySlot.TryGetValue(slotId, out var lastClickAt)
+            && (now - lastClickAt).TotalMilliseconds < 120)
+        {
+            return;
+        }
+
+        _buildingClickCooldownBySlot[slotId] = now;
+        var currentLevel = row.Level ?? 0;
+        if (row.HasPendingUpgrade)
+        {
+            BuildingsInfoTextBlock.Text = $"{row.Name} already has a queued upgrade.";
+            return;
+        }
+
+        var maxLevel = row.Gid is int gid ? BuildingCatalogService.MaxLevelFor(gid) : 40;
+        if (currentLevel >= maxLevel)
+        {
+            BuildingsInfoTextBlock.Text = $"{row.Name} in slot {slotId} is already max level ({maxLevel}).";
+            return;
+        }
+
+        var pendingLevel = row.PendingTargetLevel ?? currentLevel;
+        var baseLevel = Math.Max(currentLevel, pendingLevel);
+        var targetLevel = Math.Clamp(baseLevel + 1, 1, maxLevel);
+
+        if (_buildingLastQueuedTargetBySlot.TryGetValue(slotId, out var lastQueued)
+            && lastQueued.Target == targetLevel
+            && (now - lastQueued.At).TotalMilliseconds < 2500)
+        {
+            return;
+        }
+
+        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.BuildingUpgradeSlotId] = slotId.ToString(),
+            [BotOptionPayloadKeys.BuildingUpgradeTargetLevel] = targetLevel.ToString(),
+        };
+        EnqueueQuickTask("upgrade_building_to_level", $"Upgrade slot {slotId} to level {targetLevel}", payload);
+        _buildingLastQueuedTargetBySlot[slotId] = (targetLevel, now);
+        SetPendingBuildingUpgrade(slotId, targetLevel);
+        UpgradeSlotTextBox.Text = slotId.ToString();
+        UpgradeTargetLevelTextBox.Text = targetLevel.ToString();
+        BuildingsInfoTextBlock.Text = $"Queued {row.Name} in slot {slotId} to level {targetLevel}.";
+        AppendLog($"Queued single building upgrade: slot {slotId} -> level {targetLevel}.");
+    }
+
+    private void ShowConstructChoicesForSlot(int slotId, FrameworkElement anchor)
+    {
+        if (_lastBuildingStatus is null)
+        {
+            BuildingsInfoTextBlock.Text = "Load buildings first.";
+            return;
+        }
+
+        var options = GetConstructableOptionsForSlot(slotId);
+        if (options.Count == 0)
+        {
+            BuildingsInfoTextBlock.Text = $"No constructable buildings available for slot {slotId} right now.";
+            return;
+        }
+
+        var menu = new ContextMenu
+        {
+            PlacementTarget = anchor,
+            Placement = PlacementMode.Bottom,
+            StaysOpen = false,
+        };
+
+        foreach (var option in options)
+        {
+            var optionCopy = option;
+            var menuItem = new MenuItem
+            {
+                Header = optionCopy.DisplayLabel,
+                ToolTip = optionCopy.Requirements == "-"
+                    ? "No requirements."
+                    : $"Requires: {optionCopy.Requirements}",
+            };
+            menuItem.Click += (_, _) => TryQueueConstructBuilding(slotId, optionCopy);
+            menu.Items.Add(menuItem);
+        }
+
+        menu.IsOpen = true;
+    }
+
+    private IReadOnlyList<BuildingCatalogOption> GetConstructableOptionsForSlot(int slotId)
+    {
+        if (_lastBuildingStatus is null)
+        {
+            return [];
+        }
+
+        return _buildingCatalogOptions
+            .Where(option => CanQueueConstructBuilding(slotId, option, out _))
+            .OrderBy(option => option.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private bool CanQueueConstructBuilding(int slotId, BuildingCatalogOption selectedBuilding, out string reason)
+    {
+        reason = string.Empty;
+        if (_lastBuildingStatus is null)
+        {
+            reason = "Load buildings first.";
+            return false;
+        }
+
+        var occupied = _lastBuildingStatus.Buildings.FirstOrDefault(item => item.SlotId == slotId && (item.Level ?? 0) > 0);
+        if (occupied is not null)
+        {
+            reason = $"Slot {slotId} is occupied by {occupied.Name} level {occupied.Level}.";
+            return false;
+        }
+
+        var existingSameGidLevels = _lastBuildingStatus.Buildings
+            .Where(item => item.Gid == selectedBuilding.Gid && (item.Level ?? 0) > 0)
+            .Select(item => item.Level ?? 0)
+            .ToList();
+        var duplicateAllowed = selectedBuilding.Gid is 23 or 38 or 39;
+        var wallGid = selectedBuilding.Gid is 31 or 32 or 33 or 42 or 43;
+        if (selectedBuilding.Gid is 10 or 11)
+        {
+            if (existingSameGidLevels.Count > 0)
+            {
+                var currentHighest = existingSameGidLevels.Max();
+                if (currentHighest < 40)
+                {
+                    reason = $"{selectedBuilding.Name} can only be duplicated after an existing one reaches level 40.";
+                    return false;
+                }
+            }
+        }
+        else if (existingSameGidLevels.Count > 0 && !duplicateAllowed && !wallGid)
+        {
+            reason = $"{selectedBuilding.Name} already exists in this village.";
+            return false;
+        }
+
+        var missing = MissingRequirements(_lastBuildingStatus, selectedBuilding.RequirementEntries);
+        if (missing.Count > 0)
+        {
+            reason = $"Missing requirements: {string.Join(", ", missing.Select(item => $"{item.Name} {item.Level}+"))}";
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool TryQueueConstructBuilding(int slotId, BuildingCatalogOption selectedBuilding)
+    {
+        if (!CanQueueConstructBuilding(slotId, selectedBuilding, out var reason))
+        {
+            BuildingsInfoTextBlock.Text = reason;
+            return false;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (_buildingLastQueuedConstructBySlot.TryGetValue(slotId, out var lastQueued)
+            && string.Equals(lastQueued.Name, selectedBuilding.Name, StringComparison.OrdinalIgnoreCase)
+            && (now - lastQueued.At).TotalMilliseconds < 2500)
+        {
+            return false;
+        }
+
+        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.BuildingConstructSlotId] = slotId.ToString(),
+            [BotOptionPayloadKeys.BuildingConstructGid] = selectedBuilding.Gid.ToString(),
+            [BotOptionPayloadKeys.BuildingConstructName] = selectedBuilding.Name,
+        };
+        EnqueueQuickTask("construct_building", $"Construct {selectedBuilding.Name} in slot {slotId}", payload);
+
+        _buildingLastQueuedConstructBySlot[slotId] = (selectedBuilding.Name, now);
+        SetPendingBuildingConstruct(slotId, selectedBuilding.Name);
+        ConstructSlotTextBox.Text = slotId.ToString();
+        ConstructBuildingComboBox.SelectedItem = _buildingCatalogOptions.FirstOrDefault(item => item.Gid == selectedBuilding.Gid);
+        BuildingsInfoTextBlock.Text = $"Queued construct: {selectedBuilding.Name} in slot {slotId}.";
+        AppendLog($"Queued building construct: slot {slotId} -> {selectedBuilding.Name}.");
+        return true;
+    }
+
+    private void SetPendingBuildingUpgrade(int slotId, int targetLevel)
+    {
+        var index = -1;
+        for (var i = 0; i < _buildingRows.Count; i++)
+        {
+            if (_buildingRows[i].SlotId == slotId)
+            {
+                index = i;
+                break;
+            }
+        }
+
+        if (index < 0)
+        {
+            return;
+        }
+
+        var row = _buildingRows[index];
+        _buildingRows[index] = new BuildingSlotRow
+        {
+            SlotId = row.SlotId,
+            Name = row.Name,
+            Level = row.Level,
+            Gid = row.Gid,
+            Category = row.Category,
+            Requirements = row.Requirements,
+            PendingTargetLevel = targetLevel,
+            PendingConstructName = string.Empty,
+            MapLeft = row.MapLeft,
+            MapTop = row.MapTop,
+        };
+    }
+
+    private void SetPendingBuildingConstruct(int slotId, string buildingName)
+    {
+        var index = -1;
+        for (var i = 0; i < _buildingRows.Count; i++)
+        {
+            if (_buildingRows[i].SlotId == slotId)
+            {
+                index = i;
+                break;
+            }
+        }
+
+        if (index < 0)
+        {
+            return;
+        }
+
+        var row = _buildingRows[index];
+        _buildingRows[index] = new BuildingSlotRow
+        {
+            SlotId = row.SlotId,
+            Name = row.Name,
+            Level = row.Level,
+            Gid = row.Gid,
+            Category = row.Category,
+            Requirements = row.Requirements,
+            PendingTargetLevel = row.PendingTargetLevel,
+            PendingConstructName = buildingName,
+            MapLeft = row.MapLeft,
+            MapTop = row.MapTop,
+        };
     }
 
     private void QueueConstructBuildingButton_Click(object sender, RoutedEventArgs e)
@@ -1139,43 +1949,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var occupied = _lastBuildingStatus.Buildings.FirstOrDefault(item => item.SlotId == slotId && (item.Level ?? 0) > 0);
-        if (occupied is not null)
-        {
-            BuildingsInfoTextBlock.Text = $"Slot {slotId} is occupied by {occupied.Name} level {occupied.Level}.";
-            return;
-        }
-
-        var sameBuildingLevels = _lastBuildingStatus.Buildings
-            .Where(item => item.Gid == selectedBuilding.Gid && item.Level is not null)
-            .Select(item => item.Level!.Value)
-            .ToList();
-        if (sameBuildingLevels.Count > 0 && BuildingCatalogService.IsSingleInstance(selectedBuilding.Gid))
-        {
-            var currentHighest = sameBuildingLevels.Max();
-            var max = BuildingCatalogService.MaxLevelFor(selectedBuilding.Gid);
-            if (currentHighest >= max)
-            {
-                BuildingsInfoTextBlock.Text = $"{selectedBuilding.Name} already exists at max level ({max}).";
-                return;
-            }
-        }
-
-        var missing = MissingRequirements(_lastBuildingStatus, selectedBuilding.RequirementEntries);
-        if (missing.Count > 0)
-        {
-            BuildingsInfoTextBlock.Text = $"Missing requirements: {string.Join(", ", missing.Select(item => $"{item.Name} {item.Level}+"))}";
-            return;
-        }
-
-        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            [BotOptionPayloadKeys.BuildingConstructSlotId] = slotId.ToString(),
-            [BotOptionPayloadKeys.BuildingConstructGid] = selectedBuilding.Gid.ToString(),
-            [BotOptionPayloadKeys.BuildingConstructName] = selectedBuilding.Name,
-        };
-        EnqueueQuickTask("construct_building", $"Construct {selectedBuilding.Name} in slot {slotId}", payload);
-        BuildingsInfoTextBlock.Text = $"Queued construct: {selectedBuilding.Name} in slot {slotId}.";
+        _ = TryQueueConstructBuilding(slotId, selectedBuilding);
     }
 
     private void QueueUpgradeBuildingButton_Click(object sender, RoutedEventArgs e)
@@ -1198,6 +1972,8 @@ public partial class MainWindow : Window
             [BotOptionPayloadKeys.BuildingUpgradeTargetLevel] = targetLevel.ToString(),
         };
         EnqueueQuickTask("upgrade_building_to_level", $"Upgrade slot {slotId} to level {targetLevel}", payload);
+        _buildingLastQueuedTargetBySlot[slotId] = (targetLevel, DateTimeOffset.UtcNow);
+        SetPendingBuildingUpgrade(slotId, targetLevel);
         BuildingsInfoTextBlock.Text = $"Queued upgrade for slot {slotId} to level {targetLevel}.";
     }
 
@@ -1258,6 +2034,68 @@ public partial class MainWindow : Window
         BuildingsInfoTextBlock.Text = "Queued hero management task.";
     }
 
+    private string GetBuildingsSnapshotPathForActiveAccount()
+    {
+        var account = _accountStore.ActiveAccountName();
+        var safeAccount = string.IsNullOrWhiteSpace(account) ? "main" : account.Trim().ToLowerInvariant();
+        return Path.Combine(_projectRoot, "temp_build_out", "buildings-snapshots", $"{safeAccount}.json");
+    }
+
+    private async Task LoadBuildingsSnapshotIntoUiAsync(CancellationToken cancellationToken)
+    {
+        var snapshotPath = GetBuildingsSnapshotPathForActiveAccount();
+        if (!File.Exists(snapshotPath))
+        {
+            AppendLog("Buildings snapshot not found.");
+            return;
+        }
+
+        var json = await File.ReadAllTextAsync(snapshotPath, cancellationToken);
+        var snapshot = JsonSerializer.Deserialize<BuildingSnapshotDto>(
+            json,
+            new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+            });
+        if (snapshot is null)
+        {
+            AppendLog("Buildings snapshot could not be parsed.");
+            return;
+        }
+
+        var status = new VillageStatus(
+            ActiveVillage: snapshot.ActiveVillage ?? string.Empty,
+            Villages: [],
+            Resources: new Dictionary<string, string>(),
+            ResourceFields: [],
+            Buildings: (snapshot.Buildings ?? [])
+                .Select(item => new Building(item.SlotId, item.Name ?? "Unknown", item.Level, item.Url, item.Gid))
+                .ToList(),
+            BuildQueue: [],
+            Tribe: snapshot.Tribe ?? "Unknown",
+            VillageCount: 0);
+
+        _lastBuildingStatus = status;
+        await Dispatcher.InvokeAsync(() =>
+        {
+            PopulateBuildingsTab(status);
+            BuildingsInfoTextBlock.Text = $"Loaded {status.Buildings.Count} building slots from queue snapshot.";
+        });
+    }
+
+    private sealed record BuildingSnapshotDto(
+        string? Account,
+        string? ActiveVillage,
+        string? Tribe,
+        List<BuildingSnapshotItemDto>? Buildings);
+
+    private sealed record BuildingSnapshotItemDto(
+        int? SlotId,
+        string? Name,
+        int? Level,
+        string? Url,
+        int? Gid);
+
     private void PopulateBuildingsTab(VillageStatus status)
     {
         _buildingRows.Clear();
@@ -1266,14 +2104,31 @@ public partial class MainWindow : Window
         var categoryByGid = BuildingCatalogService.GetCatalogForTribe(status.Tribe)
             .ToDictionary(item => item.Gid, item => item, EqualityComparer<int>.Default);
 
-        foreach (var building in status.Buildings
-                     .Where(item => item.SlotId is not null)
-                     .OrderBy(item => item.SlotId))
+        var buildingBySlot = status.Buildings
+            .Where(item => item.SlotId is not null)
+            .GroupBy(item => item.SlotId!.Value)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderByDescending(item => item.Level ?? 0)
+                    .First());
+
+        var occupiedCount = 0;
+        foreach (var slotId in Enumerable.Range(19, 22))
         {
-            var slotId = building.SlotId!.Value;
-            var category = "infrastructure";
-            var requirements = string.Empty;
-            if (building.Gid is int gid && categoryByGid.TryGetValue(gid, out var catalog))
+            buildingBySlot.TryGetValue(slotId, out var building);
+            var hasIdentifiedBuildingName = building is not null
+                && !string.IsNullOrWhiteSpace(building.Name)
+                && !string.Equals(building.Name, "Unknown", StringComparison.OrdinalIgnoreCase)
+                && !building.Name.StartsWith("Slot ", StringComparison.OrdinalIgnoreCase);
+            var occupied = building is not null
+                && ((building.Level ?? 0) > 0
+                    || (building.Gid ?? 0) > 0
+                    || hasIdentifiedBuildingName);
+
+            var category = occupied ? "infrastructure" : "-";
+            var requirements = occupied ? string.Empty : "-";
+            if (occupied && building!.Gid is int gid && categoryByGid.TryGetValue(gid, out var catalog))
             {
                 category = catalog.Category;
                 requirements = catalog.Requirements.Count == 0
@@ -1281,31 +2136,56 @@ public partial class MainWindow : Window
                     : string.Join(", ", catalog.Requirements.Select(item => $"{item.Name} {item.Level}+"));
             }
 
+            int? pendingTarget = _buildingLastQueuedTargetBySlot.TryGetValue(slotId, out var lastTarget)
+                ? lastTarget.Target
+                : null;
+            var pendingConstruct = _buildingLastQueuedConstructBySlot.TryGetValue(slotId, out var lastConstruct)
+                ? lastConstruct.Name
+                : string.Empty;
+
+            if (!BuildingSlotLayoutById.TryGetValue(slotId, out var layout))
+            {
+                layout = (0d, 0d);
+            }
+
+            if (occupied)
+            {
+                occupiedCount += 1;
+                if (pendingTarget is int queuedTarget && queuedTarget <= (building!.Level ?? 0))
+                {
+                    pendingTarget = null;
+                }
+
+                pendingConstruct = string.Empty;
+            }
+            else
+            {
+                pendingTarget = null;
+            }
+
             var row = new BuildingSlotRow
             {
                 SlotId = slotId,
-                Name = building.Name,
-                Level = building.Level,
-                Gid = building.Gid,
+                Name = occupied ? building!.Name : "Empty",
+                Level = occupied ? building!.Level : null,
+                Gid = occupied ? building!.Gid : null,
                 Category = category,
                 Requirements = requirements,
+                PendingTargetLevel = pendingTarget,
+                PendingConstructName = pendingConstruct,
+                MapLeft = layout.Left,
+                MapTop = layout.Top,
             };
             _buildingRows.Add(row);
 
-            if ((building.Level ?? 0) > 0)
+            if (occupied)
             {
                 _demolishableBuildings.Add(row);
             }
         }
 
         PopulateBuildingCatalogOptions(status);
-
-        var usedSlots = status.Buildings
-            .Where(item => item.SlotId is not null && (item.Level ?? 0) > 0)
-            .Select(item => item.SlotId!.Value)
-            .ToHashSet();
-        var freeSlots = Enumerable.Range(19, 22).Where(slot => !usedSlots.Contains(slot)).ToList();
-        BuildingsInfoTextBlock.Text = $"Buildings loaded. Occupied slots: {usedSlots.Count}, free slots: {freeSlots.Count}.";
+        BuildingsInfoTextBlock.Text = $"Buildings loaded. Occupied slots: {occupiedCount}, free slots: {22 - occupiedCount}.";
     }
 
     private void PopulateBuildingCatalogOptions(VillageStatus status)
@@ -1340,6 +2220,29 @@ public partial class MainWindow : Window
         {
             ConstructBuildingComboBox.SelectedIndex = 0;
         }
+    }
+
+    private static IReadOnlyDictionary<int, (double Left, double Top)> CreateBuildingSlotLayout()
+    {
+        const double canvasWidth = 760d;
+        const double canvasHeight = 430d;
+        const double slotCardWidth = 92d;
+        const double centerX = (canvasWidth - slotCardWidth) / 2d;
+        const double centerY = (canvasHeight - slotCardWidth) / 2d;
+        const double radiusX = 300d;
+        const double radiusY = 155d;
+
+        var map = new Dictionary<int, (double Left, double Top)>();
+        var slots = Enumerable.Range(19, 22).ToArray();
+        for (var index = 0; index < slots.Length; index++)
+        {
+            var angle = (-Math.PI / 2d) + (2d * Math.PI * index / slots.Length);
+            var left = centerX + (Math.Cos(angle) * radiusX);
+            var top = centerY + (Math.Sin(angle) * radiusY);
+            map[slots[index]] = (Math.Round(left, 1), Math.Round(top, 1));
+        }
+
+        return map;
     }
 
     private static List<BuildingRequirementEntry> MissingRequirements(VillageStatus status, IReadOnlyList<BuildingRequirementEntry> requirements)
@@ -1437,13 +2340,14 @@ public partial class MainWindow : Window
         QueueRetryButton.IsEnabled = !busy;
         QueueClearButton.IsEnabled = !busy;
         QueueRefreshButton.IsEnabled = !busy;
+        ResetProgramButton.IsEnabled = true;
         LoadResourcesButton.IsEnabled = !busy;
         ResourceTargetLevelComboBox.IsEnabled = !busy;
         UpgradeAllResourcesButton.IsEnabled = !busy;
         MarkMessagesReadButton.IsEnabled = !busy;
         MarkReportsReadButton.IsEnabled = !busy;
         StopBotButton.IsEnabled = true;
-        StartLoopButton.IsEnabled = true;
+        StartLoopButton.IsEnabled = _isLoggedIn;
         StartLoopButton.Content = (busy || _autoQueueRunning || (_loopTask is not null && !_loopTask.IsCompleted)) ? "Pause bot" : "Start bot";
     }
 
@@ -1454,14 +2358,6 @@ public partial class MainWindow : Window
             var accounts = _accountStore.ListAccounts()
                 .OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
-            accounts.Add(new AccountEntry
-            {
-                Name = ManageAccountsOptionName,
-                Username = string.Empty,
-                Password = string.Empty,
-                ServerName = string.Empty,
-                ServerUrl = string.Empty,
-            });
             var active = _accountStore.ActiveAccountName();
 
             _suppressAccountSelectionChange = true;
@@ -1470,8 +2366,7 @@ public partial class MainWindow : Window
                 AccountComboBox.ItemsSource = accounts;
                 var selected = accounts.FirstOrDefault(item =>
                                    string.Equals(item.Name, active, StringComparison.OrdinalIgnoreCase))
-                               ?? accounts.FirstOrDefault(item =>
-                                   !string.Equals(item.Name, ManageAccountsOptionName, StringComparison.OrdinalIgnoreCase));
+                               ?? accounts.FirstOrDefault();
                 AccountComboBox.SelectedItem = selected;
             }
             finally
@@ -1530,6 +2425,38 @@ public partial class MainWindow : Window
         });
     }
 
+    private void TriggerQueueAutoRunFromEnqueue()
+    {
+        _queueStopRequested = false;
+        _ = TriggerQueueAutoRunAsync();
+    }
+
+    private void ResumePausedQueueItems()
+    {
+        try
+        {
+            var pausedItems = _botService
+                .GetQueueItemsForDisplay()
+                .Where(item => item.Status == QueueStatus.Paused)
+                .ToList();
+
+            foreach (var item in pausedItems)
+            {
+                _botService.ResumeQueueItem(item.Id);
+            }
+
+            if (pausedItems.Count > 0)
+            {
+                RefreshQueueUi();
+                AppendLog($"Resumed {pausedItems.Count} paused queue item(s).");
+            }
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Could not resume paused queue items: {ex.Message}");
+        }
+    }
+
     private async Task ExecuteQueuedItemsNowAsync(CancellationToken cancellationToken)
     {
         var runId = System.Threading.Interlocked.Increment(ref _operationCounter);
@@ -1561,8 +2488,36 @@ public partial class MainWindow : Window
 
             if (next is null)
             {
-                AppendLog($"[AUTOQ {runId}] DONE (queue empty).");
-                return;
+                var now = DateTimeOffset.UtcNow;
+                var nextDeferredItem = _botService
+                    .GetQueueItemsForDisplay()
+                    .Where(item => item.Status == QueueStatus.Pending && item.NextAttemptAt > now)
+                    .OrderBy(item => item.NextAttemptAt)
+                    .FirstOrDefault();
+
+                if (nextDeferredItem is null)
+                {
+                    AppendLog($"[AUTOQ {runId}] DONE (queue empty).");
+                    return;
+                }
+
+                var waitDelay = nextDeferredItem.NextAttemptAt - now;
+                if (waitDelay < TimeSpan.Zero)
+                {
+                    waitDelay = TimeSpan.Zero;
+                }
+
+                AppendLog($"[AUTOQ {runId}] WAIT {waitDelay.TotalSeconds:F0}s for deferred task={nextDeferredItem.TaskName}");
+                try
+                {
+                    await Task.Delay(waitDelay, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+
+                continue;
             }
 
             var tickSw = Stopwatch.StartNew();
@@ -1589,10 +2544,15 @@ public partial class MainWindow : Window
                         await LoadResourcesAfterUpgradeAsync(cancellationToken, resourceOnly: true);
                     }
                 }
+                else if (string.Equals(next.TaskName, "load_buildings_snapshot", StringComparison.OrdinalIgnoreCase))
+                {
+                    await LoadBuildingsSnapshotIntoUiAsync(cancellationToken);
+                }
                 AppendLog($"[AUTOQ {runId}] OK {tickSw.Elapsed.TotalSeconds:F1}s task={next.TaskName}");
             }
             catch (OperationCanceledException)
             {
+                _botService.MarkQueueItemDeferred(next.Id, TimeSpan.Zero);
                 return;
             }
             catch (Exception ex)
@@ -1651,6 +2611,15 @@ public partial class MainWindow : Window
             {
                 var line = $"[{GetServerNow():yyyy-MM-dd HH:mm:ss}] {part}";
                 _terminalEntries.Insert(0, line);
+                TryApplyInlineResourceLevelUpdateFromLog(part);
+                if (TryExtractQueueWaitDelay(part, out var queueWaitDelay))
+                {
+                    var waitUntilUtc = DateTimeOffset.UtcNow.Add(queueWaitDelay);
+                    if (waitUntilUtc > _inlineWaitUntilUtc)
+                    {
+                        _inlineWaitUntilUtc = waitUntilUtc;
+                    }
+                }
 
                 if (IsAlarmMessage(part))
                 {
@@ -1658,15 +2627,24 @@ public partial class MainWindow : Window
                     _unacknowledgedAlarmCount += 1;
                 }
 
-                if (part.Contains("Manual verification cleared", StringComparison.OrdinalIgnoreCase))
+                if (IsManualVerificationAlarmMessage(part))
+                {
+                    _manualVerificationAlarmActive = true;
+                }
+
+                if (_manualVerificationAlarmActive && IsManualVerificationResolvedMessage(part))
                 {
                     _unacknowledgedAlarmCount = 0;
+                    _manualVerificationAlarmActive = false;
                 }
 
                 if (part.Contains("manual verification appeared", StringComparison.OrdinalIgnoreCase)
                     || part.Contains("captcha/manual", StringComparison.OrdinalIgnoreCase))
                 {
-                    ShowManualVerificationPopup();
+                    if (!_browserSessionLikelyOpen)
+                    {
+                        ShowManualVerificationPopup();
+                    }
                 }
             }
 
@@ -1674,8 +2652,71 @@ public partial class MainWindow : Window
             TrimToMaxEntries(_alarmEntries, 200);
 
             StatusTextBlock.Text = message;
+            StatusMiniLogTextBlock.Text = parts.Length > 0 ? parts[0] : message;
             UpdateTerminalAlarmUi();
+            UpdateExecutionStateIndicator();
         });
+    }
+
+    private void TryApplyInlineResourceLevelUpdateFromLog(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return;
+        }
+
+        var levelUp = Regex.Match(
+            message,
+            @"Resource slot\s+(?<slot>\d+)\s+level increased from\s+\d+\s+to\s+(?<to>\d+)",
+            RegexOptions.IgnoreCase);
+        if (!levelUp.Success)
+        {
+            return;
+        }
+
+        var slotId = int.Parse(levelUp.Groups["slot"].Value);
+        var nextLevel = int.Parse(levelUp.Groups["to"].Value);
+        if (ResourcesDataGrid.ItemsSource is not IEnumerable<ResourceFieldRow> sourceRows)
+        {
+            return;
+        }
+
+        var queuedTargetsBySlot = GetQueuedResourceTargetsBySlot();
+        var rows = sourceRows.ToList();
+        var changed = false;
+        var updatedRows = rows.Select(row =>
+        {
+            if (row.SlotId != slotId)
+            {
+                return row;
+            }
+
+            var existingLevel = row.Level ?? 0;
+            if (existingLevel >= nextLevel)
+            {
+                return row;
+            }
+
+            changed = true;
+            return new ResourceFieldRow
+            {
+                SlotId = row.SlotId,
+                FieldType = row.FieldType,
+                Name = row.Name,
+                Level = nextLevel,
+                Url = row.Url,
+                PendingTargetLevel = ResolveQueuedResourceTarget(row.SlotId, nextLevel, queuedTargetsBySlot),
+                IsMaxLevel = nextLevel >= _activeVillageResourceMaxLevel || row.IsMaxLevel,
+            };
+        }).ToList();
+
+        if (!changed)
+        {
+            return;
+        }
+
+        SetResourceRows(updatedRows);
+        ResourcesInfoTextBlock.Text = $"Resource slot {slotId} updated to level {nextLevel}.";
     }
 
     private void ShowManualVerificationPopup()
@@ -1687,7 +2728,7 @@ public partial class MainWindow : Window
         }
 
         _lastVerificationPopupAt = now;
-        var result = MessageBox.Show(
+        var result = AppDialog.Show(
             this,
             "Manual verification is required. If your browser is already open, solve it there. Do you want to open/restart the verification browser now?",
             "Manual verification",
@@ -1705,6 +2746,33 @@ public partial class MainWindow : Window
         {
             entries.RemoveAt(entries.Count - 1);
         }
+    }
+
+    private static bool IsManualVerificationAlarmMessage(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        var value = message.ToLowerInvariant();
+        return value.Contains("manual verification appeared")
+            || value.Contains("captcha/manual")
+            || value.Contains("captcha/manual step detected")
+            || value.Contains("solve it in the browser window");
+    }
+
+    private static bool IsManualVerificationResolvedMessage(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        var value = message.ToLowerInvariant();
+        return value.Contains("manual verification cleared")
+            || value.Contains("login completed")
+            || value.Contains("login finished");
     }
 
     private static bool IsAlarmMessage(string message)
@@ -1860,6 +2928,17 @@ public partial class MainWindow : Window
         MessageUnreadTextBlock.Text = $"Unread: {unreadMessages}";
         ReportsUnreadTextBlock.Text = $"Unread: {unreadReports}";
         InboxNavButton.ToolTip = $"Messages {unreadMessages} | Reports {unreadReports}";
+
+        if (unreadMessages > 0)
+        {
+            InboxNavButton.Background = new SolidColorBrush(Color.FromRgb(220, 38, 38));
+            InboxNavButton.Foreground = Brushes.White;
+        }
+        else
+        {
+            InboxNavButton.Background = new SolidColorBrush(Color.FromRgb(243, 244, 246));
+            InboxNavButton.Foreground = new SolidColorBrush(Color.FromRgb(17, 24, 39));
+        }
     }
 
     private void CloseTerminalAlarmPopupButton_Click(object sender, RoutedEventArgs e)
@@ -1898,13 +2977,16 @@ public partial class MainWindow : Window
     private void CopyCurrentTabButton_Click(object sender, RoutedEventArgs e)
     {
         var alertsTabSelected = TerminalAlarmTabControl.SelectedIndex == 1;
-        var source = alertsTabSelected ? _alarmEntries : _terminalEntries;
-        if (source.Count == 0)
+        var list = alertsTabSelected ? AlarmListBox : TerminalListBox;
+        var selectedLines = list.SelectedItems.Cast<string>().ToList();
+        var source = alertsTabSelected ? _alarmEntries.ToList() : _terminalEntries.ToList();
+        var linesToCopy = selectedLines.Count > 0 ? selectedLines : source;
+        if (linesToCopy.Count == 0)
         {
             return;
         }
 
-        Clipboard.SetText(string.Join(Environment.NewLine, source));
+        Clipboard.SetText(string.Join(Environment.NewLine, linesToCopy));
         StatusTextBlock.Text = alertsTabSelected
             ? "Alerts copied to clipboard."
             : "Terminal log copied to clipboard.";
@@ -1920,6 +3002,8 @@ public partial class MainWindow : Window
         var hasAlarms = _unacknowledgedAlarmCount > 0;
         var hasAlarmEntries = _alarmEntries.Count > 0;
         var alarmTabSelected = TerminalAlarmTabControl.SelectedIndex == 1;
+        var activeList = alarmTabSelected ? AlarmListBox : TerminalListBox;
+        var hasSelection = activeList.SelectedItems.Count > 0;
         AcknowledgeAlarmButton.IsEnabled = hasAlarms;
         CopyCurrentTabButton.IsEnabled = alarmTabSelected ? hasAlarmEntries : _terminalEntries.Count > 0;
         CopyCurrentTabButton.ToolTip = alarmTabSelected ? "Copy alerts" : "Copy terminal";
@@ -1937,6 +3021,209 @@ public partial class MainWindow : Window
             LogsNavButton.Foreground = new SolidColorBrush(Color.FromRgb(17, 24, 39));
             LogsNavButton.ToolTip = "Logs";
         }
+
+        if (hasSelection)
+        {
+            CopyCurrentTabButton.Content = "Copy selected";
+        }
+        else
+        {
+            CopyCurrentTabButton.Content = "Copy";
+        }
+    }
+
+    private void MainWindow_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is not DependencyObject source)
+        {
+            return;
+        }
+
+        // Keep current log selection when clicking log action buttons.
+        if (IsDescendantOf(source, CopyCurrentTabButton)
+            || IsDescendantOf(source, PopoutLogsButton)
+            || IsDescendantOf(source, AcknowledgeAlarmButton)
+            || IsDescendantOf(source, ClearCurrentLogButton))
+        {
+            return;
+        }
+
+        if (!IsDescendantOf(source, TerminalListBox))
+        {
+            TerminalListBox.UnselectAll();
+        }
+
+        if (!IsDescendantOf(source, AlarmListBox))
+        {
+            AlarmListBox.UnselectAll();
+        }
+    }
+
+    private static bool IsDescendantOf(DependencyObject source, DependencyObject ancestor)
+    {
+        var current = source;
+        while (current is not null)
+        {
+            if (ReferenceEquals(current, ancestor))
+            {
+                return true;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return false;
+    }
+
+    private static T? FindAncestor<T>(DependencyObject? source) where T : DependencyObject
+    {
+        var current = source;
+        while (current is not null)
+        {
+            if (current is T typed)
+            {
+                return typed;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return null;
+    }
+
+    private void LogListBox_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not ListBox list)
+        {
+            return;
+        }
+
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control) || Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+        {
+            return;
+        }
+
+        var item = GetListBoxItemAt(list, e.GetPosition(list));
+        if (item is null)
+        {
+            return;
+        }
+
+        var index = list.ItemContainerGenerator.IndexFromContainer(item);
+        if (index < 0 || index >= list.Items.Count)
+        {
+            return;
+        }
+
+        _logDragSelecting = true;
+        _logDragSourceList = list;
+        _logDragAnchorIndex = index;
+        SelectListBoxRange(list, index, index);
+        list.Focus();
+        list.CaptureMouse();
+    }
+
+    private void LogListBox_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (!_logDragSelecting || _logDragSourceList is null || e.LeftButton != MouseButtonState.Pressed)
+        {
+            return;
+        }
+
+        if (!ReferenceEquals(sender, _logDragSourceList))
+        {
+            return;
+        }
+
+        var mousePosition = e.GetPosition(_logDragSourceList);
+        var item = GetListBoxItemAt(_logDragSourceList, mousePosition);
+        int index;
+        if (item is not null)
+        {
+            index = _logDragSourceList.ItemContainerGenerator.IndexFromContainer(item);
+        }
+        else if (_logDragSourceList.Items.Count > 0 && mousePosition.Y < 0)
+        {
+            index = 0;
+        }
+        else if (_logDragSourceList.Items.Count > 0 && mousePosition.Y > _logDragSourceList.ActualHeight)
+        {
+            index = _logDragSourceList.Items.Count - 1;
+        }
+        else
+        {
+            return;
+        }
+
+        if (index < 0 || index >= _logDragSourceList.Items.Count || _logDragAnchorIndex < 0)
+        {
+            return;
+        }
+
+        SelectListBoxRange(_logDragSourceList, _logDragAnchorIndex, index);
+    }
+
+    private void LogListBox_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_logDragSelecting)
+        {
+            return;
+        }
+
+        _logDragSelecting = false;
+        _logDragAnchorIndex = -1;
+        if (_logDragSourceList is not null && _logDragSourceList.IsMouseCaptured)
+        {
+            _logDragSourceList.ReleaseMouseCapture();
+        }
+
+        _logDragSourceList = null;
+        UpdateTerminalAlarmUi();
+    }
+
+    private static void SelectListBoxRange(ListBox list, int startIndex, int endIndex)
+    {
+        if (list.Items.Count == 0)
+        {
+            return;
+        }
+
+        var start = Math.Clamp(Math.Min(startIndex, endIndex), 0, list.Items.Count - 1);
+        var end = Math.Clamp(Math.Max(startIndex, endIndex), 0, list.Items.Count - 1);
+        list.SelectedItems.Clear();
+        for (var i = start; i <= end; i++)
+        {
+            list.SelectedItems.Add(list.Items[i]);
+        }
+
+        list.ScrollIntoView(list.Items[end]);
+    }
+
+    private static ListBoxItem? GetListBoxItemAt(ListBox list, Point point)
+    {
+        var hit = list.InputHitTest(point) as DependencyObject;
+        var direct = FindAncestor<ListBoxItem>(hit);
+        if (direct is not null)
+        {
+            return direct;
+        }
+
+        for (var i = 0; i < list.Items.Count; i++)
+        {
+            if (list.ItemContainerGenerator.ContainerFromIndex(i) is not ListBoxItem item)
+            {
+                continue;
+            }
+
+            var topLeft = item.TranslatePoint(new Point(0, 0), list);
+            var bounds = new Rect(topLeft, new Size(item.ActualWidth, item.ActualHeight));
+            if (bounds.Contains(point))
+            {
+                return item;
+            }
+        }
+
+        return null;
     }
 
     private void PopoutLogsButton_Click(object sender, RoutedEventArgs e)
@@ -1955,7 +3242,7 @@ public partial class MainWindow : Window
             BorderThickness = new Thickness(0),
             FontFamily = new FontFamily("Consolas"),
             FontSize = 13,
-            SelectionMode = SelectionMode.Single,
+            SelectionMode = SelectionMode.Extended,
             ItemsSource = _terminalEntries,
         };
         popupLogList.SetValue(ScrollViewer.HorizontalScrollBarVisibilityProperty, ScrollBarVisibility.Disabled);
@@ -1972,9 +3259,11 @@ public partial class MainWindow : Window
             BorderThickness = new Thickness(0),
             FontFamily = new FontFamily("Consolas"),
             FontSize = 13,
-            SelectionMode = SelectionMode.Single,
+            SelectionMode = SelectionMode.Extended,
             ItemsSource = _alarmEntries,
         };
+        _logsPopupLogList = popupLogList;
+        _logsPopupAlarmList = popupAlarmList;
         popupAlarmList.SetValue(ScrollViewer.HorizontalScrollBarVisibilityProperty, ScrollBarVisibility.Disabled);
         popupAlarmList.ItemTemplate = new DataTemplate
         {
@@ -2011,7 +3300,12 @@ public partial class MainWindow : Window
         var copyButton = new Button { Content = "Copy", Margin = new Thickness(0, 0, 8, 0), Padding = new Thickness(10, 4, 10, 4), Height = 30 };
         copyButton.Click += (_, _) =>
         {
-            var lines = popupTab.SelectedIndex == 1 ? _alarmEntries : _terminalEntries;
+            var selected = popupTab.SelectedIndex == 1
+                ? popupAlarmList.SelectedItems.Cast<string>().ToList()
+                : popupLogList.SelectedItems.Cast<string>().ToList();
+            var lines = selected.Count > 0
+                ? selected
+                : (popupTab.SelectedIndex == 1 ? _alarmEntries.ToList() : _terminalEntries.ToList());
             if (lines.Count == 0)
             {
                 return;
@@ -2039,21 +3333,43 @@ public partial class MainWindow : Window
         root.Children.Add(popupTab);
         Grid.SetRow(footer, 1);
         root.Children.Add(footer);
+        root.PreviewMouseDown += (_, args) =>
+        {
+            if (args.OriginalSource is not DependencyObject src)
+            {
+                return;
+            }
+
+            if (!IsDescendantOf(src, popupLogList))
+            {
+                popupLogList.UnselectAll();
+            }
+
+            if (!IsDescendantOf(src, popupAlarmList))
+            {
+                popupAlarmList.UnselectAll();
+            }
+        };
 
         _logsPopupWindow = new Window
         {
             Title = "Logs",
-            Width = 760,
-            Height = 440,
-            MinWidth = 620,
-            MinHeight = 360,
+            Width = 700,
+            Height = 400,
+            MinWidth = 580,
+            MinHeight = 320,
             Content = root,
             WindowStartupLocation = WindowStartupLocation.Manual,
             Left = Left + Width + 10,
             Top = Top + 30,
         };
 
-        _logsPopupWindow.Closed += (_, _) => _logsPopupWindow = null;
+        _logsPopupWindow.Closed += (_, _) =>
+        {
+            _logsPopupWindow = null;
+            _logsPopupLogList = null;
+            _logsPopupAlarmList = null;
+        };
         closeButton.Click += (_, _) => _logsPopupWindow?.Close();
         _logsPopupWindow.Show();
     }
@@ -2144,6 +3460,43 @@ public partial class MainWindow : Window
     {
         var options = ApplySelectedVillageToOptions(LoadBotOptions());
         var status = await ReadVillageStatusWithRetryAsync(options, cancellationToken, resourceOnly);
+        await Dispatcher.InvokeAsync(() =>
+        {
+            var queuedTargetsBySlot = GetQueuedResourceTargetsBySlot();
+            var resourceMaxLevel = ResolveResourceMaxLevelFromStatus(status);
+            var rows = status.ResourceFields
+                .Where(item => item.SlotId is not null)
+                .OrderBy(item => item.SlotId)
+                .Select(item => new ResourceFieldRow
+                {
+                    SlotId = item.SlotId ?? 0,
+                    FieldType = item.FieldType,
+                    Name = item.Name,
+                    Level = item.Level,
+                    Url = item.Url ?? string.Empty,
+                    PendingTargetLevel = ResolveQueuedResourceTarget(item.SlotId ?? 0, item.Level ?? 0, queuedTargetsBySlot),
+                    IsMaxLevel = (item.Level ?? 0) >= resourceMaxLevel,
+                })
+                .ToList();
+            SetResourceRows(rows);
+            ApplyVillageStatusToUi(status);
+            var capitalText = status.IsCapital == true ? "Yes" : status.IsCapital == false ? "No" : "Unknown";
+            ResourcesInfoTextBlock.Text = $"Loaded {rows.Count} resource fields. Capital: {capitalText}. {BuildResourceForecastSummary(status)}";
+        });
+    }
+
+    private async Task LoadBuildingsAfterLoginAsync(BotOptions options, CancellationToken cancellationToken = default)
+    {
+        var status = await ReadVillageStatusWithRetryAsync(options, cancellationToken, resourceOnly: false);
+        _lastBuildingStatus = status;
+        PopulateBuildingsTab(status);
+    }
+
+    private async Task LoadCurrentVillageViewsAfterLoginAsync(BotOptions options, CancellationToken cancellationToken = default)
+    {
+        var status = await ReadVillageStatusWithRetryAsync(options, cancellationToken, resourceOnly: false, forceCurrentVillage: false);
+        var queuedTargetsBySlot = GetQueuedResourceTargetsBySlot();
+        var resourceMaxLevel = ResolveResourceMaxLevelFromStatus(status);
 
         var rows = status.ResourceFields
             .Where(item => item.SlotId is not null)
@@ -2155,20 +3508,68 @@ public partial class MainWindow : Window
                 Name = item.Name,
                 Level = item.Level,
                 Url = item.Url ?? string.Empty,
-                PendingTargetLevel = null,
-                IsMaxLevel = (item.Level ?? 0) >= 20,
+                PendingTargetLevel = ResolveQueuedResourceTarget(item.SlotId ?? 0, item.Level ?? 0, queuedTargetsBySlot),
+                IsMaxLevel = (item.Level ?? 0) >= resourceMaxLevel,
             })
             .ToList();
+
         SetResourceRows(rows);
         ApplyVillageStatusToUi(status);
+
+        _lastBuildingStatus = status;
+        PopulateBuildingsTab(status);
+
         var capitalText = status.IsCapital == true ? "Yes" : status.IsCapital == false ? "No" : "Unknown";
         ResourcesInfoTextBlock.Text = $"Loaded {rows.Count} resource fields. Capital: {capitalText}. {BuildResourceForecastSummary(status)}";
+        BuildingsInfoTextBlock.Text = $"Buildings loaded for active village '{status.ActiveVillage}'. Occupied slots: {_buildingRows.Count(row => row.IsOccupied)}, free slots: {_buildingRows.Count(row => !row.IsOccupied)}.";
+
+        await _botService.NavigateToVillageResourceFieldsAsync(
+            options,
+            AppendLog,
+            GetSelectedVillageName(),
+            GetSelectedVillageUrl(),
+            cancellationToken);
+        AppendLog("Returned to dorf1 after login scan.");
     }
 
-    private async Task<VillageStatus> ReadVillageStatusWithRetryAsync(BotOptions options, CancellationToken cancellationToken, bool resourceOnly = false)
+    private async Task<VillageStatus> ReadVillageStatusWithRetryAsync(BotOptions options, CancellationToken cancellationToken, bool resourceOnly = false, bool forceCurrentVillage = false)
     {
-        var status = await ReadVillageStatusAsync(options, cancellationToken, resourceOnly);
-        var requiresRetry = status.ResourceFields.Count < 18;
+        static bool IsTransientExecutionContextError(Exception ex)
+        {
+            var current = ex;
+            while (current is not null)
+            {
+                var message = current.Message ?? string.Empty;
+                if (message.Contains("Execution context was destroyed", StringComparison.OrdinalIgnoreCase)
+                    || message.Contains("cannot find context with specified id", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                current = current.InnerException!;
+            }
+
+            return false;
+        }
+
+        VillageStatus status;
+        var statusAttempts = 3;
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                status = await ReadVillageStatusAsync(options, cancellationToken, resourceOnly, forceCurrentVillage);
+                break;
+            }
+            catch (Exception ex) when (attempt < statusAttempts && IsTransientExecutionContextError(ex))
+            {
+                AppendLog($"Village status read hit transient navigation context on attempt {attempt}/{statusAttempts}. Retrying...");
+                await Task.Delay(250 * attempt, cancellationToken);
+            }
+        }
+
+        var requiresRetry = status.ResourceFields.Count < 18
+            || (!resourceOnly && status.Buildings.Count == 0);
         if (!requiresRetry)
         {
             return status;
@@ -2179,28 +3580,66 @@ public partial class MainWindow : Window
             AppendLog($"Resource scan returned {status.ResourceFields.Count} fields. Retrying once...");
         }
 
+        if (!resourceOnly && status.Buildings.Count == 0)
+        {
+            AppendLog("Building scan returned 0 slots. Retrying once...");
+        }
+
         await Task.Delay(350, cancellationToken);
-        return await ReadVillageStatusAsync(options, cancellationToken, resourceOnly);
+        return await ReadVillageStatusAsync(options, cancellationToken, resourceOnly, forceCurrentVillage);
     }
 
-    private Task<VillageStatus> ReadVillageStatusAsync(BotOptions options, CancellationToken cancellationToken, bool resourceOnly)
+    private Task<VillageStatus> ReadVillageStatusAsync(BotOptions options, CancellationToken cancellationToken, bool resourceOnly, bool forceCurrentVillage = false)
     {
+        var villageName = forceCurrentVillage ? null : GetSelectedVillageName();
+        var villageUrl = forceCurrentVillage ? null : GetSelectedVillageUrl();
+
         if (resourceOnly)
         {
             return _botService.ReadVillageResourceStatusAsync(
                 options,
                 AppendLog,
-                GetSelectedVillageName(),
-                GetSelectedVillageUrl(),
+                villageName,
+                villageUrl,
                 cancellationToken);
         }
 
         return _botService.ReadVillageStatusAsync(
             options,
             AppendLog,
-            GetSelectedVillageName(),
-            GetSelectedVillageUrl(),
+            villageName,
+            villageUrl,
             cancellationToken);
+    }
+
+    private void SelectVillageInPicker(string? activeVillageName)
+    {
+        if (string.IsNullOrWhiteSpace(activeVillageName))
+        {
+            return;
+        }
+
+        if (VillageComboBox.ItemsSource is not IEnumerable<VillageSelectionItem> villages)
+        {
+            return;
+        }
+
+        var selected = villages.FirstOrDefault(v =>
+            string.Equals(v.Name, activeVillageName, StringComparison.OrdinalIgnoreCase));
+        if (selected is null)
+        {
+            return;
+        }
+
+        _suppressVillageSelectionChange = true;
+        try
+        {
+            VillageComboBox.SelectedItem = selected;
+        }
+        finally
+        {
+            _suppressVillageSelectionChange = false;
+        }
     }
 
     private void SetResourceRows(IReadOnlyList<ResourceFieldRow> rows)
@@ -2209,8 +3648,158 @@ public partial class MainWindow : Window
         RepopulateResourceGroups(rows);
     }
 
+    private IReadOnlyDictionary<int, int> GetQueuedResourceTargetsBySlot()
+    {
+        var targetsBySlot = new Dictionary<int, int>();
+        IReadOnlyList<QueueItem> queueItems;
+        try
+        {
+            queueItems = _botService.GetQueueItemsForDisplay();
+        }
+        catch
+        {
+            return targetsBySlot;
+        }
+
+        foreach (var item in queueItems)
+        {
+            if (!string.Equals(item.TaskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (item.Status is QueueStatus.Succeeded or QueueStatus.Failed)
+            {
+                continue;
+            }
+
+            if (!item.Payload.TryGetValue(BotOptionPayloadKeys.ResourceUpgradeSlotId, out var slotRaw)
+                || !int.TryParse(slotRaw, out var slotId))
+            {
+                continue;
+            }
+
+            if (!item.Payload.TryGetValue(BotOptionPayloadKeys.ResourceUpgradeTargetLevel, out var targetRaw)
+                || !int.TryParse(targetRaw, out var targetLevel))
+            {
+                continue;
+            }
+
+            if (targetLevel <= 0)
+            {
+                continue;
+            }
+
+            if (!targetsBySlot.TryGetValue(slotId, out var existing) || targetLevel > existing)
+            {
+                targetsBySlot[slotId] = targetLevel;
+            }
+        }
+
+        return targetsBySlot;
+    }
+
+    private int? ResolveQueuedResourceTarget(int slotId, int currentLevel, IReadOnlyDictionary<int, int> queuedTargetsBySlot)
+    {
+        var hasQueuedTarget = queuedTargetsBySlot.TryGetValue(slotId, out var queuedTarget) && queuedTarget > 0;
+        if (!hasQueuedTarget)
+        {
+            _resourcePendingTargetBySlot.Remove(slotId);
+            return null;
+        }
+
+        var effectiveTarget = queuedTarget;
+        var hasPendingTarget = _resourcePendingTargetBySlot.TryGetValue(slotId, out var rememberedTarget) && rememberedTarget > 0;
+        if (hasPendingTarget && rememberedTarget > effectiveTarget)
+        {
+            effectiveTarget = rememberedTarget;
+        }
+
+        if (effectiveTarget <= currentLevel)
+        {
+            _resourcePendingTargetBySlot.Remove(slotId);
+            return null;
+        }
+
+        _resourcePendingTargetBySlot[slotId] = effectiveTarget;
+        return effectiveTarget;
+    }
+
+    private void SyncPendingResourceTargetsInUi()
+    {
+        if (ResourcesDataGrid.ItemsSource is not IEnumerable<ResourceFieldRow> sourceRows)
+        {
+            return;
+        }
+
+        var queuedTargetsBySlot = GetQueuedResourceTargetsBySlot();
+        var changed = false;
+        var updatedRows = sourceRows
+            .Select(row =>
+            {
+                var currentLevel = row.Level ?? 0;
+                var pendingTarget = ResolveQueuedResourceTarget(row.SlotId, currentLevel, queuedTargetsBySlot);
+                if (row.PendingTargetLevel == pendingTarget)
+                {
+                    return row;
+                }
+
+                changed = true;
+                return new ResourceFieldRow
+                {
+                    SlotId = row.SlotId,
+                    FieldType = row.FieldType,
+                    Name = row.Name,
+                    Level = row.Level,
+                    Url = row.Url,
+                    PendingTargetLevel = pendingTarget,
+                    IsMaxLevel = row.IsMaxLevel,
+                };
+            })
+            .ToList();
+
+        if (!changed)
+        {
+            return;
+        }
+
+        SetResourceRows(updatedRows);
+    }
+
+    private void ClearPendingResourceLevelsFromUi()
+    {
+        _resourcePendingTargetBySlot.Clear();
+        if (ResourcesDataGrid.ItemsSource is not IEnumerable<ResourceFieldRow> sourceRows)
+        {
+            return;
+        }
+
+        var updatedRows = sourceRows
+            .Select(row => new ResourceFieldRow
+            {
+                SlotId = row.SlotId,
+                FieldType = row.FieldType,
+                Name = row.Name,
+                Level = row.Level,
+                Url = row.Url,
+                PendingTargetLevel = null,
+                IsMaxLevel = row.IsMaxLevel,
+            })
+            .ToList();
+
+        SetResourceRows(updatedRows);
+    }
+
     private void SetPendingResourceLevel(int slotId, int targetLevel)
     {
+        var normalizedTarget = Math.Clamp(targetLevel, 1, _activeVillageResourceMaxLevel);
+        if (_resourcePendingTargetBySlot.TryGetValue(slotId, out var existingTarget) && existingTarget > normalizedTarget)
+        {
+            normalizedTarget = existingTarget;
+        }
+
+        _resourcePendingTargetBySlot[slotId] = normalizedTarget;
+
         if (ResourcesDataGrid.ItemsSource is not IEnumerable<ResourceFieldRow> sourceRows)
         {
             return;
@@ -2225,16 +3814,23 @@ public partial class MainWindow : Window
                     Name = row.Name,
                     Level = row.Level,
                     Url = row.Url,
-                    PendingTargetLevel = targetLevel,
+                    PendingTargetLevel = normalizedTarget > (row.Level ?? 0) ? normalizedTarget : null,
                     IsMaxLevel = row.IsMaxLevel,
                 }
                 : row)
             .ToList();
+
+        if (updated.FirstOrDefault(row => row.SlotId == slotId)?.PendingTargetLevel is null)
+        {
+            _resourcePendingTargetBySlot.Remove(slotId);
+        }
+
         SetResourceRows(updated);
     }
 
     private void MarkResourceAsMax(int slotId)
     {
+        _resourcePendingTargetBySlot.Remove(slotId);
         if (ResourcesDataGrid.ItemsSource is not IEnumerable<ResourceFieldRow> sourceRows)
         {
             return;
@@ -2267,6 +3863,29 @@ public partial class MainWindow : Window
         foreach (var row in rows.OrderBy(item => item.SlotId))
         {
             GetBucket(row).Add(row);
+        }
+
+        UpdateCroplandLayout();
+    }
+
+    private void UpdateCroplandLayout()
+    {
+        if (CroplandItemsControl is null)
+        {
+            return;
+        }
+
+        var isDenseCropland = _croplandFields.Count > 6;
+        var columns = isDenseCropland ? 2 : 1;
+        var factory = new FrameworkElementFactory(typeof(UniformGrid));
+        factory.SetValue(UniformGrid.ColumnsProperty, columns);
+        var template = new ItemsPanelTemplate(factory);
+        template.Seal();
+        CroplandItemsControl.ItemsPanel = template;
+
+        if (CroplandColumnPanel is not null)
+        {
+            CroplandColumnPanel.Width = isDenseCropland ? 350 : 190;
         }
     }
 
@@ -2310,6 +3929,11 @@ public partial class MainWindow : Window
             return;
         }
 
+        var liveRow = (ResourcesDataGrid.ItemsSource as IEnumerable<ResourceFieldRow>)
+            ?.FirstOrDefault(item => item.SlotId == row.SlotId) ?? row;
+        var currentLevel = liveRow.Level ?? 0;
+        var rowName = string.IsNullOrWhiteSpace(liveRow.Name) ? row.Name : liveRow.Name;
+
         var now = DateTimeOffset.UtcNow;
         if (_resourceClickCooldownBySlot.TryGetValue(row.SlotId, out var lastClickAt)
             && (now - lastClickAt).TotalMilliseconds < 120)
@@ -2319,20 +3943,19 @@ public partial class MainWindow : Window
 
         _resourceClickCooldownBySlot[row.SlotId] = now;
 
-        if (row.IsMaxLevel || (row.Level ?? 0) >= 20)
+        if (liveRow.IsMaxLevel || currentLevel >= _activeVillageResourceMaxLevel)
         {
             MarkResourceAsMax(row.SlotId);
-            MessageBox.Show(this, "Max level reached", "Resources", MessageBoxButton.OK, MessageBoxImage.Information);
+            AppDialog.Show(this, "Max level reached", "Resources", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        var current = row.Level ?? 0;
-        var pendingLevel = row.PendingTargetLevel ?? current;
-        var baseLevel = Math.Max(current, pendingLevel);
-        var target = Math.Clamp(baseLevel + 1, 1, 20);
+        var pendingLevel = liveRow.PendingTargetLevel ?? currentLevel;
+        var baseLevel = Math.Max(currentLevel, pendingLevel);
+        var target = Math.Clamp(baseLevel + 1, 1, _activeVillageResourceMaxLevel);
         if (_resourceLastQueuedTargetBySlot.TryGetValue(row.SlotId, out var lastQueued)
             && lastQueued.Target == target
-            && (now - lastQueued.At).TotalMilliseconds < 1200)
+            && (now - lastQueued.At).TotalMilliseconds < 2500)
         {
             return;
         }
@@ -2343,10 +3966,10 @@ public partial class MainWindow : Window
             [BotOptionPayloadKeys.ResourceUpgradeTargetLevel] = target.ToString(),
         };
 
-        EnqueueQuickTask("upgrade_resource_to_level", $"Upgrade {row.Name} to level {target}", payload);
+        EnqueueQuickTask("upgrade_resource_to_level", $"Upgrade {rowName} to level {target}", payload);
         _resourceLastQueuedTargetBySlot[row.SlotId] = (target, now);
         SetPendingResourceLevel(row.SlotId, target);
-        ResourcesInfoTextBlock.Text = $"Queued {row.Name} to level {target}.";
+        ResourcesInfoTextBlock.Text = $"Queued {rowName} to level {target}.";
         AppendLog($"Queued single resource upgrade: slot {row.SlotId} -> level {target}.");
     }
 
@@ -2420,6 +4043,7 @@ public partial class MainWindow : Window
                 return false;
             }
 
+            var queuedTargetsBySlot = GetQueuedResourceTargetsBySlot();
             var rows = sourceRows.ToList();
             var changed = false;
             var updatedRows = rows.Select(row =>
@@ -2442,8 +4066,8 @@ public partial class MainWindow : Window
                     Name = row.Name,
                     Level = nextLevel,
                     Url = row.Url,
-                    PendingTargetLevel = null,
-                    IsMaxLevel = nextLevel >= 20 || row.IsMaxLevel || maxedSlots.Contains(row.SlotId),
+                    PendingTargetLevel = ResolveQueuedResourceTarget(row.SlotId, nextLevel, queuedTargetsBySlot),
+                    IsMaxLevel = nextLevel >= _activeVillageResourceMaxLevel || row.IsMaxLevel || maxedSlots.Contains(row.SlotId),
                 };
             }).ToList();
 
@@ -2456,7 +4080,7 @@ public partial class MainWindow : Window
             ResourcesInfoTextBlock.Text = $"Resource UI fast-updated for {updates.Count} slot(s).";
             if (maxedSlots.Count > 0)
             {
-                MessageBox.Show(this, "Max level reached", "Resources", MessageBoxButton.OK, MessageBoxImage.Information);
+                AppDialog.Show(this, "Max level reached", "Resources", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             return true;
         });
@@ -2466,13 +4090,13 @@ public partial class MainWindow : Window
     {
         var id = System.Threading.Interlocked.Increment(ref _operationCounter);
         var operationId = $"OP{id:D4}";
-        AppendLog($"[{operationId}] START {operationName}");
+        AppendLog($"[{operationId}] [{operationName} STARTED]");
         return operationId;
     }
 
     private void CompleteOperation(string operationId, Stopwatch sw, string summary)
     {
-        AppendLog($"[{operationId}] OK {sw.Elapsed.TotalSeconds:F1}s | {summary}");
+        AppendLog($"[{operationId}] [COMPLETED] {sw.Elapsed.TotalSeconds:F1}s | {summary}");
     }
 
     private void FailOperation(string operationId, Stopwatch sw, Exception ex)
@@ -2543,15 +4167,34 @@ public partial class MainWindow : Window
     {
         var loopRunning = _loopTask is not null && !_loopTask.IsCompleted;
         var hasPausedQueueItems = false;
+        var hasRunningQueueItems = false;
+        var hasDeferredQueueItems = false;
         try
         {
-            hasPausedQueueItems = _botService
-                .GetQueueItemsForDisplay()
-                .Any(item => item.Status == QueueStatus.Paused);
+            var nowUtc = DateTimeOffset.UtcNow;
+            var queueItems = _botService.GetQueueItemsForDisplay();
+            hasPausedQueueItems = queueItems.Any(item => item.Status == QueueStatus.Paused);
+            hasRunningQueueItems = queueItems.Any(item => item.Status == QueueStatus.Running);
+            hasDeferredQueueItems = queueItems.Any(item =>
+                item.Status == QueueStatus.Pending &&
+                item.NextAttemptAt > nowUtc);
+            if (_inlineWaitUntilUtc <= nowUtc)
+            {
+                _inlineWaitUntilUtc = DateTimeOffset.MinValue;
+            }
         }
         catch
         {
             // Ignore indicator read errors.
+        }
+
+        var hasInlineWait = _inlineWaitUntilUtc > DateTimeOffset.UtcNow;
+        if ((hasDeferredQueueItems && !hasRunningQueueItems && !_uiBusy) || hasInlineWait)
+        {
+            LoopStateTextBlock.Text = "State: waiting";
+            LoopStateBadge.Background = new SolidColorBrush(Color.FromRgb(202, 138, 4));
+            StartLoopButton.Content = (loopRunning || _autoQueueRunning) ? "Pause bot" : "Start bot";
+            return;
         }
 
         if (loopRunning)
@@ -2641,18 +4284,49 @@ public partial class MainWindow : Window
 
     private void ApplyVillageStatusToUi(VillageStatus status)
     {
+        UpdateActiveVillageResourceMaxLevel(status);
         VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
         TribeInfoTextBlock.Text = $"Tribe: {status.Tribe}";
         LastScanInfoTextBlock.Text = $"Last scan: {GetServerNow():HH:mm:ss}";
         var capitalText = status.IsCapital == true ? "Yes" : status.IsCapital == false ? "No" : "Unknown";
         var goldText = status.Gold?.ToString() ?? "-";
         var silverText = status.Silver?.ToString() ?? "-";
-        SummaryTextBlock.Text = $"Village: {status.ActiveVillage} | Capital: {capitalText} | Gold: {goldText} | Silver: {silverText}";
+        ServerResourcesTextBlock.Text = $"Gold: {goldText} | Silver: {silverText}";
+        SummaryTextBlock.Text = $"Village: {status.ActiveVillage} | Capital: {capitalText}";
 
         _buildQueueActiveCount = status.ActiveBuildCount;
         _buildQueueRemainingSeconds = status.BuildQueueRemainingSeconds ?? -1;
         UpdateBuildQueueStatusText();
         RefreshVillagePicker(status);
+    }
+
+    private int ResolveResourceMaxLevelFromStatus(VillageStatus status)
+    {
+        if (status.IsCapital == true)
+        {
+            return ResourceFieldMaxLevel;
+        }
+
+        if (status.IsCapital == false)
+        {
+            return NonCapitalResourceMaxLevel;
+        }
+
+        return _activeVillageResourceMaxLevel;
+    }
+
+    private void UpdateActiveVillageResourceMaxLevel(VillageStatus status)
+    {
+        if (status.IsCapital == true)
+        {
+            _activeVillageResourceMaxLevel = ResourceFieldMaxLevel;
+            return;
+        }
+
+        if (status.IsCapital == false)
+        {
+            _activeVillageResourceMaxLevel = NonCapitalResourceMaxLevel;
+        }
     }
 
     private static string BuildResourceForecastSummary(VillageStatus status)
@@ -2694,22 +4368,34 @@ public partial class MainWindow : Window
             .Select(v => new VillageSelectionItem
             {
                 Name = string.IsNullOrWhiteSpace(v.Name) ? "-" : v.Name,
+                DisplayName = string.IsNullOrWhiteSpace(v.Name)
+                    ? "-"
+                    : (v.IsCapital == true ? $"{v.Name} (C)" : v.Name),
                 Url = v.Url ?? string.Empty,
+                IsCapital = v.IsCapital == true,
             })
             .ToList();
 
         if (villages.Count == 0)
         {
-            villages.Add(new VillageSelectionItem { Name = "-", Url = string.Empty });
+            villages.Add(new VillageSelectionItem { Name = "-", DisplayName = "-", Url = string.Empty });
         }
 
-        VillageComboBox.ItemsSource = villages;
-        var selected = villages.FirstOrDefault(v =>
-            string.Equals(v.Name, currentSelectedName, StringComparison.OrdinalIgnoreCase))
-            ?? villages.FirstOrDefault(v =>
-                string.Equals(v.Name, status.ActiveVillage, StringComparison.OrdinalIgnoreCase))
-            ?? villages[0];
-        VillageComboBox.SelectedItem = selected;
+        _suppressVillageSelectionChange = true;
+        try
+        {
+            VillageComboBox.ItemsSource = villages;
+            var selected = villages.FirstOrDefault(v =>
+                string.Equals(v.Name, currentSelectedName, StringComparison.OrdinalIgnoreCase))
+                ?? villages.FirstOrDefault(v =>
+                    string.Equals(v.Name, status.ActiveVillage, StringComparison.OrdinalIgnoreCase))
+                ?? villages[0];
+            VillageComboBox.SelectedItem = selected;
+        }
+        finally
+        {
+            _suppressVillageSelectionChange = false;
+        }
     }
 
     private void UpdateBuildQueueStatusText()
@@ -2758,6 +4444,8 @@ public partial class MainWindow : Window
 
     private void UpdateLoginButtonsVisual(bool isLoggedIn)
     {
+        StartLoopButton.IsEnabled = isLoggedIn;
+
         if (isLoggedIn)
         {
             LoginButton.Background = new SolidColorBrush(Color.FromRgb(229, 231, 235));
@@ -2779,12 +4467,135 @@ public partial class MainWindow : Window
 
     private void VillageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (_suppressVillageSelectionChange)
+        {
+            return;
+        }
+
         if (VillageComboBox.SelectedItem is not VillageSelectionItem selected)
         {
             return;
         }
 
         StatusTextBlock.Text = $"Selected village: {selected.Name}";
+        _ = SwitchToSelectedVillageAndRefreshAsync(selected);
+    }
+
+    private async Task SwitchToSelectedVillageAndRefreshAsync(VillageSelectionItem selectedVillage)
+    {
+        if (selectedVillage is null)
+        {
+            return;
+        }
+
+        if (IsExecutionActiveForVillageChange())
+        {
+            await StopAndClearForVillageChangeAsync(selectedVillage.Name);
+        }
+
+        if (_uiBusy || _autoQueueRunning || (_loopTask is not null && !_loopTask.IsCompleted))
+        {
+            AppendLog($"Village switch to '{selectedVillage.Name}' skipped because bot is still stopping.");
+            return;
+        }
+
+        if (!_isLoggedIn || !_browserSessionLikelyOpen)
+        {
+            return;
+        }
+
+        _villageSwitchCts?.Cancel();
+        _villageSwitchCts?.Dispose();
+        _villageSwitchCts = new CancellationTokenSource();
+        var operationToken = _villageSwitchCts.Token;
+        var operationId = BeginOperation("SwitchVillage");
+        var operationSw = Stopwatch.StartNew();
+        ToggleUiBusy(true);
+        try
+        {
+            var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            AppendLog($"[{operationId}] INFO switch village to '{selectedVillage.Name}'");
+            var status = await ReadVillageStatusWithRetryAsync(options, operationToken, resourceOnly: false, forceCurrentVillage: false);
+
+            var queuedTargetsBySlot = GetQueuedResourceTargetsBySlot();
+            var resourceMaxLevel = ResolveResourceMaxLevelFromStatus(status);
+            var rows = status.ResourceFields
+                .Where(item => item.SlotId is not null)
+                .OrderBy(item => item.SlotId)
+                .Select(item => new ResourceFieldRow
+                {
+                    SlotId = item.SlotId ?? 0,
+                    FieldType = item.FieldType,
+                    Name = item.Name,
+                    Level = item.Level,
+                    Url = item.Url ?? string.Empty,
+                    PendingTargetLevel = ResolveQueuedResourceTarget(item.SlotId ?? 0, item.Level ?? 0, queuedTargetsBySlot),
+                    IsMaxLevel = (item.Level ?? 0) >= resourceMaxLevel,
+                })
+                .ToList();
+
+            SetResourceRows(rows);
+            ApplyVillageStatusToUi(status);
+            _lastBuildingStatus = status;
+            PopulateBuildingsTab(status);
+
+            var capitalText = status.IsCapital == true ? "Yes" : status.IsCapital == false ? "No" : "Unknown";
+            ResourcesInfoTextBlock.Text = $"Loaded {rows.Count} resource fields. Capital: {capitalText}. {BuildResourceForecastSummary(status)}";
+            BuildingsInfoTextBlock.Text = $"Buildings loaded for selected village '{selectedVillage.Name}'. Occupied slots: {_buildingRows.Count(row => row.IsOccupied)}, free slots: {_buildingRows.Count(row => !row.IsOccupied)}.";
+            CompleteOperation(operationId, operationSw, $"Village switched to '{selectedVillage.Name}' and UI refreshed.");
+        }
+        catch (OperationCanceledException)
+        {
+            AppendLog($"[{operationId}] INFO canceled.");
+        }
+        catch (Exception ex)
+        {
+            FailOperation(operationId, operationSw, ex);
+        }
+        finally
+        {
+            ToggleUiBusy(false);
+        }
+    }
+
+    private bool IsExecutionActiveForVillageChange()
+    {
+        return _uiBusy || _autoQueueRunning || (_loopTask is not null && !_loopTask.IsCompleted);
+    }
+
+    private async Task StopAndClearForVillageChangeAsync(string? villageName)
+    {
+        var label = string.IsNullOrWhiteSpace(villageName) ? "-" : villageName;
+        AppendLog($"Village changed to '{label}' while bot is running. Stopping active work and clearing queue.");
+
+        _loopStopRequested = true;
+        _queueStopRequested = true;
+        _operationCts?.Cancel();
+        _autoQueueRunCts?.Cancel();
+        _loopCts?.Cancel();
+        _villageSwitchCts?.Cancel();
+
+        var stopDeadline = DateTime.UtcNow.AddSeconds(8);
+        while (DateTime.UtcNow < stopDeadline)
+        {
+            if (!_uiBusy && !_autoQueueRunning && (_loopTask is null || _loopTask.IsCompleted))
+            {
+                break;
+            }
+
+            await Task.Delay(120);
+        }
+
+        try
+        {
+            _botService.ClearQueue();
+            RefreshQueueUi();
+            AppendLog($"Queue cleared due to village change to '{label}'.");
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Could not clear queue after village change: {ex.Message}");
+        }
     }
 
     private void HandleBrowserClosedSignal()
@@ -2794,6 +4605,8 @@ public partial class MainWindow : Window
             return;
         }
 
+        _browserSessionLikelyOpen = false;
+
         var now = DateTimeOffset.UtcNow;
         if ((now - _lastVerificationPopupAt).TotalSeconds < 5)
         {
@@ -2801,7 +4614,7 @@ public partial class MainWindow : Window
         }
 
         _lastVerificationPopupAt = now;
-        var result = MessageBox.Show(
+        var result = AppDialog.Show(
             this,
             "Chromium browser was closed. Do you want to restart it now?",
             "Browser closed",
@@ -2831,6 +4644,8 @@ public partial class MainWindow : Window
                 keepBrowserOpenAfterLogin: true,
                 cancellationToken: operationToken);
             UpdateLoginButtonsVisual(true);
+            _isLoggedIn = true;
+            _browserSessionLikelyOpen = true;
             CompleteOperation(operationId, operationSw, "Verification browser opened.");
         }
         catch (Exception ex)
@@ -2915,4 +4730,5 @@ public partial class MainWindow : Window
         return (name, url);
     }
 }
+
 

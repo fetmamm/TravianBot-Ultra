@@ -112,6 +112,17 @@ public sealed class DesktopBotService : IDesktopBotService
             cancellationToken: cancellationToken);
     }
 
+    public Task NavigateToVillageResourceFieldsAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken)
+    {
+        return _taskRunner.NavigateToVillageResourceFieldsAsync(
+            options,
+            log,
+            villageName: villageName,
+            villageUrl: villageUrl,
+            accountName: null,
+            cancellationToken: cancellationToken);
+    }
+
     public Task<InboxStatus> ReadInboxStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.ReadInboxStatusAsync(options, log, null, cancellationToken);

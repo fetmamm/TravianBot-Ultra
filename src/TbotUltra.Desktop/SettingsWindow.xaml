@@ -25,6 +25,7 @@
 
                 <TextBlock x:Name="GoldLimitTextBlock" Text="Gold limit: 100" Margin="0,0,0,4" />
                 <Slider x:Name="GoldLimitSlider"
+                        Width="150"
                         Minimum="0"
                         Maximum="200"
                         Value="100"
@@ -35,10 +36,11 @@
 
                 <TextBlock x:Name="SilverLimitTextBlock" Text="Silver limit: 100" Margin="0,0,0,4" />
                 <Slider x:Name="SilverLimitSlider"
+                        Width="150"
                         Minimum="0"
-                        Maximum="200"
+                        Maximum="1000"
                         Value="100"
-                        TickFrequency="10"
+                        TickFrequency="25"
                         IsSnapToTickEnabled="True"
                         Margin="0,0,0,0"
                         ValueChanged="SilverLimitSlider_ValueChanged" />

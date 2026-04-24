@@ -18,5 +18,5 @@ public sealed class AccountEntry
     public string PickerName =>
         string.Equals(Name, ManageAccountsOptionName, StringComparison.OrdinalIgnoreCase)
             ? "Manage accounts..."
-            : $"{(string.IsNullOrWhiteSpace(Username) ? Name : Username)} (Analysis: {AnalysisStatus})";
+            : (string.IsNullOrWhiteSpace(Username) ? Name : Username);
 }
