@@ -16,7 +16,7 @@ if errorlevel 1 (
 )
 
 taskkill /IM TbotUltra.Desktop.exe /F >nul 2>nul
-"C:\Program Files\dotnet\dotnet.exe" build "%PROJECT%" -c Debug -nologo
+"C:\Program Files\dotnet\dotnet.exe" build "%PROJECT%" -c Debug -nologo -m:1 -p:NuGetAudit=false
 if errorlevel 1 (
     echo.
     echo Build failed for desktop app.

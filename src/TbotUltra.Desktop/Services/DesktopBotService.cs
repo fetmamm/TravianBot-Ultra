@@ -53,6 +53,31 @@ public sealed class DesktopBotService : IDesktopBotService
         return _taskRunner.IsLoggedInAsync(options, log, null, cancellationToken);
     }
 
+    public Task<bool> ReadAndPersistGoldClubStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.ReadAndPersistGoldClubStatusAsync(options, log, null, cancellationToken);
+    }
+
+    public Task<IReadOnlyList<FarmListOverview>> ReadFarmListsOverviewAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.ReadFarmListsOverviewAsync(options, log, null, cancellationToken);
+    }
+
+    public Task<int?> SendFarmListNowAsync(BotOptions options, string farmListName, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.SendFarmListNowAsync(options, farmListName, log, null, cancellationToken);
+    }
+
+    public Task<FarmAddResult> AddSingleFarmFromNatarsAsync(BotOptions options, string farmListName, string troopType, int troopCount, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.AddSingleFarmFromNatarsAsync(options, farmListName, troopType, troopCount, log, null, cancellationToken);
+    }
+
+    public Task<AccountSnapshot> AnalyzeProfileAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.AnalyzeProfileAsync(options, log, null, cancellationToken);
+    }
+
     public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepBrowserOpenAfterLogin, CancellationToken cancellationToken)
     {
         return _taskRunner.ExecuteLoginAsync(options, log, null, cancellationToken, keepBrowserOpenAfterLogin);

@@ -1,0 +1,85 @@
+<Window x:Class="TbotUltra.Desktop.AddFarmsToListWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Add Farms to List"
+        Height="500"
+        Width="680"
+        MinHeight="430"
+        MinWidth="620"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   Text="Select target farm list"
+                   FontSize="18"
+                   FontWeight="SemiBold"
+                   Foreground="#111827"
+                   Margin="0,0,0,10" />
+
+        <Border Grid.Row="1" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="8" Background="#FFFFFF" Padding="10">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <ListBox x:Name="FarmListOptionsListBox" SelectionChanged="FarmListOptionsListBox_SelectionChanged">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,8" Background="#F9FAFB">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold" Foreground="#111827" />
+                                    <TextBlock Grid.Column="1" Text="{Binding CountText}" Foreground="#1F2937" Margin="10,0,0,0" />
+                                    <TextBlock Grid.Column="2" Text="{Binding CapacityText}" Foreground="#4B5563" Margin="10,0,0,0" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <TextBlock Grid.Row="1"
+                           x:Name="InfoTextBlock"
+                           Foreground="#374151"
+                           Margin="0,6,0,0"
+                           Text="Only lists with available capacity can receive new farms." />
+
+                <Grid Grid.Row="2" Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="220" />
+                        <ColumnDefinition Width="20" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="130" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" Text="Troop" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <ComboBox x:Name="TroopTypeComboBox"
+                              Grid.Column="1"
+                              SelectionChanged="TroopTypeComboBox_SelectionChanged" />
+
+                    <TextBlock Grid.Column="3" Text="Count" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBox x:Name="TroopCountTextBox"
+                             Grid.Column="4"
+                             Text="1"
+                             TextChanged="TroopCountTextBox_TextChanged" />
+                </Grid>
+            </Grid>
+        </Border>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button x:Name="AddFarmsButton" Width="110" Margin="0,0,8,0" Content="Add farms" Click="AddFarmsButton_Click" />
+            <Button x:Name="CancelButtonControl" Width="100" Content="Cancel" Click="CancelButton_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

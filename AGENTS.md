@@ -28,7 +28,6 @@
 
 ## Svarformat
 - Svara så kort som möjligt.
-- Ge endast den kod som behöver ändras (inte hela filer).
 - Inga långa förklaringar.
 - Ingen introduktion eller sammanfattning.
 - Förklara ändringen kort (max 2–3 meningar).

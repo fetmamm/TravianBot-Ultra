@@ -5,14 +5,18 @@
       "serverUrl": "https://mga.ss-travi.com",
       "villageName": "NOCAP",
       "isCapital": true,
-      "updatedAtUtc": "2026-04-24T09:13:34.6151513+00:00"
+      "coordX": 42,
+      "coordY": 52,
+      "updatedAtUtc": "2026-04-25T08:13:20.7906203+00:00"
     },
     {
       "accountName": "slangen",
       "serverUrl": "https://mga.ss-travi.com",
       "villageName": "SLANG",
-      "isCapital": true,
-      "updatedAtUtc": "2026-04-24T09:13:24.427704+00:00"
+      "isCapital": false,
+      "coordX": -27,
+      "coordY": 16,
+      "updatedAtUtc": "2026-04-25T08:13:20.7874702+00:00"
     }
   ]
 }

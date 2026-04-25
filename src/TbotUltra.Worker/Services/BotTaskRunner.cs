@@ -152,6 +152,143 @@ public sealed class BotTaskRunner
             });
     }
 
+    public async Task<AccountSnapshot> AnalyzeProfileAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        AccountSnapshot? snapshot = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                log($"Analyzing profile for server {options.ServerName}.");
+                await client.LoginAsync(cancellationToken);
+                snapshot = await client.AnalyzeProfileAsync(cancellationToken);
+            });
+        return snapshot ?? throw new InvalidOperationException("Could not analyze profile.");
+    }
+
+    public async Task<bool> ReadAndPersistGoldClubStatusAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        var account = _accountProvider.LoadAccount(accountName);
+        _accountAnalysisStore.TryLoad(account.Name, out var existing);
+        var detectedGoldClubEnabled = false;
+        var serverUrl = options.BaseUrl.TrimEnd('/');
+        var tribe = existing?.Tribe ?? "Unknown";
+
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                detectedGoldClubEnabled = await client.ReadGoldClubStatusAsync(cancellationToken);
+                serverUrl = client.ServerUrl;
+                if (string.IsNullOrWhiteSpace(tribe) || string.Equals(tribe, "Unknown", StringComparison.OrdinalIgnoreCase))
+                {
+                    var snapshot = await client.ReadAccountSnapshotAsync(cancellationToken);
+                    tribe = snapshot.Tribe;
+                }
+            });
+
+        var effectiveGoldClubEnabled = detectedGoldClubEnabled || (existing?.GoldClubEnabled ?? false);
+        var completed = new AccountAnalysisSnapshot(
+            SchemaVersion: AccountAnalysisConstants.CurrentSchemaVersion,
+            AnalyzedAtUtc: DateTimeOffset.UtcNow,
+            AccountName: account.Name,
+            ServerUrl: serverUrl,
+            Tribe: string.IsNullOrWhiteSpace(tribe) ? "Unknown" : tribe,
+            GoldClubEnabled: effectiveGoldClubEnabled,
+            BuildingCatalog: existing?.BuildingCatalog ?? []);
+
+        _accountAnalysisStore.Save(completed);
+        log($"Gold Club status saved for '{completed.AccountName}': {(completed.GoldClubEnabled ? "Yes" : "No")}.");
+        return completed.GoldClubEnabled;
+    }
+
+    public async Task<IReadOnlyList<FarmListOverview>> ReadFarmListsOverviewAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<FarmListOverview> overview = [];
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                overview = await client.ReadFarmListsOverviewAsync(cancellationToken);
+            });
+
+        return overview;
+    }
+
+    public async Task<int?> SendFarmListNowAsync(
+        BotOptions options,
+        string farmListName,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        int? remainingSeconds = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                remainingSeconds = await client.SendFarmListNowAsync(farmListName, cancellationToken);
+            });
+
+        return remainingSeconds;
+    }
+
+    public async Task<FarmAddResult> AddSingleFarmFromNatarsAsync(
+        BotOptions options,
+        string farmListName,
+        string troopType,
+        int troopCount,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        FarmAddResult? result = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                result = await client.AddSingleFarmFromNatarsAsync(farmListName, troopType, troopCount, cancellationToken);
+            });
+
+        return result ?? throw new InvalidOperationException("Could not add farm from Natars profile.");
+    }
+
     public async Task<VillageStatus> ReadVillageStatusAsync(
         BotOptions options,
         Action<string> log,

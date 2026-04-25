@@ -340,6 +340,23 @@ public sealed partial class TravianClient
             ServerTimeUtc: _serverTimeUtc);
     }
 
+    public async Task<AccountSnapshot> AnalyzeProfileAsync(CancellationToken cancellationToken = default)
+    {
+        Notify("AnalyzeProfileAsync started");
+        await EnsureLoggedInAsync();
+        await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
+        await GotoAsync(_config.VillageOverviewPath, cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading account info after profile analysis.", cancellationToken);
+        await EnsureLoggedInAsync();
+        var villages = await ReadVillagesAsync(cancellationToken);
+        return new AccountSnapshot(
+            Tribe: await ReadTribeAsync(cancellationToken),
+            ActiveVillage: await ReadActiveVillageNameAsync(cancellationToken),
+            VillageCount: villages.Count,
+            Villages: villages,
+            ServerTimeUtc: _serverTimeUtc);
+    }
+
     public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(CancellationToken cancellationToken = default)
     {
         Notify("ReadAccountAnalysisSnapshotAsync started");
@@ -360,6 +377,119 @@ public sealed partial class TravianClient
             Tribe: tribe,
             GoldClubEnabled: goldClubEnabled,
             BuildingCatalog: catalog);
+    }
+
+    public async Task<bool> ReadGoldClubStatusAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureLoggedInAsync();
+        return await ReadGoldClubEnabledAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<FarmListOverview>> ReadFarmListsOverviewAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureLoggedInAsync();
+
+        var goldClubEnabled = await ReadGoldClubEnabledAsync(cancellationToken);
+        if (!goldClubEnabled)
+        {
+            throw new InvalidOperationException("Gold Club is not enabled for this account.");
+        }
+
+        await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
+        var rows = await ReadFarmListsFromCurrentPageAsync(cancellationToken);
+        Notify($"Farm lists read: {rows.Count} list(s).");
+        return rows;
+    }
+
+    public async Task<int?> SendFarmListNowAsync(string farmListName, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(farmListName))
+        {
+            throw new InvalidOperationException("Farm list name is required.");
+        }
+
+        await EnsureLoggedInAsync();
+        if (!await ReadGoldClubEnabledAsync(cancellationToken))
+        {
+            throw new InvalidOperationException("Gold Club is not enabled for this account.");
+        }
+
+        await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
+        await WaitForDispatchLimitToClearAsync(cancellationToken);
+
+        var clicked = await TryClickFarmListSendNowAsync(farmListName, cancellationToken);
+        if (!clicked)
+        {
+            throw new InvalidOperationException($"Could not find clickable Start Raid button for farm list '{farmListName}'.");
+        }
+
+        await Task.Delay(250, cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared after sending farm list.", cancellationToken);
+        var remaining = await ReadFarmListTimerSecondsByNameAsync(farmListName, cancellationToken);
+        Notify($"Farm list '{farmListName}' sent. Timer={(remaining is > 0 ? FormatDuration(remaining.Value) : "Ready")}.");
+        return remaining;
+    }
+
+    public async Task<FarmAddResult> AddSingleFarmFromNatarsAsync(
+        string farmListName,
+        string troopType,
+        int troopCount,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(farmListName))
+        {
+            throw new InvalidOperationException("Farm list name is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(troopType))
+        {
+            throw new InvalidOperationException("Troop type is required.");
+        }
+
+        if (troopCount <= 0)
+        {
+            throw new InvalidOperationException("Troop count must be greater than 0.");
+        }
+
+        await EnsureLoggedInAsync();
+        if (!await ReadGoldClubEnabledAsync(cancellationToken))
+        {
+            throw new InvalidOperationException("Gold Club is not enabled for this account.");
+        }
+
+        var coordinate = await ReadFirstNatarFarmCoordinateAsync(cancellationToken);
+        if (coordinate is null || coordinate.X is null || coordinate.Y is null)
+        {
+            throw new InvalidOperationException("Could not read any Natar farm coordinates from Natars profile.");
+        }
+
+        await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
+        var lid = await TryResolveFarmListSlotIdByNameAsync(farmListName, cancellationToken);
+        if (string.IsNullOrWhiteSpace(lid))
+        {
+            throw new InvalidOperationException($"Could not find farm list '{farmListName}' on farm page.");
+        }
+
+        await GotoAsync($"/build.php?id=39&t=99&action=showSlot&lid={lid}", cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening Add Raid form.", cancellationToken);
+        await EnsureLoggedInAsync();
+
+        var saved = await TryFillAddRaidFormAndSaveAsync(
+            farmListName,
+            troopType.Trim(),
+            troopCount,
+            coordinate.X.Value,
+            coordinate.Y.Value,
+            cancellationToken);
+        if (!saved)
+        {
+            throw new InvalidOperationException("Could not fill Add Raid form or click Save.");
+        }
+
+        await Task.Delay(350, cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared after saving new raid.", cancellationToken);
+        Notify($"Added 1 farm to '{farmListName}' at ({coordinate.X}|{coordinate.Y}) with {troopCount} {troopType}.");
+        return new FarmAddResult(farmListName, coordinate.X.Value, coordinate.Y.Value, troopType.Trim(), troopCount);
     }
 
     public async Task<string> DemolishBuildingToLevelAsync(
@@ -729,7 +859,7 @@ public sealed partial class TravianClient
                 if (queueWaitSeconds is int waitSeconds && waitSeconds > 0)
                 {
                     Notify($"Resource queue busy for about {waitSeconds}s before the next upgrade attempt. queue_wait_seconds={waitSeconds}");
-                    await Task.Delay(TimeSpan.FromSeconds(waitSeconds + 1), cancellationToken);
+                    await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
                     transientRetries = 0;
                     continue;
                 }
@@ -767,41 +897,22 @@ public sealed partial class TravianClient
                     if (actionability.Outcome == UpgradeAttemptOutcome.CanUpgrade)
                     {
                         attemptedAny = true;
+                        var rawUpgradeSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken);
                         await ClickDetectedUpgradeCandidateAsync(slot, actionability.CandidateIndex, cancellationToken);
                         await NavigateToResourceFieldsAfterUpgradeClickAsync(cancellationToken);
                         upgrades += 1;
-                        var waitAfterStartSeconds = actionability.QueueWaitSeconds;
-                        if (waitAfterStartSeconds is int preRead && (preRead <= 0 || preRead > 7200))
-                        {
-                            waitAfterStartSeconds = null;
-                        }
 
-                        if (!waitAfterStartSeconds.HasValue)
-                        {
-                            var queueAfterStart = await ReadBuildQueueAsync(cancellationToken);
-                            waitAfterStartSeconds = ResolveShortestQueueDurationSeconds(queueAfterStart);
-                        }
-
-                        if (waitAfterStartSeconds is int detectedWait && detectedWait > 0)
-                        {
-                            Notify($"Resource slot {slot} queued. Waiting about {detectedWait}s for completion. queue_wait_seconds={detectedWait}");
-                            await Task.Delay(TimeSpan.FromSeconds(detectedWait + 1), cancellationToken);
-                            transientRetries = 0;
-                            goto NextLoopTick;
-                        }
-
-                        // Fallback for edge cases where no queue timer is exposed.
-                        await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+                        var upgradeWaitSeconds = ComputeUpgradeWaitSeconds(rawUpgradeSeconds);
+                        Notify($"Resource slot {slot} upgrade duration: {FormatDuration(rawUpgradeSeconds ?? 0)}. Waiting {upgradeWaitSeconds}s. queue_wait_seconds={upgradeWaitSeconds}");
+                        await Task.Delay(TimeSpan.FromSeconds(upgradeWaitSeconds), cancellationToken);
                         transientRetries = 0;
                         goto NextLoopTick;
                     }
 
-                    if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByQueue
-                        && actionability.QueueWaitSeconds is int blockedWaitSeconds
-                        && blockedWaitSeconds > 0)
+                    if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByQueue)
                     {
-                        Notify($"Resource queue busy for about {blockedWaitSeconds}s before retrying slot {slot}. queue_wait_seconds={blockedWaitSeconds}");
-                        await Task.Delay(TimeSpan.FromSeconds(blockedWaitSeconds + 1), cancellationToken);
+                        // The top-of-loop build queue read will detect the remaining duration and wait.
+                        Notify($"Resource slot {slot} blocked by queue. Retrying after queue clears.");
                         transientRetries = 0;
                         goto NextLoopTick;
                     }
@@ -1204,11 +1315,24 @@ public sealed partial class TravianClient
         var productionByHour = await ReadResourceProductionPerHourAsync(cancellationToken);
         var forecasts = BuildResourceForecasts(resources, capacities, productionByHour);
 
+        var resourceFields = await ReadResourceFieldsAsync(cancellationToken);
+
+        // Fast capital detection: non-capital villages are capped at level 10
+        var cachedIsCapital = TryGetCachedCapitalState(activeVillage);
+        if (cachedIsCapital != true && resourceFields.Any(f => f.Level > 10))
+        {
+            Notify($"Fast capital detection: resource field above level 10 found — '{activeVillage}' is capital.");
+            SaveCachedVillageState(activeVillage, true, null, null);
+            cachedIsCapital = true;
+            // Rebuild villages list with updated capital flag
+            villages = (await ReadVillagesAsync(cancellationToken)).ToList();
+        }
+
         return new VillageStatus(
             ActiveVillage: activeVillage,
             Villages: villages,
             Resources: resources,
-            ResourceFields: await ReadResourceFieldsAsync(cancellationToken),
+            ResourceFields: resourceFields,
             Buildings: [],
             BuildQueue: buildQueue,
             Tribe: await ReadTribeAsync(cancellationToken),
@@ -1219,7 +1343,7 @@ public sealed partial class TravianClient
             ActiveBuildCount: buildQueue.Count,
             BuildQueueRemainingSeconds: remaining,
             BuildQueueRemainingText: remaining is int left ? FormatDuration(left) : string.Empty,
-            IsCapital: TryGetCachedCapitalState(activeVillage),
+            IsCapital: cachedIsCapital,
             ServerTimeUtc: _serverTimeUtc,
             UnreadMessages: unreadInbox.UnreadMessages,
             UnreadReports: unreadInbox.UnreadReports,
@@ -1458,32 +1582,45 @@ public sealed partial class TravianClient
 
     private async Task<bool> CaptchaOrManualStepVisibleAsync()
     {
-        var selectors = new[]
-        {
-            "input[name*='captcha' i]",
-            "input[id*='captcha' i]",
-            "input[placeholder*='captcha' i]",
-            "img[src*='captcha' i]",
-            "iframe[src*='captcha' i]",
-            "iframe[src*='recaptcha' i]",
-            ".g-recaptcha",
-            "[class*='captcha' i]",
-            "[id*='captcha' i]",
-            "text=Captcha",
-            "text=reCAPTCHA",
-            "text=verification",
-            "text=verify",
-        };
+        return await _page.EvaluateAsync<bool>(
+            """
+            () => {
+              const selectors = [
+                "input[name*='captcha' i]",
+                "input[id*='captcha' i]",
+                "input[placeholder*='captcha' i]",
+                "img[src*='captcha' i]",
+                "iframe[src*='captcha' i]",
+                "iframe[src*='recaptcha' i]",
+                "iframe[src*='hcaptcha' i]",
+                "iframe[src*='challenges.cloudflare.com' i]",
+                ".g-recaptcha",
+                ".h-captcha",
+                ".cf-turnstile",
+                "#cf-challenge-running",
+                "[class*='captcha' i]",
+                "[id*='captcha' i]"
+              ];
 
-        foreach (var selector in selectors)
-        {
-            if (await _page.Locator(selector).CountAsync() > 0)
-            {
+              const isVisible = (node) => {
+                if (!node || !(node instanceof Element)) return false;
+                const style = window.getComputedStyle(node);
+                if (!style || style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity || '1') === 0) return false;
+                const rect = node.getBoundingClientRect();
+                if (rect.width <= 0 || rect.height <= 0) return false;
                 return true;
-            }
-        }
+              };
 
-        return false;
+              for (const selector of selectors) {
+                const nodes = document.querySelectorAll(selector);
+                for (const node of nodes) {
+                  if (isVisible(node)) return true;
+                }
+              }
+
+              return false;
+            }
+            """);
     }
 
     private async Task<bool> TryDismissContinuePromptAsync(CancellationToken cancellationToken = default)
@@ -1816,10 +1953,13 @@ public sealed partial class TravianClient
             .Select(v =>
             {
                 var name = v[0];
+                var (cx, cy) = TryGetCachedVillageCoords(name);
                 return new Village(
                     Name: name,
                     Url: ResolveUrl(v.Count > 1 ? v[1] : string.Empty),
-                    IsCapital: TryGetCachedCapitalState(name));
+                    IsCapital: TryGetCachedCapitalState(name),
+                    CoordX: cx,
+                    CoordY: cy);
             })
             .ToList();
     }
@@ -2322,7 +2462,16 @@ public sealed partial class TravianClient
         var value = await _page.EvaluateAsync<bool>(
             """
             () => {
+              const buildButton = document.querySelector('button#buttonBuild');
+              if (buildButton) {
+                const cls = (buildButton.className || '').toLowerCase();
+                if (cls.includes('buildoff') || cls.includes('green')) {
+                  return true;
+                }
+              }
+
               const candidates = [
+                'button#buttonBuild',
                 'a[href*="tt=99"]',
                 'a[href*="farmlist"]',
                 'a[href*="farmList"]',
@@ -2348,6 +2497,608 @@ public sealed partial class TravianClient
             """);
 
         return value;
+    }
+
+    private async Task EnsureRallyPointAndOpenFarmListPageAsync(CancellationToken cancellationToken)
+    {
+        await GotoAsync("/build.php?id=39&t=99", cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening farmlists.", cancellationToken);
+        await EnsureLoggedInAsync();
+        if (await IsFarmListPageAsync(cancellationToken))
+        {
+            return;
+        }
+
+        await GotoAsync("/build.php?id=39&fastUP=0", cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening rally point slot.", cancellationToken);
+        await EnsureLoggedInAsync();
+
+        try
+        {
+            var constructResult = await ConstructBuildingAsync(39, 16, "Rally Point", cancellationToken);
+            Notify($"Rally Point ensure result: {constructResult}");
+        }
+        catch (Exception ex)
+        {
+            Notify($"Could not auto-construct Rally Point on slot 39: {ex.Message}");
+        }
+
+        await GotoAsync("/build.php?id=39&t=99", cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening farmlists.", cancellationToken);
+        await EnsureLoggedInAsync();
+
+        if (!await IsFarmListPageAsync(cancellationToken))
+        {
+            throw new InvalidOperationException("Could not open farm list page at build.php?id=39&t=99. Farmlists may be unavailable on this account/server.");
+        }
+    }
+
+    private async Task<bool> IsFarmListPageAsync(CancellationToken cancellationToken)
+    {
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while checking farm list page.", cancellationToken);
+        var isFarmListPage = await _page.EvaluateAsync<bool>(
+            """
+            () => {
+              if (document.querySelector('span[id^="timerTop"]')) return true;
+              if (document.querySelector('.farmList, .farmlist, [class*="farm" i][class*="list" i]')) return true;
+
+              const body = (document.body?.innerText || '').toLowerCase();
+              return body.includes('start raid') || body.includes('farm list') || body.includes('farmlist');
+            }
+            """);
+        return isFarmListPage;
+    }
+
+    private async Task<IReadOnlyList<FarmListOverview>> ReadFarmListsFromCurrentPageAsync(CancellationToken cancellationToken)
+    {
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading farmlists.", cancellationToken);
+
+        var rawRows = await _page.EvaluateAsync<FarmListRowJs[]>(
+            """
+            () => {
+              const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
+              const candidates = new Set();
+              document.querySelectorAll('.listTitle').forEach((node) => candidates.add(node));
+              if (candidates.size === 0) {
+                document.querySelectorAll('.farmList, .farmlist').forEach((node) => candidates.add(node));
+              }
+
+              const rows = [];
+              const seenByName = new Map();
+              for (const candidate of candidates) {
+                if (!candidate) continue;
+                const titleTextNode = candidate.querySelector('.listTitleText') || candidate;
+                const whole = normalize(titleTextNode.textContent);
+                if (!whole) continue;
+                if (whole.length > 300) continue;
+
+                // True farm list title rows contain a delete icon button.
+                if (!candidate.querySelector('img.del')) continue;
+
+                const lowerWhole = whole.toLowerCase();
+                if (lowerWhole.includes('building plans will be released') || lowerWhole.startsWith('server time')) {
+                  continue;
+                }
+
+                let name =
+                  normalize(candidate.querySelector('h1, h2, h3, h4, .title, .name, strong')?.textContent) ||
+                  normalize(whole.split('\n')[0] || '') ||
+                  whole;
+                name = name
+                  .replace(/\bdelete\b/ig, '')
+                  .replace(/\(\d+\s*farms?\)/i, '')
+                  .replace(/\s*start raid.*$/i, '')
+                  .trim();
+                if (!name) name = 'Farm list';
+                if (name.length > 120) continue;
+
+                const slashCountMatch = whole.match(/(\d+)\s*\/\s*(\d+)\s*farm/i);
+                const parenCountMatch = whole.match(/\((\d+)\s*farms?\)/i);
+
+                let active = 0;
+                let total = 0;
+                if (slashCountMatch) {
+                  active = Number(slashCountMatch[1]);
+                  total = Number(slashCountMatch[2]);
+                } else if (parenCountMatch) {
+                  active = Number(parenCountMatch[1]);
+                  total = 500;
+                }
+
+                const container =
+                  candidate.closest('.raidList, .listEntry, tr, li, article, section, .box') ||
+                  candidate.parentElement ||
+                  candidate;
+
+                const timerText =
+                  normalize(container.querySelector('span[id^="timerTop"]')?.textContent) ||
+                  (normalize(container.querySelector('.button-content')?.textContent).match(/\d{1,3}:\d{2}(?::\d{2})?/) || [])[0] ||
+                  '';
+
+                const key = name.toLowerCase();
+                const existing = seenByName.get(key);
+                if (!existing) {
+                  seenByName.set(key, { name, activeFarmCount: active, totalFarmCount: total, timerText });
+                  continue;
+                }
+
+                seenByName.set(key, {
+                  name,
+                  activeFarmCount: Math.max(existing.activeFarmCount || 0, active),
+                  totalFarmCount: Math.max(existing.totalFarmCount || 0, total),
+                  timerText: (existing.timerText && existing.timerText.length > 0) ? existing.timerText : timerText
+                });
+              }
+
+              for (const value of seenByName.values()) {
+                rows.push(value);
+              }
+
+              return rows.slice(0, 200);
+            }
+            """);
+
+        return rawRows
+            .Where(row => !string.IsNullOrWhiteSpace(row.Name))
+            .Select(row => new FarmListOverview(
+                Name: row.Name!,
+                ActiveFarmCount: Math.Max(0, row.ActiveFarmCount ?? 0),
+                TotalFarmCount: Math.Max(0, row.TotalFarmCount ?? 0),
+                RemainingSeconds: ParseDurationToSeconds(row.TimerText)))
+            .ToList();
+    }
+
+    private async Task WaitForDispatchLimitToClearAsync(CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await PauseForManualStepIfVisibleAsync("Manual verification appeared while checking farm dispatch limit.", cancellationToken);
+
+            var state = await _page.EvaluateAsync<FarmDispatchLimitStateJs>(
+                """
+                () => {
+                  const parse = (raw) => {
+                    const text = (raw || '').trim();
+                    if (!text) return null;
+                    const parts = text.split(':').map((p) => Number.parseInt(p.trim(), 10)).filter((n) => Number.isFinite(n));
+                    if (parts.length === 2) return (parts[0] * 60) + parts[1];
+                    if (parts.length === 3) return (parts[0] * 3600) + (parts[1] * 60) + parts[2];
+                    return null;
+                  };
+
+                  const hasLimit = !!document.querySelector('.dispatchLimitError');
+                  let minTimer = null;
+                  document.querySelectorAll('span[id^="timerTop"]').forEach((node) => {
+                    const seconds = parse(node.textContent || '');
+                    if (seconds === null) return;
+                    if (minTimer === null || seconds < minTimer) minTimer = seconds;
+                  });
+
+                  return { hasLimit, minTimerSeconds: minTimer };
+                }
+                """);
+
+            if (state is null || !state.HasLimit)
+            {
+                return;
+            }
+
+            var waitSeconds = state.MinTimerSeconds is > 0
+                ? Math.Max(1, state.MinTimerSeconds.Value)
+                : 1;
+            Notify($"Farm dispatch limit active. Waiting {waitSeconds}s before retry.");
+            await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
+            await GotoAsync("/build.php?id=39&t=99", cancellationToken);
+        }
+    }
+
+    private async Task<bool> TryClickFarmListSendNowAsync(string farmListName, CancellationToken cancellationToken)
+    {
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared before sending farm list.", cancellationToken);
+        var clicked = await _page.EvaluateAsync<bool>(
+            """
+            (targetName) => {
+              const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
+              const normalizeListName = (value) => normalize(value)
+                .replace(/\(\d+\s*farms?\)/i, '')
+                .replace(/\bdelete\b/ig, '')
+                .trim()
+                .toLowerCase();
+              const target = normalizeListName(targetName);
+              if (!target) return false;
+
+              const tryReadListId = (root) => {
+                if (!root) return null;
+                const markAll = root.querySelector('input[id^="raidListMarkAll"]');
+                if (markAll?.id) {
+                  const match = markAll.id.match(/raidListMarkAll(\d+)/i);
+                  if (match) return match[1];
+                }
+
+                const button = root.querySelector('button[id^="startRaidBtnTop"], button.startRaidButton[data-lid]');
+                if (button?.id) {
+                  const match = button.id.match(/startRaidBtnTop(\d+)/i);
+                  if (match) return match[1];
+                }
+                if (button?.getAttribute('data-lid')) {
+                  return button.getAttribute('data-lid');
+                }
+
+                const switchNode = root.querySelector('.openedClosedSwitch[onclick*="toggleList"]');
+                const onclick = switchNode?.getAttribute('onclick') || '';
+                const switchMatch = onclick.match(/toggleList\((\d+)\)/i);
+                if (switchMatch) return switchMatch[1];
+
+                return null;
+              };
+
+              let lid = null;
+              const titleNodes = Array.from(document.querySelectorAll('.listTitle .listTitleText, .listTitleText'));
+              for (const titleNode of titleNodes) {
+                const titleName = normalizeListName(titleNode.textContent);
+                if (titleName !== target) continue;
+
+                const titleRoot = titleNode.closest('.listTitle') || titleNode.parentElement;
+                lid = tryReadListId(titleRoot?.parentElement || titleRoot);
+                if (!lid) {
+                  lid = tryReadListId(titleRoot);
+                }
+                if (lid) break;
+              }
+
+              if (!lid) {
+                const buttons = Array.from(document.querySelectorAll('button.startRaidButton[data-lid], button[id^="startRaidBtnTop"]'));
+                for (const button of buttons) {
+                  const row = button.closest('tr, li, article, section, .listEntry, .farmList, .farmlist, .slot, .box, .list, .raidList');
+                  const rowName = normalizeListName(row?.querySelector('.listTitleText, h1, h2, h3, h4, .title, .name, strong')?.textContent || row?.textContent || '');
+                  if (rowName === target) {
+                    lid = button.getAttribute('data-lid') || ((button.id || '').match(/startRaidBtnTop(\d+)/i) || [])[1] || null;
+                    if (lid) break;
+                  }
+                }
+              }
+
+              if (!lid) return false;
+
+              const markAll = document.getElementById(`raidListMarkAll${lid}`) || document.querySelector(`input.markAll[id="raidListMarkAll${lid}"]`);
+              if (markAll && markAll instanceof HTMLInputElement) {
+                if (!markAll.checked) {
+                  markAll.checked = true;
+                }
+                markAll.dispatchEvent(new Event('input', { bubbles: true }));
+                markAll.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+
+              const button = document.getElementById(`startRaidBtnTop${lid}`) || document.querySelector(`button.startRaidButton[data-lid="${lid}"]`);
+              if (!button) return false;
+
+              const className = (button.className || '').toLowerCase();
+              if (button.disabled || className.includes('disabled')) return false;
+
+              const text = normalize(button.textContent).toLowerCase();
+              if (!text.includes('start raid') && !text.includes('send')) {
+                return false;
+              }
+
+              button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+              return true;
+            }
+            """,
+            farmListName);
+
+        if (!clicked)
+        {
+            return false;
+        }
+
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared after clicking Start Raid.", cancellationToken);
+        return true;
+    }
+
+    private async Task<int?> ReadFarmListTimerSecondsByNameAsync(string farmListName, CancellationToken cancellationToken)
+    {
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading farm list timer.", cancellationToken);
+        var rawTimer = await _page.EvaluateAsync<string?>(
+            """
+            (targetName) => {
+              const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
+              const normalizeListName = (value) => normalize(value)
+                .replace(/\(\d+\s*farms?\)/i, '')
+                .replace(/\bdelete\b/ig, '')
+                .trim()
+                .toLowerCase();
+              const target = normalizeListName(targetName);
+              if (!target) return null;
+
+              const titleNodes = Array.from(document.querySelectorAll('.listTitle .listTitleText, .listTitleText'));
+              let lid = null;
+              for (const titleNode of titleNodes) {
+                const titleName = normalizeListName(titleNode.textContent);
+                if (titleName !== target) continue;
+
+                const root = titleNode.closest('.listTitle')?.parentElement || titleNode.closest('.listTitle') || titleNode.parentElement;
+                const markAll = root?.querySelector('input[id^="raidListMarkAll"]');
+                const markAllMatch = (markAll?.id || '').match(/raidListMarkAll(\d+)/i);
+                if (markAllMatch) {
+                  lid = markAllMatch[1];
+                  break;
+                }
+
+                const btn = root?.querySelector('button[id^="startRaidBtnTop"], button.startRaidButton[data-lid]');
+                const btnIdMatch = (btn?.id || '').match(/startRaidBtnTop(\d+)/i);
+                if (btnIdMatch) {
+                  lid = btnIdMatch[1];
+                  break;
+                }
+                if (btn?.getAttribute('data-lid')) {
+                  lid = btn.getAttribute('data-lid');
+                  break;
+                }
+              }
+
+              if (lid) {
+                const byId = document.getElementById(`timerTop${lid}`);
+                if (byId) return normalize(byId.textContent || '');
+              }
+
+              const rows = Array.from(document.querySelectorAll('tr, li, article, section, .listEntry, .farmList, .farmlist, .slot, .box, .list, .raidList'));
+              for (const row of rows) {
+                const text = normalizeListName(row.querySelector('.listTitleText, h1, h2, h3, h4, .title, .name, strong')?.textContent || row.textContent || '');
+                if (text !== target) continue;
+
+                const timer = row.querySelector('span[id^="timerTop"]');
+                if (timer) return normalize(timer.textContent || '');
+
+                const content = row.querySelector('.button-content');
+                if (!content) return null;
+                const match = normalize(content.textContent || '').match(/\d{1,3}:\d{2}(?::\d{2})?/);
+                return match ? match[0] : null;
+              }
+
+              return null;
+            }
+            """,
+            farmListName);
+
+        return ParseDurationToSeconds(rawTimer);
+    }
+
+    private async Task<NatarCoordinateJs?> ReadFirstNatarFarmCoordinateAsync(CancellationToken cancellationToken)
+    {
+        await GotoAsync("/spieler.php?uid=3", cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening Natars profile.", cancellationToken);
+        await EnsureLoggedInAsync();
+
+        var coordinates = await ReadNatarFarmCoordinatesFromCurrentPageAsync(cancellationToken);
+        if (coordinates.Length > 0)
+        {
+            return coordinates[0];
+        }
+
+        await GotoAsync("/statistiken.php?id=100", cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening statistics farms page.", cancellationToken);
+        await EnsureLoggedInAsync();
+
+        await _page.EvaluateAsync(
+            """
+            () => {
+              const links = Array.from(document.querySelectorAll('a[href*="spieler.php?uid=3"]'));
+              const link = links.find(node => ((node.textContent || '').toLowerCase().includes('natar'))) || links[0];
+              if (link) {
+                link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+              }
+            }
+            """);
+        await Task.Delay(400, cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while navigating to Natars profile.", cancellationToken);
+
+        coordinates = await ReadNatarFarmCoordinatesFromCurrentPageAsync(cancellationToken);
+        return coordinates.FirstOrDefault();
+    }
+
+    private async Task<NatarCoordinateJs[]> ReadNatarFarmCoordinatesFromCurrentPageAsync(CancellationToken cancellationToken)
+    {
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading Natar coordinates.", cancellationToken);
+        return await _page.EvaluateAsync<NatarCoordinateJs[]>(
+            """
+            () => {
+              const clean = (value) => (value || '').replace(/\s+/g, ' ').trim();
+              const parsePair = (text) => {
+                const normalized = clean(text);
+                if (!normalized) return null;
+                const match = normalized.match(/(-?\d+)\s*[|/]\s*(-?\d+)/);
+                if (!match) return null;
+                const x = Number.parseInt(match[1], 10);
+                const y = Number.parseInt(match[2], 10);
+                if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+                return { x, y };
+              };
+
+              const seen = new Set();
+              const rows = [];
+              for (const row of document.querySelectorAll('tr, li, article, section, .row')) {
+                const hasVillageAnchor = !!row.querySelector('a[href*="karte.php"]');
+                if (!hasVillageAnchor) continue;
+                const rowText = clean(row.textContent || '');
+                const parsed = parsePair(rowText);
+                if (!parsed) continue;
+                const key = `${parsed.x}|${parsed.y}`;
+                if (seen.has(key)) continue;
+                seen.add(key);
+                rows.push({ x: parsed.x, y: parsed.y });
+              }
+
+              if (rows.length > 0) return rows.slice(0, 100);
+
+              for (const anchor of document.querySelectorAll('a[href*="karte.php"]')) {
+                const parsed = parsePair(anchor.textContent || '');
+                if (!parsed) continue;
+                const key = `${parsed.x}|${parsed.y}`;
+                if (seen.has(key)) continue;
+                seen.add(key);
+                rows.push({ x: parsed.x, y: parsed.y });
+              }
+
+              return rows.slice(0, 100);
+            }
+            """);
+    }
+
+    private async Task<string?> TryResolveFarmListSlotIdByNameAsync(string farmListName, CancellationToken cancellationToken)
+    {
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while resolving farm list slot.", cancellationToken);
+        return await _page.EvaluateAsync<string?>(
+            """
+            (targetName) => {
+              const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
+              const normalizeListName = (value) => normalize(value)
+                .replace(/\(\d+\s*farms?\)/i, '')
+                .replace(/\bdelete\b/ig, '')
+                .trim()
+                .toLowerCase();
+              const target = normalizeListName(targetName);
+              if (!target) return null;
+
+              const tryReadListId = (root) => {
+                if (!root) return null;
+                const markAll = root.querySelector('input[id^="raidListMarkAll"]');
+                if (markAll?.id) {
+                  const match = markAll.id.match(/raidListMarkAll(\d+)/i);
+                  if (match) return match[1];
+                }
+
+                const button = root.querySelector('button[id^="startRaidBtnTop"], button.startRaidButton[data-lid], button[onclick*="showSlot"][onclick*="lid="]');
+                if (button?.id) {
+                  const match = button.id.match(/startRaidBtnTop(\d+)/i);
+                  if (match) return match[1];
+                }
+                if (button?.getAttribute('data-lid')) {
+                  return button.getAttribute('data-lid');
+                }
+                const onclick = button?.getAttribute('onclick') || '';
+                const onclickMatch = onclick.match(/[?&]lid=(\d+)/i) || onclick.match(/lid=(\d+)/i);
+                if (onclickMatch) return onclickMatch[1];
+
+                return null;
+              };
+
+              const titleNodes = Array.from(document.querySelectorAll('.listTitle .listTitleText, .listTitleText, .listTitle, h1, h2, h3, h4, .title, .name, strong'));
+              for (const titleNode of titleNodes) {
+                const titleName = normalizeListName(titleNode.textContent);
+                if (titleName !== target) continue;
+
+                const titleRoot = titleNode.closest('.listTitle') || titleNode.parentElement;
+                const lid = tryReadListId(titleRoot?.parentElement || titleRoot) || tryReadListId(titleRoot);
+                if (lid) return lid;
+              }
+
+              return null;
+            }
+            """,
+            farmListName);
+    }
+
+    private async Task<bool> TryFillAddRaidFormAndSaveAsync(
+        string farmListName,
+        string troopType,
+        int troopCount,
+        int x,
+        int y,
+        CancellationToken cancellationToken)
+    {
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared before filling Add Raid form.", cancellationToken);
+        var saved = await _page.EvaluateAsync<bool>(
+            """
+            (args) => {
+              const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
+              const norm = (value) => normalize(value).toLowerCase();
+              const setValue = (input, value) => {
+                if (!input) return false;
+                input.focus();
+                input.value = String(value);
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+                return true;
+              };
+
+              const all = document;
+              const buttons = Array.from(all.querySelectorAll('button, input[type="submit"], a'));
+              const saveButton = buttons.find(node => {
+                const text = `${node.textContent || ''} ${node.getAttribute('value') || ''} ${node.getAttribute('title') || ''}`.toLowerCase();
+                const cls = (node.className || '').toLowerCase();
+                const disabled = node.hasAttribute('disabled') || cls.includes('disabled');
+                return !disabled && (text.includes('save') || text.includes('spara'));
+              });
+              if (!saveButton) return false;
+
+              const root = saveButton.closest('form, .content, .box, #content') || document;
+              const selects = Array.from(root.querySelectorAll('select'));
+              const textInputs = Array.from(root.querySelectorAll('input:not([type="hidden"])'));
+
+              const findInput = (patterns, fallback = null) => {
+                for (const pattern of patterns) {
+                  const candidate = textInputs.find(node => {
+                    const id = (node.id || '').toLowerCase();
+                    const name = (node.getAttribute('name') || '').toLowerCase();
+                    const type = (node.getAttribute('type') || 'text').toLowerCase();
+                    if (type !== 'text' && type !== 'number' && type !== '') return false;
+                    return id.includes(pattern) || name === pattern || name.includes(pattern);
+                  });
+                  if (candidate) return candidate;
+                }
+                return fallback;
+              };
+
+              const xInput = findInput(['xcoord', 'coordx', 'x']);
+              const yInput = findInput(['ycoord', 'coordy', 'y']);
+              if (!xInput || !yInput) return false;
+              if (!setValue(xInput, args.x) || !setValue(yInput, args.y)) return false;
+
+              const listSelect = selects.find(select => Array.from(select.options || []).some(option => norm(option.textContent || '') === norm(args.farmListName)));
+              if (listSelect) {
+                const option = Array.from(listSelect.options || []).find(opt => norm(opt.textContent || '') === norm(args.farmListName));
+                if (option) {
+                  listSelect.value = option.value;
+                  listSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+              }
+
+              const troopSelect = selects.find(select => Array.from(select.options || []).some(option => norm(option.textContent || '') === norm(args.troopType)));
+              if (troopSelect) {
+                const option = Array.from(troopSelect.options || []).find(opt => norm(opt.textContent || '') === norm(args.troopType));
+                if (option) {
+                  troopSelect.value = option.value;
+                  troopSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+              }
+
+              let countInput = textInputs.find(node => {
+                if (node === xInput || node === yInput) return false;
+                const id = (node.id || '').toLowerCase();
+                const name = (node.getAttribute('name') || '').toLowerCase();
+                return id.includes('count') || id.includes('amount') || name.includes('count') || name.includes('amount');
+              });
+              if (!countInput) {
+                countInput = textInputs.find(node => node !== xInput && node !== yInput);
+              }
+              if (!countInput) return false;
+              if (!setValue(countInput, args.troopCount)) return false;
+
+              saveButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+              return true;
+            }
+            """,
+            new
+            {
+                farmListName,
+                troopType,
+                troopCount,
+                x,
+                y,
+            });
+
+        return saved;
     }
 
     private static Building? ResolveTargetBuilding(VillageStatus status, string targetBuildingSlotOrName)
@@ -2768,39 +3519,77 @@ public sealed partial class TravianClient
             await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading player profile villages.", cancellationToken);
             await EnsureLoggedInAsync();
 
-            // Pass the known village names into JS so we can match by text content near span.mainVillage.
-            // This works regardless of whether the server uses newdid links or other structures.
-            var capitalName = await _page.EvaluateAsync<string>(
+            // Extract capital + coordinates from spieler.php table rows.
+            var profileVillages = await _page.EvaluateAsync<PlayerProfileVillageCapitalJs[]>(
                 """
                 (villageNames) => {
                   const clean = (v) => (v || '').replace(/\s+/g, ' ').trim();
-                  const capitalSpan = document.querySelector('span.mainVillage');
-                  if (!capitalSpan) return '';
-                  // Walk up the DOM from the capital span and check text against known village names
-                  let el = capitalSpan.parentElement;
-                  for (let depth = 0; depth < 8 && el && el !== document.body; depth++, el = el.parentElement) {
-                    const text = clean(el.textContent || '').toLowerCase();
-                    for (let i = 0; i < villageNames.length; i++) {
-                      if (text.includes(villageNames[i].toLowerCase())) return villageNames[i];
+                  const results = [];
+
+                  // Try the table-based layout: each row has td.name (village name), td.coords (coordinates link), span.mainVillage
+                  const rows = Array.from(document.querySelectorAll('table tr'));
+                  for (const row of rows) {
+                    const coordAnchor = row.querySelector('td.coords a[href*="karte.php"]');
+                    if (!coordAnchor) continue;
+
+                    const href = coordAnchor.getAttribute('href') || '';
+                    const xMatch = href.match(/[?&]x=(-?\d+)/);
+                    const yMatch = href.match(/[?&]y=(-?\d+)/);
+                    const x = xMatch ? parseInt(xMatch[1], 10) : null;
+                    const y = yMatch ? parseInt(yMatch[1], 10) : null;
+
+                    const rowText = clean(row.textContent || '').toLowerCase();
+                    let matchedName = null;
+                    for (const name of villageNames) {
+                      if (rowText.includes(name.toLowerCase())) { matchedName = name; break; }
+                    }
+                    if (!matchedName) continue;
+
+                    const isCapital = !!row.querySelector('span.mainVillage, td.isCapital, .capital');
+                    results.push({ name: matchedName, isCapital, x, y });
+                  }
+
+                  // Fallback: if no rows matched, at least find capital via span.mainVillage DOM walk
+                  if (results.length === 0) {
+                    const capitalSpan = document.querySelector('span.mainVillage');
+                    if (capitalSpan) {
+                      let el = capitalSpan.parentElement;
+                      for (let d = 0; d < 8 && el && el !== document.body; d++, el = el.parentElement) {
+                        const text = clean(el.textContent || '').toLowerCase();
+                        for (const name of villageNames) {
+                          if (text.includes(name.toLowerCase())) {
+                            results.push({ name, isCapital: true, x: null, y: null });
+                            break;
+                          }
+                        }
+                        if (results.length > 0) break;
+                      }
                     }
                   }
-                  return '';
+
+                  return results;
                 }
                 """,
                 villageNames);
 
-            if (string.IsNullOrWhiteSpace(capitalName))
+            if (profileVillages == null || profileVillages.Length == 0)
             {
-                // Can't determine capital from page — don't overwrite cache with wrong data
-                Notify("Capital detection: span.mainVillage not found or village name not matched on spieler.php — skipping cache update.");
+                Notify("Capital detection: no village data found on spieler.php — skipping cache update.");
                 return;
             }
 
-            Notify($"Capital detection: identified capital village as '{capitalName}'.");
+            var capitalName = profileVillages.FirstOrDefault(v => v.IsCapital)?.Name ?? string.Empty;
+            Notify($"Capital detection: identified capital village as '{(string.IsNullOrWhiteSpace(capitalName) ? "(none)" : capitalName)}'. Found {profileVillages.Length} villages with coords.");
 
-            foreach (var name in villageNames)
+            foreach (var pv in profileVillages)
             {
-                SaveCachedCapitalState(name, string.Equals(name, capitalName, StringComparison.OrdinalIgnoreCase));
+                SaveCachedVillageState(pv.Name ?? string.Empty, pv.IsCapital, pv.X, pv.Y);
+            }
+
+            // Also mark any known villages NOT in the profile list as non-capital (if not already set)
+            foreach (var name in villageNames.Where(n => !profileVillages.Any(pv => string.Equals(pv.Name, n, StringComparison.OrdinalIgnoreCase))))
+            {
+                SaveCachedCapitalState(name, false);
             }
         }
         finally
@@ -2842,6 +3631,9 @@ public sealed partial class TravianClient
     }
 
     private void SaveCachedCapitalState(string villageName, bool? isCapital)
+        => SaveCachedVillageState(villageName, isCapital, null, null);
+
+    private void SaveCachedVillageState(string villageName, bool? isCapital, int? coordX, int? coordY)
     {
         if (string.IsNullOrWhiteSpace(villageName))
         {
@@ -2852,7 +3644,11 @@ public sealed partial class TravianClient
         {
             EnsureCapitalCacheLoadedUnderLock();
             var key = BuildCapitalCacheKey(villageName);
-            if (isCapital is null)
+
+            // Preserve existing coords if none provided; preserve existing isCapital if none provided
+            _capitalCacheByKey.TryGetValue(key, out var existing);
+            var resolvedIsCapital = isCapital ?? existing?.IsCapital;
+            if (resolvedIsCapital is null && coordX is null && coordY is null)
             {
                 return;
             }
@@ -2862,11 +3658,27 @@ public sealed partial class TravianClient
                 AccountName = _account.Name,
                 ServerUrl = _config.BaseUrl.TrimEnd('/'),
                 VillageName = villageName,
-                IsCapital = isCapital,
+                IsCapital = resolvedIsCapital,
+                CoordX = coordX ?? existing?.CoordX,
+                CoordY = coordY ?? existing?.CoordY,
                 UpdatedAtUtc = DateTimeOffset.UtcNow,
             };
 
             PersistCapitalCacheUnderLock();
+        }
+    }
+
+    private (int? X, int? Y) TryGetCachedVillageCoords(string villageName)
+    {
+        if (string.IsNullOrWhiteSpace(villageName))
+            return (null, null);
+        EnsureCapitalCacheLoaded();
+        var key = BuildCapitalCacheKey(villageName);
+        lock (_capitalCacheSync)
+        {
+            return _capitalCacheByKey.TryGetValue(key, out var entry)
+                ? (entry.CoordX, entry.CoordY)
+                : (null, null);
         }
     }
 
@@ -3548,6 +4360,9 @@ public sealed partial class TravianClient
         return $"{ts.Minutes:00}:{ts.Seconds:00}";
     }
 
+    private static int ComputeUpgradeWaitSeconds(int? detectedSeconds)
+        => Math.Max(1, Math.Min((detectedSeconds ?? 0) + 1, 12 * 60 * 60));
+
     private async Task<InboxUnreadCountsJs> ReadUnreadInboxCountsAsync(CancellationToken cancellationToken)
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading inbox counters.", cancellationToken);
@@ -3651,8 +4466,22 @@ public sealed partial class TravianClient
             : before.UnreadMessages;
 
         var clicked = false;
+        if (label.Equals("messages", StringComparison.OrdinalIgnoreCase))
+        {
+            clicked = await TryMarkUnreadMessagesViaCheckboxesAsync();
+        }
+        else if (label.Equals("reports", StringComparison.OrdinalIgnoreCase))
+        {
+            clicked = await TryMarkAllReportsAsReadAsync();
+        }
+
         foreach (var selector in markSelectors)
         {
+            if (clicked)
+            {
+                break;
+            }
+
             var locator = _page.Locator(selector).First;
             if (await locator.CountAsync() == 0)
             {
@@ -3745,6 +4574,106 @@ public sealed partial class TravianClient
 
         return hintUnreads == 0;
     }
+
+    private async Task<bool> TryMarkUnreadMessagesViaCheckboxesAsync()
+    {
+        try
+        {
+            return await _page.EvaluateAsync<bool>(
+                """
+                () => {
+                  const clean = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                  const unreadMarkers = Array.from(document.querySelectorAll("img.messageStatusUnread, img[alt*='unread' i], img[src*='x.gif']"));
+                  const selected = new Set();
+
+                  for (const marker of unreadMarkers) {
+                    const row = marker.closest('tr, li, .message, .inboxRow, .row, .listEntry, .entry');
+                    const scope = row || marker.parentElement || document;
+                    const checkbox = scope.querySelector("input.check[type='checkbox'], input[type='checkbox'][name^='n'], input[type='checkbox']");
+                    if (!checkbox || checkbox.disabled || selected.has(checkbox)) {
+                      continue;
+                    }
+
+                    checkbox.checked = true;
+                    checkbox.dispatchEvent(new Event('input', { bubbles: true }));
+                    checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+                    selected.add(checkbox);
+                  }
+
+                  if (selected.size === 0) {
+                    return false;
+                  }
+
+                  const isMarkAsRead = (value) => {
+                    const text = clean(value);
+                    return text.includes('mark as read') || text.includes('als gelesen');
+                  };
+
+                  const contentNode = Array.from(document.querySelectorAll('div.button-content'))
+                    .find((node) => isMarkAsRead(node.textContent || ''));
+                  if (contentNode) {
+                    const clickable = contentNode.closest('button, a, div.button, li, span');
+                    (clickable || contentNode).click();
+                    return true;
+                  }
+
+                  const fallbackNode = Array.from(document.querySelectorAll("button, a, input[type='submit'], div.button, span"))
+                    .find((node) => isMarkAsRead(`${node.textContent || ''} ${node.getAttribute('value') || ''} ${node.getAttribute('title') || ''} ${node.getAttribute('aria-label') || ''}`));
+                  if (!fallbackNode) {
+                    return false;
+                  }
+
+                  fallbackNode.click();
+                  return true;
+                }
+                """);
+        }
+        catch (PlaywrightException ex) when (IsExecutionContextDestroyed(ex))
+        {
+            return true;
+        }
+    }
+
+    private async Task<bool> TryMarkAllReportsAsReadAsync()
+    {
+        try
+        {
+            return await _page.EvaluateAsync<bool>(
+                """
+                () => {
+                  const clean = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                  const isMarkAllAsRead = (value) => {
+                    const text = clean(value);
+                    return text.includes('mark all as read') || text.includes('all as read') || text.includes('alle als gelesen');
+                  };
+
+                  const contentNode = Array.from(document.querySelectorAll('div.button-content'))
+                    .find((node) => isMarkAllAsRead(node.textContent || ''));
+                  if (contentNode) {
+                    const clickable = contentNode.closest('button, a, div.button, li, span');
+                    (clickable || contentNode).click();
+                    return true;
+                  }
+
+                  const fallbackNode = Array.from(document.querySelectorAll("button, a, input[type='submit'], div.button, span"))
+                    .find((node) => isMarkAllAsRead(`${node.textContent || ''} ${node.getAttribute('value') || ''} ${node.getAttribute('title') || ''} ${node.getAttribute('aria-label') || ''}`));
+                  if (!fallbackNode) {
+                    return false;
+                  }
+
+                  fallbackNode.click();
+                  return true;
+                }
+                """);
+        }
+        catch (PlaywrightException ex) when (IsExecutionContextDestroyed(ex))
+        {
+            return true;
+        }
+    }
+
+    private static bool IsExecutionContextDestroyed(PlaywrightException ex)
+        => ex.Message.Contains("Execution context was destroyed", StringComparison.OrdinalIgnoreCase);
 
     private async Task<UpgradeAttemptResult> AnalyzeUpgradeActionabilityAsync(int slotId, CancellationToken cancellationToken, bool performClick)
     {
@@ -4131,45 +5060,26 @@ public sealed partial class TravianClient
         int? expectedWaitSeconds,
         CancellationToken cancellationToken)
     {
-        ResourceProgressSnapshot? latestSnapshot = null;
-        if (expectedWaitSeconds is int seconds && seconds > 0)
+        var rawSeconds = expectedWaitSeconds ?? 0;
+        var waitSeconds = ComputeUpgradeWaitSeconds(expectedWaitSeconds);
+        Notify($"Resource slot {slotId} upgrade duration: {FormatDuration(rawSeconds)}. Waiting {waitSeconds}s. queue_wait_seconds={waitSeconds}");
+        await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
+
+        var latestSnapshot = await ReadResourceProgressSnapshotAsync(cancellationToken);
+        var current = latestSnapshot.ResourceFields.FirstOrDefault(field => field.SlotId == slotId)?.Level;
+        if (current is int currentLevel && currentLevel > previousLevel)
         {
-            var clamped = Math.Min(seconds, 12 * 60 * 60);
-            Notify($"Resource slot {slotId} upgrade duration detected: {FormatDuration(clamped)}. Waiting before status check. queue_wait_seconds={clamped}");
-            await Task.Delay(TimeSpan.FromSeconds(clamped + 0.5), cancellationToken);
-            latestSnapshot = await ReadResourceProgressSnapshotAsync(cancellationToken);
-            var current = latestSnapshot.ResourceFields.FirstOrDefault(field => field.SlotId == slotId)?.Level;
-            if (current is int currentLevel && currentLevel > previousLevel)
-            {
-                Notify($"Resource slot {slotId} level increased from {previousLevel} to {currentLevel}.");
-                return new UpgradeProgressResult(true, false, "level advanced");
-            }
-        }
-        else
-        {
-            for (var i = 0; i < 4; i++)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await Task.Delay(400, cancellationToken);
-                latestSnapshot = await ReadResourceProgressSnapshotAsync(cancellationToken);
-                var current = latestSnapshot.ResourceFields.FirstOrDefault(field => field.SlotId == slotId)?.Level;
-                if (current is int currentLevel && currentLevel > previousLevel)
-                {
-                    Notify($"Resource slot {slotId} level increased from {previousLevel} to {currentLevel}.");
-                    return new UpgradeProgressResult(true, false, "level advanced");
-                }
-            }
+            Notify($"Resource slot {slotId} level increased from {previousLevel} to {currentLevel}.");
+            return new UpgradeProgressResult(true, false, "level advanced");
         }
 
-        var queueFingerprintAfter = latestSnapshot is null
-            ? string.Empty
-            : BuildQueueFingerprint(latestSnapshot.BuildQueue);
+        var queueFingerprintAfter = BuildQueueFingerprint(latestSnapshot.BuildQueue);
         if (!string.Equals(queueFingerprintBefore, queueFingerprintAfter, StringComparison.Ordinal))
         {
             return new UpgradeProgressResult(false, true, "queue changed");
         }
 
-        if (latestSnapshot is not null && latestSnapshot.BuildQueue.Count > 0)
+        if (latestSnapshot.BuildQueue.Count > 0)
         {
             return new UpgradeProgressResult(false, true, "queue has entries");
         }
@@ -4783,6 +5693,12 @@ public sealed partial class TravianClient
         [JsonPropertyName("isCapital")]
         public bool? IsCapital { get; init; }
 
+        [JsonPropertyName("coordX")]
+        public int? CoordX { get; init; }
+
+        [JsonPropertyName("coordY")]
+        public int? CoordY { get; init; }
+
         [JsonPropertyName("updatedAtUtc")]
         public DateTimeOffset UpdatedAtUtc { get; init; }
     }
@@ -4794,6 +5710,12 @@ public sealed partial class TravianClient
 
         [JsonPropertyName("isCapital")]
         public bool IsCapital { get; init; }
+
+        [JsonPropertyName("x")]
+        public int? X { get; init; }
+
+        [JsonPropertyName("y")]
+        public int? Y { get; init; }
     }
 
     private sealed class HeroStatusJs
@@ -4818,5 +5740,38 @@ public sealed partial class TravianClient
 
         [JsonPropertyName("unassignedPoints")]
         public int? UnassignedPoints { get; init; }
+    }
+
+    private sealed class FarmListRowJs
+    {
+        [JsonPropertyName("name")]
+        public string? Name { get; init; }
+
+        [JsonPropertyName("activeFarmCount")]
+        public int? ActiveFarmCount { get; init; }
+
+        [JsonPropertyName("totalFarmCount")]
+        public int? TotalFarmCount { get; init; }
+
+        [JsonPropertyName("timerText")]
+        public string? TimerText { get; init; }
+    }
+
+    private sealed class FarmDispatchLimitStateJs
+    {
+        [JsonPropertyName("hasLimit")]
+        public bool HasLimit { get; init; }
+
+        [JsonPropertyName("minTimerSeconds")]
+        public int? MinTimerSeconds { get; init; }
+    }
+
+    private sealed class NatarCoordinateJs
+    {
+        [JsonPropertyName("x")]
+        public int? X { get; init; }
+
+        [JsonPropertyName("y")]
+        public int? Y { get; init; }
     }
 }

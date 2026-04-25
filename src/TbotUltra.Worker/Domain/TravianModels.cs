@@ -1,6 +1,13 @@
 namespace TbotUltra.Worker.Domain;
 
-public sealed record Village(string Name, string? Url, bool? IsCapital = null);
+public sealed record Village(
+    string Name,
+    string? Url,
+    bool? IsCapital = null,
+    int? CoordX = null,
+    int? CoordY = null,
+    int? Population = null,
+    int? CropFields = null);
 
 public sealed record AccountSnapshot(
     string Tribe,
@@ -88,3 +95,16 @@ public sealed record VillageStatus(
 public sealed record InboxStatus(
     int UnreadMessages = 0,
     int UnreadReports = 0);
+
+public sealed record FarmListOverview(
+    string Name,
+    int ActiveFarmCount,
+    int TotalFarmCount,
+    int? RemainingSeconds);
+
+public sealed record FarmAddResult(
+    string FarmListName,
+    int X,
+    int Y,
+    string TroopType,
+    int TroopCount);
