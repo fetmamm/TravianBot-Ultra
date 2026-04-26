@@ -39,6 +39,8 @@ public sealed class BotTaskRunner
             ["demolish_building_to_level"] = ExecuteDemolishBuildingToLevelAsync,
             // Manages hero actions: revives if dead, allocates points, and sends on adventures if HP allows.
             ["hero_manage"] = ExecuteHeroManageAsync,
+            // Sends the hero on the first available adventure if hero is in home village.
+            ["hero_send_adventure"] = ExecuteHeroSendAdventureAsync,
         };
 
     private readonly IAccountProvider _accountProvider;
@@ -383,6 +385,61 @@ public sealed class BotTaskRunner
                 await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken, villageName, villageUrl);
                 await client.NavigateToResourceFieldsAsync(cancellationToken);
             });
+    }
+
+    public async Task<HeroAdventureDispatchResult> SendHeroOnAdventureAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        HeroAdventureDispatchResult? result = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                result = await client.SendHeroOnAdventureAsync(cancellationToken);
+                log(result.Message);
+            });
+
+        return result ?? throw new InvalidOperationException("Could not dispatch hero on adventure.");
+    }
+
+    public async Task<int?> RefreshAdventureCountAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        int? count = null;
+        var found = false;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                count = await client.RefreshAdventureCountAsync(cancellationToken);
+                found = count is not null;
+            });
+
+        if (!found)
+        {
+            log("Adventures not found on current page.");
+        }
+        else
+        {
+            log($"Adventures available: {count}.");
+        }
+
+        return count;
     }
 
     public async Task ExecuteLogoutAsync(
@@ -790,6 +847,12 @@ public sealed class BotTaskRunner
             context.Options.HeroStatPriority,
             context.CancellationToken);
         context.Log(result);
+    }
+
+    private static async Task ExecuteHeroSendAdventureAsync(TaskExecutionContext context)
+    {
+        var result = await context.Client.SendHeroOnAdventureAsync(context.CancellationToken);
+        context.Log(result.Message);
     }
 
     private static void ThrowIfTaskBlocked(string taskName, string result)

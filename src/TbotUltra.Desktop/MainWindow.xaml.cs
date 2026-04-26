@@ -68,6 +68,9 @@ public partial class MainWindow : Window
 
     private CancellationTokenSource? _loopCts;
     private CancellationTokenSource? _operationCts;
+    private CancellationTokenSource? _heroAdventureCts;
+    private DispatcherTimer? _heroCountdownTimer;
+    private int _heroCountdownRemainingSeconds;
     private CancellationTokenSource? _villageSwitchCts;
     private Task? _loopTask;
     private bool _chromiumEnsured;
@@ -136,6 +139,7 @@ public partial class MainWindow : Window
         ("account_full_analysis", "Account Full Analysis", "Runs full account analysis and updates cache."),
         ("demolish_building_to_level", "Demolish Building", "Demolishes configured building to target level."),
         ("hero_manage", "Hero Manage", "Revives hero, allocates points and sends adventures."),
+        ("hero_send_adventure", "Hero Adventures", "Sends hero on the first available adventure if at home."),
     ];
 
     public ObservableCollection<ResourceFieldRow> WoodFields => _woodFields;
@@ -197,7 +201,7 @@ public partial class MainWindow : Window
             _copyFeedbackTimer.Stop();
             CopyFeedbackTextBlock.Visibility = Visibility.Collapsed;
         };
-        _inboxRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        _inboxRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(5) };
         _inboxRefreshTimer.Tick += async (_, _) => await HandleInboxRefreshTickAsync();
         _buildQueueCountdownTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _buildQueueCountdownTimer.Tick += (_, _) => TickBuildQueueCountdown();
@@ -1162,7 +1166,6 @@ public partial class MainWindow : Window
             _inboxAutoEnabled = true;
             await RefreshInboxIndicatorsAsync(logErrors: true, force: true);
             await LoadCurrentVillageViewsAfterLoginAsync(options, operationToken);
-            await PromptAccountAnalysisIfNeededAsync(_accountStore.ActiveAccountName());
             CompleteOperation(operationId, operationSw, "Login completed.");
         }
         catch (OperationCanceledException)
@@ -1269,6 +1272,8 @@ public partial class MainWindow : Window
                     IsCapital = v.IsCapital == true,
                     CoordX = v.CoordX,
                     CoordY = v.CoordY,
+                    Population = v.Population,
+                    CropFields = v.CropFields,
                 })
                 .ToList();
 
@@ -1386,10 +1391,6 @@ public partial class MainWindow : Window
             RefreshAccountPicker();
         }
     }
-
-    private void CheckStatusButton_Click(object sender, RoutedEventArgs e) => EnqueueQuickTask("status", "Check village status");
-
-    private void ScanAllVillagesButton_Click(object sender, RoutedEventArgs e) => EnqueueQuickTask("scan_all_villages", "Scan all villages");
 
     private async void ResetProgramButton_Click(object sender, RoutedEventArgs e)
     {
@@ -2931,6 +2932,266 @@ public partial class MainWindow : Window
         BuildingsInfoTextBlock.Text = "Queued hero management task.";
     }
 
+    private async void SendHeroOnAdventureButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_heroAdventureCts is { } running && !running.IsCancellationRequested)
+        {
+            running.Cancel();
+            HeroAdventureStatusTextBlock.Text = "Stopping continuous adventures...";
+            return;
+        }
+
+        var cts = new CancellationTokenSource();
+        _heroAdventureCts = cts;
+        var continuous = ContinuousAdventuresCheckBox.IsChecked == true;
+        SendHeroOnAdventureButton.Content = continuous ? "Stop adventures" : "Sending...";
+        SendHeroOnAdventureButton.IsEnabled = continuous;
+        RefreshAdventuresButton.IsEnabled = false;
+        ToggleUiBusy(true);
+
+        var operationId = BeginOperation(continuous ? "Hero adventure (continuous)" : "Hero adventure");
+        var operationSw = Stopwatch.StartNew();
+
+        try
+        {
+            await EnsureChromiumInstalledAsync();
+            var iteration = 0;
+            var recoveryAttempts = 0;
+            const int maxRecoveryAttempts = 4;
+
+            while (true)
+            {
+                cts.Token.ThrowIfCancellationRequested();
+                iteration++;
+                var options = ApplySelectedVillageToOptions(LoadBotOptions());
+                StopHeroCountdown();
+                _inlineWaitUntilUtc = DateTimeOffset.MinValue;
+                ToggleUiBusy(true);
+                UpdateExecutionStateIndicator();
+                HeroAdventureStatusTextBlock.Text = continuous
+                    ? $"Function running... (dispatching iteration {iteration})"
+                    : "Function running... (dispatching adventure)";
+
+                var result = await _botService.SendHeroOnAdventureAsync(options, AppendLog, cts.Token);
+
+                var displayedCount = result.Dispatched
+                    ? Math.Max(0, result.AdventureCount - 1)
+                    : result.AdventureCount;
+                HeroAdventureCountTextBlock.Text = displayedCount.ToString();
+                AppendLog(result.Message);
+
+                // Hero was dead and Revive was clicked: re-check status immediately.
+                if (result.WasRevived)
+                {
+                    recoveryAttempts++;
+                    if (recoveryAttempts > maxRecoveryAttempts)
+                    {
+                        HeroAdventureStatusTextBlock.Text = "Stopping: hero recovery did not complete after several attempts.";
+                        break;
+                    }
+
+                    HeroAdventureStatusTextBlock.Text = "Hero revived. Re-checking status...";
+                    await Task.Delay(TimeSpan.FromSeconds(2), cts.Token);
+                    continue;
+                }
+
+                // Hero is on the way home: wait for ETA, then retry.
+                if (result.IsOnTheWayHome)
+                {
+                    recoveryAttempts++;
+                    if (recoveryAttempts > maxRecoveryAttempts)
+                    {
+                        HeroAdventureStatusTextBlock.Text = "Stopping: hero is still on the way after multiple checks.";
+                        break;
+                    }
+
+                    var etaSeconds = (result.SecondsUntilReturn ?? 60) + 1;
+                    StartHeroCountdown(etaSeconds, result.AdventureCount, "Hero on the way home");
+                    BeginInlineWait(etaSeconds);
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(etaSeconds), cts.Token);
+                    }
+                    finally
+                    {
+                        StopHeroCountdown();
+                        EndInlineWait();
+                    }
+                    continue;
+                }
+
+                recoveryAttempts = 0;
+
+                if (!result.Dispatched)
+                {
+                    HeroAdventureStatusTextBlock.Text = continuous
+                        ? $"Stopping continuous adventures: {result.Message}"
+                        : result.Message;
+                    break;
+                }
+
+                var adventuresLeft = Math.Max(0, result.AdventureCount - 1);
+                var waitSeconds = (result.SecondsUntilReturn ?? 0) + 1;
+                if (waitSeconds < 1)
+                {
+                    waitSeconds = 1;
+                }
+
+                // Always start the countdown after a successful dispatch — gives the user
+                // visual feedback even when not running continuously.
+                StartHeroCountdown(waitSeconds, adventuresLeft, "Hero away");
+
+                if (!continuous || adventuresLeft <= 0)
+                {
+                    if (continuous)
+                    {
+                        HeroAdventureStatusTextBlock.Text = "Continuous adventures complete: no adventures left.";
+                    }
+                    BeginInlineWait(waitSeconds);
+                    break;
+                }
+
+                BeginInlineWait(waitSeconds);
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cts.Token);
+                }
+                finally
+                {
+                    StopHeroCountdown();
+                    EndInlineWait();
+                }
+            }
+
+            CompleteOperation(operationId, operationSw, "Hero adventures done.");
+        }
+        catch (OperationCanceledException)
+        {
+            HeroAdventureStatusTextBlock.Text = "Continuous adventures stopped.";
+            AppendLog("Hero adventure run cancelled.");
+        }
+        catch (Exception ex)
+        {
+            FailOperation(operationId, operationSw, ex);
+            HeroAdventureStatusTextBlock.Text = $"Hero adventure failed: {ex.Message}";
+        }
+        finally
+        {
+            // Don't stop the countdown here — leave the post-dispatch countdown visible until it
+            // ticks down to 0 on its own. Tear down the inline wait only if we did not start one.
+            _heroAdventureCts = null;
+            SendHeroOnAdventureButton.Content = "Send hero on adventure";
+            SendHeroOnAdventureButton.IsEnabled = true;
+            RefreshAdventuresButton.IsEnabled = true;
+            ToggleUiBusy(false);
+            UpdateExecutionStateIndicator();
+        }
+    }
+
+    private void BeginInlineWait(int seconds)
+    {
+        var until = DateTimeOffset.UtcNow.AddSeconds(Math.Max(0, seconds));
+        if (until > _inlineWaitUntilUtc)
+        {
+            _inlineWaitUntilUtc = until;
+        }
+        ToggleUiBusy(false);
+        UpdateExecutionStateIndicator();
+    }
+
+    private void EndInlineWait()
+    {
+        _inlineWaitUntilUtc = DateTimeOffset.MinValue;
+        UpdateExecutionStateIndicator();
+    }
+
+    private async void RefreshAdventuresButton_Click(object sender, RoutedEventArgs e)
+    {
+        RefreshAdventuresButton.IsEnabled = false;
+        var operationId = BeginOperation("Refresh adventures");
+        var operationSw = Stopwatch.StartNew();
+        try
+        {
+            await EnsureChromiumInstalledAsync();
+            var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            var count = await _botService.RefreshAdventureCountAsync(options, AppendLog, CancellationToken.None);
+            if (count is null)
+            {
+                HeroAdventureCountTextBlock.Text = "?";
+                HeroAdventureStatusTextBlock.Text = "Adventures not found on current page.";
+            }
+            else
+            {
+                HeroAdventureCountTextBlock.Text = count.Value.ToString();
+                HeroAdventureStatusTextBlock.Text = $"Adventures available: {count.Value}.";
+            }
+
+            CompleteOperation(operationId, operationSw, $"Refresh adventures: {(count?.ToString() ?? "not found")}.");
+        }
+        catch (Exception ex)
+        {
+            FailOperation(operationId, operationSw, ex);
+            HeroAdventureStatusTextBlock.Text = $"Refresh failed: {ex.Message}";
+        }
+        finally
+        {
+            RefreshAdventuresButton.IsEnabled = true;
+        }
+    }
+
+    private string _heroCountdownLabel = "Hero away";
+
+    private void StartHeroCountdown(int seconds, int adventuresLeft, string label)
+    {
+        StopHeroCountdown();
+        _heroCountdownRemainingSeconds = Math.Max(0, seconds);
+        _heroCountdownLabel = label;
+        UpdateHeroCountdownText(adventuresLeft);
+
+        _heroCountdownTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _heroCountdownTimer.Tick += (_, _) =>
+        {
+            if (_heroCountdownRemainingSeconds > 0)
+            {
+                _heroCountdownRemainingSeconds -= 1;
+            }
+            UpdateHeroCountdownText(adventuresLeft);
+
+            if (_heroCountdownRemainingSeconds <= 0)
+            {
+                StopHeroCountdown();
+            }
+        };
+        _heroCountdownTimer.Start();
+    }
+
+    private void StopHeroCountdown()
+    {
+        if (_heroCountdownTimer is null)
+        {
+            return;
+        }
+
+        _heroCountdownTimer.Stop();
+        _heroCountdownTimer = null;
+    }
+
+    private void UpdateHeroCountdownText(int adventuresLeft)
+    {
+        var formatted = FormatHeroDuration(_heroCountdownRemainingSeconds);
+        HeroAdventureStatusTextBlock.Text =
+            $"{_heroCountdownLabel}. Returns in {formatted}. Adventures left: {adventuresLeft}.";
+    }
+
+    private static string FormatHeroDuration(int seconds)
+    {
+        var clamped = Math.Max(0, seconds);
+        var ts = TimeSpan.FromSeconds(clamped);
+        return ts.TotalHours >= 1
+            ? $"{(int)ts.TotalHours:00}:{ts.Minutes:00}:{ts.Seconds:00}"
+            : $"{ts.Minutes:00}:{ts.Seconds:00}";
+    }
+
     private string GetBuildingsSnapshotPathForActiveAccount()
     {
         var account = _accountStore.ActiveAccountName();
@@ -3236,8 +3497,6 @@ public partial class MainWindow : Window
             SetEnabled(AccountComboBox, defaultEnabled);
             SetEnabled(LoginButton, defaultEnabled);
             SetEnabled(LogoutButton, defaultEnabled);
-            SetEnabled(CheckStatusButton, defaultEnabled);
-            SetEnabled(ScanAllVillagesButton, defaultEnabled);
             SetEnabled(SettingsButton, defaultEnabled);
             SetEnabled(QueueAddButton, defaultEnabled);
             SetEnabled(QueueRemoveButton, defaultEnabled);
@@ -4635,6 +4894,11 @@ public partial class MainWindow : Window
         ResourcesInfoTextBlock.Text = $"Loaded {rows.Count} resource fields. Capital: {capitalText}. {BuildResourceForecastSummary(status)}";
         BuildingsInfoTextBlock.Text = $"Buildings loaded for active village '{status.ActiveVillage}'. Occupied slots: {_buildingRows.Count(row => row.IsOccupied)}, free slots: {_buildingRows.Count(row => !row.IsOccupied)}.";
 
+        TribeInfoTextBlock.Text = $"Tribe: {status.Tribe}";
+        VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
+        RefreshVillagePickerFromVillages(status.Villages, status.ActiveVillage);
+        UpdateDashboardVillageList(status.Villages);
+
         await _botService.NavigateToVillageResourceFieldsAsync(
             options,
             AppendLog,
@@ -5473,7 +5737,6 @@ public partial class MainWindow : Window
         var goldText = status.Gold?.ToString() ?? "-";
         var silverText = status.Silver?.ToString() ?? "-";
         ServerResourcesTextBlock.Text = $"Gold: {goldText} | Silver: {silverText}";
-        SummaryTextBlock.Text = $"Village: {status.ActiveVillage} | Capital: {capitalText}";
 
         _buildQueueActiveCount = status.ActiveBuildCount;
         _buildQueueRemainingSeconds = status.BuildQueueRemainingSeconds ?? -1;
@@ -5554,6 +5817,8 @@ public partial class MainWindow : Window
                 IsCapital = v.IsCapital == true,
                 CoordX = v.CoordX,
                 CoordY = v.CoordY,
+                Population = v.Population,
+                CropFields = v.CropFields,
             })
             .ToList();
 
@@ -5789,6 +6054,9 @@ public partial class MainWindow : Window
     {
         var items = villages
             .Where(v => !string.IsNullOrWhiteSpace(v.Name))
+            .OrderByDescending(v => v.IsCapital == true)
+            .ThenByDescending(v => v.Population ?? -1)
+            .ThenBy(v => v.Name, StringComparer.OrdinalIgnoreCase)
             .Select(v => new VillageSelectionItem
             {
                 Name = v.Name,
@@ -5796,6 +6064,8 @@ public partial class MainWindow : Window
                 IsCapital = v.IsCapital == true,
                 CoordX = v.CoordX,
                 CoordY = v.CoordY,
+                Population = v.Population,
+                CropFields = v.CropFields,
             })
             .ToList();
         DashboardVillageList.ItemsSource = items;
@@ -5815,6 +6085,8 @@ public partial class MainWindow : Window
                 IsCapital = v.IsCapital == true,
                 CoordX = v.CoordX,
                 CoordY = v.CoordY,
+                Population = v.Population,
+                CropFields = v.CropFields,
             })
             .ToList();
 

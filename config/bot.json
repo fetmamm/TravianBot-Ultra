@@ -8,9 +8,7 @@
   "manual_login_timeout_seconds": 180,
   "loop_interval_seconds": 60,
   "loop_tasks": [
-    "status",
-    "scan_all_villages",
-    "account_snapshot"
+    "hero_send_adventure"
   ],
   "github_releases_url": "",
   "human_like_enabled": false,

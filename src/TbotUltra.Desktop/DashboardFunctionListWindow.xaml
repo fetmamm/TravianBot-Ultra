@@ -46,7 +46,7 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,0,0,8">
+            <StackPanel Grid.Row="0" Orientation="Vertical" HorizontalAlignment="Left" Margin="0,0,0,8">
                 <Button x:Name="SelectAllButton"
                         Width="100"
                         Margin="0,0,8,0"
@@ -54,6 +54,7 @@
                         Click="SelectAllButton_Click" />
                 <Button x:Name="UnselectAllButton"
                         Width="100"
+                        Margin="0,8,8,0"
                         Content="Unselect all"
                         Click="UnselectAllButton_Click" />
             </StackPanel>

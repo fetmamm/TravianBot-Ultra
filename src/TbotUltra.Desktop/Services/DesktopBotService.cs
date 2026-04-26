@@ -153,6 +153,16 @@ public sealed class DesktopBotService : IDesktopBotService
         return _taskRunner.ReadInboxStatusAsync(options, log, null, cancellationToken);
     }
 
+    public Task<HeroAdventureDispatchResult> SendHeroOnAdventureAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.SendHeroOnAdventureAsync(options, log, null, cancellationToken);
+    }
+
+    public Task<int?> RefreshAdventureCountAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.RefreshAdventureCountAsync(options, log, null, cancellationToken);
+    }
+
     public bool ConsumeBrowserClosedByUserSignal()
     {
         return _taskRunner.ConsumeBrowserClosedByUserSignal();

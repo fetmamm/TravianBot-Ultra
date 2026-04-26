@@ -286,7 +286,10 @@
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Text="Dashboard" FontSize="32" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,10" />
+                        <DockPanel Grid.Row="0" Margin="0,0,0,10" LastChildFill="False">
+                            <TextBlock DockPanel.Dock="Left" Text="Dashboard" FontSize="32" FontWeight="SemiBold" Foreground="#111827" VerticalAlignment="Center" />
+                            <Button DockPanel.Dock="Right" x:Name="ResetProgramButton" Height="32" Content="Reset program" Background="#FCD34D" Foreground="#1F2937" BorderBrush="#F59E0B" VerticalAlignment="Center" Margin="12,0,0,0" Click="ResetProgramButton_Click" />
+                        </DockPanel>
 
                         <Grid Grid.Row="1" Margin="0,0,0,10" Visibility="Collapsed">
                             <TextBlock x:Name="VillagesInfoTextBlock" Text="Villages: -" />
@@ -294,9 +297,6 @@
                         </Grid>
 
                         <DockPanel Grid.Row="2" Margin="0,0,0,8" LastChildFill="False">
-                            <Button DockPanel.Dock="Left" x:Name="CheckStatusButton" Height="32" Content="Check village status" MinWidth="150" Click="CheckStatusButton_Click" />
-                            <Button DockPanel.Dock="Left" x:Name="ScanAllVillagesButton" Height="32" Content="Scan all villages" Background="#030826" Foreground="White" BorderBrush="#030826" Click="ScanAllVillagesButton_Click" />
-                            <Button DockPanel.Dock="Left" x:Name="ResetProgramButton" Height="32" Content="Reset program" Background="#FCD34D" Foreground="#1F2937" BorderBrush="#F59E0B" Click="ResetProgramButton_Click" />
                             <Button DockPanel.Dock="Right" x:Name="DashboardFunctionListButton" Height="32" Content="List" MinWidth="70" Click="DashboardFunctionListButton_Click" />
                             <Button DockPanel.Dock="Right" x:Name="AnalyzeProfileButton" Height="32" Content="Analyze profile" MinWidth="130" Click="AnalyzeProfileButton_Click" />
                         </DockPanel>
@@ -450,19 +450,35 @@
                             </Border>
 
                             <Border Grid.Column="1" Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="9" Padding="12">
-                                <StackPanel>
+                                <StackPanel Grid.IsSharedSizeScope="True">
                                     <TextBlock Text="Villages" FontSize="16" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,6" />
-                                    <TextBlock x:Name="SummaryTextBlock" Text="Run Check village status to populate the views." Foreground="#374151" Margin="0,0,0,8" />
+                                    <Grid Margin="0,0,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" SharedSizeGroup="VillagePopColumn" />
+                                            <ColumnDefinition Width="Auto" SharedSizeGroup="VillageCoordsColumn" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" SharedSizeGroup="VillageFlagColumn" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Village" FontWeight="SemiBold" Foreground="#111827" />
+                                        <TextBlock Grid.Column="1" Text="Pop" FontWeight="SemiBold" Foreground="#111827" Margin="8,0,0,0" />
+                                        <TextBlock Grid.Column="2" Text="Coords" FontWeight="SemiBold" Foreground="#111827" Margin="8,0,0,0" />
+                                    </Grid>
                                     <ItemsControl x:Name="DashboardVillageList">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
                                                 <Grid Margin="0,2">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="Auto" SharedSizeGroup="VillagePopColumn" />
+                                                        <ColumnDefinition Width="Auto" SharedSizeGroup="VillageCoordsColumn" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" SharedSizeGroup="VillageFlagColumn" />
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Grid.Column="0" Text="{Binding NameWithCoords}" Foreground="#374151" FontSize="13" TextTrimming="CharacterEllipsis" />
-                                                    <TextBlock Grid.Column="1" Text="{Binding CapitalText}" Foreground="#D97706" FontSize="13" FontWeight="SemiBold" Margin="6,0,0,0" />
+                                                    <TextBlock Grid.Column="0" Text="{Binding Name}" Foreground="#374151" FontSize="13" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding PopText}" Foreground="#374151" FontSize="13" Margin="8,0,0,0" />
+                                                    <TextBlock Grid.Column="2" Text="{Binding CoordsText}" Foreground="#374151" FontSize="13" Margin="8,0,0,0" />
+                                                    <TextBlock Grid.Column="4" Text="{Binding CapitalText}" Foreground="#D97706" FontSize="13" FontWeight="SemiBold" Margin="8,0,0,0" HorizontalAlignment="Right" />
                                                 </Grid>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
@@ -865,6 +881,19 @@
                                 <TextBlock Text="Stat priority (csv)" />
                                 <TextBox x:Name="HeroStatPriorityTextBox" Text="offense,resource,regeneration" Margin="0,2,0,8" />
                                 <Button x:Name="QueueHeroManageButton" Content="Queue hero manage" Width="160" Click="QueueHeroManageButton_Click" />
+
+                                <Separator Margin="0,12,0,8" />
+                                <TextBlock Text="Adventures" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                    <TextBlock Text="Available:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBlock x:Name="HeroAdventureCountTextBlock" Text="—" FontWeight="SemiBold" FontSize="16" Foreground="#111827" VerticalAlignment="Center" />
+                                    <Button x:Name="RefreshAdventuresButton" Content="Refresh adventures" Width="160" Margin="16,0,0,0" Click="RefreshAdventuresButton_Click" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                    <Button x:Name="SendHeroOnAdventureButton" Content="Send hero on adventure" Width="180" Click="SendHeroOnAdventureButton_Click" />
+                                    <CheckBox x:Name="ContinuousAdventuresCheckBox" Content="Continuous adventures" VerticalAlignment="Center" Margin="12,0,0,0" />
+                                </StackPanel>
+                                <TextBlock x:Name="HeroAdventureStatusTextBlock" Foreground="#334155" TextWrapping="Wrap" Text="Hero adventure status: idle." />
                             </StackPanel>
                         </Border>
                         <TextBlock Grid.Row="2" Foreground="#334155" Text="Queue hero automation from here. The queue runner handles execution." />

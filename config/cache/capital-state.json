@@ -7,7 +7,16 @@
       "isCapital": true,
       "coordX": 42,
       "coordY": 52,
-      "updatedAtUtc": "2026-04-25T08:13:20.7906203+00:00"
+      "updatedAtUtc": "2026-04-26T18:16:44.4296462+00:00"
+    },
+    {
+      "accountName": "slangen",
+      "serverUrl": "https://mga.ss-travi.com",
+      "villageName": "Profile",
+      "isCapital": false,
+      "coordX": null,
+      "coordY": null,
+      "updatedAtUtc": "2026-04-26T13:04:18.2142121+00:00"
     },
     {
       "accountName": "slangen",
@@ -16,7 +25,7 @@
       "isCapital": false,
       "coordX": -27,
       "coordY": 16,
-      "updatedAtUtc": "2026-04-25T08:13:20.7874702+00:00"
+      "updatedAtUtc": "2026-04-26T18:16:44.4301012+00:00"
     }
   ]
 }

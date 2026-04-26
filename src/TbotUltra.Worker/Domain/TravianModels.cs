@@ -69,6 +69,16 @@ public sealed record HeroStatus(
     int? SecondsUntilReturn = null,
     int UnassignedPoints = 0);
 
+public sealed record HeroAdventureDispatchResult(
+    bool IsInHomeVillage,
+    string? StatusText,
+    int AdventureCount,
+    bool Dispatched,
+    int? SecondsUntilReturn,
+    string Message,
+    bool WasRevived = false,
+    bool IsOnTheWayHome = false);
+
 public sealed record VillageStatus(
     string ActiveVillage,
     IReadOnlyList<Village> Villages,
