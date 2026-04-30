@@ -396,243 +396,148 @@ public sealed partial class TravianClient
         await EnsureLoggedInAsync();
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading buildings.", cancellationToken);
 
-        string rawBuildingsJson = string.Empty;
+        Dictionary<int, BuildingInfo> buildingsBySlot = new();
         await RetryAsync("read building slots snapshot", async () =>
         {
-            rawBuildingsJson = await _page.EvaluateAsync<string>(
-                """
-            () => {
-              const buildingNames = {
-                10: 'Warehouse',
-                11: 'Granary',
-                15: 'Main Building',
-                16: 'Rally Point',
-                17: 'Marketplace',
-                18: 'Embassy',
-                19: 'Barracks',
-                20: 'Stable',
-                21: 'Workshop',
-                22: 'Academy',
-                23: 'Cranny',
-                24: 'Town Hall',
-                25: 'Residence',
-                26: 'Palace',
-                27: 'Treasury',
-                28: 'Trade Office',
-                29: 'Great Barracks',
-                30: 'Great Stable',
-                31: 'City Wall',
-                32: 'Earth Wall',
-                33: 'Palisade',
-                34: 'Stonemason',
-                35: 'Brewery',
-                36: 'Trapper',
-                37: 'Hero Mansion',
-                38: 'Great Warehouse',
-                39: 'Great Granary',
-                40: 'Wonder of the World',
-                41: 'Horse Drinking Trough',
-                42: 'Stone Wall',
-                43: 'Makeshift Wall',
-                44: 'Command Center'
-              };
-
-              const parseSlotIdFromText = (value) => {
-                if (!value) return null;
-                const idMatch = String(value).match(/[?&]id=(\d+)/i);
-                if (idMatch) return Number(idMatch[1]);
-                const aidMatch = String(value).match(/(?:^|[^a-z])aid[_:=\s-]?(\d{2})/i);
-                if (aidMatch) return Number(aidMatch[1]);
-                const slotMatch = String(value).match(/(?:^|[^a-z])slot[_:=\s-]?(\d{2})/i);
-                if (slotMatch) return Number(slotMatch[1]);
-                return null;
-              };
-
-              const parseSlotId = (element, href) => {
-                const fromHref = parseSlotIdFromText(href);
-                if (fromHref !== null) return fromHref;
-                if (!element || typeof element.getAttribute !== 'function') return null;
-
-                const attrs = [
-                  element.getAttribute('data-aid'),
-                  element.getAttribute('aid'),
-                  element.getAttribute('data-id'),
-                  element.getAttribute('data-slot'),
-                  element.getAttribute('data-targetid'),
-                  element.getAttribute('data-target-id'),
-                  element.getAttribute('href'),
-                  element.getAttribute('data-href'),
-                  element.getAttribute('onclick'),
-                  element.id || '',
-                  element.className || ''
-                ];
-
-                for (const attr of attrs) {
-                  const fromAttr = parseSlotIdFromText(attr);
-                  if (fromAttr !== null) return fromAttr;
-                }
-
-                return null;
-              };
-
-              const directText = (element) => {
-                const parts = [
-                  element.getAttribute('title') || '',
-                  element.getAttribute('alt') || '',
-                  element.getAttribute('aria-label') || '',
-                  element.getAttribute('data-name') || '',
-                  element.getAttribute('data-level') || '',
-                  element.id || '',
-                  element.className || '',
-                  element.textContent || ''
-                ];
-                return parts.join(' ').replace(/\s+/g, ' ').trim();
-              };
-
-              const collectText = (element) => {
-                const parts = [];
-                let current = element;
-                for (let depth = 0; current && depth < 3; depth += 1) {
-                  parts.push(current.getAttribute('title') || '');
-                  parts.push(current.getAttribute('alt') || '');
-                  parts.push(current.getAttribute('aria-label') || '');
-                  parts.push(current.getAttribute('data-name') || '');
-                  parts.push(current.getAttribute('data-level') || '');
-                  parts.push(current.getAttribute('data-gid') || '');
-                  parts.push(current.getAttribute('data-aid') || '');
-                  parts.push(current.id || '');
-                  parts.push(current.className || '');
-                  parts.push(current.textContent || '');
-                  for (const child of current.querySelectorAll('img, span, div, area')) {
-                    parts.push(child.getAttribute('title') || '');
-                    parts.push(child.getAttribute('alt') || '');
-                    parts.push(child.getAttribute('aria-label') || '');
-                    parts.push(child.getAttribute('data-name') || '');
-                    parts.push(child.getAttribute('data-level') || '');
-                    parts.push(child.getAttribute('data-gid') || '');
-                    parts.push(child.getAttribute('data-aid') || '');
-                    parts.push(child.id || '');
-                    parts.push(child.className || '');
-                    parts.push(child.textContent || '');
-                  }
-                  current = current.parentElement;
-                }
-                return parts.join(' ').replace(/\s+/g, ' ').trim();
-              };
-
-              const parseGid = (text) => {
-                const match = text.match(/(?:^|\s|_|-)gid[_:=\s-]?(\d+)(?:\s|$|_|-)/i);
-                return match ? Number(match[1]) : null;
-              };
-
-              const parseLevel = (text) => {
-                const match = text.match(/(?:^|\s|_|-)level[_-]?(\d{1,2})(?:\s|$|_|-)/i)
-                  || text.match(/(?:^|\s|_|-)lvl(?:e|_)?(\d{1,2})(?:\s|$|_|-)/i)
-                  || text.match(/(?:^|\s|_|-)l(?:evel)?[_:=\s-]?(\d{1,2})(?:\s|$|_|-)/i)
-                  || text.match(/(?:level|niveau|lvl|niv\.?|stufe)[^0-9]*(\d{1,2})/i);
-                if (match) return Number(match[1]);
-                const numericOnly = text.match(/(?:^|\D)(\d{1,2})(?:\D|$)/);
-                return numericOnly ? Number(numericOnly[1]) : null;
-              };
-
-              const parseName = (text, direct, gid, slotId) => {
-                const source = direct || text;
-                const isUsefulName = (value) => {
-                  if (!value || /^\d+$/.test(value) || value.length > 48) return false;
-                  if (/^(gid|aid|level|lvl)/i.test(value)) return false;
-                  if (/(buildingSlot|labelLayer|colorLayer|contractLink|underConstruction)/i.test(value)) return false;
-                  if (/^(a|g)\d+$/i.test(value)) return false;
-                  return true;
-                };
-                const cleaned = text
-                  .replace(/(?:^|\s|_|-)gid[_-]?\d+(?:\s|$|_|-)/gi, ' ')
-                  .replace(/(?:^|\s|_|-)aid[_-]?\d+(?:\s|$|_|-)/gi, ' ')
-                  .replace(/level\s*\d+/gi, '')
-                  .replace(/level\d+/gi, '')
-                  .replace(/lvl\s*\d+/gi, '')
-                  .replace(/lvl(?:e|_)?\d+/gi, '')
-                  .replace(/niveau\s*\d+/gi, '')
-                  .replace(/stufe\s*\d+/gi, '')
-                  .replace(/\s+/g, ' ')
-                  .trim();
-                const directCleaned = source
-                  .replace(/(?:^|\s|_|-)gid[_-]?\d+(?:\s|$|_|-)/gi, ' ')
-                  .replace(/(?:^|\s|_|-)aid[_-]?\d+(?:\s|$|_|-)/gi, ' ')
-                  .replace(/level\s*\d+/gi, '')
-                  .replace(/level\d+/gi, '')
-                  .replace(/lvl\s*\d+/gi, '')
-                  .replace(/lvl(?:e|_)?\d+/gi, '')
-                  .replace(/niveau\s*\d+/gi, '')
-                  .replace(/stufe\s*\d+/gi, '')
-                  .replace(/\s+/g, ' ')
-                  .trim();
-
-                if (isUsefulName(directCleaned)) return directCleaned;
-                if (isUsefulName(cleaned)) return cleaned;
-                if (gid && buildingNames[gid]) return buildingNames[gid];
-                return `Slot ${slotId}`;
-              };
-
-              const selectors = [
-                '#village_map area[href*="build.php?id="]',
-                '#villageContent area[href*="build.php?id="]',
-                'area[href*="build.php?id="]',
-                '#village_map a[href*="build.php?id="]',
-                '#villageContent a[href*="build.php?id="]',
-                '#village_map [data-href*="build.php?id="]',
-                '#villageContent [data-href*="build.php?id="]',
-                '#village_map [onclick*="build.php?id="]',
-                '#villageContent [onclick*="build.php?id="]',
-                '#village_map [data-aid]',
-                '#villageContent [data-aid]',
-                '#village_map .level.maxLevel',
-                '#villageContent .level.maxLevel',
-                '.level.maxLevel',
-                '.buildingSlot a[href*="build.php?id="]',
-                '.buildingSlot',
-                'a[href*="build.php?id="]'
-              ];
-
-              const seenSlots = new Set();
-              const buildings = [];
-              for (const selector of selectors) {
-                for (const element of document.querySelectorAll(selector)) {
-                  const href = element.getAttribute('href')
-                    || element.getAttribute('data-href')
-                    || element.getAttribute('onclick')
-                    || '';
-                  const slotId = parseSlotId(element, href);
-                  if (slotId === null || slotId < 19 || slotId > 40) continue;
-                  if (seenSlots.has(slotId)) continue;
-                  seenSlots.add(slotId);
-
-                  const direct = directText(element);
-                  const text = collectText(element);
-                  const gid = parseGid(text);
-                  const name = parseName(text, direct, gid, slotId);
-                  buildings.push({
-                    slotId,
-                    name,
-                    level: parseLevel(text),
-                    gid,
-                    href
-                  });
-                }
-              }
-
-              return JSON.stringify(buildings);
-            }
-            """);
+            buildingsBySlot = await ReadBuildingInfosAsync(cancellationToken);
         });
 
-        var rawBuildings = string.IsNullOrWhiteSpace(rawBuildingsJson)
-            ? new List<BuildingJs>()
-            : JsonSerializer.Deserialize<List<BuildingJs>>(rawBuildingsJson) ?? new List<BuildingJs>();
-
-        rawBuildings ??= [];
-        return rawBuildings.Select(item =>
-                new Building(item.SlotId, item.Name ?? "Unknown", item.Level, ResolveUrl(item.Href), item.Gid))
+        return buildingsBySlot.Values
+            .OrderBy(item => item.SlotId)
+            .Select(item => new Building(
+                item.SlotId,
+                item.BuildingName,
+                item.Level,
+                ResolveUrl(Paths.BuildBySlot(item.SlotId)),
+                ParseGidFromBuildingCode(item.BuildingCode)))
             .ToList();
+    }
+
+    private async Task<Dictionary<int, BuildingInfo>> ReadBuildingInfosAsync(CancellationToken cancellationToken)
+    {
+        var buildings = new Dictionary<int, BuildingInfo>();
+        var slots = _page.Locator("div.buildingSlot");
+        var count = await slots.CountAsync();
+
+        for (var index = 0; index < count; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var slot = slots.Nth(index);
+            try
+            {
+                var classText = await slot.GetAttributeAsync("class") ?? string.Empty;
+                var classes = classText
+                    .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+                var slotId = TryExtractSlotId(classes);
+                if (slotId is null || slotId < 19 || slotId > 40)
+                {
+                    continue;
+                }
+
+                var buildingCode = TryExtractBuildingCode(classes);
+                var buildingName = ResolveBuildingName(buildingCode);
+                var level = await TryReadBuildingLevelAsync(slot);
+
+                buildings[slotId.Value] = new BuildingInfo
+                {
+                    SlotId = slotId.Value,
+                    BuildingCode = buildingCode ?? string.Empty,
+                    BuildingName = buildingName,
+                    Level = level,
+                };
+            }
+            catch
+            {
+                // Keep scanning remaining slots even if one slot is malformed or transiently missing content.
+            }
+        }
+
+        return buildings;
+    }
+
+    private async Task<int> TryReadBuildingLevelAsync(ILocator slot)
+    {
+        try
+        {
+            var label = slot.Locator(".labelLayer").First;
+            if (await label.CountAsync() == 0)
+            {
+                return 0;
+            }
+
+            var rawLevel = (await label.TextContentAsync() ?? string.Empty).Trim();
+            return int.TryParse(rawLevel, out var level) ? level : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    private static int? TryExtractSlotId(IEnumerable<string> classes)
+    {
+        string? fallback = null;
+        foreach (var className in classes)
+        {
+            if (className.StartsWith("aid", StringComparison.OrdinalIgnoreCase)
+                && int.TryParse(className[3..], out var aidSlotId))
+            {
+                return aidSlotId;
+            }
+
+            if (fallback is null
+                && className.StartsWith("a", StringComparison.OrdinalIgnoreCase)
+                && !className.StartsWith("aid", StringComparison.OrdinalIgnoreCase)
+                && int.TryParse(className[1..], out _))
+            {
+                fallback = className;
+            }
+        }
+
+        return fallback is not null && int.TryParse(fallback[1..], out var slotId)
+            ? slotId
+            : null;
+    }
+
+    private static string? TryExtractBuildingCode(IEnumerable<string> classes)
+    {
+        foreach (var className in classes)
+        {
+            if (className.StartsWith("g", StringComparison.OrdinalIgnoreCase)
+                && className.Length > 1
+                && int.TryParse(className[1..], out _))
+            {
+                return className.ToLowerInvariant();
+            }
+        }
+
+        return null;
+    }
+
+    private static string ResolveBuildingName(string? buildingCode)
+    {
+        if (string.IsNullOrWhiteSpace(buildingCode))
+        {
+            return "Empty";
+        }
+
+        return TravianBuildings.TryGetValue(buildingCode, out var buildingName)
+            ? buildingName
+            : buildingCode;
+    }
+
+    private static int? ParseGidFromBuildingCode(string? buildingCode)
+    {
+        if (string.IsNullOrWhiteSpace(buildingCode) || buildingCode.Length < 2)
+        {
+            return null;
+        }
+
+        return int.TryParse(buildingCode[1..], out var gid)
+            ? gid
+            : null;
     }
 
     private async Task<IReadOnlyList<BuildQueueItem>> ReadBuildQueueAsync(CancellationToken cancellationToken)
@@ -1353,6 +1258,50 @@ public sealed partial class TravianClient
         return int.TryParse(match.Groups[1].Value, out var slotId)
             ? slotId
             : null;
+    }
+
+    private static readonly Dictionary<string, string> TravianBuildings = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["g10"] = "Warehouse",
+        ["g11"] = "Granary",
+        ["g15"] = "Main Building",
+        ["g16"] = "Rally Point",
+        ["g17"] = "Marketplace",
+        ["g18"] = "Embassy",
+        ["g19"] = "Barracks",
+        ["g20"] = "Stable",
+        ["g21"] = "Workshop",
+        ["g22"] = "Academy",
+        ["g23"] = "Cranny",
+        ["g24"] = "Town Hall",
+        ["g25"] = "Residence",
+        ["g26"] = "Palace",
+        ["g27"] = "Treasury",
+        ["g28"] = "Trade Office",
+        ["g29"] = "Great Barracks",
+        ["g30"] = "Great Stable",
+        ["g31"] = "City Wall",
+        ["g32"] = "Earth Wall",
+        ["g33"] = "Palisade",
+        ["g34"] = "Stonemason",
+        ["g35"] = "Brewery",
+        ["g36"] = "Trapper",
+        ["g37"] = "Hero's Mansion",
+        ["g38"] = "Great Warehouse",
+        ["g39"] = "Great Granary",
+        ["g40"] = "Wonder of the World",
+        ["g41"] = "Horse Drinking Trough",
+        ["g42"] = "Stone Wall",
+        ["g43"] = "Makeshift Wall",
+        ["g44"] = "Command Center",
+    };
+
+    private sealed class BuildingInfo
+    {
+        public int SlotId { get; set; }
+        public string BuildingCode { get; set; } = string.Empty;
+        public string BuildingName { get; set; } = "Empty";
+        public int Level { get; set; }
     }
 
 }

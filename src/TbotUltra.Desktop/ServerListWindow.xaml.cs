@@ -80,6 +80,29 @@ public partial class ServerListWindow : Window
         ReloadWorkingCopy(_defaultServers);
     }
 
+    private void AddServerButton_Click(object sender, RoutedEventArgs e)
+    {
+        _workingServers.Add(new ServerOption
+        {
+            Name = "New server",
+            BaseUrl = "https://",
+        });
+        ServerDataGrid.Items.Refresh();
+        ServerDataGrid.SelectedItem = _workingServers[^1];
+        ServerDataGrid.ScrollIntoView(_workingServers[^1]);
+    }
+
+    private void DeleteRowButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: ServerOption option })
+        {
+            return;
+        }
+
+        _workingServers.Remove(option);
+        ServerDataGrid.Items.Refresh();
+    }
+
     private void CancelButton_Click(object sender, RoutedEventArgs e)
     {
         if (!PromptToSaveUnsavedChanges())

@@ -23,4 +23,7 @@ public static class BotOptionPayloadKeys
     public const string HeroStatPriority = "hero_stat_priority";
 
     public const string UpgradeSelectorProfile = "upgrade_selector_profile";
+    public const string CaptchaAutoSolveEnabled = "captcha_auto_solve_enabled";
+    public const string CaptchaSolverTimeoutSeconds = "captcha_solver_timeout_seconds";
+    public const string CaptchaSolverMaxAttempts = "captcha_solver_max_attempts";
 }

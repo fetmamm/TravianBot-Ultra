@@ -24,6 +24,11 @@ public sealed class DesktopBotService : IDesktopBotService
         return _queueStore.Add(taskName, payload, priority, maxRetries);
     }
 
+    public QueueItem EnqueueRuntime(string taskName, string displayName, Dictionary<string, string>? payload, int priority, int maxRetries)
+    {
+        return _queueStore.AddRuntime(taskName, displayName, payload, priority, maxRetries);
+    }
+
     public bool RemoveQueueItem(Guid id) => _queueStore.Remove(id);
     public bool MoveQueueItemUp(Guid id) => _queueStore.MoveUp(id);
     public bool MoveQueueItemDown(Guid id) => _queueStore.MoveDown(id);
@@ -35,6 +40,7 @@ public sealed class DesktopBotService : IDesktopBotService
     public QueueItem? SelectNextQueueItem() => _queueScheduler.SelectNext(_queueStore.GetAll());
     public bool MarkQueueItemRunning(Guid id) => _queueStore.MarkRunning(id);
     public bool MarkQueueItemSucceeded(Guid id) => _queueStore.MarkSucceeded(id);
+    public bool MarkQueueItemCanceled(Guid id) => _queueStore.MarkCanceled(id);
     public bool MarkQueueItemDeferred(Guid id, TimeSpan delay) => _queueStore.MarkDeferred(id, delay);
     public bool MarkQueueItemExecutionFailed(Guid id) => _queueStore.MarkExecutionFailed(id);
 
@@ -71,6 +77,21 @@ public sealed class DesktopBotService : IDesktopBotService
     public Task<FarmAddResult> AddSingleFarmFromNatarsAsync(BotOptions options, string farmListName, string troopType, int troopCount, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.AddSingleFarmFromNatarsAsync(options, farmListName, troopType, troopCount, log, null, cancellationToken);
+    }
+
+    public Task<int> EnsureNatarFarmCacheAndReturnToFarmListAsync(BotOptions options, Action<string> log, bool forceRefresh, CancellationToken cancellationToken)
+    {
+        return _taskRunner.EnsureNatarFarmCacheAndReturnToFarmListAsync(options, log, forceRefresh, null, cancellationToken);
+    }
+
+    public Task<FarmAddBatchResult> AddFarmsFromNatarsAsync(BotOptions options, string farmListName, string troopType, int troopCount, int requestedCount, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.AddFarmsFromNatarsAsync(options, farmListName, troopType, troopCount, requestedCount, log, null, cancellationToken);
+    }
+
+    public Task<ManualFarmRunResult> StartManualFarmingFromNatarsAsync(BotOptions options, string troopType, int troopCount, int troopVariancePercent, bool raidAttack, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.StartManualFarmingFromNatarsAsync(options, troopType, troopCount, troopVariancePercent, raidAttack, log, null, cancellationToken);
     }
 
     public Task<AccountSnapshot> AnalyzeProfileAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
@@ -161,6 +182,11 @@ public sealed class DesktopBotService : IDesktopBotService
     public Task<int?> RefreshAdventureCountAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.RefreshAdventureCountAsync(options, log, null, cancellationToken);
+    }
+
+    public Task<HeroAttributeSnapshot> ReadHeroAttributesAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.ReadHeroAttributesAsync(options, log, null, cancellationToken);
     }
 
     public bool ConsumeBrowserClosedByUserSignal()

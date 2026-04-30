@@ -48,23 +48,34 @@ public sealed class JsonQueueStore : IQueueStore
         lock (_sync)
         {
             var items = LoadMutable();
-            var now = DateTimeOffset.UtcNow;
-            var item = new QueueItem
-            {
-                Id = Guid.NewGuid(),
-                TaskName = taskName.Trim(),
-                Payload = payload is null
-                    ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                    : new Dictionary<string, string>(payload, StringComparer.OrdinalIgnoreCase),
-                Priority = priority,
-                Status = QueueStatus.Pending,
-                Retries = 0,
-                MaxRetries = maxRetries,
-                NextAttemptAt = now,
-                CreatedAt = now,
-                UpdatedAt = now,
-            };
+            var item = CreateQueueItem(taskName, null, payload, priority, maxRetries, isRuntimeOnly: false);
+            items.Add(item);
+            SaveMutable(items);
+            return Clone(item);
+        }
+    }
 
+    public QueueItem AddRuntime(string taskName, string displayName, Dictionary<string, string>? payload, int priority, int maxRetries)
+    {
+        if (string.IsNullOrWhiteSpace(taskName))
+        {
+            throw new InvalidOperationException("Runtime task name is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            throw new InvalidOperationException("Runtime display name is required.");
+        }
+
+        if (maxRetries < 0)
+        {
+            throw new InvalidOperationException("Max retries must be >= 0.");
+        }
+
+        lock (_sync)
+        {
+            var items = LoadMutable();
+            var item = CreateQueueItem(taskName, displayName.Trim(), payload, priority, maxRetries, isRuntimeOnly: true);
             items.Add(item);
             SaveMutable(items);
             return Clone(item);
@@ -239,6 +250,21 @@ public sealed class JsonQueueStore : IQueueStore
         });
     }
 
+    public bool MarkCanceled(Guid id)
+    {
+        return Update(id, item =>
+        {
+            if (item.Status != QueueStatus.Running)
+            {
+                return false;
+            }
+
+            item.Status = QueueStatus.Canceled;
+            item.UpdatedAt = DateTimeOffset.UtcNow;
+            return true;
+        });
+    }
+
     public bool MarkDeferred(Guid id, TimeSpan delay)
     {
         return Update(id, item =>
@@ -263,6 +289,15 @@ public sealed class JsonQueueStore : IQueueStore
             if (item.Status != QueueStatus.Running)
             {
                 return false;
+            }
+
+            if (item.IsRuntimeOnly)
+            {
+                item.Retries += 1;
+                item.Status = QueueStatus.Failed;
+                item.NextAttemptAt = DateTimeOffset.UtcNow;
+                item.UpdatedAt = DateTimeOffset.UtcNow;
+                return true;
             }
 
             item.Retries += 1;
@@ -382,14 +417,44 @@ public sealed class JsonQueueStore : IQueueStore
         {
             Id = source.Id,
             TaskName = source.TaskName,
+            DisplayName = source.DisplayName,
             Payload = new Dictionary<string, string>(source.Payload, StringComparer.OrdinalIgnoreCase),
             Priority = source.Priority,
             Status = source.Status,
             Retries = source.Retries,
             MaxRetries = source.MaxRetries,
+            IsRuntimeOnly = source.IsRuntimeOnly,
             NextAttemptAt = source.NextAttemptAt,
             CreatedAt = source.CreatedAt,
             UpdatedAt = source.UpdatedAt,
+        };
+    }
+
+    private static QueueItem CreateQueueItem(
+        string taskName,
+        string? displayName,
+        Dictionary<string, string>? payload,
+        int priority,
+        int maxRetries,
+        bool isRuntimeOnly)
+    {
+        var now = DateTimeOffset.UtcNow;
+        return new QueueItem
+        {
+            Id = Guid.NewGuid(),
+            TaskName = taskName.Trim(),
+            DisplayName = string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim(),
+            Payload = payload is null
+                ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(payload, StringComparer.OrdinalIgnoreCase),
+            Priority = priority,
+            Status = QueueStatus.Pending,
+            Retries = 0,
+            MaxRetries = maxRetries,
+            IsRuntimeOnly = isRuntimeOnly,
+            NextAttemptAt = now,
+            CreatedAt = now,
+            UpdatedAt = now,
         };
     }
 

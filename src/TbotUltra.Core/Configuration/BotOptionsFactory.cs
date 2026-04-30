@@ -17,6 +17,9 @@ public static class BotOptionsFactory
             Headless = configuration.GetValue("headless", false),
             TimeoutMs = configuration.GetValue("timeout_ms", 15000),
             ManualLoginTimeoutSeconds = configuration.GetValue("manual_login_timeout_seconds", 180),
+            CaptchaAutoSolveEnabled = configuration.GetValue(BotOptionPayloadKeys.CaptchaAutoSolveEnabled, false),
+            CaptchaSolverTimeoutSeconds = configuration.GetValue(BotOptionPayloadKeys.CaptchaSolverTimeoutSeconds, 20),
+            CaptchaSolverMaxAttempts = configuration.GetValue(BotOptionPayloadKeys.CaptchaSolverMaxAttempts, 1),
             LoopIntervalSeconds = configuration.GetValue("loop_interval_seconds", 60),
             LoopTasks = tasks,
             GithubReleasesUrl = configuration["github_releases_url"] ?? string.Empty,
@@ -43,13 +46,15 @@ public static class BotOptionsFactory
             HeroAutoRevive = configuration.GetValue(BotOptionPayloadKeys.HeroAutoRevive, true),
             HeroStatPriority = configuration[BotOptionPayloadKeys.HeroStatPriority] ?? "offense,resource,regeneration",
             UpgradeSelectorProfile = configuration[BotOptionPayloadKeys.UpgradeSelectorProfile] ?? "auto",
+            NatarVillageSelection = configuration["natar_village_selection"] ?? "farm_villages",
         };
     }
 
     public static BotOptions CloneWithOverrides(
         BotOptions source,
         bool? headlessOverride = null,
-        int? resourceUpgradeTargetLevelOverride = null)
+        int? resourceUpgradeTargetLevelOverride = null,
+        string? natarVillageSelectionOverride = null)
     {
         return new BotOptions
         {
@@ -60,6 +65,9 @@ public static class BotOptionsFactory
             Headless = headlessOverride ?? source.Headless,
             TimeoutMs = source.TimeoutMs,
             ManualLoginTimeoutSeconds = source.ManualLoginTimeoutSeconds,
+            CaptchaAutoSolveEnabled = source.CaptchaAutoSolveEnabled,
+            CaptchaSolverTimeoutSeconds = source.CaptchaSolverTimeoutSeconds,
+            CaptchaSolverMaxAttempts = source.CaptchaSolverMaxAttempts,
             LoopIntervalSeconds = source.LoopIntervalSeconds,
             LoopTasks = source.LoopTasks,
             GithubReleasesUrl = source.GithubReleasesUrl,
@@ -86,6 +94,9 @@ public static class BotOptionsFactory
             HeroAutoRevive = source.HeroAutoRevive,
             HeroStatPriority = source.HeroStatPriority,
             UpgradeSelectorProfile = source.UpgradeSelectorProfile,
+            NatarVillageSelection = string.IsNullOrWhiteSpace(natarVillageSelectionOverride)
+                ? source.NatarVillageSelection
+                : natarVillageSelectionOverride,
         };
     }
 }

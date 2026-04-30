@@ -9,6 +9,7 @@ public sealed class PriorityFifoQueueScheduler : IQueueScheduler
         var now = DateTimeOffset.UtcNow;
         return Order(items)
             .FirstOrDefault(item =>
+                !item.IsRuntimeOnly &&
                 item.Status == QueueStatus.Pending &&
                 item.NextAttemptAt <= now);
     }

@@ -71,7 +71,7 @@ public sealed class VillageSelectionItem
 
     public string CapitalText => IsCapital ? "(Capital)" : string.Empty;
 
-    public string DisplayName => IsCapital ? $"{Name} (C)" : Name;
+    public string DisplayName => Name;
 
     public override string ToString() => DisplayName;
 }

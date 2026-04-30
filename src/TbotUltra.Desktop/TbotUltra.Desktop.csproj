@@ -11,11 +11,11 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <ApplicationIcon>Assets\IMAGE_APP.ico</ApplicationIcon>
+    <ApplicationIcon>..\..\assets\icons\icon_windows.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
-    <Resource Include="Assets\IMAGE_APP.ico" />
+    <Resource Include="..\..\assets\icons\icon_windows.ico" Link="Assets\icon_windows.ico" />
   </ItemGroup>
 
 </Project>

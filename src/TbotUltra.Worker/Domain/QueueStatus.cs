@@ -7,4 +7,5 @@ public enum QueueStatus
     Succeeded = 2,
     Failed = 3,
     Paused = 4,
+    Canceled = 5,
 }

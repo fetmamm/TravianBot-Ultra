@@ -8,7 +8,6 @@ public static class TaskCatalog
         "scan_all_villages",
         "account_snapshot",
         "upgrade_resource_to_level",
-        "upgrade_resource_to_max",
         "upgrade_all_resources_to_level",
         "upgrade_building_to_level",
         "upgrade_building_to_max",

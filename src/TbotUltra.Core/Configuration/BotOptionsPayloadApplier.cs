@@ -6,6 +6,9 @@ public static class BotOptionsPayloadApplier
     {
         var targetVillageName = source.TargetVillageName;
         var targetVillageUrl = source.TargetVillageUrl;
+        var captchaAutoSolveEnabled = source.CaptchaAutoSolveEnabled;
+        var captchaSolverTimeoutSeconds = source.CaptchaSolverTimeoutSeconds;
+        var captchaSolverMaxAttempts = source.CaptchaSolverMaxAttempts;
         var resourceUpgradeSlotId = source.ResourceUpgradeSlotId;
         var resourceUpgradeTargetLevel = source.ResourceUpgradeTargetLevel;
         var resourceUpgradeMaxAttempts = source.ResourceUpgradeMaxAttempts;
@@ -21,6 +24,7 @@ public static class BotOptionsPayloadApplier
         var heroAutoRevive = source.HeroAutoRevive;
         var heroStatPriority = source.HeroStatPriority;
         var upgradeSelectorProfile = source.UpgradeSelectorProfile;
+        var natarVillageSelection = source.NatarVillageSelection;
 
         if (payload is not null)
         {
@@ -42,6 +46,24 @@ public static class BotOptionsPayloadApplier
                 if (key.Equals(BotOptionPayloadKeys.TargetVillageUrl, StringComparison.OrdinalIgnoreCase))
                 {
                     targetVillageUrl = value;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.CaptchaAutoSolveEnabled, StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var autoSolve))
+                {
+                    captchaAutoSolveEnabled = autoSolve;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.CaptchaSolverTimeoutSeconds, StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out var timeoutSeconds))
+                {
+                    captchaSolverTimeoutSeconds = timeoutSeconds;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.CaptchaSolverMaxAttempts, StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out var maxAttempts))
+                {
+                    captchaSolverMaxAttempts = maxAttempts;
                     continue;
                 }
 
@@ -145,6 +167,9 @@ public static class BotOptionsPayloadApplier
             Headless = source.Headless,
             TimeoutMs = source.TimeoutMs,
             ManualLoginTimeoutSeconds = source.ManualLoginTimeoutSeconds,
+            CaptchaAutoSolveEnabled = captchaAutoSolveEnabled,
+            CaptchaSolverTimeoutSeconds = captchaSolverTimeoutSeconds,
+            CaptchaSolverMaxAttempts = captchaSolverMaxAttempts,
             LoopIntervalSeconds = source.LoopIntervalSeconds,
             LoopTasks = source.LoopTasks,
             GithubReleasesUrl = source.GithubReleasesUrl,
@@ -171,6 +196,7 @@ public static class BotOptionsPayloadApplier
             HeroAutoRevive = heroAutoRevive,
             HeroStatPriority = heroStatPriority,
             UpgradeSelectorProfile = upgradeSelectorProfile,
+            NatarVillageSelection = natarVillageSelection,
         };
     }
 }

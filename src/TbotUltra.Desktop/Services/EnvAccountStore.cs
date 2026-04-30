@@ -20,9 +20,18 @@ public sealed class EnvAccountStore
     public string ActiveAccountName()
     {
         var values = ReadValues();
-        return values.TryGetValue("TBOT_ACTIVE_ACCOUNT", out var active) && !string.IsNullOrWhiteSpace(active)
-            ? active
-            : "main";
+        var names = ParseAccountNames(values);
+        var configuredActive = values.TryGetValue("TBOT_ACTIVE_ACCOUNT", out var active) && !string.IsNullOrWhiteSpace(active)
+            ? active.Trim()
+            : string.Empty;
+
+        if (!string.IsNullOrWhiteSpace(configuredActive)
+            && names.Contains(configuredActive, StringComparer.OrdinalIgnoreCase))
+        {
+            return configuredActive;
+        }
+
+        return names.Count > 0 ? names[0] : string.Empty;
     }
 
     public List<AccountEntry> ListAccounts()
@@ -42,7 +51,7 @@ public sealed class EnvAccountStore
                 ServerName = values.GetValueOrDefault($"{prefix}SERVER_NAME", string.Empty),
                 ServerUrl = values.GetValueOrDefault($"{prefix}SERVER_URL", string.Empty),
                 IsActive = string.Equals(name, active, StringComparison.OrdinalIgnoreCase),
-                IsAnalyzed = _analysisStore.IsAnalyzed(name),
+                IsAnalyzed = _analysisStore.IsAnalyzed(name, values.GetValueOrDefault($"{prefix}SERVER_URL", string.Empty)),
             };
         }).ToList();
     }
@@ -94,7 +103,7 @@ public sealed class EnvAccountStore
 
             if (string.Equals(values.GetValueOrDefault("TBOT_ACTIVE_ACCOUNT", string.Empty), normalized, StringComparison.OrdinalIgnoreCase))
             {
-                values["TBOT_ACTIVE_ACCOUNT"] = names.Count > 0 ? names[0] : "main";
+                values["TBOT_ACTIVE_ACCOUNT"] = names.Count > 0 ? names[0] : string.Empty;
             }
 
             WriteValues(values);
@@ -118,6 +127,12 @@ public sealed class EnvAccountStore
         WriteValues(values);
     }
 
+    public void ClearAnalysis(string accountName, string? serverUrl)
+    {
+        var normalized = NormalizeName(accountName);
+        _analysisStore.Delete(normalized, serverUrl);
+    }
+
     private Dictionary<string, string> ReadValues()
     {
         return EnvFileParser.ReadValues(_envPath);
@@ -126,8 +141,8 @@ public sealed class EnvAccountStore
     private void WriteValues(Dictionary<string, string> values)
     {
         var names = ParseAccountNames(values);
-        var active = values.GetValueOrDefault("TBOT_ACTIVE_ACCOUNT", names.Count > 0 ? names[0] : "main")
-            ?? (names.Count > 0 ? names[0] : "main");
+        var active = values.GetValueOrDefault("TBOT_ACTIVE_ACCOUNT", names.Count > 0 ? names[0] : string.Empty)
+            ?? (names.Count > 0 ? names[0] : string.Empty);
 
         var lines = new List<string>
         {

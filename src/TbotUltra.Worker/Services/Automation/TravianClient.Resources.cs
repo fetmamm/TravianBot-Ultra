@@ -117,67 +117,6 @@ public sealed partial class TravianClient
         }
     }
 
-    public async Task<string> UpgradeResourceToMaxAsync(int slotId, int maxAttempts = 30, CancellationToken cancellationToken = default)
-    {
-        Notify("UpgradeResourceToMaxAsync started");
-        if (slotId < 1 || slotId > 18)
-        {
-            throw new InvalidOperationException($"Resource slot {slotId} is outside the resource field range.");
-        }
-
-        var upgrades = 0;
-        for (var attempt = 0; attempt < Math.Max(1, maxAttempts); attempt++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var snapshot = await ReadResourceProgressSnapshotAsync(cancellationToken);
-            var field = snapshot.ResourceFields.FirstOrDefault(item => item.SlotId == slotId);
-            var currentLevel = field?.Level;
-            if (currentLevel is null)
-            {
-                throw new InvalidOperationException($"Could not read level for resource slot {slotId}.");
-            }
-
-            var queueFingerprintBefore = BuildQueueFingerprint(snapshot.BuildQueue);
-            var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: false);
-            var detectedMax = actionability.DetectedMaxLevel;
-            Notify($"Resource max loop slot {slotId}: level={currentLevel}, detectedMax={detectedMax}, outcome={actionability.Outcome}.");
-
-            if ((detectedMax is int maxLevel && currentLevel >= maxLevel) || actionability.Outcome == UpgradeAttemptOutcome.BlockedByMaxLevel)
-            {
-                var resolvedMax = detectedMax ?? currentLevel.Value;
-                return $"Resource slot {slotId} reached max level {resolvedMax}. Upgrades made: {upgrades}.";
-            }
-
-            if (actionability.Outcome != UpgradeAttemptOutcome.CanUpgrade)
-            {
-                return $"Resource slot {slotId} blocked ({actionability.Outcome}): {actionability.Reason}. Upgrades made: {upgrades}.";
-            }
-
-            var expectedWaitSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken);
-            await ClickDetectedUpgradeCandidateAsync(slotId, actionability.CandidateIndex, cancellationToken);
-            await NavigateToResourceFieldsAfterUpgradeClickAsync(cancellationToken);
-            upgrades += 1;
-            var progress = await WaitForResourceLevelAdvanceAsync(
-                slotId,
-                currentLevel.Value,
-                queueFingerprintBefore,
-                expectedWaitSeconds,
-                cancellationToken);
-            if (!progress.Advanced)
-            {
-                if (progress.QueuedOrInProgress)
-                {
-                    return $"Upgrade triggered for resource slot {slotId}, no immediate level increase, but queue/in-progress evidence was detected ({progress.Evidence}). Upgrades made: {upgrades}.";
-                }
-
-                return $"Upgrade triggered for resource slot {slotId}, but no immediate level increase and no queue/in-progress evidence detected. Upgrades made: {upgrades}.";
-            }
-        }
-
-        return $"Resource slot {slotId} reached max attempt limit after {upgrades} upgrades.";
-    }
-
     public async Task<string> UpgradeAllResourcesToLevelAsync(int targetLevel, CancellationToken cancellationToken = default)
     {
         Notify($"Starting upgrade of all resources to level {targetLevel}.");
@@ -251,7 +190,7 @@ public sealed partial class TravianClient
                         await NavigateToResourceFieldsAfterUpgradeClickAsync(cancellationToken);
                         upgrades += 1;
 
-                        var upgradeWaitSeconds = ComputeUpgradeWaitSeconds(rawUpgradeSeconds);
+                        var upgradeWaitSeconds = ComputeResourceUpgradeWaitSeconds(rawUpgradeSeconds);
                         Notify($"Resource slot {slot} upgrade duration: {FormatDuration(rawUpgradeSeconds ?? 0)}. Waiting {upgradeWaitSeconds}s. queue_wait_seconds={upgradeWaitSeconds}");
                         await Task.Delay(TimeSpan.FromSeconds(upgradeWaitSeconds), cancellationToken);
                         transientRetries = 0;
@@ -768,7 +707,7 @@ public sealed partial class TravianClient
         CancellationToken cancellationToken)
     {
         var rawSeconds = expectedWaitSeconds ?? 0;
-        var waitSeconds = ComputeUpgradeWaitSeconds(expectedWaitSeconds);
+        var waitSeconds = ComputeResourceUpgradeWaitSeconds(expectedWaitSeconds);
         Notify($"Resource slot {slotId} upgrade duration: {FormatDuration(rawSeconds)}. Waiting {waitSeconds}s. queue_wait_seconds={waitSeconds}");
         await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
 
@@ -802,6 +741,17 @@ public sealed partial class TravianClient
         var fields = await ReadResourceFieldsAsync(cancellationToken);
         var queue = await ReadBuildQueueAsync(cancellationToken);
         return new ResourceProgressSnapshot(fields, queue);
+    }
+
+    private static int ComputeResourceUpgradeWaitSeconds(int? detectedSeconds)
+    {
+        var seconds = Math.Max(0, detectedSeconds ?? 0);
+        if (seconds == 0)
+        {
+            return 0;
+        }
+
+        return Math.Min(seconds + 1, 12 * 60 * 60);
     }
 
     private sealed record ResourceProgressSnapshot(

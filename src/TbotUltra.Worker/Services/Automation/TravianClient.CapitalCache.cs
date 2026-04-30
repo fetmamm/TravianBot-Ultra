@@ -17,6 +17,7 @@ public sealed partial class TravianClient
 
     private async Task<bool?> ReadIsCapitalAsync(string villageName, CancellationToken cancellationToken)
     {
+        Notify("[ReadIsCapitalAsync] started for village.");
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading capital state.", cancellationToken);
         var previousUrl = _page.Url;
         try
@@ -64,9 +65,11 @@ public sealed partial class TravianClient
 
     private async Task RefreshCapitalStateForActiveVillageAsync(CancellationToken cancellationToken)
     {
+        Notify("[RefreshCapitalStateForActiveVillageAsync] started");
         var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
         if (string.IsNullOrWhiteSpace(activeVillage))
         {
+            Notify("[RefreshCapitalStateForActiveVillageAsync] could not determine active village name, skipping capital state refresh.");
             return;
         }
 
@@ -95,12 +98,15 @@ public sealed partial class TravianClient
 
     private async Task<string?> TryReadActiveVillageNameSafeAsync(CancellationToken cancellationToken)
     {
+        Notify("[TryReadActiveVillageNameSafeAsync] started");
         try
         {
+            Notify("[TryReadActiveVillageNameSafeAsync] attempting to read active village name from page...");
             return await ReadActiveVillageNameAsync(cancellationToken);
         }
         catch
-        {
+        {  
+            Notify("[TryReadActiveVillageNameSafeAsync] failed to read active village name from page.");
             return null;
         }
     }

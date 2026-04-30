@@ -1,0 +1,151 @@
+<Window x:Class="TbotUltra.Desktop.ManualFarmingWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Manual Farming"
+        Height="390"
+        Width="460"
+        MinHeight="360"
+        MinWidth="420"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   Text="Choose troop setup"
+                   FontSize="18"
+                   FontWeight="SemiBold"
+                   Foreground="#111827"
+                   Margin="0,0,0,10" />
+
+        <Border Grid.Row="1"
+                BorderBrush="#D1D5DB"
+                BorderThickness="1"
+                CornerRadius="8"
+                Background="#FFFFFF"
+                Padding="12">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Row="0"
+                           Grid.Column="0"
+                           Text="Troop"
+                           VerticalAlignment="Center"
+                           Margin="0,0,10,0" />
+                <Grid Grid.Row="0" Grid.Column="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="100" />
+                    </Grid.ColumnDefinitions>
+                    <ComboBox x:Name="TroopTypeComboBox"
+                              Grid.Column="0"
+                              SelectionChanged="TroopTypeComboBox_SelectionChanged" />
+                    <TextBox x:Name="TroopCountTextBox"
+                             Grid.Column="2"
+                             Text="1"
+                             TextChanged="TroopCountTextBox_TextChanged" />
+                </Grid>
+
+                <TextBlock Grid.Row="1"
+                           Grid.Column="0"
+                           Text="Variation"
+                           VerticalAlignment="Center"
+                           Margin="0,14,10,0" />
+                <ComboBox x:Name="VarianceComboBox"
+                          Grid.Row="1"
+                          Grid.Column="1"
+                          Width="110"
+                          Margin="0,14,0,0"
+                          HorizontalAlignment="Left"
+                          SelectionChanged="VarianceComboBox_SelectionChanged" />
+
+                <TextBlock Grid.Row="2"
+                           Grid.Column="0"
+                           Text="Type"
+                           VerticalAlignment="Top"
+                           Margin="0,14,10,0" />
+                <StackPanel Grid.Row="2"
+                            Grid.Column="1"
+                            Orientation="Horizontal"
+                            Margin="0,14,0,0">
+                    <RadioButton x:Name="NormalAttackRadioButton"
+                                 Content="Normal attack"
+                                 Margin="0,0,14,0"
+                                 Checked="AttackTypeRadioButton_Checked" />
+                    <RadioButton x:Name="RaidRadioButton"
+                                 Content="Raid"
+                                 Checked="AttackTypeRadioButton_Checked" />
+                </StackPanel>
+
+                <TextBlock Grid.Row="3"
+                           Grid.Column="0"
+                           Text="Targets"
+                           VerticalAlignment="Top"
+                           Margin="0,14,10,0" />
+                <StackPanel Grid.Row="3"
+                            Grid.Column="1"
+                            Orientation="Horizontal"
+                            Margin="0,14,0,0">
+                    <RadioButton x:Name="FarmVillagesRadioButton"
+                                 Content="Farm villages"
+                                 Margin="0,0,14,0"
+                                 Checked="TargetSelectionRadioButton_Checked" />
+                    <RadioButton x:Name="AllVillagesRadioButton"
+                                 Content="All villages"
+                                 Checked="TargetSelectionRadioButton_Checked" />
+                    <Border Width="18"
+                            Height="18"
+                            Margin="10,0,0,0"
+                            CornerRadius="9"
+                            Background="#DBEAFE"
+                            BorderBrush="#93C5FD"
+                            BorderThickness="1"
+                            ToolTip="Farm villages: only villages named 'Natar farm village'. All villages: every village with coordinates found in the Natars profile list.">
+                        <TextBlock Text="i"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Foreground="#1D4ED8"
+                                   FontWeight="SemiBold"
+                                   FontSize="11" />
+                    </Border>
+                </StackPanel>
+
+                <TextBlock x:Name="InfoTextBlock"
+                           Grid.Row="4"
+                           Grid.Column="0"
+                           Grid.ColumnSpan="2"
+                           Margin="0,16,0,0"
+                           Foreground="#374151"
+                           Text="Select troop type and amount." />
+            </Grid>
+        </Border>
+
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,12,0,0">
+            <Button x:Name="StartButton"
+                    Width="100"
+                    Margin="0,0,8,0"
+                    Content="Start"
+                    Click="StartButton_Click" />
+            <Button Width="100"
+                    Content="Cancel"
+                    Click="CancelButton_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

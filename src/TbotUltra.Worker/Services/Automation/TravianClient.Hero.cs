@@ -11,12 +11,7 @@ public sealed partial class TravianClient
     {
         Notify("SendHeroOnAdventureAsync started");
 
-        if (!IsCurrentUrlForPath(Paths.Resources))
-        {
-            await GotoAsync(Paths.Resources, cancellationToken);
-        }
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening dorf1 for hero check.", cancellationToken);
-        await EnsureLoggedInAsync();
+        await EnsureFreshDorf1ForHeroAsync(cancellationToken);
 
         var sidebar = await ReadHeroSidebarStatusAsync(cancellationToken);
         var statusText = sidebar.StatusText;
@@ -145,7 +140,7 @@ public sealed partial class TravianClient
     public async Task<int?> RefreshAdventureCountAsync(CancellationToken cancellationToken = default)
     {
         Notify("RefreshAdventureCountAsync started");
-        await EnsureLoggedInAsync();
+        await EnsureFreshDorf1ForHeroAsync(cancellationToken);
         var sidebar = await ReadHeroSidebarStatusAsync(cancellationToken);
         if (!sidebar.AdventureFound)
         {
@@ -155,6 +150,20 @@ public sealed partial class TravianClient
 
         Notify($"Adventures on current page: {sidebar.AdventureCount}.");
         return sidebar.AdventureCount;
+    }
+
+    private async Task EnsureFreshDorf1ForHeroAsync(CancellationToken cancellationToken)
+    {
+        if (!IsCurrentUrlForPath(Paths.Resources))
+        {
+            await GotoAsync(Paths.Resources, cancellationToken);
+        }
+
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening dorf1 for hero check.", cancellationToken);
+        await EnsureLoggedInAsync();
+        await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+        await WaitForNavigationSettledAsync(cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while refreshing dorf1 for hero check.", cancellationToken);
     }
 
     private async Task<HeroSidebarStatusJs> ReadHeroSidebarStatusAsync(CancellationToken cancellationToken)
@@ -474,6 +483,9 @@ public sealed partial class TravianClient
             return "Hero page is unavailable for this account.";
         }
 
+        var heroLeveledUp = await HasHeroLevelUpIndicatorAsync(cancellationToken);
+        Notify(heroLeveledUp ? "Hero level up detected." : "Hero level up not detected.");
+
         var actions = new List<string>();
         if (status.IsDead && autoRevive)
         {
@@ -482,9 +494,9 @@ public sealed partial class TravianClient
             status = await ReadHeroStatusAsync(cancellationToken);
         }
 
-        if (status.UnassignedPoints > 0)
+        if (heroLeveledUp || status.UnassignedPoints > 0)
         {
-            var allocated = await TryAllocateHeroPointsAsync(status.UnassignedPoints, statPriority, cancellationToken);
+            var allocated = await TryAllocateHeroPointsAsync(statPriority, cancellationToken);
             if (allocated > 0)
             {
                 actions.Add($"points_allocated={allocated}");
@@ -498,6 +510,8 @@ public sealed partial class TravianClient
             actions.Add(sent ? "adventure_sent" : "adventure_not_clickable");
         }
 
+        await GotoAsync(Paths.Hero, cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while returning to hero page.", cancellationToken);
         status = await ReadHeroStatusAsync(cancellationToken);
         var summary = $"Hero status: dead={status.IsDead}, hp={status.HpPercent?.ToString() ?? "?"}%, adventures={status.AdventuresAvailable}, points={status.UnassignedPoints}";
         if (actions.Count == 0)
@@ -506,6 +520,16 @@ public sealed partial class TravianClient
         }
 
         return $"{summary}. Actions: {string.Join(", ", actions)}.";
+    }
+
+    public async Task<HeroAttributeSnapshot> ReadHeroAttributeSnapshotAsync(CancellationToken cancellationToken = default)
+    {
+        Notify("ReadHeroAttributeSnapshotAsync started");
+        await EnsureHeroInventoryAttributesTabAsync(cancellationToken);
+        var snapshot = await ReadHeroInventorySnapshotAsync(cancellationToken);
+        Notify(
+            $"Hero inventory snapshot: free points={snapshot.FreePoints}, fighting strength={snapshot.FightingStrength}, offence bonus={snapshot.OffenceBonus}, defence bonus={snapshot.DefenceBonus}, resources={snapshot.Resources}.");
+        return snapshot;
     }
 
     private async Task<HeroStatus> ReadHeroStatusAsync(CancellationToken cancellationToken)
@@ -619,51 +643,70 @@ public sealed partial class TravianClient
             """);
     }
 
-    private async Task<int> TryAllocateHeroPointsAsync(int points, string priority, CancellationToken cancellationToken)
+    private async Task<bool> HasHeroLevelUpIndicatorAsync(CancellationToken cancellationToken)
     {
-        if (points <= 0)
+        cancellationToken.ThrowIfCancellationRequested();
+        try
+        {
+            return await _page.EvaluateAsync<bool>(
+                """
+                () => !!document.querySelector('.bigSpeechBubble.levelUp')
+                """);
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            return false;
+        }
+    }
+
+    private async Task<int> TryAllocateHeroPointsAsync(string priority, CancellationToken cancellationToken)
+    {
+        await EnsureHeroInventoryAttributesTabAsync(cancellationToken);
+        var snapshot = await ReadHeroInventorySnapshotAsync(cancellationToken);
+        Notify($"Hero free points found: {snapshot.FreePoints}.");
+        if (snapshot.FreePoints <= 0)
         {
             return 0;
         }
-
-        await GotoAsync(Paths.Hero, cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while assigning hero points.", cancellationToken);
 
         var priorities = ParseHeroStatPriority(priority);
         var allocated = 0;
         foreach (var stat in priorities)
         {
-            if (allocated >= points)
+            if (allocated >= snapshot.FreePoints)
             {
                 break;
             }
 
-            var changed = await _page.EvaluateAsync<bool>(
-                """
-                (name) => {
-                  const matches = Array.from(document.querySelectorAll('input[type="number"], input[type="text"]'))
-                    .filter(node => {
-                      const id = (node.id || '').toLowerCase();
-                      const field = (node.getAttribute('name') || '').toLowerCase();
-                      const label = ((node.closest('tr, .row, .attribute, .skill')?.textContent) || '').toLowerCase();
-                      return id.includes(name) || field.includes(name) || label.includes(name);
-                    });
-
-                  if (!matches.length) return false;
-                  const target = matches[0];
-                  const current = Number(target.value || '0');
-                  if (!Number.isFinite(current)) return false;
-                  target.value = String(current + 1);
-                  target.dispatchEvent(new Event('input', { bubbles: true }));
-                  target.dispatchEvent(new Event('change', { bubbles: true }));
-                  return true;
-                }
-                """,
-                stat);
-
-            if (changed)
+            Notify($"Hero attribute prioritized: {GetHeroAttributeDisplayName(stat)}.");
+            while (allocated < snapshot.FreePoints)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+                var currentValue = GetHeroAttributeValue(snapshot, stat);
+                if (currentValue >= 100)
+                {
+                    Notify($"Hero attribute maxed: {GetHeroAttributeDisplayName(stat)}.");
+                    break;
+                }
+
+                var clicked = await ClickHeroAttributePlusAsync(stat, cancellationToken);
+                if (!clicked)
+                {
+                    Notify($"Hero attribute maxed: {GetHeroAttributeDisplayName(stat)}.");
+                    break;
+                }
+
                 allocated += 1;
+                snapshot = snapshot with
+                {
+                    FreePoints = Math.Max(0, snapshot.FreePoints - 1),
+                };
+                snapshot = SetHeroAttributeValue(snapshot, stat, currentValue + 1);
+                if (GetHeroAttributeValue(snapshot, stat) >= 100)
+                {
+                    Notify($"Hero attribute maxed: {GetHeroAttributeDisplayName(stat)}.");
+                    break;
+                }
             }
         }
 
@@ -672,56 +715,257 @@ public sealed partial class TravianClient
             return 0;
         }
 
-        var saved = await _page.EvaluateAsync<bool>(
-            """
-            () => {
-              const buttons = Array.from(document.querySelectorAll('button, input[type="submit"]'));
-              const save = buttons.find(node => {
-                const text = ((node.textContent || '') + ' ' + (node.getAttribute('value') || '')).toLowerCase();
-                const cls = (node.className || '').toLowerCase();
-                const isSave = text.includes('save') || text.includes('apply') || text.includes('ok');
-                const disabled = node.hasAttribute('disabled') || cls.includes('disabled');
-                return isSave && !disabled;
-              });
-              if (!save) return false;
-              save.click();
-              return true;
-            }
-            """);
+        var saved = await ClickHeroSaveChangesAsync(cancellationToken);
+        if (saved)
+        {
+            Notify("Hero points saved.");
+        }
 
         return saved ? allocated : 0;
     }
 
     internal static IReadOnlyList<string> ParseHeroStatPriority(string value)
     {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return ["offense", "resource", "regeneration"];
-        }
-
         var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            ["offense"] = "off",
-            ["off"] = "off",
-            ["attack"] = "off",
-            ["resource"] = "resource",
-            ["production"] = "resource",
-            ["regen"] = "regen",
-            ["regeneration"] = "regen",
-            ["health"] = "health",
-            ["defense"] = "def",
-            ["def"] = "def",
+            ["fighting_strength"] = "fighting_strength",
+            ["fighting strength"] = "fighting_strength",
+            ["fight"] = "fighting_strength",
+            ["strength"] = "fighting_strength",
+            ["offence_bonus"] = "offence_bonus",
+            ["offence bonus"] = "offence_bonus",
+            ["offense_bonus"] = "offence_bonus",
+            ["offense bonus"] = "offence_bonus",
+            ["offence"] = "offence_bonus",
+            ["offense"] = "offence_bonus",
+            ["off"] = "offence_bonus",
+            ["attack"] = "offence_bonus",
+            ["defence_bonus"] = "defence_bonus",
+            ["defence bonus"] = "defence_bonus",
+            ["defense_bonus"] = "defence_bonus",
+            ["defense bonus"] = "defence_bonus",
+            ["defence"] = "defence_bonus",
+            ["defense"] = "defence_bonus",
+            ["def"] = "defence_bonus",
+            ["resources"] = "resources",
+            ["resource"] = "resources",
+            ["production"] = "resources",
         };
 
-        var parsed = value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(item => map.GetValueOrDefault(item, item.ToLowerInvariant()))
+        var parsed = (value ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(item => map.GetValueOrDefault(item, string.Empty))
+            .Where(item => !string.IsNullOrWhiteSpace(item))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        return parsed.Count == 0
-            ? ["offense", "resource", "regeneration"]
-            : parsed;
+        foreach (var fallback in new[] { "fighting_strength", "offence_bonus", "defence_bonus", "resources" })
+        {
+            if (!parsed.Contains(fallback, StringComparer.OrdinalIgnoreCase))
+            {
+                parsed.Add(fallback);
+            }
+        }
+
+        return parsed;
     }
+
+    private async Task EnsureHeroInventoryAttributesTabAsync(CancellationToken cancellationToken)
+    {
+        await GotoAsync(Paths.HeroInventory, cancellationToken);
+        await WaitForNavigationSettledAsync(cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening hero inventory.", cancellationToken);
+        await EnsureLoggedInAsync();
+
+        if (!IsCurrentUrlForPath(Paths.HeroInventory))
+        {
+            await GotoAsync(Paths.HeroInventory, cancellationToken);
+            await WaitForNavigationSettledAsync(cancellationToken);
+            await PauseForManualStepIfVisibleAsync("Manual verification appeared after re-opening hero inventory.", cancellationToken);
+        }
+
+        var onAttributesTab = await _page.EvaluateAsync<bool>(
+            """
+            () => {
+              const url = window.location.href.toLowerCase();
+              if (url.includes('hero_inventory.php') && !url.includes('action=')) return true;
+              const active = document.querySelector('a.tabItem.active, a.active.tabItem');
+              if (active && /attribute/i.test(active.textContent || '')) return true;
+              return !!document.querySelector('a.setPoint, td.pointsValueSetter.add');
+            }
+            """);
+
+        if (onAttributesTab)
+        {
+            return;
+        }
+
+        var clicked = await _page.EvaluateAsync<bool>(
+            """
+            () => {
+              const link = Array.from(document.querySelectorAll('a.tabItem, a.tab, a'))
+                .find(a => /attribute/i.test(a.textContent || '') && /hero_inventory\.php/i.test(a.getAttribute('href') || ''));
+              if (!link) return false;
+              link.click();
+              return true;
+            }
+            """);
+
+        if (clicked)
+        {
+            await WaitForNavigationSettledAsync(cancellationToken);
+            await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening hero attributes tab.", cancellationToken);
+        }
+    }
+
+    private async Task<HeroAttributeSnapshot> ReadHeroInventorySnapshotAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var rawJson = await _page.EvaluateAsync<string>(
+            """
+            () => {
+              const clean = (value) => (value || '').replace(/\s+/g, ' ').trim();
+              const parseFirstNumber = (value) => {
+                const match = clean(value).match(/(\d[\d\s.,']*)/);
+                if (!match) return 0;
+                const digits = match[1].replace(/[^\d]/g, '');
+                if (!digits) return 0;
+                const parsed = Number(digits);
+                return Number.isFinite(parsed) ? parsed : 0;
+              };
+
+              const findRow = (names) => {
+                const allRows = Array.from(document.querySelectorAll('tr, .attribute, .heroAttribute, .row'));
+                return allRows.find(row => {
+                  const text = clean(row.textContent || '').toLowerCase();
+                  return names.some(name => text.includes(name));
+                }) || null;
+              };
+
+              const parseAttributeValue = (row) => {
+                if (!row) return 0;
+                const candidates = Array.from(row.querySelectorAll('td, div, span, strong'));
+                const values = candidates
+                  .map(node => parseFirstNumber(node.textContent || ''))
+                  .filter(value => Number.isFinite(value) && value >= 0 && value <= 100);
+                if (values.length > 0) return Math.max(...values);
+
+                const textValues = clean(row.textContent || '').match(/\d+/g) || [];
+                const parsedValues = textValues
+                  .map(value => Number(value))
+                  .filter(value => Number.isFinite(value) && value >= 0 && value <= 100);
+                return parsedValues.length > 0 ? Math.max(...parsedValues) : 0;
+              };
+
+              const bodyText = clean(document.body?.innerText || '');
+              const freePointsMatch = bodyText.match(/free points[^0-9]*(\d+)/i);
+              const freePoints = freePointsMatch ? Number(freePointsMatch[1]) || 0 : 0;
+
+              return JSON.stringify({
+                levelUpAvailable: !!document.querySelector('.bigSpeechBubble.levelUp'),
+                freePoints,
+                fightingStrength: parseAttributeValue(findRow(['fighting strength'])),
+                offenceBonus: parseAttributeValue(findRow(['offence bonus', 'offense bonus'])),
+                defenceBonus: parseAttributeValue(findRow(['defence bonus', 'defense bonus'])),
+                resources: parseAttributeValue(findRow(['resources']))
+              });
+            }
+            """);
+
+        if (string.IsNullOrWhiteSpace(rawJson))
+        {
+            return new HeroAttributeSnapshot();
+        }
+
+        return JsonSerializer.Deserialize<HeroAttributeSnapshot>(rawJson) ?? new HeroAttributeSnapshot();
+    }
+
+    private async Task<bool> ClickHeroAttributePlusAsync(string stat, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return await _page.EvaluateAsync<bool>(
+            """
+            (name) => {
+              const clean = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+              const labelsByName = {
+                fighting_strength: ['fighting strength'],
+                offence_bonus: ['offence bonus', 'offense bonus'],
+                defence_bonus: ['defence bonus', 'defense bonus'],
+                resources: ['resources']
+              };
+
+              const row = Array.from(document.querySelectorAll('tr, .attribute, .heroAttribute, .row'))
+                .find(item => {
+                  const text = clean(item.textContent || '');
+                  return (labelsByName[name] || []).some(label => text.includes(label));
+                });
+              if (!row) return false;
+
+              const button = row.querySelector('td.pointsValueSetter.add a.setPoint, a.setPoint');
+              if (!button) return false;
+              const cls = clean(button.className || '');
+              if (cls.includes('disabled')) return false;
+              button.click();
+              return true;
+            }
+            """,
+            stat);
+    }
+
+    private async Task<bool> ClickHeroSaveChangesAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var saved = await _page.EvaluateAsync<bool>(
+            """
+            () => {
+              const candidates = Array.from(document.querySelectorAll('button, input[type="submit"], a, .button-container'));
+              const target = candidates.find(node => {
+                const text = ((node.textContent || '') + ' ' + (node.getAttribute?.('value') || '')).toLowerCase();
+                const cls = (node.className || '').toString().toLowerCase();
+                const disabled = cls.includes('disabled') || !!node.getAttribute?.('disabled');
+                return text.includes('save changes') && !disabled;
+              });
+              if (!target) return false;
+              target.click();
+              return true;
+            }
+            """);
+
+        if (!saved)
+        {
+            return false;
+        }
+
+        await WaitForNavigationSettledAsync(cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared after saving hero points.", cancellationToken);
+        return true;
+    }
+
+    private static string GetHeroAttributeDisplayName(string stat) => stat switch
+    {
+        "fighting_strength" => "Fighting strength",
+        "offence_bonus" => "Offence bonus",
+        "defence_bonus" => "Defence bonus",
+        "resources" => "Resources",
+        _ => stat,
+    };
+
+    private static int GetHeroAttributeValue(HeroAttributeSnapshot snapshot, string stat) => stat switch
+    {
+        "fighting_strength" => snapshot.FightingStrength,
+        "offence_bonus" => snapshot.OffenceBonus,
+        "defence_bonus" => snapshot.DefenceBonus,
+        "resources" => snapshot.Resources,
+        _ => 0,
+    };
+
+    private static HeroAttributeSnapshot SetHeroAttributeValue(HeroAttributeSnapshot snapshot, string stat, int value) => stat switch
+    {
+        "fighting_strength" => snapshot with { FightingStrength = value },
+        "offence_bonus" => snapshot with { OffenceBonus = value },
+        "defence_bonus" => snapshot with { DefenceBonus = value },
+        "resources" => snapshot with { Resources = value },
+        _ => snapshot,
+    };
 
     private async Task<bool> TrySendHeroToAdventureAsync(CancellationToken cancellationToken)
     {

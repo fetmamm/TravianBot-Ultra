@@ -36,7 +36,7 @@ Else
         buildExitCode = shell.Run("""" & dotnetExe & """ build """ & projectPath & """ -c Debug -nologo -m:1 -p:NuGetAudit=false", 0, True)
         If buildExitCode <> 0 Then
             If fso.FileExists(exePath) Then
-                shell.Run """" & exePath & """", 0, False
+                shell.Run """" & exePath & """", 1, False
                 MsgBox "Build failed (exit code " & buildExitCode & "). Started latest existing app build instead.", vbExclamation, "Tbot Ultra"
             Else
                 MsgBox "Build failed. Exit code: " & buildExitCode, vbExclamation, "Tbot Ultra"
@@ -44,10 +44,10 @@ Else
         ElseIf Not fso.FileExists(exePath) Then
             MsgBox "Built exe not found: " & exePath, vbExclamation, "Tbot Ultra"
         Else
-            shell.Run """" & exePath & """", 0, False
+            shell.Run """" & exePath & """", 1, False
         End If
     Else
-        shell.Run """" & exePath & """", 0, False
+        shell.Run """" & exePath & """", 1, False
     End If
 End If
 

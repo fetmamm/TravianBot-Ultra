@@ -69,6 +69,14 @@ public sealed record HeroStatus(
     int? SecondsUntilReturn = null,
     int UnassignedPoints = 0);
 
+public sealed record HeroAttributeSnapshot(
+    bool LevelUpAvailable = false,
+    int FreePoints = 0,
+    int FightingStrength = 0,
+    int OffenceBonus = 0,
+    int DefenceBonus = 0,
+    int Resources = 0);
+
 public sealed record HeroAdventureDispatchResult(
     bool IsInHomeVillage,
     string? StatusText,
@@ -118,3 +126,22 @@ public sealed record FarmAddResult(
     int Y,
     string TroopType,
     int TroopCount);
+
+public sealed record FarmAddBatchResult(
+    string FarmListName,
+    int RequestedCount,
+    int AttemptedCount,
+    int AddedCount,
+    int AlreadyInListCount,
+    int FailedCount);
+
+public sealed record ManualFarmRunResult(
+    int TotalTargets,
+    int AttemptedCount,
+    int SentCount,
+    int SkippedCount,
+    int FailedCount,
+    bool StoppedByNoTroopsAlarm,
+    string TroopType,
+    int TroopCount,
+    string AttackMode);

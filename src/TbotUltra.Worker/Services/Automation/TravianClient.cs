@@ -1,5 +1,6 @@
 using Microsoft.Playwright;
 using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Travian;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Configuration;
 using System.Text.Json.Serialization;
@@ -11,6 +12,28 @@ namespace TbotUltra.Worker.Services;
 
 public sealed partial class TravianClient
 {
+    private const int MaxFarmsPerFarmList = 120;
+    private const double ManualFarmingMinimumTroopRatio = 0.5d;
+    private const int ManualFarmingMaxConsecutiveLowTroopSkips = 3;
+    private const int ManualFarmingNoTroopsRetryAttempts = 3;
+    private const int ManualFarmingNoTroopsRetryWaitSeconds = 10;
+    private static readonly string[] CaptchaDetectionSelectors =
+    [
+        "input[name*='captcha' i]",
+        "input[id*='captcha' i]",
+        "input[placeholder*='captcha' i]",
+        "img[src*='captcha' i]",
+        "iframe[src*='captcha' i]",
+        "iframe[src*='recaptcha' i]",
+        "iframe[src*='hcaptcha' i]",
+        "iframe[src*='challenges.cloudflare.com' i]",
+        ".g-recaptcha",
+        ".h-captcha",
+        ".cf-turnstile",
+        "#cf-challenge-running",
+        "[class*='captcha' i]",
+        "[id*='captcha' i]",
+    ];
     private readonly IPage _page;
     private readonly BotOptions _config;
     private readonly AccountOptions _account;
@@ -18,14 +41,30 @@ public sealed partial class TravianClient
     private readonly bool _browserVisible;
     private readonly string _projectRoot;
     private readonly string _capitalCachePath;
+    private readonly NatarFarmCacheStore _natarFarmCacheStore;
+    private readonly ICaptchaAutoSolver? _captchaAutoSolver;
     private readonly Action<string>? _statusCallback;
     private DateTimeOffset? _serverTimeUtc;
+    private DateTimeOffset _lastManualVerificationScreenshotAt = DateTimeOffset.MinValue;
+
+    private sealed class CaptchaClipRegion
+    {
+        public double X { get; init; }
+        public double Y { get; init; }
+        public double Width { get; init; }
+        public double Height { get; init; }
+    }
 
     // Session-level cache for the villages list. Spieler.php is expensive to load and the data
     // changes rarely, so we share one read across LoginAsync, SwitchToVillageAsync and status reads.
     private static readonly TimeSpan VillagesCacheTtl = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan EnsureLoggedInMinInterval = TimeSpan.FromSeconds(16);
     private List<Village>? _cachedVillages;
     private DateTimeOffset _cachedVillagesAt = DateTimeOffset.MinValue;
+    private DateTimeOffset _lastEnsureLoggedInAt = DateTimeOffset.MinValue;
+    private bool _lastEnsureLoggedInSucceeded;
+    private static readonly object NatarCacheSync = new();
+    private static readonly Dictionary<string, List<NatarCoordinateJs>> CachedNatarCoordinatesByAccount = new(StringComparer.OrdinalIgnoreCase);
 
     public TravianClient(
         IPage page,
@@ -34,6 +73,7 @@ public sealed partial class TravianClient
         bool interactive = true,
         bool browserVisible = true,
         string? projectRoot = null,
+        ICaptchaAutoSolver? captchaAutoSolver = null,
         Action<string>? statusCallback = null)
     {
         _page = page;
@@ -45,6 +85,8 @@ public sealed partial class TravianClient
             ? Directory.GetCurrentDirectory()
             : projectRoot;
         _capitalCachePath = Path.Combine(_projectRoot, "config", "cache", "capital-state.json");
+        _natarFarmCacheStore = new NatarFarmCacheStore(_projectRoot);
+        _captchaAutoSolver = captchaAutoSolver;
         _statusCallback = statusCallback;
     }
 
@@ -53,17 +95,18 @@ public sealed partial class TravianClient
 
     public async Task LoginAsync(CancellationToken cancellationToken = default)
     {
+        Notify("[LoginAsync] started");
         await PauseForManualStepIfVisibleAsync("Manual verification appeared before login.", cancellationToken);
         if (await IsLoggedInAsync())
         {
             return;
         }
 
-        Notify("LoginAsync started");
 
         var loggedInFromCurrentPage = await TryLoginUsingCurrentPageAsync(cancellationToken);
         if (loggedInFromCurrentPage)
         {
+            Notify("Login successful using current page.");
             await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
             return;
         }
@@ -72,6 +115,7 @@ public sealed partial class TravianClient
         await PauseForManualStepIfVisibleAsync("Manual verification appeared on the login page.", cancellationToken);
         if (await IsLoggedInAsync())
         {
+            Notify("Login successful after navigating to login page.");
             await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
             return;
         }
@@ -81,7 +125,19 @@ public sealed partial class TravianClient
 
         if (await CaptchaOrManualStepVisibleAsync())
         {
+            var screenshotPath = await CaptureManualVerificationScreenshotAsync("login-page", cancellationToken);
             Notify("Captcha or manual login step detected.");
+            if (await TrySolveCaptchaAutomaticallyAsync("login-page", screenshotPath, cancellationToken))
+            {
+                var loggedInAfterAutoSolve = await WaitUntilLoggedInAsync(cancellationToken);
+                if (loggedInAfterAutoSolve)
+                {
+                    Notify("Login successful after captcha auto-solve.");
+                    await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
+                    return;
+                }
+            }
+
             if (!_browserVisible)
             {
                 throw new ManualVerificationRequiredException(
@@ -104,7 +160,7 @@ public sealed partial class TravianClient
         {
             throw new InvalidOperationException("Login did not complete successfully.");
         }
-
+        Notify("Login successful using other method...");
         await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
     }
 
@@ -125,7 +181,18 @@ public sealed partial class TravianClient
 
         if (await CaptchaOrManualStepVisibleAsync())
         {
+            var screenshotPath = await CaptureManualVerificationScreenshotAsync("login-current-page", cancellationToken);
             Notify("Captcha or manual login step detected.");
+            if (await TrySolveCaptchaAutomaticallyAsync("login-current-page", screenshotPath, cancellationToken))
+            {
+                var autoSolvedLoggedIn = await WaitUntilLoggedInAsync(cancellationToken);
+                if (autoSolvedLoggedIn)
+                {
+                    Notify("Login completed from current page after captcha auto-solve.");
+                    return autoSolvedLoggedIn;
+                }
+            }
+
             if (!_browserVisible)
             {
                 throw new ManualVerificationRequiredException(
@@ -148,7 +215,7 @@ public sealed partial class TravianClient
 
     public async Task LogoutAsync(CancellationToken cancellationToken = default)
     {
-        Notify("LogoutAsync started");
+        Notify("[LogoutAsync] started");
         await GotoAsync(_config.VillageOverviewPath, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared before logout.", cancellationToken);
         if (!await IsLoggedInAsync())
@@ -308,6 +375,7 @@ public sealed partial class TravianClient
 
         await Task.Delay(250, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared after sending farm list.", cancellationToken);
+        await TryClickCaptchaSuccessDialogOkAsync(cancellationToken);
         var remaining = await ReadFarmListTimerSecondsByNameAsync(farmListName, cancellationToken);
         Notify($"Farm list '{farmListName}' sent. Timer={(remaining is > 0 ? FormatDuration(remaining.Value) : "Ready")}.");
         return remaining;
@@ -357,22 +425,242 @@ public sealed partial class TravianClient
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening Add Raid form.", cancellationToken);
         await EnsureLoggedInAsync();
 
-        var saved = await TryFillAddRaidFormAndSaveAsync(
+        var saveOutcome = await TryFillAddRaidFormAndSaveAsync(
             farmListName,
             troopType.Trim(),
             troopCount,
             coordinate.X.Value,
             coordinate.Y.Value,
             cancellationToken);
-        if (!saved)
+        if (saveOutcome == AddRaidSaveOutcome.Failed)
         {
             throw new InvalidOperationException("Could not fill Add Raid form or click Save.");
         }
-
-        await Task.Delay(350, cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared after saving new raid.", cancellationToken);
+        if (saveOutcome == AddRaidSaveOutcome.AlreadyInList)
+        {
+            throw new InvalidOperationException("This village is already in the selected farm list.");
+        }
         Notify($"Added 1 farm to '{farmListName}' at ({coordinate.X}|{coordinate.Y}) with {troopCount} {troopType}.");
         return new FarmAddResult(farmListName, coordinate.X.Value, coordinate.Y.Value, troopType.Trim(), troopCount);
+    }
+
+    public async Task<FarmAddBatchResult> AddFarmsFromNatarsAsync(
+        string farmListName,
+        string troopType,
+        int troopCount,
+        int requestedCount,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(farmListName))
+        {
+            throw new InvalidOperationException("Farm list name is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(troopType))
+        {
+            throw new InvalidOperationException("Troop type is required.");
+        }
+
+        if (troopCount <= 0)
+        {
+            throw new InvalidOperationException("Troop count must be greater than 0.");
+        }
+
+        if (requestedCount <= 0)
+        {
+            throw new InvalidOperationException("Requested farm count must be greater than 0.");
+        }
+
+        await EnsureLoggedInAsync();
+        if (!await ReadGoldClubEnabledAsync(cancellationToken))
+        {
+            throw new InvalidOperationException("Gold Club is not enabled for this account.");
+        }
+
+        await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
+        var lid = await TryResolveFarmListSlotIdByNameAsync(farmListName, cancellationToken);
+        if (string.IsNullOrWhiteSpace(lid))
+        {
+            throw new InvalidOperationException($"Could not find farm list '{farmListName}' on farm page.");
+        }
+
+        var coordinates = await ReadNatarFarmCoordinatesCachedAsync(cancellationToken);
+        if (coordinates.Count <= 0)
+        {
+            throw new InvalidOperationException("Could not read any 'Natar farm village' coordinates from Natars profile.");
+        }
+
+        var maxAttempts = Math.Min(requestedCount, coordinates.Count);
+        Notify($"Starting add farms batch: requested={requestedCount}, available={coordinates.Count}, attempts={maxAttempts}.");
+        var added = 0;
+        var alreadyInList = 0;
+        var failed = 0;
+        var attempted = 0;
+        for (var i = 0; i < maxAttempts; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var coordinate = coordinates[i];
+            attempted++;
+            var stepPrefix = $"[{attempted}/{maxAttempts}]";
+
+            await GotoAsync(Paths.FarmListBySlotId(lid), cancellationToken);
+            await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening Add Raid form.", cancellationToken);
+            await EnsureLoggedInAsync();
+
+            var saveOutcome = await TryFillAddRaidFormAndSaveAsync(
+                farmListName,
+                troopType.Trim(),
+                troopCount,
+                coordinate.X ?? 0,
+                coordinate.Y ?? 0,
+                cancellationToken);
+
+            if (saveOutcome == AddRaidSaveOutcome.Added)
+            {
+                added++;
+                Notify($"{stepPrefix} Added farm ({coordinate.X}|{coordinate.Y}) to '{farmListName}'.");
+                continue;
+            }
+
+            if (saveOutcome == AddRaidSaveOutcome.AlreadyInList)
+            {
+                alreadyInList++;
+                Notify($"{stepPrefix} Farm ({coordinate.X}|{coordinate.Y}) is already in '{farmListName}' (This village is already in the selected farm list.).");
+                continue;
+            }
+
+            failed++;
+            Notify($"{stepPrefix} Failed to save farm ({coordinate.X}|{coordinate.Y}) in '{farmListName}'.");
+        }
+
+        await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
+        return new FarmAddBatchResult(
+            farmListName,
+            requestedCount,
+            attempted,
+            added,
+            alreadyInList,
+            failed);
+    }
+
+    public async Task<int> EnsureNatarFarmCacheAndReturnToFarmListAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
+    {
+        await EnsureLoggedInAsync();
+        if (!await ReadGoldClubEnabledAsync(cancellationToken))
+        {
+            throw new InvalidOperationException("Gold Club is not enabled for this account.");
+        }
+
+        await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
+        var coordinates = await ReadNatarFarmCoordinatesCachedAsync(cancellationToken, forceRefresh);
+        await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
+        return coordinates.Count;
+    }
+
+    public async Task<ManualFarmRunResult> StartManualFarmingFromNatarsAsync(
+        string troopType,
+        int troopCount,
+        int troopVariancePercent,
+        bool raidAttack,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(troopType))
+        {
+            throw new InvalidOperationException("Troop type is required.");
+        }
+
+        if (troopCount <= 0)
+        {
+            throw new InvalidOperationException("Troop count must be greater than 0.");
+        }
+
+        var troopIndex = TroopCatalog.ResolveTroopIndex(troopType.Trim());
+        if (troopIndex is null)
+        {
+            throw new InvalidOperationException($"Could not resolve troop slot for '{troopType}'.");
+        }
+
+        await EnsureLoggedInAsync();
+        var coordinates = await ReadNatarFarmCoordinatesCachedAsync(cancellationToken);
+        if (coordinates.Count <= 0)
+        {
+            throw new InvalidOperationException("Could not read any Natar farm coordinates from Natars profile.");
+        }
+
+        var sent = 0;
+        var skipped = 0;
+        var failed = 0;
+        var attempted = 0;
+        var consecutiveLowTroopSkips = 0;
+        var stoppedByNoTroopsAlarm = false;
+        for (var i = 0; i < coordinates.Count; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var coordinate = coordinates[i];
+            if (coordinate.X is null || coordinate.Y is null)
+            {
+                continue;
+            }
+
+            attempted++;
+            var stepPrefix = $"[{attempted}/{coordinates.Count}]";
+            Notify($"{stepPrefix} Processing target ({coordinate.X}|{coordinate.Y}).");
+            await EnsureRallyPointAndOpenSendTroopsPageAsync(cancellationToken, allowReuseCurrentPage: attempted > 1);
+            var sendResult = await TrySendManualAttackAsync(
+                troopType.Trim(),
+                troopIndex.Value,
+                troopCount,
+                troopVariancePercent,
+                coordinate.X.Value,
+                coordinate.Y.Value,
+                raidAttack,
+                cancellationToken);
+
+            if (sendResult.Status == ManualAttackSendStatus.Sent)
+            {
+                consecutiveLowTroopSkips = 0;
+                sent++;
+                Notify($"{stepPrefix} Sent {(raidAttack ? "raid" : "normal attack")} to ({coordinate.X}|{coordinate.Y}) with {sendResult.SentTroopCount}/{troopCount} {troopType.Trim()} (Available: {FormatLargeCount(sendResult.AvailableTroopCount)}).");
+                continue;
+            }
+
+            if (sendResult.Status == ManualAttackSendStatus.SkippedLowTroops)
+            {
+                skipped++;
+                consecutiveLowTroopSkips++;
+                Notify($"{stepPrefix} Skipped ({coordinate.X}|{coordinate.Y}). Available {troopType.Trim()}: {FormatLargeCount(sendResult.AvailableTroopCount)}, required minimum: {FormatLargeCount(sendResult.MinimumAcceptedTroopCount)}.");
+                if (consecutiveLowTroopSkips >= ManualFarmingMaxConsecutiveLowTroopSkips)
+                {
+                    Notify($"Stopping manual farming after {consecutiveLowTroopSkips} consecutive low-troop skips.");
+                    break;
+                }
+
+                continue;
+            }
+
+            if (sendResult.Status == ManualAttackSendStatus.StoppedByNoTroopsAlarm)
+            {
+                stoppedByNoTroopsAlarm = true;
+                failed++;
+                Notify($"ALARM: manual farming stopped because available {troopType.Trim()} stayed at 0 after {ManualFarmingNoTroopsRetryAttempts} retries.");
+                break;
+            }
+
+            consecutiveLowTroopSkips = 0;
+            failed++;
+            Notify($"{stepPrefix} Failed to send {(raidAttack ? "raid" : "normal attack")} to ({coordinate.X}|{coordinate.Y}).");
+        }
+
+        return new ManualFarmRunResult(
+            coordinates.Count,
+            attempted,
+            sent,
+            skipped,
+            failed,
+            stoppedByNoTroopsAlarm,
+            troopType.Trim(),
+            troopCount,
+            raidAttack ? "Raid" : "Normal attack");
     }
 
     public async Task<IReadOnlyList<VillageStatus>> ReadAllVillageStatusesAsync(CancellationToken cancellationToken = default)
@@ -613,12 +901,25 @@ public sealed partial class TravianClient
         }
     }
 
-    private async Task EnsureLoggedInAsync()
+    private async Task EnsureLoggedInAsync(bool force = false)
     {
-        if (!await IsLoggedInAsync())
+        var now = DateTimeOffset.UtcNow;
+        if (!force
+            && _lastEnsureLoggedInSucceeded
+            && (now - _lastEnsureLoggedInAt) < EnsureLoggedInMinInterval)
+        {
+            return;
+        }
+
+        Notify("Ensuring logged in");
+        var loggedIn = await IsLoggedInAsync();
+        _lastEnsureLoggedInAt = now;
+        _lastEnsureLoggedInSucceeded = loggedIn;
+        if (!loggedIn)
         {
             throw new InvalidOperationException($"Not logged in. Current page state is '{await LoginStateAsync()}'.");
         }
+        Notify("Logged in confirmed");
     }
 
     private async Task<bool> IsLoggedInAsync()
@@ -640,6 +941,7 @@ public sealed partial class TravianClient
             var currentUrl = _page.Url.ToLowerInvariant();
             if (currentUrl.Contains("login.php", StringComparison.Ordinal))
             {
+                Notify("You are logged out");
                 return "logged_out";
             }
 
@@ -647,6 +949,7 @@ public sealed partial class TravianClient
             {
                 if (await _page.Locator(selector).CountAsync() > 0)
                 {
+                    Notify("You are logged in");
                     return "logged_in";
                 }
             }
@@ -655,14 +958,16 @@ public sealed partial class TravianClient
             {
                 if (await _page.Locator(selector).CountAsync() > 0)
                 {
+                    Notify("You are logged out");
                     return "logged_out";
                 }
             }
-
+            Notify("Login state is unknown");
             return "unknown";
         }
         catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
         {
+            Notify("Page navigated while checking login state. State is unknown.");
             return "unknown";
         }
     }
@@ -714,6 +1019,7 @@ public sealed partial class TravianClient
             {
                 await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
             });
+            Notify("Clicked login button.");
             return;
         }
 
@@ -758,24 +1064,7 @@ public sealed partial class TravianClient
         {
             return await _page.EvaluateAsync<bool>(
             """
-            () => {
-              const selectors = [
-                "input[name*='captcha' i]",
-                "input[id*='captcha' i]",
-                "input[placeholder*='captcha' i]",
-                "img[src*='captcha' i]",
-                "iframe[src*='captcha' i]",
-                "iframe[src*='recaptcha' i]",
-                "iframe[src*='hcaptcha' i]",
-                "iframe[src*='challenges.cloudflare.com' i]",
-                ".g-recaptcha",
-                ".h-captcha",
-                ".cf-turnstile",
-                "#cf-challenge-running",
-                "[class*='captcha' i]",
-                "[id*='captcha' i]"
-              ];
-
+            (selectors) => {
               const isVisible = (node) => {
                 if (!node || !(node instanceof Element)) return false;
                 const style = window.getComputedStyle(node);
@@ -794,7 +1083,8 @@ public sealed partial class TravianClient
 
               return false;
             }
-            """);
+            """,
+            CaptchaDetectionSelectors);
         }
         catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
         {
@@ -1002,6 +1292,7 @@ public sealed partial class TravianClient
 
                 if (await CaptchaOrManualStepVisibleAsync() && !manualMessageShown)
                 {
+                    await CaptureManualVerificationScreenshotAsync("login-wait", cancellationToken);
                     Notify("Captcha/manual step detected. Solve it in the browser window, then wait here.");
                     if (!_browserVisible)
                     {
@@ -1040,6 +1331,13 @@ public sealed partial class TravianClient
             return;
         }
 
+        var screenshotPath = await CaptureManualVerificationScreenshotAsync("manual-verification", cancellationToken);
+        if (await TrySolveCaptchaAutomaticallyAsync("manual-verification", screenshotPath, cancellationToken))
+        {
+            Notify("Captcha cleared automatically. Continuing.");
+            return;
+        }
+
         Notify($"{message} Solve it in the browser window. The bot is paused.");
         if (!_browserVisible)
         {
@@ -1070,6 +1368,240 @@ public sealed partial class TravianClient
             "Manual verification was still visible after timeout. Solve it and run again.");
     }
 
+    private async Task<string?> CaptureManualVerificationScreenshotAsync(string label, CancellationToken cancellationToken, bool force = false)
+    {
+        if (_page.IsClosed)
+        {
+            return null;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (!force && (now - _lastManualVerificationScreenshotAt) < TimeSpan.FromSeconds(10))
+        {
+            return null;
+        }
+
+        _lastManualVerificationScreenshotAt = now;
+        var safeLabel = SafePathSegment(label);
+        var stamp = now.ToString("yyyyMMdd-HHmmssfff", CultureInfo.InvariantCulture);
+        var captchaRoot = Path.Combine(
+            _projectRoot,
+            "logs",
+            "captchas");
+        Directory.CreateDirectory(captchaRoot);
+
+        var screenshotPath = Path.Combine(captchaRoot, $"{stamp}-{safeLabel}.png");
+
+        try
+        {
+            var clipRegion = await WaitForCaptchaVisualAsync(cancellationToken);
+            if (clipRegion is not null)
+            {
+                await _page.ScreenshotAsync(new PageScreenshotOptions
+                {
+                    Path = screenshotPath,
+                    Clip = new Clip
+                    {
+                        X = (float)clipRegion.X,
+                        Y = (float)clipRegion.Y,
+                        Width = (float)clipRegion.Width,
+                        Height = (float)clipRegion.Height,
+                    },
+                });
+            }
+            else
+            {
+                await _page.ScreenshotAsync(new PageScreenshotOptions
+                {
+                    Path = screenshotPath,
+                    FullPage = true,
+                });
+            }
+
+            Notify($"Captured captcha screenshot: '{screenshotPath}'.");
+            return screenshotPath;
+        }
+        catch (Exception ex)
+        {
+            Notify($"Could not capture captcha screenshot for '{label}': {ex.Message}");
+        }
+
+        return null;
+    }
+
+    private async Task<CaptchaClipRegion?> WaitForCaptchaVisualAsync(CancellationToken cancellationToken)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(4);
+        CaptchaClipRegion? previous = null;
+        var stableMatches = 0;
+
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var current = await TryResolveCaptchaClipRegionAsync(cancellationToken);
+            if (current is not null)
+            {
+                if (previous is not null && AreCaptchaRegionsSimilar(previous, current))
+                {
+                    stableMatches++;
+                    if (stableMatches >= 2)
+                    {
+                        await Task.Delay(300, cancellationToken);
+                        return current;
+                    }
+                }
+                else
+                {
+                    stableMatches = 0;
+                }
+
+                previous = current;
+            }
+
+            await Task.Delay(150, cancellationToken);
+        }
+
+        return previous;
+    }
+
+    private async Task<CaptchaClipRegion?> TryResolveCaptchaClipRegionAsync(CancellationToken cancellationToken)
+    {
+        var locator = await TryFindVisibleCaptchaLocatorAsync();
+        if (locator is null)
+        {
+            return null;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        await locator.ScrollIntoViewIfNeededAsync();
+
+        try
+        {
+            return await locator.EvaluateAsync<CaptchaClipRegion?>(
+                """
+                node => {
+                  const isVisible = element => {
+                    if (!element || !(element instanceof Element)) return false;
+                    const style = window.getComputedStyle(element);
+                    if (!style || style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity || '1') === 0) return false;
+                    const rect = element.getBoundingClientRect();
+                    return rect.width > 0 && rect.height > 0;
+                  };
+
+                  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+                  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+                  const viewportArea = Math.max(1, viewportWidth * viewportHeight);
+                  const nodeRect = node.getBoundingClientRect();
+                  if (!isVisible(nodeRect) && !isVisible(node)) return null;
+
+                  let bestRect = nodeRect;
+                  let bestArea = Math.max(1, nodeRect.width * nodeRect.height);
+                  let current = node.parentElement;
+                  let depth = 0;
+                  const extractExpression = text => {
+                    if (!text) return null;
+                    const normalized = text.replace(/\s+/g, ' ').trim();
+                    const match = normalized.match(/(\d+)\s*([+\-])\s*(\d+)\s*=\s*\?/);
+                    return match ? `${match[1]}${match[2]}${match[3]}` : null;
+                  };
+
+                  while (current && depth < 6) {
+                    if (isVisible(current)) {
+                      const rect = current.getBoundingClientRect();
+                      const area = rect.width * rect.height;
+                      const notTooLarge = area <= viewportArea * 0.75;
+                      const largerThanNode = rect.width >= nodeRect.width && rect.height >= nodeRect.height;
+                      const containsExpression = !!extractExpression(current.textContent || '');
+                      const containsCaptchaUi =
+                        containsExpression
+                        || (current.textContent || '').toLowerCase().includes('security check')
+                        || (current.textContent || '').toLowerCase().includes('calculate')
+                        || (current.textContent || '').toLowerCase().includes('verify');
+                      if (notTooLarge && largerThanNode && (containsCaptchaUi || area >= bestArea * 1.1)) {
+                        bestRect = rect;
+                        bestArea = area;
+                      }
+                    }
+
+                    current = current.parentElement;
+                    depth += 1;
+                  }
+
+                  if (bestRect.width < 140 || bestRect.height < 40) {
+                    return null;
+                  }
+
+                  const padX = Math.max(24, Math.min(80, bestRect.width * 0.12));
+                  const padY = Math.max(24, Math.min(80, bestRect.height * 0.18));
+                  const x = Math.max(0, bestRect.left - padX);
+                  const y = Math.max(0, bestRect.top - padY);
+                  const right = Math.min(viewportWidth, bestRect.right + padX);
+                  const bottom = Math.min(viewportHeight, bestRect.bottom + padY);
+                  const width = Math.max(1, right - x);
+                  const height = Math.max(1, bottom - y);
+
+                  return { x, y, width, height };
+                }
+                """);
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            return null;
+        }
+    }
+
+    private async Task<ILocator?> TryFindVisibleCaptchaLocatorAsync()
+    {
+        foreach (var selector in CaptchaDetectionSelectors)
+        {
+            var candidates = _page.Locator(selector);
+            int count;
+            try
+            {
+                count = await candidates.CountAsync();
+            }
+            catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+            {
+                return null;
+            }
+            catch (PlaywrightException)
+            {
+                continue;
+            }
+
+            var limit = Math.Min(count, 8);
+            for (var index = 0; index < limit; index++)
+            {
+                var candidate = candidates.Nth(index);
+                try
+                {
+                    if (await candidate.IsVisibleAsync())
+                    {
+                        return candidate;
+                    }
+                }
+                catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+                {
+                    return null;
+                }
+                catch (PlaywrightException)
+                {
+                    // Try next candidate.
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static bool AreCaptchaRegionsSimilar(CaptchaClipRegion previous, CaptchaClipRegion current)
+    {
+        return Math.Abs(previous.X - current.X) <= 6
+            && Math.Abs(previous.Y - current.Y) <= 6
+            && Math.Abs(previous.Width - current.Width) <= 18
+            && Math.Abs(previous.Height - current.Height) <= 18;
+    }
+
     private async Task ApplyActionDelayAsync(CancellationToken cancellationToken)
     {
         if (!_config.HumanLikeEnabled)
@@ -1092,6 +1624,7 @@ public sealed partial class TravianClient
 
     private async Task<IReadOnlyList<Village>> ReadVillagesAsync(CancellationToken cancellationToken)
     {
+        Notify("[ReadVillagesAsync] started");
         if (_cachedVillages is { Count: > 0 } cached
             && DateTimeOffset.UtcNow - _cachedVillagesAt < VillagesCacheTtl)
         {
@@ -1104,6 +1637,7 @@ public sealed partial class TravianClient
             _cachedVillages = villages.ToList();
             _cachedVillagesAt = DateTimeOffset.UtcNow;
         }
+        Notify("[ReadVillagesAsync] finished");
         return villages;
     }
 
@@ -1751,6 +2285,47 @@ public sealed partial class TravianClient
         }
     }
 
+    private async Task EnsureRallyPointAndOpenSendTroopsPageAsync(CancellationToken cancellationToken, bool allowReuseCurrentPage)
+    {
+        if (allowReuseCurrentPage && await IsSendTroopsPageAsync(cancellationToken))
+        {
+            return;
+        }
+
+        await GotoAsync(Paths.RallyPointSendTroops, cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening send troops.", cancellationToken);
+        await EnsureLoggedInAsync();
+        if (await IsSendTroopsPageAsync(cancellationToken))
+        {
+            return;
+        }
+
+        await GotoAsync(Paths.FarmListFastUp, cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening rally point slot.", cancellationToken);
+        await EnsureLoggedInAsync();
+
+        await GotoAsync(Paths.RallyPointSendTroops, cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reopening send troops.", cancellationToken);
+        await EnsureLoggedInAsync();
+        if (await IsSendTroopsPageAsync(cancellationToken))
+        {
+            return;
+        }
+
+        var tabOpened = await TryOpenSendTroopsTabAsync(cancellationToken);
+        if (tabOpened)
+        {
+            await Task.Delay(250, cancellationToken);
+            await PauseForManualStepIfVisibleAsync("Manual verification appeared after opening send troops tab.", cancellationToken);
+            await EnsureLoggedInAsync();
+        }
+
+        if (!await IsSendTroopsPageAsync(cancellationToken))
+        {
+            throw new InvalidOperationException("Rally Point does not appear to be constructed yet. Build Rally Point before starting manual farming.");
+        }
+    }
+
     private async Task<bool> IsFarmListPageAsync(CancellationToken cancellationToken)
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while checking farm list page.", cancellationToken);
@@ -1765,6 +2340,39 @@ public sealed partial class TravianClient
             }
             """);
         return isFarmListPage;
+    }
+
+    private async Task<bool> IsSendTroopsPageAsync(CancellationToken cancellationToken)
+    {
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while checking send troops page.", cancellationToken);
+        return await _page.EvaluateAsync<bool>(
+            """
+            () => {
+              const hasCoords = !!document.querySelector('input[name="x"], input[name="y"], input[name*="xCoord" i], input[name*="yCoord" i], input[id*="xCoord" i], input[id*="yCoord" i]');
+              const hasAttackMode = !!document.querySelector('input[type="radio"][name="c"]');
+              const body = (document.body?.innerText || '').toLowerCase();
+              return hasCoords && hasAttackMode && body.includes('send troops');
+            }
+            """);
+    }
+
+    private async Task<bool> TryOpenSendTroopsTabAsync(CancellationToken cancellationToken)
+    {
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared before opening send troops tab.", cancellationToken);
+        return await _page.EvaluateAsync<bool>(
+            """
+            () => {
+              const candidates = Array.from(document.querySelectorAll('a.tabItem, .tabItem, a[href*="build.php?t=2"], a[href*="t=2"]'));
+              const target = candidates.find(node => {
+                const text = (node.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                const href = (node.getAttribute('href') || '').toLowerCase();
+                return text.includes('send troops') || href.includes('build.php?t=2') || href.includes('t=2');
+              });
+              if (!target) return false;
+              target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+              return true;
+            }
+            """);
     }
 
     private async Task<IReadOnlyList<FarmListOverview>> ReadFarmListsFromCurrentPageAsync(CancellationToken cancellationToken)
@@ -1820,8 +2428,13 @@ public sealed partial class TravianClient
                   total = Number(slashCountMatch[2]);
                 } else if (parenCountMatch) {
                   active = Number(parenCountMatch[1]);
-                  total = 500;
+                  total = 120;
                 }
+                if (!Number.isFinite(active) || active < 0) active = 0;
+                if (!Number.isFinite(total) || total < 0) total = 0;
+                active = Math.min(active, 120);
+                total = Math.min(total, 120);
+                if (total > 0 && active > total) active = total;
 
                 const container =
                   candidate.closest('.raidList, .listEntry, tr, li, article, section, .box') ||
@@ -1860,8 +2473,8 @@ public sealed partial class TravianClient
             .Where(row => !string.IsNullOrWhiteSpace(row.Name))
             .Select(row => new FarmListOverview(
                 Name: row.Name!,
-                ActiveFarmCount: Math.Max(0, row.ActiveFarmCount ?? 0),
-                TotalFarmCount: Math.Max(0, row.TotalFarmCount ?? 0),
+                ActiveFarmCount: Math.Min(MaxFarmsPerFarmList, Math.Max(0, row.ActiveFarmCount ?? 0)),
+                TotalFarmCount: Math.Min(MaxFarmsPerFarmList, Math.Max(0, row.TotalFarmCount ?? 0)),
                 RemainingSeconds: ParseDurationToSeconds(row.TimerText)))
             .ToList();
     }
@@ -2115,13 +2728,109 @@ public sealed partial class TravianClient
         return coordinates.FirstOrDefault();
     }
 
+    private async Task<List<NatarCoordinateJs>> ReadNatarFarmCoordinatesCachedAsync(CancellationToken cancellationToken, bool forceRefresh = false)
+    {
+        var selectionMode = ResolveNatarVillageSelectionMode();
+        var cacheKey = $"{ServerUrl}::{AccountName}::{selectionMode}";
+        if (!forceRefresh)
+        {
+            lock (NatarCacheSync)
+            {
+                if (CachedNatarCoordinatesByAccount.TryGetValue(cacheKey, out var existing) && existing.Count > 0)
+                {
+                    Notify($"Using cached Natar farms list ({existing.Count}).");
+                    return [.. existing];
+                }
+            }
+
+            if (_natarFarmCacheStore.TryLoad(AccountName, out var persisted, ServerUrl, selectionMode)
+                && persisted is not null
+                && persisted.Coordinates.Count > 0)
+            {
+                var restored = persisted.Coordinates
+                    .Select(item => new NatarCoordinateJs { X = item.X, Y = item.Y })
+                    .ToList();
+                lock (NatarCacheSync)
+                {
+                    CachedNatarCoordinatesByAccount[cacheKey] = [.. restored];
+                }
+
+                Notify($"Using persisted Natar farms list ({restored.Count}).");
+                return restored;
+            }
+        }
+
+        await GotoAsync(Paths.PlayerProfileNatars, cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening Natars profile.", cancellationToken);
+        await EnsureLoggedInAsync();
+
+        var coordinates = await ReadNatarFarmCoordinatesFromCurrentPageAsync(cancellationToken);
+        if (coordinates.Length <= 0)
+        {
+            await GotoAsync(Paths.Statistics100, cancellationToken);
+            await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening statistics farms page.", cancellationToken);
+            await EnsureLoggedInAsync();
+            await _page.EvaluateAsync(
+                """
+                () => {
+                  const links = Array.from(document.querySelectorAll('a[href*="spieler.php?uid=3"]'));
+                  const link = links.find(node => ((node.textContent || '').toLowerCase().includes('natar'))) || links[0];
+                  if (link) {
+                    link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                  }
+                }
+                """);
+            await Task.Delay(400, cancellationToken);
+            await PauseForManualStepIfVisibleAsync("Manual verification appeared while navigating to Natars profile.", cancellationToken);
+            coordinates = await ReadNatarFarmCoordinatesFromCurrentPageAsync(cancellationToken);
+        }
+
+        var cached = coordinates
+            .Where(item => item.X.HasValue && item.Y.HasValue)
+            .GroupBy(item => $"{item.X}|{item.Y}", StringComparer.Ordinal)
+            .Select(group => group.First())
+            .OrderBy(item => item.X)
+            .ThenBy(item => item.Y)
+            .ToList();
+        lock (NatarCacheSync)
+        {
+            CachedNatarCoordinatesByAccount[cacheKey] = [.. cached];
+        }
+
+        if (cached.Count > 0)
+        {
+            var changed = _natarFarmCacheStore.Save(new NatarFarmCacheSnapshot(
+                SchemaVersion: 1,
+                AnalyzedAtUtc: DateTimeOffset.UtcNow,
+                AccountName: AccountName,
+                ServerUrl: ServerUrl,
+                SelectionMode: selectionMode,
+                Coordinates: cached
+                    .Where(item => item.X.HasValue && item.Y.HasValue)
+                    .Select(item => new NatarFarmCoordinate(item.X!.Value, item.Y!.Value))
+                    .ToList()));
+
+            Notify(changed
+                ? $"Scanned Natar farms list and saved {cached.Count} entries."
+                : $"Scanned Natar farms list and confirmed existing {cached.Count} cached entries.");
+        }
+        else
+        {
+            Notify("Scanned Natar farms list but found no entries.");
+        }
+
+        return cached;
+    }
+
     private async Task<NatarCoordinateJs[]> ReadNatarFarmCoordinatesFromCurrentPageAsync(CancellationToken cancellationToken)
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading Natar coordinates.", cancellationToken);
+        var includeAllVillages = string.Equals(ResolveNatarVillageSelectionMode(), "all_villages", StringComparison.OrdinalIgnoreCase);
         return await _page.EvaluateAsync<NatarCoordinateJs[]>(
             """
-            () => {
+            (includeAllVillages) => {
               const clean = (value) => (value || '').replace(/\s+/g, ' ').trim();
+              const targetVillageName = 'Natar farm village';
               const parsePair = (text) => {
                 const normalized = clean(text);
                 if (!normalized) return null;
@@ -2138,6 +2847,11 @@ public sealed partial class TravianClient
               for (const row of document.querySelectorAll('tr, li, article, section, .row')) {
                 const hasVillageAnchor = !!row.querySelector('a[href*="karte.php"]');
                 if (!hasVillageAnchor) continue;
+                const names = Array.from(row.querySelectorAll('a, .name, .village, .vil, td, span'))
+                  .map(node => clean(node.textContent || ''))
+                  .filter(Boolean);
+                const hasTargetVillageName = names.some(text => text === targetVillageName);
+                if (!includeAllVillages && !hasTargetVillageName) continue;
                 const rowText = clean(row.textContent || '');
                 const parsed = parsePair(rowText);
                 if (!parsed) continue;
@@ -2147,9 +2861,12 @@ public sealed partial class TravianClient
                 rows.push({ x: parsed.x, y: parsed.y });
               }
 
-              if (rows.length > 0) return rows.slice(0, 100);
+              if (rows.length > 0) return rows;
 
               for (const anchor of document.querySelectorAll('a[href*="karte.php"]')) {
+                const row = anchor.closest('tr, li, article, section, .row');
+                const rowText = clean(row?.textContent || '');
+                if (!includeAllVillages && !rowText.includes(targetVillageName)) continue;
                 const parsed = parsePair(anchor.textContent || '');
                 if (!parsed) continue;
                 const key = `${parsed.x}|${parsed.y}`;
@@ -2158,9 +2875,17 @@ public sealed partial class TravianClient
                 rows.push({ x: parsed.x, y: parsed.y });
               }
 
-              return rows.slice(0, 100);
+              return rows;
             }
-            """);
+            """,
+            includeAllVillages);
+    }
+
+    private string ResolveNatarVillageSelectionMode()
+    {
+        return string.Equals(_config.NatarVillageSelection, "all_villages", StringComparison.OrdinalIgnoreCase)
+            ? "all_villages"
+            : "farm_villages";
     }
 
     private async Task<string?> TryResolveFarmListSlotIdByNameAsync(string farmListName, CancellationToken cancellationToken)
@@ -2217,7 +2942,7 @@ public sealed partial class TravianClient
             farmListName);
     }
 
-    private async Task<bool> TryFillAddRaidFormAndSaveAsync(
+    private async Task<AddRaidSaveOutcome> TryFillAddRaidFormAndSaveAsync(
         string farmListName,
         string troopType,
         int troopCount,
@@ -2316,7 +3041,462 @@ public sealed partial class TravianClient
                 y,
             });
 
-        return saved;
+        if (!saved)
+        {
+            return AddRaidSaveOutcome.Failed;
+        }
+
+        await Task.Delay(350, cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared after saving new raid.", cancellationToken);
+        await EnsureLoggedInAsync();
+
+        var saveState = await _page.EvaluateAsync<string>(
+            """
+            () => {
+              const text = (document.body?.innerText || '').replace(/\s+/g, ' ').trim();
+              if (text.includes('This village is already in the selected farm list.')) return 'already';
+              if (text.toLowerCase().includes('success') || text.toLowerCase().includes('saved')) return 'saved';
+              return 'unknown';
+            }
+            """);
+
+        if (string.Equals(saveState, "already", StringComparison.OrdinalIgnoreCase))
+        {
+            return AddRaidSaveOutcome.AlreadyInList;
+        }
+
+        return AddRaidSaveOutcome.Added;
+    }
+
+    private async Task<ManualAttackSendResult> TrySendManualAttackAsync(
+        string troopType,
+        int troopIndex,
+        int troopCount,
+        int troopVariancePercent,
+        int x,
+        int y,
+        bool raidAttack,
+        CancellationToken cancellationToken)
+    {
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared before filling manual farming form.", cancellationToken);
+        var randomizedTroopCount = ResolveRandomizedTroopCount(troopCount, troopVariancePercent);
+        var minimumAcceptedTroopCount = Math.Max(1, (int)Math.Ceiling(randomizedTroopCount * ManualFarmingMinimumTroopRatio));
+        var fieldToken = $"t{troopIndex}";
+        var availableTroopCount = await WaitForAvailableTroopsAsync(fieldToken, troopType, cancellationToken);
+        if (availableTroopCount == 0)
+        {
+            return new ManualAttackSendResult(
+                ManualAttackSendStatus.StoppedByNoTroopsAlarm,
+                0,
+                0,
+                minimumAcceptedTroopCount);
+        }
+
+        var troopCountToSend = randomizedTroopCount;
+
+        if (availableTroopCount.HasValue)
+        {
+            troopCountToSend = Math.Min(randomizedTroopCount, Math.Max(0, availableTroopCount.Value));
+            if (troopCountToSend < minimumAcceptedTroopCount)
+            {
+                return new ManualAttackSendResult(
+                    ManualAttackSendStatus.SkippedLowTroops,
+                    availableTroopCount.Value,
+                    troopCountToSend,
+                    minimumAcceptedTroopCount);
+            }
+        }
+
+        await FillFirstAvailableAsync(["input[name='x']", "input[name='xCoord']", "input[id*='xCoord' i]"], x.ToString(CultureInfo.InvariantCulture), cancellationToken);
+        await FillFirstAvailableAsync(["input[name='y']", "input[name='yCoord']", "input[id*='yCoord' i]"], y.ToString(CultureInfo.InvariantCulture), cancellationToken);
+
+        var troopInputFilled = await TryFillTroopInputAsync(fieldToken, troopType, troopCountToSend, cancellationToken);
+        if (!troopInputFilled)
+        {
+            return new ManualAttackSendResult(
+                ManualAttackSendStatus.Failed,
+                availableTroopCount ?? 0,
+                0,
+                minimumAcceptedTroopCount);
+        }
+
+        var attackModeSelected = await TrySelectAttackModeAsync(raidAttack, cancellationToken);
+        if (!attackModeSelected)
+        {
+            return new ManualAttackSendResult(
+                ManualAttackSendStatus.Failed,
+                availableTroopCount ?? 0,
+                troopCountToSend,
+                minimumAcceptedTroopCount);
+        }
+
+        var firstConfirmClicked = await TryClickConfirmButtonAsync(cancellationToken);
+        if (!firstConfirmClicked)
+        {
+            return new ManualAttackSendResult(
+                ManualAttackSendStatus.Failed,
+                availableTroopCount ?? 0,
+                troopCountToSend,
+                minimumAcceptedTroopCount);
+        }
+
+        var confirmationPageReady = await WaitForManualAttackConfirmationPageAsync(cancellationToken);
+        if (!confirmationPageReady)
+        {
+            return new ManualAttackSendResult(
+                ManualAttackSendStatus.Failed,
+                availableTroopCount ?? 0,
+                troopCountToSend,
+                minimumAcceptedTroopCount);
+        }
+
+        var secondConfirmClicked = await TryClickConfirmButtonAsync(cancellationToken);
+
+        if (!secondConfirmClicked)
+        {
+            return new ManualAttackSendResult(
+                ManualAttackSendStatus.Failed,
+                availableTroopCount ?? 0,
+                troopCountToSend,
+                minimumAcceptedTroopCount);
+        }
+
+        await WaitForManualAttackCompletionAsync(cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared after sending manual farming attack.", cancellationToken);
+        await EnsureLoggedInAsync();
+        return new ManualAttackSendResult(
+            ManualAttackSendStatus.Sent,
+            availableTroopCount ?? troopCountToSend,
+            troopCountToSend,
+            minimumAcceptedTroopCount);
+    }
+
+    private async Task<int?> ReadAvailableTroopCountAsync(string fieldToken, CancellationToken cancellationToken)
+    {
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading available troops.", cancellationToken);
+        try
+        {
+            var result = await _page.EvaluateAsync<int?>(
+                """
+                (fieldToken) => {
+                  const token = (fieldToken || '').toLowerCase();
+                  const anchors = Array.from(document.querySelectorAll('a[onclick*=".value="]'));
+                  for (const anchor of anchors) {
+                    const onclick = anchor.getAttribute('onclick') || '';
+                    const match = onclick.match(/(?:snd|document\.snd)\.([A-Za-z0-9_]+)\.value\s*=\s*(\d+)/i);
+                    if (!match) continue;
+                    if ((match[1] || '').toLowerCase() !== token) continue;
+                    const parsed = Number.parseInt(match[2], 10);
+                    if (Number.isFinite(parsed)) return parsed;
+                  }
+
+                  const input = document.querySelector(`input[name="${fieldToken}"], input[id$="${fieldToken}"], input[name$="[${fieldToken}]"]`);
+                  if (!input) return null;
+
+                  const maxValue = input.getAttribute('max') || '';
+                  const maxParsed = Number.parseInt((maxValue || '').replace(/[^\d]/g, ''), 10);
+                  if (Number.isFinite(maxParsed) && maxParsed > 0) return maxParsed;
+
+                  return null;
+                }
+                """,
+                fieldToken);
+
+            return result > 0 ? result : null;
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            Notify("Page navigated while reading available troops. Continuing without exact availability.");
+            return null;
+        }
+    }
+
+    private async Task<int?> WaitForAvailableTroopsAsync(string fieldToken, string troopType, CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; attempt <= ManualFarmingNoTroopsRetryAttempts; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var availableTroopCount = await ReadAvailableTroopCountAsync(fieldToken, cancellationToken);
+            if (availableTroopCount.GetValueOrDefault() > 0)
+            {
+                return availableTroopCount;
+            }
+
+            if (attempt >= ManualFarmingNoTroopsRetryAttempts)
+            {
+                return 0;
+            }
+
+            Notify(
+                $"Available {troopType.Trim()}: {FormatLargeCount(availableTroopCount.GetValueOrDefault())}. " +
+                $"Waiting {ManualFarmingNoTroopsRetryWaitSeconds}s before retry {attempt + 1}/{ManualFarmingNoTroopsRetryAttempts}. " +
+                $"queue_wait_seconds={ManualFarmingNoTroopsRetryWaitSeconds}");
+            await Task.Delay(TimeSpan.FromSeconds(ManualFarmingNoTroopsRetryWaitSeconds), cancellationToken);
+        }
+
+        return 0;
+    }
+
+    private async Task<bool> TryFillTroopInputAsync(string fieldToken, string troopType, int troopCountToSend, CancellationToken cancellationToken)
+    {
+        var selectors = new[]
+        {
+            $"input[name='troops[0][{fieldToken}]']",
+            $"input[name$='[{fieldToken}]']",
+            $"input[name='{fieldToken}']",
+            $"input[id$='{fieldToken}']",
+        };
+
+        foreach (var selector in selectors)
+        {
+            var locator = _page.Locator(selector).First;
+            if (await locator.CountAsync() == 0)
+            {
+                continue;
+            }
+
+            await RetryAsync($"fill troop input {selector}", async () =>
+            {
+                await locator.FillAsync(troopCountToSend.ToString(CultureInfo.InvariantCulture), new LocatorFillOptions { Timeout = _config.TimeoutMs });
+            });
+            return true;
+        }
+
+        var fallbackFilled = await _page.EvaluateAsync<bool>(
+            """
+            (args) => {
+              const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+              const inputs = Array.from(document.querySelectorAll('input[type="text"], input[type="number"], input:not([type])'));
+              const candidate = inputs.find(node => {
+                const text = normalize(`${node.closest('tr, td, div, label, li, .troop_details, .details')?.textContent || ''} ${node.getAttribute('title') || ''} ${node.getAttribute('aria-label') || ''}`);
+                return text.includes(normalize(args.troopType));
+              });
+              if (!candidate) return false;
+              candidate.focus();
+              candidate.value = String(args.count);
+              candidate.dispatchEvent(new Event('input', { bubbles: true }));
+              candidate.dispatchEvent(new Event('change', { bubbles: true }));
+              return true;
+            }
+            """,
+            new { troopType, count = troopCountToSend });
+
+        return fallbackFilled;
+    }
+
+    private async Task<bool> TrySelectAttackModeAsync(bool raidAttack, CancellationToken cancellationToken)
+    {
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while selecting attack mode.", cancellationToken);
+        try
+        {
+            return await _page.EvaluateAsync<bool>(
+                """
+                (raidAttack) => {
+                  const radioButtons = Array.from(document.querySelectorAll('input[type="radio"][name="c"]'));
+                  const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                  const radio = radioButtons.find(node => {
+                    const value = (node.getAttribute('value') || '').trim();
+                    const label = normalize(node.parentElement?.textContent || node.closest('label')?.textContent || '');
+                    if (raidAttack) return value === '4' || label.includes('raid');
+                    return label.includes('normal attack') || (value === '3') || (label.includes('attack') && !label.includes('raid') && !label.includes('reinforcement'));
+                  });
+                  if (!radio) return false;
+                  radio.checked = true;
+                  radio.dispatchEvent(new Event('input', { bubbles: true }));
+                  radio.dispatchEvent(new Event('change', { bubbles: true }));
+                  return true;
+                }
+                """,
+                raidAttack);
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            Notify("Page navigated while selecting attack mode.");
+            return false;
+        }
+    }
+
+    private async Task<bool> WaitForManualAttackConfirmationPageAsync(CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; attempt <= 12; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+            }
+            catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+            {
+                // Continue polling during navigation.
+            }
+
+            var confirmReady = await HasAnySelectorAsync(
+            [
+                ".button-container:has(.button-content:text-is('Confirm'))",
+                ".button-content:text-is('Confirm')",
+                "button:has-text('Confirm')",
+                "a:has-text('Confirm')",
+            ]);
+
+            if (confirmReady)
+            {
+                return true;
+            }
+
+            if (attempt < 12)
+            {
+                await Task.Delay(250, cancellationToken);
+            }
+        }
+
+        return false;
+    }
+
+    private async Task WaitForManualAttackCompletionAsync(CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; attempt <= 4; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded, new PageWaitForLoadStateOptions
+                {
+                    Timeout = Math.Min(_config.TimeoutMs, 1200),
+                });
+            }
+            catch (TimeoutException)
+            {
+                // The next loop iteration will recover by reopening Send Troops if needed.
+            }
+            catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+            {
+                // Continue polling during navigation.
+            }
+
+            if (await IsSendTroopsPageAsync(cancellationToken))
+            {
+                return;
+            }
+
+            var confirmStillVisible = await HasAnySelectorAsync(
+            [
+                ".button-container:has(.button-content:text-is('Confirm'))",
+                ".button-content:text-is('Confirm')",
+                "button:has-text('Confirm')",
+                "a:has-text('Confirm')",
+            ]);
+
+            if (!confirmStillVisible)
+            {
+                return;
+            }
+
+            if (attempt < 4)
+            {
+                await Task.Delay(120, cancellationToken);
+            }
+        }
+    }
+
+    private async Task<bool> TryClickConfirmButtonAsync(CancellationToken cancellationToken)
+    {
+        var selectors = new[]
+        {
+            ".button-container:has(.button-content:text-is('Confirm'))",
+            ".button-content:text-is('Confirm')",
+            "button:has-text('Confirm')",
+            "input[type='submit'][value*='Confirm' i]",
+            "input[type='button'][value*='Confirm' i]",
+            "a:has-text('Confirm')",
+        };
+
+        for (var attempt = 1; attempt <= 4; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                foreach (var selector in selectors)
+                {
+                    var locator = _page.Locator(selector).First;
+                    if (await locator.CountAsync() == 0)
+                    {
+                        continue;
+                    }
+
+                    await RetryAsync($"click confirm selector {selector}", async () =>
+                    {
+                        await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
+                    });
+
+                    await PauseForManualStepIfVisibleAsync("Manual verification appeared after clicking confirm.", cancellationToken);
+                    return true;
+                }
+            }
+            catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+            {
+                Notify($"Confirm page navigated during attempt {attempt}/4. Retrying...");
+            }
+            catch (TimeoutException) when (attempt < 4)
+            {
+                Notify($"Confirm button timed out on attempt {attempt}/4. Retrying...");
+            }
+
+            if (attempt < 4)
+            {
+                await Task.Delay(250, cancellationToken);
+            }
+        }
+
+        return false;
+    }
+
+    private enum AddRaidSaveOutcome
+    {
+        Failed = 0,
+        Added = 1,
+        AlreadyInList = 2,
+    }
+
+    private sealed record ManualAttackSendResult(
+        ManualAttackSendStatus Status,
+        int AvailableTroopCount,
+        int SentTroopCount,
+        int MinimumAcceptedTroopCount);
+
+    private enum ManualAttackSendStatus
+    {
+        Failed = 0,
+        SkippedLowTroops = 1,
+        Sent = 2,
+        StoppedByNoTroopsAlarm = 3,
+    }
+
+    private static string FormatLargeCount(int value)
+    {
+        return Math.Max(0, value).ToString("#,0", CultureInfo.InvariantCulture);
+    }
+
+    private static int ResolveRandomizedTroopCount(int troopCount, int troopVariancePercent)
+    {
+        var normalizedTroopCount = Math.Max(1, troopCount);
+        var normalizedVariancePercent = troopVariancePercent switch
+        {
+            0 or 5 or 10 or 20 or 50 => troopVariancePercent,
+            _ => 10,
+        };
+
+        if (normalizedVariancePercent <= 0)
+        {
+            return normalizedTroopCount;
+        }
+
+        var min = Math.Max(1, (int)Math.Floor(normalizedTroopCount * (100 - normalizedVariancePercent) / 100d));
+        var max = Math.Max(min, (int)Math.Ceiling(normalizedTroopCount * (100 + normalizedVariancePercent) / 100d));
+        return Random.Shared.Next(min, max + 1);
     }
 
     private async Task ClickDetectedUpgradeCandidateAsync(int slotId, int? candidateIndex, CancellationToken cancellationToken)

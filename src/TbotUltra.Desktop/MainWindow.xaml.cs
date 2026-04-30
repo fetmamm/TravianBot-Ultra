@@ -28,6 +28,30 @@ public partial class MainWindow : Window
     private const int NonCapitalResourceMaxLevel = 10;
     private const int MaxFarmListsShown = 120;
     private const int MaxLogLinesPerFlush = 220;
+    private const string RuntimeManualTaskPrefix = "desktop_runtime_manual";
+
+    private sealed class ManualExecutionState
+    {
+        public string OperationId { get; init; } = string.Empty;
+        public string OperationName { get; init; } = string.Empty;
+        public Guid QueueItemId { get; init; }
+        public ManualExecutionOutcome Outcome { get; set; }
+    }
+
+    private sealed record NatarListRow(
+        int Index,
+        string Coordinates,
+        int X,
+        int Y);
+
+    private enum ManualExecutionOutcome
+    {
+        None = 0,
+        Succeeded = 1,
+        Failed = 2,
+        Canceled = 3,
+    }
+
     private readonly string _projectRoot;
     private readonly string _versionPath;
     private readonly string _botConfigPath;
@@ -39,6 +63,8 @@ public partial class MainWindow : Window
     private readonly IAccountProvider _accountProvider;
     private readonly EnvAccountStore _accountStore;
     private readonly AccountAnalysisStore _accountAnalysisStore;
+    private readonly NatarFarmCacheStore _natarFarmCacheStore;
+    private readonly ManualFarmingPreferenceStore _manualFarmingPreferenceStore;
     private readonly ServerDiscoveryService _serverDiscoveryService;
     private readonly ServerCatalogStore _serverCatalogStore;
     private readonly IDesktopBotService _botService;
@@ -49,6 +75,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<string> _terminalEntries = [];
     private readonly ObservableCollection<string> _alarmEntries = [];
     private readonly ObservableCollection<LoopTaskOption> _automationLoopTasks = [];
+    private readonly ObservableCollection<HeroAttributePriorityItem> _heroAttributePriorityItems = [];
     private readonly ObservableCollection<FarmListStatusRow> _farmLists = [];
     private readonly ObservableCollection<ResourceFieldRow> _woodFields = [];
     private readonly ObservableCollection<ResourceFieldRow> _clayFields = [];
@@ -107,9 +134,17 @@ public partial class MainWindow : Window
     private bool _buildQueueReachedZeroPendingCompletion;
     private int _unacknowledgedAlarmCount;
     private bool _manualVerificationAlarmActive;
+    private int _captchaSessionSeenCount;
+    private int _captchaSessionSolvedCount;
+    private bool _captchaSessionActive;
     private DateTimeOffset _lastVerificationPopupAt = DateTimeOffset.MinValue;
     private DateTimeOffset _inlineWaitUntilUtc = DateTimeOffset.MinValue;
+    private int _manualFarmSessionExecutionCount;
     private string? _activeAutomationTaskName;
+    private string? _activeFunctionDisplayName;
+    private string? _pendingManualOperationId;
+    private readonly Dictionary<string, string> _operationNamesById = new(StringComparer.OrdinalIgnoreCase);
+    private ManualExecutionState? _activeManualExecution;
     private bool _logDragSelecting;
     private int _logDragAnchorIndex = -1;
     private ListBox? _logDragSourceList;
@@ -118,6 +153,7 @@ public partial class MainWindow : Window
     private bool _suppressAutomationLoopConfigWrite;
     private bool _suppressFarmListUiRefresh;
     private bool _farmingOperationBusy;
+    private bool _natarsProfileAnalyzed;
     private VillageStatus? _lastBuildingStatus;
     private readonly object _pendingLogSync = new();
     private readonly Queue<string> _pendingLogMessages = new();
@@ -130,7 +166,6 @@ public partial class MainWindow : Window
         ("scan_all_villages", "Scan All Villages", "Scans and logs status for all villages."),
         ("account_snapshot", "Account Snapshot", "Reads tribe, active village and village count."),
         ("upgrade_resource_to_level", "Upgrade Resource To Level", "Upgrades configured resource slot to target level."),
-        ("upgrade_resource_to_max", "Upgrade Resource To Max", "Upgrades configured resource slot to max level."),
         ("upgrade_all_resources_to_level", "Upgrade All Resources", "Upgrades all resource fields toward configured level."),
         ("upgrade_building_to_level", "Upgrade Building To Level", "Upgrades configured building slot to target level."),
         ("upgrade_building_to_max", "Upgrade Building To Max", "Upgrades configured building slot to max level."),
@@ -166,9 +201,13 @@ public partial class MainWindow : Window
         _accountProvider = new EnvAccountProvider(_envPath);
         _accountStore = new EnvAccountStore(_envPath);
         _accountAnalysisStore = new AccountAnalysisStore(_projectRoot);
+        _natarFarmCacheStore = new NatarFarmCacheStore(_projectRoot);
+        _manualFarmingPreferenceStore = new ManualFarmingPreferenceStore(_projectRoot);
         _serverDiscoveryService = new ServerDiscoveryService();
         _serverCatalogStore = new ServerCatalogStore(_serverCatalogPath);
-        var taskRunner = new BotTaskRunner(_accountProvider, new ProjectContext(_projectRoot));
+        var projectContext = new ProjectContext(_projectRoot);
+        var captchaAutoSolver = new CaptchaAutoSolver(projectContext);
+        var taskRunner = new BotTaskRunner(_accountProvider, projectContext, captchaAutoSolver);
         var queueStore = new JsonQueueStore(_queuePath);
         var queueScheduler = new PriorityFifoQueueScheduler();
         var queueExecutor = new QueueExecutor(taskRunner);
@@ -187,6 +226,7 @@ public partial class MainWindow : Window
                 HandleBrowserClosedSignal();
                 TickFarmListCountdowns();
                 UpdateExecutionStateIndicator();
+                UpdateManualFarmingRunningState();
             }
             catch (Exception ex)
             {
@@ -219,7 +259,9 @@ public partial class MainWindow : Window
 
         TerminalListBox.ItemsSource = _terminalEntries;
         AlarmListBox.ItemsSource = _alarmEntries;
+        UpdateCaptchaStatsUi();
         AutomationLoopListBox.ItemsSource = _automationLoopTasks;
+        HeroAttributePriorityItemsControl.ItemsSource = _heroAttributePriorityItems;
         FarmListsItemsControl.ItemsSource = _farmLists;
         _farmLists.CollectionChanged += (_, _) =>
         {
@@ -267,18 +309,14 @@ public partial class MainWindow : Window
         UpdateLoginButtonsVisual(false);
         UpdateSidebarSelection(DashboardNavButton);
         UpdateFarmingUiState();
+        UpdateManualFarmingExecutionCounter();
+        SetNatarsProfileAnalyzed(false);
+        LoadHeroPriorityToUi(null);
     }
 
     private void TryApplyWindowIcon()
     {
-        try
-        {
-            Icon = new BitmapImage(new Uri("pack://application:,,,/Assets/IMAGE_APP.ico", UriKind.Absolute));
-        }
-        catch
-        {
-            // Keep default icon if resource icon cannot be loaded.
-        }
+        // Keep the application icon from the exe when the .ico resource is not WPF-decodable.
     }
 
     private BotOptions LoadBotOptions()
@@ -299,6 +337,9 @@ public partial class MainWindow : Window
 
         var options = ApplySelectedVillageToOptions(LoadBotOptions());
         LoadAutomationLoopTasks(options);
+        HeroMinHpTextBox.Text = Math.Clamp(options.HeroMinHpForAdventure, 1, 100).ToString();
+        HeroAutoReviveCheckBox.IsChecked = options.HeroAutoRevive;
+        LoadHeroPriorityToUi(options.HeroStatPriority);
 
         try
         {
@@ -308,13 +349,24 @@ public partial class MainWindow : Window
             UpdateAccountInfoLabel(account.Name);
             UpdateInboxButtons(0, 0);
             UpdateGoldClubInfoFromStoredAnalysis();
+            RefreshNatarsProfileAnalyzedFromCache();
         }
         catch (Exception ex)
         {
-            StatusTextBlock.Text = "Failed to load account.";
-            AppendLog($"Account load failed: {ex.Message}");
+            var hasConfiguredAccounts = _accountStore.ListAccounts().Count > 0;
+            if (hasConfiguredAccounts)
+            {
+                StatusTextBlock.Text = "Failed to load account.";
+                AppendLog($"Account load failed: {ex.Message}");
+            }
+            else
+            {
+                StatusTextBlock.Text = "No account configured yet. Open Manage to create one.";
+            }
+
             UpdateInboxButtons(0, 0);
             UpdateGoldClubInfo(null);
+            SetNatarsProfileAnalyzed(false);
         }
 
     }
@@ -327,13 +379,117 @@ public partial class MainWindow : Window
         UpdateAccountInfoLabel(_accountStore.ActiveAccountName());
     }
 
+    private void LoadHeroPriorityToUi(string? configuredPriority)
+    {
+        var order = ParseHeroPriorityForUi(configuredPriority);
+        var existingPoints = _heroAttributePriorityItems.ToDictionary(item => item.Key, item => item.PointsText, StringComparer.OrdinalIgnoreCase);
+        _heroAttributePriorityItems.Clear();
+
+        for (var i = 0; i < order.Count; i++)
+        {
+            _heroAttributePriorityItems.Add(new HeroAttributePriorityItem
+            {
+                Key = order[i],
+                Title = GetHeroAttributeTitle(order[i]),
+                Order = i + 1,
+                PointsText = existingPoints.GetValueOrDefault(order[i], "-"),
+            });
+        }
+    }
+
+    private void UpdateHeroPriorityOrders()
+    {
+        for (var i = 0; i < _heroAttributePriorityItems.Count; i++)
+        {
+            _heroAttributePriorityItems[i].Order = i + 1;
+        }
+    }
+
+    private void ApplyHeroAttributeSnapshotToUi(HeroAttributeSnapshot snapshot)
+    {
+        foreach (var item in _heroAttributePriorityItems)
+        {
+            var points = item.Key switch
+            {
+                "fighting_strength" => snapshot.FightingStrength,
+                "offence_bonus" => snapshot.OffenceBonus,
+                "defence_bonus" => snapshot.DefenceBonus,
+                "resources" => snapshot.Resources,
+                _ => 0,
+            };
+            item.PointsText = points.ToString();
+        }
+
+        HeroAttributesStatusTextBlock.Text = $"Free points: {snapshot.FreePoints}";
+    }
+
+    private string BuildHeroPriorityPayload()
+    {
+        return string.Join(",", _heroAttributePriorityItems.Select(item => item.Key));
+    }
+
+    private static List<string> ParseHeroPriorityForUi(string? value)
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["fighting_strength"] = "fighting_strength",
+            ["fighting strength"] = "fighting_strength",
+            ["fight"] = "fighting_strength",
+            ["strength"] = "fighting_strength",
+            ["offence_bonus"] = "offence_bonus",
+            ["offence bonus"] = "offence_bonus",
+            ["offense_bonus"] = "offence_bonus",
+            ["offense bonus"] = "offence_bonus",
+            ["offence"] = "offence_bonus",
+            ["offense"] = "offence_bonus",
+            ["off"] = "offence_bonus",
+            ["attack"] = "offence_bonus",
+            ["defence_bonus"] = "defence_bonus",
+            ["defence bonus"] = "defence_bonus",
+            ["defense_bonus"] = "defence_bonus",
+            ["defense bonus"] = "defence_bonus",
+            ["defence"] = "defence_bonus",
+            ["defense"] = "defence_bonus",
+            ["def"] = "defence_bonus",
+            ["resources"] = "resources",
+            ["resource"] = "resources",
+            ["production"] = "resources",
+        };
+
+        var parsed = (value ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(item => map.GetValueOrDefault(item, string.Empty))
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        foreach (var fallback in new[] { "fighting_strength", "offence_bonus", "defence_bonus", "resources" })
+        {
+            if (!parsed.Contains(fallback, StringComparer.OrdinalIgnoreCase))
+            {
+                parsed.Add(fallback);
+            }
+        }
+
+        return parsed;
+    }
+
+    private static string GetHeroAttributeTitle(string key) => key switch
+    {
+        "fighting_strength" => "Fighting strength",
+        "offence_bonus" => "Offence bonus",
+        "defence_bonus" => "Defence bonus",
+        "resources" => "Resources",
+        _ => key,
+    };
+
     private void UpdateGoldClubInfoFromStoredAnalysis()
     {
         try
         {
             var accountName = _accountStore.ActiveAccountName();
             if (!string.IsNullOrWhiteSpace(accountName)
-                && _accountAnalysisStore.TryLoad(accountName, out var analysis)
+                && _accountAnalysisStore.TryLoad(accountName, out var analysis, GetActiveAccountServerUrl())
                 && analysis is not null
                 && analysis.GoldClubEnabled)
             {
@@ -347,6 +503,46 @@ public partial class MainWindow : Window
         }
 
         UpdateGoldClubInfo(null);
+    }
+
+    private void RefreshNatarsProfileAnalyzedFromCache()
+    {
+        try
+        {
+            var accountName = _accountStore.ActiveAccountName();
+            var serverUrl = GetActiveAccountServerUrl();
+            var selectionMode = LoadBotOptions().NatarVillageSelection;
+            var analyzed = !string.IsNullOrWhiteSpace(accountName)
+                && !string.IsNullOrWhiteSpace(serverUrl)
+                && _natarFarmCacheStore.IsAnalyzed(accountName, serverUrl, selectionMode);
+            SetNatarsProfileAnalyzed(analyzed);
+        }
+        catch
+        {
+            SetNatarsProfileAnalyzed(false);
+        }
+    }
+
+    private NatarFarmCacheSnapshot? TryLoadActiveNatarFarmSnapshot()
+    {
+        try
+        {
+            var accountName = _accountStore.ActiveAccountName();
+            var serverUrl = GetActiveAccountServerUrl();
+            var selectionMode = LoadBotOptions().NatarVillageSelection;
+            if (string.IsNullOrWhiteSpace(accountName) || string.IsNullOrWhiteSpace(serverUrl))
+            {
+                return null;
+            }
+
+            return _natarFarmCacheStore.TryLoad(accountName, out var snapshot, serverUrl, selectionMode)
+                ? snapshot
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private void LoadAutomationLoopTasks(BotOptions options)
@@ -448,6 +644,33 @@ public partial class MainWindow : Window
         }
 
         _ = Dispatcher.BeginInvoke((Action)Apply);
+    }
+
+    private void SetActiveFunctionExecution(string? displayName)
+    {
+        void Apply()
+        {
+            _activeFunctionDisplayName = string.IsNullOrWhiteSpace(displayName)
+                ? null
+                : displayName;
+            UpdateExecutionStateIndicator();
+        }
+
+        if (Dispatcher.CheckAccess())
+        {
+            Apply();
+            return;
+        }
+
+        _ = Dispatcher.BeginInvoke((Action)Apply);
+    }
+
+    private bool IsFunctionExecutionRunning(bool hasRunningQueueItems)
+    {
+        return hasRunningQueueItems
+            || _autoQueueRunning
+            || _uiBusy
+            || !string.IsNullOrWhiteSpace(_activeFunctionDisplayName);
     }
 
     private void UpdateAutomationLoopRunningIndicators()
@@ -852,7 +1075,18 @@ public partial class MainWindow : Window
                 })
                 .ToList();
 
-            var dialog = new AddFarmsToListWindow(optionsForDialog, ResolveCurrentTribeForFarming())
+            var natarFarmCount = await _botService.EnsureNatarFarmCacheAndReturnToFarmListAsync(options, AppendLog, false, operationToken);
+            if (natarFarmCount <= 0)
+            {
+                SetNatarsProfileAnalyzed(false);
+                AppDialog.Show(this, "No villages named 'Natar farm village' were found.", "Add farms", MessageBoxButton.OK, MessageBoxImage.Information);
+                CompleteOperation(operationId, operationSw, "No matching Natar farms found.");
+                return;
+            }
+
+            SetNatarsProfileAnalyzed(true);
+
+            var dialog = new AddFarmsToListWindow(optionsForDialog, ResolveCurrentTribeForFarming(), natarFarmCount)
             {
                 Owner = this,
             };
@@ -865,20 +1099,34 @@ public partial class MainWindow : Window
 
             var selected = dialog.SelectedOption!;
             AppendLog($"Add farms selected list: {selected.Name} ({selected.CountText}, {selected.CapacityText}).");
-            var result = await _botService.AddSingleFarmFromNatarsAsync(
+            var result = await _botService.AddFarmsFromNatarsAsync(
                 options,
                 selected.Name,
                 dialog.SelectedTroopType,
                 dialog.TroopCount,
+                dialog.RequestedFarmCount,
                 AppendLog,
                 operationToken);
+            var selectedRow = _farmLists.FirstOrDefault(item => string.Equals(item.Name, selected.Name, StringComparison.OrdinalIgnoreCase));
+            if (selectedRow is not null && result.AddedCount > 0)
+            {
+                selectedRow.ActiveFarmCount = Math.Min(selectedRow.TotalFarmCount, selectedRow.ActiveFarmCount + result.AddedCount);
+                UpdateFarmingUiState();
+            }
+
+            if (result.AlreadyInListCount > 0)
+            {
+                AppendLog($"Duplicate farms detected: {result.AlreadyInListCount} result(s) with 'This village is already in the selected farm list.'.");
+            }
+
+            await RefreshFarmListsFromServerAsync(options, operationToken);
             AppDialog.Show(
                 this,
-                $"Added 1 farm to '{result.FarmListName}' at ({result.X}|{result.Y}) with {result.TroopCount} {result.TroopType}.",
+                $"Added: {result.AddedCount}, Already in list: {result.AlreadyInListCount}, Failed: {result.FailedCount}.",
                 "Add farms",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
-            CompleteOperation(operationId, operationSw, $"Added 1 farm to '{result.FarmListName}' at ({result.X}|{result.Y}).");
+            CompleteOperation(operationId, operationSw, $"Add farms done. Added={result.AddedCount}, Existing={result.AlreadyInListCount}, Failed={result.FailedCount}.");
         }
         catch (OperationCanceledException)
         {
@@ -886,6 +1134,230 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
+            FailOperation(operationId, operationSw, ex);
+        }
+        finally
+        {
+            SetFarmingOperationBusy(false);
+            _operationCts?.Dispose();
+            _operationCts = null;
+        }
+    }
+
+    private async void AnalyzeNatarsProfileButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_farmingFeaturesAvailable)
+        {
+            AppendLog("Analyze natars profile is unavailable while Gold Club farming is disabled.");
+            return;
+        }
+
+        var operationId = BeginOperation("Analyze Natars Profile");
+        var operationSw = Stopwatch.StartNew();
+        _operationCts = new CancellationTokenSource();
+        var operationToken = _operationCts.Token;
+        SetFarmingOperationBusy(true);
+        try
+        {
+            var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            await EnsureChromiumInstalledAsync();
+            var natarFarmCount = await _botService.EnsureNatarFarmCacheAndReturnToFarmListAsync(options, AppendLog, true, operationToken);
+            var analyzed = natarFarmCount > 0 || _natarsProfileAnalyzed;
+            SetNatarsProfileAnalyzed(analyzed);
+            if (natarFarmCount > 0)
+            {
+                CompleteOperation(operationId, operationSw, $"Natars analyzed. Farms found: {natarFarmCount}.");
+            }
+            else if (analyzed)
+            {
+                CompleteOperation(operationId, operationSw, "No new Natar farms found. Existing cached analysis kept.");
+            }
+            else
+            {
+                CompleteOperation(operationId, operationSw, "No matching Natar farms found.");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            AppendLog("Analyze natars profile paused.");
+        }
+        catch (Exception ex)
+        {
+            RefreshNatarsProfileAnalyzedFromCache();
+            FailOperation(operationId, operationSw, ex);
+        }
+        finally
+        {
+            SetFarmingOperationBusy(false);
+            _operationCts?.Dispose();
+            _operationCts = null;
+        }
+    }
+
+    private void ShowNatarsListButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_natarsProfileAnalyzed)
+        {
+            return;
+        }
+
+        var snapshot = TryLoadActiveNatarFarmSnapshot();
+        if (snapshot is null || snapshot.Coordinates.Count <= 0)
+        {
+            SetNatarsProfileAnalyzed(false);
+            AppDialog.Show(this, "No analyzed Natars list is available for the active account.", "Natars list", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var rows = snapshot.Coordinates
+            .Select((item, index) => new NatarListRow(
+                index + 1,
+                $"{item.X}|{item.Y}",
+                item.X,
+                item.Y))
+            .ToList();
+
+        var grid = new DataGrid
+        {
+            AutoGenerateColumns = false,
+            IsReadOnly = true,
+            CanUserAddRows = false,
+            CanUserDeleteRows = false,
+            CanUserReorderColumns = false,
+            CanUserResizeRows = false,
+            SelectionMode = DataGridSelectionMode.Single,
+            SelectionUnit = DataGridSelectionUnit.FullRow,
+            Margin = new Thickness(0, 0, 0, 10),
+            ItemsSource = rows,
+        };
+        grid.Columns.Add(new DataGridTextColumn { Header = "#", Binding = new Binding(nameof(NatarListRow.Index)), Width = new DataGridLength(70) });
+        grid.Columns.Add(new DataGridTextColumn { Header = "Coordinates", Binding = new Binding(nameof(NatarListRow.Coordinates)), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        grid.Columns.Add(new DataGridTextColumn { Header = "X", Binding = new Binding(nameof(NatarListRow.X)), Width = new DataGridLength(90) });
+        grid.Columns.Add(new DataGridTextColumn { Header = "Y", Binding = new Binding(nameof(NatarListRow.Y)), Width = new DataGridLength(90) });
+
+        var summaryText = new TextBlock
+        {
+            Text = $"Entries: {rows.Count:N0} | Mode: {(string.Equals(snapshot.SelectionMode, "all_villages", StringComparison.OrdinalIgnoreCase) ? "All villages" : "Farm villages")}",
+            Foreground = new SolidColorBrush(Color.FromRgb(75, 85, 99)),
+            Margin = new Thickness(0, 0, 0, 10),
+        };
+
+        var closeButton = new Button
+        {
+            Content = "Close",
+            Width = 90,
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
+
+        var popup = new Window
+        {
+            Title = "Natars list",
+            Owner = this,
+            Width = 520,
+            Height = 620,
+            MinWidth = 420,
+            MinHeight = 320,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Content = new DockPanel
+            {
+                Margin = new Thickness(12),
+                Children =
+                {
+                    new StackPanel
+                    {
+                        Children =
+                        {
+                            summaryText,
+                            grid,
+                            closeButton,
+                        },
+                    },
+                },
+            },
+        };
+
+        closeButton.Click += (_, _) => popup.Close();
+        popup.ShowDialog();
+    }
+
+    private void StartManualFarmingButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_farmingOperationBusy)
+        {
+            return;
+        }
+
+        _ = StartManualFarmingAsync();
+    }
+
+    private async Task StartManualFarmingAsync()
+    {
+        if (!_farmingFeaturesAvailable)
+        {
+            AppendLog("Start manual farming is unavailable while Gold Club farming is disabled.");
+            return;
+        }
+
+        var currentOptions = LoadBotOptions();
+        var activeAccountName = _accountStore.ActiveAccountName();
+        var preferences = _manualFarmingPreferenceStore.Load(activeAccountName);
+        var dialog = new ManualFarmingWindow(
+            ResolveCurrentTribeForFarming(),
+            currentOptions.NatarVillageSelection,
+            preferences.TroopCount,
+            preferences.VariancePercent)
+        {
+            Owner = this,
+            PreferenceChanged = (troopCount, variancePercent) =>
+            {
+                _manualFarmingPreferenceStore.Save(activeAccountName, new ManualFarmingPreference(troopCount, variancePercent));
+            },
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            AppendLog("Manual farming canceled.");
+            return;
+        }
+
+        var operationId = BeginOperation("Start Manual Farming");
+        var operationSw = Stopwatch.StartNew();
+        _operationCts = new CancellationTokenSource();
+        var operationToken = _operationCts.Token;
+        SetFarmingOperationBusy(true);
+        try
+        {
+            var options = ApplyManualFarmingSelectionToOptions(
+                ApplySelectedVillageToOptions(currentOptions),
+                dialog.NatarVillageSelection);
+            await EnsureChromiumInstalledAsync();
+            var result = await _botService.StartManualFarmingFromNatarsAsync(
+                options,
+                dialog.SelectedTroopType,
+                dialog.TroopCount,
+                dialog.TroopVariancePercent,
+                dialog.IsRaid,
+                AppendLog,
+                operationToken);
+            SetNatarsProfileAnalyzed(result.TotalTargets > 0);
+            AppDialog.Show(
+                this,
+                $"Sent: {result.SentCount}, Skipped: {result.SkippedCount}, Failed: {result.FailedCount}, Targets: {result.TotalTargets}.",
+                "Manual farming",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            var statusText = result.SentCount > 0
+                ? $"Manual farming done. Sent={result.SentCount}, Skipped={result.SkippedCount}, Failed={result.FailedCount}, Targets={result.TotalTargets}."
+                : $"Manual farming stopped without sending troops. Skipped={result.SkippedCount}, Failed={result.FailedCount}, Targets={result.TotalTargets}.";
+            CompleteOperation(operationId, operationSw, statusText);
+        }
+        catch (OperationCanceledException)
+        {
+            AppendLog("Manual farming canceled.");
+        }
+        catch (Exception ex)
+        {
+            RefreshNatarsProfileAnalyzedFromCache();
             FailOperation(operationId, operationSw, ex);
         }
         finally
@@ -908,7 +1380,7 @@ public partial class MainWindow : Window
         {
             var accountName = _accountStore.ActiveAccountName();
             if (!string.IsNullOrWhiteSpace(accountName)
-                && _accountAnalysisStore.TryLoad(accountName, out var analysis)
+                && _accountAnalysisStore.TryLoad(accountName, out var analysis, GetActiveAccountServerUrl())
                 && analysis is not null
                 && !string.IsNullOrWhiteSpace(analysis.Tribe))
             {
@@ -1164,6 +1636,7 @@ public partial class MainWindow : Window
             _isLoggedIn = true;
             _browserSessionLikelyOpen = !options.Headless;
             _inboxAutoEnabled = true;
+            RefreshNatarsProfileAnalyzedFromCache();
             await RefreshInboxIndicatorsAsync(logErrors: true, force: true);
             await LoadCurrentVillageViewsAfterLoginAsync(options, operationToken);
             CompleteOperation(operationId, operationSw, "Login completed.");
@@ -1176,7 +1649,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             BrowserInfoTextBlock.Text = "Browser: error";
-            StatusTextBlock.Text = "Login failed.";
+            StatusTextBlock.Text = TryGetFriendlyLoginError(ex) ?? "Login failed.";
             _browserSessionLikelyOpen = false;
             FailOperation(operationId, operationSw, ex);
         }
@@ -1324,6 +1797,7 @@ public partial class MainWindow : Window
 
     private async void AccountsButton_Click(object sender, RoutedEventArgs e)
     {
+        var previouslyActiveAccount = _accountStore.ActiveAccountName();
         var options = ApplySelectedVillageToOptions(LoadBotOptions());
         var defaultServers = await FetchDefaultServerOptionsAsync(options);
         var servers = FetchEffectiveServerOptions(defaultServers);
@@ -1333,6 +1807,12 @@ public partial class MainWindow : Window
         };
         var result = window.ShowDialog();
         var runAnalysisRequested = result == true && window.RequestedRunAnalysisForActiveAccount;
+        var activeAccountAfterDialog = _accountStore.ActiveAccountName();
+        if (!string.Equals(previouslyActiveAccount, activeAccountAfterDialog, StringComparison.OrdinalIgnoreCase))
+        {
+            ResetVillageSelectionUi();
+        }
+
         LoadConfigToUi();
         if (runAnalysisRequested)
         {
@@ -1380,6 +1860,7 @@ public partial class MainWindow : Window
             _accountStore.SetActive(selected.Name);
             AppendLog($"Active account changed to '{selected.Name}'.");
             StatusTextBlock.Text = $"Active account: {selected.Name}";
+            ResetVillageSelectionUi();
             SyncServerFromActiveAccount();
             LoadConfigToUi();
             _inboxAutoEnabled = false;
@@ -1389,6 +1870,23 @@ public partial class MainWindow : Window
         {
             AppendLog($"Could not change active account: {ex.Message}");
             RefreshAccountPicker();
+        }
+    }
+
+    private void ResetVillageSelectionUi()
+    {
+        _suppressVillageSelectionChange = true;
+        try
+        {
+            VillageComboBox.ItemsSource = new[]
+            {
+                new VillageSelectionItem { Name = "-", Url = string.Empty },
+            };
+            VillageComboBox.SelectedIndex = 0;
+        }
+        finally
+        {
+            _suppressVillageSelectionChange = false;
         }
     }
 
@@ -1688,6 +2186,7 @@ public partial class MainWindow : Window
                         tickOutcome = $"queue:{next.TaskName}";
                         AppendLog($"[LOOP {tickId}] PICK queue item id={next.Id}, task={next.TaskName}, retries={next.Retries}/{next.MaxRetries}");
                         SetActiveAutomationTask(next.TaskName);
+                        SetActiveFunctionExecution(string.IsNullOrWhiteSpace(next.DisplayName) ? next.TaskName : next.DisplayName);
                         _botService.MarkQueueItemRunning(next.Id);
                         RefreshQueueUiOnUiThread(next.Id);
 
@@ -1740,14 +2239,23 @@ public partial class MainWindow : Window
                         finally
                         {
                             SetActiveAutomationTask(null);
+                            SetActiveFunctionExecution(null);
                             RefreshQueueUiOnUiThread(next.Id);
                         }
                     }
                     else
                     {
                         SetActiveAutomationTask(null);
+                        SetActiveFunctionExecution("Loop tasks");
                         tickOutcome = "fallback";
-                        await _botService.ExecuteFallbackTasksAsync(options, AppendLog, token);
+                        try
+                        {
+                            await _botService.ExecuteFallbackTasksAsync(options, AppendLog, token);
+                        }
+                        finally
+                        {
+                            SetActiveFunctionExecution(null);
+                        }
                     }
 
                     _ = Dispatcher.BeginInvoke(() =>
@@ -2137,7 +2645,7 @@ public partial class MainWindow : Window
             Margin = new Thickness(0, 0, 0, 8),
             ItemsSource = QueueDataGrid.ItemsSource,
         };
-        activeGrid.Columns.Add(new DataGridTextColumn { Header = "Task", Binding = new Binding("TaskName"), Width = new DataGridLength(2, DataGridLengthUnitType.Star) });
+        activeGrid.Columns.Add(new DataGridTextColumn { Header = "Task", Binding = new Binding("DisplayName"), Width = new DataGridLength(2, DataGridLengthUnitType.Star) });
         activeGrid.Columns.Add(new DataGridTextColumn { Header = "Status", Binding = new Binding("Status"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
         activeGrid.Columns.Add(new DataGridTextColumn { Header = "Retries", Binding = new Binding("Retries"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
         activeGrid.Columns.Add(new DataGridTextColumn { Header = "Next try", Binding = new Binding("NextAttemptAtServer"), Width = new DataGridLength(2, DataGridLengthUnitType.Star) });
@@ -2153,7 +2661,7 @@ public partial class MainWindow : Window
             BorderThickness = new Thickness(1),
             ItemsSource = QueueHistoryDataGrid.ItemsSource,
         };
-        historyGrid.Columns.Add(new DataGridTextColumn { Header = "Completed task", Binding = new Binding("TaskName"), Width = new DataGridLength(2, DataGridLengthUnitType.Star) });
+        historyGrid.Columns.Add(new DataGridTextColumn { Header = "Completed task", Binding = new Binding("DisplayName"), Width = new DataGridLength(2, DataGridLengthUnitType.Star) });
         historyGrid.Columns.Add(new DataGridTextColumn { Header = "Status", Binding = new Binding("Status"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
         historyGrid.Columns.Add(new DataGridTextColumn { Header = "Created", Binding = new Binding("CreatedAtServer"), Width = new DataGridLength(2, DataGridLengthUnitType.Star) });
 
@@ -2352,21 +2860,28 @@ public partial class MainWindow : Window
                 .Select(item => new QueueItemRow
                 {
                     Id = item.Id,
+                    DisplayName = string.IsNullOrWhiteSpace(item.DisplayName) ? item.TaskName : item.DisplayName,
                     TaskName = item.TaskName,
                     Priority = item.Priority,
                     Status = item.Status,
                     Retries = item.Retries,
                     MaxRetries = item.MaxRetries,
+                    IsRuntimeOnly = item.IsRuntimeOnly,
                     CreatedAt = item.CreatedAt,
                     NextAttemptAtServer = FormatQueueServerTime(item.NextAttemptAt),
                     CreatedAtServer = FormatQueueServerTime(item.CreatedAt),
                 })
                 .ToList();
             var activeRows = rows
-                .Where(row => row.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused or QueueStatus.Failed)
+                .Where(row =>
+                    row.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused
+                    || (row.Status == QueueStatus.Failed && !row.IsRuntimeOnly))
                 .ToList();
             var historyRows = rows
-                .Where(row => row.Status == QueueStatus.Succeeded)
+                .Where(row =>
+                    row.Status == QueueStatus.Succeeded
+                    || row.Status == QueueStatus.Canceled
+                    || (row.Status == QueueStatus.Failed && row.IsRuntimeOnly))
                 .ToList();
             var nowUtc = DateTimeOffset.UtcNow;
             var hasRunningQueueItems = ordered.Any(item => item.Status == QueueStatus.Running);
@@ -2393,10 +2908,10 @@ public partial class MainWindow : Window
             var offsetPrefix = _queueServerTimeOffset < TimeSpan.Zero ? "-" : "+";
             var state = (hasDeferredQueueItems && !hasRunningQueueItems && !_uiBusy) || hasInlineWait
                 ? "Waiting"
-                : (_loopTask is not null && !_loopTask.IsCompleted)
-                    ? "Loop running"
-                    : _autoQueueRunning || _uiBusy
-                        ? "Function running"
+                : IsFunctionExecutionRunning(hasRunningQueueItems)
+                    ? "Function running"
+                    : (_loopTask is not null && !_loopTask.IsCompleted)
+                        ? "Loop running"
                         : hasPausedQueueItems
                             ? "Paused"
                             : "Idle";
@@ -2523,7 +3038,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            return _accountAnalysisStore.IsAnalyzed(accountName);
+            return _accountAnalysisStore.IsAnalyzed(accountName, GetActiveAccountServerUrl());
         }
         catch
         {
@@ -2914,6 +3429,65 @@ public partial class MainWindow : Window
         BuildingsInfoTextBlock.Text = $"Queued demolition for {selected.Name} (slot {selected.SlotId}) to level {targetLevel}.";
     }
 
+    private void HeroPriorityMoveUpButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: HeroAttributePriorityItem item })
+        {
+            return;
+        }
+
+        var index = _heroAttributePriorityItems.IndexOf(item);
+        if (index <= 0)
+        {
+            return;
+        }
+
+        _heroAttributePriorityItems.Move(index, index - 1);
+        UpdateHeroPriorityOrders();
+    }
+
+    private void HeroPriorityMoveDownButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: HeroAttributePriorityItem item })
+        {
+            return;
+        }
+
+        var index = _heroAttributePriorityItems.IndexOf(item);
+        if (index < 0 || index >= _heroAttributePriorityItems.Count - 1)
+        {
+            return;
+        }
+
+        _heroAttributePriorityItems.Move(index, index + 1);
+        UpdateHeroPriorityOrders();
+    }
+
+    private async void RefreshHeroStatsButton_Click(object sender, RoutedEventArgs e)
+    {
+        RefreshHeroStatsButton.IsEnabled = false;
+        var operationId = BeginOperation("Refresh hero stats");
+        var operationSw = Stopwatch.StartNew();
+
+        try
+        {
+            await EnsureChromiumInstalledAsync();
+            var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            var snapshot = await _botService.ReadHeroAttributesAsync(options, AppendLog, CancellationToken.None);
+            ApplyHeroAttributeSnapshotToUi(snapshot);
+            CompleteOperation(operationId, operationSw, $"Hero stats refreshed. Free points: {snapshot.FreePoints}.");
+        }
+        catch (Exception ex)
+        {
+            FailOperation(operationId, operationSw, ex);
+            HeroAttributesStatusTextBlock.Text = $"Hero stats refresh failed: {ex.Message}";
+        }
+        finally
+        {
+            RefreshHeroStatsButton.IsEnabled = true;
+        }
+    }
+
     private void QueueHeroManageButton_Click(object sender, RoutedEventArgs e)
     {
         if (!int.TryParse(HeroMinHpTextBox.Text.Trim(), out var minHp) || minHp < 1 || minHp > 100)
@@ -2926,7 +3500,7 @@ public partial class MainWindow : Window
         {
             [BotOptionPayloadKeys.HeroMinHpForAdventure] = minHp.ToString(),
             [BotOptionPayloadKeys.HeroAutoRevive] = HeroAutoReviveCheckBox.IsChecked == true ? "true" : "false",
-            [BotOptionPayloadKeys.HeroStatPriority] = HeroStatPriorityTextBox.Text.Trim(),
+            [BotOptionPayloadKeys.HeroStatPriority] = BuildHeroPriorityPayload(),
         };
         EnqueueQuickTask("hero_manage", "Run hero management task", payload);
         BuildingsInfoTextBlock.Text = "Queued hero management task.";
@@ -2947,10 +3521,9 @@ public partial class MainWindow : Window
         SendHeroOnAdventureButton.Content = continuous ? "Stop adventures" : "Sending...";
         SendHeroOnAdventureButton.IsEnabled = continuous;
         RefreshAdventuresButton.IsEnabled = false;
-        ToggleUiBusy(true);
-
         var operationId = BeginOperation(continuous ? "Hero adventure (continuous)" : "Hero adventure");
         var operationSw = Stopwatch.StartNew();
+        ToggleUiBusy(true);
 
         try
         {
@@ -3278,6 +3851,7 @@ public partial class MainWindow : Window
             var hasIdentifiedBuildingName = building is not null
                 && !string.IsNullOrWhiteSpace(building.Name)
                 && !string.Equals(building.Name, "Unknown", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(building.Name, "Empty", StringComparison.OrdinalIgnoreCase)
                 && !building.Name.StartsWith("Slot ", StringComparison.OrdinalIgnoreCase);
             var occupied = building is not null
                 && ((building.Level ?? 0) > 0
@@ -3490,6 +4064,11 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (busy)
+        {
+            EnsureManualExecutionTracking();
+        }
+
         _uiBusy = busy;
         try
         {
@@ -3516,7 +4095,9 @@ public partial class MainWindow : Window
             if (StartLoopButton is not null)
             {
                 StartLoopButton.IsEnabled = _isLoggedIn;
-                StartLoopButton.Content = (busy || _autoQueueRunning || (_loopTask is not null && !_loopTask.IsCompleted)) ? "Pause bot" : "Start bot";
+                StartLoopButton.Content = (busy || _autoQueueRunning || !string.IsNullOrWhiteSpace(_activeFunctionDisplayName) || (_loopTask is not null && !_loopTask.IsCompleted))
+                    ? "Pause bot"
+                    : "Start bot";
             }
 
             SyncFarmingControlsEnabledState();
@@ -3525,6 +4106,103 @@ public partial class MainWindow : Window
         {
             AppendLog($"ToggleUiBusy warning: {ex.Message}");
         }
+        finally
+        {
+            if (!busy)
+            {
+                CompleteManualExecutionTrackingIfNeeded();
+            }
+        }
+    }
+
+    private void EnsureManualExecutionTracking()
+    {
+        if (_activeManualExecution is not null)
+        {
+            return;
+        }
+
+        var operationId = _pendingManualOperationId;
+        var operationName = operationId is not null && _operationNamesById.TryGetValue(operationId, out var knownName)
+            ? knownName
+            : "Manual function";
+
+        operationId ??= $"manual-{Guid.NewGuid():N}";
+        var taskName = BuildRuntimeManualTaskName(operationName);
+        var queueItem = _botService.EnqueueRuntime(taskName, operationName, payload: null, priority: 0, maxRetries: 0);
+        _botService.MarkQueueItemRunning(queueItem.Id);
+
+        _activeManualExecution = new ManualExecutionState
+        {
+            OperationId = operationId,
+            OperationName = operationName,
+            QueueItemId = queueItem.Id,
+            Outcome = ManualExecutionOutcome.None,
+        };
+
+        _pendingManualOperationId = null;
+        SetActiveFunctionExecution(operationName);
+        RefreshQueueUiOnUiThread(queueItem.Id);
+    }
+
+    private void CompleteManualExecutionTrackingIfNeeded()
+    {
+        if (_activeManualExecution is null)
+        {
+            return;
+        }
+
+        var execution = _activeManualExecution;
+        try
+        {
+            switch (execution.Outcome)
+            {
+                case ManualExecutionOutcome.Succeeded:
+                    _botService.MarkQueueItemSucceeded(execution.QueueItemId);
+                    break;
+                case ManualExecutionOutcome.Failed:
+                    _botService.MarkQueueItemExecutionFailed(execution.QueueItemId);
+                    break;
+                default:
+                    _botService.MarkQueueItemCanceled(execution.QueueItemId);
+                    break;
+            }
+        }
+        finally
+        {
+            _activeManualExecution = null;
+            _operationNamesById.Remove(execution.OperationId);
+            SetActiveFunctionExecution(null);
+            RefreshQueueUiOnUiThread(execution.QueueItemId);
+        }
+    }
+
+    private void SetManualExecutionOutcome(string operationId, ManualExecutionOutcome outcome)
+    {
+        if (_activeManualExecution is null)
+        {
+            return;
+        }
+
+        if (!string.Equals(_activeManualExecution.OperationId, operationId, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _activeManualExecution.Outcome = outcome;
+    }
+
+    private static string BuildRuntimeManualTaskName(string operationName)
+    {
+        var normalized = Regex.Replace(operationName ?? string.Empty, "[^a-zA-Z0-9]+", "_")
+            .Trim('_')
+            .ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            normalized = "manual";
+        }
+
+        return $"{RuntimeManualTaskPrefix}:{normalized}";
     }
 
     private static void SetEnabled(UIElement? element, bool enabled)
@@ -3542,6 +4220,10 @@ public partial class MainWindow : Window
         SetEnabled(CreateFarmListButton, farmControlsEnabled);
         SetEnabled(FarmListsItemsControl, farmControlsEnabled);
         SetEnabled(AnalyzeFarmListsButton, !_farmingOperationBusy);
+        SetEnabled(AnalyzeNatarsProfileButton, !_farmingOperationBusy && _farmingFeaturesAvailable);
+        SetEnabled(ShowNatarsListButton, !_farmingOperationBusy && _farmingFeaturesAvailable && _natarsProfileAnalyzed);
+        SetEnabled(StartManualFarmingButton, _farmingFeaturesAvailable);
+        UpdateManualFarmingRunningState();
     }
 
     private void RefreshFarmListsItemsControl()
@@ -3581,6 +4263,65 @@ public partial class MainWindow : Window
     {
         _farmingOperationBusy = busy;
         SyncFarmingControlsEnabledState();
+    }
+
+    private static BotOptions ApplyManualFarmingSelectionToOptions(BotOptions options, string natarVillageSelection)
+    {
+        return BotOptionsFactory.CloneWithOverrides(
+            options,
+            natarVillageSelectionOverride: natarVillageSelection);
+    }
+
+    private void UpdateManualFarmingRunningState()
+    {
+        if (StartManualFarmingButton is not null)
+        {
+            StartManualFarmingButton.Content = "Start manual farming";
+            StartManualFarmingButton.IsEnabled = _farmingFeaturesAvailable && !_farmingOperationBusy;
+        }
+
+        if (ManualFarmingStateTextBlock is not null)
+        {
+            var remainingWaitSeconds = _inlineWaitUntilUtc > DateTimeOffset.UtcNow
+                ? Math.Max(0, (int)Math.Ceiling((_inlineWaitUntilUtc - DateTimeOffset.UtcNow).TotalSeconds))
+                : 0;
+            ManualFarmingStateTextBlock.Text = _farmingOperationBusy
+                ? remainingWaitSeconds > 0
+                    ? $"State: waiting ({FormatCountdown(remainingWaitSeconds)})"
+                    : "State: running"
+                : "State: not running";
+            ManualFarmingStateTextBlock.Foreground = _farmingOperationBusy
+                ? new SolidColorBrush(Color.FromRgb(22, 163, 74))
+                : new SolidColorBrush(Color.FromRgb(107, 114, 128));
+        }
+
+        if (ManualFarmingStateDot is not null)
+        {
+            ManualFarmingStateDot.Fill = _farmingOperationBusy
+                ? new SolidColorBrush(Color.FromRgb(22, 163, 74))
+                : new SolidColorBrush(Color.FromRgb(156, 163, 175));
+        }
+    }
+
+    private void UpdateManualFarmingExecutionCounter()
+    {
+        if (ManualFarmingExecutionCountTextBlock is null)
+        {
+            return;
+        }
+
+        ManualFarmingExecutionCountTextBlock.Text = _manualFarmSessionExecutionCount.ToString("N0");
+    }
+
+    private void SetNatarsProfileAnalyzed(bool analyzed)
+    {
+        _natarsProfileAnalyzed = analyzed;
+        if (NatarsProfileAnalyzedIndicator is not null)
+        {
+            NatarsProfileAnalyzedIndicator.Fill = analyzed ? Brushes.LimeGreen : Brushes.Gray;
+        }
+
+        SetEnabled(ShowNatarsListButton, !_farmingOperationBusy && _farmingFeaturesAvailable && analyzed);
     }
 
     private void RefreshAccountPicker()
@@ -3762,6 +4503,7 @@ public partial class MainWindow : Window
                 var options = ApplySelectedVillageToOptions(LoadBotOptions());
                 AppendLog($"[AUTOQ {runId}] RUN task={next.TaskName}, id={next.Id}");
                 SetActiveAutomationTask(next.TaskName);
+                SetActiveFunctionExecution(string.IsNullOrWhiteSpace(next.DisplayName) ? next.TaskName : next.DisplayName);
                 await _botService.ExecuteQueueItemAsync(options, next, AppendLog, cancellationToken);
                 _botService.MarkQueueItemSucceeded(next.Id);
                 if (string.Equals(next.TaskName, "account_full_analysis", StringComparison.OrdinalIgnoreCase))
@@ -3823,6 +4565,7 @@ public partial class MainWindow : Window
             finally
             {
                 SetActiveAutomationTask(null);
+                SetActiveFunctionExecution(null);
                 RefreshQueueUiOnUiThread(next.Id);
             }
         }
@@ -3908,11 +4651,23 @@ public partial class MainWindow : Window
                         }
                     }
 
+                    if (IsManualFarmingExecutionMessage(part))
+                    {
+                        _manualFarmSessionExecutionCount += 1;
+                        UpdateManualFarmingExecutionCounter();
+                    }
+
                     if (IsAlarmMessage(part))
                     {
                         _alarmEntries.Insert(0, line);
                         _unacknowledgedAlarmCount += 1;
                         linesForSessionLog.Add($"[{GetServerNow():yyyy-MM-dd HH:mm:ss}] [ALARM] {part}");
+                    }
+
+                    if (IsCaptchaSessionStartMessage(part) && !_captchaSessionActive)
+                    {
+                        _captchaSessionSeenCount += 1;
+                        _captchaSessionActive = true;
                     }
 
                     if (IsManualVerificationAlarmMessage(part))
@@ -3926,6 +4681,16 @@ public partial class MainWindow : Window
                         _manualVerificationAlarmActive = false;
                     }
 
+                    if (_captchaSessionActive && IsCaptchaSolvedAutomaticallyMessage(part))
+                    {
+                        _captchaSessionSolvedCount += 1;
+                        _captchaSessionActive = false;
+                    }
+                    else if (_captchaSessionActive && IsManualVerificationResolvedMessage(part))
+                    {
+                        _captchaSessionActive = false;
+                    }
+
                     if (part.Contains("manual verification appeared", StringComparison.OrdinalIgnoreCase)
                         || part.Contains("captcha/manual", StringComparison.OrdinalIgnoreCase))
                     {
@@ -3936,6 +4701,7 @@ public partial class MainWindow : Window
 
             TrimToMaxEntries(_terminalEntries, 1000);
             TrimToMaxEntries(_alarmEntries, 200);
+            UpdateCaptchaStatsUi();
             TryAppendSessionLogLines(linesForSessionLog);
 
             if (lastRawMessage is not null)
@@ -4130,7 +4896,10 @@ public partial class MainWindow : Window
         return value.Contains("manual verification appeared")
             || value.Contains("captcha/manual")
             || value.Contains("captcha/manual step detected")
-            || value.Contains("solve it in the browser window");
+            || value.Contains("solve it in the browser window")
+            || value.Contains("captured captcha screenshot")
+            || value.Contains("captcha auto-solve attempt")
+            || value.Contains("captcha solver result");
     }
 
     private static bool IsManualVerificationResolvedMessage(string message)
@@ -4142,8 +4911,32 @@ public partial class MainWindow : Window
 
         var value = message.ToLowerInvariant();
         return value.Contains("manual verification cleared")
+            || value.Contains("captcha cleared automatically")
             || value.Contains("login completed")
             || value.Contains("login finished");
+    }
+
+    private static bool IsCaptchaSolvedAutomaticallyMessage(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        return message.Contains("Captcha cleared automatically", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsCaptchaSessionStartMessage(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        var value = message.ToLowerInvariant();
+        return value.Contains("captured captcha screenshot")
+            || value.Contains("manual verification appeared")
+            || value.Contains("captcha/manual step detected");
     }
 
     private static bool IsAlarmMessage(string message)
@@ -4154,7 +4947,37 @@ public partial class MainWindow : Window
         }
 
         var value = message.ToLowerInvariant();
+        if (value.Contains(" started]"))
+        {
+            return false;
+        }
+
+        if (value.Contains(" completed]"))
+        {
+            return false;
+        }
+
+        if (value.Contains(" paused"))
+        {
+            return false;
+        }
+
+        if (value.Contains(" stopped"))
+        {
+            return false;
+        }
+
+        if (value.Contains(" canceled"))
+        {
+            return false;
+        }
+
         if (value.Contains("] fail"))
+        {
+            return true;
+        }
+
+        if (value.Contains("alarm:"))
         {
             return true;
         }
@@ -4167,8 +4990,24 @@ public partial class MainWindow : Window
             || value.Contains("verification")
             || value.Contains("invalid")
             || value.Contains("not logged in")
-            || value.Contains("could not")
-            || value.Contains("manual");
+            || value.Contains("could not");
+    }
+
+    private static bool IsManualFarmingExecutionMessage(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        var value = message.ToLowerInvariant();
+        return value.Contains(" sent raid to (")
+            || value.Contains(" sent normal attack to (");
+    }
+
+    private void UpdateCaptchaStatsUi()
+    {
+        CaptchaStatsTextBlock.Text = $"Captchas solved: {_captchaSessionSolvedCount}/{_captchaSessionSeenCount}";
     }
 
     private async void MarkMessagesReadButton_Click(object sender, RoutedEventArgs e)
@@ -5352,7 +6191,6 @@ public partial class MainWindow : Window
     private static bool IsResourceUpgradeTask(string taskName)
     {
         return string.Equals(taskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase)
-               || string.Equals(taskName, "upgrade_resource_to_max", StringComparison.OrdinalIgnoreCase)
                || string.Equals(taskName, "upgrade_all_resources_to_level", StringComparison.OrdinalIgnoreCase);
     }
 
@@ -5466,17 +6304,23 @@ public partial class MainWindow : Window
     {
         var id = System.Threading.Interlocked.Increment(ref _operationCounter);
         var operationId = $"OP{id:D4}";
+        _operationNamesById[operationId] = operationName;
+        _pendingManualOperationId = operationId;
         AppendLog($"[{operationId}] [{operationName} STARTED]");
         return operationId;
     }
 
     private void CompleteOperation(string operationId, Stopwatch sw, string summary)
     {
+        SetManualExecutionOutcome(operationId, ManualExecutionOutcome.Succeeded);
+        _operationNamesById.Remove(operationId);
         AppendLog($"[{operationId}] [COMPLETED] {sw.Elapsed.TotalSeconds:F1}s | {summary}");
     }
 
     private void FailOperation(string operationId, Stopwatch sw, Exception ex)
     {
+        SetManualExecutionOutcome(operationId, ManualExecutionOutcome.Failed);
+        _operationNamesById.Remove(operationId);
         AppendLog($"[{operationId}] FAIL {sw.Elapsed.TotalSeconds:F1}s | {FormatExceptionForLog(ex)}");
         if (!string.IsNullOrWhiteSpace(ex.StackTrace))
         {
@@ -5529,7 +6373,7 @@ public partial class MainWindow : Window
             return false;
         }
 
-        var effectiveSeconds = Math.Max(1, seconds);
+        var effectiveSeconds = Math.Max(0, seconds);
         delay = TimeSpan.FromSeconds(effectiveSeconds);
         return true;
     }
@@ -5596,7 +6440,8 @@ public partial class MainWindow : Window
 
         var nowForWait = DateTimeOffset.UtcNow;
         var hasInlineWait = _inlineWaitUntilUtc > nowForWait;
-        if ((hasDeferredQueueItems && !hasRunningQueueItems && !_uiBusy) || hasInlineWait)
+        var functionExecutionRunning = IsFunctionExecutionRunning(hasRunningQueueItems);
+        if ((hasDeferredQueueItems && !hasRunningQueueItems && !_uiBusy && !functionExecutionRunning) || hasInlineWait)
         {
             int remainingSeconds;
             if (hasInlineWait)
@@ -5619,26 +6464,18 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (functionExecutionRunning)
+        {
+            LoopStateTextBlock.Text = "State: function running";
+            LoopStateBadge.Background = new SolidColorBrush(Color.FromRgb(37, 99, 235));
+            StartLoopButton.Content = "Pause bot";
+            return;
+        }
+
         if (loopRunning)
         {
             LoopStateTextBlock.Text = "State: loop running";
             LoopStateBadge.Background = new SolidColorBrush(Color.FromRgb(22, 163, 74));
-            StartLoopButton.Content = "Pause bot";
-            return;
-        }
-
-        if (_autoQueueRunning)
-        {
-            LoopStateTextBlock.Text = "State: function running";
-            LoopStateBadge.Background = new SolidColorBrush(Color.FromRgb(37, 99, 235));
-            StartLoopButton.Content = "Pause bot";
-            return;
-        }
-
-        if (_uiBusy)
-        {
-            LoopStateTextBlock.Text = "State: function running";
-            LoopStateBadge.Background = new SolidColorBrush(Color.FromRgb(37, 99, 235));
             StartLoopButton.Content = "Pause bot";
             return;
         }
@@ -5687,8 +6524,43 @@ public partial class MainWindow : Window
 
     private void UpdateAccountInfoLabel(string accountName)
     {
-        var goldClubLabel = TryGetStoredGoldClubEnabled(accountName) == true ? "Yes" : "-";
-        ActiveAccountInfoTextBlock.Text = $"Account: {accountName} | Server: {ExtractServerSpeedLabel()} | Goldclub: {goldClubLabel}";
+        ActiveAccountInfoTextBlock.Text = $"Account: {accountName} | Server: {ExtractServerSpeedLabel()}";
+    }
+
+    private static string? TryGetFriendlyLoginError(Exception ex)
+    {
+        var message = ex.Message ?? string.Empty;
+        if (message.Length == 0)
+        {
+            return null;
+        }
+
+        var normalized = message.ToLowerInvariant();
+        if (normalized.Contains("wrong password")
+            || normalized.Contains("password is wrong")
+            || normalized.Contains("incorrect password")
+            || normalized.Contains("invalid password"))
+        {
+            return "Login failed: wrong password.";
+        }
+
+        if (normalized.Contains("username")
+            && (normalized.Contains("not exist")
+                || normalized.Contains("doesn't exist")
+                || normalized.Contains("does not exist")
+                || normalized.Contains("unknown")
+                || normalized.Contains("not found")))
+        {
+            return "Login failed: username does not exist.";
+        }
+
+        if (normalized.Contains("invalid")
+            && normalized.Contains("credential"))
+        {
+            return "Login failed: username does not exist or password is incorrect.";
+        }
+
+        return null;
     }
 
     private bool? TryGetStoredGoldClubEnabled(string? accountName)
@@ -5700,7 +6572,7 @@ public partial class MainWindow : Window
 
         try
         {
-            if (_accountAnalysisStore.TryLoad(accountName, out var analysis) && analysis is not null)
+            if (_accountAnalysisStore.TryLoad(accountName, out var analysis, GetActiveAccountServerUrl()) && analysis is not null)
             {
                 return analysis.GoldClubEnabled;
             }
@@ -5711,6 +6583,19 @@ public partial class MainWindow : Window
         }
 
         return null;
+    }
+
+    private string? GetActiveAccountServerUrl()
+    {
+        try
+        {
+            var account = _accountProvider.LoadAccount();
+            return account.ServerUrl;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private string ExtractServerSpeedLabel()

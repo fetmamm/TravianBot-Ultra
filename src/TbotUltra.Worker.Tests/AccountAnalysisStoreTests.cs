@@ -30,11 +30,11 @@ public sealed class AccountAnalysisStoreTests : IDisposable
 
         _store.Save(snapshot);
 
-        var loaded = _store.TryLoad("main", out var result);
+        var loaded = _store.TryLoad("main", out var result, "https://example.com");
         Assert.True(loaded);
         Assert.NotNull(result);
         Assert.Equal("Romans", result!.Tribe);
-        Assert.True(_store.IsAnalyzed("main"));
+        Assert.True(_store.IsAnalyzed("main", "https://example.com"));
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public sealed class AccountAnalysisStoreTests : IDisposable
             BuildingCatalog: []);
         _store.Save(snapshot);
 
-        Assert.False(_store.IsAnalyzed("legacy"));
+        Assert.False(_store.IsAnalyzed("legacy", "https://example.com"));
     }
 
     [Fact]
@@ -60,10 +60,10 @@ public sealed class AccountAnalysisStoreTests : IDisposable
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, "{ invalid json");
 
-        var loaded = _store.TryLoad("broken", out var analysis);
+        var loaded = _store.TryLoad("broken", out var analysis, "https://example.com");
         Assert.False(loaded);
         Assert.Null(analysis);
-        Assert.False(_store.IsAnalyzed("broken"));
+        Assert.False(_store.IsAnalyzed("broken", "https://example.com"));
     }
 
     public void Dispose()

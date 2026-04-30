@@ -1,4 +1,5 @@
 using System.Windows;
+using TbotUltra.Core.Travian;
 using TbotUltra.Desktop.Models;
 
 namespace TbotUltra.Desktop;
@@ -6,20 +7,25 @@ namespace TbotUltra.Desktop;
 public partial class AddFarmsToListWindow : Window
 {
     private readonly List<FarmListSelectionOption> _options;
+    private readonly int _natarFarmCount;
 
     public FarmListSelectionOption? SelectedOption { get; private set; }
     public string SelectedTroopType { get; private set; } = string.Empty;
     public int TroopCount { get; private set; }
+    public int RequestedFarmCount { get; private set; }
 
-    public AddFarmsToListWindow(IEnumerable<FarmListSelectionOption> options, string tribe)
+    public AddFarmsToListWindow(IEnumerable<FarmListSelectionOption> options, string tribe, int natarFarmCount)
     {
         InitializeComponent();
         _options = options?.ToList() ?? [];
+        _natarFarmCount = Math.Max(0, natarFarmCount);
         FarmListOptionsListBox.ItemsSource = _options;
         FarmListOptionsListBox.SelectedItem = _options.FirstOrDefault(item => item.AvailableSlots > 0) ?? _options.FirstOrDefault();
-        TroopTypeComboBox.ItemsSource = ResolveTroopTypesForTribe(tribe);
+        TroopTypeComboBox.ItemsSource = TroopCatalog.ResolveTroopTypesForTribe(tribe);
         TroopTypeComboBox.SelectedIndex = 0;
         TroopCountTextBox.Text = "1";
+        FillModeRadioButton.IsChecked = true;
+        CustomCountTextBox.Text = "1";
         RefreshUiState();
     }
 
@@ -58,6 +64,12 @@ public partial class AddFarmsToListWindow : Window
         SelectedOption = selected;
         SelectedTroopType = troopType;
         TroopCount = troopCount;
+        RequestedFarmCount = ResolveRequestedFarmCount(selected);
+        if (RequestedFarmCount <= 0)
+        {
+            AppDialog.Show(this, "Requested farm count must be greater than 0.", "Add farms", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
         DialogResult = true;
         Close();
     }
@@ -68,6 +80,26 @@ public partial class AddFarmsToListWindow : Window
     }
 
     private void TroopCountTextBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        RefreshUiState();
+    }
+
+    private void FillModeRadioButton_Checked(object sender, RoutedEventArgs e)
+    {
+        RefreshUiState();
+    }
+
+    private void AllModeRadioButton_Checked(object sender, RoutedEventArgs e)
+    {
+        RefreshUiState();
+    }
+
+    private void CustomModeRadioButton_Checked(object sender, RoutedEventArgs e)
+    {
+        RefreshUiState();
+    }
+
+    private void CustomCountTextBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
         RefreshUiState();
     }
@@ -88,7 +120,8 @@ public partial class AddFarmsToListWindow : Window
         var selected = FarmListOptionsListBox.SelectedItem as FarmListSelectionOption;
         var hasTroop = TroopTypeComboBox.SelectedItem is string troop && !string.IsNullOrWhiteSpace(troop);
         var hasCount = int.TryParse(TroopCountTextBox.Text.Trim(), out var count) && count > 0;
-        AddFarmsButton.IsEnabled = selected is not null && selected.AvailableSlots > 0 && hasTroop && hasCount;
+        var requested = selected is null ? 0 : ResolveRequestedFarmCount(selected);
+        AddFarmsButton.IsEnabled = selected is not null && hasTroop && hasCount && requested > 0;
         if (selected is null)
         {
             InfoTextBlock.Text = "Select a list to continue.";
@@ -101,44 +134,26 @@ public partial class AddFarmsToListWindow : Window
             return;
         }
 
-        InfoTextBlock.Text = selected.AvailableSlots > 0
-            ? $"{selected.AvailableSlots} slots available in '{selected.Name}'."
-            : $"'{selected.Name}' is full.";
+        InfoTextBlock.Text = $"Natars scanned: {_natarFarmCount}. Requested: {Math.Max(0, requested)}. Slots free: {selected.AvailableSlots}.";
     }
 
-    private static List<string> ResolveTroopTypesForTribe(string? tribe)
+    private int ResolveRequestedFarmCount(FarmListSelectionOption selected)
     {
-        var value = (tribe ?? string.Empty).Trim().ToLowerInvariant();
-        if (value.Contains("roman"))
+        if (AllModeRadioButton.IsChecked == true)
         {
-            return ["Legionnaire", "Praetorian", "Imperian", "Equites Legati", "Equites Imperatoris", "Equites Caesaris", "Ram", "Fire Catapult", "Senator", "Settler"];
+            return _natarFarmCount;
         }
 
-        if (value.Contains("gaul"))
+        if (FillModeRadioButton.IsChecked == true)
         {
-            return ["Phalanx", "Swordsman", "Pathfinder", "Theutates Thunder", "Druidrider", "Haeduan", "Ram", "Trebuchet", "Chieftain", "Settler"];
+            return selected.AvailableSlots;
         }
 
-        if (value.Contains("teuton"))
+        if (!int.TryParse(CustomCountTextBox.Text.Trim(), out var customCount))
         {
-            return ["Clubswinger", "Spearman", "Axeman", "Scout", "Paladin", "Teutonic Knight", "Ram", "Catapult", "Chief", "Settler"];
+            return 0;
         }
 
-        if (value.Contains("hun"))
-        {
-            return ["Mercenary", "Bowman", "Spotter", "Steppe Rider", "Marksman", "Marauder", "Ram", "Catapult", "Logades", "Settler"];
-        }
-
-        if (value.Contains("egypt"))
-        {
-            return ["Slave Militia", "Ash Warden", "Khopesh Warrior", "Sopdu Explorer", "Anhur Guard", "Resheph Chariot", "Ram", "Stone Catapult", "Nomarch", "Settler"];
-        }
-
-        if (value.Contains("spartan"))
-        {
-            return ["Hoplite", "Sentinel", "Shieldsman", "Twinsteel Therion", "Elpida Rider", "Corinthian Crusher", "Ram", "Ballista", "Ephor", "Settler"];
-        }
-
-        return ["Infantry 1", "Infantry 2", "Scout", "Cavalry 1", "Cavalry 2", "Ram", "Catapult"];
+        return Math.Max(0, customCount);
     }
 }

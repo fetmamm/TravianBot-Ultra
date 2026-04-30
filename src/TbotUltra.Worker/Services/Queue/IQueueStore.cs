@@ -7,6 +7,7 @@ public interface IQueueStore
     IReadOnlyList<QueueItem> GetAll();
     void Clear();
     QueueItem Add(string taskName, Dictionary<string, string>? payload, int priority, int maxRetries);
+    QueueItem AddRuntime(string taskName, string displayName, Dictionary<string, string>? payload, int priority, int maxRetries);
     bool Remove(Guid id);
     bool MoveUp(Guid id);
     bool MoveDown(Guid id);
@@ -15,6 +16,7 @@ public interface IQueueStore
     bool Retry(Guid id);
     bool MarkRunning(Guid id);
     bool MarkSucceeded(Guid id);
+    bool MarkCanceled(Guid id);
     bool MarkDeferred(Guid id, TimeSpan delay);
     bool MarkExecutionFailed(Guid id);
 }

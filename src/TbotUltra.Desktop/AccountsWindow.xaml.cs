@@ -179,6 +179,37 @@ public partial class AccountsWindow : Window
         Close();
     }
 
+    private void ClearAnalysisButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (AccountsListBox.SelectedItem is not AccountEntry selected)
+        {
+            return;
+        }
+
+        var confirm = AppDialog.Show(
+            this,
+            $"Clear analysis for '{selected.Username}'?",
+            "Clear analysis",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+        if (confirm != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            _store.ClearAnalysis(selected.Name, selected.ServerUrl);
+            Reload();
+            SelectByName(selected.Name);
+            InfoTextBlock.Text = $"Cleared analysis for '{selected.Username}'.";
+        }
+        catch (Exception ex)
+        {
+            AppDialog.Show(this, ex.Message, "Clear analysis", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
     private bool SaveEditor(bool isUpdate)
     {
         try
@@ -203,7 +234,8 @@ public partial class AccountsWindow : Window
                 }
             }
 
-            _store.SaveAccount(entry, setActive: false);
+            var setActiveForSave = !_editingExistingAccount && _accounts.Count == 0;
+            _store.SaveAccount(entry, setActive: setActiveForSave);
             Reload();
             SelectByName(entry.Name);
             InfoTextBlock.Text = isUpdate
@@ -484,6 +516,7 @@ public partial class AccountsWindow : Window
         UpdateButton.IsEnabled = _editingExistingAccount && HasUnsavedChanges();
         DeleteButton.IsEnabled = _editingExistingAccount;
         RunAnalysisButton.IsEnabled = !string.IsNullOrWhiteSpace(_activeAccountName);
+        ClearAnalysisButton.IsEnabled = _editingExistingAccount;
     }
 
     private static string NormalizeAccountNameFromUsername(string username)

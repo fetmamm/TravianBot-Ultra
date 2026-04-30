@@ -1,11 +1,14 @@
 {
-  "server_name": "SS-Travi MEGA 1000000x",
-  "base_url": "https://mga.ss-travi.com",
+  "server_name": "SS-Travi ELITE 50000x",
+  "base_url": "https://elt.ss-travi.com",
   "login_path": "/login.php",
   "village_overview_path": "/dorf1.php",
   "headless": false,
   "timeout_ms": 15000,
   "manual_login_timeout_seconds": 180,
+  "captcha_auto_solve_enabled": true,
+  "captcha_solver_timeout_seconds": 20,
+  "captcha_solver_max_attempts": 2,
   "loop_interval_seconds": 60,
   "loop_tasks": [
     "hero_send_adventure"
@@ -16,5 +19,6 @@
   "allow_gold_spending": false,
   "allow_silver_spending": false,
   "gold_limit": 100,
-  "silver_limit": 100
+  "silver_limit": 100,
+  "natar_village_selection": "farm_villages"
 }

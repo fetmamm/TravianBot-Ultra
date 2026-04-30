@@ -1,0 +1,22 @@
+[
+  {
+    "Name": "SS-Travi ELITE 50000x",
+    "BaseUrl": "https://elt.ss-travi.com"
+  },
+  {
+    "Name": "SS-Travi MEGA 1000000x",
+    "BaseUrl": "https://mga.ss-travi.com"
+  },
+  {
+    "Name": "SS-Travi PRO 1024x",
+    "BaseUrl": "https://pro.ss-travi.com"
+  },
+  {
+    "Name": "SS-Travi TOURNAMENT 8x",
+    "BaseUrl": "https://ult.ss-travi.com"
+  },
+  {
+    "Name": "SS-Travi VIP 200x",
+    "BaseUrl": "https://vip.ss-travi.com"
+  }
+]

@@ -23,9 +23,20 @@ public sealed class EnvAccountProvider : IAccountProvider
     public AccountOptions LoadAccount(string? accountName = null)
     {
         var envValues = EnvFileParser.ReadValues(_envPath);
-        var selectedName = accountName
+        var accountNames = ParseAccountNames(envValues);
+        var requestedName = accountName
             ?? GetValue("TBOT_ACTIVE_ACCOUNT", envValues)
-            ?? "main";
+            ?? string.Empty;
+
+        var selectedName = !string.IsNullOrWhiteSpace(requestedName)
+            && accountNames.Contains(requestedName, StringComparer.OrdinalIgnoreCase)
+            ? requestedName
+            : accountNames.FirstOrDefault() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(selectedName))
+        {
+            throw new InvalidOperationException("No account configured. Open Manage and create an account first.");
+        }
 
         var envPrefix = $"TBOT_{selectedName.ToUpperInvariant()}_";
         var username = GetValue($"{envPrefix}USERNAME", envValues);
@@ -55,6 +66,16 @@ public sealed class EnvAccountProvider : IAccountProvider
             ServerName = serverName,
             ServerUrl = serverUrl,
         };
+    }
+
+    private static List<string> ParseAccountNames(Dictionary<string, string> values)
+    {
+        return values.GetValueOrDefault("TBOT_ACCOUNTS", string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(name => name.Trim())
+            .Where(name => name.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private static string? GetValue(string key, Dictionary<string, string> fileValues)

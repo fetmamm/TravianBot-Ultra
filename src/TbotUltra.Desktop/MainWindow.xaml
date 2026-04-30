@@ -11,6 +11,7 @@
         Width="1180"
         MinHeight="640"
         MinWidth="980"
+        ShowInTaskbar="True"
         Background="#F3F4F6">
     <Window.Resources>
         <Style TargetType="Button">
@@ -162,7 +163,24 @@
                 <Border Grid.Row="3" Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
                     <StackPanel>
                         <TextBlock Text="Village" Foreground="#6B7280" Margin="0,0,0,5" />
-                        <ComboBox x:Name="VillageComboBox" Height="28" />
+                        <ComboBox x:Name="VillageComboBox" Height="28">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding NameWithCoords}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="#111827" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsCapital}" Value="True">
+                                                        <Setter Property="Foreground" Value="#D97706" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
                     </StackPanel>
                 </Border>
 
@@ -249,6 +267,7 @@
                     <TextBlock x:Name="TribeInfoTextBlock" Text="Tribe: -" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right" />
                     <TextBlock x:Name="GoldClubInfoTextBlock" Text="Goldclub: -" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right" />
                     <TextBlock x:Name="ServerResourcesTextBlock" Text="Gold: - | Silver: -" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right" />
+                    <TextBlock x:Name="CaptchaStatsTextBlock" Text="Captchas solved: 0/0" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right" />
                     <TextBlock x:Name="ClockTextBlock" Text="Time: -" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Left" />
                     <TextBlock x:Name="StatusTextBlock" Text="Ready." Visibility="Collapsed" />
                 </DockPanel>
@@ -878,8 +897,63 @@
                                 <TextBlock Text="Hero min HP for adventure" />
                                 <TextBox x:Name="HeroMinHpTextBox" Text="60" Margin="0,2,0,8" Width="120" />
                                 <CheckBox x:Name="HeroAutoReviveCheckBox" Content="Auto revive" IsChecked="True" Margin="0,0,0,8" />
-                                <TextBlock Text="Stat priority (csv)" />
-                                <TextBox x:Name="HeroStatPriorityTextBox" Text="offense,resource,regeneration" Margin="0,2,0,8" />
+                                <DockPanel Margin="0,0,0,6">
+                                    <TextBlock Text="Attribute priority" FontWeight="SemiBold" />
+                                    <Button x:Name="RefreshHeroStatsButton"
+                                            DockPanel.Dock="Right"
+                                            Content="Refresh hero stats"
+                                            Width="150"
+                                            Click="RefreshHeroStatsButton_Click" />
+                                </DockPanel>
+                                <Border BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6" Padding="8" Margin="0,0,0,8">
+                                    <StackPanel>
+                                        <ItemsControl x:Name="HeroAttributePriorityItemsControl">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="0,0,0,6">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="32" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0"
+                                                                   Text="{Binding Order}"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="#6B7280" />
+                                                        <TextBlock Grid.Column="1"
+                                                                   Text="{Binding Title}"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="#111827" />
+                                                        <TextBlock Grid.Column="2"
+                                                                   Text="{Binding PointsText, StringFormat=Points: {0}}"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="#374151"
+                                                                   Margin="0,0,12,0" />
+                                                        <Button Grid.Column="3"
+                                                                Content="Up"
+                                                                Width="46"
+                                                                Padding="6,2"
+                                                                Tag="{Binding}"
+                                                                Click="HeroPriorityMoveUpButton_Click" />
+                                                        <Button Grid.Column="4"
+                                                                Content="Down"
+                                                                Width="58"
+                                                                Padding="6,2"
+                                                                Margin="6,0,0,0"
+                                                                Tag="{Binding}"
+                                                                Click="HeroPriorityMoveDownButton_Click" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <TextBlock x:Name="HeroAttributesStatusTextBlock"
+                                                   Text="Hero stats not loaded."
+                                                   Foreground="#6B7280"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
                                 <Button x:Name="QueueHeroManageButton" Content="Queue hero manage" Width="160" Click="QueueHeroManageButton_Click" />
 
                                 <Separator Margin="0,12,0,8" />
@@ -907,133 +981,226 @@
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
                         <TextBlock Grid.Row="0" Text="Farming" FontSize="24" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,10" />
-                        <Border Grid.Row="1" Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="8" Padding="12">
+                        <Grid Grid.Row="1">
                             <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="*" />
-                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
 
-                                <TextBlock Grid.Row="0"
-                                           Text="Farm List Management"
-                                           FontSize="22"
-                                           FontWeight="SemiBold"
-                                           Foreground="#111827"
-                                           Margin="0,0,0,12" />
+                                <Border Grid.Column="0"
+                                        Background="#FFFFFF"
+                                        BorderBrush="#D1D5DB"
+                                        BorderThickness="1"
+                                        CornerRadius="8"
+                                        Padding="12"
+                                        Margin="0,0,8,0">
+                                    <Grid MaxWidth="560" HorizontalAlignment="Left">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
 
-                                <WrapPanel Grid.Row="1" Margin="0,0,0,12">
-                                    <Button x:Name="AnalyzeFarmListsButton"
-                                            Content="Analyze Farmlists"
-                                            Background="#030826"
-                                            Foreground="White"
-                                            BorderBrush="#030826"
-                                            MinWidth="150"
-                                            Click="AnalyzeFarmListsButton_Click" />
-                                    <Button x:Name="AddFarmsToListButton"
-                                            Content="Add Farms to List"
-                                            MinWidth="140"
-                                            Click="AddFarmsToListButton_Click" />
-                                    <Button x:Name="CreateFarmListButton"
-                                            Content="Create Farmlist"
-                                            MinWidth="120"
-                                            Click="CreateFarmListButton_Click" />
-                                </WrapPanel>
+                                        <TextBlock Grid.Row="0"
+                                                   Text="Farm List Management"
+                                                   FontSize="22"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#111827"
+                                                   Margin="0,0,0,12" />
 
-                                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                                        <WrapPanel Grid.Row="1" Margin="0,0,0,12">
+                                            <Button x:Name="AnalyzeFarmListsButton"
+                                                    Content="Analyze Farmlists"
+                                                    Background="#030826"
+                                                    Foreground="White"
+                                                    BorderBrush="#030826"
+                                                    MinWidth="150"
+                                                    Click="AnalyzeFarmListsButton_Click" />
+                                            <Button x:Name="AddFarmsToListButton"
+                                                    Content="Add Farms to List"
+                                                    MinWidth="140"
+                                                    Click="AddFarmsToListButton_Click" />
+                                            <Button x:Name="CreateFarmListButton"
+                                                    Content="Create Farmlist"
+                                                    MinWidth="120"
+                                                    Click="CreateFarmListButton_Click" />
+                                        </WrapPanel>
+
+                                        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                            <StackPanel>
+                                                <TextBlock x:Name="FarmingStatusTextBlock"
+                                                           Text="No farm lists loaded. Click Analyze Farmlists."
+                                                           Foreground="#4B5563"
+                                                           Margin="0,0,0,8" />
+
+                                                <ItemsControl x:Name="FarmListsItemsControl">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="9" Padding="10" Margin="0,0,0,10" Background="#F9FAFB">
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="Auto" />
+                                                                        <ColumnDefinition Width="*" />
+                                                                        <ColumnDefinition Width="Auto" />
+                                                                        <ColumnDefinition Width="Auto" />
+                                                                    </Grid.ColumnDefinitions>
+
+                                                                    <ToggleButton Grid.Column="0"
+                                                                                  Style="{StaticResource ContinuousRunToggleStyle}"
+                                                                                  VerticalAlignment="Center"
+                                                                                  Margin="0,0,10,0"
+                                                                                  IsChecked="{Binding IsEnabled, Mode=TwoWay}" />
+
+                                                                    <Border Grid.Column="1" BorderBrush="#2563EB" BorderThickness="3,0,0,0" Padding="10,0,0,0">
+                                                                        <StackPanel VerticalAlignment="Center">
+                                                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="#111827" />
+                                                                            <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                                                                <TextBlock Text="{Binding FarmCountText}" Foreground="#4B5563" FontSize="12" Margin="0,0,8,0" />
+                                                                                <ProgressBar Width="120"
+                                                                                             Height="8"
+                                                                                             VerticalAlignment="Center"
+                                                                                             Minimum="0"
+                                                                                             Maximum="100"
+                                                                                             Value="{Binding FillPercent, Mode=OneWay}" />
+                                                                            </StackPanel>
+                                                                        </StackPanel>
+                                                                    </Border>
+
+                                                                    <Border Grid.Column="2"
+                                                                            Margin="8,0,8,0"
+                                                                            Padding="10,4"
+                                                                            CornerRadius="8"
+                                                                            VerticalAlignment="Center"
+                                                                            BorderThickness="1">
+                                                                        <Border.Style>
+                                                                            <Style TargetType="Border">
+                                                                                <Setter Property="Background" Value="#DCFCE7" />
+                                                                                <Setter Property="BorderBrush" Value="#22C55E" />
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding HasTimer}" Value="True">
+                                                                                        <Setter Property="Background" Value="#FEF3C7" />
+                                                                                        <Setter Property="BorderBrush" Value="#F59E0B" />
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </Border.Style>
+                                                                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold">
+                                                                            <TextBlock.Style>
+                                                                                <Style TargetType="TextBlock">
+                                                                                    <Setter Property="Text" Value="{Binding ReadyText}" />
+                                                                                    <Setter Property="Foreground" Value="#15803D" />
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding HasTimer}" Value="True">
+                                                                                            <Setter Property="Text" Value="{Binding TimerText}" />
+                                                                                            <Setter Property="Foreground" Value="#B45309" />
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </TextBlock.Style>
+                                                                        </TextBlock>
+                                                                    </Border>
+
+                                                                    <Button Grid.Column="3"
+                                                                            Content="Send Now"
+                                                                            MinWidth="90"
+                                                                            Height="32"
+                                                                            Background="#030826"
+                                                                            Foreground="White"
+                                                                            BorderBrush="#030826"
+                                                                            VerticalAlignment="Center"
+                                                                            Tag="{Binding}"
+                                                                            IsEnabled="{Binding CanSendNow}"
+                                                                            Click="FarmListSendNowButton_Click" />
+                                                                </Grid>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </ScrollViewer>
+                                    </Grid>
+                                </Border>
+
+                                <Border Grid.Column="1"
+                                        Background="#FFFFFF"
+                                        BorderBrush="#D1D5DB"
+                                        BorderThickness="1"
+                                        CornerRadius="8"
+                                        Padding="12"
+                                        Margin="8,0,0,0">
                                     <StackPanel>
-                                        <TextBlock x:Name="FarmingStatusTextBlock"
-                                                   Text="No farm lists loaded. Click Analyze Farmlists."
-                                                   Foreground="#4B5563"
-                                                   Margin="0,0,0,8" />
+                                        <Grid Margin="0,0,0,12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="Manual farming"
+                                                       FontSize="22"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#111827"
+                                                       VerticalAlignment="Center" />
+                                            <StackPanel Grid.Column="1"
+                                                        HorizontalAlignment="Right">
+                                                <TextBlock Text="Farmlist executions"
+                                                           Foreground="#6B7280"
+                                                           FontSize="12"
+                                                           HorizontalAlignment="Right" />
+                                                <TextBlock x:Name="ManualFarmingExecutionCountTextBlock"
+                                                           Text="0"
+                                                           Foreground="#111827"
+                                                           FontSize="18"
+                                                           FontWeight="SemiBold"
+                                                           HorizontalAlignment="Right" />
+                                            </StackPanel>
+                                        </Grid>
 
-                                        <ItemsControl x:Name="FarmListsItemsControl">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Border BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="9" Padding="10" Margin="0,0,0,10" Background="#F9FAFB">
-                                                        <Grid>
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="Auto" />
-                                                                <ColumnDefinition Width="*" />
-                                                                <ColumnDefinition Width="Auto" />
-                                                                <ColumnDefinition Width="Auto" />
-                                                            </Grid.ColumnDefinitions>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                            <Button x:Name="AnalyzeNatarsProfileButton"
+                                                    Content="Analyze natars profile"
+                                                    MinWidth="170"
+                                                    Click="AnalyzeNatarsProfileButton_Click" />
+                                            <Button x:Name="ShowNatarsListButton"
+                                                    Content="Show natars list"
+                                                    MinWidth="150"
+                                                    Click="ShowNatarsListButton_Click" />
+                                            <TextBlock Text="Analyzed:"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="#374151"
+                                                       Margin="12,0,6,0" />
+                                            <Ellipse x:Name="NatarsProfileAnalyzedIndicator"
+                                                     Width="14"
+                                                     Height="14"
+                                                     VerticalAlignment="Center"
+                                                     Fill="#9CA3AF" />
+                                        </StackPanel>
 
-                                                            <ToggleButton Grid.Column="0"
-                                                                          Style="{StaticResource ContinuousRunToggleStyle}"
-                                                                          VerticalAlignment="Center"
-                                                                          Margin="0,0,10,0"
-                                                                          IsChecked="{Binding IsEnabled, Mode=TwoWay}" />
-
-                                                            <Border Grid.Column="1" BorderBrush="#2563EB" BorderThickness="3,0,0,0" Padding="10,0,0,0">
-                                                                <StackPanel VerticalAlignment="Center">
-                                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="#111827" />
-                                                                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                                                                        <TextBlock Text="{Binding FarmCountText}" Foreground="#4B5563" FontSize="12" Margin="0,0,8,0" />
-                                                                        <ProgressBar Width="120"
-                                                                                     Height="8"
-                                                                                     VerticalAlignment="Center"
-                                                                                     Minimum="0"
-                                                                                     Maximum="100"
-                                                                                     Value="{Binding FillPercent, Mode=OneWay}" />
-                                                                    </StackPanel>
-                                                                </StackPanel>
-                                                            </Border>
-
-                                                            <Border Grid.Column="2"
-                                                                    Margin="8,0,8,0"
-                                                                    Padding="10,4"
-                                                                    CornerRadius="8"
-                                                                    VerticalAlignment="Center"
-                                                                    BorderThickness="1">
-                                                                <Border.Style>
-                                                                    <Style TargetType="Border">
-                                                                        <Setter Property="Background" Value="#DCFCE7" />
-                                                                        <Setter Property="BorderBrush" Value="#22C55E" />
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding HasTimer}" Value="True">
-                                                                                <Setter Property="Background" Value="#FEF3C7" />
-                                                                                <Setter Property="BorderBrush" Value="#F59E0B" />
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </Border.Style>
-                                                                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold">
-                                                                    <TextBlock.Style>
-                                                                        <Style TargetType="TextBlock">
-                                                                            <Setter Property="Text" Value="{Binding ReadyText}" />
-                                                                            <Setter Property="Foreground" Value="#15803D" />
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding HasTimer}" Value="True">
-                                                                                    <Setter Property="Text" Value="{Binding TimerText}" />
-                                                                                    <Setter Property="Foreground" Value="#B45309" />
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </TextBlock.Style>
-                                                                </TextBlock>
-                                                            </Border>
-
-                                                            <Button Grid.Column="3"
-                                                                    Content="Send Now"
-                                                                    MinWidth="90"
-                                                                    Height="32"
-                                                                    Background="#030826"
-                                                                    Foreground="White"
-                                                                    BorderBrush="#030826"
-                                                                    VerticalAlignment="Center"
-                                                                    Tag="{Binding}"
-                                                                    IsEnabled="{Binding CanSendNow}"
-                                                                    Click="FarmListSendNowButton_Click" />
-                                                        </Grid>
-                                                    </Border>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button x:Name="StartManualFarmingButton"
+                                                    Content="Start manual farming"
+                                                    MinWidth="170"
+                                                    HorizontalAlignment="Left"
+                                                    Click="StartManualFarmingButton_Click" />
+                                            <StackPanel Orientation="Horizontal"
+                                                        VerticalAlignment="Center"
+                                                        Margin="12,0,0,0">
+                                                <Ellipse x:Name="ManualFarmingStateDot"
+                                                         Width="12"
+                                                         Height="12"
+                                                         VerticalAlignment="Center"
+                                                         Fill="#9CA3AF" />
+                                                <TextBlock x:Name="ManualFarmingStateTextBlock"
+                                                           Text="State: not running"
+                                                           Foreground="#6B7280"
+                                                           Margin="8,0,0,0"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </StackPanel>
                                     </StackPanel>
-                                </ScrollViewer>
+                                </Border>
                             </Grid>
-                        </Border>
+                        </Grid>
                     </Grid>
                 </TabItem>
 
@@ -1080,7 +1247,7 @@
                                   BorderBrush="#D1D5DB"
                                   BorderThickness="1">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="Task" Width="2*" Binding="{Binding TaskName}" />
+                                <DataGridTextColumn Header="Task" Width="2*" Binding="{Binding DisplayName}" />
                                 <DataGridTextColumn Header="Priority" Width="*" Binding="{Binding Priority}" />
                                 <DataGridTextColumn Header="Status" Width="*" Binding="{Binding Status}" />
                                 <DataGridTextColumn Header="Retries" Width="*" Binding="{Binding Retries}" />
@@ -1102,7 +1269,7 @@
                                   BorderBrush="#D1D5DB"
                                   BorderThickness="1">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="Completed task" Width="2*" Binding="{Binding TaskName}" />
+                                <DataGridTextColumn Header="Completed task" Width="2*" Binding="{Binding DisplayName}" />
                                 <DataGridTextColumn Header="Status" Width="*" Binding="{Binding Status}" />
                                 <DataGridTextColumn Header="Retries" Width="*" Binding="{Binding Retries}" />
                                 <DataGridTextColumn Header="Created (Server time)" Width="2*" Binding="{Binding CreatedAtServer}" />

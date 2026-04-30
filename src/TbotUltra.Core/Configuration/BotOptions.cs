@@ -32,6 +32,17 @@ public sealed class BotOptions
     [Range(1, int.MaxValue)]
     public int ManualLoginTimeoutSeconds { get; init; } = 180;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.CaptchaAutoSolveEnabled)]
+    public bool CaptchaAutoSolveEnabled { get; init; }
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.CaptchaSolverTimeoutSeconds)]
+    [Range(1, int.MaxValue)]
+    public int CaptchaSolverTimeoutSeconds { get; init; } = 20;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.CaptchaSolverMaxAttempts)]
+    [Range(1, int.MaxValue)]
+    public int CaptchaSolverMaxAttempts { get; init; } = 1;
+
     [ConfigurationKeyName("loop_interval_seconds")]
     [Range(1, int.MaxValue)]
     public int LoopIntervalSeconds { get; init; } = 60;
@@ -110,4 +121,7 @@ public sealed class BotOptions
 
     [ConfigurationKeyName("upgrade_selector_profile")]
     public string UpgradeSelectorProfile { get; init; } = "auto";
+
+    [ConfigurationKeyName("natar_village_selection")]
+    public string NatarVillageSelection { get; init; } = "farm_villages";
 }

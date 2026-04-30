@@ -22,8 +22,6 @@ public sealed class BotTaskRunner
             // Upgrades a specific resource field (by slot ID) to a target level.
             ["upgrade_resource_to_level"] = ExecuteUpgradeResourceToLevelAsync,
             // Upgrades a specific resource field (by slot ID) to its maximum possible level.
-            ["upgrade_resource_to_max"] = ExecuteUpgradeResourceToMaxAsync,
-            // Upgrades all resource fields to a target level.
             ["upgrade_all_resources_to_level"] = ExecuteUpgradeAllResourcesToLevelAsync,
             // Upgrades a specific building (by slot ID) to a target level.
             ["upgrade_building_to_level"] = ExecuteUpgradeBuildingToLevelAsync,
@@ -46,6 +44,7 @@ public sealed class BotTaskRunner
     private readonly IAccountProvider _accountProvider;
     private readonly ProjectContext _projectContext;
     private readonly AccountAnalysisStore _accountAnalysisStore;
+    private readonly ICaptchaAutoSolver _captchaAutoSolver;
     private readonly SemaphoreSlim _sessionGate = new(1, 1);
     private BrowserSession? _sharedVisibleSession;
     private IPage? _sharedVisiblePage;
@@ -53,10 +52,11 @@ public sealed class BotTaskRunner
     private string? _sharedVisibleBaseUrl;
     private int _browserClosedByUserSignal;
 
-    public BotTaskRunner(IAccountProvider accountProvider, ProjectContext projectContext)
+    public BotTaskRunner(IAccountProvider accountProvider, ProjectContext projectContext, ICaptchaAutoSolver captchaAutoSolver)
     {
         _accountProvider = accountProvider;
         _projectContext = projectContext;
+        _captchaAutoSolver = captchaAutoSolver;
         _accountAnalysisStore = new AccountAnalysisStore(projectContext.RootPath);
     }
 
@@ -291,6 +291,81 @@ public sealed class BotTaskRunner
         return result ?? throw new InvalidOperationException("Could not add farm from Natars profile.");
     }
 
+    public async Task<FarmAddBatchResult> AddFarmsFromNatarsAsync(
+        BotOptions options,
+        string farmListName,
+        string troopType,
+        int troopCount,
+        int requestedCount,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        FarmAddBatchResult? result = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                result = await client.AddFarmsFromNatarsAsync(farmListName, troopType, troopCount, requestedCount, cancellationToken);
+            });
+
+        return result ?? throw new InvalidOperationException("Could not add farms from Natars profile.");
+    }
+
+    public async Task<int> EnsureNatarFarmCacheAndReturnToFarmListAsync(
+        BotOptions options,
+        Action<string> log,
+        bool forceRefresh = false,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        var count = 0;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                count = await client.EnsureNatarFarmCacheAndReturnToFarmListAsync(forceRefresh, cancellationToken);
+            });
+
+        return count;
+    }
+
+    public async Task<ManualFarmRunResult> StartManualFarmingFromNatarsAsync(
+        BotOptions options,
+        string troopType,
+        int troopCount,
+        int troopVariancePercent,
+        bool raidAttack,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        ManualFarmRunResult? result = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                result = await client.StartManualFarmingFromNatarsAsync(troopType, troopCount, troopVariancePercent, raidAttack, cancellationToken);
+            });
+
+        return result ?? throw new InvalidOperationException("Could not start manual farming from Natars profile.");
+    }
+
     public async Task<VillageStatus> ReadVillageStatusAsync(
         BotOptions options,
         Action<string> log,
@@ -440,6 +515,29 @@ public sealed class BotTaskRunner
         }
 
         return count;
+    }
+
+    public async Task<HeroAttributeSnapshot> ReadHeroAttributesAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        HeroAttributeSnapshot? snapshot = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                snapshot = await client.ReadHeroAttributeSnapshotAsync(cancellationToken);
+                log(
+                    $"Hero attributes: free points={snapshot.FreePoints}, fighting strength={snapshot.FightingStrength}, offence bonus={snapshot.OffenceBonus}, defence bonus={snapshot.DefenceBonus}, resources={snapshot.Resources}.");
+            });
+
+        return snapshot ?? throw new InvalidOperationException("Could not read hero attributes.");
     }
 
     public async Task ExecuteLogoutAsync(
@@ -643,6 +741,7 @@ public sealed class BotTaskRunner
             interactive: interactive,
             browserVisible: !options.Headless,
             projectRoot: _projectContext.RootPath,
+            captchaAutoSolver: _captchaAutoSolver,
             statusCallback: log);
     }
 
@@ -695,22 +794,6 @@ public sealed class BotTaskRunner
             context.CancellationToken);
         context.Log(result);
         ThrowIfTaskBlocked("upgrade_resource_to_level", result);
-    }
-
-    private static async Task ExecuteUpgradeResourceToMaxAsync(TaskExecutionContext context)
-    {
-        if (context.Options.ResourceUpgradeSlotId is null)
-        {
-            context.Log("Task 'upgrade_resource_to_max' requires config value resource_upgrade_slot_id.");
-            return;
-        }
-
-        var result = await context.Client.UpgradeResourceToMaxAsync(
-            context.Options.ResourceUpgradeSlotId.Value,
-            context.Options.ResourceUpgradeMaxAttempts,
-            context.CancellationToken);
-        context.Log(result);
-        ThrowIfTaskBlocked("upgrade_resource_to_max", result);
     }
 
     private static async Task ExecuteUpgradeAllResourcesToLevelAsync(TaskExecutionContext context)
@@ -853,6 +936,13 @@ public sealed class BotTaskRunner
     {
         var result = await context.Client.SendHeroOnAdventureAsync(context.CancellationToken);
         context.Log(result.Message);
+
+        if (result.SecondsUntilReturn is int waitSeconds && waitSeconds > 0)
+        {
+            var boundedWaitSeconds = Math.Min(waitSeconds, 12 * 60 * 60);
+            context.Log($"Hero adventure wait: {boundedWaitSeconds}s.");
+            await Task.Delay(TimeSpan.FromSeconds(boundedWaitSeconds), context.CancellationToken);
+        }
     }
 
     private static void ThrowIfTaskBlocked(string taskName, string result)
