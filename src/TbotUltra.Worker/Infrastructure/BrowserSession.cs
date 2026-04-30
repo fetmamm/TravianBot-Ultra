@@ -6,6 +6,7 @@ namespace TbotUltra.Worker.Infrastructure;
 
 public sealed class BrowserSession : IAsyncDisposable
 {
+    private const string LocalPlaywrightBrowsersDirectoryName = "ms-playwright";
     private readonly BotOptions _config;
     private readonly AccountOptions _account;
     private readonly bool? _headlessOverride;
@@ -30,6 +31,9 @@ public sealed class BrowserSession : IAsyncDisposable
     public string StorageStatePath =>
         Path.Combine(_projectRoot, "playwright", ".auth", $"{_account.Name}.json");
 
+    public string PlaywrightBrowsersPath =>
+        Path.Combine(_projectRoot, LocalPlaywrightBrowsersDirectoryName);
+
     public async Task<IPage> OpenPageAsync(CancellationToken cancellationToken = default)
     {
         var authDirectory = Path.GetDirectoryName(StorageStatePath);
@@ -39,6 +43,9 @@ public sealed class BrowserSession : IAsyncDisposable
         }
 
         Directory.CreateDirectory(authDirectory);
+        Directory.CreateDirectory(PlaywrightBrowsersPath);
+
+        Environment.SetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH", PlaywrightBrowsersPath);
 
         _playwright = await Playwright.CreateAsync();
         _browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions

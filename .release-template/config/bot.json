@@ -1,8 +1,8 @@
 {
-  "server_name": "Example Server",
-  "base_url": "https://example.com",
-  "login_path": "/login.php",
-  "village_overview_path": "/dorf1.php",
+  "server_name": "",
+  "base_url": "",
+  "login_path": "",
+  "village_overview_path": "",
   "headless": false,
   "timeout_ms": 15000,
   "manual_login_timeout_seconds": 180,

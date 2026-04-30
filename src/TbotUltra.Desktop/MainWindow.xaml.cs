@@ -5704,7 +5704,7 @@ public partial class MainWindow : Window
     {
         if (!forceInstall)
         {
-            if (_chromiumEnsured || ChromiumAlreadyInstalled())
+            if (_chromiumEnsured || ChromiumAlreadyInstalled(_projectRoot))
             {
                 _chromiumEnsured = true;
                 return;
@@ -5722,7 +5722,7 @@ public partial class MainWindow : Window
         var startInfo = new ProcessStartInfo
         {
             FileName = "powershell",
-            Arguments = $"-ExecutionPolicy Bypass -File \"{scriptPath}\" install chromium",
+            Arguments = $"-ExecutionPolicy Bypass -Command \"$env:PLAYWRIGHT_BROWSERS_PATH='{Path.Combine(_projectRoot, "ms-playwright")}'; & '{scriptPath}' install chromium\"",
             WorkingDirectory = _projectRoot,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -5755,17 +5755,16 @@ public partial class MainWindow : Window
         AppendLog("Chromium install complete.");
     }
 
-    private static bool ChromiumAlreadyInstalled()
+    private static bool ChromiumAlreadyInstalled(string projectRoot)
     {
         try
         {
-            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            if (string.IsNullOrWhiteSpace(localAppData))
+            if (string.IsNullOrWhiteSpace(projectRoot))
             {
                 return false;
             }
 
-            var playwrightRoot = Path.Combine(localAppData, "ms-playwright");
+            var playwrightRoot = Path.Combine(projectRoot, "ms-playwright");
             if (!Directory.Exists(playwrightRoot))
             {
                 return false;

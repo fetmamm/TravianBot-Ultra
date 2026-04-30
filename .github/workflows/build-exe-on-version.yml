@@ -58,11 +58,24 @@ jobs:
           -c Release
           -r win-x64
           --self-contained true
-          -p:PublishSingleFile=true
-          -p:IncludeNativeLibrariesForSelfExtract=true
           -p:DebugType=None
           --no-restore
           -o temp_build_out/publish
+
+      - name: Install bundled Chromium
+        shell: pwsh
+        run: |
+          $browserRoot = Join-Path $PWD "temp_build_out\playwright-browsers"
+          New-Item -ItemType Directory -Path $browserRoot -Force | Out-Null
+          $env:PLAYWRIGHT_BROWSERS_PATH = $browserRoot
+          $scriptPath = Join-Path $PWD "temp_build_out\publish\playwright.ps1"
+          if (-not (Test-Path $scriptPath)) {
+            throw "Could not find playwright.ps1 in publish output."
+          }
+          & $scriptPath install chromium
+          if ($LASTEXITCODE -ne 0) {
+            throw "Playwright Chromium install failed with exit code $LASTEXITCODE."
+          }
 
       - name: Assemble release bundle
         env:
@@ -88,11 +101,26 @@ jobs:
             throw "Published output is missing playwright.ps1."
           }
 
+          Copy-Item (Join-Path $PWD "temp_build_out\playwright-browsers") (Join-Path $packageRoot "ms-playwright") -Recurse -Force
+
           $assetDir = Join-Path $packageRoot "Assets"
           New-Item -ItemType Directory -Path $assetDir -Force | Out-Null
           Copy-Item (Join-Path $PWD "assets\icons\icon_windows.ico") (Join-Path $assetDir "icon_windows.ico") -Force
 
-          Copy-Item (Join-Path $templateRoot ".env.example") (Join-Path $packageRoot ".env.example") -Force
+          $captchaRoot = Join-Path $packageRoot "Captcha_solver\math_ai"
+          New-Item -ItemType Directory -Path $captchaRoot -Force | Out-Null
+          Copy-Item (Join-Path $PWD "Captcha_solver\math_ai\solve_runtime.py") (Join-Path $captchaRoot "solve_runtime.py") -Force
+          Copy-Item (Join-Path $PWD "Captcha_solver\math_ai\captcha_solver.py") (Join-Path $captchaRoot "captcha_solver.py") -Force
+          Copy-Item (Join-Path $PWD "Captcha_solver\math_ai\classes.txt") (Join-Path $captchaRoot "classes.txt") -Force
+          Copy-Item (Join-Path $PWD "Captcha_solver\math_ai\model.keras") (Join-Path $captchaRoot "model.keras") -Force
+          robocopy (Join-Path $PWD "Captcha_solver\math_ai\.venv") (Join-Path $captchaRoot ".venv") /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP | Out-Null
+          if ($LASTEXITCODE -gt 7) {
+            throw "Could not copy captcha runtime (.venv). robocopy exit code: $LASTEXITCODE"
+          }
+          New-Item -ItemType Directory -Path (Join-Path $captchaRoot "debug_output") -Force | Out-Null
+          New-Item -ItemType Directory -Path (Join-Path $captchaRoot "review_dataset") -Force | Out-Null
+
+          Copy-Item (Join-Path $templateRoot ".env") (Join-Path $packageRoot ".env") -Force
           Copy-Item (Join-Path $templateRoot "README_RELEASE.txt") (Join-Path $packageRoot "README.txt") -Force
           Copy-Item (Join-Path $PWD "VERSION") (Join-Path $packageRoot "VERSION") -Force
           Copy-Item (Join-Path $templateRoot "config") (Join-Path $packageRoot "config") -Recurse -Force

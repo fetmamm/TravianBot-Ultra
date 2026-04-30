@@ -47,9 +47,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
 
 [Files]
-Source: "{#SourceRoot}*"; DestDir: "{app}"; Excludes: ".env,.env.example,config\bot.json,config\queue.json,config\servers.user.json"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#SourceRoot}.env.example"; DestDir: "{app}"; DestName: ".env.example"; Flags: ignoreversion
-Source: "{#SourceRoot}.env.example"; DestDir: "{app}"; DestName: ".env"; Flags: ignoreversion onlyifdoesntexist
+Source: "{#SourceRoot}*"; DestDir: "{app}"; Excludes: ".env,config\bot.json,config\queue.json,config\servers.user.json"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SourceRoot}.env"; DestDir: "{app}"; DestName: ".env"; Flags: ignoreversion onlyifdoesntexist
 Source: "{#SourceRoot}config\bot.json"; DestDir: "{app}\config"; DestName: "bot.json"; Flags: ignoreversion onlyifdoesntexist
 Source: "{#SourceRoot}config\queue.json"; DestDir: "{app}\config"; DestName: "queue.json"; Flags: ignoreversion onlyifdoesntexist
 Source: "{#SourceRoot}config\servers.user.json"; DestDir: "{app}\config"; DestName: "servers.user.json"; Flags: ignoreversion onlyifdoesntexist
