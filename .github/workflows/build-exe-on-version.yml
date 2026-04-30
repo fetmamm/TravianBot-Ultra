@@ -137,7 +137,7 @@ jobs:
           New-Item -ItemType Directory -Path (Join-Path $captchaRoot "debug_output") -Force | Out-Null
           New-Item -ItemType Directory -Path (Join-Path $captchaRoot "review_dataset") -Force | Out-Null
 
-          Copy-Item (Join-Path $templateRoot ".env") (Join-Path $packageRoot ".env") -Force
+          Copy-Item (Join-Path $templateRoot "env.template") (Join-Path $packageRoot ".env") -Force
           Copy-Item (Join-Path $templateRoot "README_RELEASE.txt") (Join-Path $packageRoot "README.txt") -Force
           Copy-Item (Join-Path $PWD "VERSION") (Join-Path $packageRoot "VERSION") -Force
           Copy-Item (Join-Path $templateRoot "config") (Join-Path $packageRoot "config") -Recurse -Force

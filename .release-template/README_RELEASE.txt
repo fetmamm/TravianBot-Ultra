@@ -2,7 +2,7 @@ Tbot Ultra installer package
 
 1. Run the setup file.
 2. Open the installed folder.
-3. Fill in .env and config\bot.json with your real account and server settings.
+3. Fill in the generated .env and config\bot.json with your real account and server settings.
 4. Start Tbot Ultra from the installed shortcut or TbotUltra.Desktop.exe.
 
 Notes:
