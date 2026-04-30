@@ -49,6 +49,9 @@ jobs:
         continue-on-error: true
         run: dotnet test TbotUltra.sln -c Release --no-build
 
+      - name: Restore desktop publish dependencies
+        run: dotnet restore src/TbotUltra.Desktop/TbotUltra.Desktop.csproj -r win-x64
+
       - name: Publish desktop app
         run: >
           dotnet publish src/TbotUltra.Desktop/TbotUltra.Desktop.csproj
@@ -58,7 +61,7 @@ jobs:
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
           -p:DebugType=None
-          --no-build
+          --no-restore
           -o temp_build_out/publish
 
       - name: Assemble release bundle
@@ -84,6 +87,10 @@ jobs:
           if (-not (Test-Path $playwrightScript)) {
             throw "Published output is missing playwright.ps1."
           }
+
+          $assetDir = Join-Path $packageRoot "Assets"
+          New-Item -ItemType Directory -Path $assetDir -Force | Out-Null
+          Copy-Item (Join-Path $PWD "assets\icons\icon_windows.ico") (Join-Path $assetDir "icon_windows.ico") -Force
 
           Copy-Item (Join-Path $templateRoot ".env.example") (Join-Path $packageRoot ".env.example") -Force
           Copy-Item (Join-Path $templateRoot "README_RELEASE.txt") (Join-Path $packageRoot "README.txt") -Force
