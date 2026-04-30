@@ -3196,8 +3196,6 @@ public partial class MainWindow : Window
             return;
         }
 
-        ShowBuildingSlotDetails(row);
-
         var actionsWindow = new BuildingSlotActionsWindow(row)
         {
             Owner = this,
@@ -3493,23 +3491,6 @@ public partial class MainWindow : Window
         _ = TryQueueConstructBuilding(slotId, selectedBuilding);
     }
 
-    private void QueueUpgradeBuildingButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (!int.TryParse(UpgradeSlotTextBox.Text.Trim(), out var slotId) || slotId < 19)
-        {
-            BuildingsInfoTextBlock.Text = "Upgrade slot must be an integer >= 19.";
-            return;
-        }
-
-        if (!int.TryParse(UpgradeTargetLevelTextBox.Text.Trim(), out var targetLevel) || targetLevel < 1)
-        {
-            BuildingsInfoTextBlock.Text = "Target level must be an integer >= 1.";
-            return;
-        }
-
-        TryQueueBuildingUpgradeToLevel(slotId, targetLevel);
-    }
-
     private void QueueUpgradeBuildingMaxButton_Click(object sender, RoutedEventArgs e)
     {
         if (!int.TryParse(UpgradeSlotTextBox.Text.Trim(), out var slotId) || slotId < 19)
@@ -3519,23 +3500,6 @@ public partial class MainWindow : Window
         }
 
         TryQueueBuildingUpgradeToMax(slotId);
-    }
-
-    private void QueueDemolishButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (DemolishBuildingComboBox.SelectedItem is not BuildingSlotRow selected)
-        {
-            BuildingsInfoTextBlock.Text = "Select a building to demolish.";
-            return;
-        }
-
-        if (!int.TryParse(DemolishTargetLevelTextBox.Text.Trim(), out var targetLevel) || targetLevel < 0)
-        {
-            BuildingsInfoTextBlock.Text = "Demolish target level must be an integer >= 0.";
-            return;
-        }
-
-        TryQueueBuildingDemolish(selected, targetLevel);
     }
 
     private bool TryQueueBuildingUpgradeToLevel(int slotId, int targetLevel)
@@ -3603,19 +3567,6 @@ public partial class MainWindow : Window
         DemolishTargetLevelTextBox.Text = targetLevel.ToString();
         BuildingsInfoTextBlock.Text = $"Queued demolition for {row.Name} (slot {row.SlotId}) to level {targetLevel}.";
         return true;
-    }
-
-    private void ShowBuildingSlotDetails(BuildingSlotRow row)
-    {
-        SelectedBuildingLevelTextBlock.Text = row.IsOccupied
-            ? row.LevelStatusLabel
-            : "Empty";
-        SelectedBuildingUpgradeTimeTextBlock.Text = row.HasPendingUpgrade ? "Queued" : "-";
-        SelectedBuildingCompletionTextBlock.Text = row.HasPendingConstruct ? "Queued" : "-";
-        ReqWoodTextBlock.Text = row.Requirements;
-        ReqClayTextBlock.Text = row.Category;
-        ReqIronTextBlock.Text = row.IsOccupied ? $"gid {(row.Gid ?? 0)}" : "-";
-        ReqCropTextBlock.Text = row.ActionHint;
     }
 
     private void HeroPriorityMoveUpButton_Click(object sender, RoutedEventArgs e)

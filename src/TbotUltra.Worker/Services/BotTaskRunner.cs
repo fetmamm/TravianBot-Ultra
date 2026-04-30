@@ -881,7 +881,7 @@ public sealed class BotTaskRunner
 
     private static async Task ExecuteLoadBuildingsSnapshotAsync(TaskExecutionContext context)
     {
-        var status = await context.Client.ReadVillageStatusAsync(context.CancellationToken);
+        var status = await context.Client.ReadBuildingsStatusAsync(context.CancellationToken);
         var activeAccount = context.Runner._accountProvider.LoadAccount().Name;
         var safeAccount = string.IsNullOrWhiteSpace(activeAccount) ? "main" : activeAccount.Trim().ToLowerInvariant();
         var outputDir = Path.Combine(context.Runner._projectContext.RootPath, "temp_build_out", "buildings-snapshots");

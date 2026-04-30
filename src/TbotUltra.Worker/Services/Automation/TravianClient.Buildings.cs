@@ -7,6 +7,26 @@ namespace TbotUltra.Worker.Services;
 
 public sealed partial class TravianClient
 {
+    public async Task<VillageStatus> ReadBuildingsStatusAsync(CancellationToken cancellationToken = default)
+    {
+        Notify("ReadBuildingsStatusAsync started");
+        var buildings = await ReadBuildingsAsync(cancellationToken);
+        var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
+        var tribe = await ReadTribeAsync(cancellationToken);
+
+        return new VillageStatus(
+            ActiveVillage: activeVillage,
+            Villages: [],
+            Resources: new Dictionary<string, string>(),
+            ResourceFields: [],
+            Buildings: buildings,
+            BuildQueue: [],
+            Tribe: tribe,
+            VillageCount: 0,
+            IsCapital: TryGetCachedCapitalState(activeVillage),
+            ServerTimeUtc: _serverTimeUtc);
+    }
+
     public async Task<string> DemolishBuildingToLevelAsync(
         string targetBuildingSlotOrName,
         int targetLevel,
