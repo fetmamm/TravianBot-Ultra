@@ -927,6 +927,7 @@ public sealed class BotTaskRunner
         var result = await context.Client.ManageHeroAsync(
             context.Options.HeroMinHpForAdventure,
             context.Options.HeroAutoRevive,
+            context.Options.HeroAutoAssignPoints,
             context.Options.HeroStatPriority,
             context.CancellationToken);
         context.Log(result);

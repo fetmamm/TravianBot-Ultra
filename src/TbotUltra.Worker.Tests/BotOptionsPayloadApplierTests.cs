@@ -25,6 +25,7 @@ public sealed class BotOptionsPayloadApplierTests
             TargetLevel = 5,
             HeroMinHpForAdventure = 60,
             HeroAutoRevive = true,
+            HeroAutoAssignPoints = true,
             HeroStatPriority = "offense,resource,regeneration",
             UpgradeSelectorProfile = "auto",
         };
@@ -42,6 +43,7 @@ public sealed class BotOptionsPayloadApplierTests
             [BotOptionPayloadKeys.TargetLevel] = "10",
             [BotOptionPayloadKeys.HeroMinHpForAdventure] = "75",
             [BotOptionPayloadKeys.HeroAutoRevive] = "false",
+            [BotOptionPayloadKeys.HeroAutoAssignPoints] = "false",
             [BotOptionPayloadKeys.HeroStatPriority] = "resource,offense",
             [BotOptionPayloadKeys.UpgradeSelectorProfile] = "strict_green",
         };
@@ -59,6 +61,7 @@ public sealed class BotOptionsPayloadApplierTests
         Assert.Equal(10, result.TargetLevel);
         Assert.Equal(75, result.HeroMinHpForAdventure);
         Assert.False(result.HeroAutoRevive);
+        Assert.False(result.HeroAutoAssignPoints);
         Assert.Equal("resource,offense", result.HeroStatPriority);
         Assert.Equal("strict_green", result.UpgradeSelectorProfile);
     }

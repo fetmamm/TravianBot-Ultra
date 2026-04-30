@@ -2,9 +2,9 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Manual Farming"
-        Height="390"
+        Height="470"
         Width="460"
-        MinHeight="360"
+        MinHeight="420"
         MinWidth="420"
         WindowStartupLocation="CenterOwner">
     <Grid Margin="14">
@@ -27,111 +27,115 @@
                 CornerRadius="8"
                 Background="#FFFFFF"
                 Padding="12">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-
-                <TextBlock Grid.Row="0"
-                           Grid.Column="0"
-                           Text="Troop"
-                           VerticalAlignment="Center"
-                           Margin="0,0,10,0" />
-                <Grid Grid.Row="0" Grid.Column="1">
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="12" />
-                        <ColumnDefinition Width="100" />
                     </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Row="0"
+                               Grid.Column="0"
+                               Text="Troop"
+                               VerticalAlignment="Center"
+                               Margin="0,0,10,0" />
                     <ComboBox x:Name="TroopTypeComboBox"
-                              Grid.Column="0"
+                              Grid.Row="0"
+                              Grid.Column="1"
                               SelectionChanged="TroopTypeComboBox_SelectionChanged" />
-                    <TextBox x:Name="TroopCountTextBox"
-                             Grid.Column="2"
-                             Text="1"
-                             TextChanged="TroopCountTextBox_TextChanged" />
-                </Grid>
 
-                <TextBlock Grid.Row="1"
-                           Grid.Column="0"
-                           Text="Variation"
-                           VerticalAlignment="Center"
-                           Margin="0,14,10,0" />
-                <ComboBox x:Name="VarianceComboBox"
-                          Grid.Row="1"
-                          Grid.Column="1"
-                          Width="110"
-                          Margin="0,14,0,0"
-                          HorizontalAlignment="Left"
-                          SelectionChanged="VarianceComboBox_SelectionChanged" />
-
-                <TextBlock Grid.Row="2"
-                           Grid.Column="0"
-                           Text="Type"
-                           VerticalAlignment="Top"
-                           Margin="0,14,10,0" />
-                <StackPanel Grid.Row="2"
-                            Grid.Column="1"
-                            Orientation="Horizontal"
-                            Margin="0,14,0,0">
-                    <RadioButton x:Name="NormalAttackRadioButton"
-                                 Content="Normal attack"
-                                 Margin="0,0,14,0"
-                                 Checked="AttackTypeRadioButton_Checked" />
-                    <RadioButton x:Name="RaidRadioButton"
-                                 Content="Raid"
-                                 Checked="AttackTypeRadioButton_Checked" />
-                </StackPanel>
-
-                <TextBlock Grid.Row="3"
-                           Grid.Column="0"
-                           Text="Targets"
-                           VerticalAlignment="Top"
-                           Margin="0,14,10,0" />
-                <StackPanel Grid.Row="3"
-                            Grid.Column="1"
-                            Orientation="Horizontal"
-                            Margin="0,14,0,0">
-                    <RadioButton x:Name="FarmVillagesRadioButton"
-                                 Content="Farm villages"
-                                 Margin="0,0,14,0"
-                                 Checked="TargetSelectionRadioButton_Checked" />
-                    <RadioButton x:Name="AllVillagesRadioButton"
-                                 Content="All villages"
-                                 Checked="TargetSelectionRadioButton_Checked" />
-                    <Border Width="18"
-                            Height="18"
-                            Margin="10,0,0,0"
-                            CornerRadius="9"
-                            Background="#DBEAFE"
-                            BorderBrush="#93C5FD"
-                            BorderThickness="1"
-                            ToolTip="Farm villages: only villages named 'Natar farm village'. All villages: every village with coordinates found in the Natars profile list.">
-                        <TextBlock Text="i"
-                                   HorizontalAlignment="Center"
+                    <TextBlock Grid.Row="1"
+                               Grid.Column="0"
+                               Text="Amount"
+                               VerticalAlignment="Center"
+                               Margin="0,14,10,0" />
+                    <Grid Grid.Row="1" Grid.Column="1" Margin="0,14,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="TroopCountTextBox"
+                                 Grid.Column="0"
+                                 Text="1"
+                                 TextChanged="TroopCountTextBox_TextChanged" />
+                        <TextBlock x:Name="EffectiveRangeTextBlock"
+                                   Grid.Column="2"
                                    VerticalAlignment="Center"
-                                   Foreground="#1D4ED8"
-                                   FontWeight="SemiBold"
-                                   FontSize="11" />
-                    </Border>
-                </StackPanel>
+                                   Foreground="#6B7280"
+                                   Text="1-1" />
+                    </Grid>
 
-                <TextBlock x:Name="InfoTextBlock"
-                           Grid.Row="4"
-                           Grid.Column="0"
-                           Grid.ColumnSpan="2"
-                           Margin="0,16,0,0"
-                           Foreground="#374151"
-                           Text="Select troop type and amount." />
-            </Grid>
+                    <TextBlock Grid.Row="2"
+                               Grid.Column="0"
+                               Text="Variation±:"
+                               VerticalAlignment="Center"
+                               Margin="0,14,10,0" />
+                    <ComboBox x:Name="VarianceComboBox"
+                              Grid.Row="2"
+                              Grid.Column="1"
+                              Width="55"
+                              Margin="0,14,0,0"
+                              HorizontalAlignment="Left"
+                              SelectionChanged="VarianceComboBox_SelectionChanged" />
+
+                    <TextBlock Grid.Row="3"
+                               Grid.Column="0"
+                               Text="Type"
+                               VerticalAlignment="Top"
+                               Margin="0,14,10,0" />
+                    <StackPanel Grid.Row="3"
+                                Grid.Column="1"
+                                Orientation="Vertical"
+                                Margin="0,14,0,0">
+                        <RadioButton x:Name="RaidRadioButton"
+                                     Content="Raid"
+                                     Margin="0,0,0,6"
+                                     Checked="AttackTypeRadioButton_Checked" />
+                        <RadioButton x:Name="NormalAttackRadioButton"
+                                     Content="Normal attack"
+                                     Checked="AttackTypeRadioButton_Checked" />
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="4"
+                               Grid.Column="0"
+                               Text="Targets"
+                               VerticalAlignment="Top"
+                               Margin="0,14,10,0"
+                               ToolTip="Farm villages uses only villages named 'Natar farm village'. All villages uses every village found in the Natars profile list." />
+                    <StackPanel Grid.Row="4"
+                                Grid.Column="1"
+                                Orientation="Vertical"
+                                Margin="0,14,0,0">
+                        <RadioButton x:Name="FarmVillagesRadioButton"
+                                     Content="Farm villages"
+                                     Margin="0,0,0,6"
+                                     Checked="TargetSelectionRadioButton_Checked"
+                                     ToolTip="Only villages named 'Natar farm village'." />
+                        <RadioButton x:Name="AllVillagesRadioButton"
+                                     Content="All villages"
+                                     Checked="TargetSelectionRadioButton_Checked"
+                                     ToolTip="Every village found in the Natars profile list." />
+                    </StackPanel>
+
+                    <TextBlock x:Name="InfoTextBlock"
+                               Grid.Row="5"
+                               Grid.Column="0"
+                               Grid.ColumnSpan="2"
+                               Margin="0,16,0,0"
+                               Foreground="#374151"
+                               Text="Select troop type and amount." />
+                </Grid>
+            </ScrollViewer>
         </Border>
 
         <StackPanel Grid.Row="2"

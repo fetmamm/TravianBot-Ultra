@@ -1,0 +1,79 @@
+name: Discord Push Notification
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send Discord webhook
+        uses: actions/github-script@v7
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        with:
+          script: |
+            const https = require("https");
+
+            const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+            if (!webhookUrl) {
+              core.setFailed("Missing GitHub secret: DISCORD_WEBHOOK_URL");
+              return;
+            }
+
+            const event = context.payload;
+            const branch = (context.ref || "").replace("refs/heads/", "");
+            const repo = context.repo.repo;
+            const owner = context.repo.owner;
+            const headCommit = event.head_commit || {};
+            const shortSha = (context.sha || "").slice(0, 7);
+            const author = headCommit.author?.name || event.pusher?.name || "unknown";
+            const commitUrl = headCommit.url || `https://github.com/${owner}/${repo}/commit/${context.sha}`;
+            const rawMessage = (headCommit.message || "No commit message").replace(/\r/g, "").trim();
+            const message = rawMessage.length > 1200 ? `${rawMessage.slice(0, 1197)}...` : rawMessage;
+
+            const payload = JSON.stringify({
+              content: [
+                `Push to **${owner}/${repo}**`,
+                `Branch: \`${branch}\``,
+                `Author: ${author}`,
+                `Commit: \`${shortSha}\``,
+                `Message: ${message}`,
+                commitUrl,
+              ].join("\n"),
+            });
+
+            const webhook = new URL(webhookUrl);
+            const options = {
+              hostname: webhook.hostname,
+              path: `${webhook.pathname}${webhook.search}`,
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Content-Length": Buffer.byteLength(payload),
+              },
+            };
+
+            await new Promise((resolve, reject) => {
+              const request = https.request(options, (response) => {
+                let body = "";
+                response.on("data", (chunk) => {
+                  body += chunk;
+                });
+                response.on("end", () => {
+                  if (response.statusCode && response.statusCode >= 200 && response.statusCode < 300) {
+                    resolve();
+                    return;
+                  }
+
+                  reject(new Error(`Discord webhook failed with status ${response.statusCode}: ${body}`));
+                });
+              });
+
+              request.on("error", reject);
+              request.write(payload);
+              request.end();
+            });

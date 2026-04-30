@@ -116,6 +116,9 @@ public sealed class BotOptions
     [ConfigurationKeyName("hero_auto_revive")]
     public bool HeroAutoRevive { get; init; } = true;
 
+    [ConfigurationKeyName("hero_auto_assign_points")]
+    public bool HeroAutoAssignPoints { get; init; } = true;
+
     [ConfigurationKeyName("hero_stat_priority")]
     public string HeroStatPriority { get; init; } = "offense,resource,regeneration";
 

@@ -1,4 +1,4 @@
-name: Build EXE On Version Change
+name: Build Release On Version Change
 
 on:
   push:
@@ -7,17 +7,52 @@ on:
     paths:
       - VERSION
 
+permissions:
+  contents: write
+
 jobs:
-  build:
+  release:
     runs-on: windows-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
+
+      - name: Read version
+        id: version
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            throw "VERSION must contain a semantic version like 0.0.4. Found '$version'."
+          }
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=v$version" >> $env:GITHUB_OUTPUT
+          "asset_name=tbot-ultra-win-x64-v$version.zip" >> $env:GITHUB_OUTPUT
+
+      - name: Fail if version already exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ steps.version.outputs.tag }}
+        shell: pwsh
+        run: |
+          $existingTag = git ls-remote --tags origin "refs/tags/$env:TAG_NAME"
+          if (-not [string]::IsNullOrWhiteSpace($existingTag)) {
+            throw "Tag '$env:TAG_NAME' already exists on origin."
+          }
+
+          gh release view $env:TAG_NAME --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) {
+            throw "Release '$env:TAG_NAME' already exists."
+          }
 
       - name: Restore
         run: dotnet restore TbotUltra.sln
@@ -25,11 +60,89 @@ jobs:
       - name: Build
         run: dotnet build TbotUltra.sln -c Release --no-restore
 
-      - name: Publish Desktop EXE
-        run: dotnet publish src/TbotUltra.Desktop/TbotUltra.Desktop.csproj -c Release -r win-x64 --self-contained false -o temp_build_out/publish
+      - name: Test
+        run: dotnet test TbotUltra.sln -c Release --no-build
 
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: tbot-ultra-desktop-win-x64
-          path: temp_build_out/publish/**
+      - name: Publish desktop app
+        run: >
+          dotnet publish src/TbotUltra.Desktop/TbotUltra.Desktop.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:DebugType=None
+          --no-build
+          -o temp_build_out/publish
+
+      - name: Assemble release bundle
+        env:
+          VERSION_NUMBER: ${{ steps.version.outputs.version }}
+        shell: pwsh
+        run: |
+          $packageName = "tbot-ultra-win-x64-v$env:VERSION_NUMBER"
+          $stageRoot = Join-Path $PWD "temp_build_out\release"
+          $packageRoot = Join-Path $stageRoot $packageName
+          $publishRoot = Join-Path $PWD "temp_build_out\publish"
+          $templateRoot = Join-Path $PWD ".release-template"
+
+          if (Test-Path $stageRoot) {
+            Remove-Item $stageRoot -Recurse -Force
+          }
+
+          New-Item -ItemType Directory -Path $packageRoot | Out-Null
+
+          Copy-Item "$publishRoot\*" $packageRoot -Recurse -Force
+
+          $playwrightScript = Join-Path $packageRoot "playwright.ps1"
+          if (-not (Test-Path $playwrightScript)) {
+            throw "Published output is missing playwright.ps1."
+          }
+
+          Copy-Item (Join-Path $templateRoot ".env.example") (Join-Path $packageRoot ".env.example") -Force
+          Copy-Item (Join-Path $templateRoot "README_RELEASE.txt") (Join-Path $packageRoot "README.txt") -Force
+          Copy-Item (Join-Path $PWD "VERSION") (Join-Path $packageRoot "VERSION") -Force
+          Copy-Item (Join-Path $templateRoot "config") (Join-Path $packageRoot "config") -Recurse -Force
+
+          New-Item -ItemType Directory -Path (Join-Path $packageRoot "logs") -Force | Out-Null
+          New-Item -ItemType Directory -Path (Join-Path $packageRoot "playwright\.auth") -Force | Out-Null
+          New-Item -ItemType Directory -Path (Join-Path $packageRoot "config\account-analysis") -Force | Out-Null
+          New-Item -ItemType Directory -Path (Join-Path $packageRoot "config\cache\natar-farms") -Force | Out-Null
+
+      - name: Create ZIP
+        env:
+          ASSET_NAME: ${{ steps.version.outputs.asset_name }}
+          VERSION_NUMBER: ${{ steps.version.outputs.version }}
+        shell: pwsh
+        run: |
+          $packageName = "tbot-ultra-win-x64-v$env:VERSION_NUMBER"
+          $stageRoot = Join-Path $PWD "temp_build_out\release"
+          $packageRoot = Join-Path $stageRoot $packageName
+          $zipPath = Join-Path $PWD "temp_build_out\$env:ASSET_NAME"
+
+          if (Test-Path $zipPath) {
+            Remove-Item $zipPath -Force
+          }
+
+          Compress-Archive -Path $packageRoot -DestinationPath $zipPath -CompressionLevel Optimal
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ steps.version.outputs.tag }}
+          VERSION_NUMBER: ${{ steps.version.outputs.version }}
+          ASSET_NAME: ${{ steps.version.outputs.asset_name }}
+        shell: pwsh
+        run: |
+          $zipPath = Join-Path $PWD "temp_build_out\$env:ASSET_NAME"
+          $notes = @"
+          Automated release for version $env:VERSION_NUMBER.
+
+          Download the ZIP asset, extract it, copy .env.example to .env, update your settings, and then start TbotUltra.Desktop.exe.
+          "@
+
+          gh release create $env:TAG_NAME $zipPath `
+            --repo $env:GITHUB_REPOSITORY `
+            --target $env:GITHUB_SHA `
+            --title "Tbot Ultra $env:VERSION_NUMBER" `
+            --notes $notes

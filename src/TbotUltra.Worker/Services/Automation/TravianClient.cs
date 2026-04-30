@@ -604,7 +604,6 @@ public sealed partial class TravianClient
 
             attempted++;
             var stepPrefix = $"[{attempted}/{coordinates.Count}]";
-            Notify($"{stepPrefix} Processing target ({coordinate.X}|{coordinate.Y}).");
             await EnsureRallyPointAndOpenSendTroopsPageAsync(cancellationToken, allowReuseCurrentPage: attempted > 1);
             var sendResult = await TrySendManualAttackAsync(
                 troopType.Trim(),
@@ -620,7 +619,17 @@ public sealed partial class TravianClient
             {
                 consecutiveLowTroopSkips = 0;
                 sent++;
-                Notify($"{stepPrefix} Sent {(raidAttack ? "raid" : "normal attack")} to ({coordinate.X}|{coordinate.Y}) with {sendResult.SentTroopCount}/{troopCount} {troopType.Trim()} (Available: {FormatLargeCount(sendResult.AvailableTroopCount)}).");
+                var normalizedVariancePercent = troopVariancePercent switch
+                {
+                    0 or 5 or 10 or 20 or 50 => troopVariancePercent,
+                    _ => 10,
+                };
+                Notify($"{stepPrefix} Sent {(raidAttack ? "raid" : "normal attack")} to ({coordinate.X}|{coordinate.Y}) with {sendResult.SentTroopCount}/{troopCount}±{normalizedVariancePercent}% {troopType.Trim()} (Available: {FormatLargeCount(sendResult.AvailableTroopCount)}).");
+                if (_config.HumanLikeEnabled)
+                {
+                    var humanDelayMs = Random.Shared.Next(100, 1001);
+                    await Task.Delay(humanDelayMs, cancellationToken);
+                }
                 continue;
             }
 
@@ -2748,7 +2757,7 @@ public sealed partial class TravianClient
                 && persisted.Coordinates.Count > 0)
             {
                 var restored = persisted.Coordinates
-                    .Select(item => new NatarCoordinateJs { X = item.X, Y = item.Y })
+                    .Select(item => new NatarCoordinateJs { X = item.X, Y = item.Y, VillageName = item.VillageName })
                     .ToList();
                 lock (NatarCacheSync)
                 {
@@ -2807,7 +2816,7 @@ public sealed partial class TravianClient
                 SelectionMode: selectionMode,
                 Coordinates: cached
                     .Where(item => item.X.HasValue && item.Y.HasValue)
-                    .Select(item => new NatarFarmCoordinate(item.X!.Value, item.Y!.Value))
+                    .Select(item => new NatarFarmCoordinate(item.X!.Value, item.Y!.Value, item.VillageName))
                     .ToList()));
 
             Notify(changed
@@ -2847,6 +2856,9 @@ public sealed partial class TravianClient
               for (const row of document.querySelectorAll('tr, li, article, section, .row')) {
                 const hasVillageAnchor = !!row.querySelector('a[href*="karte.php"]');
                 if (!hasVillageAnchor) continue;
+                const villageNameNode =
+                  row.querySelector('td.vil a, .vil a, .village a, a[href*="dorf1.php"], a[href*="newdid="], a[href*="profile.php"]');
+                const villageNameFromRow = clean(villageNameNode?.textContent || '');
                 const names = Array.from(row.querySelectorAll('a, .name, .village, .vil, td, span'))
                   .map(node => clean(node.textContent || ''))
                   .filter(Boolean);
@@ -2858,7 +2870,11 @@ public sealed partial class TravianClient
                 const key = `${parsed.x}|${parsed.y}`;
                 if (seen.has(key)) continue;
                 seen.add(key);
-                rows.push({ x: parsed.x, y: parsed.y });
+                const villageName = villageNameFromRow
+                  || (hasTargetVillageName
+                    ? targetVillageName
+                    : (names.find(text => text !== `${parsed.x}|${parsed.y}` && text !== `${parsed.x}/${parsed.y}`) || ''));
+                rows.push({ x: parsed.x, y: parsed.y, villageName });
               }
 
               if (rows.length > 0) return rows;
@@ -2872,7 +2888,8 @@ public sealed partial class TravianClient
                 const key = `${parsed.x}|${parsed.y}`;
                 if (seen.has(key)) continue;
                 seen.add(key);
-                rows.push({ x: parsed.x, y: parsed.y });
+                const villageName = includeAllVillages ? (anchor.textContent || '').trim() : targetVillageName;
+                rows.push({ x: parsed.x, y: parsed.y, villageName });
               }
 
               return rows;
@@ -3837,6 +3854,9 @@ public sealed partial class TravianClient
 
         [JsonPropertyName("y")]
         public int? Y { get; init; }
+
+        [JsonPropertyName("villageName")]
+        public string? VillageName { get; init; }
     }
 
     private sealed class PlayerProfileVillageRowJs

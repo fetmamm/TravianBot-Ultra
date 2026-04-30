@@ -19,10 +19,10 @@ public partial class ManualFarmingWindow : Window
         InitializeComponent();
         TroopTypeComboBox.ItemsSource = TroopCatalog.ResolveTroopTypesForTribe(tribe);
         TroopTypeComboBox.SelectedIndex = 0;
-        VarianceComboBox.ItemsSource = VarianceOptions.Select(value => $"+-{value}%").ToList();
+        VarianceComboBox.ItemsSource = VarianceOptions.Select(value => $"{value}%").ToList();
         TroopCountTextBox.Text = Math.Max(1, troopCount).ToString();
         TroopVariancePercent = NormalizeVariancePercent(troopVariancePercent);
-        VarianceComboBox.SelectedItem = $"+-{TroopVariancePercent}%";
+        VarianceComboBox.SelectedItem = $"{TroopVariancePercent}%";
         RaidRadioButton.IsChecked = true;
         AllVillagesRadioButton.IsChecked = string.Equals(natarVillageSelection, "all_villages", StringComparison.OrdinalIgnoreCase);
         FarmVillagesRadioButton.IsChecked = !string.Equals(natarVillageSelection, "all_villages", StringComparison.OrdinalIgnoreCase);
@@ -111,8 +111,9 @@ public partial class ManualFarmingWindow : Window
 
         var modeText = RaidRadioButton.IsChecked == true ? "Raid" : "Normal attack";
         var targetText = AllVillagesRadioButton.IsChecked == true ? "all villages from the Natars profile" : "farm villages only";
-        var variationText = ReadSelectedVariancePercent() <= 0 ? "no random variation" : $"randomized by +-{ReadSelectedVariancePercent()}%";
+        var variationText = ReadSelectedVariancePercent() <= 0 ? "no random variation" : $"randomized by +/-{ReadSelectedVariancePercent()}%";
         InfoTextBlock.Text = $"Every analyzed Natar target will be sent as {modeText} using {targetText} with {variationText}.";
+        UpdateEffectiveRangeText(count);
     }
 
     private int ReadSelectedVariancePercent()
@@ -127,6 +128,19 @@ public partial class ManualFarmingWindow : Window
         return int.TryParse(digits, out var value)
             ? NormalizeVariancePercent(value)
             : 10;
+    }
+
+    private void UpdateEffectiveRangeText(int troopCount)
+    {
+        if (EffectiveRangeTextBlock is null)
+        {
+            return;
+        }
+
+        var variance = ReadSelectedVariancePercent();
+        var minAmount = Math.Max(1, (int)Math.Floor(troopCount * (100 - variance) / 100d));
+        var maxAmount = Math.Max(minAmount, (int)Math.Ceiling(troopCount * (100 + variance) / 100d));
+        EffectiveRangeTextBlock.Text = $"{minAmount}-{maxAmount}";
     }
 
     private void NotifyPreferenceChanged()

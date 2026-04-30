@@ -1,0 +1,24 @@
+{
+  "server_name": "Example Server",
+  "base_url": "https://example.com",
+  "login_path": "/login.php",
+  "village_overview_path": "/dorf1.php",
+  "headless": false,
+  "timeout_ms": 15000,
+  "manual_login_timeout_seconds": 180,
+  "captcha_auto_solve_enabled": false,
+  "captcha_solver_timeout_seconds": 20,
+  "captcha_solver_max_attempts": 2,
+  "loop_interval_seconds": 60,
+  "loop_tasks": [
+    "status"
+  ],
+  "github_releases_url": "",
+  "human_like_enabled": false,
+  "human_like_speed": "slow",
+  "allow_gold_spending": false,
+  "allow_silver_spending": false,
+  "gold_limit": 100,
+  "silver_limit": 100,
+  "natar_village_selection": "farm_villages"
+}

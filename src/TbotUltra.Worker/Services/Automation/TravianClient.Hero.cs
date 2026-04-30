@@ -77,17 +77,10 @@ public sealed partial class TravianClient
         var openedList = await ClickAdventureButtonOnDorf1Async(cancellationToken);
         if (!openedList)
         {
-            return new HeroAdventureDispatchResult(
-                IsInHomeVillage: true,
-                StatusText: statusText,
-                AdventureCount: adventures,
-                Dispatched: false,
-                SecondsUntilReturn: null,
-                Message: "Could not click the adventures button on dorf1.");
+            Notify("Could not click adventures button on dorf1. Trying direct adventure pages.");
         }
 
-        await WaitForNavigationSettledAsync(cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening adventures list.", cancellationToken);
+        await OpenAdventureListWithFallbackAsync(cancellationToken);
 
         var openedDetail = await ClickFirstAdventureEntryAsync(cancellationToken);
         if (!openedDetail)
@@ -229,6 +222,47 @@ public sealed partial class TravianClient
               if (candidate.hasAttribute('disabled')) return false;
               candidate.click();
               return true;
+            }
+            """);
+    }
+
+    private async Task OpenAdventureListWithFallbackAsync(CancellationToken cancellationToken)
+    {
+        await WaitForNavigationSettledAsync(cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening adventures list.", cancellationToken);
+
+        if (await HasAdventureEntryOnPageAsync(cancellationToken))
+        {
+            return;
+        }
+
+        await GotoAsync(Paths.HeroAdventures, cancellationToken);
+        await WaitForNavigationSettledAsync(cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared on hero adventures page.", cancellationToken);
+        if (await HasAdventureEntryOnPageAsync(cancellationToken))
+        {
+            return;
+        }
+
+        await GotoAsync(Paths.HeroAdventureLegacy, cancellationToken);
+        await WaitForNavigationSettledAsync(cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared on legacy hero adventures page.", cancellationToken);
+    }
+
+    private async Task<bool> HasAdventureEntryOnPageAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return await _page.EvaluateAsync<bool>(
+            """
+            () => {
+              const nodes = Array.from(document.querySelectorAll('a, button, input[type="submit"]'));
+              return nodes.some(node => {
+                const text = ((node.textContent || '') + ' ' + (node.getAttribute('value') || '') + ' ' + (node.getAttribute('title') || '')).toLowerCase();
+                const href = (node.getAttribute('href') || '').toLowerCase();
+                return text.includes('to the adventure')
+                    || text.includes('to adventure')
+                    || href.includes('hero.php?t=3&kid=');
+              });
             }
             """);
     }
@@ -469,6 +503,7 @@ public sealed partial class TravianClient
     public async Task<string> ManageHeroAsync(
         int minHpForAdventure,
         bool autoRevive,
+        bool autoAssignPoints,
         string statPriority,
         CancellationToken cancellationToken = default)
     {
@@ -494,7 +529,7 @@ public sealed partial class TravianClient
             status = await ReadHeroStatusAsync(cancellationToken);
         }
 
-        if (heroLeveledUp || status.UnassignedPoints > 0)
+        if (autoAssignPoints && (heroLeveledUp || status.UnassignedPoints > 0))
         {
             var allocated = await TryAllocateHeroPointsAsync(statPriority, cancellationToken);
             if (allocated > 0)

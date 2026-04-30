@@ -40,7 +40,7 @@ public partial class MainWindow : Window
 
     private sealed record NatarListRow(
         int Index,
-        string Coordinates,
+        string VillageName,
         int X,
         int Y);
 
@@ -150,6 +150,8 @@ public partial class MainWindow : Window
     private ListBox? _logDragSourceList;
     private Point _automationLoopDragStart;
     private LoopTaskOption? _automationLoopDragSource;
+    private Point _heroPriorityDragStart;
+    private HeroAttributePriorityItem? _heroPriorityDragSource;
     private bool _suppressAutomationLoopConfigWrite;
     private bool _suppressFarmListUiRefresh;
     private bool _farmingOperationBusy;
@@ -339,6 +341,7 @@ public partial class MainWindow : Window
         LoadAutomationLoopTasks(options);
         HeroMinHpTextBox.Text = Math.Clamp(options.HeroMinHpForAdventure, 1, 100).ToString();
         HeroAutoReviveCheckBox.IsChecked = options.HeroAutoRevive;
+        HeroAutoAssignPointsCheckBox.IsChecked = options.HeroAutoAssignPoints;
         LoadHeroPriorityToUi(options.HeroStatPriority);
 
         try
@@ -403,6 +406,76 @@ public partial class MainWindow : Window
         {
             _heroAttributePriorityItems[i].Order = i + 1;
         }
+    }
+
+    private void HeroAttributePriorityItemsControl_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _heroPriorityDragStart = e.GetPosition(HeroAttributePriorityItemsControl);
+        _heroPriorityDragSource = FindHeroAttributePriorityItem(e.OriginalSource as DependencyObject);
+    }
+
+    private void HeroAttributePriorityItemsControl_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || _heroPriorityDragSource is null)
+        {
+            return;
+        }
+
+        var position = e.GetPosition(HeroAttributePriorityItemsControl);
+        var delta = position - _heroPriorityDragStart;
+        if (Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance
+            && Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        DragDrop.DoDragDrop(HeroAttributePriorityItemsControl, _heroPriorityDragSource, DragDropEffects.Move);
+    }
+
+    private void HeroAttributePriorityItemsControl_Drop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(typeof(HeroAttributePriorityItem)))
+        {
+            return;
+        }
+
+        if (e.Data.GetData(typeof(HeroAttributePriorityItem)) is not HeroAttributePriorityItem sourceItem)
+        {
+            return;
+        }
+
+        var targetItem = FindHeroAttributePriorityItem(e.OriginalSource as DependencyObject);
+        var fromIndex = _heroAttributePriorityItems.IndexOf(sourceItem);
+        if (fromIndex < 0)
+        {
+            return;
+        }
+
+        var toIndex = targetItem is null
+            ? _heroAttributePriorityItems.Count - 1
+            : _heroAttributePriorityItems.IndexOf(targetItem);
+        if (toIndex < 0 || fromIndex == toIndex)
+        {
+            return;
+        }
+
+        _heroAttributePriorityItems.Move(fromIndex, toIndex);
+        UpdateHeroPriorityOrders();
+    }
+
+    private HeroAttributePriorityItem? FindHeroAttributePriorityItem(DependencyObject? source)
+    {
+        while (source is not null)
+        {
+            if (source is FrameworkElement { DataContext: HeroAttributePriorityItem item })
+            {
+                return item;
+            }
+
+            source = VisualTreeHelper.GetParent(source);
+        }
+
+        return null;
     }
 
     private void ApplyHeroAttributeSnapshotToUi(HeroAttributeSnapshot snapshot)
@@ -1194,7 +1267,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ShowNatarsListButton_Click(object sender, RoutedEventArgs e)
+    private async void ShowNatarsListButton_Click(object sender, RoutedEventArgs e)
     {
         if (!_natarsProfileAnalyzed)
         {
@@ -1202,6 +1275,24 @@ public partial class MainWindow : Window
         }
 
         var snapshot = TryLoadActiveNatarFarmSnapshot();
+        var missingVillageNames = snapshot is not null
+            && snapshot.Coordinates.Count > 0
+            && snapshot.Coordinates.All(item => string.IsNullOrWhiteSpace(item.VillageName));
+        if (missingVillageNames)
+        {
+            try
+            {
+                var options = ApplySelectedVillageToOptions(LoadBotOptions());
+                await EnsureChromiumInstalledAsync();
+                await _botService.EnsureNatarFarmCacheAndReturnToFarmListAsync(options, AppendLog, true, CancellationToken.None);
+                snapshot = TryLoadActiveNatarFarmSnapshot();
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"Could not refresh Natar villages before showing list: {ex.Message}");
+            }
+        }
+
         if (snapshot is null || snapshot.Coordinates.Count <= 0)
         {
             SetNatarsProfileAnalyzed(false);
@@ -1212,7 +1303,7 @@ public partial class MainWindow : Window
         var rows = snapshot.Coordinates
             .Select((item, index) => new NatarListRow(
                 index + 1,
-                $"{item.X}|{item.Y}",
+                string.IsNullOrWhiteSpace(item.VillageName) ? "-" : item.VillageName,
                 item.X,
                 item.Y))
             .ToList();
@@ -1231,7 +1322,7 @@ public partial class MainWindow : Window
             ItemsSource = rows,
         };
         grid.Columns.Add(new DataGridTextColumn { Header = "#", Binding = new Binding(nameof(NatarListRow.Index)), Width = new DataGridLength(70) });
-        grid.Columns.Add(new DataGridTextColumn { Header = "Coordinates", Binding = new Binding(nameof(NatarListRow.Coordinates)), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        grid.Columns.Add(new DataGridTextColumn { Header = "Village", Binding = new Binding(nameof(NatarListRow.VillageName)), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
         grid.Columns.Add(new DataGridTextColumn { Header = "X", Binding = new Binding(nameof(NatarListRow.X)), Width = new DataGridLength(90) });
         grid.Columns.Add(new DataGridTextColumn { Header = "Y", Binding = new Binding(nameof(NatarListRow.Y)), Width = new DataGridLength(90) });
 
@@ -1263,18 +1354,15 @@ public partial class MainWindow : Window
                 Margin = new Thickness(12),
                 Children =
                 {
-                    new StackPanel
-                    {
-                        Children =
-                        {
-                            summaryText,
-                            grid,
-                            closeButton,
-                        },
-                    },
+                    closeButton,
+                    summaryText,
+                    grid,
                 },
             },
         };
+
+        DockPanel.SetDock(closeButton, Dock.Bottom);
+        DockPanel.SetDock(summaryText, Dock.Top);
 
         closeButton.Click += (_, _) => popup.Close();
         popup.ShowDialog();
@@ -1331,29 +1419,42 @@ public partial class MainWindow : Window
                 ApplySelectedVillageToOptions(currentOptions),
                 dialog.NatarVillageSelection);
             await EnsureChromiumInstalledAsync();
-            var result = await _botService.StartManualFarmingFromNatarsAsync(
-                options,
-                dialog.SelectedTroopType,
-                dialog.TroopCount,
-                dialog.TroopVariancePercent,
-                dialog.IsRaid,
-                AppendLog,
-                operationToken);
-            SetNatarsProfileAnalyzed(result.TotalTargets > 0);
-            AppDialog.Show(
-                this,
-                $"Sent: {result.SentCount}, Skipped: {result.SkippedCount}, Failed: {result.FailedCount}, Targets: {result.TotalTargets}.",
-                "Manual farming",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
-            var statusText = result.SentCount > 0
-                ? $"Manual farming done. Sent={result.SentCount}, Skipped={result.SkippedCount}, Failed={result.FailedCount}, Targets={result.TotalTargets}."
-                : $"Manual farming stopped without sending troops. Skipped={result.SkippedCount}, Failed={result.FailedCount}, Targets={result.TotalTargets}.";
-            CompleteOperation(operationId, operationSw, statusText);
+            var runIndex = 0;
+            while (true)
+            {
+                operationToken.ThrowIfCancellationRequested();
+                runIndex++;
+                AppendLog($"Manual farming loop {runIndex} started.");
+
+                var result = await _botService.StartManualFarmingFromNatarsAsync(
+                    options,
+                    dialog.SelectedTroopType,
+                    dialog.TroopCount,
+                    dialog.TroopVariancePercent,
+                    dialog.IsRaid,
+                    AppendLog,
+                    operationToken);
+                SetNatarsProfileAnalyzed(result.TotalTargets > 0);
+
+                if (result.StoppedByNoTroopsAlarm)
+                {
+                    AppDialog.Show(
+                        this,
+                        $"Manual farming stopped by alarm after loop {runIndex}. Sent: {result.SentCount}, Skipped: {result.SkippedCount}, Failed: {result.FailedCount}, Targets: {result.TotalTargets}.",
+                        "Manual farming",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    CompleteOperation(operationId, operationSw, $"Manual farming stopped by troop alarm on loop {runIndex}.");
+                    break;
+                }
+
+                AppendLog($"Manual farming loop {runIndex} done. Sent={result.SentCount}, Skipped={result.SkippedCount}, Failed={result.FailedCount}, Targets={result.TotalTargets}. Restarting...");
+            }
         }
         catch (OperationCanceledException)
         {
             AppendLog("Manual farming canceled.");
+            CompleteOperation(operationId, operationSw, "Manual farming stopped by user.");
         }
         catch (Exception ex)
         {
@@ -2305,6 +2406,25 @@ public partial class MainWindow : Window
 
         ClearPendingResourceLevelsFromUi();
         AppendLog("Stop requested. Cancellation sent to running actions.");
+    }
+
+    private void ContinuousRunToggleButton_Unchecked(object sender, RoutedEventArgs e)
+    {
+        if (!_autoQueueRunning && !_uiBusy && (_loopTask is null || _loopTask.IsCompleted))
+        {
+            return;
+        }
+
+        _queueStopRequested = true;
+        _loopStopRequested = true;
+        _operationCts?.Cancel();
+        _autoQueueRunCts?.Cancel();
+        _loopCts?.Cancel();
+        ClearPendingResourceLevelsFromUi();
+        SetLoopIndicator(false);
+        StartLoopButton.Content = "Start bot";
+        StartLoopButton.IsEnabled = true;
+        AppendLog("Continuous run disabled. Running actions were stopped.");
     }
 
     private void SidebarNavButton_Click(object sender, RoutedEventArgs e)
@@ -3500,6 +3620,7 @@ public partial class MainWindow : Window
         {
             [BotOptionPayloadKeys.HeroMinHpForAdventure] = minHp.ToString(),
             [BotOptionPayloadKeys.HeroAutoRevive] = HeroAutoReviveCheckBox.IsChecked == true ? "true" : "false",
+            [BotOptionPayloadKeys.HeroAutoAssignPoints] = HeroAutoAssignPointsCheckBox.IsChecked == true ? "true" : "false",
             [BotOptionPayloadKeys.HeroStatPriority] = BuildHeroPriorityPayload(),
         };
         EnqueueQuickTask("hero_manage", "Run hero management task", payload);
@@ -4282,14 +4403,7 @@ public partial class MainWindow : Window
 
         if (ManualFarmingStateTextBlock is not null)
         {
-            var remainingWaitSeconds = _inlineWaitUntilUtc > DateTimeOffset.UtcNow
-                ? Math.Max(0, (int)Math.Ceiling((_inlineWaitUntilUtc - DateTimeOffset.UtcNow).TotalSeconds))
-                : 0;
-            ManualFarmingStateTextBlock.Text = _farmingOperationBusy
-                ? remainingWaitSeconds > 0
-                    ? $"State: waiting ({FormatCountdown(remainingWaitSeconds)})"
-                    : "State: running"
-                : "State: not running";
+            ManualFarmingStateTextBlock.Text = "State:";
             ManualFarmingStateTextBlock.Foreground = _farmingOperationBusy
                 ? new SolidColorBrush(Color.FromRgb(22, 163, 74))
                 : new SolidColorBrush(Color.FromRgb(107, 114, 128));
@@ -4318,7 +4432,9 @@ public partial class MainWindow : Window
         _natarsProfileAnalyzed = analyzed;
         if (NatarsProfileAnalyzedIndicator is not null)
         {
-            NatarsProfileAnalyzedIndicator.Fill = analyzed ? Brushes.LimeGreen : Brushes.Gray;
+            NatarsProfileAnalyzedIndicator.Fill = analyzed
+                ? new SolidColorBrush(Color.FromRgb(22, 163, 74))
+                : new SolidColorBrush(Color.FromRgb(156, 163, 175));
         }
 
         SetEnabled(ShowNatarsListButton, !_farmingOperationBusy && _farmingFeaturesAvailable && analyzed);
@@ -4952,7 +5068,7 @@ public partial class MainWindow : Window
             return false;
         }
 
-        if (value.Contains(" completed]"))
+        if (value.Contains("[completed]"))
         {
             return false;
         }
@@ -5007,7 +5123,7 @@ public partial class MainWindow : Window
 
     private void UpdateCaptchaStatsUi()
     {
-        CaptchaStatsTextBlock.Text = $"Captchas solved: {_captchaSessionSolvedCount}/{_captchaSessionSeenCount}";
+        CaptchaStatsTextBlock.Text = $"Captchas solved: {_captchaSessionSolvedCount}/{_captchaSessionSeenCount} |";
     }
 
     private async void MarkMessagesReadButton_Click(object sender, RoutedEventArgs e)

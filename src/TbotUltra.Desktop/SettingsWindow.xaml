@@ -18,7 +18,26 @@
             <StackPanel>
                 <TextBlock Text="Bot Settings" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,10" />
                 <CheckBox x:Name="HeadlessCheckBox" Margin="0,0,0,8" Content="Headless" />
-                <CheckBox x:Name="HumanLikeCheckBox" Margin="0,0,0,10" Content="Human-like enabled" />
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                    <CheckBox x:Name="HumanLikeCheckBox"
+                              Content="Act more human" />
+                    <Border Width="18"
+                            Height="18"
+                            Margin="8,0,0,0"
+                            CornerRadius="9"
+                            Background="#DBEAFE"
+                            BorderBrush="#93C5FD"
+                            BorderThickness="1"
+                            ToolTipService.InitialShowDelay="0"
+                            ToolTip="Adds a random 0.1-1.0s delay between each sent manual farm attack.">
+                        <TextBlock Text="i"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Foreground="#1D4ED8"
+                                   FontWeight="SemiBold"
+                                   FontSize="11" />
+                    </Border>
+                </StackPanel>
                 <Separator Margin="0,0,0,10" />
                 <CheckBox x:Name="AllowGoldSpendingCheckBox" Margin="0,0,0,8" Content="Allow gold spending" />
                 <CheckBox x:Name="AllowSilverSpendingCheckBox" Margin="0,0,0,10" Content="Allow silver spending" />

@@ -20,6 +20,7 @@ public static class BotOptionPayloadKeys
     public const string TargetLevel = "target_level";
     public const string HeroMinHpForAdventure = "hero_min_hp_for_adventure";
     public const string HeroAutoRevive = "hero_auto_revive";
+    public const string HeroAutoAssignPoints = "hero_auto_assign_points";
     public const string HeroStatPriority = "hero_stat_priority";
 
     public const string UpgradeSelectorProfile = "upgrade_selector_profile";

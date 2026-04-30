@@ -113,7 +113,11 @@ public sealed class NatarFarmCacheStore
         var normalizedCoordinates = snapshot.Coordinates
             .Where(item => item is not null)
             .GroupBy(item => $"{item.X}|{item.Y}", StringComparer.Ordinal)
-            .Select(group => group.First())
+            .Select(group =>
+            {
+                var firstWithName = group.FirstOrDefault(coord => !string.IsNullOrWhiteSpace(coord.VillageName));
+                return firstWithName ?? group.First();
+            })
             .OrderBy(item => item.X)
             .ThenBy(item => item.Y)
             .ToList();
@@ -199,4 +203,5 @@ public sealed record NatarFarmCacheSnapshot(
 
 public sealed record NatarFarmCoordinate(
     [property: JsonPropertyName("x")] int X,
-    [property: JsonPropertyName("y")] int Y);
+    [property: JsonPropertyName("y")] int Y,
+    [property: JsonPropertyName("villageName")] string? VillageName = null);

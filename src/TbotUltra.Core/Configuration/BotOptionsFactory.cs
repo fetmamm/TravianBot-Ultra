@@ -44,6 +44,7 @@ public static class BotOptionsFactory
             TargetLevel = configuration.GetValue<int?>(BotOptionPayloadKeys.TargetLevel),
             HeroMinHpForAdventure = configuration.GetValue(BotOptionPayloadKeys.HeroMinHpForAdventure, 60),
             HeroAutoRevive = configuration.GetValue(BotOptionPayloadKeys.HeroAutoRevive, true),
+            HeroAutoAssignPoints = configuration.GetValue(BotOptionPayloadKeys.HeroAutoAssignPoints, true),
             HeroStatPriority = configuration[BotOptionPayloadKeys.HeroStatPriority] ?? "offense,resource,regeneration",
             UpgradeSelectorProfile = configuration[BotOptionPayloadKeys.UpgradeSelectorProfile] ?? "auto",
             NatarVillageSelection = configuration["natar_village_selection"] ?? "farm_villages",
@@ -92,6 +93,7 @@ public static class BotOptionsFactory
             TargetLevel = source.TargetLevel,
             HeroMinHpForAdventure = source.HeroMinHpForAdventure,
             HeroAutoRevive = source.HeroAutoRevive,
+            HeroAutoAssignPoints = source.HeroAutoAssignPoints,
             HeroStatPriority = source.HeroStatPriority,
             UpgradeSelectorProfile = source.UpgradeSelectorProfile,
             NatarVillageSelection = string.IsNullOrWhiteSpace(natarVillageSelectionOverride)

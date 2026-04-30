@@ -22,6 +22,7 @@ public static class BotOptionsPayloadApplier
         var targetLevel = source.TargetLevel;
         var heroMinHpForAdventure = source.HeroMinHpForAdventure;
         var heroAutoRevive = source.HeroAutoRevive;
+        var heroAutoAssignPoints = source.HeroAutoAssignPoints;
         var heroStatPriority = source.HeroStatPriority;
         var upgradeSelectorProfile = source.UpgradeSelectorProfile;
         var natarVillageSelection = source.NatarVillageSelection;
@@ -145,6 +146,12 @@ public static class BotOptionsPayloadApplier
                     continue;
                 }
 
+                if (key.Equals(BotOptionPayloadKeys.HeroAutoAssignPoints, StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var autoAssignPoints))
+                {
+                    heroAutoAssignPoints = autoAssignPoints;
+                    continue;
+                }
+
                 if (key.Equals(BotOptionPayloadKeys.HeroStatPriority, StringComparison.OrdinalIgnoreCase))
                 {
                     heroStatPriority = value;
@@ -194,6 +201,7 @@ public static class BotOptionsPayloadApplier
             TargetLevel = targetLevel,
             HeroMinHpForAdventure = heroMinHpForAdventure,
             HeroAutoRevive = heroAutoRevive,
+            HeroAutoAssignPoints = heroAutoAssignPoints,
             HeroStatPriority = heroStatPriority,
             UpgradeSelectorProfile = upgradeSelectorProfile,
             NatarVillageSelection = natarVillageSelection,

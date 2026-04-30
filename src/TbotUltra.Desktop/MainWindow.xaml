@@ -217,7 +217,8 @@
                                            Margin="0,0,8,0" />
 						        <ToggleButton x:Name="ContinuousRunToggleButton"
                                               Style="{StaticResource ContinuousRunToggleStyle}"
-                                              ToolTip="When enabled, Start/Pause/Stop controls continuous running." />
+                                              ToolTip="When enabled, Start/Pause/Stop controls continuous running."
+                                              Unchecked="ContinuousRunToggleButton_Unchecked" />
                             </StackPanel>
 
 						    <Grid Margin="0,0,0,6">
@@ -725,6 +726,7 @@
 								<Button Background="Transparent"
 										BorderThickness="0"
 										Padding="6,5"
+                                        MinHeight="74"
 										Tag="{Binding}"
 										Click="BuildingSlotCircleButton_Click"
 										HorizontalContentAlignment="Stretch"
@@ -739,6 +741,8 @@
 												   FontWeight="SemiBold"
 												   Foreground="#111827"
 												   TextWrapping="Wrap"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   MaxHeight="34"
 												   Margin="0,2,0,0" />
 										<TextBlock Text="{Binding LevelStatusLabel}"
 												   FontSize="11"
@@ -896,7 +900,8 @@
                             <StackPanel>
                                 <TextBlock Text="Hero min HP for adventure" />
                                 <TextBox x:Name="HeroMinHpTextBox" Text="60" Margin="0,2,0,8" Width="120" />
-                                <CheckBox x:Name="HeroAutoReviveCheckBox" Content="Auto revive" IsChecked="True" Margin="0,0,0,8" />
+                                <CheckBox x:Name="HeroAutoReviveCheckBox" Content="Auto revive" IsChecked="True" Margin="0,0,0,4" />
+                                <CheckBox x:Name="HeroAutoAssignPointsCheckBox" Content="Auto assign points" IsChecked="True" Margin="0,0,0,8" />
                                 <DockPanel Margin="0,0,0,6">
                                     <TextBlock Text="Attribute priority" FontWeight="SemiBold" />
                                     <Button x:Name="RefreshHeroStatsButton"
@@ -907,15 +912,27 @@
                                 </DockPanel>
                                 <Border BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6" Padding="8" Margin="0,0,0,8">
                                     <StackPanel>
-                                        <ItemsControl x:Name="HeroAttributePriorityItemsControl">
-                                            <ItemsControl.ItemTemplate>
+                                        <ListBox x:Name="HeroAttributePriorityItemsControl"
+                                                 MaxWidth="360"
+                                                 HorizontalAlignment="Left"
+                                                 BorderThickness="0"
+                                                 Background="Transparent"
+                                                 AllowDrop="True"
+                                                 PreviewMouseLeftButtonDown="HeroAttributePriorityItemsControl_PreviewMouseLeftButtonDown"
+                                                 PreviewMouseMove="HeroAttributePriorityItemsControl_PreviewMouseMove"
+                                                 Drop="HeroAttributePriorityItemsControl_Drop">
+                                            <ListBox.ItemContainerStyle>
+                                                <Style TargetType="ListBoxItem">
+                                                    <Setter Property="Padding" Value="0" />
+                                                    <Setter Property="Margin" Value="0,0,0,4" />
+                                                </Style>
+                                            </ListBox.ItemContainerStyle>
+                                            <ListBox.ItemTemplate>
                                                 <DataTemplate>
                                                     <Grid Margin="0,0,0,6">
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="32" />
                                                             <ColumnDefinition Width="*" />
-                                                            <ColumnDefinition Width="Auto" />
-                                                            <ColumnDefinition Width="Auto" />
                                                             <ColumnDefinition Width="Auto" />
                                                         </Grid.ColumnDefinitions>
                                                         <TextBlock Grid.Column="0"
@@ -931,23 +948,10 @@
                                                                    VerticalAlignment="Center"
                                                                    Foreground="#374151"
                                                                    Margin="0,0,12,0" />
-                                                        <Button Grid.Column="3"
-                                                                Content="Up"
-                                                                Width="46"
-                                                                Padding="6,2"
-                                                                Tag="{Binding}"
-                                                                Click="HeroPriorityMoveUpButton_Click" />
-                                                        <Button Grid.Column="4"
-                                                                Content="Down"
-                                                                Width="58"
-                                                                Padding="6,2"
-                                                                Margin="6,0,0,0"
-                                                                Tag="{Binding}"
-                                                                Click="HeroPriorityMoveDownButton_Click" />
                                                     </Grid>
                                                 </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
                                         <TextBlock x:Name="HeroAttributesStatusTextBlock"
                                                    Text="Hero stats not loaded."
                                                    Foreground="#6B7280"
@@ -1156,47 +1160,72 @@
                                             </StackPanel>
                                         </Grid>
 
-                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                        <Grid Margin="0,0,0,10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="190" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+
                                             <Button x:Name="AnalyzeNatarsProfileButton"
+                                                    Grid.Row="0"
+                                                    Grid.Column="0"
                                                     Content="Analyze natars profile"
-                                                    MinWidth="170"
+                                                    Width="170"
+                                                    Margin="0,0,0,6"
                                                     Click="AnalyzeNatarsProfileButton_Click" />
                                             <Button x:Name="ShowNatarsListButton"
+                                                    Grid.Row="1"
+                                                    Grid.Column="0"
                                                     Content="Show natars list"
-                                                    MinWidth="150"
+                                                    Width="170"
+                                                    Margin="0,0,0,6"
                                                     Click="ShowNatarsListButton_Click" />
-                                            <TextBlock Text="Analyzed:"
-                                                       VerticalAlignment="Center"
-                                                       Foreground="#374151"
-                                                       Margin="12,0,6,0" />
-                                            <Ellipse x:Name="NatarsProfileAnalyzedIndicator"
-                                                     Width="14"
-                                                     Height="14"
-                                                     VerticalAlignment="Center"
-                                                     Fill="#9CA3AF" />
-                                        </StackPanel>
-
-                                        <StackPanel Orientation="Horizontal">
                                             <Button x:Name="StartManualFarmingButton"
+                                                    Grid.Row="2"
+                                                    Grid.Column="0"
                                                     Content="Start manual farming"
-                                                    MinWidth="170"
-                                                    HorizontalAlignment="Left"
+                                                    Width="170"
+                                                    HorizontalAlignment="Center"
                                                     Click="StartManualFarmingButton_Click" />
-                                            <StackPanel Orientation="Horizontal"
+
+                                            <StackPanel Grid.Row="0"
+                                                        Grid.Column="1"
+                                                        Orientation="Horizontal"
                                                         VerticalAlignment="Center"
-                                                        Margin="12,0,0,0">
+                                                        Margin="10,0,0,6">
+                                                <TextBlock Text="Analyzed:"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="#374151"
+                                                           Margin="0,0,6,0" />
+                                                <Ellipse x:Name="NatarsProfileAnalyzedIndicator"
+                                                         Width="14"
+                                                         Height="14"
+                                                         VerticalAlignment="Center"
+                                                         Fill="#9CA3AF" />
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Row="2"
+                                                        Grid.Column="1"
+                                                        Orientation="Horizontal"
+                                                        VerticalAlignment="Center"
+                                                        Margin="10,0,0,0">
+                                                <TextBlock x:Name="ManualFarmingStateTextBlock"
+                                                           Text="State:"
+                                                           Foreground="#6B7280"
+                                                           Margin="0,0,8,0"
+                                                           VerticalAlignment="Center" />
                                                 <Ellipse x:Name="ManualFarmingStateDot"
                                                          Width="12"
                                                          Height="12"
                                                          VerticalAlignment="Center"
                                                          Fill="#9CA3AF" />
-                                                <TextBlock x:Name="ManualFarmingStateTextBlock"
-                                                           Text="State: not running"
-                                                           Foreground="#6B7280"
-                                                           Margin="8,0,0,0"
-                                                           VerticalAlignment="Center" />
                                             </StackPanel>
-                                        </StackPanel>
+                                        </Grid>
                                     </StackPanel>
                                 </Border>
                             </Grid>
