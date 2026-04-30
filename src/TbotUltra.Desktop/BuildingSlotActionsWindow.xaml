@@ -1,0 +1,58 @@
+<Window x:Class="TbotUltra.Desktop.BuildingSlotActionsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Building slot actions"
+        Height="280"
+        Width="280"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="TitleTextBlock"
+                   Grid.Row="0"
+                   FontSize="16"
+                   FontWeight="SemiBold"
+                   Foreground="#111827"
+                   Margin="0,0,0,6" />
+
+        <TextBlock x:Name="SubtitleTextBlock"
+                   Grid.Row="1"
+                   Foreground="#6B7280"
+                   Margin="0,0,0,12"
+                   TextWrapping="Wrap" />
+
+        <StackPanel Grid.Row="2">
+            <Button x:Name="BuildBuildingButton"
+                    Content="Build building"
+                    Margin="0,0,0,8"
+                    Click="BuildBuildingButton_Click" />
+            <Button x:Name="UpgradeButton"
+                    Content="Upgrade"
+                    Margin="0,0,0,8"
+                    Click="UpgradeButton_Click" />
+            <Button x:Name="UpgradeToMaxButton"
+                    Content="Upgrade to max"
+                    Margin="0,0,0,8"
+                    Click="UpgradeToMaxButton_Click" />
+            <Button x:Name="DemolishButton"
+                    Content="Demolish"
+                    Margin="0,0,0,8"
+                    Click="DemolishButton_Click" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="3"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,12,0,0">
+            <Button Width="100"
+                    Content="Cancel"
+                    Click="CancelButton_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

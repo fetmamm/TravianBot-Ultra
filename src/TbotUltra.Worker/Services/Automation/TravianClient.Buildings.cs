@@ -43,18 +43,51 @@ public sealed partial class TravianClient
             return $"Demolition target already reached for slot {target.SlotId} ({target.Name} level {target.Level}).";
         }
 
-        var started = await TryStartDemolitionStepAsync(
-            mainBuildingSlotId: mainBuilding.SlotId ?? 15,
-            targetSlotId: target.SlotId.Value,
-            targetBuildingName: target.Name,
-            cancellationToken);
-
-        if (!started)
+        var originalLevel = target.Level.Value;
+        var steps = 0;
+        while (target is not null && target.SlotId is not null && (target.Level ?? 0) > targetLevel)
         {
-            return $"Could not start demolition for {target.Name} in slot {target.SlotId}. Main building page did not expose a standard demolish action.";
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (!SameBuildingName(target.Name, "Main Building"))
+            {
+                status = await ReadCurrentVillageStatusAsync(cancellationToken);
+                mainBuilding = status.Buildings
+                    .Where(building => SameBuildingName(building.Name, "Main Building"))
+                    .OrderByDescending(building => building.Level ?? 0)
+                    .FirstOrDefault();
+                if (mainBuilding is null || (mainBuilding.Level ?? 0) < 10)
+                {
+                    throw new InvalidOperationException("Demolition requires Main Building level 10.");
+                }
+            }
+
+            var started = await TryStartDemolitionStepAsync(
+                mainBuildingSlotId: mainBuilding?.SlotId ?? 15,
+                targetSlotId: target.SlotId.Value,
+                targetBuildingName: target.Name,
+                cancellationToken);
+
+            if (!started)
+            {
+                return $"Could not start demolition for {target.Name} in slot {target.SlotId}. Main building page did not expose a standard demolish action.";
+            }
+
+            steps += 1;
+            var previousLevel = target.Level ?? 0;
+            target = await WaitForDemolitionLevelChangeAsync(
+                target.SlotId.Value,
+                previousLevel,
+                cancellationToken);
         }
 
-        return $"Started demolition for {target.Name} in slot {target.SlotId}. Current level {target.Level}, target level {targetLevel}.";
+        var finalLevel = target?.Level ?? 0;
+        if (finalLevel > targetLevel)
+        {
+            return $"Demolition started for slot {target?.SlotId ?? 0}, but current level is still {finalLevel}. Steps started: {steps}.";
+        }
+
+        return $"Demolished slot {targetBuildingSlotOrName} from level {originalLevel} to {finalLevel} in {steps} step(s).";
     }
 
     public async Task<string> UpgradeBuildingToLevelAsync(int slotId, int targetLevel, CancellationToken cancellationToken = default)
@@ -518,7 +551,8 @@ public sealed partial class TravianClient
 
     private static string ResolveBuildingName(string? buildingCode)
     {
-        if (string.IsNullOrWhiteSpace(buildingCode))
+        if (string.IsNullOrWhiteSpace(buildingCode)
+            || string.Equals(buildingCode, "g0", StringComparison.OrdinalIgnoreCase))
         {
             return "Empty";
         }
@@ -530,7 +564,9 @@ public sealed partial class TravianClient
 
     private static int? ParseGidFromBuildingCode(string? buildingCode)
     {
-        if (string.IsNullOrWhiteSpace(buildingCode) || buildingCode.Length < 2)
+        if (string.IsNullOrWhiteSpace(buildingCode)
+            || string.Equals(buildingCode, "g0", StringComparison.OrdinalIgnoreCase)
+            || buildingCode.Length < 2)
         {
             return null;
         }
@@ -538,6 +574,51 @@ public sealed partial class TravianClient
         return int.TryParse(buildingCode[1..], out var gid)
             ? gid
             : null;
+    }
+
+    private async Task<Building?> WaitForDemolitionLevelChangeAsync(
+        int slotId,
+        int previousLevel,
+        CancellationToken cancellationToken)
+    {
+        var statusAfterStart = await ReadVillageStatusAsync(cancellationToken);
+        var queueWaitSeconds = Math.Max(20, (statusAfterStart.BuildQueueRemainingSeconds ?? 0) + 30);
+        var deadlineUtc = DateTimeOffset.UtcNow.AddSeconds(queueWaitSeconds);
+
+        while (DateTimeOffset.UtcNow < deadlineUtc)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+
+            var currentStatus = await ReadVillageStatusAsync(cancellationToken);
+            var current = currentStatus.Buildings.FirstOrDefault(item => item.SlotId == slotId);
+            var currentLevel = current?.Level ?? 0;
+            if (current is null || currentLevel < previousLevel || !IsOccupiedBuilding(current))
+            {
+                return current;
+            }
+        }
+
+        return statusAfterStart.Buildings.FirstOrDefault(item => item.SlotId == slotId);
+    }
+
+    private static bool IsOccupiedBuilding(Building? building)
+    {
+        if (building is null)
+        {
+            return false;
+        }
+
+        if ((building.Gid ?? 0) <= 0
+            && ((building.Level ?? 0) <= 0
+                || string.IsNullOrWhiteSpace(building.Name)
+                || string.Equals(building.Name, "Empty", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(building.Name, "g0", StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private async Task<IReadOnlyList<BuildQueueItem>> ReadBuildQueueAsync(CancellationToken cancellationToken)

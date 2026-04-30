@@ -66,3 +66,9 @@ Name: "{autodesktop}\Tbot Ultra"; Filename: "{app}\{#MyAppExeName}"; Tasks: desk
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch Tbot Ultra"; Flags: nowait postinstall skipifsilent
+
+[UninstallDelete]
+Type: filesandordirs; Name: "{app}\config"
+Type: filesandordirs; Name: "{app}\logs"
+Type: filesandordirs; Name: "{app}\playwright"
+Type: dirifempty; Name: "{app}"

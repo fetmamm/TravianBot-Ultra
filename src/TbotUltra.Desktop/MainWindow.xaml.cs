@@ -1078,7 +1078,7 @@ public partial class MainWindow : Window
         var operationSw = Stopwatch.StartNew();
         _operationCts = new CancellationTokenSource();
         var operationToken = _operationCts.Token;
-        SetFarmingOperationBusy(true);
+        SetFarmingFunctionRunning(true);
         try
         {
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
@@ -1102,7 +1102,7 @@ public partial class MainWindow : Window
         }
         finally
         {
-            SetFarmingOperationBusy(false);
+            SetFarmingFunctionRunning(false);
             _operationCts?.Dispose();
             _operationCts = null;
         }
@@ -1120,7 +1120,7 @@ public partial class MainWindow : Window
         var operationSw = Stopwatch.StartNew();
         _operationCts = new CancellationTokenSource();
         var operationToken = _operationCts.Token;
-        SetFarmingOperationBusy(true);
+        SetFarmingFunctionRunning(true);
         try
         {
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
@@ -1211,7 +1211,7 @@ public partial class MainWindow : Window
         }
         finally
         {
-            SetFarmingOperationBusy(false);
+            SetFarmingFunctionRunning(false);
             _operationCts?.Dispose();
             _operationCts = null;
         }
@@ -1229,7 +1229,7 @@ public partial class MainWindow : Window
         var operationSw = Stopwatch.StartNew();
         _operationCts = new CancellationTokenSource();
         var operationToken = _operationCts.Token;
-        SetFarmingOperationBusy(true);
+        SetFarmingFunctionRunning(true);
         try
         {
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
@@ -1261,7 +1261,7 @@ public partial class MainWindow : Window
         }
         finally
         {
-            SetFarmingOperationBusy(false);
+            SetFarmingFunctionRunning(false);
             _operationCts?.Dispose();
             _operationCts = null;
         }
@@ -1412,7 +1412,7 @@ public partial class MainWindow : Window
         var operationSw = Stopwatch.StartNew();
         _operationCts = new CancellationTokenSource();
         var operationToken = _operationCts.Token;
-        SetFarmingOperationBusy(true);
+        SetFarmingFunctionRunning(true);
         try
         {
             var options = ApplyManualFarmingSelectionToOptions(
@@ -1463,7 +1463,7 @@ public partial class MainWindow : Window
         }
         finally
         {
-            SetFarmingOperationBusy(false);
+            SetFarmingFunctionRunning(false);
             _operationCts?.Dispose();
             _operationCts = null;
         }
@@ -1523,7 +1523,7 @@ public partial class MainWindow : Window
         var operationSw = Stopwatch.StartNew();
         _operationCts = new CancellationTokenSource();
         var operationToken = _operationCts.Token;
-        SetFarmingOperationBusy(true);
+        SetFarmingFunctionRunning(true);
         try
         {
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
@@ -1543,7 +1543,7 @@ public partial class MainWindow : Window
         }
         finally
         {
-            SetFarmingOperationBusy(false);
+            SetFarmingFunctionRunning(false);
             _operationCts?.Dispose();
             _operationCts = null;
         }
@@ -2443,6 +2443,7 @@ public partial class MainWindow : Window
                 "buildings" => BuildingsTabItem,
                 "hero" => HeroTabItem,
                 "farming" => FarmingTabItem,
+                "troops" => TroopsTabItem,
                 "queue" => QueueTabItem,
                 "logs" => LogsTabItem,
                 "inbox" => InboxTabItem,
@@ -3195,14 +3196,32 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (row.IsOccupied)
+        ShowBuildingSlotDetails(row);
+
+        var actionsWindow = new BuildingSlotActionsWindow(row)
         {
-            QueueSingleBuildingUpgradeFromSlot(row.SlotId);
+            Owner = this,
+        };
+        if (actionsWindow.ShowDialog() != true)
+        {
             return;
         }
 
-        ConstructSlotTextBox.Text = row.SlotId.ToString();
-        ShowConstructChoicesForSlot(row.SlotId, sender as FrameworkElement ?? this);
+        switch (actionsWindow.SelectedAction)
+        {
+            case BuildingSlotAction.BuildBuilding:
+                ShowConstructChoicesForSlot(row.SlotId);
+                break;
+            case BuildingSlotAction.Upgrade:
+                QueueSingleBuildingUpgradeFromSlot(row.SlotId);
+                break;
+            case BuildingSlotAction.UpgradeToMax:
+                TryQueueBuildingUpgradeToMax(row.SlotId);
+                break;
+            case BuildingSlotAction.Demolish:
+                TryQueueBuildingDemolish(row, 0);
+                break;
+        }
     }
 
     private void QueueSingleBuildingUpgradeFromSlot(int slotId)
@@ -3261,7 +3280,7 @@ public partial class MainWindow : Window
         AppendLog($"Queued single building upgrade: slot {slotId} -> level {targetLevel}.");
     }
 
-    private void ShowConstructChoicesForSlot(int slotId, FrameworkElement anchor)
+    private void ShowConstructChoicesForSlot(int slotId)
     {
         if (_lastBuildingStatus is null)
         {
@@ -3276,28 +3295,17 @@ public partial class MainWindow : Window
             return;
         }
 
-        var menu = new ContextMenu
+        ConstructSlotTextBox.Text = slotId.ToString();
+        var choiceWindow = new BuildingConstructChoiceWindow(slotId, options)
         {
-            PlacementTarget = anchor,
-            Placement = PlacementMode.Bottom,
-            StaysOpen = false,
+            Owner = this,
         };
-
-        foreach (var option in options)
+        if (choiceWindow.ShowDialog() != true || choiceWindow.SelectedOption is null)
         {
-            var optionCopy = option;
-            var menuItem = new MenuItem
-            {
-                Header = optionCopy.DisplayLabel,
-                ToolTip = optionCopy.Requirements == "-"
-                    ? "No requirements."
-                    : $"Requires: {optionCopy.Requirements}",
-            };
-            menuItem.Click += (_, _) => TryQueueConstructBuilding(slotId, optionCopy);
-            menu.Items.Add(menuItem);
+            return;
         }
 
-        menu.IsOpen = true;
+        _ = TryQueueConstructBuilding(slotId, choiceWindow.SelectedOption);
     }
 
     private IReadOnlyList<BuildingCatalogOption> GetConstructableOptionsForSlot(int slotId)
@@ -3499,15 +3507,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            [BotOptionPayloadKeys.BuildingUpgradeSlotId] = slotId.ToString(),
-            [BotOptionPayloadKeys.BuildingUpgradeTargetLevel] = targetLevel.ToString(),
-        };
-        EnqueueQuickTask("upgrade_building_to_level", $"Upgrade slot {slotId} to level {targetLevel}", payload);
-        _buildingLastQueuedTargetBySlot[slotId] = (targetLevel, DateTimeOffset.UtcNow);
-        SetPendingBuildingUpgrade(slotId, targetLevel);
-        BuildingsInfoTextBlock.Text = $"Queued upgrade for slot {slotId} to level {targetLevel}.";
+        TryQueueBuildingUpgradeToLevel(slotId, targetLevel);
     }
 
     private void QueueUpgradeBuildingMaxButton_Click(object sender, RoutedEventArgs e)
@@ -3518,12 +3518,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            [BotOptionPayloadKeys.BuildingUpgradeSlotId] = slotId.ToString(),
-        };
-        EnqueueQuickTask("upgrade_building_to_max", $"Upgrade slot {slotId} to max level", payload);
-        BuildingsInfoTextBlock.Text = $"Queued max-upgrade for slot {slotId}.";
+        TryQueueBuildingUpgradeToMax(slotId);
     }
 
     private void QueueDemolishButton_Click(object sender, RoutedEventArgs e)
@@ -3540,13 +3535,87 @@ public partial class MainWindow : Window
             return;
         }
 
+        TryQueueBuildingDemolish(selected, targetLevel);
+    }
+
+    private bool TryQueueBuildingUpgradeToLevel(int slotId, int targetLevel)
+    {
+        if (targetLevel < 1)
+        {
+            BuildingsInfoTextBlock.Text = "Target level must be an integer >= 1.";
+            return false;
+        }
+
         var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            [BotOptionPayloadKeys.TargetBuildingSlotOrName] = selected.SlotId.ToString(),
+            [BotOptionPayloadKeys.BuildingUpgradeSlotId] = slotId.ToString(),
+            [BotOptionPayloadKeys.BuildingUpgradeTargetLevel] = targetLevel.ToString(),
+        };
+        EnqueueQuickTask("upgrade_building_to_level", $"Upgrade slot {slotId} to level {targetLevel}", payload);
+        _buildingLastQueuedTargetBySlot[slotId] = (targetLevel, DateTimeOffset.UtcNow);
+        SetPendingBuildingUpgrade(slotId, targetLevel);
+        UpgradeSlotTextBox.Text = slotId.ToString();
+        UpgradeTargetLevelTextBox.Text = targetLevel.ToString();
+        BuildingsInfoTextBlock.Text = $"Queued upgrade for slot {slotId} to level {targetLevel}.";
+        return true;
+    }
+
+    private bool TryQueueBuildingUpgradeToMax(int slotId)
+    {
+        var row = _buildingRows.FirstOrDefault(item => item.SlotId == slotId);
+        if (row is null || !row.IsOccupied)
+        {
+            BuildingsInfoTextBlock.Text = $"Slot {slotId} is empty.";
+            return false;
+        }
+
+        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.BuildingUpgradeSlotId] = slotId.ToString(),
+        };
+        EnqueueQuickTask("upgrade_building_to_max", $"Upgrade slot {slotId} to max level", payload);
+        UpgradeSlotTextBox.Text = slotId.ToString();
+        BuildingsInfoTextBlock.Text = $"Queued max-upgrade for slot {slotId}.";
+        return true;
+    }
+
+    private bool TryQueueBuildingDemolish(BuildingSlotRow row, int targetLevel)
+    {
+        if (!row.IsOccupied)
+        {
+            BuildingsInfoTextBlock.Text = $"Slot {row.SlotId} is empty.";
+            return false;
+        }
+
+        if (targetLevel < 0)
+        {
+            BuildingsInfoTextBlock.Text = "Demolish target level must be an integer >= 0.";
+            return false;
+        }
+
+        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.TargetBuildingSlotOrName] = row.SlotId.ToString(),
             [BotOptionPayloadKeys.TargetLevel] = targetLevel.ToString(),
         };
-        EnqueueQuickTask("demolish_building_to_level", $"Demolish {selected.Name} to level {targetLevel}", payload);
-        BuildingsInfoTextBlock.Text = $"Queued demolition for {selected.Name} (slot {selected.SlotId}) to level {targetLevel}.";
+        EnqueueQuickTask("demolish_building_to_level", $"Demolish {row.Name} to level {targetLevel}", payload);
+        DemolishBuildingComboBox.SelectedItem = _demolishableBuildings.FirstOrDefault(item => item.SlotId == row.SlotId);
+        DemolishTargetLevelTextBox.Text = targetLevel.ToString();
+        BuildingsInfoTextBlock.Text = $"Queued demolition for {row.Name} (slot {row.SlotId}) to level {targetLevel}.";
+        return true;
+    }
+
+    private void ShowBuildingSlotDetails(BuildingSlotRow row)
+    {
+        SelectedBuildingLevelTextBlock.Text = row.IsOccupied
+            ? row.LevelStatusLabel
+            : "Empty";
+        SelectedBuildingUpgradeTimeTextBlock.Text = row.HasPendingUpgrade ? "Queued" : "-";
+        SelectedBuildingCompletionTextBlock.Text = row.HasPendingConstruct ? "Queued" : "-";
+        ReqWoodTextBlock.Text = row.Requirements;
+        ReqClayTextBlock.Text = row.Category;
+        ReqIronTextBlock.Text = row.IsOccupied ? $"gid {(row.Gid ?? 0)}" : "-";
+        ReqCropTextBlock.Text = row.ActionHint;
     }
 
     private void HeroPriorityMoveUpButton_Click(object sender, RoutedEventArgs e)
@@ -3592,9 +3661,7 @@ public partial class MainWindow : Window
         try
         {
             await EnsureChromiumInstalledAsync();
-            var options = ApplySelectedVillageToOptions(LoadBotOptions());
-            var snapshot = await _botService.ReadHeroAttributesAsync(options, AppendLog, CancellationToken.None);
-            ApplyHeroAttributeSnapshotToUi(snapshot);
+            var snapshot = await RefreshHeroStatsAsync(CancellationToken.None);
             CompleteOperation(operationId, operationSw, $"Hero stats refreshed. Free points: {snapshot.FreePoints}.");
         }
         catch (Exception ex)
@@ -3606,6 +3673,14 @@ public partial class MainWindow : Window
         {
             RefreshHeroStatsButton.IsEnabled = true;
         }
+    }
+
+    private async Task<HeroAttributeSnapshot> RefreshHeroStatsAsync(CancellationToken cancellationToken)
+    {
+        var options = ApplySelectedVillageToOptions(LoadBotOptions());
+        var snapshot = await _botService.ReadHeroAttributesAsync(options, AppendLog, cancellationToken);
+        ApplyHeroAttributeSnapshotToUi(snapshot);
+        return snapshot;
     }
 
     private void QueueHeroManageButton_Click(object sender, RoutedEventArgs e)
@@ -3649,6 +3724,7 @@ public partial class MainWindow : Window
         try
         {
             await EnsureChromiumInstalledAsync();
+            await RefreshHeroStatsAsync(cts.Token);
             var iteration = 0;
             var recoveryAttempts = 0;
             const int maxRecoveryAttempts = 4;
@@ -3921,7 +3997,17 @@ public partial class MainWindow : Window
             Resources: new Dictionary<string, string>(),
             ResourceFields: [],
             Buildings: (snapshot.Buildings ?? [])
-                .Select(item => new Building(item.SlotId, item.Name ?? "Unknown", item.Level, item.Url, item.Gid))
+                .Select(item =>
+                {
+                    var name = string.IsNullOrWhiteSpace(item.Name) || string.Equals(item.Name, "g0", StringComparison.OrdinalIgnoreCase)
+                        ? "Empty"
+                        : item.Name!;
+                    var gid = item.Gid is > 0 ? item.Gid : null;
+                    var level = gid is null && string.Equals(name, "Empty", StringComparison.OrdinalIgnoreCase)
+                        ? 0
+                        : item.Level;
+                    return new Building(item.SlotId, name, level, item.Url, gid);
+                })
                 .ToList(),
             BuildQueue: [],
             Tribe: snapshot.Tribe ?? "Unknown",
@@ -3969,12 +4055,15 @@ public partial class MainWindow : Window
         foreach (var slotId in Enumerable.Range(19, 22))
         {
             buildingBySlot.TryGetValue(slotId, out var building);
+            var isKnownEmpty = building is null || IsEmptyBuilding(building);
             var hasIdentifiedBuildingName = building is not null
                 && !string.IsNullOrWhiteSpace(building.Name)
                 && !string.Equals(building.Name, "Unknown", StringComparison.OrdinalIgnoreCase)
                 && !string.Equals(building.Name, "Empty", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(building.Name, "g0", StringComparison.OrdinalIgnoreCase)
                 && !building.Name.StartsWith("Slot ", StringComparison.OrdinalIgnoreCase);
             var occupied = building is not null
+                && !isKnownEmpty
                 && ((building.Level ?? 0) > 0
                     || (building.Gid ?? 0) > 0
                     || hasIdentifiedBuildingName);
@@ -4039,6 +4128,15 @@ public partial class MainWindow : Window
 
         PopulateBuildingCatalogOptions(status);
         BuildingsInfoTextBlock.Text = $"Buildings loaded. Occupied slots: {occupiedCount}, free slots: {22 - occupiedCount}.";
+    }
+
+    private static bool IsEmptyBuilding(Building building)
+    {
+        return (building.Gid ?? 0) <= 0
+            && ((building.Level ?? 0) <= 0
+                || string.IsNullOrWhiteSpace(building.Name)
+                || string.Equals(building.Name, "Empty", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(building.Name, "g0", StringComparison.OrdinalIgnoreCase));
     }
 
     private void PopulateBuildingCatalogOptions(VillageStatus status)
@@ -4382,8 +4480,56 @@ public partial class MainWindow : Window
 
     private void SetFarmingOperationBusy(bool busy)
     {
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.BeginInvoke(() => SetFarmingOperationBusy(busy));
+            return;
+        }
+
+        if (busy)
+        {
+            EnsureManualExecutionTracking();
+        }
+
         _farmingOperationBusy = busy;
-        SyncFarmingControlsEnabledState();
+        try
+        {
+            SyncFarmingControlsEnabledState();
+            UpdateExecutionStateIndicator();
+        }
+        finally
+        {
+            if (!busy)
+            {
+                CompleteManualExecutionTrackingIfNeeded();
+            }
+        }
+    }
+
+    private void SetFarmingFunctionRunning(bool running)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.BeginInvoke(() => SetFarmingFunctionRunning(running));
+            return;
+        }
+
+        try
+        {
+            if (running)
+            {
+                EnsureManualExecutionTracking();
+            }
+
+            UpdateExecutionStateIndicator();
+        }
+        finally
+        {
+            if (!running)
+            {
+                CompleteManualExecutionTrackingIfNeeded();
+            }
+        }
     }
 
     private static BotOptions ApplyManualFarmingSelectionToOptions(BotOptions options, string natarVillageSelection)
@@ -4404,9 +4550,7 @@ public partial class MainWindow : Window
         if (ManualFarmingStateTextBlock is not null)
         {
             ManualFarmingStateTextBlock.Text = "State:";
-            ManualFarmingStateTextBlock.Foreground = _farmingOperationBusy
-                ? new SolidColorBrush(Color.FromRgb(22, 163, 74))
-                : new SolidColorBrush(Color.FromRgb(107, 114, 128));
+            ManualFarmingStateTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(107, 114, 128));
         }
 
         if (ManualFarmingStateDot is not null)
@@ -5069,6 +5213,11 @@ public partial class MainWindow : Window
         }
 
         if (value.Contains("[completed]"))
+        {
+            return false;
+        }
+
+        if (value.Contains("manual farming loop") && value.Contains(" restarting"))
         {
             return false;
         }

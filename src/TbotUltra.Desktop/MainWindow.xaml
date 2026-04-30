@@ -190,6 +190,7 @@
                     <Button x:Name="BuildingsNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Building" Tag="buildings" Click="SidebarNavButton_Click" />
                     <Button x:Name="HeroNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Hero / Adventures" Tag="hero" Click="SidebarNavButton_Click" />
                     <Button x:Name="FarmingNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Farming" Tag="farming" Click="SidebarNavButton_Click" />
+                    <Button x:Name="TroopsNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Troops" Tag="troops" Click="SidebarNavButton_Click" />
                     <Button x:Name="QueueNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Queue" Tag="queue" Click="SidebarNavButton_Click" />
                     <Button x:Name="LogsNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Logs" Tag="logs" Click="SidebarNavButton_Click" />
                     <Button x:Name="InboxNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Messages / Reports" Tag="inbox" Click="SidebarNavButton_Click" />
@@ -673,7 +674,7 @@
 
             <!-- Header -->
             <StackPanel Grid.Row="0" Margin="0,0,0,4">
-                <TextBlock Text="🏗 Buildings" FontSize="24" FontWeight="SemiBold" Foreground="#111827" />
+                            <TextBlock Text="Buildings" FontSize="24" FontWeight="SemiBold" Foreground="#111827" />
                 <TextBlock Text="Manage your village buildings. Click a slot to view and manage building details."
                            Foreground="#6B7280" Margin="0,2,0,8" />
             </StackPanel>
@@ -765,31 +766,6 @@
                 CornerRadius="10"
                 Padding="14">
             <StackPanel>
-
-                <!-- Selected building -->
-                <TextBlock Text="Selected building"
-                           FontSize="15"
-                           FontWeight="SemiBold"
-                           Foreground="#111827"
-                           Margin="0,0,0,10" />
-
-                <Border Background="#F9FAFB"
-                        BorderBrush="#E5E7EB"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="10"
-                        Margin="0,0,0,14">
-                    <StackPanel>
-                        <TextBlock x:Name="SelectedBuildingNameTextBlock"
-                                   Text="No building selected"
-                                   FontWeight="SemiBold"
-                                   Foreground="#374151" />
-                        <TextBlock Text="Click a building slot to view details"
-                                   Foreground="#9CA3AF"
-                                   FontSize="11"
-                                   Margin="0,2,0,0" />
-                    </StackPanel>
-                </Border>
 
                 <!-- Building info -->
                 <TextBlock Text="Building info"
@@ -1230,6 +1206,24 @@
                                 </Border>
                             </Grid>
                         </Grid>
+                    </Grid>
+                </TabItem>
+
+                <TabItem x:Name="TroopsTabItem" Header="Troops">
+                    <Grid>
+                        <Border Background="#FFFFFF"
+                                BorderBrush="#D1D5DB"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="12">
+                            <StackPanel>
+                                <TextBlock Text="Troops"
+                                           FontSize="22"
+                                           FontWeight="SemiBold"
+                                           Foreground="#111827"
+                                           Margin="0,0,0,12" />
+                            </StackPanel>
+                        </Border>
                     </Grid>
                 </TabItem>
 

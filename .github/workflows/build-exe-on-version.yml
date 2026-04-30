@@ -106,6 +106,22 @@ jobs:
             throw "Captcha runtime dependency install failed with exit code $LASTEXITCODE."
           }
 
+          $pathsToRemove = @(
+            (Join-Path $pythonHome "Include"),
+            (Join-Path $pythonHome "Lib\ensurepip"),
+            (Join-Path $pythonHome "Lib\site-packages\tensorflow\include"),
+            (Join-Path $pythonHome "Lib\site-packages\pip"),
+            (Join-Path $pythonHome "Lib\site-packages\pip-*.dist-info"),
+            (Join-Path $pythonHome "Lib\site-packages\setuptools"),
+            (Join-Path $pythonHome "Lib\site-packages\setuptools-*.dist-info"),
+            (Join-Path $pythonHome "Lib\site-packages\wheel"),
+            (Join-Path $pythonHome "Lib\site-packages\wheel-*.dist-info")
+          )
+
+          foreach ($path in $pathsToRemove) {
+            Get-Item $path -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+          }
+
       - name: Assemble release bundle
         env:
           VERSION_NUMBER: ${{ steps.version.outputs.version }}
