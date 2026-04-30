@@ -45,13 +45,23 @@ jobs:
           TAG_NAME: ${{ steps.version.outputs.tag }}
         shell: pwsh
         run: |
-          $existingTag = git ls-remote --tags origin "refs/tags/$env:TAG_NAME"
+          $existingTag = git ls-remote --tags origin "refs/tags/$env:TAG_NAME" 2>$null
           if (-not [string]::IsNullOrWhiteSpace($existingTag)) {
             throw "Tag '$env:TAG_NAME' already exists on origin."
           }
 
-          gh release view $env:TAG_NAME --repo $env:GITHUB_REPOSITORY *> $null
-          if ($LASTEXITCODE -eq 0) {
+          $releaseExists = $false
+          try {
+            gh release view $env:TAG_NAME --repo $env:GITHUB_REPOSITORY | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+              $releaseExists = $true
+            }
+          }
+          catch {
+            $releaseExists = $false
+          }
+
+          if ($releaseExists) {
             throw "Release '$env:TAG_NAME' already exists."
           }
 
