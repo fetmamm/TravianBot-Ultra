@@ -205,6 +205,7 @@ jobs:
           $packageRoot = Join-Path $stageRoot $env:PACKAGE_NAME
           $outputRoot = Join-Path $PWD "temp_build_out\installer"
           $assetPath = Join-Path $outputRoot $env:ASSET_NAME
+          $sourceDrive = "X:"
 
           if (Test-Path $outputRoot) {
             Remove-Item $outputRoot -Recurse -Force
@@ -212,15 +213,33 @@ jobs:
 
           New-Item -ItemType Directory -Path $outputRoot | Out-Null
 
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
-            "/DAppVersion=$env:VERSION_NUMBER" `
-            "/DSourceDir=$packageRoot" `
-            "/DOutputDir=$outputRoot" `
-            "/DOutputBaseFilename=$([System.IO.Path]::GetFileNameWithoutExtension($env:ASSET_NAME))" `
-            "installer\TbotUltraSetup.iss"
+          if (-not (Test-Path $packageRoot)) {
+            throw "Installer source folder is missing: $packageRoot"
+          }
 
-          if (-not (Test-Path $assetPath)) {
-            throw "Installer was not created: $assetPath"
+          if (Test-Path $sourceDrive) {
+            subst $sourceDrive /D
+          }
+
+          subst $sourceDrive $packageRoot
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not map installer source drive for: $packageRoot"
+          }
+
+          try {
+            & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+              "/DAppVersion=$env:VERSION_NUMBER" `
+              "/DSourceDir=$sourceDrive\" `
+              "/DOutputDir=$outputRoot" `
+              "/DOutputBaseFilename=$([System.IO.Path]::GetFileNameWithoutExtension($env:ASSET_NAME))" `
+              "installer\TbotUltraSetup.iss"
+
+            if (-not (Test-Path $assetPath)) {
+              throw "Installer was not created: $assetPath"
+            }
+          }
+          finally {
+            subst $sourceDrive /D | Out-Null
           }
 
       - name: Create GitHub release
