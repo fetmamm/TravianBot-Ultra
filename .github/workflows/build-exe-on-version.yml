@@ -25,6 +25,11 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
       - name: Read version
         id: version
         shell: pwsh
@@ -77,6 +82,17 @@ jobs:
             throw "Playwright Chromium install failed with exit code $LASTEXITCODE."
           }
 
+      - name: Build captcha runtime
+        shell: pwsh
+        run: |
+          $runtimeRoot = Join-Path $PWD "temp_build_out\captcha-runtime"
+          python -m venv $runtimeRoot
+          & "$runtimeRoot\Scripts\python.exe" -m pip install --upgrade pip
+          & "$runtimeRoot\Scripts\python.exe" -m pip install -r "Captcha_solver\math_ai\requirements-runtime.txt"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Captcha runtime dependency install failed with exit code $LASTEXITCODE."
+          }
+
       - name: Assemble release bundle
         env:
           VERSION_NUMBER: ${{ steps.version.outputs.version }}
@@ -113,7 +129,8 @@ jobs:
           Copy-Item (Join-Path $PWD "Captcha_solver\math_ai\captcha_solver.py") (Join-Path $captchaRoot "captcha_solver.py") -Force
           Copy-Item (Join-Path $PWD "Captcha_solver\math_ai\classes.txt") (Join-Path $captchaRoot "classes.txt") -Force
           Copy-Item (Join-Path $PWD "Captcha_solver\math_ai\model.keras") (Join-Path $captchaRoot "model.keras") -Force
-          robocopy (Join-Path $PWD "Captcha_solver\math_ai\.venv") (Join-Path $captchaRoot ".venv") /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP | Out-Null
+          Copy-Item (Join-Path $PWD "Captcha_solver\math_ai\requirements-runtime.txt") (Join-Path $captchaRoot "requirements-runtime.txt") -Force
+          robocopy (Join-Path $PWD "temp_build_out\captcha-runtime") (Join-Path $captchaRoot ".venv") /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP | Out-Null
           if ($LASTEXITCODE -gt 7) {
             throw "Could not copy captcha runtime (.venv). robocopy exit code: $LASTEXITCODE"
           }
@@ -129,6 +146,20 @@ jobs:
           New-Item -ItemType Directory -Path (Join-Path $packageRoot "playwright\.auth") -Force | Out-Null
           New-Item -ItemType Directory -Path (Join-Path $packageRoot "config\account-analysis") -Force | Out-Null
           New-Item -ItemType Directory -Path (Join-Path $packageRoot "config\cache\natar-farms") -Force | Out-Null
+
+      - name: Verify packaged runtime
+        env:
+          PACKAGE_NAME: ${{ steps.version.outputs.package_name }}
+        shell: pwsh
+        run: |
+          $packageRoot = Join-Path $PWD ("temp_build_out\release\" + $env:PACKAGE_NAME)
+          Copy-Item (Join-Path $PWD "Captcha_solver\math_ai\test.png") (Join-Path $packageRoot "test.png") -Force
+          & "$packageRoot\Captcha_solver\math_ai\.venv\Scripts\python.exe" `
+            "$packageRoot\Captcha_solver\math_ai\solve_runtime.py" `
+            --image "$packageRoot\test.png"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Packaged captcha runtime verification failed with exit code $LASTEXITCODE."
+          }
 
       - name: Install Inno Setup
         shell: pwsh
