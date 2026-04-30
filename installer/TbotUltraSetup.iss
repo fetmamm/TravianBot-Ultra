@@ -26,7 +26,7 @@ AppId={{8A4CC4B4-98D6-4674-A4EB-4DE9B5E3C4A7}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-DefaultDirName={autopf}\Tbot Ultra
+DefaultDirName={localappdata}\Tbot Ultra
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir={#OutputDir}
@@ -36,7 +36,7 @@ SolidCompression=yes
 WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-PrivilegesRequired=admin
+PrivilegesRequired=lowest
 UninstallDisplayIcon={app}\{#MyAppExeName}
 SetupIconFile={#SourceRoot}Assets\icon_windows.ico
 
