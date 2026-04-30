@@ -103,9 +103,27 @@ jobs:
           $packageRoot = Join-Path $stageRoot $env:PACKAGE_NAME
           $publishRoot = Join-Path $PWD "temp_build_out\publish"
           $templateRoot = Join-Path $PWD ".release-template"
+          $browserRoot = Join-Path $PWD "temp_build_out\playwright-browsers"
+          $captchaRuntimeRoot = Join-Path $PWD "temp_build_out\captcha-runtime"
 
           if (Test-Path $stageRoot) {
             Remove-Item $stageRoot -Recurse -Force
+          }
+
+          if (-not (Test-Path $publishRoot)) {
+            throw "Publish output folder is missing: $publishRoot"
+          }
+
+          if (-not (Test-Path $templateRoot)) {
+            throw "Release template folder is missing: $templateRoot"
+          }
+
+          if (-not (Test-Path $browserRoot)) {
+            throw "Bundled Chromium folder is missing: $browserRoot"
+          }
+
+          if (-not (Test-Path $captchaRuntimeRoot)) {
+            throw "Captcha runtime folder is missing: $captchaRuntimeRoot"
           }
 
           New-Item -ItemType Directory -Path $packageRoot | Out-Null
@@ -117,7 +135,7 @@ jobs:
             throw "Published output is missing playwright.ps1."
           }
 
-          Copy-Item (Join-Path $PWD "temp_build_out\playwright-browsers") (Join-Path $packageRoot "ms-playwright") -Recurse -Force
+          Copy-Item $browserRoot (Join-Path $packageRoot "ms-playwright") -Recurse -Force
 
           $assetDir = Join-Path $packageRoot "Assets"
           New-Item -ItemType Directory -Path $assetDir -Force | Out-Null
@@ -130,17 +148,28 @@ jobs:
           Copy-Item (Join-Path $PWD "Captcha_solver\math_ai\classes.txt") (Join-Path $captchaRoot "classes.txt") -Force
           Copy-Item (Join-Path $PWD "Captcha_solver\math_ai\model.keras") (Join-Path $captchaRoot "model.keras") -Force
           Copy-Item (Join-Path $PWD "Captcha_solver\math_ai\requirements-runtime.txt") (Join-Path $captchaRoot "requirements-runtime.txt") -Force
-          robocopy (Join-Path $PWD "temp_build_out\captcha-runtime") (Join-Path $captchaRoot ".venv") /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP | Out-Null
-          if ($LASTEXITCODE -gt 7) {
-            throw "Could not copy captcha runtime (.venv). robocopy exit code: $LASTEXITCODE"
-          }
+          Copy-Item $captchaRuntimeRoot (Join-Path $captchaRoot ".venv") -Recurse -Force
           New-Item -ItemType Directory -Path (Join-Path $captchaRoot "debug_output") -Force | Out-Null
           New-Item -ItemType Directory -Path (Join-Path $captchaRoot "review_dataset") -Force | Out-Null
 
-          Copy-Item (Join-Path $templateRoot "env.template") (Join-Path $packageRoot ".env") -Force
-          Copy-Item (Join-Path $templateRoot "README_RELEASE.txt") (Join-Path $packageRoot "README.txt") -Force
+          $envTemplatePath = Join-Path $templateRoot "env.template"
+          $readmeTemplatePath = Join-Path $templateRoot "README_RELEASE.txt"
+          $configTemplatePath = Join-Path $templateRoot "config"
+
+          if (-not (Test-Path $envTemplatePath)) {
+            throw "Missing env template: $envTemplatePath"
+          }
+          if (-not (Test-Path $readmeTemplatePath)) {
+            throw "Missing release README template: $readmeTemplatePath"
+          }
+          if (-not (Test-Path $configTemplatePath)) {
+            throw "Missing config template folder: $configTemplatePath"
+          }
+
+          Copy-Item $envTemplatePath (Join-Path $packageRoot ".env") -Force
+          Copy-Item $readmeTemplatePath (Join-Path $packageRoot "README.txt") -Force
           Copy-Item (Join-Path $PWD "VERSION") (Join-Path $packageRoot "VERSION") -Force
-          Copy-Item (Join-Path $templateRoot "config") (Join-Path $packageRoot "config") -Recurse -Force
+          Copy-Item $configTemplatePath (Join-Path $packageRoot "config") -Recurse -Force
 
           New-Item -ItemType Directory -Path (Join-Path $packageRoot "logs") -Force | Out-Null
           New-Item -ItemType Directory -Path (Join-Path $packageRoot "playwright\.auth") -Force | Out-Null
