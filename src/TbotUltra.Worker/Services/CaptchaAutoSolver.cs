@@ -11,13 +11,17 @@ public sealed class CaptchaAutoSolver : ICaptchaAutoSolver
     };
 
     private readonly string _pythonPath;
+    private readonly string? _pythonHomePath;
     private readonly string _scriptPath;
     private readonly string _workingDirectory;
 
     public CaptchaAutoSolver(ProjectContext projectContext)
     {
         _workingDirectory = Path.Combine(projectContext.RootPath, "Captcha_solver", "math_ai");
-        _pythonPath = Path.Combine(_workingDirectory, ".venv", "Scripts", "python.exe");
+        _pythonHomePath = Path.Combine(_workingDirectory, ".venv", "python-home");
+        var packagedPythonPath = Path.Combine(_pythonHomePath, "python.exe");
+        var localVenvPythonPath = Path.Combine(_workingDirectory, ".venv", "Scripts", "python.exe");
+        _pythonPath = File.Exists(packagedPythonPath) ? packagedPythonPath : localVenvPythonPath;
         _scriptPath = Path.Combine(_workingDirectory, "solve_runtime.py");
     }
 
@@ -54,6 +58,12 @@ public sealed class CaptchaAutoSolver : ICaptchaAutoSolver
             RedirectStandardError = true,
             CreateNoWindow = true,
         };
+
+        if (_pythonHomePath is not null && File.Exists(Path.Combine(_pythonHomePath, "python.exe")))
+        {
+            process.StartInfo.Environment["PYTHONHOME"] = _pythonHomePath;
+            process.StartInfo.Environment["PYTHONPATH"] = Path.Combine(_pythonHomePath, "Lib", "site-packages");
+        }
 
         try
         {

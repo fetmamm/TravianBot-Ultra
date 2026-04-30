@@ -86,19 +86,24 @@ jobs:
         shell: pwsh
         run: |
           $runtimeRoot = Join-Path $PWD "temp_build_out\captcha-runtime"
-          python -m venv $runtimeRoot
-          & "$runtimeRoot\Scripts\python.exe" -m pip install --upgrade pip
-          & "$runtimeRoot\Scripts\python.exe" -m pip install -r "Captcha_solver\math_ai\requirements-runtime.txt"
-          if ($LASTEXITCODE -ne 0) {
-            throw "Captcha runtime dependency install failed with exit code $LASTEXITCODE."
+          $pythonHome = Join-Path $runtimeRoot "python-home"
+
+          if (Test-Path $runtimeRoot) {
+            Remove-Item $runtimeRoot -Recurse -Force
           }
 
-          $pyVenvPath = Join-Path $runtimeRoot "pyvenv.cfg"
-          if (Test-Path $pyVenvPath) {
-            $filtered = Get-Content $pyVenvPath | Where-Object {
-              $_ -notmatch '^(home|executable|command)\s*='
-            }
-            Set-Content -Path $pyVenvPath -Value $filtered
+          New-Item -ItemType Directory -Path $runtimeRoot -Force | Out-Null
+
+          $basePythonRoot = python -c "import sys; print(sys.base_prefix)"
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($basePythonRoot)) {
+            throw "Could not resolve base Python installation path."
+          }
+
+          Copy-Item $basePythonRoot $pythonHome -Recurse -Force
+          & "$pythonHome\python.exe" -m pip install --upgrade pip
+          & "$pythonHome\python.exe" -m pip install -r "Captcha_solver\math_ai\requirements-runtime.txt"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Captcha runtime dependency install failed with exit code $LASTEXITCODE."
           }
 
       - name: Assemble release bundle
@@ -195,7 +200,9 @@ jobs:
         run: |
           $packageRoot = Join-Path $PWD ("temp_build_out\release\" + $env:PACKAGE_NAME)
           Copy-Item (Join-Path $PWD "Captcha_solver\math_ai\test.png") (Join-Path $packageRoot "test.png") -Force
-          & "$packageRoot\Captcha_solver\math_ai\.venv\Scripts\python.exe" `
+          $env:PYTHONHOME = Join-Path $packageRoot "Captcha_solver\math_ai\.venv\python-home"
+          $env:PYTHONPATH = Join-Path $env:PYTHONHOME "Lib\site-packages"
+          & "$env:PYTHONHOME\python.exe" `
             "$packageRoot\Captcha_solver\math_ai\solve_runtime.py" `
             --image "$packageRoot\test.png"
           if ($LASTEXITCODE -ne 0) {
