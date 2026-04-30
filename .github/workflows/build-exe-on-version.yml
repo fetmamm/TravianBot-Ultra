@@ -93,6 +93,14 @@ jobs:
             throw "Captcha runtime dependency install failed with exit code $LASTEXITCODE."
           }
 
+          $pyVenvPath = Join-Path $runtimeRoot "pyvenv.cfg"
+          if (Test-Path $pyVenvPath) {
+            $filtered = Get-Content $pyVenvPath | Where-Object {
+              $_ -notmatch '^(home|executable|command)\s*='
+            }
+            Set-Content -Path $pyVenvPath -Value $filtered
+          }
+
       - name: Assemble release bundle
         env:
           VERSION_NUMBER: ${{ steps.version.outputs.version }}
@@ -129,6 +137,10 @@ jobs:
           New-Item -ItemType Directory -Path $packageRoot | Out-Null
 
           Copy-Item "$publishRoot\*" $packageRoot -Recurse -Force
+
+          Get-ChildItem $packageRoot -Directory | Where-Object {
+            $_.Name -in @("cs", "de", "es", "fr", "it", "ja", "ko", "pl", "pt-BR", "ru", "tr", "zh-Hans", "zh-Hant")
+          } | Remove-Item -Recurse -Force
 
           $playwrightScript = Join-Path $packageRoot "playwright.ps1"
           if (-not (Test-Path $playwrightScript)) {

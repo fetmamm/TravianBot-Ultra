@@ -374,6 +374,20 @@ public sealed partial class TravianClient
             }
         }
 
+        // Read the revive duration shown above the button (example: 00:00:03) before clicking revive.
+        var reviveDurationRaw = await _page.EvaluateAsync<string?>(
+            """
+            () => {
+              const wrapper = document.querySelector('.lineWrapper');
+              if (!wrapper) return null;
+              const value = wrapper.querySelector('.inlineIcon.duration .value, .duration .value');
+              return value ? (value.textContent || '').trim() : null;
+            }
+            """);
+        // Reuse shared parser so we support HH:MM:SS and other duration formats used elsewhere.
+        var reviveDurationSeconds = ParseDurationToSeconds(reviveDurationRaw);
+
+        // Click the revive button using direct selector first, then a text-based fallback.
         var clickedRevive = await _page.EvaluateAsync<bool>(
             """
             () => {
@@ -398,6 +412,16 @@ public sealed partial class TravianClient
 
         if (clickedRevive)
         {
+            // Wait revive duration + 1 second to avoid continuing before the server-side revive is completed.
+            var reviveWaitSeconds = Math.Max(1, (reviveDurationSeconds ?? 0) + 1);
+            Notify($"Revive duration detected: {FormatDuration(reviveWaitSeconds)}. Starting countdown.");
+            for (var remaining = reviveWaitSeconds; remaining > 0; remaining--)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Notify($"Revive countdown: {remaining}s remaining.");
+                await Task.Delay(1000, cancellationToken);
+            }
+
             await WaitForNavigationSettledAsync(cancellationToken);
             await PauseForManualStepIfVisibleAsync("Manual verification appeared after clicking Revive.", cancellationToken);
             Notify("Revive button clicked.");
