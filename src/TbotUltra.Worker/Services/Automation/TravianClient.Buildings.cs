@@ -897,6 +897,12 @@ public sealed partial class TravianClient
 
                 var buildingCode = TryExtractBuildingCode(classes);
                 var level = await TryReadBuildingLevelAsync(slot);
+                var gid = ParseGidFromBuildingCode(buildingCode);
+
+                if (slotId.Value == 40 && gid is 31 or 32 or 33 or 42 or 43 && level == 0)
+                {
+                    level = 1;
+                }
 
                 if (string.IsNullOrEmpty(buildingCode) && level > 0 && slotId.Value == 39)
                 {
