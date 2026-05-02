@@ -653,7 +653,7 @@
                             </ScrollViewer>
                         </Border>
                         <DataGrid x:Name="ResourcesDataGrid" Visibility="Collapsed" />
-                        <TextBlock x:Name="ResourcesInfoTextBlock" Grid.Row="2" Margin="0,8,0,0" Foreground="#065F46" Text="Resources not loaded yet." />
+                        <TextBlock x:Name="ResourcesInfoTextBlock" Visibility="Collapsed" Text="Resources not loaded yet." />
                     </Grid>
                 </TabItem>
 
@@ -682,6 +682,7 @@
             <!-- Load-knapp -->
             <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
                 <Button x:Name="LoadBuildingsButton" Content="Load buildings" Width="130" Click="LoadBuildingsButton_Click" />
+                <Button x:Name="UpgradeAllBuildingsToMaxButton" Content="Upgrade all to max" Width="150" Margin="6,0,0,0" Click="UpgradeAllBuildingsToMaxButton_Click" />
 				
 				<!-- Dolda kontroller för bakåtkompatibilitet med code-behind -->
 				<ComboBox x:Name="BuildingCategoryComboBox" Visibility="Collapsed" />
@@ -740,15 +741,39 @@
 										<TextBlock Text="{Binding NameLabel}"
 												   FontSize="12"
 												   FontWeight="SemiBold"
-												   Foreground="#111827"
 												   TextWrapping="Wrap"
                                                    TextTrimming="CharacterEllipsis"
                                                    MaxHeight="34"
-												   Margin="0,2,0,0" />
+												   Margin="0,2,0,0">
+											<TextBlock.Style>
+												<Style TargetType="TextBlock">
+													<Setter Property="Foreground" Value="#111827" />
+													<Style.Triggers>
+														<DataTrigger Binding="{Binding IsOccupied}" Value="False">
+															<Setter Property="Foreground" Value="#2563EB" />
+														</DataTrigger>
+													</Style.Triggers>
+												</Style>
+											</TextBlock.Style>
+										</TextBlock>
 										<TextBlock Text="{Binding LevelStatusLabel}"
 												   FontSize="11"
-												   Foreground="#6B7280"
-												   Margin="0,1,0,0" />
+												   Margin="0,1,0,0">
+											<TextBlock.Style>
+												<Style TargetType="TextBlock">
+													<Setter Property="Foreground" Value="#6B7280" />
+													<Style.Triggers>
+														<DataTrigger Binding="{Binding IsMaxLevel}" Value="True">
+															<Setter Property="Foreground" Value="#D97706" />
+														</DataTrigger>
+														<DataTrigger Binding="{Binding IsDemolishing}" Value="True">
+															<Setter Property="Foreground" Value="#DC2626" />
+															<Setter Property="FontWeight" Value="SemiBold" />
+														</DataTrigger>
+													</Style.Triggers>
+												</Style>
+											</TextBlock.Style>
+										</TextBlock>
 									</StackPanel>
 								</Button>
 							</Border>
@@ -761,93 +786,229 @@
 </TabItem>
 
                 <TabItem x:Name="HeroTabItem" Header="Hero / Adventures">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Text="Hero / Adventures" FontSize="24" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,10" />
-                        <Border Grid.Row="1" Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,8">
-                            <StackPanel>
-                                <TextBlock Text="Hero min HP for adventure" />
-                                <TextBox x:Name="HeroMinHpTextBox" Text="60" Margin="0,2,0,8" Width="120" />
-                                <CheckBox x:Name="HeroAutoReviveCheckBox" Content="Auto revive" IsChecked="True" Margin="0,0,0,4" />
-                                <CheckBox x:Name="HeroAutoAssignPointsCheckBox" Content="Auto assign points" IsChecked="True" Margin="0,0,0,8" />
-                                <DockPanel Margin="0,0,0,6">
-                                    <TextBlock Text="Attribute priority" FontWeight="SemiBold" />
-                                    <Button x:Name="RefreshHeroStatsButton"
-                                            DockPanel.Dock="Right"
-                                            Content="Refresh hero stats"
-                                            Width="150"
-                                            Click="RefreshHeroStatsButton_Click" />
-                                </DockPanel>
-                                <Border BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6" Padding="8" Margin="0,0,0,8">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Background="#F3F4F6">
+                        <StackPanel>
+                            <!-- Header -->
+                            <DockPanel Margin="2,2,2,12">
+                                <StackPanel DockPanel.Dock="Left">
+                                    <TextBlock Text="Hero / Adventures"
+                                               FontSize="22"
+                                               FontWeight="SemiBold"
+                                               Foreground="#111827" />
+                                    <TextBlock Text="Configure hero behaviour and queue adventures."
+                                               Foreground="#6B7280"
+                                               FontSize="12"
+                                               Margin="0,4,0,0" />
+                                </StackPanel>
+                            </DockPanel>
+
+                            <!-- Settings card -->
+                            <Border Background="#FFFFFF"
+                                    BorderBrush="#E5E7EB"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="14"
+                                    Margin="2,0,2,12">
+                                <StackPanel>
+                                    <TextBlock Text="Settings"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Foreground="#111827"
+                                               Margin="0,0,0,10" />
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="200" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Hero min HP for adventure" Foreground="#374151" FontSize="12" />
+                                            <TextBox x:Name="HeroMinHpTextBox"
+                                                     Text="60"
+                                                     Margin="0,4,12,0"
+                                                     Padding="6,4"
+                                                     BorderBrush="#E5E7EB" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Bottom">
+                                            <CheckBox x:Name="HeroAutoReviveCheckBox" Content="Auto revive" IsChecked="True" Margin="0,0,0,6" />
+                                            <CheckBox x:Name="HeroAutoAssignPointsCheckBox" Content="Auto assign attribute points" IsChecked="True" />
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Attribute priority + Adventures side by side -->
+                            <Grid Margin="2,0,2,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Attribute priority card -->
+                                <Border Grid.Column="0"
+                                        Background="#FFFFFF"
+                                        BorderBrush="#E5E7EB"
+                                        BorderThickness="1"
+                                        CornerRadius="8"
+                                        Padding="14"
+                                        Margin="0,0,6,0">
                                     <StackPanel>
-                                        <ListBox x:Name="HeroAttributePriorityItemsControl"
-                                                 MaxWidth="360"
-                                                 HorizontalAlignment="Left"
-                                                 BorderThickness="0"
-                                                 Background="Transparent"
-                                                 AllowDrop="True"
-                                                 PreviewMouseLeftButtonDown="HeroAttributePriorityItemsControl_PreviewMouseLeftButtonDown"
-                                                 PreviewMouseMove="HeroAttributePriorityItemsControl_PreviewMouseMove"
-                                                 Drop="HeroAttributePriorityItemsControl_Drop">
-                                            <ListBox.ItemContainerStyle>
-                                                <Style TargetType="ListBoxItem">
-                                                    <Setter Property="Padding" Value="0" />
-                                                    <Setter Property="Margin" Value="0,0,0,4" />
-                                                </Style>
-                                            </ListBox.ItemContainerStyle>
-                                            <ListBox.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Grid Margin="0,0,0,6">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="32" />
-                                                            <ColumnDefinition Width="*" />
-                                                            <ColumnDefinition Width="Auto" />
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Grid.Column="0"
-                                                                   Text="{Binding Order}"
-                                                                   VerticalAlignment="Center"
-                                                                   Foreground="#6B7280" />
-                                                        <TextBlock Grid.Column="1"
-                                                                   Text="{Binding Title}"
-                                                                   VerticalAlignment="Center"
-                                                                   Foreground="#111827" />
-                                                        <TextBlock Grid.Column="2"
-                                                                   Text="{Binding PointsText, StringFormat=Points: {0}}"
-                                                                   VerticalAlignment="Center"
-                                                                   Foreground="#374151"
-                                                                   Margin="0,0,12,0" />
-                                                    </Grid>
-                                                </DataTemplate>
-                                            </ListBox.ItemTemplate>
-                                        </ListBox>
-                                        <TextBlock x:Name="HeroAttributesStatusTextBlock"
-                                                   Text="Hero stats not loaded."
-                                                   Foreground="#6B7280"
-                                                   TextWrapping="Wrap" />
+                                        <DockPanel Margin="0,0,0,10">
+                                            <TextBlock Text="Attribute priority"
+                                                       DockPanel.Dock="Left"
+                                                       FontSize="14"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#111827"
+                                                       VerticalAlignment="Center" />
+                                            <Button x:Name="RefreshHeroStatsButton"
+                                                    DockPanel.Dock="Right"
+                                                    Content="Refresh hero stats"
+                                                    Width="150"
+                                                    Click="RefreshHeroStatsButton_Click"
+                                                    Background="#FFFFFF"
+                                                    BorderBrush="#E5E7EB" />
+                                        </DockPanel>
+                                        <TextBlock Text="Drag to reorder"
+                                                   Foreground="#9CA3AF"
+                                                   FontSize="11"
+                                                   Margin="0,0,0,6" />
+                                        <Border BorderBrush="#F3F4F6"
+                                                BorderThickness="1"
+                                                Background="#FAFBFC"
+                                                CornerRadius="6"
+                                                Padding="10"
+                                                Margin="0,0,0,8">
+                                            <StackPanel>
+                                                <ListBox x:Name="HeroAttributePriorityItemsControl"
+                                                         HorizontalAlignment="Stretch"
+                                                         BorderThickness="0"
+                                                         Background="Transparent"
+                                                         AllowDrop="True"
+                                                         PreviewMouseLeftButtonDown="HeroAttributePriorityItemsControl_PreviewMouseLeftButtonDown"
+                                                         PreviewMouseMove="HeroAttributePriorityItemsControl_PreviewMouseMove"
+                                                         Drop="HeroAttributePriorityItemsControl_Drop">
+                                                    <ListBox.ItemContainerStyle>
+                                                        <Style TargetType="ListBoxItem">
+                                                            <Setter Property="Padding" Value="0" />
+                                                            <Setter Property="Margin" Value="0,0,0,4" />
+                                                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                                        </Style>
+                                                    </ListBox.ItemContainerStyle>
+                                                    <ListBox.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border Background="#FFFFFF"
+                                                                    BorderBrush="#E5E7EB"
+                                                                    BorderThickness="1"
+                                                                    CornerRadius="6"
+                                                                    Padding="10,6">
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="28" />
+                                                                        <ColumnDefinition Width="*" />
+                                                                        <ColumnDefinition Width="Auto" />
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <TextBlock Grid.Column="0"
+                                                                               Text="{Binding Order}"
+                                                                               VerticalAlignment="Center"
+                                                                               Foreground="#9CA3AF"
+                                                                               FontWeight="SemiBold" />
+                                                                    <TextBlock Grid.Column="1"
+                                                                               Text="{Binding Title}"
+                                                                               VerticalAlignment="Center"
+                                                                               Foreground="#111827" />
+                                                                    <Border Grid.Column="2"
+                                                                            Background="#F3F4F6"
+                                                                            CornerRadius="4"
+                                                                            Padding="6,2">
+                                                                        <TextBlock Text="{Binding PointsText, StringFormat=Pts: {0}}"
+                                                                                   Foreground="#374151"
+                                                                                   FontSize="11" />
+                                                                    </Border>
+                                                                </Grid>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ListBox.ItemTemplate>
+                                                </ListBox>
+                                                <TextBlock x:Name="HeroAttributesStatusTextBlock"
+                                                           Text="Hero stats not loaded."
+                                                           Foreground="#6B7280"
+                                                           FontSize="12"
+                                                           Margin="2,4,0,0"
+                                                           TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Button x:Name="QueueHeroManageButton"
+                                                Content="Queue hero manage"
+                                                Width="170"
+                                                HorizontalAlignment="Left"
+                                                Click="QueueHeroManageButton_Click"
+                                                Background="#030826"
+                                                Foreground="White"
+                                                BorderBrush="#030826" />
                                     </StackPanel>
                                 </Border>
-                                <Button x:Name="QueueHeroManageButton" Content="Queue hero manage" Width="160" Click="QueueHeroManageButton_Click" />
 
-                                <Separator Margin="0,12,0,8" />
-                                <TextBlock Text="Adventures" FontWeight="SemiBold" Margin="0,0,0,4" />
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                    <TextBlock Text="Available:" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                    <TextBlock x:Name="HeroAdventureCountTextBlock" Text="—" FontWeight="SemiBold" FontSize="16" Foreground="#111827" VerticalAlignment="Center" />
-                                    <Button x:Name="RefreshAdventuresButton" Content="Refresh adventures" Width="160" Margin="16,0,0,0" Click="RefreshAdventuresButton_Click" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                    <Button x:Name="SendHeroOnAdventureButton" Content="Send hero on adventure" Width="180" Click="SendHeroOnAdventureButton_Click" />
-                                    <CheckBox x:Name="ContinuousAdventuresCheckBox" Content="Continuous adventures" VerticalAlignment="Center" Margin="12,0,0,0" />
-                                </StackPanel>
-                                <TextBlock x:Name="HeroAdventureStatusTextBlock" Foreground="#334155" TextWrapping="Wrap" Text="Hero adventure status: idle." />
-                            </StackPanel>
-                        </Border>
-                        <TextBlock Grid.Row="2" Foreground="#334155" Text="Queue hero automation from here. The queue runner handles execution." />
-                    </Grid>
+                                <!-- Adventures card -->
+                                <Border Grid.Column="1"
+                                        Background="#FFFFFF"
+                                        BorderBrush="#E5E7EB"
+                                        BorderThickness="1"
+                                        CornerRadius="8"
+                                        Padding="14"
+                                        Margin="6,0,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="Adventures"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#111827"
+                                                   Margin="0,0,0,12" />
+                                        <DockPanel Margin="0,0,0,10">
+                                            <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                                                <Border Background="#F0FDF4"
+                                                        BorderBrush="#BBF7D0"
+                                                        BorderThickness="1"
+                                                        CornerRadius="6"
+                                                        Padding="10,6"
+                                                        Margin="0,0,12,0">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="Available:" Foreground="#166534" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                        <TextBlock x:Name="HeroAdventureCountTextBlock"
+                                                                   Text="—"
+                                                                   FontWeight="SemiBold"
+                                                                   FontSize="15"
+                                                                   Foreground="#166534"
+                                                                   VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </Border>
+                                                <Button x:Name="RefreshAdventuresButton"
+                                                        Content="Refresh adventures"
+                                                        Width="160"
+                                                        Click="RefreshAdventuresButton_Click"
+                                                        Background="#FFFFFF"
+                                                        BorderBrush="#E5E7EB" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button x:Name="SendHeroOnAdventureButton"
+                                                    Content="Send hero on adventure"
+                                                    Width="190"
+                                                    Click="SendHeroOnAdventureButton_Click"
+                                                    Background="#030826"
+                                                    Foreground="White"
+                                                    BorderBrush="#030826" />
+                                            <CheckBox x:Name="ContinuousAdventuresCheckBox"
+                                                      Content="Continuous adventures"
+                                                      VerticalAlignment="Center"
+                                                      Margin="14,0,0,0" />
+                                        </StackPanel>
+                                        <!-- Hidden but kept for code-behind compatibility. State is shown next to the Start bot button. -->
+                                        <TextBlock x:Name="HeroAdventureStatusTextBlock"
+                                                   Visibility="Collapsed"
+                                                   Text="Hero adventure status: idle." />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
                 </TabItem>
 
                 <TabItem x:Name="FarmingTabItem" Header="Farming">
@@ -1118,84 +1279,277 @@
                                            FontWeight="SemiBold"
                                            Foreground="#111827"
                                            Margin="0,0,0,12" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <Button x:Name="UpgradeTroopsButton"
+                                            Content="Upgrade troops"
+                                            Width="150"
+                                            Click="UpgradeTroopsButton_Click" />
+                                </StackPanel>
+                                <TextBlock x:Name="TroopsInfoTextBlock"
+                                           Foreground="#6B7280"
+                                           Margin="0,4,0,0" />
                             </StackPanel>
                         </Border>
                     </Grid>
                 </TabItem>
 
                 <TabItem x:Name="QueueTabItem" Header="Queue">
-                    <Grid>
+                    <Grid Background="#F3F4F6">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
-                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
-                            <Border BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="6" Padding="4" Margin="0,0,8,0">
-                                <WrapPanel>
-                                    <Button x:Name="QueueAddButton" Content="Add" Width="82" Click="QueueAddButton_Click" />
-                                    <Button x:Name="QueueRemoveButton" Content="Remove" Width="82" Margin="0" Click="QueueRemoveButton_Click" />
-                                </WrapPanel>
-                            </Border>
-                            <Border BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="6" Padding="4" Margin="0,0,8,0">
-                                <WrapPanel>
-                                    <Button x:Name="QueueMoveUpButton" Content="Move up" Width="82" Click="QueueMoveUpButton_Click" />
-                                    <Button x:Name="QueueMoveDownButton" Content="Move down" Width="82" Margin="0" Click="QueueMoveDownButton_Click" />
-                                </WrapPanel>
-                            </Border>
-                            <Border BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="6" Padding="4">
-                                <WrapPanel>
-                                    <Button x:Name="QueueRetryButton" Content="Retry" Width="82" Click="QueueRetryButton_Click" />
-                                    <Button x:Name="QueueRefreshButton" Content="Refresh" Width="82" Click="QueueRefreshButton_Click" />
-                                    <Button x:Name="QueueClearButton" Content="Clear queue" Width="92" Margin="0" Click="QueueClearButton_Click" />
-                                    <Button x:Name="QueuePopoutButton" Content="Pop out" Width="82" Margin="6,0,0,0" Click="QueuePopoutButton_Click" />
-                                </WrapPanel>
-                            </Border>
-                        </StackPanel>
-                        <DataGrid x:Name="QueueDataGrid"
-                                  Grid.Row="1"
-                                  AutoGenerateColumns="False"
-                                  IsReadOnly="True"
-                                  SelectionMode="Single"
-                                  SelectionUnit="FullRow"
-                                  CanUserAddRows="False"
-                                  CanUserDeleteRows="False"
-                                  CanUserReorderColumns="False"
-                                  BorderBrush="#D1D5DB"
-                                  BorderThickness="1">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="Task" Width="2*" Binding="{Binding DisplayName}" />
-                                <DataGridTextColumn Header="Priority" Width="*" Binding="{Binding Priority}" />
-                                <DataGridTextColumn Header="Status" Width="*" Binding="{Binding Status}" />
-                                <DataGridTextColumn Header="Retries" Width="*" Binding="{Binding Retries}" />
-                                <DataGridTextColumn Header="Max retries" Width="*" Binding="{Binding MaxRetries}" />
-                                <DataGridTextColumn Header="Next try (Server time)" Width="2*" Binding="{Binding NextAttemptAtServer}" />
-                                <DataGridTextColumn Header="Created (Server time)" Width="2*" Binding="{Binding CreatedAtServer}" />
-                            </DataGrid.Columns>
-                        </DataGrid>
-                        <DataGrid x:Name="QueueHistoryDataGrid"
-                                  Grid.Row="2"
-                                  Margin="0,8,0,0"
-                                  AutoGenerateColumns="False"
-                                  IsReadOnly="True"
-                                  SelectionMode="Single"
-                                  SelectionUnit="FullRow"
-                                  CanUserAddRows="False"
-                                  CanUserDeleteRows="False"
-                                  CanUserReorderColumns="False"
-                                  BorderBrush="#D1D5DB"
-                                  BorderThickness="1">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="Completed task" Width="2*" Binding="{Binding DisplayName}" />
-                                <DataGridTextColumn Header="Status" Width="*" Binding="{Binding Status}" />
-                                <DataGridTextColumn Header="Retries" Width="*" Binding="{Binding Retries}" />
-                                <DataGridTextColumn Header="Created (Server time)" Width="2*" Binding="{Binding CreatedAtServer}" />
-                            </DataGrid.Columns>
-                        </DataGrid>
-                        <TextBlock x:Name="BuildQueueStatusTextBlock" Grid.Row="3" Margin="0,8,0,0" Foreground="#1F2937" Text="Build queue: -" />
-                        <TextBlock x:Name="QueueInfoTextBlock" Grid.Row="4" Margin="0,4,0,0" Foreground="#334155" Text="Queue loaded." />
+
+                        <!-- Header -->
+                        <DockPanel Grid.Row="0" Margin="2,2,2,12">
+                            <StackPanel DockPanel.Dock="Left">
+                                <TextBlock Text="Queue"
+                                           FontSize="22"
+                                           FontWeight="SemiBold"
+                                           Foreground="#111827" />
+                                <TextBlock x:Name="QueueInfoTextBlock"
+                                           Text="Queue loaded."
+                                           Foreground="#6B7280"
+                                           FontSize="12"
+                                           Margin="0,4,0,0" />
+                            </StackPanel>
+                            <Button x:Name="QueuePopoutButton"
+                                    DockPanel.Dock="Right"
+                                    Content="Pop out"
+                                    Width="92"
+                                    Click="QueuePopoutButton_Click"
+                                    Background="#FFFFFF"
+                                    BorderBrush="#E5E7EB" />
+                            <Button x:Name="QueueClearButton"
+                                    DockPanel.Dock="Right"
+                                    Content="Clear queue"
+                                    Width="100"
+                                    Margin="0,0,8,0"
+                                    Click="QueueClearButton_Click"
+                                    Background="#FEE2E2"
+                                    BorderBrush="#FCA5A5"
+                                    Foreground="#991B1B" />
+                            <TextBlock />
+                        </DockPanel>
+
+                        <!-- Build queue status bar -->
+                        <Border Grid.Row="1"
+                                Background="#FFFFFF"
+                                BorderBrush="#E5E7EB"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="12,10"
+                                Margin="2,0,2,12">
+                            <DockPanel>
+                                <Border DockPanel.Dock="Left"
+                                        Background="#EEF2FF"
+                                        CornerRadius="6"
+                                        Padding="6,3"
+                                        Margin="0,0,10,0">
+                                    <TextBlock Text="Build queue"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Foreground="#3730A3" />
+                                </Border>
+                                <TextBlock x:Name="BuildQueueStatusTextBlock"
+                                           Text="-"
+                                           Foreground="#1F2937"
+                                           VerticalAlignment="Center" />
+                            </DockPanel>
+                        </Border>
+
+                        <!-- Active queue card -->
+                        <Border Grid.Row="2"
+                                Background="#FFFFFF"
+                                BorderBrush="#E5E7EB"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="12"
+                                Margin="2,0,2,12">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <DockPanel Grid.Row="0" Margin="0,0,0,10">
+                                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                                        <Ellipse Width="8" Height="8" Fill="#16A34A" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <TextBlock Text="Active queue"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#111827"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <Button x:Name="QueueAddButton" Content="Add" Width="76" Click="QueueAddButton_Click" Background="#FFFFFF" BorderBrush="#E5E7EB" />
+                                        <Button x:Name="QueueRemoveButton" Content="Remove" Width="76" Margin="6,0,0,0" Click="QueueRemoveButton_Click" Background="#FFFFFF" BorderBrush="#E5E7EB" />
+                                        <Rectangle Width="1" Fill="#E5E7EB" Margin="10,3,10,3" />
+                                        <Button x:Name="QueueMoveUpButton" Content="↑" Width="36" Click="QueueMoveUpButton_Click" Background="#FFFFFF" BorderBrush="#E5E7EB" ToolTip="Move up" />
+                                        <Button x:Name="QueueMoveDownButton" Content="↓" Width="36" Margin="6,0,0,0" Click="QueueMoveDownButton_Click" Background="#FFFFFF" BorderBrush="#E5E7EB" ToolTip="Move down" />
+                                        <Rectangle Width="1" Fill="#E5E7EB" Margin="10,3,10,3" />
+                                        <Button x:Name="QueueRetryButton" Content="Retry" Width="68" Click="QueueRetryButton_Click" Background="#FFFFFF" BorderBrush="#E5E7EB" />
+                                        <Button x:Name="QueueRefreshButton" Content="Refresh" Width="76" Margin="6,0,0,0" Click="QueueRefreshButton_Click" Background="#FFFFFF" BorderBrush="#E5E7EB" />
+                                    </StackPanel>
+                                </DockPanel>
+
+                                <DataGrid x:Name="QueueDataGrid"
+                                          Grid.Row="1"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="True"
+                                          SelectionMode="Single"
+                                          SelectionUnit="FullRow"
+                                          CanUserAddRows="False"
+                                          CanUserDeleteRows="False"
+                                          CanUserReorderColumns="False"
+                                          GridLinesVisibility="Horizontal"
+                                          HorizontalGridLinesBrush="#F3F4F6"
+                                          RowBackground="#FFFFFF"
+                                          AlternatingRowBackground="#FAFBFC"
+                                          BorderBrush="#E5E7EB"
+                                          BorderThickness="1"
+                                          HeadersVisibility="Column"
+                                          ColumnHeaderHeight="32"
+                                          RowHeight="30"
+                                          FontSize="12">
+                                    <DataGrid.ColumnHeaderStyle>
+                                        <Style TargetType="DataGridColumnHeader">
+                                            <Setter Property="Background" Value="#F9FAFB" />
+                                            <Setter Property="Foreground" Value="#374151" />
+                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                            <Setter Property="FontSize" Value="11" />
+                                            <Setter Property="Padding" Value="10,6" />
+                                            <Setter Property="BorderBrush" Value="#E5E7EB" />
+                                            <Setter Property="BorderThickness" Value="0,0,1,1" />
+                                            <Setter Property="HorizontalContentAlignment" Value="Left" />
+                                        </Style>
+                                    </DataGrid.ColumnHeaderStyle>
+                                    <DataGrid.CellStyle>
+                                        <Style TargetType="DataGridCell">
+                                            <Setter Property="Padding" Value="10,4" />
+                                            <Setter Property="BorderThickness" Value="0" />
+                                            <Setter Property="Foreground" Value="#1F2937" />
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="DataGridCell">
+                                                        <Border Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}">
+                                                            <ContentPresenter VerticalAlignment="Center" />
+                                                        </Border>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                            <Style.Triggers>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter Property="Background" Value="#EEF2FF" />
+                                                    <Setter Property="Foreground" Value="#1F2937" />
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </DataGrid.CellStyle>
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Task" Width="2.4*" Binding="{Binding DisplayName}" />
+                                        <DataGridTextColumn Header="Status" Width="*" Binding="{Binding Status}" />
+                                        <DataGridTextColumn Header="Priority" Width="0.7*" Binding="{Binding Priority}" />
+                                        <DataGridTextColumn Header="Retries" Width="0.7*" Binding="{Binding Retries}" />
+                                        <DataGridTextColumn Header="Max" Width="0.6*" Binding="{Binding MaxRetries}" />
+                                        <DataGridTextColumn Header="Next try" Width="1.5*" Binding="{Binding NextAttemptAtServer}" />
+                                        <DataGridTextColumn Header="Created" Width="1.5*" Binding="{Binding CreatedAtServer}" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </Border>
+
+                        <!-- Spacing -->
+                        <Border Grid.Row="3" Height="0" />
+
+                        <!-- History card -->
+                        <Border Grid.Row="4"
+                                Background="#FFFFFF"
+                                BorderBrush="#E5E7EB"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="12"
+                                Margin="2,0,2,2">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+                                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                                    <Ellipse Width="8" Height="8" Fill="#9CA3AF" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <TextBlock Text="History"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Foreground="#111827"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                                <DataGrid x:Name="QueueHistoryDataGrid"
+                                          Grid.Row="1"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="True"
+                                          SelectionMode="Single"
+                                          SelectionUnit="FullRow"
+                                          CanUserAddRows="False"
+                                          CanUserDeleteRows="False"
+                                          CanUserReorderColumns="False"
+                                          GridLinesVisibility="Horizontal"
+                                          HorizontalGridLinesBrush="#F3F4F6"
+                                          RowBackground="#FFFFFF"
+                                          AlternatingRowBackground="#FAFBFC"
+                                          BorderBrush="#E5E7EB"
+                                          BorderThickness="1"
+                                          HeadersVisibility="Column"
+                                          ColumnHeaderHeight="32"
+                                          RowHeight="30"
+                                          FontSize="12">
+                                    <DataGrid.ColumnHeaderStyle>
+                                        <Style TargetType="DataGridColumnHeader">
+                                            <Setter Property="Background" Value="#F9FAFB" />
+                                            <Setter Property="Foreground" Value="#374151" />
+                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                            <Setter Property="FontSize" Value="11" />
+                                            <Setter Property="Padding" Value="10,6" />
+                                            <Setter Property="BorderBrush" Value="#E5E7EB" />
+                                            <Setter Property="BorderThickness" Value="0,0,1,1" />
+                                            <Setter Property="HorizontalContentAlignment" Value="Left" />
+                                        </Style>
+                                    </DataGrid.ColumnHeaderStyle>
+                                    <DataGrid.CellStyle>
+                                        <Style TargetType="DataGridCell">
+                                            <Setter Property="Padding" Value="10,4" />
+                                            <Setter Property="BorderThickness" Value="0" />
+                                            <Setter Property="Foreground" Value="#4B5563" />
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="DataGridCell">
+                                                        <Border Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}">
+                                                            <ContentPresenter VerticalAlignment="Center" />
+                                                        </Border>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                            <Style.Triggers>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter Property="Background" Value="#F3F4F6" />
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </DataGrid.CellStyle>
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Completed task" Width="2.4*" Binding="{Binding DisplayName}" />
+                                        <DataGridTextColumn Header="Status" Width="*" Binding="{Binding Status}" />
+                                        <DataGridTextColumn Header="Retries" Width="0.7*" Binding="{Binding Retries}" />
+                                        <DataGridTextColumn Header="Created" Width="1.5*" Binding="{Binding CreatedAtServer}" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="5" Height="0" />
                     </Grid>
                 </TabItem>
 

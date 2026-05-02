@@ -39,6 +39,8 @@ public sealed class BotTaskRunner
             ["hero_manage"] = ExecuteHeroManageAsync,
             // Sends the hero on the first available adventure if hero is in home village.
             ["hero_send_adventure"] = ExecuteHeroSendAdventureAsync,
+            // Walks through the Smithy and clicks every "Upgrade" button until none remain.
+            ["upgrade_troops_at_smithy"] = ExecuteUpgradeTroopsAtSmithyAsync,
         };
 
     private readonly IAccountProvider _accountProvider;
@@ -824,6 +826,7 @@ public sealed class BotTaskRunner
             context.Options.BuildingUpgradeTargetLevel.Value,
             context.CancellationToken);
         context.Log(result);
+        await RefreshBuildingsSnapshotAfterTaskAsync(context);
         ThrowIfTaskBlocked("upgrade_building_to_level", result);
     }
 
@@ -840,6 +843,7 @@ public sealed class BotTaskRunner
             context.Options.BuildingUpgradeMaxAttempts,
             context.CancellationToken);
         context.Log(result);
+        await RefreshBuildingsSnapshotAfterTaskAsync(context);
         ThrowIfTaskBlocked("upgrade_building_to_max", result);
     }
 
@@ -861,7 +865,15 @@ public sealed class BotTaskRunner
             buildingName,
             context.CancellationToken);
         context.Log(result);
+        await RefreshBuildingsSnapshotAfterTaskAsync(context);
         ThrowIfTaskBlocked("construct_building", result);
+    }
+
+    private static async Task ExecuteUpgradeTroopsAtSmithyAsync(TaskExecutionContext context)
+    {
+        var result = await context.Client.UpgradeAllTroopsAtSmithyAsync(context.CancellationToken);
+        context.Log(result);
+        await RefreshBuildingsSnapshotAfterTaskAsync(context);
     }
 
     private static async Task ExecuteAccountFullAnalysisAsync(TaskExecutionContext context)
@@ -882,6 +894,12 @@ public sealed class BotTaskRunner
     private static async Task ExecuteLoadBuildingsSnapshotAsync(TaskExecutionContext context)
     {
         var status = await context.Client.ReadBuildingsStatusAsync(context.CancellationToken);
+        await WriteBuildingsSnapshotAsync(context, status);
+        context.Log($"Loaded {status.Buildings.Count} building slots.");
+    }
+
+    private static async Task WriteBuildingsSnapshotAsync(TaskExecutionContext context, TbotUltra.Worker.Domain.VillageStatus status)
+    {
         var activeAccount = context.Runner._accountProvider.LoadAccount().Name;
         var safeAccount = string.IsNullOrWhiteSpace(activeAccount) ? "main" : activeAccount.Trim().ToLowerInvariant();
         var outputDir = Path.Combine(context.Runner._projectContext.RootPath, "temp_build_out", "buildings-snapshots");
@@ -893,6 +911,7 @@ public sealed class BotTaskRunner
             account = activeAccount,
             activeVillage = status.ActiveVillage,
             tribe = status.Tribe,
+            isCapital = status.IsCapital,
             buildings = status.Buildings.Select(building => new
             {
                 slotId = building.SlotId,
@@ -901,10 +920,31 @@ public sealed class BotTaskRunner
                 url = building.Url,
                 gid = building.Gid,
             }).ToList(),
+            resourceFields = status.ResourceFields.Select(field => new
+            {
+                slotId = field.SlotId,
+                fieldType = field.FieldType,
+                name = field.Name,
+                level = field.Level,
+                url = field.Url,
+            }).ToList(),
         };
 
         await File.WriteAllTextAsync(outputPath, JsonSerializer.Serialize(payload), context.CancellationToken);
-        context.Log($"Loaded {status.Buildings.Count} building slots. Snapshot saved at {outputPath}.");
+    }
+
+    private static async Task RefreshBuildingsSnapshotAfterTaskAsync(TaskExecutionContext context)
+    {
+        try
+        {
+            var status = await context.Client.ReadBuildingsStatusAsync(context.CancellationToken);
+            await WriteBuildingsSnapshotAsync(context, status);
+            context.Log($"Buildings snapshot refreshed ({status.Buildings.Count} slots).");
+        }
+        catch (Exception ex)
+        {
+            context.Log($"Could not refresh buildings snapshot: {ex.Message}");
+        }
     }
 
     private static async Task ExecuteDemolishBuildingToLevelAsync(TaskExecutionContext context)
@@ -920,6 +960,7 @@ public sealed class BotTaskRunner
             context.Options.TargetLevel.Value,
             context.CancellationToken);
         context.Log(result);
+        await RefreshBuildingsSnapshotAfterTaskAsync(context);
     }
 
     private static async Task ExecuteHeroManageAsync(TaskExecutionContext context)

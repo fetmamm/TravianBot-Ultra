@@ -32,6 +32,15 @@ public sealed record TribeBuildingCatalogEntry(
     bool IsSpecial,
     IReadOnlyList<BuildingRequirementEntry> Requirements);
 
+public sealed record TribeBuildingCatalogFullEntry(
+    int Gid,
+    string Name,
+    string Category,
+    bool IsSpecial,
+    string? RequiredTribe,
+    bool MatchesPlayerTribe,
+    IReadOnlyList<BuildingRequirementEntry> Requirements);
+
 public sealed record BuildingRequirementEntry(string Name, int Level);
 
 public sealed record ResourceField(

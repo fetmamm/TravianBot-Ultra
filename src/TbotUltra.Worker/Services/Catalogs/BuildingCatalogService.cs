@@ -1,3 +1,4 @@
+using System.Text.Json;
 using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Worker.Services;
@@ -6,8 +7,13 @@ public static class BuildingCatalogService
 {
     private static readonly Dictionary<int, (string Name, string Category)> BaseBuildings = new()
     {
-        [10] = ("Warehouse", "resource_buildings"),
-        [11] = ("Granary", "resource_buildings"),
+        [5] = ("Sawmill", "resource_buildings"),
+        [6] = ("Brickyard", "resource_buildings"),
+        [7] = ("Iron Foundry", "resource_buildings"),
+        [8] = ("Grain Mill", "resource_buildings"),
+        [9] = ("Bakery", "resource_buildings"),
+        [10] = ("Warehouse", "infrastructure"),
+        [11] = ("Granary", "infrastructure"),
         [15] = ("Main Building", "infrastructure"),
         [16] = ("Rally Point", "army_buildings"),
         [17] = ("Marketplace", "infrastructure"),
@@ -26,8 +32,8 @@ public static class BuildingCatalogService
         [30] = ("Great Stable", "army_buildings"),
         [34] = ("Stonemason", "infrastructure"),
         [37] = ("Hero Mansion", "army_buildings"),
-        [38] = ("Great Warehouse", "resource_buildings"),
-        [39] = ("Great Granary", "resource_buildings"),
+        [38] = ("Great Warehouse", "infrastructure"),
+        [39] = ("Great Granary", "infrastructure"),
         [40] = ("Wonder of the World", "infrastructure"),
     };
 
@@ -46,6 +52,11 @@ public static class BuildingCatalogService
 
     private static readonly Dictionary<int, List<BuildingRequirementEntry>> BuildingRequirements = new()
     {
+        [5] = [new("Clay Pit", 10), new("Main Building", 5)],
+        [6] = [new("Woodcutter", 10), new("Main Building", 5)],
+        [7] = [new("Iron Mine", 10), new("Main Building", 5)],
+        [8] = [new("Cropland", 5), new("Main Building", 5)],
+        [9] = [new("Cropland", 10), new("Grain Mill", 5), new("Main Building", 5)],
         [17] = [new("Main Building", 3), new("Warehouse", 1), new("Granary", 1)],
         [18] = [new("Main Building", 1)],
         [19] = [new("Main Building", 3), new("Rally Point", 1)],
@@ -70,14 +81,6 @@ public static class BuildingCatalogService
         [44] = [new("Main Building", 10), new("Academy", 15)],
     };
 
-    private static readonly Dictionary<int, int> BuildingMaxLevelsByGid = new()
-    {
-        [10] = 20, [11] = 20, [15] = 20, [16] = 20, [17] = 20, [18] = 20, [19] = 20, [20] = 20, [21] = 20,
-        [22] = 20, [23] = 10, [24] = 20, [25] = 20, [26] = 20, [27] = 20, [28] = 20, [29] = 20, [30] = 20,
-        [31] = 20, [32] = 20, [33] = 20, [34] = 20, [35] = 20, [36] = 20, [37] = 20, [38] = 20, [39] = 20,
-        [40] = 100, [41] = 20, [42] = 20, [43] = 20, [44] = 20,
-    };
-
     private static readonly HashSet<int> SingleInstanceGids =
     [
         15, 16, 17, 18, 19, 20, 21, 22, 24, 25, 26, 27, 28, 29, 30, 34, 35, 36, 37, 40, 41, 44,
@@ -93,6 +96,8 @@ public static class BuildingCatalogService
         ["Huns"] = [43],
         ["Spartans"] = [44],
     };
+
+    private static readonly Lazy<IReadOnlyDictionary<int, BuildingCatalogEntry>> CatalogData = new(LoadCatalogData);
 
     public static IReadOnlyList<TribeBuildingCatalogEntry> GetCatalogForTribe(string tribe)
     {
@@ -130,6 +135,41 @@ public static class BuildingCatalogService
             .ToList();
     }
 
+    public static IReadOnlyList<TribeBuildingCatalogFullEntry> GetFullCatalog(string playerTribe)
+    {
+        var normalizedPlayer = NormalizeTribe(playerTribe);
+        var entries = new List<TribeBuildingCatalogFullEntry>();
+
+        foreach (var pair in BaseBuildings.OrderBy(item => item.Key))
+        {
+            entries.Add(new TribeBuildingCatalogFullEntry(
+                Gid: pair.Key,
+                Name: pair.Value.Name,
+                Category: pair.Value.Category,
+                IsSpecial: false,
+                RequiredTribe: null,
+                MatchesPlayerTribe: true,
+                Requirements: RequirementsFor(pair.Key)));
+        }
+
+        foreach (var pair in TribeSpecialBuildings.OrderBy(item => item.Key))
+        {
+            var owningTribe = TribeSpecialGids
+                .FirstOrDefault(kvp => kvp.Value.Contains(pair.Key)).Key;
+            entries.Add(new TribeBuildingCatalogFullEntry(
+                Gid: pair.Key,
+                Name: pair.Value.Name,
+                Category: pair.Value.Category,
+                IsSpecial: true,
+                RequiredTribe: owningTribe,
+                MatchesPlayerTribe: !string.IsNullOrEmpty(owningTribe)
+                    && string.Equals(owningTribe, normalizedPlayer, StringComparison.OrdinalIgnoreCase),
+                Requirements: RequirementsFor(pair.Key)));
+        }
+
+        return entries;
+    }
+
     public static IReadOnlyList<BuildingRequirementEntry> RequirementsFor(int gid)
     {
         return BuildingRequirements.TryGetValue(gid, out var requirements)
@@ -139,17 +179,88 @@ public static class BuildingCatalogService
 
     public static int MaxLevelFor(int gid)
     {
-        if (BuildingMaxLevelsByGid.TryGetValue(gid, out var level) && level > 20)
+        if (CatalogData.Value.TryGetValue(gid, out var entry))
         {
-            return level;
+            return entry.MaxLevel;
         }
 
-        return 40;
+        return 20;
+    }
+
+    public static IReadOnlyList<BuildingLevelStats>? LevelsFor(int gid)
+    {
+        return CatalogData.Value.TryGetValue(gid, out var entry) ? entry.Levels : null;
+    }
+
+    public static BuildingLevelStats? CostFor(int gid, int level)
+    {
+        if (!CatalogData.Value.TryGetValue(gid, out var entry))
+        {
+            return null;
+        }
+
+        if (level < 1 || level > entry.Levels.Count)
+        {
+            return null;
+        }
+
+        return entry.Levels[level - 1];
+    }
+
+    public static double BuildSecondsFor(int gid, int level, double serverSpeed = 1.0)
+    {
+        var stats = CostFor(gid, level);
+        if (stats is null || serverSpeed <= 0)
+        {
+            return 0;
+        }
+
+        return stats.BuildSeconds1x / serverSpeed;
     }
 
     public static bool IsSingleInstance(int gid)
     {
         return SingleInstanceGids.Contains(gid);
+    }
+
+    /// <summary>
+    /// Returns the in-game category index for a building gid, used by Travian's
+    /// <c>/build.php?id={slot}&amp;category={N}</c> URL filter.
+    /// 1 = Infrastructure, 2 = Army, 3 = Resource buildings.
+    /// </summary>
+    public static int? CategoryIndexFor(int gid)
+    {
+        string? category = null;
+        if (BaseBuildings.TryGetValue(gid, out var baseB))
+        {
+            category = baseB.Category;
+        }
+        else if (TribeSpecialBuildings.TryGetValue(gid, out var spec))
+        {
+            category = spec.Category;
+        }
+
+        return category switch
+        {
+            "infrastructure" => 1,
+            "army_buildings" => 2,
+            "resource_buildings" => 3,
+            _ => null,
+        };
+    }
+
+    public static (int Gid, string Name)? WallForTribe(string tribe)
+    {
+        var normalized = NormalizeTribe(tribe);
+        return normalized switch
+        {
+            "Romans" => (31, "City Wall"),
+            "Teutons" => (32, "Earth Wall"),
+            "Gauls" => (33, "Palisade"),
+            "Egyptians" => (42, "Stone Wall"),
+            "Huns" => (43, "Makeshift Wall"),
+            _ => null,
+        };
     }
 
     public static string NormalizeTribe(string value)
@@ -181,4 +292,103 @@ public static class BuildingCatalogService
 
         return [];
     }
+
+    private static IReadOnlyDictionary<int, BuildingCatalogEntry> LoadCatalogData()
+    {
+        var path = ResolveCatalogPath();
+        if (path is null || !File.Exists(path))
+        {
+            return new Dictionary<int, BuildingCatalogEntry>();
+        }
+
+        try
+        {
+            using var stream = File.OpenRead(path);
+            using var doc = JsonDocument.Parse(stream);
+            if (!doc.RootElement.TryGetProperty("buildings", out var buildings))
+            {
+                return new Dictionary<int, BuildingCatalogEntry>();
+            }
+
+            var result = new Dictionary<int, BuildingCatalogEntry>();
+            foreach (var item in buildings.EnumerateObject())
+            {
+                if (!int.TryParse(item.Name, out var gid))
+                {
+                    continue;
+                }
+
+                var maxLevel = item.Value.TryGetProperty("max_level", out var ml) ? ml.GetInt32() : 20;
+                var name = item.Value.TryGetProperty("name", out var nm) ? nm.GetString() ?? string.Empty : string.Empty;
+                var tribe = item.Value.TryGetProperty("tribe", out var tr) && tr.ValueKind == JsonValueKind.String
+                    ? tr.GetString()
+                    : null;
+
+                var levels = new List<BuildingLevelStats>();
+                if (item.Value.TryGetProperty("levels", out var levelsArr) && levelsArr.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var level in levelsArr.EnumerateArray())
+                    {
+                        levels.Add(new BuildingLevelStats(
+                            Level: GetInt(level, "level"),
+                            Wood: GetInt(level, "wood"),
+                            Clay: GetInt(level, "clay"),
+                            Iron: GetInt(level, "iron"),
+                            Crop: GetInt(level, "crop"),
+                            Upkeep: GetInt(level, "upkeep"),
+                            CulturePoints: GetInt(level, "culture_points"),
+                            BuildSeconds1x: GetLong(level, "build_seconds_1x")));
+                    }
+                }
+
+                result[gid] = new BuildingCatalogEntry(gid, name, tribe, maxLevel, levels);
+            }
+
+            return result;
+        }
+        catch
+        {
+            return new Dictionary<int, BuildingCatalogEntry>();
+        }
+    }
+
+    private static int GetInt(JsonElement obj, string name)
+        => obj.TryGetProperty(name, out var p) && p.ValueKind == JsonValueKind.Number ? p.GetInt32() : 0;
+
+    private static long GetLong(JsonElement obj, string name)
+        => obj.TryGetProperty(name, out var p) && p.ValueKind == JsonValueKind.Number ? p.GetInt64() : 0;
+
+    private static string? ResolveCatalogPath()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            var candidate = Path.Combine(current.FullName, "config", "buildings_catalog.json");
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            current = current.Parent;
+        }
+
+        return null;
+    }
+
+    private sealed record BuildingCatalogEntry(
+        int Gid,
+        string Name,
+        string? Tribe,
+        int MaxLevel,
+        IReadOnlyList<BuildingLevelStats> Levels);
 }
+
+public sealed record BuildingLevelStats(
+    int Level,
+    int Wood,
+    int Clay,
+    int Iron,
+    int Crop,
+    int Upkeep,
+    int CulturePoints,
+    long BuildSeconds1x);

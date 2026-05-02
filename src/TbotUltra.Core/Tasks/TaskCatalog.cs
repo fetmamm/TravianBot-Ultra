@@ -17,6 +17,7 @@ public static class TaskCatalog
         "demolish_building_to_level",
         "hero_manage",
         "hero_send_adventure",
+        "upgrade_troops_at_smithy",
     ];
 
     private static readonly HashSet<string> AllowedSet = new(AllowedTaskNamesValue, StringComparer.OrdinalIgnoreCase);

@@ -2,15 +2,16 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Choose building"
-        Height="420"
-        Width="320"
-        MinHeight="300"
-        ResizeMode="CanMinimize"
+        Height="640"
+        Width="520"
+        MinHeight="500"
+        MinWidth="420"
         WindowStartupLocation="CenterOwner">
-    <Grid Margin="12">
+    <Grid Margin="14">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
@@ -21,15 +22,61 @@
                    Foreground="#111827"
                    Margin="0,0,0,10" />
 
-        <ScrollViewer Grid.Row="1"
-                      VerticalScrollBarVisibility="Auto">
-            <StackPanel x:Name="OptionsPanel" />
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock Text="Available" FontWeight="SemiBold" Foreground="#16A34A" FontSize="13" Margin="0,0,0,4" />
+                <StackPanel x:Name="AvailablePanel" Margin="0,0,0,12" />
+
+                <TextBlock Text="Locked (requirements not met)" FontWeight="SemiBold" Foreground="#D97706" FontSize="13" Margin="0,0,0,4" />
+                <StackPanel x:Name="LockedPanel" Margin="0,0,0,12" />
+
+                <TextBlock Text="Already built" FontWeight="SemiBold" Foreground="#2563EB" FontSize="13" Margin="0,0,0,4" />
+                <StackPanel x:Name="AlreadyBuiltPanel" Margin="0,0,0,12" />
+
+                <TextBlock Text="Unavailable" FontWeight="SemiBold" Foreground="#9CA3AF" FontSize="13" Margin="0,0,0,4" />
+                <StackPanel x:Name="UnavailablePanel" Margin="0,0,0,12" />
+            </StackPanel>
         </ScrollViewer>
 
-        <StackPanel Grid.Row="2"
+        <Border Grid.Row="2"
+                Background="#F9FAFB"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="10"
+                Margin="0,8,0,0">
+            <StackPanel>
+                <TextBlock x:Name="SelectedNameTextBlock"
+                           FontWeight="SemiBold"
+                           Foreground="#111827"
+                           Text="Select a building above" />
+                <TextBlock x:Name="SelectedDetailsTextBlock"
+                           Foreground="#6B7280"
+                           FontSize="11"
+                           Margin="0,2,0,6" />
+                <DockPanel>
+                    <TextBlock Text="Target level:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <ComboBox x:Name="TargetLevelComboBox"
+                              Width="100"
+                              IsEnabled="False"
+                              VerticalAlignment="Center" />
+                </DockPanel>
+            </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Row="3"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Margin="0,12,0,0">
+            <Button x:Name="BuildButton"
+                    Width="110"
+                    Content="Build"
+                    IsEnabled="False"
+                    Background="#030826"
+                    Foreground="White"
+                    BorderBrush="#030826"
+                    Margin="0,0,8,0"
+                    Click="BuildButton_Click" />
             <Button Width="100"
                     Content="Cancel"
                     Click="CancelButton_Click" />

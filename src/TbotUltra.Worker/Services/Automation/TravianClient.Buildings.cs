@@ -32,95 +32,122 @@ public sealed partial class TravianClient
         int targetLevel,
         CancellationToken cancellationToken = default)
     {
-        Notify("DemolishBuildingToLevelAsync started");
+        Notify($"DemolishBuildingToLevelAsync target='{targetBuildingSlotOrName}' targetLevel={targetLevel} started");
         if (targetLevel < 0)
         {
             throw new InvalidOperationException("Demolish target level must be >= 0.");
         }
 
-        await GotoAsync(Paths.Buildings, cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening buildings.", cancellationToken);
-        await EnsureLoggedInAsync();
+        if (!int.TryParse(targetBuildingSlotOrName.Trim(), out var slotId))
+        {
+            throw new InvalidOperationException($"Demolish requires a numeric slot id, got '{targetBuildingSlotOrName}'.");
+        }
+        if (slotId < 19)
+        {
+            throw new InvalidOperationException($"Demolish slot {slotId} is outside the building range.");
+        }
 
-        var status = await ReadCurrentVillageStatusAsync(cancellationToken);
-        var mainBuilding = status.Buildings
-            .Where(building => SameBuildingName(building.Name, "Main Building"))
-            .OrderByDescending(building => building.Level ?? 0)
+        const int safetyCap = 30;
+
+        // One-shot: read dorf2 to get original level + main building slot id.
+        if (IsCurrentUrlForPath(Paths.Buildings))
+        {
+            await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+        }
+        else
+        {
+            await GotoAsync(Paths.Buildings, cancellationToken);
+        }
+        await PauseForManualStepIfVisibleAsync("Manual verification on dorf2.", cancellationToken);
+
+        var initialSlots = await ReadBuildingInfosAsync(cancellationToken);
+        if (!initialSlots.TryGetValue(slotId, out var initialInfo) || initialInfo.Level <= 0)
+        {
+            return $"Slot {slotId}: nothing to demolish (already empty).";
+        }
+        if (initialInfo.Level <= targetLevel)
+        {
+            return $"Slot {slotId}: already at level {initialInfo.Level} (target {targetLevel}).";
+        }
+
+        var mainSlot = initialSlots
+            .Where(kvp => ParseGidFromBuildingCode(kvp.Value.BuildingCode) == 15)
+            .OrderByDescending(kvp => kvp.Value.Level)
+            .Select(kvp => (int?)kvp.Key)
             .FirstOrDefault();
-        if (mainBuilding is null || (mainBuilding.Level ?? 0) < 10)
+        if (mainSlot is null)
         {
-            throw new InvalidOperationException("Demolition requires Main Building level 10.");
+            throw new InvalidOperationException("Demolition requires Main Building.");
         }
 
-        var target = ResolveTargetBuilding(status, targetBuildingSlotOrName);
-        if (target is null || target.SlotId is null || target.Level is null || target.Level <= 0)
-        {
-            throw new InvalidOperationException($"Could not find a demolishable building for '{targetBuildingSlotOrName}'.");
-        }
+        var originalLevel = initialInfo.Level;
+        var targetBuildingName = string.IsNullOrWhiteSpace(initialInfo.BuildingName)
+            ? $"slot {slotId}"
+            : initialInfo.BuildingName;
+        var demolitions = 0;
+        var currentLevel = originalLevel;
 
-        if (target.Level <= targetLevel)
-        {
-            return $"Demolition target already reached for slot {target.SlotId} ({target.Name} level {target.Level}).";
-        }
+        // Stay on the Main Building page across iterations — only reload there between steps.
+        var mainBuildingPath = Paths.BuildBySlot(mainSlot.Value);
 
-        var originalLevel = target.Level.Value;
-        var steps = 0;
-        while (target is not null && target.SlotId is not null && (target.Level ?? 0) > targetLevel)
+        for (var iter = 0; iter < safetyCap && currentLevel > targetLevel; iter++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (!SameBuildingName(target.Name, "Main Building"))
-            {
-                status = await ReadCurrentVillageStatusAsync(cancellationToken);
-                mainBuilding = status.Buildings
-                    .Where(building => SameBuildingName(building.Name, "Main Building"))
-                    .OrderByDescending(building => building.Level ?? 0)
-                    .FirstOrDefault();
-                if (mainBuilding is null || (mainBuilding.Level ?? 0) < 10)
-                {
-                    throw new InvalidOperationException("Demolition requires Main Building level 10.");
-                }
-            }
-
+            // Select target + click demolish. TryStartDemolitionStepAsync navigates to the
+            // main building page (or reloads it if already there), so each step starts fresh.
             var started = await TryStartDemolitionStepAsync(
-                mainBuildingSlotId: mainBuilding?.SlotId ?? 15,
-                targetSlotId: target.SlotId.Value,
-                targetBuildingName: target.Name,
+                mainBuildingSlotId: mainSlot.Value,
+                targetSlotId: slotId,
+                targetBuildingName: targetBuildingName,
                 cancellationToken);
-
             if (!started)
             {
-                return $"Could not start demolition for {target.Name} in slot {target.SlotId}. Main building page did not expose a standard demolish action.";
+                return $"Slot {slotId}: could not start demolition (main building page didn't expose a demolish action). Steps: {demolitions}.";
             }
 
-            steps += 1;
-            var previousLevel = target.Level ?? 0;
-            target = await WaitForDemolitionLevelChangeAsync(
-                target.SlotId.Value,
-                previousLevel,
-                cancellationToken);
+            try
+            {
+                await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+            }
+            catch
+            {
+                // Continue — duration read below copes with partial loads.
+            }
+
+            // Read the demolition timer from the queue list on the Main Building page.
+            var durationSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken) ?? 0;
+            var waitMs = ComputePostActionWaitMs(durationSeconds);
+            demolitions += 1;
+            currentLevel -= 1;
+            Notify($"Slot {slotId}: demolish step {demolitions} queued (was level {currentLevel + 1}). Waiting {waitMs}ms.");
+
+            await Task.Delay(waitMs, cancellationToken);
+
+            // Reload the main building page in place — no detour to dorf2.
+            if (IsCurrentUrlForPath(mainBuildingPath))
+            {
+                await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+            }
+            else
+            {
+                await GotoAsync(mainBuildingPath, cancellationToken);
+            }
         }
 
-        var finalLevel = target?.Level ?? 0;
-        if (finalLevel > targetLevel)
-        {
-            return $"Demolition started for slot {target?.SlotId ?? 0}, but current level is still {finalLevel}. Steps started: {steps}.";
-        }
-
-        return $"Demolished slot {targetBuildingSlotOrName} from level {originalLevel} to {finalLevel} in {steps} step(s).";
+        return $"Demolished slot {slotId} from level {originalLevel} to {currentLevel} in {demolitions} step(s).";
     }
 
     public async Task<string> UpgradeBuildingToLevelAsync(int slotId, int targetLevel, CancellationToken cancellationToken = default)
     {
-        Notify("UpgradeBuildingToLevelAsync started");
+        Notify($"UpgradeBuildingToLevelAsync slot={slotId} target={targetLevel} started");
         if (slotId < 19)
         {
             throw new InvalidOperationException($"Building slot {slotId} is outside the building range.");
         }
-
-        if (targetLevel < 0)
+        if (targetLevel < 1)
         {
-            throw new InvalidOperationException("Target level must be 0 or higher.");
+            throw new InvalidOperationException("Target level must be 1 or higher.");
         }
 
         var upgrades = 0;
@@ -128,123 +155,251 @@ public sealed partial class TravianClient
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var status = await ReadVillageStatusAsync(cancellationToken);
-            var building = status.Buildings.FirstOrDefault(item => item.SlotId == slotId);
-            var currentLevel = building?.Level;
-            if (currentLevel is null)
+            // Step 1: ensure dorf2 with fresh data.
+            if (IsCurrentUrlForPath(Paths.Buildings))
             {
-                throw new InvalidOperationException($"Could not read level for building slot {slotId}.");
+                await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
             }
-
-            var maxLevel = await ResolveBuildingMaxLevelAsync(building!, slotId, cancellationToken);
-            if (targetLevel > maxLevel)
+            else
             {
-                throw new InvalidOperationException($"{building!.Name} can only be upgraded to level {maxLevel}. Requested level {targetLevel}.");
+                await GotoAsync(Paths.Buildings, cancellationToken);
             }
+            await PauseForManualStepIfVisibleAsync("Manual verification on dorf2.", cancellationToken);
 
+            // Step 2: read this slot's level.
+            var slots = await ReadBuildingInfosAsync(cancellationToken);
+            if (!slots.TryGetValue(slotId, out var info))
+            {
+                return $"Slot {slotId}: not found on dorf2. Upgrades performed: {upgrades}.";
+            }
+            var currentLevel = info.Level;
             if (currentLevel >= targetLevel)
             {
-                return $"Building slot {slotId} is level {currentLevel}. Target {targetLevel} reached after {upgrades} upgrades.";
+                return $"Slot {slotId}: already at level {currentLevel} (target {targetLevel}). Upgrades performed: {upgrades}.";
             }
+            var nextLevel = currentLevel + 1;
 
-            EnsureBuildingRequirementsMet(status, building!.Gid, building.Name);
-            var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: true);
-            Notify($"Building slot {slotId}: level={currentLevel}, max={maxLevel}, outcome={actionability.Outcome}.");
-            if (actionability.Outcome != UpgradeAttemptOutcome.CanUpgrade)
+            // Step 3: open the slot's build page.
+            await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
+            await PauseForManualStepIfVisibleAsync($"Manual verification on slot {slotId}.", cancellationToken);
+
+            // Step 4: read the upgrade duration so we know how long to wait.
+            var durationSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken) ?? 0;
+
+            // Step 5: click the "Upgrade to level N" button.
+            var clicked = await ClickUpgradeToLevelButtonAsync(nextLevel, cancellationToken);
+            if (!clicked)
             {
-                return $"Building slot {slotId} blocked ({actionability.Outcome}): {actionability.Reason}";
+                var state = await DetectBuildPageStateAsync();
+                if (state == BuildPageState.AtMaxLevel)
+                {
+                    return $"Slot {slotId}: at max level (page reports max). Upgrades performed: {upgrades}.";
+                }
+                if (state == BuildPageState.WorkersBusy)
+                {
+                    Notify($"Slot {slotId}: workers busy, waiting 2s before retry. Upgrades so far: {upgrades}.");
+                    await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+                    continue;
+                }
+                return $"Slot {slotId}: could not find 'Upgrade to level {nextLevel}' button. Upgrades performed: {upgrades}.";
             }
 
             upgrades += 1;
-            var queueFingerprintBefore = BuildQueueFingerprint(status.BuildQueue);
-            var progress = await WaitForBuildingLevelAdvanceAsync(
-                slotId,
-                currentLevel.Value,
-                queueFingerprintBefore,
-                cancellationToken);
-            if (progress.Advanced)
-            {
-                continue;
-            }
-
-            if (progress.QueuedOrInProgress)
-            {
-                return $"Upgrade triggered for building slot {slotId}. No immediate level increase, but queue/in-progress evidence was detected ({progress.Evidence}).";
-            }
-
-            return $"Upgrade triggered for building slot {slotId}, but no immediate level increase and no queue/in-progress evidence detected.";
+            // Step 6: wait for build to finish.
+            var waitMs = ComputePostActionWaitMs(durationSeconds);
+            Notify($"Slot {slotId}: clicked 'Upgrade to level {nextLevel}'. Waiting {waitMs}ms.");
+            await Task.Delay(waitMs, cancellationToken);
         }
+    }
+
+    /// <summary>
+    /// Computes the post-action wait in milliseconds for any server speed.
+    /// We always honour the page-reported duration; the 200ms minimum only kicks in when the
+    /// page reports 0s (typical for 50000x / 1M servers) so the click has time to register.
+    /// No upper cap — slow servers (1x, 3x) are expected to wait the full build duration.
+    /// Use the cancellation token to interrupt long waits via Stop.
+    /// </summary>
+    private static int ComputePostActionWaitMs(int durationSeconds)
+    {
+        if (durationSeconds <= 0)
+        {
+            return 200;
+        }
+
+        // Add a small buffer so we re-read the page just after the build finishes server-side.
+        return durationSeconds * 1000 + 300;
+    }
+
+    private enum BuildPageState { Other, AtMaxLevel, WorkersBusy }
+
+    private async Task<BuildPageState> DetectBuildPageStateAsync()
+    {
+        try
+        {
+            var raw = await _page.EvaluateAsync<string>(
+                """
+                () => {
+                  const text = (document.body.innerText || '').replace(/\s+/g, ' ').toLowerCase();
+                  // WorkersBusy takes precedence — both phrases can appear simultaneously on
+                  // some pages (e.g. resource sidebar may say "max"), so resolve busy first.
+                  if (/all\s+(?:our\s+)?(?:workers|builders)\s+(?:are\s+)?(?:currently\s+)?busy|baumeister\s+sind\s+(?:gerade\s+)?besch[aä]ftigt|construction\s+queue\s+is\s+full/.test(text)) {
+                    return 'WorkersBusy';
+                  }
+                  // Strict max detection: only the explicit "this building has reached its maximum level" message.
+                  if (/reached\s+(?:its|the)\s+maximum\s+level|maximum\s+level\s+has\s+been\s+reached|maximalst[uü]?fe\s+erreicht/.test(text)) {
+                    return 'AtMaxLevel';
+                  }
+                  return 'Other';
+                }
+                """);
+            return raw switch
+            {
+                "AtMaxLevel" => BuildPageState.AtMaxLevel,
+                "WorkersBusy" => BuildPageState.WorkersBusy,
+                _ => BuildPageState.Other,
+            };
+        }
+        catch
+        {
+            return BuildPageState.Other;
+        }
+    }
+
+    private async Task<bool> ClickUpgradeToLevelButtonAsync(int nextLevel, CancellationToken cancellationToken)
+    {
+        var pattern = new Regex($@"upgrade\s+to\s+level\s+{nextLevel}\b", RegexOptions.IgnoreCase);
+        var anyPattern = new Regex(@"upgrade\s+to\s+level", RegexOptions.IgnoreCase);
+        var selectors = new[]
+        {
+            "div.addHoverClick",
+            "div.button-container",
+            "button.green",
+            "button",
+            "a.green",
+            "a",
+        };
+
+        foreach (var selector in selectors)
+        {
+            var locator = _page.Locator(selector).Filter(new LocatorFilterOptions { HasTextRegex = pattern }).First;
+            if (await locator.CountAsync() > 0)
+            {
+                try
+                {
+                    await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
+                    return true;
+                }
+                catch
+                {
+                    // Try next selector.
+                }
+            }
+        }
+
+        // Fallback: any element matching the broader "upgrade to level" pattern.
+        foreach (var selector in selectors)
+        {
+            var locator = _page.Locator(selector).Filter(new LocatorFilterOptions { HasTextRegex = anyPattern }).First;
+            if (await locator.CountAsync() > 0)
+            {
+                try
+                {
+                    await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
+                    return true;
+                }
+                catch
+                {
+                    // Try next selector.
+                }
+            }
+        }
+
+        return false;
     }
 
     public async Task<string> UpgradeBuildingToMaxAsync(int slotId, int maxAttempts = 30, CancellationToken cancellationToken = default)
     {
-        Notify("UpgradeBuildingToMaxAsync started");
+        Notify($"UpgradeBuildingToMaxAsync slot={slotId} started");
         if (slotId < 19)
         {
             throw new InvalidOperationException($"Building slot {slotId} is outside the building range.");
         }
 
+        var safetyCap = Math.Max(1, maxAttempts);
         var upgrades = 0;
-        for (var attempt = 0; attempt < Math.Max(1, maxAttempts); attempt++)
+
+        for (var iteration = 0; iteration < safetyCap; iteration++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var status = await ReadVillageStatusAsync(cancellationToken);
-            var building = status.Buildings.FirstOrDefault(item => item.SlotId == slotId);
-            if (building is not null && building.Level is not null)
+            // Step 1: ensure dorf2 with fresh data.
+            if (IsCurrentUrlForPath(Paths.Buildings))
             {
-                var maxLevel = await ResolveBuildingMaxLevelAsync(building, slotId, cancellationToken);
-                if (building.Level >= maxLevel)
+                await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+            }
+            else
+            {
+                await GotoAsync(Paths.Buildings, cancellationToken);
+            }
+            await PauseForManualStepIfVisibleAsync("Manual verification on dorf2.", cancellationToken);
+
+            // Step 2: read current level + figure out max from catalog.
+            var slots = await ReadBuildingInfosAsync(cancellationToken);
+            if (!slots.TryGetValue(slotId, out var info))
+            {
+                return $"Slot {slotId}: not found on dorf2. Upgrades performed: {upgrades}.";
+            }
+            var currentLevel = info.Level;
+            var gid = ParseGidFromBuildingCode(info.BuildingCode);
+            var maxLevel = gid is int g ? BuildingCatalogService.MaxLevelFor(g) : 20;
+            if (currentLevel >= maxLevel)
+            {
+                return $"Slot {slotId}: already at max level {maxLevel}. Upgrades performed: {upgrades}.";
+            }
+            var nextLevel = currentLevel + 1;
+
+            // Step 3: open the slot's build page.
+            await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
+            await PauseForManualStepIfVisibleAsync($"Manual verification on slot {slotId}.", cancellationToken);
+
+            // Step 4: read upgrade duration so we know how long to wait.
+            var durationSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken) ?? 0;
+
+            // Step 5: click "Upgrade to level N".
+            var clicked = await ClickUpgradeToLevelButtonAsync(nextLevel, cancellationToken);
+            if (!clicked)
+            {
+                var state = await DetectBuildPageStateAsync();
+                if (state == BuildPageState.AtMaxLevel)
                 {
-                    return $"Building slot {slotId} is already at max level {maxLevel}. Upgrades made: {upgrades}.";
+                    return $"Slot {slotId}: at max level (page reports max). Upgrades performed: {upgrades}.";
                 }
-
-                EnsureBuildingRequirementsMet(status, building.Gid, building.Name);
-            }
-
-            var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: true);
-            if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByMaxLevel)
-            {
-                return $"Building slot {slotId} reports max level reached. Upgrades made: {upgrades}.";
-            }
-
-            if (actionability.Outcome != UpgradeAttemptOutcome.CanUpgrade)
-            {
-                return $"Building slot {slotId} blocked ({actionability.Outcome}): {actionability.Reason}. Upgrades made: {upgrades}.";
+                if (state == BuildPageState.WorkersBusy)
+                {
+                    Notify($"Slot {slotId}: workers busy, waiting 2s before retry. Upgrades so far: {upgrades}.");
+                    await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+                    continue;
+                }
+                return $"Slot {slotId}: could not find 'Upgrade to level {nextLevel}' button. Upgrades performed: {upgrades}.";
             }
 
             upgrades += 1;
-            if (building?.Level is int knownLevel)
-            {
-                var queueFingerprintBefore = BuildQueueFingerprint(status.BuildQueue);
-                var progress = await WaitForBuildingLevelAdvanceAsync(
-                    slotId,
-                    knownLevel,
-                    queueFingerprintBefore,
-                    cancellationToken);
-                if (!progress.Advanced)
-                {
-                    if (progress.QueuedOrInProgress)
-                    {
-                        return $"Upgrade triggered for building slot {slotId}, no immediate level increase, but queue/in-progress evidence was detected ({progress.Evidence}). Upgrades made: {upgrades}.";
-                    }
-
-                    return $"Upgrade triggered for building slot {slotId}, but no immediate level increase and no queue/in-progress evidence detected. Upgrades made: {upgrades}.";
-                }
-            }
+            // Step 6: wait for build to finish.
+            var waitMs = ComputePostActionWaitMs(durationSeconds);
+            Notify($"Slot {slotId}: clicked 'Upgrade to level {nextLevel}'. Waiting {waitMs}ms.");
+            await Task.Delay(waitMs, cancellationToken);
         }
 
-        return $"Building slot {slotId} reached max attempt limit after {upgrades} upgrades.";
+        return $"Slot {slotId}: hit safety cap of {safetyCap} iterations. Upgrades performed: {upgrades}.";
     }
 
     public async Task<string> ConstructBuildingAsync(int slotId, int gid, string name, CancellationToken cancellationToken = default)
     {
-        Notify("ConstructBuildingAsync started");
+        Notify($"ConstructBuildingAsync slot={slotId} gid={gid} started");
         if (slotId < 19)
         {
             throw new InvalidOperationException($"Building slot {slotId} is outside the building range.");
         }
-
         if (gid <= 0)
         {
             throw new InvalidOperationException("Building gid must be positive.");
@@ -252,78 +407,329 @@ public sealed partial class TravianClient
 
         var buildingName = string.IsNullOrWhiteSpace(name) ? $"gid {gid}" : name.Trim();
 
-        var status = await ReadVillageStatusAsync(cancellationToken);
-        EnsureBuildingCanBeConstructed(status, gid, buildingName);
-
-        await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the building slot.", cancellationToken);
-        await EnsureLoggedInAsync();
-        await EnsureExpectedBuildSlotPageAsync(slotId, "construct building");
-        await ApplyActionDelayAsync(cancellationToken);
-        await EnsureServerAllowsConstructionAsync(slotId, gid, buildingName, cancellationToken);
-
-        bool clicked;
-        try
+        // Step 1: open the slot's construction page on the right category tab so the building's
+        // wrapper actually exists in the DOM. Walls (slot 40) ignore category — only one option.
+        var url = Paths.BuildBySlot(slotId);
+        var categoryIndex = BuildingCatalogService.CategoryIndexFor(gid);
+        if (categoryIndex.HasValue && slotId != 40)
         {
-            clicked = await RetryTruthyAsync(
-                "click construct building",
-                async () => await _page.EvaluateAsync<bool>(
-                    """
-                    ({ gid }) => {
-                      const gidText = String(gid);
-                      const candidates = Array.from(document.querySelectorAll('a, button, input[type="submit"]'));
-                      for (const element of candidates) {
-                        const href = element.getAttribute('href') || '';
-                        const value = element.getAttribute('value') || '';
-                        const title = element.getAttribute('title') || '';
-                        const text = `${element.textContent || ''} ${value} ${title}`.toLowerCase();
-                        const form = element.closest('form');
-                        const formAction = form ? (form.getAttribute('action') || '') : '';
-                        const classes = (element.className || '').toString().toLowerCase();
-                        const disabled = element.disabled || classes.includes('disabled') || element.getAttribute('aria-disabled') === 'true';
-                        const isGold = classes.includes('gold') || text.includes('npc') || text.includes('instant');
-                        const gidMatches =
-                          href.includes(`gid=${gidText}`)
-                          || href.includes(`gid%3D${gidText}`)
-                          || classes.includes(`gid${gidText}`)
-                          || formAction.includes(`gid=${gidText}`)
-                          || formAction.includes(`gid%3D${gidText}`)
-                          || (element.getAttribute('data-gid') || '') === gidText;
-                        const inBuildContainer = !!element.closest('.contract, .buildingWrapper, .build_details, .contractLink, .upgradeBuilding, #contract');
-                        const looksBuildable =
-                          classes.includes('green')
-                          || classes.includes('build')
-                          || classes.includes('contract')
-                          || inBuildContainer;
-                        if (!disabled && !isGold && gidMatches && looksBuildable) {
-                          element.click();
-                          return true;
-                        }
-                      }
-                      return false;
-                    }
-                    """,
-                    new { gid }));
+            var separator = url.Contains('?') ? '&' : '?';
+            url = $"{url}{separator}category={categoryIndex.Value}";
         }
-        catch (Exception ex)
-        {
-            await CaptureFailureArtifactsAsync($"construct-slot-{slotId}-gid-{gid}", cancellationToken);
-            throw new InvalidOperationException($"Construct building failed for slot {slotId}, gid {gid}: {ex.Message}", ex);
-        }
+        await GotoAsync(url, cancellationToken);
+        await PauseForManualStepIfVisibleAsync($"Manual verification on slot {slotId} construct page.", cancellationToken);
 
+        // Step 2: read build duration.
+        var durationSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken) ?? 0;
+
+        // Step 3: click the "Construct building" button (scoped to this gid when possible).
+        var clicked = await ClickConstructBuildingButtonAsync(gid, cancellationToken);
         if (!clicked)
         {
             await CaptureFailureArtifactsAsync($"construct-slot-{slotId}-gid-{gid}-no-click", cancellationToken);
-            return $"{buildingName} could not be built in slot {slotId}. Requirements, resources, or queue may block it.";
+            return $"Slot {slotId}: could not find 'Construct building' button for gid {gid}.";
         }
 
-        await RetryAsync("wait for page load", async () =>
+        // Step 4: wait for build to finish.
+        var waitMs = ComputePostActionWaitMs(durationSeconds);
+        Notify($"Slot {slotId}: clicked 'Construct building' for gid {gid}. Waiting {waitMs}ms.");
+        await Task.Delay(waitMs, cancellationToken);
+
+        return $"Constructed {buildingName} in slot {slotId}.";
+    }
+
+    private async Task<bool> ClickConstructBuildingButtonAsync(int gid, CancellationToken cancellationToken)
+    {
+        try
         {
             await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
-        });
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared after starting construction.", cancellationToken);
-        await ApplyActionDelayAsync(cancellationToken);
-        return $"Started construction of {buildingName} in slot {slotId}.";
+        }
+        catch
+        {
+            // Continue regardless; we'll still look for the button below.
+        }
+
+        try
+        {
+            await _page.WaitForFunctionAsync(
+                "() => /construct\\s+building|build\\s+building|bauen|bygg|costruisci|build/i.test(document.body.innerText || '')",
+                null,
+                new PageWaitForFunctionOptions { Timeout = 10000 });
+        }
+        catch
+        {
+            // Continue anyway.
+        }
+
+        var rawJson = await _page.EvaluateAsync<string>(
+            """
+            ({ gid }) => {
+              const gidText = String(gid);
+              const candidates = Array.from(document.querySelectorAll(
+                'button, input[type="submit"], input[type="button"], a, div.addHoverClick, div.button-container'
+              ));
+              const seen = [];
+              const matches = [];
+              // Match `?a=N`, `&a=N`, `?gid=N`, `&gid=N`, plus Cyrillic 'а' (U+0430) used by some private servers.
+              const otherGidRe = /[?&](?:[aа]|gid)=(\d+)/gi;
+              for (const el of candidates) {
+                const rawText = (el.textContent || '').replace(/\s+/g, ' ').trim();
+                const text = rawText.toLowerCase();
+                const classes = (el.className || '').toString().toLowerCase();
+                if (rawText) seen.push({ text: rawText.slice(0, 60), classes: classes.slice(0, 60) });
+                if (!/(construct|build|bauen|bygg)/.test(text)) continue;
+                const disabled = el.disabled || classes.includes('disabled') || el.getAttribute('aria-disabled') === 'true';
+                if (disabled) continue;
+                if (text.includes('npc') || text.includes('instant') || classes.includes('gold')) continue;
+                const isUpgrade = /upgrade\s+to\s+level/i.test(text);
+                if (isUpgrade) continue;
+                // Travian wraps each constructable building in `#contract_building{gid}` (private servers
+                // sometimes also use `#building{gid}` or [data-gid]). Search broadly.
+                const wrapper = el.closest(
+                  `#contract_building${gidText}, #building${gidText}, [id$="_building${gidText}"], [data-gid="${gidText}"], .gid${gidText}`
+                );
+                const wrapperMatchesGid = wrapper !== null;
+                const onclick = (el.getAttribute('onclick') || '');
+                const href = (el.getAttribute('href') || '');
+                const value = (el.getAttribute('value') || '');
+                const combined = `${onclick} ${href} ${value}`.toLowerCase();
+                const onclickMentionsGid =
+                  combined.includes(`gid=${gidText}`)
+                  || combined.includes(`gid%3d${gidText}`)
+                  || combined.includes(`a=${gidText}`)
+                  || combined.includes(`а=${gidText}`)         // Cyrillic 'а' literal
+                  || combined.includes(`%d0%b0=${gidText}`);        // Cyrillic 'а' URL-encoded
+                // If the click URL or wrapper references a DIFFERENT gid, skip — never click a foreign building.
+                otherGidRe.lastIndex = 0;
+                let mentionsForeignGid = false;
+                let m;
+                while ((m = otherGidRe.exec(combined)) !== null) {
+                  if (m[1] && m[1] !== gidText) { mentionsForeignGid = true; break; }
+                }
+                if (mentionsForeignGid && !onclickMentionsGid && !wrapperMatchesGid) continue;
+                // Skip if button lives inside a wrapper that explicitly belongs to a different building.
+                const otherWrapper = el.closest('[id^="contract_building"], [id^="building"]');
+                if (otherWrapper && wrapper && otherWrapper !== wrapper) continue;
+                if (otherWrapper && !wrapper) {
+                  const otherId = (otherWrapper.id || '').toLowerCase();
+                  if (otherId !== `contract_building${gidText}` && otherId !== `building${gidText}`) continue;
+                }
+                const isConstruct = /construct\s+building/i.test(rawText) || /build\s+building/i.test(rawText);
+                const rank = (wrapperMatchesGid ? 10 : 0) + (onclickMentionsGid ? 5 : 0) + (isConstruct ? 3 : 0) + 1;
+                matches.push({ index: candidates.indexOf(el), rank, text: rawText.slice(0, 60), gidContext: { wrapper: wrapperMatchesGid, onclick: onclickMentionsGid } });
+              }
+              matches.sort((a, b) => b.rank - a.rank);
+              let clicked = false;
+              if (matches.length > 0) {
+                candidates[matches[0].index].click();
+                clicked = true;
+              }
+              return JSON.stringify({ clicked, matches: matches.slice(0, 5), seen: seen.slice(0, 20) });
+            }
+            """,
+            new { gid });
+
+        Notify($"Construct candidate scan: {rawJson}");
+        try
+        {
+            using var doc = JsonDocument.Parse(rawJson ?? "{}");
+            return doc.RootElement.TryGetProperty("clicked", out var clickedProp)
+                && clickedProp.GetBoolean();
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public async Task<string> UpgradeAllTroopsAtSmithyAsync(CancellationToken cancellationToken = default)
+    {
+        Notify("UpgradeAllTroopsAtSmithyAsync started");
+
+        // Step 1: navigate to dorf2 and find the Smithy slot.
+        if (IsCurrentUrlForPath(Paths.Buildings))
+        {
+            await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+        }
+        else
+        {
+            await GotoAsync(Paths.Buildings, cancellationToken);
+        }
+
+        var slots = await ReadBuildingInfosAsync(cancellationToken);
+        var smithyEntry = slots.FirstOrDefault(kvp =>
+            ParseGidFromBuildingCode(kvp.Value.BuildingCode) == 12 && kvp.Value.Level > 0);
+        if (smithyEntry.Value is null)
+        {
+            return "Smithy not found in this village. Build a Smithy first.";
+        }
+        var smithySlotId = smithyEntry.Key;
+        Notify($"Smithy found at slot {smithySlotId} (level {smithyEntry.Value.Level}).");
+
+        const int safetyCap = 60;
+        var totalUpgradeClicks = 0;
+        var consecutiveEmptyReloads = 0;
+        var consecutiveZeroDurationReloads = 0;
+
+        for (var iter = 0; iter < safetyCap; iter++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // Always start each iteration on the smithy page.
+            var smithyPath = Paths.BuildBySlot(smithySlotId);
+            if (!IsCurrentUrlForPath(smithyPath))
+            {
+                await GotoAsync(smithyPath, cancellationToken);
+            }
+            try
+            {
+                await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+            }
+            catch
+            {
+                // Continue.
+            }
+            await Task.Delay(400, cancellationToken);
+
+            // Check for "Improve the blacksmith" — smithy itself needs upgrade before more troops can be improved.
+            var needsSmithyUpgrade = await _page.EvaluateAsync<bool>(
+                "() => /improve\\s+the\\s+(blacksmith|smithy)/i.test(document.body.innerText || '')");
+            if (needsSmithyUpgrade)
+            {
+                Notify($"Smithy capacity exhausted (\"Improve the blacksmith\" detected). Upgrading slot {smithySlotId} to max.");
+                var upgradeResult = await UpgradeBuildingToMaxAsync(smithySlotId, cancellationToken: cancellationToken);
+                Notify($"Smithy upgrade result: {upgradeResult}");
+                consecutiveEmptyReloads = 0;
+                consecutiveZeroDurationReloads = 0;
+                continue;
+            }
+
+            // Try to click an Upgrade button for any troop.
+            var clickResult = await ClickFirstSmithyUpgradeButtonAsync(cancellationToken);
+            if (clickResult.Clicked)
+            {
+                totalUpgradeClicks += 1;
+                consecutiveEmptyReloads = 0;
+                consecutiveZeroDurationReloads = 0;
+                Notify($"Smithy: clicked upgrade for '{clickResult.Label}'. Total clicks: {totalUpgradeClicks}.");
+                // Brief pause then reload to refresh button state.
+                await Task.Delay(500, cancellationToken);
+                continue;
+            }
+
+            // No clickable upgrade button. Inspect research-in-progress duration.
+            var durationSeconds = await ReadSmithyResearchDurationSecondsAsync(cancellationToken);
+            if (durationSeconds is int dur)
+            {
+                if (dur <= 0)
+                {
+                    consecutiveZeroDurationReloads += 1;
+                    if (consecutiveZeroDurationReloads >= 3)
+                    {
+                        return $"Smithy: research timer stuck at 00:00:00 after 3 reloads. Manual review needed. Upgrades clicked: {totalUpgradeClicks}.";
+                    }
+                    Notify($"Smithy: timer at 00:00:00, reloading (attempt {consecutiveZeroDurationReloads}/3).");
+                    await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+                    continue;
+                }
+                consecutiveZeroDurationReloads = 0;
+                var waitSec = Math.Clamp(dur + 1, 2, 600);
+                Notify($"Smithy: research in progress, waiting {waitSec}s.");
+                await Task.Delay(TimeSpan.FromSeconds(waitSec), cancellationToken);
+                await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+                continue;
+            }
+
+            // No buttons, no timer. Reload up to 3 times before declaring done.
+            consecutiveEmptyReloads += 1;
+            if (consecutiveEmptyReloads >= 3)
+            {
+                Notify($"Smithy: no upgrade buttons after 3 reloads. All troops appear to be at max. Total clicks: {totalUpgradeClicks}.");
+                await GotoAsync(Paths.Buildings, cancellationToken);
+                return $"Smithy: upgraded {totalUpgradeClicks} troop(s). All done.";
+            }
+            Notify($"Smithy: no buttons visible, reload {consecutiveEmptyReloads}/3.");
+            await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+        }
+
+        return $"Smithy: hit safety cap of {safetyCap} iterations after {totalUpgradeClicks} click(s).";
+    }
+
+    private async Task<(bool Clicked, string Label)> ClickFirstSmithyUpgradeButtonAsync(CancellationToken cancellationToken)
+    {
+        var rawJson = await _page.EvaluateAsync<string>(
+            """
+            () => {
+              const candidates = Array.from(document.querySelectorAll(
+                'button, input[type="submit"], input[type="button"], a, div.addHoverClick, div.button-container'
+              ));
+              for (const el of candidates) {
+                const rawText = (el.textContent || '').replace(/\s+/g, ' ').trim();
+                const text = rawText.toLowerCase();
+                if (!text) continue;
+                if (!/^upgrade\b/.test(text)) continue;
+                if (/upgrade\s+to\s+level/i.test(text)) continue; // skip building-level upgrade buttons
+                if (/improve/i.test(text)) continue;
+                const classes = (el.className || '').toString().toLowerCase();
+                if (el.disabled || classes.includes('disabled') || el.getAttribute('aria-disabled') === 'true') continue;
+                if (classes.includes('gold') || /npc|instant/i.test(text)) continue;
+                // Prefer a unit-row container if present.
+                const row = el.closest('.research, .unit, .researchUnit, tr, li, .contract');
+                let label = rawText;
+                if (row) {
+                  const heading = row.querySelector('.title, h4, h3, .unitName, .name, td.desc');
+                  if (heading && (heading.textContent || '').trim()) {
+                    label = heading.textContent.replace(/\s+/g, ' ').trim();
+                  }
+                }
+                el.click();
+                return JSON.stringify({ clicked: true, label: label.slice(0, 80) });
+              }
+              return JSON.stringify({ clicked: false, label: '' });
+            }
+            """);
+
+        try
+        {
+            using var doc = JsonDocument.Parse(rawJson ?? "{}");
+            var clicked = doc.RootElement.TryGetProperty("clicked", out var c) && c.GetBoolean();
+            var label = doc.RootElement.TryGetProperty("label", out var l) ? l.GetString() ?? string.Empty : string.Empty;
+            return (clicked, label);
+        }
+        catch
+        {
+            return (false, string.Empty);
+        }
+    }
+
+    private async Task<int?> ReadSmithyResearchDurationSecondsAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _page.EvaluateAsync<int?>(
+                """
+                () => {
+                  // Look for HH:MM:SS or MM:SS countdown timers, especially under a Duration label.
+                  const all = Array.from(document.querySelectorAll('.timer, .duration, .researchDuration, span, td'));
+                  let best = null;
+                  for (const el of all) {
+                    const text = (el.textContent || '').trim();
+                    const m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(text);
+                    if (!m) continue;
+                    const hh = m[3] !== undefined ? parseInt(m[1], 10) : 0;
+                    const mm = m[3] !== undefined ? parseInt(m[2], 10) : parseInt(m[1], 10);
+                    const ss = m[3] !== undefined ? parseInt(m[3], 10) : parseInt(m[2], 10);
+                    const total = hh * 3600 + mm * 60 + ss;
+                    if (best === null || total > best) best = total;
+                  }
+                  return best;
+                }
+                """);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     public async Task<IReadOnlyList<ServerBuildChoice>> ReadAvailableBuildingsForSlotAsync(int slotId, CancellationToken cancellationToken = default)
@@ -490,8 +896,14 @@ public sealed partial class TravianClient
                 }
 
                 var buildingCode = TryExtractBuildingCode(classes);
-                var buildingName = ResolveBuildingName(buildingCode);
                 var level = await TryReadBuildingLevelAsync(slot);
+
+                if (string.IsNullOrEmpty(buildingCode) && level > 0 && slotId.Value == 39)
+                {
+                    buildingCode = "g16";
+                }
+
+                var buildingName = ResolveBuildingName(buildingCode);
 
                 buildings[slotId.Value] = new BuildingInfo
                 {
@@ -884,7 +1296,7 @@ public sealed partial class TravianClient
                         return (green ? 3 : 0) + (container ? 2 : 0) + (upgradeText ? 1 : 0);
                       };
 
-                      const candidates = Array.from(document.querySelectorAll('button, input[type="submit"], input[type="button"], a'));
+                      const candidates = Array.from(document.querySelectorAll('button, input[type="submit"], input[type="button"], a, div.addHoverClick, div.button-container'));
                       const picked = [];
                       const clickOrder = [];
 
@@ -903,9 +1315,12 @@ public sealed partial class TravianClient
                           || classes.includes('upgrade')
                           || classes.includes('build')
                           || classes.includes('contract')
+                          || classes.includes('addhoverclick')
+                          || classes.includes('button-container')
                           || href.includes('build.php')
                           || formAction.includes('build.php')
-                          || inUpgradeContainer;
+                          || inUpgradeContainer
+                          || /upgrade\s+to\s+level/i.test(text);
 
                         if (!hasUpgradeSignals || isGold) {
                           continue;
@@ -1363,8 +1778,20 @@ public sealed partial class TravianClient
 
     private static readonly Dictionary<string, string> TravianBuildings = new(StringComparer.OrdinalIgnoreCase)
     {
+        ["g1"] = "Woodcutter",
+        ["g2"] = "Clay Pit",
+        ["g3"] = "Iron Mine",
+        ["g4"] = "Cropland",
+        ["g5"] = "Sawmill",
+        ["g6"] = "Brickyard",
+        ["g7"] = "Iron Foundry",
+        ["g8"] = "Grain Mill",
+        ["g9"] = "Bakery",
         ["g10"] = "Warehouse",
         ["g11"] = "Granary",
+        ["g12"] = "Smithy",
+        ["g13"] = "Armoury",
+        ["g14"] = "Tournament Square",
         ["g15"] = "Main Building",
         ["g16"] = "Rally Point",
         ["g17"] = "Marketplace",

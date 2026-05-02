@@ -107,7 +107,8 @@ public sealed partial class TravianClient
         if (loggedInFromCurrentPage)
         {
             Notify("Login successful using current page.");
-            await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
+            // Behövs inte, göra senare.
+            //await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
             return;
         }
 
@@ -116,7 +117,8 @@ public sealed partial class TravianClient
         if (await IsLoggedInAsync())
         {
             Notify("Login successful after navigating to login page.");
-            await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
+            // Behövs inte, göra senare.
+            //await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
             return;
         }
 
@@ -133,7 +135,8 @@ public sealed partial class TravianClient
                 if (loggedInAfterAutoSolve)
                 {
                     Notify("Login successful after captcha auto-solve.");
-                    await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
+                    // Behövs inte, göra senare.
+                    //await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
                     return;
                 }
             }
@@ -161,7 +164,8 @@ public sealed partial class TravianClient
             throw new InvalidOperationException("Login did not complete successfully.");
         }
         Notify("Login successful using other method...");
-        await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
+        // Behövs inte, göra senare.
+        //await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
     }
 
     private async Task<bool> TryLoginUsingCurrentPageAsync(CancellationToken cancellationToken)
@@ -3525,7 +3529,7 @@ public sealed partial class TravianClient
 
         await EnsureExpectedBuildSlotPageAsync(slotId, "click detected upgrade candidate");
 
-        var locator = _page.Locator("button, input[type='submit'], input[type='button'], a").Nth(candidateIndex.Value);
+        var locator = _page.Locator("button, input[type='submit'], input[type='button'], a, div.addHoverClick, div.button-container").Nth(candidateIndex.Value);
         await RetryAsync($"click detected upgrade candidate index {candidateIndex.Value} for slot {slotId}", async () =>
         {
             await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });

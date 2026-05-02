@@ -13,12 +13,14 @@ public partial class BuildingSlotActionsWindow : Window
 
         TitleTextBlock.Text = $"{slot.SlotLabel} actions";
         SubtitleTextBlock.Text = slot.IsOccupied
-            ? $"{slot.Name} level {slot.LevelLabel}"
+            ? slot.IsMaxLevel
+                ? $"{slot.Name} level {slot.LevelLabel} (max)"
+                : $"{slot.Name} level {slot.LevelLabel}"
             : "Empty slot";
 
         BuildBuildingButton.IsEnabled = !slot.IsOccupied;
-        UpgradeButton.IsEnabled = slot.IsOccupied;
-        UpgradeToMaxButton.IsEnabled = slot.IsOccupied;
+        UpgradeButton.IsEnabled = slot.IsOccupied && !slot.IsMaxLevel;
+        UpgradeToMaxButton.IsEnabled = slot.IsOccupied && !slot.IsMaxLevel;
         DemolishButton.IsEnabled = slot.IsOccupied;
     }
 

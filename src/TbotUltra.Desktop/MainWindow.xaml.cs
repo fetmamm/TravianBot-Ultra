@@ -90,6 +90,7 @@ public partial class MainWindow : Window
     private readonly Dictionary<int, DateTimeOffset> _buildingClickCooldownBySlot = new();
     private readonly Dictionary<int, (int Target, DateTimeOffset At)> _buildingLastQueuedTargetBySlot = new();
     private readonly Dictionary<int, (string Name, DateTimeOffset At)> _buildingLastQueuedConstructBySlot = new();
+    private readonly HashSet<int> _buildingDemolishingSlots = new();
     private readonly HashSet<string> _analysisPromptDismissed = new(StringComparer.OrdinalIgnoreCase);
     private static readonly IReadOnlyDictionary<int, (double Left, double Top)> BuildingSlotLayoutById = CreateBuildingSlotLayout();
 
@@ -1616,6 +1617,10 @@ public partial class MainWindow : Window
 
             RequestQueueUiRefresh(selectId: item?.Id);
             TriggerQueueAutoRunFromEnqueue();
+
+            // Ensure the state badge flips to "function running" (blue) the moment a task is
+            // queued so the UI reflects the activity even before the auto-runner has scheduled it.
+            SetActiveFunctionExecution(string.IsNullOrWhiteSpace(description) ? taskName : description);
         }
         catch (Exception ex)
         {
@@ -1740,6 +1745,7 @@ public partial class MainWindow : Window
             RefreshNatarsProfileAnalyzedFromCache();
             await RefreshInboxIndicatorsAsync(logErrors: true, force: true);
             await LoadCurrentVillageViewsAfterLoginAsync(options, operationToken);
+            await RefreshAdventureCountAfterLoginAsync(options, operationToken);
             CompleteOperation(operationId, operationSw, "Login completed.");
         }
         catch (OperationCanceledException)
@@ -2211,10 +2217,10 @@ public partial class MainWindow : Window
         {
             if (_autoQueueRunning || _uiBusy)
             {
+                // Graceful pause: don't pick up new queue items. Let the currently running
+                // task finish; the runner will exit at its next iteration check.
                 _queueStopRequested = true;
-                _operationCts?.Cancel();
-                _autoQueueRunCts?.Cancel();
-                AppendLog("Pause requested. Function cancellation sent.");
+                AppendLog("Pause requested. Letting current task finish before stopping.");
                 return;
             }
 
@@ -2228,24 +2234,22 @@ public partial class MainWindow : Window
         if (_autoQueueRunning)
         {
             _queueStopRequested = true;
-            _autoQueueRunCts?.Cancel();
-            _operationCts?.Cancel();
-            AppendLog("Pause requested. Queue cancellation sent.");
+            AppendLog("Pause requested. Letting current task finish before stopping.");
             return;
         }
 
         if (_uiBusy && (_loopTask is null || _loopTask.IsCompleted))
         {
-            _operationCts?.Cancel();
-            AppendLog("Pause requested. Function cancellation sent.");
+            _queueStopRequested = true;
+            AppendLog("Pause requested. Letting current function finish before stopping.");
             return;
         }
 
         if (_loopTask is not null && !_loopTask.IsCompleted)
         {
+            // Pause the loop gracefully too — flag stop, let current iteration finish.
             _loopStopRequested = true;
-            _loopCts?.Cancel();
-            AppendLog("Pause requested. Loop cancellation sent.");
+            AppendLog("Pause requested. Loop will stop after the current iteration.");
             return;
         }
 
@@ -2395,6 +2399,7 @@ public partial class MainWindow : Window
 
     private void StopBotButton_Click(object sender, RoutedEventArgs e)
     {
+        // Hard stop: abort whatever is running right now (including waits) and clear state.
         _queueStopRequested = true;
         _operationCts?.Cancel();
         _autoQueueRunCts?.Cancel();
@@ -2404,8 +2409,27 @@ public partial class MainWindow : Window
             _loopCts?.Cancel();
         }
 
+        EndInlineWait();
         ClearPendingResourceLevelsFromUi();
-        AppendLog("Stop requested. Cancellation sent to running actions.");
+        _buildingDemolishingSlots.Clear();
+        _buildingLastQueuedTargetBySlot.Clear();
+        _buildingLastQueuedConstructBySlot.Clear();
+        _buildingClickCooldownBySlot.Clear();
+
+        // Drop every pending/deferred queue item so the next Start doesn't resume them.
+        try
+        {
+            _botService.ClearQueue();
+            RequestQueueUiRefresh();
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Could not clear queue on stop: {ex.Message}");
+        }
+
+        SetActiveFunctionExecution(null);
+        UpdateExecutionStateIndicator();
+        AppendLog("Stop requested. Running actions, waits, and queue cleared.");
     }
 
     private void ContinuousRunToggleButton_Unchecked(object sender, RoutedEventArgs e)
@@ -2571,6 +2595,7 @@ public partial class MainWindow : Window
             BuildingsNavButton,
             HeroNavButton,
             FarmingNavButton,
+            TroopsNavButton,
             QueueNavButton,
             LogsNavButton,
             InboxNavButton,
@@ -3169,8 +3194,50 @@ public partial class MainWindow : Window
 
     private void LoadBuildingsButton_Click(object sender, RoutedEventArgs e)
     {
+        // Clear any stale pending/queued state so the upcoming snapshot is the source of truth.
+        _buildingLastQueuedTargetBySlot.Clear();
+        _buildingLastQueuedConstructBySlot.Clear();
+        _buildingClickCooldownBySlot.Clear();
+        _buildingDemolishingSlots.Clear();
+
         EnqueueQuickTask("load_buildings_snapshot", "Load buildings snapshot");
         BuildingsInfoTextBlock.Text = "Queued buildings load.";
+    }
+
+    private void UpgradeTroopsButton_Click(object sender, RoutedEventArgs e)
+    {
+        EnqueueQuickTask("upgrade_troops_at_smithy", "Upgrade all troops at Smithy");
+        TroopsInfoTextBlock.Text = "Queued: upgrade all troops at Smithy.";
+        AppendLog("Queued upgrade_troops_at_smithy task.");
+    }
+
+    private void UpgradeAllBuildingsToMaxButton_Click(object sender, RoutedEventArgs e)
+    {
+        // Always refresh snapshot first so we work from current levels.
+        _buildingLastQueuedTargetBySlot.Clear();
+        _buildingLastQueuedConstructBySlot.Clear();
+        _buildingClickCooldownBySlot.Clear();
+        EnqueueQuickTask("load_buildings_snapshot", "Load buildings snapshot");
+
+        // Queue upgrade-to-max for every building slot 19-40. Each task self-validates and skips
+        // empty / already-max slots, so we don't need a perfectly fresh snapshot here — the load
+        // task above will refresh the UI before/while these run.
+        var queued = 0;
+        foreach (var slotId in Enumerable.Range(19, 22))
+        {
+            var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                [BotOptionPayloadKeys.BuildingUpgradeSlotId] = slotId.ToString(),
+            };
+            EnqueueQuickTask(
+                "upgrade_building_to_max",
+                $"Upgrade slot {slotId} to max",
+                payload);
+            queued++;
+        }
+
+        BuildingsInfoTextBlock.Text = $"Queued load + upgrade-to-max for {queued} slot(s).";
+        AppendLog($"Upgrade-all-to-max: queued load_buildings_snapshot + {queued} upgrade_building_to_max task(s).");
     }
 
     private void BuildingCategoryComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -3286,7 +3353,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var options = GetConstructableOptionsForSlot(slotId);
+        var options = GetClassifiedConstructOptionsForSlot(slotId);
         if (options.Count == 0)
         {
             BuildingsInfoTextBlock.Text = $"No constructable buildings available for slot {slotId} right now.";
@@ -3303,7 +3370,38 @@ public partial class MainWindow : Window
             return;
         }
 
-        _ = TryQueueConstructBuilding(slotId, choiceWindow.SelectedOption);
+        var selected = choiceWindow.SelectedOption;
+        var targetLevel = choiceWindow.SelectedTargetLevel;
+        if (!TryQueueConstructBuilding(slotId, selected))
+        {
+            return;
+        }
+
+        if (targetLevel == 0)
+        {
+            // Slot is still empty at this moment (construct hasn't run yet), so we queue
+            // upgrade-to-max directly instead of going through TryQueueBuildingUpgradeToMax
+            // which gates on IsOccupied.
+            var maxPayload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                [BotOptionPayloadKeys.BuildingUpgradeSlotId] = slotId.ToString(),
+            };
+            EnqueueQuickTask("upgrade_building_to_max", $"Upgrade slot {slotId} to max", maxPayload);
+            SetPendingBuildingUpgrade(slotId, selected.MaxLevel);
+            BuildingsInfoTextBlock.Text = $"Queued construct + upgrade to max for {selected.Name} in slot {slotId}.";
+        }
+        else if (targetLevel > 1)
+        {
+            var clamped = Math.Clamp(targetLevel, 1, selected.MaxLevel);
+            var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                [BotOptionPayloadKeys.BuildingUpgradeSlotId] = slotId.ToString(),
+                [BotOptionPayloadKeys.BuildingUpgradeTargetLevel] = clamped.ToString(),
+            };
+            EnqueueQuickTask("upgrade_building_to_level", $"Upgrade slot {slotId} to level {clamped}", payload);
+            SetPendingBuildingUpgrade(slotId, clamped);
+            BuildingsInfoTextBlock.Text = $"Queued construct + upgrade to level {clamped} for {selected.Name} in slot {slotId}.";
+        }
     }
 
     private IReadOnlyList<BuildingCatalogOption> GetConstructableOptionsForSlot(int slotId)
@@ -3317,6 +3415,183 @@ public partial class MainWindow : Window
             .Where(option => CanQueueConstructBuilding(slotId, option, out _))
             .OrderBy(option => option.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    private static readonly HashSet<int> WallGids = [31, 32, 33, 42, 43];
+    private static readonly HashSet<int> DuplicateAllowedGids = [10, 11, 23, 38, 39];
+
+    private static bool IsBuildingMutationTask(string taskName) =>
+        string.Equals(taskName, "load_buildings_snapshot", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "construct_building", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "demolish_building_to_level", StringComparison.OrdinalIgnoreCase);
+
+    private static string NormalizeBuildingName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = name.Trim().ToLowerInvariant();
+        return trimmed.Replace("'", string.Empty).Replace("’", string.Empty);
+    }
+
+    private IReadOnlyList<BuildingCatalogOption> GetClassifiedConstructOptionsForSlot(int slotId)
+    {
+        if (_lastBuildingStatus is null)
+        {
+            return [];
+        }
+
+        var status = _lastBuildingStatus;
+        var fullCatalog = BuildingCatalogService.GetFullCatalog(status.Tribe);
+        var occupiedBuildings = status.Buildings
+            .Where(b => (b.Level ?? 0) > 0)
+            .ToList();
+        var existingGids = occupiedBuildings
+            .Where(b => b.Gid is not null)
+            .Select(b => b.Gid!.Value)
+            .ToHashSet();
+        var existingNames = occupiedBuildings
+            .Select(b => NormalizeBuildingName(b.Name))
+            .Where(n => !string.IsNullOrEmpty(n))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var wallNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "city wall", "earth wall", "palisade", "stone wall", "makeshift wall",
+        };
+        var anyWallExists = existingGids.Any(g => WallGids.Contains(g))
+            || existingNames.Any(n => wallNames.Contains(n));
+        var result = new List<BuildingCatalogOption>(fullCatalog.Count);
+
+        foreach (var entry in fullCatalog)
+        {
+            var maxLevel = BuildingCatalogService.MaxLevelFor(entry.Gid);
+            var option = new BuildingCatalogOption
+            {
+                Gid = entry.Gid,
+                Name = entry.Name,
+                Category = entry.Category,
+                IsSpecial = entry.IsSpecial,
+                Tribe = entry.RequiredTribe,
+                MaxLevel = maxLevel,
+                RequirementEntries = entry.Requirements,
+                Requirements = entry.Requirements.Count == 0
+                    ? "-"
+                    : string.Join(", ", entry.Requirements.Select(req => $"{req.Name} {req.Level}+")),
+            };
+
+            if (entry.IsSpecial && !entry.MatchesPlayerTribe)
+            {
+                option.Availability = BuildingConstructAvailability.Unavailable;
+                option.UnavailableReason = string.IsNullOrEmpty(entry.RequiredTribe)
+                    ? "Wrong tribe"
+                    : $"Only available for {entry.RequiredTribe}";
+                result.Add(option);
+                continue;
+            }
+
+            // World Wonder, Great Warehouse, Great Granary require building plans — not yet supported.
+            if (entry.Gid is 38 or 39 or 40)
+            {
+                option.Availability = BuildingConstructAvailability.Unavailable;
+                option.UnavailableReason = entry.Gid == 40
+                    ? "World Wonder requires building plans"
+                    : $"{entry.Name} requires building plans";
+                result.Add(option);
+                continue;
+            }
+
+            // Great Barracks (29) and Great Stable (30) cannot be built in the capital village.
+            if ((entry.Gid is 29 or 30) && status.IsCapital == true)
+            {
+                option.Availability = BuildingConstructAvailability.Unavailable;
+                option.UnavailableReason = $"{entry.Name} cannot be built in the capital";
+                result.Add(option);
+                continue;
+            }
+
+            // Palace (26) conflicts with Residence (25) and Command Center (44) — only one allowed per village.
+            if (entry.Gid == 26 && (existingGids.Contains(25) || existingGids.Contains(44)))
+            {
+                var conflicting = existingGids.Contains(25) ? "Residence" : "Command Center";
+                option.Availability = BuildingConstructAvailability.AlreadyBuilt;
+                option.UnavailableReason = $"{conflicting} already exists in this village";
+                result.Add(option);
+                continue;
+            }
+            // Residence (25) conflicts with Palace (26) and Command Center (44) symmetrically.
+            if (entry.Gid == 25 && (existingGids.Contains(26) || existingGids.Contains(44)))
+            {
+                var conflicting = existingGids.Contains(26) ? "Palace" : "Command Center";
+                option.Availability = BuildingConstructAvailability.AlreadyBuilt;
+                option.UnavailableReason = $"{conflicting} already exists in this village";
+                result.Add(option);
+                continue;
+            }
+            // Command Center (44) conflicts with Palace (26) and Residence (25).
+            if (entry.Gid == 44 && (existingGids.Contains(25) || existingGids.Contains(26)))
+            {
+                var conflicting = existingGids.Contains(25) ? "Residence" : "Palace";
+                option.Availability = BuildingConstructAvailability.AlreadyBuilt;
+                option.UnavailableReason = $"{conflicting} already exists in this village";
+                result.Add(option);
+                continue;
+            }
+
+            var isWall = WallGids.Contains(entry.Gid);
+            const int wallSlotId = 40;
+            if (isWall && slotId != wallSlotId)
+            {
+                // Walls can only be built on slot 40 — hide from other slots.
+                continue;
+            }
+            if (!isWall && slotId == wallSlotId)
+            {
+                option.Availability = BuildingConstructAvailability.Unavailable;
+                option.UnavailableReason = "Slot 40 is the wall slot";
+                result.Add(option);
+                continue;
+            }
+            var matchesByName = existingNames.Contains(NormalizeBuildingName(entry.Name));
+            var alreadyBuilt = ((existingGids.Contains(entry.Gid) || matchesByName)
+                    && !DuplicateAllowedGids.Contains(entry.Gid) && !isWall)
+                || (isWall && anyWallExists);
+            if (alreadyBuilt)
+            {
+                option.Availability = BuildingConstructAvailability.AlreadyBuilt;
+                option.UnavailableReason = isWall
+                    ? "Wall already built in this village"
+                    : "Already built in this village";
+                result.Add(option);
+                continue;
+            }
+
+            if (CanQueueConstructBuilding(slotId, option, out var reason))
+            {
+                option.Availability = BuildingConstructAvailability.Available;
+            }
+            else
+            {
+                var missing = MissingRequirements(status, option.RequirementEntries);
+                if (missing.Count > 0)
+                {
+                    option.Availability = BuildingConstructAvailability.Locked;
+                    option.MissingRequirements = missing;
+                }
+                else
+                {
+                    option.Availability = BuildingConstructAvailability.Unavailable;
+                    option.UnavailableReason = reason;
+                }
+            }
+
+            result.Add(option);
+        }
+
+        return result;
     }
 
     private bool CanQueueConstructBuilding(int slotId, BuildingCatalogOption selectedBuilding, out string reason)
@@ -3346,9 +3621,9 @@ public partial class MainWindow : Window
             if (existingSameGidLevels.Count > 0)
             {
                 var currentHighest = existingSameGidLevels.Max();
-                if (currentHighest < 40)
+                if (currentHighest < 20)
                 {
-                    reason = $"{selectedBuilding.Name} can only be duplicated after an existing one reaches level 40.";
+                    reason = $"{selectedBuilding.Name} can only be duplicated after an existing one reaches level 20.";
                     return false;
                 }
             }
@@ -3430,8 +3705,10 @@ public partial class MainWindow : Window
             Requirements = row.Requirements,
             PendingTargetLevel = targetLevel,
             PendingConstructName = string.Empty,
+            IsDemolishing = row.IsDemolishing,
             MapLeft = row.MapLeft,
             MapTop = row.MapTop,
+            IsWallSlot = row.IsWallSlot,
         };
     }
 
@@ -3463,8 +3740,10 @@ public partial class MainWindow : Window
             Requirements = row.Requirements,
             PendingTargetLevel = row.PendingTargetLevel,
             PendingConstructName = buildingName,
+            IsDemolishing = row.IsDemolishing,
             MapLeft = row.MapLeft,
             MapTop = row.MapTop,
+            IsWallSlot = row.IsWallSlot,
         };
     }
 
@@ -3563,10 +3842,60 @@ public partial class MainWindow : Window
             [BotOptionPayloadKeys.TargetLevel] = targetLevel.ToString(),
         };
         EnqueueQuickTask("demolish_building_to_level", $"Demolish {row.Name} to level {targetLevel}", payload);
+        SetDemolishingFlag(row.SlotId, true);
         DemolishBuildingComboBox.SelectedItem = _demolishableBuildings.FirstOrDefault(item => item.SlotId == row.SlotId);
         DemolishTargetLevelTextBox.Text = targetLevel.ToString();
         BuildingsInfoTextBlock.Text = $"Queued demolition for {row.Name} (slot {row.SlotId}) to level {targetLevel}.";
         return true;
+    }
+
+    private void SetDemolishingFlag(int slotId, bool demolishing)
+    {
+        if (demolishing)
+        {
+            _buildingDemolishingSlots.Add(slotId);
+        }
+        else
+        {
+            _buildingDemolishingSlots.Remove(slotId);
+        }
+
+        var index = -1;
+        for (var i = 0; i < _buildingRows.Count; i++)
+        {
+            if (_buildingRows[i].SlotId == slotId)
+            {
+                index = i;
+                break;
+            }
+        }
+
+        if (index < 0)
+        {
+            return;
+        }
+
+        var row = _buildingRows[index];
+        if (row.IsDemolishing == demolishing)
+        {
+            return;
+        }
+
+        _buildingRows[index] = new BuildingSlotRow
+        {
+            SlotId = row.SlotId,
+            Name = row.Name,
+            Level = row.Level,
+            Gid = row.Gid,
+            Category = row.Category,
+            Requirements = row.Requirements,
+            PendingTargetLevel = row.PendingTargetLevel,
+            PendingConstructName = row.PendingConstructName,
+            IsDemolishing = demolishing,
+            MapLeft = row.MapLeft,
+            MapTop = row.MapTop,
+            IsWallSlot = row.IsWallSlot,
+        };
     }
 
     private void HeroPriorityMoveUpButton_Click(object sender, RoutedEventArgs e)
@@ -3826,6 +4155,32 @@ public partial class MainWindow : Window
         UpdateExecutionStateIndicator();
     }
 
+    private async Task RefreshAdventureCountAfterLoginAsync(BotOptions options, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var count = await _botService.RefreshAdventureCountAsync(options, AppendLog, cancellationToken);
+            if (count is null)
+            {
+                HeroAdventureCountTextBlock.Text = "?";
+                AppendLog("Adventure count: not found on current page.");
+            }
+            else
+            {
+                HeroAdventureCountTextBlock.Text = count.Value.ToString();
+                AppendLog($"Adventure count after login: {count.Value}.");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Login flow was cancelled — leave the count unchanged.
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Adventure count refresh after login failed: {ex.Message}");
+        }
+    }
+
     private async void RefreshAdventuresButton_Click(object sender, RoutedEventArgs e)
     {
         RefreshAdventuresButton.IsEnabled = false;
@@ -3946,7 +4301,14 @@ public partial class MainWindow : Window
             ActiveVillage: snapshot.ActiveVillage ?? string.Empty,
             Villages: [],
             Resources: new Dictionary<string, string>(),
-            ResourceFields: [],
+            ResourceFields: (snapshot.ResourceFields ?? [])
+                .Select(item => new ResourceField(
+                    item.SlotId,
+                    item.FieldType ?? string.Empty,
+                    item.Name ?? string.Empty,
+                    item.Level,
+                    item.Url))
+                .ToList(),
             Buildings: (snapshot.Buildings ?? [])
                 .Select(item =>
                 {
@@ -3962,7 +4324,8 @@ public partial class MainWindow : Window
                 .ToList(),
             BuildQueue: [],
             Tribe: snapshot.Tribe ?? "Unknown",
-            VillageCount: 0);
+            VillageCount: 0,
+            IsCapital: snapshot.IsCapital);
 
         _lastBuildingStatus = status;
         await Dispatcher.InvokeAsync(() =>
@@ -3976,7 +4339,9 @@ public partial class MainWindow : Window
         string? Account,
         string? ActiveVillage,
         string? Tribe,
-        List<BuildingSnapshotItemDto>? Buildings);
+        bool? IsCapital,
+        List<BuildingSnapshotItemDto>? Buildings,
+        List<ResourceFieldSnapshotItemDto>? ResourceFields);
 
     private sealed record BuildingSnapshotItemDto(
         int? SlotId,
@@ -3984,6 +4349,13 @@ public partial class MainWindow : Window
         int? Level,
         string? Url,
         int? Gid);
+
+    private sealed record ResourceFieldSnapshotItemDto(
+        int? SlotId,
+        string? FieldType,
+        string? Name,
+        int? Level,
+        string? Url);
 
     private void PopulateBuildingsTab(VillageStatus status)
     {
@@ -4056,18 +4428,49 @@ public partial class MainWindow : Window
                 pendingTarget = null;
             }
 
+            string slotName;
+            int? slotLevel;
+            int? slotGid;
+            var isWallSlot = slotId == 40;
+            if (occupied)
+            {
+                slotName = building!.Name;
+                slotLevel = building.Level;
+                slotGid = building.Gid;
+            }
+            else if (isWallSlot)
+            {
+                slotName = BuildingCatalogService.WallForTribe(status.Tribe)?.Name ?? "Wall";
+                slotLevel = 0;
+                slotGid = null;
+            }
+            else
+            {
+                slotName = "Empty";
+                slotLevel = null;
+                slotGid = null;
+            }
+
+            // If a demolish has actually completed (slot is now empty), drop the in-progress flag.
+            if (!occupied && _buildingDemolishingSlots.Contains(slotId))
+            {
+                _buildingDemolishingSlots.Remove(slotId);
+            }
+
             var row = new BuildingSlotRow
             {
                 SlotId = slotId,
-                Name = occupied ? building!.Name : "Empty",
-                Level = occupied ? building!.Level : null,
-                Gid = occupied ? building!.Gid : null,
+                Name = slotName,
+                Level = slotLevel,
+                Gid = slotGid,
                 Category = category,
                 Requirements = requirements,
                 PendingTargetLevel = pendingTarget,
                 PendingConstructName = pendingConstruct,
+                IsDemolishing = _buildingDemolishingSlots.Contains(slotId),
                 MapLeft = layout.Left,
                 MapTop = layout.Top,
+                IsWallSlot = isWallSlot,
             };
             _buildingRows.Add(row);
 
@@ -4147,16 +4550,25 @@ public partial class MainWindow : Window
         return map;
     }
 
-    private static List<BuildingRequirementEntry> MissingRequirements(VillageStatus status, IReadOnlyList<BuildingRequirementEntry> requirements)
+    private List<BuildingRequirementEntry> MissingRequirements(VillageStatus status, IReadOnlyList<BuildingRequirementEntry> requirements)
     {
         var missing = new List<BuildingRequirementEntry>();
         foreach (var requirement in requirements)
         {
-            var level = status.Buildings
+            var fromBuildings = status.Buildings
                 .Where(item => item.Level is not null && item.Name.Contains(requirement.Name, StringComparison.OrdinalIgnoreCase))
                 .Select(item => item.Level!.Value)
                 .DefaultIfEmpty(0)
                 .Max();
+            var fromResourceFields = status.ResourceFields
+                .Where(item => item.Level is not null
+                    && (item.Name.Contains(requirement.Name, StringComparison.OrdinalIgnoreCase)
+                        || (item.FieldType?.Contains(requirement.Name, StringComparison.OrdinalIgnoreCase) ?? false)))
+                .Select(item => item.Level!.Value)
+                .DefaultIfEmpty(0)
+                .Max();
+            var fromUiResourceRows = MaxLevelInUiResourceRows(requirement.Name);
+            var level = Math.Max(Math.Max(fromBuildings, fromResourceFields), fromUiResourceRows);
             if (level < requirement.Level)
             {
                 missing.Add(requirement);
@@ -4164,6 +4576,25 @@ public partial class MainWindow : Window
         }
 
         return missing;
+    }
+
+    private int MaxLevelInUiResourceRows(string requirementName)
+    {
+        // Resource field requirements (Cropland, Iron Mine, Clay Pit, Woodcutter) live on the
+        // Resources tab — buildings snapshot doesn't carry them. Look them up directly.
+        IEnumerable<ResourceFieldRow> rows = requirementName switch
+        {
+            var n when n.Contains("Wood", StringComparison.OrdinalIgnoreCase) => _woodFields,
+            var n when n.Contains("Clay", StringComparison.OrdinalIgnoreCase) => _clayFields,
+            var n when n.Contains("Iron", StringComparison.OrdinalIgnoreCase) => _ironFields,
+            var n when n.Contains("Crop", StringComparison.OrdinalIgnoreCase) => _croplandFields,
+            _ => [],
+        };
+        return rows
+            .Where(r => r.Level is not null)
+            .Select(r => r.Level!.Value)
+            .DefaultIfEmpty(0)
+            .Max();
     }
 
     private bool ShouldClearQueueOnStartup()
@@ -4730,10 +5161,6 @@ public partial class MainWindow : Window
                         await LoadResourcesAfterUpgradeAsync(cancellationToken, resourceOnly: true);
                     }
                 }
-                else if (string.Equals(next.TaskName, "load_buildings_snapshot", StringComparison.OrdinalIgnoreCase))
-                {
-                    await LoadBuildingsSnapshotIntoUiAsync(cancellationToken);
-                }
                 AppendLog($"[AUTOQ {runId}] OK {tickSw.Elapsed.TotalSeconds:F1}s task={next.TaskName}");
             }
             catch (OperationCanceledException)
@@ -4778,6 +5205,17 @@ public partial class MainWindow : Window
                 SetActiveAutomationTask(null);
                 SetActiveFunctionExecution(null);
                 RefreshQueueUiOnUiThread(next.Id);
+                if (IsBuildingMutationTask(next.TaskName))
+                {
+                    try
+                    {
+                        await LoadBuildingsSnapshotIntoUiAsync(cancellationToken);
+                    }
+                    catch
+                    {
+                        // Ignore snapshot reload errors in finally — the UI keeps the previous state.
+                    }
+                }
             }
         }
     }
