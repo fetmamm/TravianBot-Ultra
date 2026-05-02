@@ -214,12 +214,12 @@ public sealed class TravianClientHelperTests
     }
 
     [Theory]
-    [InlineData("offense", "off")]
-    [InlineData("attack", "off")]
-    [InlineData("OFFENSE,resource", "off,resource")]
-    [InlineData("regen, regeneration, off", "regen,off")]
-    [InlineData("", "offense,resource,regeneration")]
-    [InlineData("   ", "offense,resource,regeneration")]
+    [InlineData("offense", "offence_bonus,fighting_strength,defence_bonus,resources")]
+    [InlineData("attack", "offence_bonus,fighting_strength,defence_bonus,resources")]
+    [InlineData("OFFENSE,resource", "offence_bonus,resources,fighting_strength,defence_bonus")]
+    [InlineData("fight, strength, off", "fighting_strength,offence_bonus,defence_bonus,resources")]
+    [InlineData("", "fighting_strength,offence_bonus,defence_bonus,resources")]
+    [InlineData("   ", "fighting_strength,offence_bonus,defence_bonus,resources")]
     public void ParseHeroStatPriority_NormalizesAndDedupes(string input, string expected)
     {
         var result = TravianClient.ParseHeroStatPriority(input);

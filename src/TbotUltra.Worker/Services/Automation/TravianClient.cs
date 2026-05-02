@@ -261,6 +261,7 @@ public sealed partial class TravianClient
     public async Task<VillageStatus> ReadVillageStatusAsync(CancellationToken cancellationToken = default)
     {
         Notify("ReadVillageStatusAsync started");
+        InvalidateVillagesCache();
         if (!IsCurrentUrlForPath(_config.VillageOverviewPath))
         {
             await GotoAsync(_config.VillageOverviewPath, cancellationToken);
@@ -1180,94 +1181,101 @@ public sealed partial class TravianClient
 
     private async Task<ILocator?> FindContinuePromptLocatorAsync(int timeoutMs)
     {
-        var directContinueLink = _page.Locator(Selectors.ContinueAfterUpdateLink);
-        if (await directContinueLink.CountAsync() > 0 && await IsLocatorVisibleAsync(directContinueLink.First, timeoutMs))
+        try
         {
-            return directContinueLink.First;
-        }
-
-        var textSelectors = new[]
-        {
-            "button",
-            "a",
-            "[role='button']",
-        };
-
-        foreach (var selector in textSelectors)
-        {
-            var candidates = _page.Locator(selector);
-            var count = Math.Min(await candidates.CountAsync(), 20);
-            for (var index = 0; index < count; index++)
+            var directContinueLink = _page.Locator(Selectors.ContinueAfterUpdateLink);
+            if (await directContinueLink.CountAsync() > 0 && await IsLocatorVisibleAsync(directContinueLink.First, timeoutMs))
             {
-                var candidate = candidates.Nth(index);
-                string? text;
-                try
-                {
-                    text = (await candidate.InnerTextAsync())?.Trim();
-                }
-                catch (PlaywrightException)
-                {
-                    continue;
-                }
+                return directContinueLink.First;
+            }
 
-                if (string.IsNullOrWhiteSpace(text))
-                {
-                    continue;
-                }
+            var textSelectors = new[]
+            {
+                "button",
+                "a",
+                "[role='button']",
+            };
 
-                if (text.IndexOf("Continue", StringComparison.OrdinalIgnoreCase) < 0)
+            foreach (var selector in textSelectors)
+            {
+                var candidates = _page.Locator(selector);
+                var count = Math.Min(await candidates.CountAsync(), 20);
+                for (var index = 0; index < count; index++)
                 {
-                    continue;
-                }
+                    var candidate = candidates.Nth(index);
+                    string? text;
+                    try
+                    {
+                        text = (await candidate.InnerTextAsync())?.Trim();
+                    }
+                    catch (PlaywrightException)
+                    {
+                        continue;
+                    }
 
-                if (await IsLocatorVisibleAsync(candidate, timeoutMs))
-                {
-                    return candidate;
+                    if (string.IsNullOrWhiteSpace(text))
+                    {
+                        continue;
+                    }
+
+                    if (text.IndexOf("Continue", StringComparison.OrdinalIgnoreCase) < 0)
+                    {
+                        continue;
+                    }
+
+                    if (await IsLocatorVisibleAsync(candidate, timeoutMs))
+                    {
+                        return candidate;
+                    }
                 }
             }
-        }
 
-        var inputSelectors = new[]
-        {
-            "input[type='button']",
-            "input[type='submit']",
-        };
-
-        foreach (var selector in inputSelectors)
-        {
-            var candidates = _page.Locator(selector);
-            var count = Math.Min(await candidates.CountAsync(), 6);
-            for (var index = 0; index < count; index++)
+            var inputSelectors = new[]
             {
-                var candidate = candidates.Nth(index);
-                string? value;
-                try
-                {
-                    value = await candidate.GetAttributeAsync("value");
-                }
-                catch (PlaywrightException)
-                {
-                    continue;
-                }
+                "input[type='button']",
+                "input[type='submit']",
+            };
 
-                if (string.IsNullOrWhiteSpace(value))
+            foreach (var selector in inputSelectors)
+            {
+                var candidates = _page.Locator(selector);
+                var count = Math.Min(await candidates.CountAsync(), 6);
+                for (var index = 0; index < count; index++)
                 {
-                    continue;
-                }
+                    var candidate = candidates.Nth(index);
+                    string? value;
+                    try
+                    {
+                        value = await candidate.GetAttributeAsync("value");
+                    }
+                    catch (PlaywrightException)
+                    {
+                        continue;
+                    }
 
-                if (value.IndexOf("Continue", StringComparison.OrdinalIgnoreCase) < 0)
-                {
-                    continue;
-                }
+                    if (string.IsNullOrWhiteSpace(value))
+                    {
+                        continue;
+                    }
 
-                if (await IsLocatorVisibleAsync(candidate, timeoutMs))
-                {
-                    return candidate;
+                    if (value.IndexOf("Continue", StringComparison.OrdinalIgnoreCase) < 0)
+                    {
+                        continue;
+                    }
+
+                    if (await IsLocatorVisibleAsync(candidate, timeoutMs))
+                    {
+                        return candidate;
+                    }
                 }
             }
-        }
 
-        return null;
+            return null;
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            return null;
+        }
     }
 
     private static async Task<bool> IsLocatorVisibleAsync(ILocator locator, int timeoutMs)

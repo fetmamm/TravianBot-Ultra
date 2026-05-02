@@ -61,9 +61,10 @@ public sealed partial class TravianClient
             }
             else
             {
+                var timeoutSeconds = Math.Max(60, _config.CaptchaSolverTimeoutSeconds);
                 solverResult = await _captchaAutoSolver.TrySolveAsync(
                     screenshotPath,
-                    _config.CaptchaSolverTimeoutSeconds,
+                    timeoutSeconds,
                     cancellationToken);
 
                 if (!solverResult.Success || string.IsNullOrWhiteSpace(solverResult.Answer))

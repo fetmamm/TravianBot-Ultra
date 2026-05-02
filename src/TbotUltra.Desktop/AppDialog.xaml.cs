@@ -75,6 +75,18 @@ public partial class AppDialog : Window
         return dialog._result;
     }
 
+    public static AppDialog ShowModeless(
+        Window? owner,
+        string message,
+        string title,
+        MessageBoxButton buttons,
+        MessageBoxImage icon)
+    {
+        var dialog = new AppDialog(owner, message, title, buttons, icon, ResolveDefaultResult(buttons, MessageBoxResult.None));
+        dialog.Show();
+        return dialog;
+    }
+
     private void BuildButtons()
     {
         ButtonsPanel.Children.Clear();

@@ -37,7 +37,7 @@ public sealed class BotOptions
 
     [ConfigurationKeyName(BotOptionPayloadKeys.CaptchaSolverTimeoutSeconds)]
     [Range(1, int.MaxValue)]
-    public int CaptchaSolverTimeoutSeconds { get; init; } = 20;
+    public int CaptchaSolverTimeoutSeconds { get; init; } = 60;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.CaptchaSolverMaxAttempts)]
     [Range(1, int.MaxValue)]
@@ -120,7 +120,7 @@ public sealed class BotOptions
     public bool HeroAutoAssignPoints { get; init; } = true;
 
     [ConfigurationKeyName("hero_stat_priority")]
-    public string HeroStatPriority { get; init; } = "offense,resource,regeneration";
+    public string HeroStatPriority { get; init; } = "fighting_strength,offence_bonus,defence_bonus,resources";
 
     [ConfigurationKeyName("upgrade_selector_profile")]
     public string UpgradeSelectorProfile { get; init; } = "auto";

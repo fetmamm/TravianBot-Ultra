@@ -18,7 +18,7 @@ public static class BotOptionsFactory
             TimeoutMs = configuration.GetValue("timeout_ms", 15000),
             ManualLoginTimeoutSeconds = configuration.GetValue("manual_login_timeout_seconds", 180),
             CaptchaAutoSolveEnabled = configuration.GetValue(BotOptionPayloadKeys.CaptchaAutoSolveEnabled, false),
-            CaptchaSolverTimeoutSeconds = configuration.GetValue(BotOptionPayloadKeys.CaptchaSolverTimeoutSeconds, 20),
+            CaptchaSolverTimeoutSeconds = configuration.GetValue(BotOptionPayloadKeys.CaptchaSolverTimeoutSeconds, 60),
             CaptchaSolverMaxAttempts = configuration.GetValue(BotOptionPayloadKeys.CaptchaSolverMaxAttempts, 1),
             LoopIntervalSeconds = configuration.GetValue("loop_interval_seconds", 60),
             LoopTasks = tasks,
@@ -45,7 +45,7 @@ public static class BotOptionsFactory
             HeroMinHpForAdventure = configuration.GetValue(BotOptionPayloadKeys.HeroMinHpForAdventure, 60),
             HeroAutoRevive = configuration.GetValue(BotOptionPayloadKeys.HeroAutoRevive, true),
             HeroAutoAssignPoints = configuration.GetValue(BotOptionPayloadKeys.HeroAutoAssignPoints, true),
-            HeroStatPriority = configuration[BotOptionPayloadKeys.HeroStatPriority] ?? "offense,resource,regeneration",
+            HeroStatPriority = configuration[BotOptionPayloadKeys.HeroStatPriority] ?? "fighting_strength,offence_bonus,defence_bonus,resources",
             UpgradeSelectorProfile = configuration[BotOptionPayloadKeys.UpgradeSelectorProfile] ?? "auto",
             NatarVillageSelection = configuration["natar_village_selection"] ?? "farm_villages",
         };

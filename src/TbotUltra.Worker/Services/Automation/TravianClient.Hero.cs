@@ -349,7 +349,6 @@ public sealed partial class TravianClient
             """
             () => {
               const url = window.location.href.toLowerCase();
-              if (url.includes('hero_inventory.php') && !url.includes('action=')) return true;
               const active = document.querySelector('a.tabItem.active, a.active.tabItem');
               if (active && /attribute/i.test(active.textContent || '')) return true;
               return !!document.querySelector('button#save.startTraining, button#save.green');
@@ -846,7 +845,6 @@ public sealed partial class TravianClient
             """
             () => {
               const url = window.location.href.toLowerCase();
-              if (url.includes('hero_inventory.php') && !url.includes('action=')) return true;
               const active = document.querySelector('a.tabItem.active, a.active.tabItem');
               if (active && /attribute/i.test(active.textContent || '')) return true;
               return !!document.querySelector('a.setPoint, td.pointsValueSetter.add');

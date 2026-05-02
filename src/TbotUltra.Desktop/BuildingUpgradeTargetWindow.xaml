@@ -1,0 +1,55 @@
+<Window x:Class="TbotUltra.Desktop.BuildingUpgradeTargetWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Upgrade building"
+        Height="190"
+        Width="280"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="TitleTextBlock"
+                   Grid.Row="0"
+                   FontSize="16"
+                   FontWeight="SemiBold"
+                   Foreground="#111827"
+                   Margin="0,0,0,6" />
+
+        <TextBlock x:Name="SubtitleTextBlock"
+                   Grid.Row="1"
+                   Foreground="#6B7280"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,10" />
+
+        <StackPanel Grid.Row="2">
+            <TextBlock Text="Target level"
+                       Foreground="#374151"
+                       FontSize="12"
+                       Margin="0,0,0,4" />
+            <ComboBox x:Name="TargetLevelComboBox"
+                      Height="28" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="4"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,14,0,0">
+            <Button Width="72"
+                    Height="28"
+                    Content="Cancel"
+                    Margin="0,0,8,0"
+                    Click="CancelButton_Click" />
+            <Button Width="88"
+                    Height="28"
+                    Content="Queue"
+                    Click="QueueButton_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

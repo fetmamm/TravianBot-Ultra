@@ -138,6 +138,7 @@ public partial class MainWindow : Window
     private int _captchaSessionSeenCount;
     private int _captchaSessionSolvedCount;
     private bool _captchaSessionActive;
+    private AppDialog? _captchaAutoSolvePopup;
     private DateTimeOffset _lastVerificationPopupAt = DateTimeOffset.MinValue;
     private DateTimeOffset _inlineWaitUntilUtc = DateTimeOffset.MinValue;
     private int _manualFarmSessionExecutionCount;
@@ -157,6 +158,8 @@ public partial class MainWindow : Window
     private bool _suppressFarmListUiRefresh;
     private bool _farmingOperationBusy;
     private bool _natarsProfileAnalyzed;
+    private string _lastVillageSwitchRefreshKey = string.Empty;
+    private DateTimeOffset _lastVillageSwitchRefreshAt = DateTimeOffset.MinValue;
     private VillageStatus? _lastBuildingStatus;
     private readonly object _pendingLogSync = new();
     private readonly Queue<string> _pendingLogMessages = new();
@@ -3278,7 +3281,7 @@ public partial class MainWindow : Window
                 ShowConstructChoicesForSlot(row.SlotId);
                 break;
             case BuildingSlotAction.Upgrade:
-                QueueSingleBuildingUpgradeFromSlot(row.SlotId);
+                ShowUpgradeTargetForSlot(row);
                 break;
             case BuildingSlotAction.UpgradeToMax:
                 TryQueueBuildingUpgradeToMax(row.SlotId);
@@ -3287,6 +3290,49 @@ public partial class MainWindow : Window
                 TryQueueBuildingDemolish(row, 0);
                 break;
         }
+    }
+
+    private void ShowUpgradeTargetForSlot(BuildingSlotRow row)
+    {
+        var liveRow = _buildingRows.FirstOrDefault(item => item.SlotId == row.SlotId) ?? row;
+        if (!liveRow.IsOccupied)
+        {
+            BuildingsInfoTextBlock.Text = $"Slot {liveRow.SlotId} is empty. Choose a building to construct.";
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (_buildingClickCooldownBySlot.TryGetValue(liveRow.SlotId, out var lastClickAt)
+            && (now - lastClickAt).TotalMilliseconds < 120)
+        {
+            return;
+        }
+
+        _buildingClickCooldownBySlot[liveRow.SlotId] = now;
+        if (liveRow.HasPendingUpgrade)
+        {
+            BuildingsInfoTextBlock.Text = $"{liveRow.Name} already has a queued upgrade.";
+            return;
+        }
+
+        var currentLevel = liveRow.Level ?? 0;
+        var maxLevel = liveRow.Gid is int gid ? BuildingCatalogService.MaxLevelFor(gid) : 40;
+        if (currentLevel >= maxLevel)
+        {
+            BuildingsInfoTextBlock.Text = $"{liveRow.Name} in slot {liveRow.SlotId} is already max level ({maxLevel}).";
+            return;
+        }
+
+        var targetWindow = new BuildingUpgradeTargetWindow(liveRow, maxLevel)
+        {
+            Owner = this,
+        };
+        if (targetWindow.ShowDialog() != true)
+        {
+            return;
+        }
+
+        _ = TryQueueBuildingUpgradeToLevel(liveRow.SlotId, targetWindow.SelectedTargetLevel);
     }
 
     private void QueueSingleBuildingUpgradeFromSlot(int slotId)
@@ -3298,37 +3344,54 @@ public partial class MainWindow : Window
             return;
         }
 
-        var now = DateTimeOffset.UtcNow;
-        if (_buildingClickCooldownBySlot.TryGetValue(slotId, out var lastClickAt)
-            && (now - lastClickAt).TotalMilliseconds < 120)
+        var currentLevel = row.Level ?? 0;
+        var maxLevel = row.Gid is int gid ? BuildingCatalogService.MaxLevelFor(gid) : 40;
+        var pendingLevel = row.PendingTargetLevel ?? currentLevel;
+        var baseLevel = Math.Max(currentLevel, pendingLevel);
+        var targetLevel = Math.Clamp(baseLevel + 1, 1, maxLevel);
+        _ = TryQueueBuildingUpgradeToLevel(slotId, targetLevel);
+    }
+
+    private static bool IsRallyPointSlot(int slotId) => slotId == 39;
+
+    private static bool IsRallyPointGid(int gid) => gid == 16;
+
+    private bool TryQueueBuildingUpgradeToLevel(int slotId, int targetLevel)
+    {
+        if (targetLevel < 1)
         {
-            return;
+            BuildingsInfoTextBlock.Text = "Target level must be an integer >= 1.";
+            return false;
         }
 
-        _buildingClickCooldownBySlot[slotId] = now;
-        var currentLevel = row.Level ?? 0;
+        var row = _buildingRows.FirstOrDefault(item => item.SlotId == slotId);
+        if (row is null || !row.IsOccupied)
+        {
+            BuildingsInfoTextBlock.Text = $"Slot {slotId} is empty.";
+            return false;
+        }
+
         if (row.HasPendingUpgrade)
         {
             BuildingsInfoTextBlock.Text = $"{row.Name} already has a queued upgrade.";
-            return;
+            return false;
         }
 
+        var currentLevel = row.Level ?? 0;
         var maxLevel = row.Gid is int gid ? BuildingCatalogService.MaxLevelFor(gid) : 40;
         if (currentLevel >= maxLevel)
         {
             BuildingsInfoTextBlock.Text = $"{row.Name} in slot {slotId} is already max level ({maxLevel}).";
-            return;
+            return false;
         }
 
-        var pendingLevel = row.PendingTargetLevel ?? currentLevel;
-        var baseLevel = Math.Max(currentLevel, pendingLevel);
-        var targetLevel = Math.Clamp(baseLevel + 1, 1, maxLevel);
-
+        targetLevel = Math.Clamp(targetLevel, currentLevel + 1, maxLevel);
+        var now = DateTimeOffset.UtcNow;
         if (_buildingLastQueuedTargetBySlot.TryGetValue(slotId, out var lastQueued)
             && lastQueued.Target == targetLevel
             && (now - lastQueued.At).TotalMilliseconds < 2500)
         {
-            return;
+            return false;
         }
 
         var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -3343,6 +3406,7 @@ public partial class MainWindow : Window
         UpgradeTargetLevelTextBox.Text = targetLevel.ToString();
         BuildingsInfoTextBlock.Text = $"Queued {row.Name} in slot {slotId} to level {targetLevel}.";
         AppendLog($"Queued single building upgrade: slot {slotId} -> level {targetLevel}.");
+        return true;
     }
 
     private void ShowConstructChoicesForSlot(int slotId)
@@ -3542,7 +3606,20 @@ public partial class MainWindow : Window
             }
 
             var isWall = WallGids.Contains(entry.Gid);
+            var isRallyPoint = IsRallyPointGid(entry.Gid);
+            const int rallyPointSlotId = 39;
             const int wallSlotId = 40;
+            if (isRallyPoint && slotId != rallyPointSlotId)
+            {
+                continue;
+            }
+            if (!isRallyPoint && slotId == rallyPointSlotId)
+            {
+                option.Availability = BuildingConstructAvailability.Unavailable;
+                option.UnavailableReason = "Slot 39 is the Rally Point slot";
+                result.Add(option);
+                continue;
+            }
             if (isWall && slotId != wallSlotId)
             {
                 // Walls can only be built on slot 40 — hide from other slots.
@@ -3616,6 +3693,31 @@ public partial class MainWindow : Window
             .ToList();
         var duplicateAllowed = selectedBuilding.Gid is 23 or 38 or 39;
         var wallGid = selectedBuilding.Gid is 31 or 32 or 33 or 42 or 43;
+        var rallyPointGid = IsRallyPointGid(selectedBuilding.Gid);
+        if (rallyPointGid && slotId != 39)
+        {
+            reason = "Rally Point can only be built on slot 39.";
+            return false;
+        }
+
+        if (!rallyPointGid && slotId == 39)
+        {
+            reason = "Slot 39 is the Rally Point slot.";
+            return false;
+        }
+
+        if (wallGid && slotId != 40)
+        {
+            reason = "Wall can only be built on slot 40.";
+            return false;
+        }
+
+        if (!wallGid && slotId == 40)
+        {
+            reason = "Slot 40 is the wall slot.";
+            return false;
+        }
+
         if (selectedBuilding.Gid is 10 or 11)
         {
             if (existingSameGidLevels.Count > 0)
@@ -3709,6 +3811,7 @@ public partial class MainWindow : Window
             MapLeft = row.MapLeft,
             MapTop = row.MapTop,
             IsWallSlot = row.IsWallSlot,
+            IsRallyPointSlot = row.IsRallyPointSlot,
         };
     }
 
@@ -3744,6 +3847,7 @@ public partial class MainWindow : Window
             MapLeft = row.MapLeft,
             MapTop = row.MapTop,
             IsWallSlot = row.IsWallSlot,
+            IsRallyPointSlot = row.IsRallyPointSlot,
         };
     }
 
@@ -3779,28 +3883,6 @@ public partial class MainWindow : Window
         }
 
         TryQueueBuildingUpgradeToMax(slotId);
-    }
-
-    private bool TryQueueBuildingUpgradeToLevel(int slotId, int targetLevel)
-    {
-        if (targetLevel < 1)
-        {
-            BuildingsInfoTextBlock.Text = "Target level must be an integer >= 1.";
-            return false;
-        }
-
-        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            [BotOptionPayloadKeys.BuildingUpgradeSlotId] = slotId.ToString(),
-            [BotOptionPayloadKeys.BuildingUpgradeTargetLevel] = targetLevel.ToString(),
-        };
-        EnqueueQuickTask("upgrade_building_to_level", $"Upgrade slot {slotId} to level {targetLevel}", payload);
-        _buildingLastQueuedTargetBySlot[slotId] = (targetLevel, DateTimeOffset.UtcNow);
-        SetPendingBuildingUpgrade(slotId, targetLevel);
-        UpgradeSlotTextBox.Text = slotId.ToString();
-        UpgradeTargetLevelTextBox.Text = targetLevel.ToString();
-        BuildingsInfoTextBlock.Text = $"Queued upgrade for slot {slotId} to level {targetLevel}.";
-        return true;
     }
 
     private bool TryQueueBuildingUpgradeToMax(int slotId)
@@ -3895,6 +3977,7 @@ public partial class MainWindow : Window
             MapLeft = row.MapLeft,
             MapTop = row.MapTop,
             IsWallSlot = row.IsWallSlot,
+            IsRallyPointSlot = row.IsRallyPointSlot,
         };
     }
 
@@ -4432,15 +4515,18 @@ public partial class MainWindow : Window
             int? slotLevel;
             int? slotGid;
             var isWallSlot = slotId == 40;
+            var isRallyPointSlot = IsRallyPointSlot(slotId);
             if (occupied)
             {
                 slotName = building!.Name;
                 slotLevel = building.Level;
                 slotGid = building.Gid;
             }
-            else if (isWallSlot)
+            else if (isWallSlot || isRallyPointSlot)
             {
-                slotName = BuildingCatalogService.WallForTribe(status.Tribe)?.Name ?? "Wall";
+                slotName = isRallyPointSlot
+                    ? "Rally Point"
+                    : BuildingCatalogService.WallForTribe(status.Tribe)?.Name ?? "Wall";
                 slotLevel = 0;
                 slotGid = null;
             }
@@ -4471,6 +4557,7 @@ public partial class MainWindow : Window
                 MapLeft = layout.Left,
                 MapTop = layout.Top,
                 IsWallSlot = isWallSlot,
+                IsRallyPointSlot = isRallyPointSlot,
             };
             _buildingRows.Add(row);
 
@@ -5319,6 +5406,11 @@ public partial class MainWindow : Window
                         _captchaSessionActive = true;
                     }
 
+                    if (IsCaptchaAutoSolveAttemptMessage(part))
+                    {
+                        ShowCaptchaAutoSolvePopup();
+                    }
+
                     if (IsManualVerificationAlarmMessage(part))
                     {
                         _manualVerificationAlarmActive = true;
@@ -5334,15 +5426,19 @@ public partial class MainWindow : Window
                     {
                         _captchaSessionSolvedCount += 1;
                         _captchaSessionActive = false;
+                        CloseCaptchaAutoSolvePopup();
                     }
                     else if (_captchaSessionActive && IsManualVerificationResolvedMessage(part))
                     {
                         _captchaSessionActive = false;
+                        CloseCaptchaAutoSolvePopup();
                     }
 
                     if (part.Contains("manual verification appeared", StringComparison.OrdinalIgnoreCase)
-                        || part.Contains("captcha/manual", StringComparison.OrdinalIgnoreCase))
+                        || part.Contains("captcha/manual", StringComparison.OrdinalIgnoreCase)
+                        || IsCaptchaAutoSolveFailedMessage(part))
                     {
+                        CloseCaptchaAutoSolvePopup();
                         ShowManualVerificationPopup(_browserSessionLikelyOpen);
                     }
                 }
@@ -5526,6 +5622,34 @@ public partial class MainWindow : Window
         }
     }
 
+    private void ShowCaptchaAutoSolvePopup()
+    {
+        if (_captchaAutoSolvePopup is { IsVisible: true })
+        {
+            return;
+        }
+
+        _captchaAutoSolvePopup = AppDialog.ShowModeless(
+            this,
+            "Captcha detected. Tbot Ultra is trying to solve it automatically. This can take up to about one minute.",
+            "Solving captcha",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
+        _captchaAutoSolvePopup.Closed += (_, _) => _captchaAutoSolvePopup = null;
+    }
+
+    private void CloseCaptchaAutoSolvePopup()
+    {
+        if (_captchaAutoSolvePopup is null)
+        {
+            return;
+        }
+
+        var popup = _captchaAutoSolvePopup;
+        _captchaAutoSolvePopup = null;
+        popup.Close();
+    }
+
     private static void TrimToMaxEntries(ObservableCollection<string> entries, int max)
     {
         while (entries.Count > max)
@@ -5573,6 +5697,19 @@ public partial class MainWindow : Window
         }
 
         return message.Contains("Captcha cleared automatically", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsCaptchaAutoSolveAttemptMessage(string message)
+    {
+        return !string.IsNullOrWhiteSpace(message)
+            && message.Contains("Captcha auto-solve attempt", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsCaptchaAutoSolveFailedMessage(string message)
+    {
+        return !string.IsNullOrWhiteSpace(message)
+            && message.Contains("Captcha auto-solve failed", StringComparison.OrdinalIgnoreCase)
+            && message.Contains("manual verification", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsCaptchaSessionStartMessage(string message)
@@ -7487,6 +7624,17 @@ public partial class MainWindow : Window
             return;
         }
 
+        var switchKey = $"{selectedVillage.Name}|{selectedVillage.Url}";
+        var now = DateTimeOffset.UtcNow;
+        if (string.Equals(_lastVillageSwitchRefreshKey, switchKey, StringComparison.OrdinalIgnoreCase)
+            && (now - _lastVillageSwitchRefreshAt).TotalSeconds < 2)
+        {
+            return;
+        }
+
+        _lastVillageSwitchRefreshKey = switchKey;
+        _lastVillageSwitchRefreshAt = now;
+
         if (IsExecutionActiveForVillageChange())
         {
             await StopAndClearForVillageChangeAsync(selectedVillage.Name);
@@ -7544,33 +7692,10 @@ public partial class MainWindow : Window
             ResourcesInfoTextBlock.Text = $"Loaded {rows.Count} resource fields. Capital: {capitalText}. {BuildResourceForecastSummary(status)}";
             BuildingsInfoTextBlock.Text = $"Buildings loaded for selected village '{selectedVillage.Name}'. Occupied slots: {_buildingRows.Count(row => row.IsOccupied)}, free slots: {_buildingRows.Count(row => !row.IsOccupied)}.";
 
-            // 2. Analyze profile (spieler.php) to refresh capital flags and village metadata
-            IReadOnlyList<Village> villagesForDashboard = status.Villages;
-            try
-            {
-                var snapshot = await _botService.AnalyzeProfileAsync(options, AppendLog, operationToken);
-                TribeInfoTextBlock.Text = $"Tribe: {snapshot.Tribe}";
-                VillagesInfoTextBlock.Text = $"Villages: {snapshot.VillageCount}";
-                villagesForDashboard = snapshot.Villages;
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                AppendLog($"[{operationId}] WARN profile analysis failed: {ex.Message}");
-            }
-
-            // 3. Update village dropdown and dashboard list from the same profile-backed data
-            RefreshVillagePickerFromVillages(villagesForDashboard, selectedVillage.Name);
-            UpdateDashboardVillageList(villagesForDashboard);
-
-            // 4. Navigate back to dorf1
-            try
-            {
-                await _botService.NavigateToVillageResourceFieldsAsync(options, AppendLog, selectedVillage.Name, selectedVillage.Url, operationToken);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                AppendLog($"[{operationId}] WARN could not navigate back to dorf1: {ex.Message}");
-            }
+            TribeInfoTextBlock.Text = $"Tribe: {status.Tribe}";
+            VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
+            RefreshVillagePickerFromVillages(status.Villages, selectedVillage.Name);
+            UpdateDashboardVillageList(status.Villages);
 
             CompleteOperation(operationId, operationSw, $"Village switched to '{selectedVillage.Name}' and UI refreshed.");
         }

@@ -18,6 +18,7 @@ public sealed class BuildingSlotRow
     public double MapTop { get; init; }
 
     public bool IsWallSlot { get; init; }
+    public bool IsRallyPointSlot { get; init; }
 
     public string LevelLabel => Level is int value ? value.ToString() : "unknown";
     public bool IsOccupied => !string.IsNullOrWhiteSpace(Name)
@@ -30,7 +31,7 @@ public sealed class BuildingSlotRow
         ? Name
         : HasPendingConstruct
             ? $"{PendingConstructName} (queued)"
-            : IsWallSlot && !string.IsNullOrWhiteSpace(Name) && !string.Equals(Name, "Empty", StringComparison.OrdinalIgnoreCase)
+            : (IsWallSlot || IsRallyPointSlot) && !string.IsNullOrWhiteSpace(Name) && !string.Equals(Name, "Empty", StringComparison.OrdinalIgnoreCase)
                 ? Name
                 : "Empty";
     public string LevelStatusLabel => IsOccupied
@@ -39,7 +40,7 @@ public sealed class BuildingSlotRow
             : HasPendingUpgrade
                 ? $"Level {LevelLabel} ({PendingTargetLevel})"
                 : $"Level {LevelLabel}"
-        : IsWallSlot
+        : IsWallSlot || IsRallyPointSlot
             ? "Level 0"
             : "Empty slot";
     public string BadgeText => IsOccupied ? LevelLabel : "+";
