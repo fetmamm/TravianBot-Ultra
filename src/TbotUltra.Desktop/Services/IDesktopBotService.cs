@@ -35,6 +35,7 @@ public interface IDesktopBotService
     Task<ManualFarmRunResult> StartManualFarmingFromNatarsAsync(BotOptions options, string troopType, int troopCount, int troopVariancePercent, bool raidAttack, Action<string> log, CancellationToken cancellationToken);
     Task<AccountSnapshot> AnalyzeProfileAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepBrowserOpenAfterLogin, CancellationToken cancellationToken);
+    Task<PostLoginSnapshot> LoadPostLoginSnapshotAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task ExecuteLogoutAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task MarkMessagesAsReadAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken);
     Task MarkReportsAsReadAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken);

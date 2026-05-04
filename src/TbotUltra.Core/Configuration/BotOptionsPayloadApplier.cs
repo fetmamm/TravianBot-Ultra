@@ -24,6 +24,8 @@ public static class BotOptionsPayloadApplier
         var heroAutoRevive = source.HeroAutoRevive;
         var heroAutoAssignPoints = source.HeroAutoAssignPoints;
         var heroStatPriority = source.HeroStatPriority;
+        var heroAdventurePickOrder = source.HeroAdventurePickOrder;
+        var heroHideMode = source.HeroHideMode;
         var upgradeSelectorProfile = source.UpgradeSelectorProfile;
         var natarVillageSelection = source.NatarVillageSelection;
 
@@ -158,6 +160,19 @@ public static class BotOptionsPayloadApplier
                     continue;
                 }
 
+                if (key.Equals(BotOptionPayloadKeys.HeroAdventurePickOrder, StringComparison.OrdinalIgnoreCase))
+                {
+                    heroAdventurePickOrder = value;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.HeroHideMode, StringComparison.OrdinalIgnoreCase))
+                {
+                    var normalized = value.Equals("fight", StringComparison.OrdinalIgnoreCase) ? "fight" : "hide";
+                    heroHideMode = normalized;
+                    continue;
+                }
+
                 if (key.Equals(BotOptionPayloadKeys.UpgradeSelectorProfile, StringComparison.OrdinalIgnoreCase))
                 {
                     upgradeSelectorProfile = value;
@@ -203,6 +218,8 @@ public static class BotOptionsPayloadApplier
             HeroAutoRevive = heroAutoRevive,
             HeroAutoAssignPoints = heroAutoAssignPoints,
             HeroStatPriority = heroStatPriority,
+            HeroAdventurePickOrder = heroAdventurePickOrder,
+            HeroHideMode = heroHideMode,
             UpgradeSelectorProfile = upgradeSelectorProfile,
             NatarVillageSelection = natarVillageSelection,
         };

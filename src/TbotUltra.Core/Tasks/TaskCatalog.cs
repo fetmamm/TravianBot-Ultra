@@ -16,7 +16,7 @@ public static class TaskCatalog
         "account_full_analysis",
         "demolish_building_to_level",
         "hero_manage",
-        "hero_send_adventure",
+        "hero_set_hide_mode",
         "upgrade_troops_at_smithy",
     ];
 

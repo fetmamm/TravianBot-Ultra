@@ -16,7 +16,7 @@
       "isCapital": true,
       "coordX": null,
       "coordY": null,
-      "updatedAtUtc": "2026-05-02T17:55:12.2099553+00:00"
+      "updatedAtUtc": "2026-05-02T20:27:41.0077686+00:00"
     },
     {
       "accountName": "fet",
@@ -34,7 +34,7 @@
       "isCapital": false,
       "coordX": null,
       "coordY": null,
-      "updatedAtUtc": "2026-05-02T17:55:12.2122665+00:00"
+      "updatedAtUtc": "2026-05-02T20:27:41.0098853+00:00"
     },
     {
       "accountName": "fet",
@@ -43,7 +43,25 @@
       "isCapital": false,
       "coordX": null,
       "coordY": null,
-      "updatedAtUtc": "2026-05-02T17:55:12.2127198+00:00"
+      "updatedAtUtc": "2026-05-02T20:27:41.0101712+00:00"
+    },
+    {
+      "accountName": "fet",
+      "serverUrl": "https://vip.ss-travi.com",
+      "villageName": "fet \u0060s village",
+      "isCapital": true,
+      "coordX": null,
+      "coordY": null,
+      "updatedAtUtc": "2026-05-04T08:08:11.1637964+00:00"
+    },
+    {
+      "accountName": "fet",
+      "serverUrl": "https://vip.ss-travi.com",
+      "villageName": "FETS BY",
+      "isCapital": true,
+      "coordX": null,
+      "coordY": null,
+      "updatedAtUtc": "2026-05-04T11:27:13.2956366+00:00"
     },
     {
       "accountName": "slangen",

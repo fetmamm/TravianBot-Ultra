@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Windows;
+using TbotUltra.Core.Accounts;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
 
@@ -70,7 +71,10 @@ public partial class AccountsWindow : Window
             ClearEditor();
         }
 
-        InfoTextBlock.Text = $"Active account: {_activeAccountName}";
+        var activeAccount = _accounts.FirstOrDefault(a => a.IsActive);
+        InfoTextBlock.Text = activeAccount is null
+            ? $"Active account: {_activeAccountName}"
+            : $"Active account: {activeAccount.Username} @ {(string.IsNullOrWhiteSpace(activeAccount.ServerName) ? activeAccount.ServerUrl : activeAccount.ServerName)}";
         UpdateActionButtons();
     }
 
@@ -386,7 +390,7 @@ public partial class AccountsWindow : Window
 
         var normalizedName = _editingExistingAccount
             ? _editingOriginalName
-            : NormalizeAccountNameFromUsername(username);
+            : AccountKeyNormalizer.MakeKey(username, serverUrl);
 
         return new AccountEntry
         {
@@ -519,18 +523,5 @@ public partial class AccountsWindow : Window
         ClearAnalysisButton.IsEnabled = _editingExistingAccount;
     }
 
-    private static string NormalizeAccountNameFromUsername(string username)
-    {
-        var chars = username.Trim()
-            .Select(ch => char.IsLetterOrDigit(ch) ? char.ToLowerInvariant(ch) : '_')
-            .ToArray();
-        var joined = string.Join("_", new string(chars).Split('_', StringSplitOptions.RemoveEmptyEntries));
-        if (joined.Length == 0)
-        {
-            throw new InvalidOperationException("Username cannot be normalized to account key.");
-        }
-
-        return joined;
-    }
 }
 

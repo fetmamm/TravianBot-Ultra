@@ -371,6 +371,18 @@ public sealed class JsonQueueStore : IQueueStore
         var tempPath = Path.Combine(directory, $"{Path.GetFileName(_queuePath)}.tmp");
         WithFileLock(() =>
         {
+            if (File.Exists(tempPath))
+            {
+                try
+                {
+                    File.Delete(tempPath);
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException($"Could not remove stale queue temp file '{tempPath}'.", ex);
+                }
+            }
+
             using (var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
             {
                 JsonSerializer.Serialize(stream, items, JsonOptions);

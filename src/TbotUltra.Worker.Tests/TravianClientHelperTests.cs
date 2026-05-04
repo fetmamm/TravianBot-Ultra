@@ -74,6 +74,24 @@ public sealed class TravianClientHelperTests
         Assert.Equal(expected, TravianClient.ComputeUpgradeWaitSeconds(input));
     }
 
+    [Theory]
+    [InlineData(-10, 1)]
+    [InlineData(1, 6)]
+    [InlineData(20, 25)]
+    public void ComputeBuildingUpgradeSafetyCap_AddsBuffer(int targetLevel, int expected)
+    {
+        Assert.Equal(expected, TravianClient.ComputeBuildingUpgradeSafetyCap(targetLevel));
+    }
+
+    [Theory]
+    [InlineData(-10, 10)]
+    [InlineData(1, 10)]
+    [InlineData(20, 28)]
+    public void ComputeResourceUpgradeSafetyCap_AddsBufferWithMinimum(int targetLevel, int expected)
+    {
+        Assert.Equal(expected, TravianClient.ComputeResourceUpgradeSafetyCap(targetLevel));
+    }
+
     [Fact]
     public void ResolveShortestQueueDurationSeconds_ReturnsMinOrNull()
     {
@@ -103,6 +121,94 @@ public sealed class TravianClientHelperTests
     public void ResolveResourceMaxLevelFallback_DependsOnCapital(bool? isCapital, int expected)
     {
         Assert.Equal(expected, TravianClient.ResolveResourceMaxLevelFallback(isCapital));
+    }
+
+    [Theory]
+    [InlineData(null, 5 * 60)]
+    [InlineData(0, 5 * 60)]
+    [InlineData(-100, 5 * 60)]
+    [InlineData(5, 30)]
+    [InlineData(29, 30)]
+    [InlineData(30, 31)]
+    [InlineData(120, 121)]
+    [InlineData(12 * 60 * 60, 12 * 60 * 60 + 1)]
+    [InlineData(13 * 60 * 60, 12 * 60 * 60)]
+    [InlineData(int.MaxValue, 12 * 60 * 60)]
+    public void ClampResourceWaitSeconds_ClampsToBoundsWithFallback(int? input, int expected)
+    {
+        Assert.Equal(expected, TravianClient.ClampResourceWaitSeconds(input));
+    }
+
+    [Fact]
+    public void ComputeConstructionSlotStatus_EmptyAllowsBoth()
+    {
+        var status = TravianClient.ComputeConstructionSlotStatus([], "Romans", travianPlusActive: false);
+        Assert.True(status.CanStartResource);
+        Assert.True(status.CanStartBuilding);
+        Assert.Equal(0, status.ResourceSlotsUsed);
+        Assert.Equal(0, status.BuildingSlotsUsed);
+        Assert.Null(status.ShortestWaitSeconds);
+    }
+
+    [Theory]
+    [InlineData("Romans", false, 1, 1)]
+    [InlineData("Romans", true, 1, 2)]
+    [InlineData("Gauls", false, 1, 1)]
+    [InlineData("Teutons", true, 1, 2)]
+    public void ComputeConstructionSlotStatus_MaxSlotsByTribeAndPlus(string tribe, bool plus, int resMax, int bldMax)
+    {
+        var status = TravianClient.ComputeConstructionSlotStatus([], tribe, plus);
+        Assert.Equal(resMax, status.ResourceSlotsMax);
+        Assert.Equal(bldMax, status.BuildingSlotsMax);
+    }
+
+    [Fact]
+    public void ComputeConstructionSlotStatus_RomanCanRunResourceAndBuildingInParallel()
+    {
+        IReadOnlyList<ActiveConstruction> active =
+        [
+            new ActiveConstruction(ConstructionKind.Resource, "Woodcutter", 5, 120, "0:02:00"),
+        ];
+        var status = TravianClient.ComputeConstructionSlotStatus(active, "Romans", travianPlusActive: false);
+        Assert.False(status.CanStartResource);
+        Assert.True(status.CanStartBuilding);
+        Assert.Equal(120, status.ShortestWaitSeconds);
+    }
+
+    [Fact]
+    public void ComputeConstructionSlotStatus_NonRomanShareSingleSlot()
+    {
+        IReadOnlyList<ActiveConstruction> active =
+        [
+            new ActiveConstruction(ConstructionKind.Resource, "Clay Pit", 3, 60, "0:01:00"),
+        ];
+        var status = TravianClient.ComputeConstructionSlotStatus(active, "Gauls", travianPlusActive: false);
+        Assert.False(status.CanStartResource);
+        Assert.False(status.CanStartBuilding);
+    }
+
+    [Fact]
+    public void ComputeConstructionSlotStatus_PlusGivesSecondBuildingSlot()
+    {
+        IReadOnlyList<ActiveConstruction> active =
+        [
+            new ActiveConstruction(ConstructionKind.Building, "Main Building", 2, 540, "0:09:00"),
+        ];
+        var status = TravianClient.ComputeConstructionSlotStatus(active, "Teutons", travianPlusActive: true);
+        Assert.True(status.CanStartBuilding);
+        Assert.Equal(2, status.BuildingSlotsMax);
+    }
+
+    [Fact]
+    public void ComputeConstructionSlotStatus_ShortestWaitPicksMinimum()
+    {
+        IReadOnlyList<ActiveConstruction> active =
+        [
+            new ActiveConstruction(ConstructionKind.Resource, "Iron Mine", 4, 300, null),
+            new ActiveConstruction(ConstructionKind.Building, "Warehouse", 1, 75, null),
+        ];
+        var status = TravianClient.ComputeConstructionSlotStatus(active, "Romans", travianPlusActive: true);
+        Assert.Equal(75, status.ShortestWaitSeconds);
     }
 
     [Theory]

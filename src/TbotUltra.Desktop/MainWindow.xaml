@@ -267,7 +267,12 @@
                 <DockPanel>
                     <TextBlock x:Name="BrowserInfoTextBlock" Text="Browser: idle" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Left" />
                     <TextBlock x:Name="TribeInfoTextBlock" Text="Tribe: -" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right" />
-                    <TextBlock x:Name="GoldClubInfoTextBlock" Text="Goldclub: -" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right" />
+                    <TextBlock Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right">
+                        <Run Text="Plus: " /><Run x:Name="PlusInfoTextBlock" Text="-" />
+                    </TextBlock>
+                    <TextBlock Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right">
+                        <Run Text="Goldclub: " /><Run x:Name="GoldClubInfoTextBlock" Text="-" />
+                    </TextBlock>
                     <TextBlock x:Name="ServerResourcesTextBlock" Text="Gold: - | Silver: -" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right" />
                     <TextBlock x:Name="CaptchaStatsTextBlock" Text="Captchas solved: 0/0" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right" />
                     <TextBlock x:Name="ClockTextBlock" Text="Time: -" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Left" />
@@ -833,6 +838,30 @@
                                             <CheckBox x:Name="HeroAutoAssignPointsCheckBox" Content="Auto assign attribute points" IsChecked="True" />
                                         </StackPanel>
                                     </Grid>
+                                    <TextBlock Text="Adventure pick order" Foreground="#374151" FontSize="12" Margin="0,8,0,4" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <RadioButton x:Name="HeroAdventureShortestRadio"
+                                                     Content="Shortest adventure first"
+                                                     GroupName="HeroAdventureOrder"
+                                                     IsChecked="True"
+                                                     Margin="0,0,16,0" />
+                                        <RadioButton x:Name="HeroAdventureTopRadio"
+                                                     Content="Top adventure first"
+                                                     GroupName="HeroAdventureOrder" />
+                                    </StackPanel>
+                                    <TextBlock Text="Hide hero" Foreground="#374151" FontSize="12" Margin="0,12,0,4" />
+                                    <StackPanel Orientation="Vertical">
+                                        <RadioButton x:Name="HeroHideRadio"
+                                                     Content="Hero will hide during an attack on their home village."
+                                                     GroupName="HeroHideMode"
+                                                     IsChecked="True"
+                                                     Margin="0,0,0,4"
+                                                     Checked="HeroHideModeRadio_Checked" />
+                                        <RadioButton x:Name="HeroFightRadio"
+                                                     Content="Your hero will always stay with the troops."
+                                                     GroupName="HeroHideMode"
+                                                     Checked="HeroHideModeRadio_Checked" />
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
 
@@ -936,14 +965,6 @@
                                                            TextWrapping="Wrap" />
                                             </StackPanel>
                                         </Border>
-                                        <Button x:Name="QueueHeroManageButton"
-                                                Content="Queue hero manage"
-                                                Width="170"
-                                                HorizontalAlignment="Left"
-                                                Click="QueueHeroManageButton_Click"
-                                                Background="#030826"
-                                                Foreground="White"
-                                                BorderBrush="#030826" />
                                     </StackPanel>
                                 </Border>
 
@@ -988,17 +1009,18 @@
                                             </StackPanel>
                                         </DockPanel>
                                         <StackPanel Orientation="Horizontal">
-                                            <Button x:Name="SendHeroOnAdventureButton"
-                                                    Content="Send hero on adventure"
+                                            <Button x:Name="QueueHeroManageButton"
+                                                    Content="Hero adventure"
                                                     Width="190"
-                                                    Click="SendHeroOnAdventureButton_Click"
+                                                    Click="QueueHeroManageButton_Click"
                                                     Background="#030826"
                                                     Foreground="White"
                                                     BorderBrush="#030826" />
                                             <CheckBox x:Name="ContinuousAdventuresCheckBox"
                                                       Content="Continuous adventures"
                                                       VerticalAlignment="Center"
-                                                      Margin="14,0,0,0" />
+                                                      Margin="14,0,0,0"
+                                                      ToolTip="Re-queue Hero adventure after each run until no adventures remain." />
                                         </StackPanel>
                                         <!-- Hidden but kept for code-behind compatibility. State is shown next to the Start bot button. -->
                                         <TextBlock x:Name="HeroAdventureStatusTextBlock"
@@ -1336,31 +1358,8 @@
                             <TextBlock />
                         </DockPanel>
 
-                        <!-- Build queue status bar -->
-                        <Border Grid.Row="1"
-                                Background="#FFFFFF"
-                                BorderBrush="#E5E7EB"
-                                BorderThickness="1"
-                                CornerRadius="8"
-                                Padding="12,10"
-                                Margin="2,0,2,12">
-                            <DockPanel>
-                                <Border DockPanel.Dock="Left"
-                                        Background="#EEF2FF"
-                                        CornerRadius="6"
-                                        Padding="6,3"
-                                        Margin="0,0,10,0">
-                                    <TextBlock Text="Build queue"
-                                               FontSize="11"
-                                               FontWeight="SemiBold"
-                                               Foreground="#3730A3" />
-                                </Border>
-                                <TextBlock x:Name="BuildQueueStatusTextBlock"
-                                           Text="-"
-                                           Foreground="#1F2937"
-                                           VerticalAlignment="Center" />
-                            </DockPanel>
-                        </Border>
+                        <!-- Build queue status bar (hidden — kept for code-behind compatibility) -->
+                        <TextBlock x:Name="BuildQueueStatusTextBlock" Grid.Row="1" Visibility="Collapsed" />
 
                         <!-- Active queue card -->
                         <Border Grid.Row="2"
@@ -1582,7 +1581,6 @@
                                 <Border Background="#110D0D" Padding="8">
                                     <ListBox x:Name="AlarmListBox"
                                              Background="#110D0D"
-                                             Foreground="#FCA5A5"
                                              BorderThickness="0"
                                              FontFamily="Consolas"
                                              FontSize="13"
@@ -1590,7 +1588,18 @@
                                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                         <ListBox.ItemTemplate>
                                             <DataTemplate>
-                                                <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="#FCA5A5" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsAcknowledged}" Value="True">
+                                                                    <Setter Property="Foreground" Value="#93C5FD" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
                                             </DataTemplate>
                                         </ListBox.ItemTemplate>
                                     </ListBox>

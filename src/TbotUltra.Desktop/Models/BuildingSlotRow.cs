@@ -24,13 +24,14 @@ public sealed class BuildingSlotRow
     public bool IsOccupied => !string.IsNullOrWhiteSpace(Name)
         && !string.Equals(Name, "Empty", StringComparison.OrdinalIgnoreCase)
         && (Level ?? 0) > 0;
+    public bool IsReservedForConstruction => HasPendingConstruct;
     public bool HasPendingUpgrade => PendingTargetLevel is int pending && pending > (Level ?? 0);
     public bool HasPendingConstruct => !IsOccupied && !string.IsNullOrWhiteSpace(PendingConstructName);
     public string SlotLabel => $"Slot {SlotId}";
     public string NameLabel => IsOccupied
         ? Name
         : HasPendingConstruct
-            ? $"{PendingConstructName} (queued)"
+            ? $"{PendingConstructName} (constructing)"
             : (IsWallSlot || IsRallyPointSlot) && !string.IsNullOrWhiteSpace(Name) && !string.Equals(Name, "Empty", StringComparison.OrdinalIgnoreCase)
                 ? Name
                 : "Empty";
@@ -46,7 +47,9 @@ public sealed class BuildingSlotRow
     public string BadgeText => IsOccupied ? LevelLabel : "+";
     public string ActionHint => IsOccupied
         ? "Click to queue +1 level upgrade."
-        : "Click to choose and queue a building.";
+        : HasPendingConstruct
+            ? "This slot is already reserved by a queued construction."
+            : "Click to choose and queue a building.";
 
     public bool IsMaxLevel => IsOccupied
         && Level is int lvl

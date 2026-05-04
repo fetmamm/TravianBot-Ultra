@@ -37,8 +37,8 @@ public sealed class BotTaskRunner
             ["demolish_building_to_level"] = ExecuteDemolishBuildingToLevelAsync,
             // Manages hero actions: revives if dead, allocates points, and sends on adventures if HP allows.
             ["hero_manage"] = ExecuteHeroManageAsync,
-            // Sends the hero on the first available adventure if hero is in home village.
-            ["hero_send_adventure"] = ExecuteHeroSendAdventureAsync,
+            // Opens the hero attributes tab and sets the Hide hero / stay-with-troops radio.
+            ["hero_set_hide_mode"] = ExecuteHeroSetHideModeAsync,
             // Walks through the Smithy and clicks every "Upgrade" button until none remain.
             ["upgrade_troops_at_smithy"] = ExecuteUpgradeTroopsAtSmithyAsync,
         };
@@ -147,13 +147,44 @@ public sealed class BotTaskRunner
             {
                 log($"Starting login for server {options.ServerName}.");
                 await client.LoginAsync(cancellationToken);
-                await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken);
+                await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken, skipFeatureRefresh: true);
                 log("Login completed and browser session saved.");
                 if (!options.Headless)
                 {
                     log("Browser stays open (headless is disabled).");
                 }
             });
+    }
+
+    public async Task<PostLoginSnapshot> LoadPostLoginSnapshotAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        PostLoginSnapshot? snapshot = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                log($"Loading post-login data for server {options.ServerName}.");
+                await client.LoginAsync(cancellationToken);
+                await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken, skipFeatureRefresh: true);
+
+                var villageStatus = await client.ReadVillageStatusAsync(cancellationToken);
+                var inboxStatus = new InboxStatus(villageStatus.UnreadMessages, villageStatus.UnreadReports);
+
+                await client.NavigateToResourceFieldsAsync(cancellationToken);
+                var adventureCount = await client.RefreshAdventureCountAsync(forceReload: false, cancellationToken);
+
+                snapshot = new PostLoginSnapshot(villageStatus, inboxStatus, adventureCount);
+            });
+
+        return snapshot ?? throw new InvalidOperationException("Could not load post-login snapshot.");
     }
 
     public async Task<AccountSnapshot> AnalyzeProfileAsync(
@@ -503,7 +534,7 @@ public sealed class BotTaskRunner
             cancellationToken,
             async client =>
             {
-                count = await client.RefreshAdventureCountAsync(cancellationToken);
+                count = await client.RefreshAdventureCountAsync(cancellationToken: cancellationToken);
                 found = count is not null;
             });
 
@@ -963,6 +994,14 @@ public sealed class BotTaskRunner
         await RefreshBuildingsSnapshotAfterTaskAsync(context);
     }
 
+    private static async Task ExecuteHeroSetHideModeAsync(TaskExecutionContext context)
+    {
+        var changed = await context.Client.SetHeroHideModeOnlyAsync(context.Options.HeroHideMode, context.CancellationToken);
+        context.Log(changed
+            ? $"Hero hide mode applied: {context.Options.HeroHideMode}."
+            : $"Hero hide mode already '{context.Options.HeroHideMode}' — no change.");
+    }
+
     private static async Task ExecuteHeroManageAsync(TaskExecutionContext context)
     {
         var result = await context.Client.ManageHeroAsync(
@@ -970,32 +1009,31 @@ public sealed class BotTaskRunner
             context.Options.HeroAutoRevive,
             context.Options.HeroAutoAssignPoints,
             context.Options.HeroStatPriority,
+            context.Options.HeroAdventurePickOrder,
+            context.Options.HeroHideMode,
             context.CancellationToken);
         context.Log(result);
     }
 
-    private static async Task ExecuteHeroSendAdventureAsync(TaskExecutionContext context)
-    {
-        var result = await context.Client.SendHeroOnAdventureAsync(context.CancellationToken);
-        context.Log(result.Message);
-
-        if (result.SecondsUntilReturn is int waitSeconds && waitSeconds > 0)
-        {
-            var boundedWaitSeconds = Math.Min(waitSeconds, 12 * 60 * 60);
-            context.Log($"Hero adventure wait: {boundedWaitSeconds}s.");
-            await Task.Delay(TimeSpan.FromSeconds(boundedWaitSeconds), context.CancellationToken);
-        }
-    }
-
     private static void ThrowIfTaskBlocked(string taskName, string result)
     {
-        if (string.IsNullOrWhiteSpace(result))
+        if (!IsBlockedTaskResult(result))
         {
             return;
         }
 
+        throw new InvalidOperationException($"Task '{taskName}' could not execute successfully: {result}");
+    }
+
+    internal static bool IsBlockedTaskResult(string? result)
+    {
+        if (string.IsNullOrWhiteSpace(result))
+        {
+            return false;
+        }
+
         var value = result.ToLowerInvariant();
-        var isBlocked =
+        return
             value.Contains(" blocked ")
             || value.Contains("blocked (")
             || value.Contains("cannot be built yet")
@@ -1003,13 +1041,6 @@ public sealed class BotTaskRunner
             || value.Contains("is not listed by the server")
             || value.Contains("cannot be built in slot")
             || value.Contains("reports max level reached");
-
-        if (!isBlocked)
-        {
-            return;
-        }
-
-        throw new InvalidOperationException($"Task '{taskName}' could not execute successfully: {result}");
     }
 
     private sealed record TaskExecutionContext(
@@ -1030,7 +1061,8 @@ public sealed class BotTaskRunner
         Action<string> log,
         CancellationToken cancellationToken,
         string? explicitVillageName = null,
-        string? explicitVillageUrl = null)
+        string? explicitVillageUrl = null,
+        bool skipFeatureRefresh = false)
     {
         var targetName = string.IsNullOrWhiteSpace(explicitVillageName) ? options.TargetVillageName : explicitVillageName;
         var targetUrl = string.IsNullOrWhiteSpace(explicitVillageUrl) ? options.TargetVillageUrl : explicitVillageUrl;
@@ -1039,7 +1071,7 @@ public sealed class BotTaskRunner
             return;
         }
 
-        await client.SwitchToVillageAsync(targetName, targetUrl, cancellationToken);
+        await client.SwitchToVillageAsync(targetName, targetUrl, cancellationToken, skipFeatureRefresh);
         var label = !string.IsNullOrWhiteSpace(targetName) ? targetName : targetUrl;
         log($"Target village applied: {label}");
     }

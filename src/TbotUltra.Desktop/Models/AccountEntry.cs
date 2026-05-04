@@ -1,4 +1,5 @@
 using System;
+using System.Text.RegularExpressions;
 
 namespace TbotUltra.Desktop.Models;
 
@@ -14,9 +15,33 @@ public sealed class AccountEntry
     public bool IsActive { get; set; }
     public bool IsAnalyzed { get; set; }
     public string AnalysisStatus => IsAnalyzed ? "Yes" : "No";
+    public string ServerSpeedLabel => ExtractServerSpeedLabel(ServerName);
 
     public string PickerName =>
         string.Equals(Name, ManageAccountsOptionName, StringComparison.OrdinalIgnoreCase)
             ? "Manage accounts..."
-            : (string.IsNullOrWhiteSpace(Username) ? Name : Username);
+            : $"{(string.IsNullOrWhiteSpace(Username) ? Name : Username)} | {ServerSpeedLabel}";
+
+    private static string ExtractServerSpeedLabel(string? serverName)
+    {
+        var value = serverName?.Trim() ?? string.Empty;
+        if (value.Length == 0)
+        {
+            return "-";
+        }
+
+        var tokenMatch = Regex.Match(value, @"\b[A-Za-z]{1,6}-\d+[xX]\b");
+        if (tokenMatch.Success)
+        {
+            return tokenMatch.Value;
+        }
+
+        var speedMatch = Regex.Match(value, @"(\d+)\s*[xX]");
+        if (speedMatch.Success)
+        {
+            return $"{speedMatch.Groups[1].Value}x";
+        }
+
+        return value;
+    }
 }

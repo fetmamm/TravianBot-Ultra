@@ -22,6 +22,8 @@ public static class BotOptionPayloadKeys
     public const string HeroAutoRevive = "hero_auto_revive";
     public const string HeroAutoAssignPoints = "hero_auto_assign_points";
     public const string HeroStatPriority = "hero_stat_priority";
+    public const string HeroAdventurePickOrder = "hero_adventure_pick_order"; // "shortest" or "top"
+    public const string HeroHideMode = "hero_hide_mode"; // "hide" or "fight"
 
     public const string UpgradeSelectorProfile = "upgrade_selector_profile";
     public const string CaptchaAutoSolveEnabled = "captcha_auto_solve_enabled";

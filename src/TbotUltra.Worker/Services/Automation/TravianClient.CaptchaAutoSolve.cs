@@ -310,7 +310,7 @@ public sealed partial class TravianClient
                 await RetryAsync($"fill captcha selector {selector}", async () =>
                 {
                     await locator.FillAsync(answer, new LocatorFillOptions { Timeout = _config.TimeoutMs });
-                });
+                }, cancellationToken: cancellationToken);
                 return true;
             }
             catch (PlaywrightException)
@@ -344,7 +344,7 @@ public sealed partial class TravianClient
                 await RetryAsync($"press enter on captcha selector {selector}", async () =>
                 {
                     await locator.PressAsync("Enter", new LocatorPressOptions { Timeout = _config.TimeoutMs });
-                });
+                }, cancellationToken: cancellationToken);
                 return true;
             }
             catch (PlaywrightException)
@@ -401,7 +401,7 @@ public sealed partial class TravianClient
                 await RetryAsync($"click captcha error dialog selector {selector}", async () =>
                 {
                     await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
-                });
+                }, cancellationToken: cancellationToken);
                 return;
             }
             catch (PlaywrightException)
@@ -433,7 +433,7 @@ public sealed partial class TravianClient
                 await RetryAsync($"click captcha success dialog selector {selector}", async () =>
                 {
                     await locator.ClickAsync(new LocatorClickOptions { Timeout = Math.Min(_config.TimeoutMs, 1500) });
-                });
+                }, cancellationToken: cancellationToken);
                 await Task.Delay(250, cancellationToken);
                 return true;
             }

@@ -151,9 +151,15 @@ public sealed partial class TravianClient
         }
 
         var upgrades = 0;
-        while (true)
+        var safetyCap = ComputeBuildingUpgradeSafetyCap(targetLevel);
+        int? lastKnownLevel = null;
+        var transientRetries = 0;
+        for (var iteration = 0; iteration < safetyCap; iteration++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
 
             // Step 1: ensure dorf2 with fresh data.
             if (IsCurrentUrlForPath(Paths.Buildings))
@@ -173,11 +179,20 @@ public sealed partial class TravianClient
                 return $"Slot {slotId}: not found on dorf2. Upgrades performed: {upgrades}.";
             }
             var currentLevel = info.Level;
+            lastKnownLevel = currentLevel;
             if (currentLevel >= targetLevel)
             {
                 return $"Slot {slotId}: already at level {currentLevel} (target {targetLevel}). Upgrades performed: {upgrades}.";
             }
             var nextLevel = currentLevel + 1;
+            var queueFingerprintBefore = BuildQueueFingerprint(await ReadBuildQueueAsync(cancellationToken));
+
+            // Tribe/Plus-aware slot gate: skip the build-page navigation entirely if the building slot is busy.
+            var slotWait = await WaitForConstructionSlotIfBusyAsync(ConstructionKind.Building, cancellationToken);
+            if (slotWait > 0)
+            {
+                continue;
+            }
 
             // Step 3: open the slot's build page.
             await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
@@ -201,16 +216,53 @@ public sealed partial class TravianClient
                     await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
                     continue;
                 }
-                return $"Slot {slotId}: could not find 'Upgrade to level {nextLevel}' button. Upgrades performed: {upgrades}.";
+
+                var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: false);
+                if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources)
+                {
+                    var waitSeconds = ClampResourceWaitSeconds(actionability.QueueWaitSeconds);
+                    Notify($"Slot {slotId} blocked by resources. Waiting {waitSeconds}s. queue_wait_seconds={waitSeconds}");
+                    await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
+                    continue;
+                }
+                if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByQueue)
+                {
+                    var waitSeconds = ClampResourceWaitSeconds(actionability.QueueWaitSeconds);
+                    Notify($"Slot {slotId} blocked by queue. Waiting {waitSeconds}s. queue_wait_seconds={waitSeconds}");
+                    await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
+                    continue;
+                }
+                return $"Slot {slotId}: could not find 'Upgrade to level {nextLevel}' button. Reason: {actionability.Outcome} ({actionability.Reason}). Upgrades performed: {upgrades}.";
             }
 
             upgrades += 1;
-            // Step 6: wait for build to finish.
-            var waitMs = ComputePostActionWaitMs(durationSeconds);
-            Notify($"Slot {slotId}: clicked 'Upgrade to level {nextLevel}'. Waiting {waitMs}ms.");
-            await Task.Delay(waitMs, cancellationToken);
+            transientRetries = 0;
+            var progress = await WaitForBuildingLevelAdvanceAsync(slotId, currentLevel, queueFingerprintBefore, cancellationToken);
+            if (!progress.Advanced && !progress.QueuedOrInProgress)
+            {
+                var waitMs = ComputePostActionWaitMs(durationSeconds);
+                Notify($"Slot {slotId}: upgrade click did not confirm immediately ({progress.Evidence}). Waiting {waitMs}ms before retry.");
+                await Task.Delay(waitMs, cancellationToken);
+                continue;
+            }
+
+            return $"Slot {slotId}: queued upgrade to level {nextLevel}. Evidence: {progress.Evidence}.";
+
+            }
+            catch (Exception ex) when (IsTransientExecutionContextException(ex) && transientRetries < 6)
+            {
+                transientRetries += 1;
+                Notify($"UpgradeBuildingToLevelAsync slot={slotId} hit transient navigation error ({transientRetries}/6): {ex.Message}. Retrying...");
+                await Task.Delay(400 * transientRetries, cancellationToken);
+            }
         }
+
+        var levelText = lastKnownLevel is int level ? level.ToString() : "unknown";
+        return $"Slot {slotId}: hit safety cap of {safetyCap} iterations while targeting level {targetLevel}. Upgrades performed: {upgrades}. Last known level: {levelText}.";
     }
+
+    internal static int ComputeBuildingUpgradeSafetyCap(int targetLevel)
+        => Math.Max(1, targetLevel + 5);
 
     /// <summary>
     /// Computes the post-action wait in milliseconds for any server speed.
@@ -269,6 +321,7 @@ public sealed partial class TravianClient
     {
         var pattern = new Regex($@"upgrade\s+to\s+level\s+{nextLevel}\b", RegexOptions.IgnoreCase);
         var anyPattern = new Regex(@"upgrade\s+to\s+level", RegexOptions.IgnoreCase);
+        string? lastError = null;
         var selectors = new[]
         {
             "div.addHoverClick",
@@ -289,8 +342,9 @@ public sealed partial class TravianClient
                     await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
                     return true;
                 }
-                catch
+                catch (Exception ex)
                 {
+                    lastError = $"{selector}: {ex.Message}";
                     // Try next selector.
                 }
             }
@@ -307,11 +361,17 @@ public sealed partial class TravianClient
                     await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
                     return true;
                 }
-                catch
+                catch (Exception ex)
                 {
+                    lastError = $"{selector}: {ex.Message}";
                     // Try next selector.
                 }
             }
+        }
+
+        if (!string.IsNullOrWhiteSpace(lastError))
+        {
+            Notify($"Could not click upgrade button for level {nextLevel}. Last click error: {lastError}");
         }
 
         return false;
@@ -327,10 +387,14 @@ public sealed partial class TravianClient
 
         var safetyCap = Math.Max(1, maxAttempts);
         var upgrades = 0;
+        var transientRetries = 0;
 
         for (var iteration = 0; iteration < safetyCap; iteration++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
 
             // Step 1: ensure dorf2 with fresh data.
             if (IsCurrentUrlForPath(Paths.Buildings))
@@ -357,6 +421,14 @@ public sealed partial class TravianClient
                 return $"Slot {slotId}: already at max level {maxLevel}. Upgrades performed: {upgrades}.";
             }
             var nextLevel = currentLevel + 1;
+            var queueFingerprintBefore = BuildQueueFingerprint(await ReadBuildQueueAsync(cancellationToken));
+
+            // Tribe/Plus-aware slot gate: skip the build-page navigation entirely if the building slot is busy.
+            var slotWait = await WaitForConstructionSlotIfBusyAsync(ConstructionKind.Building, cancellationToken);
+            if (slotWait > 0)
+            {
+                continue;
+            }
 
             // Step 3: open the slot's build page.
             await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
@@ -380,14 +452,45 @@ public sealed partial class TravianClient
                     await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
                     continue;
                 }
-                return $"Slot {slotId}: could not find 'Upgrade to level {nextLevel}' button. Upgrades performed: {upgrades}.";
+
+                var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: false);
+                if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources)
+                {
+                    var waitSeconds = ClampResourceWaitSeconds(actionability.QueueWaitSeconds);
+                    Notify($"Slot {slotId} blocked by resources. Waiting {waitSeconds}s. queue_wait_seconds={waitSeconds}");
+                    await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
+                    continue;
+                }
+                if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByQueue)
+                {
+                    var waitSeconds = ClampResourceWaitSeconds(actionability.QueueWaitSeconds);
+                    Notify($"Slot {slotId} blocked by queue. Waiting {waitSeconds}s. queue_wait_seconds={waitSeconds}");
+                    await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
+                    continue;
+                }
+                return $"Slot {slotId}: could not find 'Upgrade to level {nextLevel}' button. Reason: {actionability.Outcome} ({actionability.Reason}). Upgrades performed: {upgrades}.";
             }
 
             upgrades += 1;
-            // Step 6: wait for build to finish.
-            var waitMs = ComputePostActionWaitMs(durationSeconds);
-            Notify($"Slot {slotId}: clicked 'Upgrade to level {nextLevel}'. Waiting {waitMs}ms.");
-            await Task.Delay(waitMs, cancellationToken);
+            transientRetries = 0;
+            var progress = await WaitForBuildingLevelAdvanceAsync(slotId, currentLevel, queueFingerprintBefore, cancellationToken);
+            if (!progress.Advanced && !progress.QueuedOrInProgress)
+            {
+                var waitMs = ComputePostActionWaitMs(durationSeconds);
+                Notify($"Slot {slotId}: upgrade-to-max click did not confirm immediately ({progress.Evidence}). Waiting {waitMs}ms before retry.");
+                await Task.Delay(waitMs, cancellationToken);
+                continue;
+            }
+
+            return $"Slot {slotId}: queued upgrade toward max (next level {nextLevel}). Evidence: {progress.Evidence}.";
+
+            }
+            catch (Exception ex) when (IsTransientExecutionContextException(ex) && transientRetries < 6)
+            {
+                transientRetries += 1;
+                Notify($"UpgradeBuildingToMaxAsync slot={slotId} hit transient navigation error ({transientRetries}/6): {ex.Message}. Retrying...");
+                await Task.Delay(400 * transientRetries, cancellationToken);
+            }
         }
 
         return $"Slot {slotId}: hit safety cap of {safetyCap} iterations. Upgrades performed: {upgrades}.";
@@ -406,36 +509,61 @@ public sealed partial class TravianClient
         }
 
         var buildingName = string.IsNullOrWhiteSpace(name) ? $"gid {gid}" : name.Trim();
+        const int safetyCap = 6;
 
-        // Step 1: open the slot's construction page on the right category tab so the building's
-        // wrapper actually exists in the DOM. Walls (slot 40) ignore category — only one option.
-        var url = Paths.BuildBySlot(slotId);
-        var categoryIndex = BuildingCatalogService.CategoryIndexFor(gid);
-        if (categoryIndex.HasValue && slotId != 40)
+        for (var attempt = 0; attempt < safetyCap; attempt++)
         {
-            var separator = url.Contains('?') ? '&' : '?';
-            url = $"{url}{separator}category={categoryIndex.Value}";
+            cancellationToken.ThrowIfCancellationRequested();
+            var queueFingerprintBefore = BuildQueueFingerprint(await ReadBuildQueueAsync(cancellationToken));
+
+            var slotWait = await WaitForConstructionSlotIfBusyAsync(ConstructionKind.Building, cancellationToken);
+            if (slotWait > 0)
+            {
+                continue;
+            }
+
+            // Step 1: open the slot's construction page on the right category tab so the building's
+            // wrapper actually exists in the DOM. Walls (slot 40) ignore category — only one option.
+            var url = Paths.BuildBySlot(slotId);
+            var categoryIndex = BuildingCatalogService.CategoryIndexFor(gid);
+            if (categoryIndex.HasValue && slotId != 40)
+            {
+                var separator = url.Contains('?') ? '&' : '?';
+                url = $"{url}{separator}category={categoryIndex.Value}";
+            }
+            await GotoAsync(url, cancellationToken);
+            await PauseForManualStepIfVisibleAsync($"Manual verification on slot {slotId} construct page.", cancellationToken);
+
+            // Step 2: read build duration.
+            var durationSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken) ?? 0;
+
+            // Step 3: click the "Construct building" button (scoped to this gid when possible).
+            var clicked = await ClickConstructBuildingButtonAsync(gid, cancellationToken);
+            if (!clicked)
+            {
+                var waitAfterBusy = await WaitForConstructionSlotIfBusyAsync(ConstructionKind.Building, cancellationToken);
+                if (waitAfterBusy > 0)
+                {
+                    continue;
+                }
+
+                await CaptureFailureArtifactsAsync($"construct-slot-{slotId}-gid-{gid}-no-click", cancellationToken);
+                return $"Slot {slotId}: could not find 'Construct building' button for gid {gid}.";
+            }
+
+            var progress = await WaitForBuildingLevelAdvanceAsync(slotId, 0, queueFingerprintBefore, cancellationToken);
+            if (!progress.Advanced && !progress.QueuedOrInProgress)
+            {
+                var waitMs = ComputePostActionWaitMs(durationSeconds);
+                Notify($"Slot {slotId}: construct click did not confirm immediately ({progress.Evidence}). Waiting {waitMs}ms before retry.");
+                await Task.Delay(waitMs, cancellationToken);
+                continue;
+            }
+
+            return $"Queued {buildingName} in slot {slotId}. Evidence: {progress.Evidence}.";
         }
-        await GotoAsync(url, cancellationToken);
-        await PauseForManualStepIfVisibleAsync($"Manual verification on slot {slotId} construct page.", cancellationToken);
 
-        // Step 2: read build duration.
-        var durationSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken) ?? 0;
-
-        // Step 3: click the "Construct building" button (scoped to this gid when possible).
-        var clicked = await ClickConstructBuildingButtonAsync(gid, cancellationToken);
-        if (!clicked)
-        {
-            await CaptureFailureArtifactsAsync($"construct-slot-{slotId}-gid-{gid}-no-click", cancellationToken);
-            return $"Slot {slotId}: could not find 'Construct building' button for gid {gid}.";
-        }
-
-        // Step 4: wait for build to finish.
-        var waitMs = ComputePostActionWaitMs(durationSeconds);
-        Notify($"Slot {slotId}: clicked 'Construct building' for gid {gid}. Waiting {waitMs}ms.");
-        await Task.Delay(waitMs, cancellationToken);
-
-        return $"Constructed {buildingName} in slot {slotId}.";
+        return $"Slot {slotId}: hit safety cap while trying to queue {buildingName}.";
     }
 
     private async Task<bool> ClickConstructBuildingButtonAsync(int gid, CancellationToken cancellationToken)
@@ -444,8 +572,9 @@ public sealed partial class TravianClient
         {
             await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
         }
-        catch
+        catch (Exception ex)
         {
+            Notify($"Construct page load wait failed before button scan: {ex.Message}");
             // Continue regardless; we'll still look for the button below.
         }
 
@@ -456,8 +585,9 @@ public sealed partial class TravianClient
                 null,
                 new PageWaitForFunctionOptions { Timeout = 10000 });
         }
-        catch
+        catch (Exception ex)
         {
+            Notify($"Construct page readiness wait failed before button scan: {ex.Message}");
             // Continue anyway.
         }
 
@@ -536,8 +666,9 @@ public sealed partial class TravianClient
             return doc.RootElement.TryGetProperty("clicked", out var clickedProp)
                 && clickedProp.GetBoolean();
         }
-        catch
+        catch (Exception ex)
         {
+            Notify($"Could not parse construct click result for gid {gid}: {ex.Message}");
             return false;
         }
     }
@@ -859,7 +990,7 @@ public sealed partial class TravianClient
         await RetryAsync("read building slots snapshot", async () =>
         {
             buildingsBySlot = await ReadBuildingInfosAsync(cancellationToken);
-        });
+        }, cancellationToken: cancellationToken);
 
         return buildingsBySlot.Values
             .OrderBy(item => item.SlotId)
@@ -919,8 +1050,9 @@ public sealed partial class TravianClient
                     Level = level,
                 };
             }
-            catch
+            catch (Exception ex)
             {
+                Notify($"Skipping building slot index {index} while reading overview: {ex.Message}");
                 // Keep scanning remaining slots even if one slot is malformed or transiently missing content.
             }
         }
@@ -941,8 +1073,9 @@ public sealed partial class TravianClient
             var rawLevel = (await label.TextContentAsync() ?? string.Empty).Trim();
             return int.TryParse(rawLevel, out var level) ? level : 0;
         }
-        catch
+        catch (Exception ex)
         {
+            Notify($"Could not read building level from overview slot: {ex.Message}");
             return 0;
         }
     }
@@ -1161,6 +1294,226 @@ public sealed partial class TravianClient
     internal static int ComputeUpgradeWaitSeconds(int? detectedSeconds)
         => Math.Max(1, Math.Min((detectedSeconds ?? 0) + 1, 12 * 60 * 60));
 
+    internal static int ClampResourceWaitSeconds(int? detectedSeconds)
+    {
+        const int min = 30;
+        const int fallback = 5 * 60;
+        const int max = 12 * 60 * 60;
+        if (detectedSeconds is not int s || s <= 0) return fallback;
+        if (s < min) return min;
+        if (s > max) return max;
+        return s + 1;
+    }
+
+    public async Task<IReadOnlyList<ActiveConstruction>> ReadActiveConstructionsAsync(CancellationToken cancellationToken = default)
+    {
+        LogFunctionStarted();
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading active constructions.", cancellationToken);
+
+        var rawJson = await _page.EvaluateAsync<string>(
+            """
+            () => {
+              const items = [];
+              const lis = document.querySelectorAll('.boxes.buildingList ul li, .buildingList ul li');
+              const seen = new Set();
+              for (const li of lis) {
+                const nameEl = li.querySelector('.name');
+                if (!nameEl) continue;
+                const fullName = (nameEl.textContent || '').replace(/\s+/g, ' ').trim();
+                if (!fullName || seen.has(fullName)) continue;
+                seen.add(fullName);
+
+                const lvlEl = nameEl.querySelector('.lvl');
+                const lvlText = (lvlEl?.textContent || '').trim();
+                const lvlMatch = lvlText.match(/(\d{1,3})/);
+                const level = lvlMatch ? Number(lvlMatch[1]) : null;
+                const baseName = lvlEl ? fullName.replace(lvlText, '').trim() : fullName;
+
+                const timer = li.querySelector('.timer, [counting="down"]');
+                let timeLeft = null;
+                if (timer) {
+                  const v = timer.getAttribute('value');
+                  if (v && !isNaN(Number(v))) timeLeft = Number(v);
+                }
+                const finishText = (li.querySelector('.buildDuration')?.textContent || '').replace(/\s+/g, ' ').trim();
+
+                const resourceNames = /(woodcutter|clay\s*pit|iron\s*mine|crop\s*land|cropland|skogshugg|lerg|j[äa]rng|s[äa]desf|holzf[äa]ller|lehmgrube|eisenmine|getreidefarm|bois|argile|fer|c[ée]r[ée]ales)/i;
+                let kind = 'Unknown';
+                if (resourceNames.test(baseName)) kind = 'Resource';
+                else if (baseName) kind = 'Building';
+
+                items.push({ kind, name: baseName, level, timeLeftSeconds: timeLeft, finishAtText: finishText });
+              }
+              return JSON.stringify(items);
+            }
+            """);
+
+        var raw = string.IsNullOrWhiteSpace(rawJson)
+            ? new List<ActiveConstructionJs>()
+            : JsonSerializer.Deserialize<List<ActiveConstructionJs>>(rawJson) ?? new List<ActiveConstructionJs>();
+
+        return raw
+            .Where(i => !string.IsNullOrWhiteSpace(i.Name))
+            .Select(i => new ActiveConstruction(
+                Kind: i.Kind switch
+                {
+                    "Resource" => ConstructionKind.Resource,
+                    "Building" => ConstructionKind.Building,
+                    _ => ConstructionKind.Unknown
+                },
+                Name: i.Name!,
+                Level: i.Level,
+                TimeLeftSeconds: i.TimeLeftSeconds ?? ParseDurationToSeconds(i.FinishAtText),
+                FinishAtText: i.FinishAtText))
+            .ToList();
+    }
+
+    public async Task<ConstructionSlotStatus> EvaluateConstructionSlotsAsync(
+        string tribe,
+        bool travianPlusActive,
+        CancellationToken cancellationToken = default)
+    {
+        LogFunctionStarted();
+        var active = await ReadActiveConstructionsAsync(cancellationToken);
+        return ComputeConstructionSlotStatus(active, tribe, travianPlusActive);
+    }
+
+    internal static ConstructionSlotStatus ComputeConstructionSlotStatus(
+        IReadOnlyList<ActiveConstruction> active,
+        string tribe,
+        bool travianPlusActive)
+    {
+        var isRomans = string.Equals(tribe, "Romans", StringComparison.OrdinalIgnoreCase);
+        var resourceUsed = active.Count(a => a.Kind == ConstructionKind.Resource);
+        var buildingUsed = active.Count(a => a.Kind != ConstructionKind.Resource);
+
+        bool canResource;
+        bool canBuilding;
+        int resourceMax;
+        int buildingMax;
+
+        if (isRomans)
+        {
+            resourceMax = 1;
+            buildingMax = travianPlusActive ? 2 : 1;
+            canResource = resourceUsed < resourceMax;
+            canBuilding = buildingUsed < buildingMax;
+        }
+        else
+        {
+            resourceMax = 1;
+            buildingMax = travianPlusActive ? 2 : 1;
+            var totalUsed = active.Count;
+            canResource = canBuilding = totalUsed < buildingMax;
+        }
+
+        int? shortest = null;
+        foreach (var item in active)
+        {
+            if (item.TimeLeftSeconds is int s && s > 0)
+            {
+                shortest = shortest is null ? s : Math.Min(shortest.Value, s);
+            }
+        }
+
+        return new ConstructionSlotStatus(
+            Active: active,
+            ResourceSlotsUsed: resourceUsed,
+            BuildingSlotsUsed: buildingUsed,
+            ResourceSlotsMax: resourceMax,
+            BuildingSlotsMax: buildingMax,
+            CanStartResource: canResource,
+            CanStartBuilding: canBuilding,
+            ShortestWaitSeconds: shortest);
+    }
+
+    private async Task<(string Tribe, bool PlusActive)> GetCachedTribeAndPlusAsync(CancellationToken cancellationToken)
+    {
+        // Tribe is immutable for an account — cache for the entire session, only cleared on logout.
+        var tribe = _sessionTribe ?? _cachedTribe;
+        if (string.IsNullOrWhiteSpace(tribe) || string.Equals(tribe, "Unknown", StringComparison.OrdinalIgnoreCase))
+        {
+            tribe = await ReadTribeAsync(cancellationToken);
+            _cachedTribe = tribe;
+            if (!string.IsNullOrWhiteSpace(tribe) && !string.Equals(tribe, "Unknown", StringComparison.OrdinalIgnoreCase))
+            {
+                _sessionTribe = tribe;
+            }
+            _cachedTribePlusAt = DateTimeOffset.UtcNow;
+        }
+
+        var plusActive = await IsTravianPlusActiveAsync(cancellationToken);
+        if (_cachedTravianPlusActive != plusActive)
+        {
+            Notify($"[plus] active={plusActive} (changed)");
+            _cachedTravianPlusActive = plusActive;
+        }
+        return (tribe!, plusActive);
+    }
+
+    public async Task<int> WaitForConstructionSlotIfBusyAsync(
+        ConstructionKind kind,
+        CancellationToken cancellationToken = default)
+    {
+        LogFunctionStarted();
+        var (tribe, plusActive) = await GetCachedTribeAndPlusAsync(cancellationToken);
+        var status = await EvaluateConstructionSlotsAsync(tribe, plusActive, cancellationToken);
+
+        var canStart = kind == ConstructionKind.Resource ? status.CanStartResource : status.CanStartBuilding;
+        if (canStart)
+        {
+            return 0;
+        }
+
+        var isRomans = string.Equals(tribe, "Romans", StringComparison.OrdinalIgnoreCase);
+        var relevantItems = isRomans
+            ? status.Active.Where(a => kind == ConstructionKind.Resource
+                ? a.Kind == ConstructionKind.Resource
+                : a.Kind != ConstructionKind.Resource)
+            : status.Active;
+
+        var relevant = relevantItems
+            .Where(a => a.TimeLeftSeconds is int v && v > 0)
+            .Select(a => a.TimeLeftSeconds!.Value)
+            .DefaultIfEmpty(0)
+            .Min();
+
+        var wait = relevant > 0 ? relevant : status.ShortestWaitSeconds ?? 0;
+        if (wait <= 0)
+        {
+            return 0;
+        }
+
+        Notify($"Construction slot busy for {kind}; waiting {wait}s (tribe={tribe}, plus={plusActive}). queue_wait_seconds={wait}");
+        await Task.Delay(TimeSpan.FromSeconds(Math.Min(wait + 1, 12 * 60 * 60)), cancellationToken);
+        return wait;
+    }
+
+    public Task<string> ReadTribeOnlyAsync(CancellationToken cancellationToken = default)
+    {
+        LogFunctionStarted();
+        return ReadTribeAsync(cancellationToken);
+    }
+
+    public async Task<bool> IsTravianPlusActiveAsync(CancellationToken cancellationToken = default)
+    {
+        LogFunctionStarted();
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading Travian Plus status.", cancellationToken);
+
+        return await _page.EvaluateAsync<bool>(
+            """
+            () => {
+              const box = document.querySelector('#sidebarBoxLinklist');
+              if (!box) return false;
+              const html = box.innerHTML || '';
+              if (html.includes('plusDialog')) return false;
+              if (/editWhite\s+green/.test(html)) return true;
+              if (/spieler\.php\?s=2/.test(html)) return true;
+              return true;
+            }
+            """);
+    }
+
 
     private async Task<UpgradeAttemptResult> AnalyzeUpgradeActionabilityAsync(int slotId, CancellationToken cancellationToken, bool performClick)
     {
@@ -1259,6 +1612,37 @@ public sealed partial class TravianClient
                         return null;
                       };
 
+                      const readServerNow = () => {
+                        const candidates = ['#servertime .timeStandard', '#servertime', '.serverTime', '#stockBarTimer'];
+                        for (const sel of candidates) {
+                          const el = document.querySelector(sel);
+                          const t = clean(el?.textContent || '');
+                          const m = t.match(/(\d{1,2}):(\d{2}):(\d{2})/);
+                          if (m) {
+                            const now = new Date();
+                            now.setHours(Number(m[1]), Number(m[2]), Number(m[3]), 0);
+                            return now;
+                          }
+                        }
+                        return new Date();
+                      };
+
+                      const parseClockTimeToSeconds = (raw) => {
+                        const text = clean(raw || '');
+                        if (!text) return null;
+                        const tomorrow = /(tomorrow|morgen|imorgon|i\s*morgon|demain|domani|ma[ñn]ana|jutro)/i.test(text);
+                        const today = /(today|heute|idag|i\s*dag|aujourd|oggi|hoy|dzisiaj)/i.test(text);
+                        if (!today && !tomorrow) return null;
+                        const m = text.match(/(\d{1,2}):(\d{2}):(\d{2})/);
+                        if (!m) return null;
+                        const target = readServerNow();
+                        target.setHours(Number(m[1]), Number(m[2]), Number(m[3]), 0);
+                        if (tomorrow) target.setDate(target.getDate() + 1);
+                        let diff = Math.round((target.getTime() - readServerNow().getTime()) / 1000);
+                        if (today && diff < 0) diff += 86400;
+                        return diff > 0 ? diff : null;
+                      };
+
                       const detectResourceWaitSeconds = () => {
                         const sources = [];
                         if (resourcesAvailableHint) {
@@ -1276,6 +1660,10 @@ public sealed partial class TravianClient
                         }
 
                         for (const source of sources) {
+                          const clockSeconds = parseClockTimeToSeconds(source);
+                          if (clockSeconds && clockSeconds > 0) {
+                            return clockSeconds;
+                          }
                           const seconds = parseDurationSeconds(source);
                           if (seconds && seconds > 0) {
                             return seconds;
@@ -1442,7 +1830,7 @@ public sealed partial class TravianClient
                 await RetryAsync("wait for page load", async () =>
                 {
                     await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
-                });
+                }, cancellationToken: cancellationToken);
                 await PauseForManualStepIfVisibleAsync("Manual verification appeared after upgrade actionability analysis.", cancellationToken);
                 await ApplyActionDelayAsync(cancellationToken);
 
@@ -1718,6 +2106,7 @@ public sealed partial class TravianClient
         {
             "granary / silo" => "granary",
             "silo" => "granary",
+            "blacksmith" => "smithy",
             "city wall" => "wall",
             "earth wall" => "wall",
             "palisade" => "wall",

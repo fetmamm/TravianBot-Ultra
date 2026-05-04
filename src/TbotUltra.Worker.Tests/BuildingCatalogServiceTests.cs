@@ -23,4 +23,12 @@ public sealed class BuildingCatalogServiceTests
         var requirements = BuildingCatalogService.RequirementsFor(17);
         Assert.Contains(requirements, item => item.Name == "Main Building" && item.Level == 3);
     }
+
+    [Fact]
+    public void FullCatalog_ContainsSmithyAndTournamentSquare()
+    {
+        var gauls = BuildingCatalogService.GetFullCatalog("Gauls");
+        Assert.Contains(gauls, item => item.Gid == 12 && item.Name == "Smithy");
+        Assert.Contains(gauls, item => item.Gid == 14 && item.Name == "Tournament Square");
+    }
 }

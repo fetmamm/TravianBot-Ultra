@@ -46,6 +46,8 @@ public static class BotOptionsFactory
             HeroAutoRevive = configuration.GetValue(BotOptionPayloadKeys.HeroAutoRevive, true),
             HeroAutoAssignPoints = configuration.GetValue(BotOptionPayloadKeys.HeroAutoAssignPoints, true),
             HeroStatPriority = configuration[BotOptionPayloadKeys.HeroStatPriority] ?? "fighting_strength,offence_bonus,defence_bonus,resources",
+            HeroAdventurePickOrder = configuration[BotOptionPayloadKeys.HeroAdventurePickOrder] ?? "shortest",
+            HeroHideMode = configuration[BotOptionPayloadKeys.HeroHideMode] ?? "hide",
             UpgradeSelectorProfile = configuration[BotOptionPayloadKeys.UpgradeSelectorProfile] ?? "auto",
             NatarVillageSelection = configuration["natar_village_selection"] ?? "farm_villages",
         };
@@ -95,6 +97,8 @@ public static class BotOptionsFactory
             HeroAutoRevive = source.HeroAutoRevive,
             HeroAutoAssignPoints = source.HeroAutoAssignPoints,
             HeroStatPriority = source.HeroStatPriority,
+            HeroAdventurePickOrder = source.HeroAdventurePickOrder,
+            HeroHideMode = source.HeroHideMode,
             UpgradeSelectorProfile = source.UpgradeSelectorProfile,
             NatarVillageSelection = string.IsNullOrWhiteSpace(natarVillageSelectionOverride)
                 ? source.NatarVillageSelection

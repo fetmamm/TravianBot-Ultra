@@ -104,6 +104,11 @@ public sealed class DesktopBotService : IDesktopBotService
         return _taskRunner.ExecuteLoginAsync(options, log, null, cancellationToken, keepBrowserOpenAfterLogin);
     }
 
+    public Task<PostLoginSnapshot> LoadPostLoginSnapshotAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.LoadPostLoginSnapshotAsync(options, log, null, cancellationToken);
+    }
+
     public Task ExecuteLogoutAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.ExecuteLogoutAsync(options, log, null, cancellationToken);

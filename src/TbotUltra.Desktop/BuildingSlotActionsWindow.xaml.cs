@@ -16,9 +16,11 @@ public partial class BuildingSlotActionsWindow : Window
             ? slot.IsMaxLevel
                 ? $"{slot.Name} level {slot.LevelLabel} (max)"
                 : $"{slot.Name} level {slot.LevelLabel}"
+            : slot.HasPendingConstruct
+                ? $"{slot.PendingConstructName} queued for construction"
             : "Empty slot";
 
-        BuildBuildingButton.IsEnabled = !slot.IsOccupied;
+        BuildBuildingButton.IsEnabled = !slot.IsOccupied && !slot.HasPendingConstruct;
         UpgradeButton.IsEnabled = slot.IsOccupied && !slot.IsMaxLevel;
         UpgradeToMaxButton.IsEnabled = slot.IsOccupied && !slot.IsMaxLevel;
         DemolishButton.IsEnabled = slot.IsOccupied;

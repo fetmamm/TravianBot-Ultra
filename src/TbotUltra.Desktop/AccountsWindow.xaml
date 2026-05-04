@@ -22,52 +22,65 @@
         <Border Grid.Column="0" Grid.Row="0" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="6">
             <DockPanel Margin="8">
                 <TextBlock DockPanel.Dock="Top" Text="Accounts" FontWeight="SemiBold" Margin="0,0,0,8" />
-                <Grid DockPanel.Dock="Top" Margin="0,0,0,4">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="155" />
-                        <ColumnDefinition Width="70" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Account name" FontWeight="SemiBold" Foreground="#475569" />
-                    <TextBlock Grid.Column="1" Text="Analyzed" FontWeight="SemiBold" Foreground="#475569" />
-                </Grid>
                 <ListBox x:Name="AccountsListBox"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                          SelectionChanged="AccountsListBox_SelectionChanged"
                          MouseDoubleClick="AccountsListBox_MouseDoubleClick">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <Grid>
+                            <Grid Margin="0,0,0,6">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="155" />
-                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="{Binding Username}" TextTrimming="CharacterEllipsis">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="#111827" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsActive}" Value="True">
-                                                    <Setter Property="Foreground" Value="#16A34A" />
-                                                    <Setter Property="FontWeight" Value="SemiBold" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                                <TextBlock Grid.Column="1"
-                                           HorizontalAlignment="Left"
-                                           Text="{Binding AnalysisStatus}">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="#DC2626" />
-                                            <Setter Property="FontWeight" Value="SemiBold" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsAnalyzed}" Value="True">
-                                                    <Setter Property="Foreground" Value="#16A34A" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
+                                <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                    <TextBlock Text="Account"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Foreground="#475569" />
+                                    <TextBlock Text="{Binding Username}" TextTrimming="CharacterEllipsis">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="#111827" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                        <Setter Property="Foreground" Value="#16A34A" />
+                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                                    <TextBlock Text="Server"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Foreground="#475569" />
+                                    <TextBlock Text="{Binding ServerSpeedLabel}"
+                                               Foreground="#475569"
+                                               TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Analyzed"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Foreground="#475569" />
+                                    <TextBlock Text="{Binding AnalysisStatus}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="#DC2626" />
+                                                <Setter Property="FontWeight" Value="SemiBold" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsAnalyzed}" Value="True">
+                                                        <Setter Property="Foreground" Value="#16A34A" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
                             </Grid>
                         </DataTemplate>
                     </ListBox.ItemTemplate>

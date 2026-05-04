@@ -1,6 +1,6 @@
 {
-  "server_name": "SS-Travi ELITE 50000x",
-  "base_url": "https://elt.ss-travi.com",
+  "server_name": "SS-Travi VIP 200x",
+  "base_url": "https://vip.ss-travi.com",
   "login_path": "/login.php",
   "village_overview_path": "/dorf1.php",
   "headless": false,

@@ -7,6 +7,7 @@ using System.Text.Json.Serialization;
 using System.Text.Json;
 using System.Globalization;
 using System.Text.RegularExpressions;
+using System.Runtime.CompilerServices;
 
 namespace TbotUltra.Worker.Services;
 
@@ -46,6 +47,12 @@ public sealed partial class TravianClient
     private readonly Action<string>? _statusCallback;
     private DateTimeOffset? _serverTimeUtc;
     private DateTimeOffset _lastManualVerificationScreenshotAt = DateTimeOffset.MinValue;
+    private string? _cachedTribe;
+    private bool? _cachedTravianPlusActive;
+    private DateTimeOffset _cachedTribePlusAt = DateTimeOffset.MinValue;
+    private static readonly TimeSpan TribePlusCacheTtl = TimeSpan.FromMinutes(10);
+    private bool? _cachedGoldClubEnabled;
+    private string? _sessionTribe;
 
     private sealed class CaptchaClipRegion
     {
@@ -55,13 +62,18 @@ public sealed partial class TravianClient
         public double Height { get; init; }
     }
 
+    private sealed record UiSyncVillage(string Name, string? Url, bool? IsCapital);
+    private sealed record UiSyncSnapshot(int? Gold, int? Silver, string ActiveVillage, IReadOnlyList<UiSyncVillage> Villages);
+
     // Session-level cache for the villages list. Spieler.php is expensive to load and the data
     // changes rarely, so we share one read across LoginAsync, SwitchToVillageAsync and status reads.
     private static readonly TimeSpan VillagesCacheTtl = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan EnsureLoggedInMinInterval = TimeSpan.FromSeconds(16);
+    private static readonly TimeSpan UiSyncMinInterval = TimeSpan.FromSeconds(20);
     private List<Village>? _cachedVillages;
     private DateTimeOffset _cachedVillagesAt = DateTimeOffset.MinValue;
     private DateTimeOffset _lastEnsureLoggedInAt = DateTimeOffset.MinValue;
+    private DateTimeOffset _lastUiSyncAt = DateTimeOffset.MinValue;
     private bool _lastEnsureLoggedInSucceeded;
     private static readonly object NatarCacheSync = new();
     private static readonly Dictionary<string, List<NatarCoordinateJs>> CachedNatarCoordinatesByAccount = new(StringComparer.OrdinalIgnoreCase);
@@ -99,6 +111,7 @@ public sealed partial class TravianClient
         await PauseForManualStepIfVisibleAsync("Manual verification appeared before login.", cancellationToken);
         if (await IsLoggedInAsync())
         {
+            await RefreshAccountFeatureSignalsAsync(cancellationToken);
             return;
         }
 
@@ -109,6 +122,7 @@ public sealed partial class TravianClient
             Notify("Login successful using current page.");
             // Behövs inte, göra senare.
             //await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
+            await RefreshAccountFeatureSignalsAsync(cancellationToken);
             return;
         }
 
@@ -119,6 +133,7 @@ public sealed partial class TravianClient
             Notify("Login successful after navigating to login page.");
             // Behövs inte, göra senare.
             //await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
+            await RefreshAccountFeatureSignalsAsync(cancellationToken);
             return;
         }
 
@@ -137,6 +152,7 @@ public sealed partial class TravianClient
                     Notify("Login successful after captcha auto-solve.");
                     // Behövs inte, göra senare.
                     //await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
+                    await RefreshAccountFeatureSignalsAsync(cancellationToken);
                     return;
                 }
             }
@@ -166,6 +182,64 @@ public sealed partial class TravianClient
         Notify("Login successful using other method...");
         // Behövs inte, göra senare.
         //await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
+        await RefreshAccountFeatureSignalsAsync(cancellationToken);
+    }
+
+    public async Task RefreshAccountFeatureSignalsAsync(CancellationToken cancellationToken = default)
+    {
+        LogFunctionStarted();
+        try
+        {
+            var plus = await IsTravianPlusActiveAsync(cancellationToken);
+            if (_cachedTravianPlusActive != plus)
+            {
+                _cachedTravianPlusActive = plus;
+                _cachedTribePlusAt = DateTimeOffset.UtcNow;
+            }
+            Notify($"[plus] active={plus}");
+        }
+        catch (Exception ex)
+        {
+            Notify($"Plus status check failed: {ex.Message}");
+        }
+
+        // Gold Club is monotonic — once true within a session it cannot revert. Skip re-checks once latched.
+        if (_cachedGoldClubEnabled == true)
+        {
+            Notify("[goldclub] active=True");
+        }
+        else
+        {
+            try
+            {
+                var gold = await ReadGoldClubEnabledAsync(cancellationToken);
+                _cachedGoldClubEnabled = gold;
+                Notify($"[goldclub] active={gold}");
+            }
+            catch (Exception ex)
+            {
+                Notify($"Gold Club status check failed: {ex.Message}");
+            }
+        }
+
+        if (_sessionTribe is null)
+        {
+            try
+            {
+                var tribe = await ReadTribeAsync(cancellationToken);
+                if (!string.IsNullOrWhiteSpace(tribe) && !string.Equals(tribe, "Unknown", StringComparison.OrdinalIgnoreCase))
+                {
+                    _sessionTribe = tribe;
+                    _cachedTribe = tribe;
+                    _cachedTribePlusAt = DateTimeOffset.UtcNow;
+                    Notify($"[tribe] {tribe}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Notify($"Tribe detection failed: {ex.Message}");
+            }
+        }
     }
 
     private async Task<bool> TryLoginUsingCurrentPageAsync(CancellationToken cancellationToken)
@@ -220,6 +294,9 @@ public sealed partial class TravianClient
     public async Task LogoutAsync(CancellationToken cancellationToken = default)
     {
         Notify("[LogoutAsync] started");
+        _sessionTribe = null;
+        _cachedTribe = null;
+        _cachedGoldClubEnabled = null;
         await GotoAsync(_config.VillageOverviewPath, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared before logout.", cancellationToken);
         if (!await IsLoggedInAsync())
@@ -261,7 +338,6 @@ public sealed partial class TravianClient
     public async Task<VillageStatus> ReadVillageStatusAsync(CancellationToken cancellationToken = default)
     {
         Notify("ReadVillageStatusAsync started");
-        InvalidateVillagesCache();
         if (!IsCurrentUrlForPath(_config.VillageOverviewPath))
         {
             await GotoAsync(_config.VillageOverviewPath, cancellationToken);
@@ -336,12 +412,14 @@ public sealed partial class TravianClient
 
     public async Task<bool> ReadGoldClubStatusAsync(CancellationToken cancellationToken = default)
     {
+        LogFunctionStarted();
         await EnsureLoggedInAsync();
         return await ReadGoldClubEnabledAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<FarmListOverview>> ReadFarmListsOverviewAsync(CancellationToken cancellationToken = default)
     {
+        LogFunctionStarted();
         await EnsureLoggedInAsync();
 
         var goldClubEnabled = await ReadGoldClubEnabledAsync(cancellationToken);
@@ -358,6 +436,7 @@ public sealed partial class TravianClient
 
     public async Task<int?> SendFarmListNowAsync(string farmListName, CancellationToken cancellationToken = default)
     {
+        LogFunctionStarted();
         if (string.IsNullOrWhiteSpace(farmListName))
         {
             throw new InvalidOperationException("Farm list name is required.");
@@ -392,6 +471,7 @@ public sealed partial class TravianClient
         int troopCount,
         CancellationToken cancellationToken = default)
     {
+        LogFunctionStarted();
         if (string.IsNullOrWhiteSpace(farmListName))
         {
             throw new InvalidOperationException("Farm list name is required.");
@@ -456,6 +536,7 @@ public sealed partial class TravianClient
         int requestedCount,
         CancellationToken cancellationToken = default)
     {
+        LogFunctionStarted();
         if (string.IsNullOrWhiteSpace(farmListName))
         {
             throw new InvalidOperationException("Farm list name is required.");
@@ -550,6 +631,7 @@ public sealed partial class TravianClient
 
     public async Task<int> EnsureNatarFarmCacheAndReturnToFarmListAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
     {
+        LogFunctionStarted();
         await EnsureLoggedInAsync();
         if (!await ReadGoldClubEnabledAsync(cancellationToken))
         {
@@ -569,6 +651,7 @@ public sealed partial class TravianClient
         bool raidAttack,
         CancellationToken cancellationToken = default)
     {
+        LogFunctionStarted();
         if (string.IsNullOrWhiteSpace(troopType))
         {
             throw new InvalidOperationException("Troop type is required.");
@@ -715,8 +798,9 @@ public sealed partial class TravianClient
         return statuses;
     }
 
-    public async Task SwitchToVillageAsync(string villageName = "", string? villageUrl = null, CancellationToken cancellationToken = default)
+    public async Task SwitchToVillageAsync(string villageName = "", string? villageUrl = null, CancellationToken cancellationToken = default, bool skipFeatureRefresh = false)
     {
+        LogFunctionStarted();
         var activeVillageBeforeSwitch = await TryReadActiveVillageNameSafeAsync(cancellationToken);
 
         // If we are already on the requested village, no navigation is needed.
@@ -771,6 +855,12 @@ public sealed partial class TravianClient
         if (!string.Equals(activeVillageBeforeSwitch, activeVillageAfterSwitch, StringComparison.OrdinalIgnoreCase))
         {
             await RefreshCapitalStateForActiveVillageAsync(cancellationToken);
+        }
+
+        if (!skipFeatureRefresh)
+        {
+            // Re-emit account signals so UI refreshes after a village switch (Plus/Gold can be unchanged but UI may not have them yet).
+            await RefreshAccountFeatureSignalsAsync(cancellationToken);
         }
     }
 
@@ -871,7 +961,7 @@ public sealed partial class TravianClient
             {
                 RecordServerTime(dateHeader);
             }
-        });
+        }, cancellationToken: cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared after navigation.", cancellationToken);
         await TryDismissContinuePromptAsync(cancellationToken);
     }
@@ -915,7 +1005,7 @@ public sealed partial class TravianClient
         }
     }
 
-    private async Task EnsureLoggedInAsync(bool force = false)
+    private async Task EnsureLoggedInAsync(bool force = false, CancellationToken cancellationToken = default)
     {
         var now = DateTimeOffset.UtcNow;
         if (!force
@@ -934,6 +1024,36 @@ public sealed partial class TravianClient
             throw new InvalidOperationException($"Not logged in. Current page state is '{await LoginStateAsync()}'.");
         }
         Notify("Logged in confirmed");
+        await TryEmitUiSyncSnapshotAsync(cancellationToken);
+    }
+
+    private async Task TryEmitUiSyncSnapshotAsync(CancellationToken cancellationToken)
+    {
+        var now = DateTimeOffset.UtcNow;
+        if ((now - _lastUiSyncAt) < UiSyncMinInterval)
+        {
+            return;
+        }
+
+        try
+        {
+            var currency = await ReadCurrencyAsync(cancellationToken);
+            var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
+            var villages = await ReadVillagesFromCurrentPageAsync(cancellationToken);
+            var payload = JsonSerializer.Serialize(new UiSyncSnapshot(
+                Gold: currency.Gold,
+                Silver: currency.Silver,
+                ActiveVillage: activeVillage,
+                Villages: villages
+                    .Select(v => new UiSyncVillage(v.Name, v.Url, v.IsCapital))
+                    .ToList()));
+            _lastUiSyncAt = now;
+            Notify($"[ui-sync] {payload}");
+        }
+        catch (Exception ex)
+        {
+            Notify($"UI sync snapshot failed: {ex.Message}");
+        }
     }
 
     private async Task<bool> IsLoggedInAsync()
@@ -999,7 +1119,7 @@ public sealed partial class TravianClient
             await RetryAsync($"fill {selector}", async () =>
             {
                 await locator.FillAsync(value, new LocatorFillOptions { Timeout = _config.TimeoutMs });
-            });
+            }, cancellationToken: cancellationToken);
             return;
         }
 
@@ -1032,7 +1152,7 @@ public sealed partial class TravianClient
             await RetryAsync($"click login selector {selector}", async () =>
             {
                 await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
-            });
+            }, cancellationToken: cancellationToken);
             Notify("Clicked login button.");
             return;
         }
@@ -1055,7 +1175,7 @@ public sealed partial class TravianClient
                 await RetryAsync($"click selector {selector}", async () =>
                 {
                     await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
-                });
+                }, cancellationToken: cancellationToken);
                 await PauseForManualStepIfVisibleAsync("Manual verification appeared after click.", cancellationToken);
                 return true;
             }
@@ -1662,6 +1782,58 @@ public sealed partial class TravianClient
         return villages;
     }
 
+    private async Task<IReadOnlyList<Village>> ReadVillagesFromCurrentPageAsync(CancellationToken cancellationToken)
+    {
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading villages from current page.", cancellationToken);
+
+        var raw = await _page.EvaluateAsync<SidebarVillageJs[]>(
+            """
+            () => {
+              const clean = (value) => (value || '').replace(/\s+/g, ' ').trim();
+              const rows = [];
+              const seen = new Set();
+              const selectors = [
+                '#sidebarBoxVillagelist a[href*="newdid="]',
+                '#villageList a[href*="newdid="]',
+                '.villageList a[href*="newdid="]',
+                'a.village-name[href*="newdid="]'
+              ];
+
+              for (const selector of selectors) {
+                for (const node of document.querySelectorAll(selector)) {
+                  const name = clean(node.textContent || node.getAttribute('title') || '');
+                  const url = clean(node.getAttribute('href') || '');
+                  if (!name || !url) continue;
+                  const key = `${name}|${url}`;
+                  if (seen.has(key)) continue;
+                  seen.add(key);
+                  const container = node.closest('li, .active, .listEntry, .village') || node.parentElement || node;
+                  const classText = clean(`${node.className || ''} ${container.className || ''}`).toLowerCase();
+                  rows.push({
+                    name,
+                    url,
+                    isCapital: classText.includes('capital') ? true : null
+                  });
+                }
+
+                if (rows.length > 0) {
+                  return rows;
+                }
+              }
+
+              return rows;
+            }
+            """);
+
+        return raw
+            .Where(item => !string.IsNullOrWhiteSpace(item.Name))
+            .Select(item => new Village(
+                Name: item.Name!,
+                Url: item.Url,
+                IsCapital: item.IsCapital))
+            .ToList();
+    }
+
     private void InvalidateVillagesCache() => _cachedVillagesAt = DateTimeOffset.MinValue;
 
     private async Task<IReadOnlyList<Village>> ReadVillagesFromServerAsync(CancellationToken cancellationToken)
@@ -2193,10 +2365,30 @@ public sealed partial class TravianClient
                 7: 'Huns',
                 8: 'Spartans'
               };
+              const altNorm = (raw) => {
+                const t = (raw || '').toLowerCase();
+                if (t.startsWith('roman')) return 'Romans';
+                if (t.startsWith('teuton')) return 'Teutons';
+                if (t.startsWith('gaul')) return 'Gauls';
+                if (t.startsWith('egypt')) return 'Egyptians';
+                if (t.startsWith('hun')) return 'Huns';
+                if (t.startsWith('spartan')) return 'Spartans';
+                return null;
+              };
+              const srcNorm = (raw) => {
+                const m = (raw || '').match(/(roman|teuton|gaul|egypt|hun|spartan)/i);
+                return m ? altNorm(m[1]) : null;
+              };
+
+              // Primary: tribe icon img (works directly from dorf1/dorf2).
+              for (const img of document.querySelectorAll('img.nationBig, img[src*="/tribes/"], img[src*="nation"], img[alt]')) {
+                const fromAlt = altNorm(img.getAttribute('alt'));
+                if (fromAlt) return fromAlt;
+                const fromSrc = srcNorm(img.getAttribute('src'));
+                if (fromSrc) return fromSrc;
+              }
 
               const selectors = [
-                'img.nationBig[alt]',
-                'img[src*="/tribes/"][alt]',
                 '[class*="tribe" i]',
                 '[id*="tribe" i]',
                 '.playerInfo',
@@ -2208,8 +2400,6 @@ public sealed partial class TravianClient
               for (const selector of selectors) {
                 const element = document.querySelector(selector);
                 if (!element) continue;
-                const directAlt = element.getAttribute('alt');
-                if (directAlt && directAlt.trim()) return directAlt.trim();
                 const text = `${element.className || ''} ${element.getAttribute('title') || ''} ${element.textContent || ''}`.toLowerCase();
                 if (text.includes('roman')) return 'Romans';
                 if (text.includes('teuton')) return 'Teutons';
@@ -2232,44 +2422,15 @@ public sealed partial class TravianClient
     private async Task<bool> ReadGoldClubEnabledAsync(CancellationToken cancellationToken)
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading gold club status.", cancellationToken);
-        var value = await _page.EvaluateAsync<bool>(
+        return await _page.EvaluateAsync<bool>(
             """
             () => {
-              const buildButton = document.querySelector('button#buttonBuild');
-              if (buildButton) {
-                const cls = (buildButton.className || '').toLowerCase();
-                if (cls.includes('buildoff') || cls.includes('green')) {
-                  return true;
-                }
-              }
-
-              const candidates = [
-                'button#buttonBuild',
-                'a[href*="tt=99"]',
-                'a[href*="farmlist"]',
-                'a[href*="farmList"]',
-                '[data-tab*="farm"]',
-                '.farmList',
-                '.farmlist'
-              ];
-
-              for (const selector of candidates) {
-                const node = document.querySelector(selector);
-                if (!node) continue;
-                const text = (node.textContent || '').toLowerCase();
-                const cls = (node.className || '').toLowerCase();
-                const href = (node.getAttribute('href') || '').toLowerCase();
-                if (text.includes('farm') || cls.includes('farm') || href.includes('tt=99')) {
-                  return true;
-                }
-              }
-
-              const body = (document.body?.innerText || '').toLowerCase();
-              return /\bfarm\s*list\b/.test(body) || /\bfarmlista\b/.test(body) || /\bfarmliste\b/.test(body);
+              if (document.querySelector('#buttonBuild')) return true;
+              // Fallback: Gold Club-knappen kan signaleras via klass i sidebaren utan #buttonBuild på vissa varianter.
+              const sidebar = document.querySelector('#sidebarBoxVillagelist');
+              return /buildOff|buildOn|builder=On/.test(sidebar?.innerHTML || '');
             }
             """);
-
-        return value;
     }
 
     private async Task EnsureRallyPointAndOpenFarmListPageAsync(CancellationToken cancellationToken)
@@ -3288,7 +3449,7 @@ public sealed partial class TravianClient
             await RetryAsync($"fill troop input {selector}", async () =>
             {
                 await locator.FillAsync(troopCountToSend.ToString(CultureInfo.InvariantCulture), new LocatorFillOptions { Timeout = _config.TimeoutMs });
-            });
+            }, cancellationToken: cancellationToken);
             return true;
         }
 
@@ -3459,7 +3620,7 @@ public sealed partial class TravianClient
                     await RetryAsync($"click confirm selector {selector}", async () =>
                     {
                         await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
-                    });
+                    }, cancellationToken: cancellationToken);
 
                     await PauseForManualStepIfVisibleAsync("Manual verification appeared after clicking confirm.", cancellationToken);
                     return true;
@@ -3541,7 +3702,7 @@ public sealed partial class TravianClient
         await RetryAsync($"click detected upgrade candidate index {candidateIndex.Value} for slot {slotId}", async () =>
         {
             await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
-        });
+        }, cancellationToken: cancellationToken);
 
         await PauseForManualStepIfVisibleAsync("Manual verification appeared after clicking detected upgrade candidate.", cancellationToken);
     }
@@ -3714,7 +3875,46 @@ public sealed partial class TravianClient
 
     private void Notify(string message)
     {
+        message = NormalizeStartedMessage(message);
         _statusCallback?.Invoke(message);
+    }
+
+    private void LogFunctionStarted([CallerMemberName] string? memberName = null)
+    {
+        if (string.IsNullOrWhiteSpace(memberName))
+        {
+            return;
+        }
+
+        Notify($"[{memberName}] started");
+    }
+
+    private static string NormalizeStartedMessage(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message) || message.StartsWith('['))
+        {
+            return message;
+        }
+
+        var startedIndex = message.IndexOf(" started", StringComparison.Ordinal);
+        if (startedIndex <= 0)
+        {
+            return message;
+        }
+
+        var tokenEnd = message.IndexOf(' ');
+        if (tokenEnd <= 0)
+        {
+            tokenEnd = startedIndex;
+        }
+
+        var memberName = message[..tokenEnd].Trim();
+        if (string.IsNullOrWhiteSpace(memberName))
+        {
+            return message;
+        }
+
+        return $"[{memberName}]{message[tokenEnd..]}";
     }
 
     internal enum UpgradeAttemptOutcome
@@ -3820,6 +4020,24 @@ public sealed partial class TravianClient
         public string? TimeLeft { get; init; }
     }
 
+    private sealed class ActiveConstructionJs
+    {
+        [JsonPropertyName("kind")]
+        public string? Kind { get; init; }
+
+        [JsonPropertyName("name")]
+        public string? Name { get; init; }
+
+        [JsonPropertyName("level")]
+        public int? Level { get; init; }
+
+        [JsonPropertyName("timeLeftSeconds")]
+        public int? TimeLeftSeconds { get; init; }
+
+        [JsonPropertyName("finishAtText")]
+        public string? FinishAtText { get; init; }
+    }
+
     private sealed class ServerBuildChoiceJs
     {
         [JsonPropertyName("gid")]
@@ -3893,5 +4111,17 @@ public sealed partial class TravianClient
 
         [JsonPropertyName("cropFields")]
         public int? CropFields { get; init; }
+    }
+
+    private sealed class SidebarVillageJs
+    {
+        [JsonPropertyName("name")]
+        public string? Name { get; init; }
+
+        [JsonPropertyName("url")]
+        public string? Url { get; init; }
+
+        [JsonPropertyName("isCapital")]
+        public bool? IsCapital { get; init; }
     }
 }

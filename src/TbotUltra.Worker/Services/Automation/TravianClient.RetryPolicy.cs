@@ -9,7 +9,11 @@ public sealed partial class TravianClient
     {
         var value = ex.Message?.ToLowerInvariant() ?? string.Empty;
         return value.Contains("execution context was destroyed")
-            || value.Contains("cannot find context with specified id");
+            || value.Contains("cannot find context with specified id")
+            || value.Contains("err_aborted")
+            || value.Contains("frame was detached")
+            || value.Contains("target page, context or browser has been closed")
+            || value.Contains("navigation interrupted");
     }
 
     private static bool IsTransientExecutionContextException(Exception ex)
@@ -23,11 +27,12 @@ public sealed partial class TravianClient
             && IsTransientExecutionContextException(ex.InnerException);
     }
 
-    private async Task RetryAsync(string label, Func<Task> action, int attempts = 3)
+    private async Task RetryAsync(string label, Func<Task> action, int attempts = 3, CancellationToken cancellationToken = default)
     {
         Exception? lastError = null;
         for (var attempt = 1; attempt <= attempts; attempt++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             await TryDismissContinuePromptAsync();
 
             try
@@ -46,7 +51,7 @@ public sealed partial class TravianClient
                 {
                     await TryDismissContinuePromptAsync();
                     Notify($"{label} hit transient navigation context error on attempt {attempt}/{attempts}. Retrying...");
-                    await Task.Delay(250 * attempt);
+                    await Task.Delay(250 * attempt, cancellationToken);
                     continue;
                 }
 
@@ -57,29 +62,42 @@ public sealed partial class TravianClient
 
                 await TryDismissContinuePromptAsync();
                 Notify($"{label} failed on attempt {attempt}/{attempts}. Retrying...");
-                await Task.Delay(400 * attempt);
+                await Task.Delay(400 * attempt, cancellationToken);
             }
         }
 
         throw new InvalidOperationException($"{label} failed after {attempts} attempts: {lastError?.Message}", lastError);
     }
 
-    private async Task<bool> RetryTruthyAsync(string label, Func<Task<bool>> action, int attempts = 3)
+    private async Task<bool> RetryTruthyAsync(string label, Func<Task<bool>> action, int attempts = 3, CancellationToken cancellationToken = default)
     {
         for (var attempt = 1; attempt <= attempts; attempt++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             await TryDismissContinuePromptAsync();
 
-            var result = await action();
-            if (result)
+            try
             {
-                return true;
-            }
+                var result = await action();
+                if (result)
+                {
+                    return true;
+                }
 
-            if (attempt < attempts)
+                if (attempt < attempts)
+                {
+                    Notify($"{label} was not available on attempt {attempt}/{attempts}. Retrying...");
+                    await Task.Delay(400 * attempt, cancellationToken);
+                }
+            }
+            catch (ManualVerificationRequiredException)
             {
-                Notify($"{label} was not available on attempt {attempt}/{attempts}. Retrying...");
-                await Task.Delay(400 * attempt);
+                throw;
+            }
+            catch (Exception ex) when (IsTransientExecutionContextException(ex) && attempt < attempts)
+            {
+                Notify($"{label} hit transient navigation context error on attempt {attempt}/{attempts}. Retrying...");
+                await Task.Delay(250 * attempt, cancellationToken);
             }
         }
 

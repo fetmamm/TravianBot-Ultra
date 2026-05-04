@@ -45,7 +45,9 @@ public sealed partial class TravianClient
 
         var upgrades = 0;
         var transientRetries = 0;
-        while (true)
+        var safetyCap = ComputeResourceUpgradeSafetyCap(targetLevel);
+        int? lastKnownLevel = null;
+        for (var iteration = 0; iteration < safetyCap; iteration++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             try
@@ -57,6 +59,7 @@ public sealed partial class TravianClient
                 {
                     throw new InvalidOperationException($"Could not read level for resource slot {slotId}.");
                 }
+                lastKnownLevel = currentLevel;
 
                 if (currentLevel >= targetLevel)
                 {
@@ -103,7 +106,7 @@ public sealed partial class TravianClient
 
                 if (progress.QueuedOrInProgress)
                 {
-                    return $"Resource slot {slotId} blocked (QueuedOrInProgress): Upgrade triggered but no immediate level increase; evidence={progress.Evidence} queue_wait_seconds=15";
+                    return $"Resource slot {slotId}: queued upgrade toward level {effectiveTarget}. Evidence: {progress.Evidence}.";
                 }
 
                 return $"Resource slot {slotId} blocked (NoImmediateProgress): Upgrade triggered but level is still {currentLevel} and no queue/in-progress evidence was detected queue_wait_seconds=6";
@@ -115,11 +118,17 @@ public sealed partial class TravianClient
                 await Task.Delay(250 * transientRetries, cancellationToken);
             }
         }
+
+        var levelText = lastKnownLevel is int level ? level.ToString() : "unknown";
+        return $"Resource slot {slotId}: hit safety cap of {safetyCap} iterations while targeting level {targetLevel}. Upgrades performed: {upgrades}. Last known level: {levelText}.";
     }
+
+    internal static int ComputeResourceUpgradeSafetyCap(int targetLevel)
+        => Math.Max(10, targetLevel + 8);
 
     public async Task<string> UpgradeAllResourcesToLevelAsync(int targetLevel, CancellationToken cancellationToken = default)
     {
-        Notify($"Starting upgrade of all resources to level {targetLevel}.");
+        Notify($"[UpgradeAllResourcesToLevelAsync] targetLevel={targetLevel} started");
         if (targetLevel < 0)
         {
             throw new InvalidOperationException("Target level must be 0 or higher.");
@@ -141,13 +150,9 @@ public sealed partial class TravianClient
                 var resourceFields = await ReadResourceFieldsAsync(cancellationToken);
                 NotifyResourceLevelIncreases(knownLevelsBySlot, resourceFields);
                 knownLevelsBySlot = BuildResourceLevelMap(resourceFields);
-                var buildQueue = await ReadBuildQueueAsync(cancellationToken);
-                var queueWaitSeconds = ResolveShortestQueueDurationSeconds(buildQueue);
-
-                if (queueWaitSeconds is int waitSeconds && waitSeconds > 0)
+                var waited = await WaitForConstructionSlotIfBusyAsync(ConstructionKind.Resource, cancellationToken);
+                if (waited > 0)
                 {
-                    Notify($"Resource queue busy for about {waitSeconds}s before the next upgrade attempt. queue_wait_seconds={waitSeconds}");
-                    await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
                     transientRetries = 0;
                     continue;
                 }
@@ -185,14 +190,23 @@ public sealed partial class TravianClient
                     if (actionability.Outcome == UpgradeAttemptOutcome.CanUpgrade)
                     {
                         attemptedAny = true;
+                        var queueFingerprintBefore = BuildQueueFingerprint(await ReadBuildQueueAsync(cancellationToken));
                         var rawUpgradeSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken);
                         await ClickDetectedUpgradeCandidateAsync(slot, actionability.CandidateIndex, cancellationToken);
                         await NavigateToResourceFieldsAfterUpgradeClickAsync(cancellationToken);
                         upgrades += 1;
-
-                        var upgradeWaitSeconds = ComputeResourceUpgradeWaitSeconds(rawUpgradeSeconds);
-                        Notify($"Resource slot {slot} upgrade duration: {FormatDuration(rawUpgradeSeconds ?? 0)}. Waiting {upgradeWaitSeconds}s. queue_wait_seconds={upgradeWaitSeconds}");
-                        await Task.Delay(TimeSpan.FromSeconds(upgradeWaitSeconds), cancellationToken);
+                        var progress = await WaitForResourceLevelAdvanceAsync(
+                            slot,
+                            level,
+                            queueFingerprintBefore,
+                            rawUpgradeSeconds,
+                            cancellationToken);
+                        if (!progress.Advanced && !progress.QueuedOrInProgress)
+                        {
+                            var upgradeWaitSeconds = ComputeResourceUpgradeWaitSeconds(rawUpgradeSeconds);
+                            Notify($"Resource slot {slot}: upgrade click did not confirm immediately ({progress.Evidence}). Waiting {upgradeWaitSeconds}s before retry.");
+                            await Task.Delay(TimeSpan.FromSeconds(Math.Max(1, upgradeWaitSeconds)), cancellationToken);
+                        }
                         transientRetries = 0;
                         goto NextLoopTick;
                     }
@@ -201,6 +215,15 @@ public sealed partial class TravianClient
                     {
                         // The top-of-loop build queue read will detect the remaining duration and wait.
                         Notify($"Resource slot {slot} blocked by queue. Retrying after queue clears.");
+                        transientRetries = 0;
+                        goto NextLoopTick;
+                    }
+
+                    if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources)
+                    {
+                        var waitSeconds = ClampResourceWaitSeconds(actionability.QueueWaitSeconds);
+                        Notify($"Resource slot {slot} blocked by resources. Waiting {waitSeconds}s. queue_wait_seconds={waitSeconds}");
+                        await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
                         transientRetries = 0;
                         goto NextLoopTick;
                     }
@@ -644,7 +667,7 @@ public sealed partial class TravianClient
               return JSON.stringify(fields);
             }
             """);
-        });
+        }, cancellationToken: cancellationToken);
 
         var rawFields = string.IsNullOrWhiteSpace(rawFieldsJson)
             ? new List<ResourceFieldJs>()
@@ -706,17 +729,23 @@ public sealed partial class TravianClient
         int? expectedWaitSeconds,
         CancellationToken cancellationToken)
     {
-        var rawSeconds = expectedWaitSeconds ?? 0;
-        var waitSeconds = ComputeResourceUpgradeWaitSeconds(expectedWaitSeconds);
-        Notify($"Resource slot {slotId} upgrade duration: {FormatDuration(rawSeconds)}. Waiting {waitSeconds}s. queue_wait_seconds={waitSeconds}");
-        await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
-
-        var latestSnapshot = await ReadResourceProgressSnapshotAsync(cancellationToken);
-        var current = latestSnapshot.ResourceFields.FirstOrDefault(field => field.SlotId == slotId)?.Level;
-        if (current is int currentLevel && currentLevel > previousLevel)
+        ResourceProgressSnapshot? latestSnapshot = null;
+        for (var i = 0; i < 4; i++)
         {
-            Notify($"Resource slot {slotId} level increased from {previousLevel} to {currentLevel}.");
-            return new UpgradeProgressResult(true, false, "level advanced");
+            cancellationToken.ThrowIfCancellationRequested();
+            await Task.Delay(400, cancellationToken);
+            latestSnapshot = await ReadResourceProgressSnapshotAsync(cancellationToken);
+            var current = latestSnapshot.ResourceFields.FirstOrDefault(field => field.SlotId == slotId)?.Level;
+            if (current is int currentLevel && currentLevel > previousLevel)
+            {
+                Notify($"Resource slot {slotId} level increased from {previousLevel} to {currentLevel}.");
+                return new UpgradeProgressResult(true, false, "level advanced");
+            }
+        }
+
+        if (latestSnapshot is null)
+        {
+            latestSnapshot = await ReadResourceProgressSnapshotAsync(cancellationToken);
         }
 
         var queueFingerprintAfter = BuildQueueFingerprint(latestSnapshot.BuildQueue);
@@ -728,6 +757,12 @@ public sealed partial class TravianClient
         if (latestSnapshot.BuildQueue.Count > 0)
         {
             return new UpgradeProgressResult(false, true, "queue has entries");
+        }
+
+        var waitSeconds = ComputeResourceUpgradeWaitSeconds(expectedWaitSeconds);
+        if (waitSeconds > 0)
+        {
+            return new UpgradeProgressResult(false, false, $"no immediate queue evidence; expected_wait_seconds={waitSeconds}");
         }
 
         return new UpgradeProgressResult(false, false, "no queue or level change");

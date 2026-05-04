@@ -44,6 +44,17 @@ public partial class MainWindow : Window
         int X,
         int Y);
 
+    private sealed record UiSyncVillagePayload(
+        string? Name,
+        string? Url,
+        bool? IsCapital);
+
+    private sealed record UiSyncPayload(
+        int? Gold,
+        int? Silver,
+        string? ActiveVillage,
+        IReadOnlyList<UiSyncVillagePayload>? Villages);
+
     private enum ManualExecutionOutcome
     {
         None = 0,
@@ -73,7 +84,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _inboxRefreshTimer;
     private readonly DispatcherTimer _buildQueueCountdownTimer;
     private readonly ObservableCollection<string> _terminalEntries = [];
-    private readonly ObservableCollection<string> _alarmEntries = [];
+    private readonly ObservableCollection<AlarmEntryRow> _alarmEntries = [];
     private readonly ObservableCollection<LoopTaskOption> _automationLoopTasks = [];
     private readonly ObservableCollection<HeroAttributePriorityItem> _heroAttributePriorityItems = [];
     private readonly ObservableCollection<FarmListStatusRow> _farmLists = [];
@@ -96,9 +107,9 @@ public partial class MainWindow : Window
 
     private CancellationTokenSource? _loopCts;
     private CancellationTokenSource? _operationCts;
-    private CancellationTokenSource? _heroAdventureCts;
     private DispatcherTimer? _heroCountdownTimer;
     private int _heroCountdownRemainingSeconds;
+    private bool _suppressHeroHideModeApply;
     private CancellationTokenSource? _villageSwitchCts;
     private Task? _loopTask;
     private bool _chromiumEnsured;
@@ -179,8 +190,7 @@ public partial class MainWindow : Window
         ("load_buildings_snapshot", "Load Building Snapshot", "Reads and stores current building snapshot."),
         ("account_full_analysis", "Account Full Analysis", "Runs full account analysis and updates cache."),
         ("demolish_building_to_level", "Demolish Building", "Demolishes configured building to target level."),
-        ("hero_manage", "Hero Manage", "Revives hero, allocates points and sends adventures."),
-        ("hero_send_adventure", "Hero Adventures", "Sends hero on the first available adventure if at home."),
+        ("hero_manage", "Hero adventure", "Checks hero status (revive if dead, allocate points if leveled up) and then sends on adventure if HP allows."),
     ];
 
     public ObservableCollection<ResourceFieldRow> WoodFields => _woodFields;
@@ -347,6 +357,20 @@ public partial class MainWindow : Window
         HeroAutoReviveCheckBox.IsChecked = options.HeroAutoRevive;
         HeroAutoAssignPointsCheckBox.IsChecked = options.HeroAutoAssignPoints;
         LoadHeroPriorityToUi(options.HeroStatPriority);
+        var topFirst = string.Equals(options.HeroAdventurePickOrder, "top", StringComparison.OrdinalIgnoreCase);
+        HeroAdventureTopRadio.IsChecked = topFirst;
+        HeroAdventureShortestRadio.IsChecked = !topFirst;
+        var fightMode = string.Equals(options.HeroHideMode, "fight", StringComparison.OrdinalIgnoreCase);
+        _suppressHeroHideModeApply = true;
+        try
+        {
+            HeroFightRadio.IsChecked = fightMode;
+            HeroHideRadio.IsChecked = !fightMode;
+        }
+        finally
+        {
+            _suppressHeroHideModeApply = false;
+        }
 
         try
         {
@@ -380,10 +404,139 @@ public partial class MainWindow : Window
 
     private void UpdateGoldClubInfo(bool? enabled)
     {
-        GoldClubInfoTextBlock.Text = enabled == true
-            ? "Goldclub: Yes"
-            : "Goldclub: -";
+        if (enabled == true)
+        {
+            GoldClubInfoTextBlock.Text = "Yes";
+            GoldClubInfoTextBlock.Foreground = System.Windows.Media.Brushes.Green;
+        }
+        else if (enabled == false)
+        {
+            GoldClubInfoTextBlock.Text = "No";
+            GoldClubInfoTextBlock.Foreground = System.Windows.Media.Brushes.Red;
+        }
+        else
+        {
+            GoldClubInfoTextBlock.Text = "-";
+            GoldClubInfoTextBlock.Foreground = System.Windows.Media.Brushes.Gray;
+        }
         UpdateAccountInfoLabel(_accountStore.ActiveAccountName());
+    }
+
+    private void UpdatePlusInfo(bool? active)
+    {
+        if (active == true)
+        {
+            PlusInfoTextBlock.Text = "Yes";
+            PlusInfoTextBlock.Foreground = System.Windows.Media.Brushes.Green;
+        }
+        else if (active == false)
+        {
+            PlusInfoTextBlock.Text = "No";
+            PlusInfoTextBlock.Foreground = System.Windows.Media.Brushes.Red;
+        }
+        else
+        {
+            PlusInfoTextBlock.Text = "-";
+            PlusInfoTextBlock.Foreground = System.Windows.Media.Brushes.Gray;
+        }
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex PlusStatusRegex =
+        new(@"\[plus\]\s*active=(True|False)\b",
+            System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    private static readonly System.Text.RegularExpressions.Regex GoldClubStatusRegex =
+        new(@"\[goldclub\]\s*active=(True|False)\b",
+            System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    private static readonly System.Text.RegularExpressions.Regex TribeRegex =
+        new(@"\[tribe\]\s*([A-Za-z]+)\b",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static readonly System.Text.RegularExpressions.Regex UiSyncRegex =
+        new(@"\[ui-sync\]\s*(\{.*\})",
+            System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    private void TryApplyPlusStatusFromLog(string line)
+    {
+        if (string.IsNullOrEmpty(line)) return;
+
+        var plusMatch = PlusStatusRegex.Match(line);
+        if (plusMatch.Success)
+        {
+            var active = string.Equals(plusMatch.Groups[1].Value, "True", StringComparison.OrdinalIgnoreCase);
+            UpdatePlusInfo(active);
+        }
+
+        var goldMatch = GoldClubStatusRegex.Match(line);
+        if (goldMatch.Success)
+        {
+            var active = string.Equals(goldMatch.Groups[1].Value, "True", StringComparison.OrdinalIgnoreCase);
+            UpdateGoldClubInfo(active ? true : false);
+        }
+
+        var tribeMatch = TribeRegex.Match(line);
+        if (tribeMatch.Success)
+        {
+            TribeInfoTextBlock.Text = $"Tribe: {tribeMatch.Groups[1].Value}";
+        }
+
+        var uiSyncMatch = UiSyncRegex.Match(line);
+        if (uiSyncMatch.Success)
+        {
+            TryApplyUiSyncPayload(uiSyncMatch.Groups[1].Value);
+        }
+    }
+
+    private void TryApplyUiSyncPayload(string rawJson)
+    {
+        try
+        {
+            var payload = JsonSerializer.Deserialize<UiSyncPayload>(rawJson);
+            if (payload is null)
+            {
+                return;
+            }
+
+            var goldText = payload.Gold?.ToString() ?? "-";
+            var silverText = payload.Silver?.ToString() ?? "-";
+            ServerResourcesTextBlock.Text = $"Gold: {goldText} | Silver: {silverText}";
+
+            if (payload.Villages is { Count: > 0 })
+            {
+                VillagesInfoTextBlock.Text = $"Villages: {payload.Villages.Count}";
+                var currentSelectedName = GetSelectedVillageName();
+                var villages = payload.Villages
+                    .Where(v => !string.IsNullOrWhiteSpace(v.Name))
+                    .Select(v => new VillageSelectionItem
+                    {
+                        Name = v.Name!,
+                        Url = v.Url ?? string.Empty,
+                        IsCapital = v.IsCapital == true,
+                    })
+                    .ToList();
+
+                _suppressVillageSelectionChange = true;
+                try
+                {
+                    VillageComboBox.ItemsSource = villages;
+                    var selected = villages.FirstOrDefault(v =>
+                        string.Equals(v.Name, currentSelectedName, StringComparison.OrdinalIgnoreCase))
+                        ?? villages.FirstOrDefault(v =>
+                            string.Equals(v.Name, payload.ActiveVillage, StringComparison.OrdinalIgnoreCase))
+                        ?? villages.FirstOrDefault();
+                    VillageComboBox.SelectedItem = selected;
+                }
+                finally
+                {
+                    _suppressVillageSelectionChange = false;
+                }
+            }
+        }
+        catch
+        {
+            // Ignore malformed sync lines.
+        }
     }
 
     private void LoadHeroPriorityToUi(string? configuredPriority)
@@ -484,6 +637,10 @@ public partial class MainWindow : Window
 
     private void ApplyHeroAttributeSnapshotToUi(HeroAttributeSnapshot snapshot)
     {
+        AppendLog(
+            $"[ui-apply] free={snapshot.FreePoints} fight={snapshot.FightingStrength} off={snapshot.OffenceBonus} def={snapshot.DefenceBonus} res={snapshot.Resources}, items={_heroAttributePriorityItems.Count}, thread=" +
+            (Dispatcher.CheckAccess() ? "ui" : "background"));
+
         foreach (var item in _heroAttributePriorityItems)
         {
             var points = item.Key switch
@@ -567,10 +724,9 @@ public partial class MainWindow : Window
             var accountName = _accountStore.ActiveAccountName();
             if (!string.IsNullOrWhiteSpace(accountName)
                 && _accountAnalysisStore.TryLoad(accountName, out var analysis, GetActiveAccountServerUrl())
-                && analysis is not null
-                && analysis.GoldClubEnabled)
+                && analysis is not null)
             {
-                UpdateGoldClubInfo(true);
+                UpdateGoldClubInfo(analysis.GoldClubEnabled);
                 return;
             }
         }
@@ -1001,7 +1157,7 @@ public partial class MainWindow : Window
     private async Task<bool> RefreshFarmListsFromServerAsync(BotOptions options, CancellationToken cancellationToken)
     {
         var goldClubEnabled = await _botService.ReadAndPersistGoldClubStatusAsync(options, AppendLog, cancellationToken);
-        UpdateGoldClubInfo(goldClubEnabled ? true : null);
+        UpdateGoldClubInfo(goldClubEnabled);
         if (!goldClubEnabled)
         {
             _farmLists.Clear();
@@ -1746,9 +1902,8 @@ public partial class MainWindow : Window
             _browserSessionLikelyOpen = !options.Headless;
             _inboxAutoEnabled = true;
             RefreshNatarsProfileAnalyzedFromCache();
-            await RefreshInboxIndicatorsAsync(logErrors: true, force: true);
-            await LoadCurrentVillageViewsAfterLoginAsync(options, operationToken);
-            await RefreshAdventureCountAfterLoginAsync(options, operationToken);
+            var snapshot = await _botService.LoadPostLoginSnapshotAsync(options, AppendLog, cancellationToken: operationToken);
+            ApplyPostLoginSnapshot(snapshot);
             CompleteOperation(operationId, operationSw, "Login completed.");
         }
         catch (OperationCanceledException)
@@ -1838,7 +1993,7 @@ public partial class MainWindow : Window
             try
             {
                 var goldClubEnabled = await _botService.ReadAndPersistGoldClubStatusAsync(options, AppendLog, operationToken);
-                UpdateGoldClubInfo(goldClubEnabled ? true : null);
+                UpdateGoldClubInfo(goldClubEnabled);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -2313,6 +2468,21 @@ public partial class MainWindow : Window
                             else if (string.Equals(next.TaskName, "load_buildings_snapshot", StringComparison.OrdinalIgnoreCase))
                             {
                                 await LoadBuildingsSnapshotIntoUiAsync(token);
+                            }
+                            else if (string.Equals(next.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase))
+                            {
+                                // Run snapshot read off the UI thread, then marshal the UI update back via the dispatcher.
+                                // Otherwise WPF throws cross-thread on HeroAttributesStatusTextBlock.Text and the
+                                // status remains stuck at "Hero stats not loaded."
+                                try
+                                {
+                                    var snapshot = await _botService.ReadHeroAttributesAsync(options, AppendLog, token);
+                                    await Dispatcher.InvokeAsync(() => ApplyHeroAttributeSnapshotToUi(snapshot));
+                                }
+                                catch (Exception ex)
+                                {
+                                    AppendLog($"Hero stats refresh after run failed: {ex.Message}");
+                                }
                             }
                             AppendLog($"Queue item succeeded: {next.TaskName}");
                         }
@@ -3043,6 +3213,10 @@ public partial class MainWindow : Window
             QueueDataGrid.ItemsSource = activeRows;
             QueueHistoryDataGrid.ItemsSource = historyRows;
             SyncPendingResourceTargetsInUi();
+            if (_lastBuildingStatus is not null)
+            {
+                PopulateBuildingsTab(_lastBuildingStatus);
+            }
 
             if (selectId.HasValue)
             {
@@ -3053,18 +3227,7 @@ public partial class MainWindow : Window
                 }
             }
 
-            var offsetLabel = _queueServerTimeOffset.ToString(@"hh\:mm");
-            var offsetPrefix = _queueServerTimeOffset < TimeSpan.Zero ? "-" : "+";
-            var state = (hasDeferredQueueItems && !hasRunningQueueItems && !_uiBusy) || hasInlineWait
-                ? "Waiting"
-                : IsFunctionExecutionRunning(hasRunningQueueItems)
-                    ? "Function running"
-                    : (_loopTask is not null && !_loopTask.IsCompleted)
-                        ? "Loop running"
-                        : hasPausedQueueItems
-                            ? "Paused"
-                            : "Idle";
-            QueueInfoTextBlock.Text = $"Queue active: {activeRows.Count} | Queue done: {historyRows.Count} | State: {state} | Server time offset: UTC{offsetPrefix}{offsetLabel}";
+            QueueInfoTextBlock.Text = $"Queue active: {activeRows.Count} | Queue done: {historyRows.Count}";
             if (_queuePopupWindow?.Content is Grid queuePopupRoot && queuePopupRoot.Children.Count >= 2)
             {
                 if (queuePopupRoot.Children[0] is DataGrid popupActiveGrid)
@@ -3491,6 +3654,120 @@ public partial class MainWindow : Window
         || string.Equals(taskName, "construct_building", StringComparison.OrdinalIgnoreCase)
         || string.Equals(taskName, "demolish_building_to_level", StringComparison.OrdinalIgnoreCase);
 
+    private IReadOnlyList<QueueItem> GetActiveQueueItems()
+    {
+        return _botService.GetQueueItemsForDisplay()
+            .Where(item => item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused)
+            .OrderBy(item => item.CreatedAt)
+            .ToList();
+    }
+
+    private VillageStatus BuildProjectedBuildingStatus(VillageStatus status, IReadOnlyList<QueueItem>? queueItems = null)
+    {
+        var projectedBuildings = status.Buildings
+            .Select(item => item with { })
+            .ToList();
+        var bySlot = projectedBuildings
+            .Where(item => item.SlotId is not null)
+            .GroupBy(item => item.SlotId!.Value)
+            .ToDictionary(group => group.Key, group => group.OrderByDescending(item => item.Level ?? 0).First());
+
+        foreach (var item in queueItems ?? GetActiveQueueItems())
+        {
+            if (string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase)
+                && item.Payload.TryGetValue(BotOptionPayloadKeys.BuildingConstructSlotId, out var constructSlotRaw)
+                && int.TryParse(constructSlotRaw, out var constructSlotId)
+                && item.Payload.TryGetValue(BotOptionPayloadKeys.BuildingConstructGid, out var constructGidRaw)
+                && int.TryParse(constructGidRaw, out var constructGid))
+            {
+                var constructName = item.Payload.TryGetValue(BotOptionPayloadKeys.BuildingConstructName, out var queuedConstructName)
+                    ? queuedConstructName
+                    : $"gid {constructGid}";
+                var projected = new Building(constructSlotId, constructName, 0, null, constructGid);
+                bySlot[constructSlotId] = projected;
+                continue;
+            }
+
+            if ((string.Equals(item.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(item.TaskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase))
+                && item.Payload.TryGetValue(BotOptionPayloadKeys.BuildingUpgradeSlotId, out var upgradeSlotRaw)
+                && int.TryParse(upgradeSlotRaw, out var upgradeSlotId)
+                && bySlot.TryGetValue(upgradeSlotId, out var currentProjected))
+            {
+                var currentLevel = currentProjected.Level ?? 0;
+                var targetLevel = currentLevel;
+                if (string.Equals(item.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+                    && item.Payload.TryGetValue(BotOptionPayloadKeys.BuildingUpgradeTargetLevel, out var upgradeTargetRaw)
+                    && int.TryParse(upgradeTargetRaw, out var parsedTargetLevel))
+                {
+                    targetLevel = Math.Max(currentLevel, parsedTargetLevel);
+                }
+                else if (currentProjected.Gid is int currentGid)
+                {
+                    targetLevel = Math.Max(currentLevel, BuildingCatalogService.MaxLevelFor(currentGid));
+                }
+
+                bySlot[upgradeSlotId] = currentProjected with { Level = targetLevel };
+            }
+        }
+
+        return status with { Buildings = bySlot.Values.ToList() };
+    }
+
+    private IReadOnlyDictionary<int, string> GetQueuedBuildingConstructsBySlot(IReadOnlyList<QueueItem>? queueItems = null)
+    {
+        var result = new Dictionary<int, string>();
+        foreach (var item in queueItems ?? GetActiveQueueItems())
+        {
+            if (!string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (!item.Payload.TryGetValue(BotOptionPayloadKeys.BuildingConstructSlotId, out var slotRaw)
+                || !int.TryParse(slotRaw, out var slotId))
+            {
+                continue;
+            }
+
+            if (item.Payload.TryGetValue(BotOptionPayloadKeys.BuildingConstructName, out var name)
+                && !string.IsNullOrWhiteSpace(name))
+            {
+                result[slotId] = name;
+            }
+        }
+
+        return result;
+    }
+
+    private IReadOnlyDictionary<int, int> GetQueuedBuildingTargetsBySlot(IReadOnlyList<QueueItem>? queueItems = null)
+    {
+        var result = new Dictionary<int, int>();
+        foreach (var item in queueItems ?? GetActiveQueueItems())
+        {
+            if (!string.Equals(item.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(item.TaskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (!item.Payload.TryGetValue(BotOptionPayloadKeys.BuildingUpgradeSlotId, out var slotRaw)
+                || !int.TryParse(slotRaw, out var slotId))
+            {
+                continue;
+            }
+
+            if (string.Equals(item.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+                && item.Payload.TryGetValue(BotOptionPayloadKeys.BuildingUpgradeTargetLevel, out var targetRaw)
+                && int.TryParse(targetRaw, out var targetLevel))
+            {
+                result[slotId] = targetLevel;
+            }
+        }
+
+        return result;
+    }
+
     private static string NormalizeBuildingName(string? name)
     {
         if (string.IsNullOrWhiteSpace(name))
@@ -3509,7 +3786,7 @@ public partial class MainWindow : Window
             return [];
         }
 
-        var status = _lastBuildingStatus;
+        var status = BuildProjectedBuildingStatus(_lastBuildingStatus);
         var fullCatalog = BuildingCatalogService.GetFullCatalog(status.Tribe);
         var occupiedBuildings = status.Buildings
             .Where(b => (b.Level ?? 0) > 0)
@@ -3680,15 +3957,18 @@ public partial class MainWindow : Window
             return false;
         }
 
-        var occupied = _lastBuildingStatus.Buildings.FirstOrDefault(item => item.SlotId == slotId && (item.Level ?? 0) > 0);
+        var projectedStatus = BuildProjectedBuildingStatus(_lastBuildingStatus);
+        var occupied = projectedStatus.Buildings.FirstOrDefault(item => item.SlotId == slotId && ((item.Level ?? 0) > 0 || (item.Gid ?? 0) > 0));
         if (occupied is not null)
         {
-            reason = $"Slot {slotId} is occupied by {occupied.Name} level {occupied.Level}.";
+            reason = (occupied.Level ?? 0) > 0
+                ? $"Slot {slotId} is occupied by {occupied.Name} level {occupied.Level}."
+                : $"Slot {slotId} is already reserved for {occupied.Name}.";
             return false;
         }
 
-        var existingSameGidLevels = _lastBuildingStatus.Buildings
-            .Where(item => item.Gid == selectedBuilding.Gid && (item.Level ?? 0) > 0)
+        var existingSameGidLevels = projectedStatus.Buildings
+            .Where(item => item.Gid == selectedBuilding.Gid && ((item.Level ?? 0) > 0 || (item.Gid ?? 0) > 0))
             .Select(item => item.Level ?? 0)
             .ToList();
         var duplicateAllowed = selectedBuilding.Gid is 23 or 38 or 39;
@@ -3736,7 +4016,7 @@ public partial class MainWindow : Window
             return false;
         }
 
-        var missing = MissingRequirements(_lastBuildingStatus, selectedBuilding.RequirementEntries);
+        var missing = MissingRequirements(projectedStatus, selectedBuilding.RequirementEntries);
         if (missing.Count > 0)
         {
             reason = $"Missing requirements: {string.Join(", ", missing.Select(item => $"{item.Name} {item.Level}+"))}";
@@ -3806,7 +4086,7 @@ public partial class MainWindow : Window
             Category = row.Category,
             Requirements = row.Requirements,
             PendingTargetLevel = targetLevel,
-            PendingConstructName = string.Empty,
+            PendingConstructName = row.PendingConstructName,
             IsDemolishing = row.IsDemolishing,
             MapLeft = row.MapLeft,
             MapTop = row.MapTop,
@@ -4046,6 +4326,23 @@ public partial class MainWindow : Window
         return snapshot;
     }
 
+    private void HeroHideModeRadio_Checked(object sender, RoutedEventArgs e)
+    {
+        // Checked fires during InitializeComponent for the XAML-default IsChecked="True", before
+        // services and other controls are wired — bail out until the window has finished loading.
+        if (_suppressHeroHideModeApply || !IsLoaded)
+        {
+            return;
+        }
+
+        var mode = HeroFightRadio?.IsChecked == true ? "fight" : "hide";
+        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.HeroHideMode] = mode,
+        };
+        EnqueueQuickTask("hero_set_hide_mode", $"Set hero hide mode to '{mode}'", payload);
+    }
+
     private void QueueHeroManageButton_Click(object sender, RoutedEventArgs e)
     {
         if (!int.TryParse(HeroMinHpTextBox.Text.Trim(), out var minHp) || minHp < 1 || minHp > 100)
@@ -4060,166 +4357,26 @@ public partial class MainWindow : Window
             [BotOptionPayloadKeys.HeroAutoRevive] = HeroAutoReviveCheckBox.IsChecked == true ? "true" : "false",
             [BotOptionPayloadKeys.HeroAutoAssignPoints] = HeroAutoAssignPointsCheckBox.IsChecked == true ? "true" : "false",
             [BotOptionPayloadKeys.HeroStatPriority] = BuildHeroPriorityPayload(),
+            [BotOptionPayloadKeys.HeroAdventurePickOrder] = HeroAdventureTopRadio?.IsChecked == true ? "top" : "shortest",
+            [BotOptionPayloadKeys.HeroHideMode] = HeroFightRadio?.IsChecked == true ? "fight" : "hide",
         };
-        EnqueueQuickTask("hero_manage", "Run hero management task", payload);
-        BuildingsInfoTextBlock.Text = "Queued hero management task.";
+
+        var continuous = ContinuousAdventuresCheckBox?.IsChecked == true;
+        var copies = 1;
+        if (continuous && int.TryParse(HeroAdventureCountTextBlock.Text.Trim(), out var available) && available > 1)
+        {
+            copies = Math.Min(available, 20); // hard cap to avoid runaway queues if count is wrong
+        }
+
+        for (var i = 0; i < copies; i++)
+        {
+            EnqueueQuickTask("hero_manage", "Hero adventure (with revive/points checks)", payload);
+        }
+        BuildingsInfoTextBlock.Text = continuous && copies > 1
+            ? $"Queued {copies} hero adventures."
+            : "Queued hero adventure.";
     }
 
-    private async void SendHeroOnAdventureButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_heroAdventureCts is { } running && !running.IsCancellationRequested)
-        {
-            running.Cancel();
-            HeroAdventureStatusTextBlock.Text = "Stopping continuous adventures...";
-            return;
-        }
-
-        var cts = new CancellationTokenSource();
-        _heroAdventureCts = cts;
-        var continuous = ContinuousAdventuresCheckBox.IsChecked == true;
-        SendHeroOnAdventureButton.Content = continuous ? "Stop adventures" : "Sending...";
-        SendHeroOnAdventureButton.IsEnabled = continuous;
-        RefreshAdventuresButton.IsEnabled = false;
-        var operationId = BeginOperation(continuous ? "Hero adventure (continuous)" : "Hero adventure");
-        var operationSw = Stopwatch.StartNew();
-        ToggleUiBusy(true);
-
-        try
-        {
-            await EnsureChromiumInstalledAsync();
-            await RefreshHeroStatsAsync(cts.Token);
-            var iteration = 0;
-            var recoveryAttempts = 0;
-            const int maxRecoveryAttempts = 4;
-
-            while (true)
-            {
-                cts.Token.ThrowIfCancellationRequested();
-                iteration++;
-                var options = ApplySelectedVillageToOptions(LoadBotOptions());
-                StopHeroCountdown();
-                _inlineWaitUntilUtc = DateTimeOffset.MinValue;
-                ToggleUiBusy(true);
-                UpdateExecutionStateIndicator();
-                HeroAdventureStatusTextBlock.Text = continuous
-                    ? $"Function running... (dispatching iteration {iteration})"
-                    : "Function running... (dispatching adventure)";
-
-                var result = await _botService.SendHeroOnAdventureAsync(options, AppendLog, cts.Token);
-
-                var displayedCount = result.Dispatched
-                    ? Math.Max(0, result.AdventureCount - 1)
-                    : result.AdventureCount;
-                HeroAdventureCountTextBlock.Text = displayedCount.ToString();
-                AppendLog(result.Message);
-
-                // Hero was dead and Revive was clicked: re-check status immediately.
-                if (result.WasRevived)
-                {
-                    recoveryAttempts++;
-                    if (recoveryAttempts > maxRecoveryAttempts)
-                    {
-                        HeroAdventureStatusTextBlock.Text = "Stopping: hero recovery did not complete after several attempts.";
-                        break;
-                    }
-
-                    HeroAdventureStatusTextBlock.Text = "Hero revived. Re-checking status...";
-                    await Task.Delay(TimeSpan.FromSeconds(2), cts.Token);
-                    continue;
-                }
-
-                // Hero is on the way home: wait for ETA, then retry.
-                if (result.IsOnTheWayHome)
-                {
-                    recoveryAttempts++;
-                    if (recoveryAttempts > maxRecoveryAttempts)
-                    {
-                        HeroAdventureStatusTextBlock.Text = "Stopping: hero is still on the way after multiple checks.";
-                        break;
-                    }
-
-                    var etaSeconds = (result.SecondsUntilReturn ?? 60) + 1;
-                    StartHeroCountdown(etaSeconds, result.AdventureCount, "Hero on the way home");
-                    BeginInlineWait(etaSeconds);
-                    try
-                    {
-                        await Task.Delay(TimeSpan.FromSeconds(etaSeconds), cts.Token);
-                    }
-                    finally
-                    {
-                        StopHeroCountdown();
-                        EndInlineWait();
-                    }
-                    continue;
-                }
-
-                recoveryAttempts = 0;
-
-                if (!result.Dispatched)
-                {
-                    HeroAdventureStatusTextBlock.Text = continuous
-                        ? $"Stopping continuous adventures: {result.Message}"
-                        : result.Message;
-                    break;
-                }
-
-                var adventuresLeft = Math.Max(0, result.AdventureCount - 1);
-                var waitSeconds = (result.SecondsUntilReturn ?? 0) + 1;
-                if (waitSeconds < 1)
-                {
-                    waitSeconds = 1;
-                }
-
-                // Always start the countdown after a successful dispatch — gives the user
-                // visual feedback even when not running continuously.
-                StartHeroCountdown(waitSeconds, adventuresLeft, "Hero away");
-
-                if (!continuous || adventuresLeft <= 0)
-                {
-                    if (continuous)
-                    {
-                        HeroAdventureStatusTextBlock.Text = "Continuous adventures complete: no adventures left.";
-                    }
-                    BeginInlineWait(waitSeconds);
-                    break;
-                }
-
-                BeginInlineWait(waitSeconds);
-                try
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cts.Token);
-                }
-                finally
-                {
-                    StopHeroCountdown();
-                    EndInlineWait();
-                }
-            }
-
-            CompleteOperation(operationId, operationSw, "Hero adventures done.");
-        }
-        catch (OperationCanceledException)
-        {
-            HeroAdventureStatusTextBlock.Text = "Continuous adventures stopped.";
-            AppendLog("Hero adventure run cancelled.");
-        }
-        catch (Exception ex)
-        {
-            FailOperation(operationId, operationSw, ex);
-            HeroAdventureStatusTextBlock.Text = $"Hero adventure failed: {ex.Message}";
-        }
-        finally
-        {
-            // Don't stop the countdown here — leave the post-dispatch countdown visible until it
-            // ticks down to 0 on its own. Tear down the inline wait only if we did not start one.
-            _heroAdventureCts = null;
-            SendHeroOnAdventureButton.Content = "Send hero on adventure";
-            SendHeroOnAdventureButton.IsEnabled = true;
-            RefreshAdventuresButton.IsEnabled = true;
-            ToggleUiBusy(false);
-            UpdateExecutionStateIndicator();
-        }
-    }
 
     private void BeginInlineWait(int seconds)
     {
@@ -4261,6 +4418,54 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             AppendLog($"Adventure count refresh after login failed: {ex.Message}");
+        }
+    }
+
+    private void ApplyPostLoginSnapshot(PostLoginSnapshot snapshot)
+    {
+        var status = snapshot.VillageStatus;
+        var queuedTargetsBySlot = GetQueuedResourceTargetsBySlot();
+        var resourceMaxLevel = ResolveResourceMaxLevelFromStatus(status);
+
+        var rows = status.ResourceFields
+            .Where(item => item.SlotId is not null)
+            .OrderBy(item => item.SlotId)
+            .Select(item => new ResourceFieldRow
+            {
+                SlotId = item.SlotId ?? 0,
+                FieldType = item.FieldType,
+                Name = item.Name,
+                Level = item.Level,
+                Url = item.Url ?? string.Empty,
+                PendingTargetLevel = ResolveQueuedResourceTarget(item.SlotId ?? 0, item.Level ?? 0, queuedTargetsBySlot),
+                IsMaxLevel = (item.Level ?? 0) >= resourceMaxLevel,
+            })
+            .ToList();
+
+        SetResourceRows(rows);
+        ApplyVillageStatusToUi(status);
+
+        _lastBuildingStatus = status;
+        PopulateBuildingsTab(status);
+
+        var capitalText = status.IsCapital == true ? "Yes" : status.IsCapital == false ? "No" : "Unknown";
+        ResourcesInfoTextBlock.Text = $"Loaded {rows.Count} resource fields. Capital: {capitalText}. {BuildResourceForecastSummary(status)}";
+        BuildingsInfoTextBlock.Text = $"Buildings loaded for active village '{status.ActiveVillage}'. Occupied slots: {_buildingRows.Count(row => row.IsOccupied)}, free slots: {_buildingRows.Count(row => !row.IsOccupied)}.";
+        TribeInfoTextBlock.Text = $"Tribe: {status.Tribe}";
+        VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
+        RefreshVillagePickerFromVillages(status.Villages, status.ActiveVillage);
+        UpdateDashboardVillageList(status.Villages);
+        UpdateInboxButtons(snapshot.InboxStatus.UnreadMessages, snapshot.InboxStatus.UnreadReports);
+
+        if (snapshot.AdventureCount is null)
+        {
+            HeroAdventureCountTextBlock.Text = "?";
+            AppendLog("Adventure count: not found on current page.");
+        }
+        else
+        {
+            HeroAdventureCountTextBlock.Text = snapshot.AdventureCount.Value.ToString();
+            AppendLog($"Adventure count after login: {snapshot.AdventureCount.Value}.");
         }
     }
 
@@ -4444,11 +4649,24 @@ public partial class MainWindow : Window
     {
         _buildingRows.Clear();
         _demolishableBuildings.Clear();
+        var queueItems = GetActiveQueueItems();
+        var projectedStatus = BuildProjectedBuildingStatus(status, queueItems);
+        var queuedConstructsBySlot = GetQueuedBuildingConstructsBySlot(queueItems);
+        var queuedTargetsBySlot = GetQueuedBuildingTargetsBySlot(queueItems);
 
         var categoryByGid = BuildingCatalogService.GetCatalogForTribe(status.Tribe)
             .ToDictionary(item => item.Gid, item => item, EqualityComparer<int>.Default);
 
         var buildingBySlot = status.Buildings
+            .Where(item => item.SlotId is not null)
+            .GroupBy(item => item.SlotId!.Value)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderByDescending(item => item.Level ?? 0)
+                    .First());
+
+        var projectedBuildingBySlot = projectedStatus.Buildings
             .Where(item => item.SlotId is not null)
             .GroupBy(item => item.SlotId!.Value)
             .ToDictionary(
@@ -4484,12 +4702,16 @@ public partial class MainWindow : Window
                     : string.Join(", ", catalog.Requirements.Select(item => $"{item.Name} {item.Level}+"));
             }
 
-            int? pendingTarget = _buildingLastQueuedTargetBySlot.TryGetValue(slotId, out var lastTarget)
-                ? lastTarget.Target
-                : null;
-            var pendingConstruct = _buildingLastQueuedConstructBySlot.TryGetValue(slotId, out var lastConstruct)
-                ? lastConstruct.Name
-                : string.Empty;
+            int? pendingTarget = queuedTargetsBySlot.TryGetValue(slotId, out var queuedTarget)
+                ? queuedTarget
+                : _buildingLastQueuedTargetBySlot.TryGetValue(slotId, out var lastTarget)
+                    ? lastTarget.Target
+                    : null;
+            var pendingConstruct = queuedConstructsBySlot.TryGetValue(slotId, out var queuedConstruct)
+                ? queuedConstruct
+                : _buildingLastQueuedConstructBySlot.TryGetValue(slotId, out var lastConstruct)
+                    ? lastConstruct.Name
+                    : string.Empty;
 
             if (!BuildingSlotLayoutById.TryGetValue(slotId, out var layout))
             {
@@ -4499,7 +4721,7 @@ public partial class MainWindow : Window
             if (occupied)
             {
                 occupiedCount += 1;
-                if (pendingTarget is int queuedTarget && queuedTarget <= (building!.Level ?? 0))
+                if (pendingTarget is int pendingQueuedTarget && pendingQueuedTarget <= (building!.Level ?? 0))
                 {
                     pendingTarget = null;
                 }
@@ -4509,6 +4731,12 @@ public partial class MainWindow : Window
             else
             {
                 pendingTarget = null;
+                if (projectedBuildingBySlot.TryGetValue(slotId, out var projected)
+                    && (projected.Gid ?? 0) > 0
+                    && string.IsNullOrWhiteSpace(pendingConstruct))
+                {
+                    pendingConstruct = projected.Name;
+                }
             }
 
             string slotName;
@@ -4639,10 +4867,11 @@ public partial class MainWindow : Window
 
     private List<BuildingRequirementEntry> MissingRequirements(VillageStatus status, IReadOnlyList<BuildingRequirementEntry> requirements)
     {
+        var projectedStatus = BuildProjectedBuildingStatus(status);
         var missing = new List<BuildingRequirementEntry>();
         foreach (var requirement in requirements)
         {
-            var fromBuildings = status.Buildings
+            var fromBuildings = projectedStatus.Buildings
                 .Where(item => item.Level is not null && item.Name.Contains(requirement.Name, StringComparison.OrdinalIgnoreCase))
                 .Select(item => item.Level!.Value)
                 .DefaultIfEmpty(0)
@@ -5248,6 +5477,21 @@ public partial class MainWindow : Window
                         await LoadResourcesAfterUpgradeAsync(cancellationToken, resourceOnly: true);
                     }
                 }
+                else if (string.Equals(next.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Same post-run refresh the loop runner does — read the authoritative attributes-tab
+                    // snapshot off the UI thread and marshal the UI write back via the dispatcher,
+                    // so the Hero / Adventures card mirrors what Travian shows after the run.
+                    try
+                    {
+                        var snapshot = await _botService.ReadHeroAttributesAsync(options, AppendLog, cancellationToken);
+                        await Dispatcher.InvokeAsync(() => ApplyHeroAttributeSnapshotToUi(snapshot));
+                    }
+                    catch (Exception refreshEx)
+                    {
+                        AppendLog($"Hero stats refresh after run failed: {refreshEx.Message}");
+                    }
+                }
                 AppendLog($"[AUTOQ {runId}] OK {tickSw.Elapsed.TotalSeconds:F1}s task={next.TaskName}");
             }
             catch (OperationCanceledException)
@@ -5378,6 +5622,7 @@ public partial class MainWindow : Window
                     _terminalEntries.Insert(0, line);
                     linesForSessionLog.Add(line);
                     TryApplyInlineResourceLevelUpdateFromLog(part);
+                    TryApplyPlusStatusFromLog(part);
                     if (TryExtractQueueWaitDelay(part, out var queueWaitDelay))
                     {
                         var waitUntilUtc = DateTimeOffset.UtcNow.Add(queueWaitDelay);
@@ -5395,7 +5640,11 @@ public partial class MainWindow : Window
 
                     if (IsAlarmMessage(part))
                     {
-                        _alarmEntries.Insert(0, line);
+                        _alarmEntries.Insert(0, new AlarmEntryRow
+                        {
+                            Text = line,
+                            IsAcknowledged = false,
+                        });
                         _unacknowledgedAlarmCount += 1;
                         linesForSessionLog.Add($"[{GetServerNow():yyyy-MM-dd HH:mm:ss}] [ALARM] {part}");
                     }
@@ -5418,7 +5667,7 @@ public partial class MainWindow : Window
 
                     if (_manualVerificationAlarmActive && IsManualVerificationResolvedMessage(part))
                     {
-                        _unacknowledgedAlarmCount = 0;
+                        AcknowledgeAllAlarmEntries();
                         _manualVerificationAlarmActive = false;
                     }
 
@@ -5426,6 +5675,7 @@ public partial class MainWindow : Window
                     {
                         _captchaSessionSolvedCount += 1;
                         _captchaSessionActive = false;
+                        AcknowledgeAllAlarmEntries();
                         CloseCaptchaAutoSolvePopup();
                     }
                     else if (_captchaSessionActive && IsManualVerificationResolvedMessage(part))
@@ -5604,7 +5854,7 @@ public partial class MainWindow : Window
             if (solved == MessageBoxResult.Yes)
             {
                 _manualVerificationAlarmActive = false;
-                _unacknowledgedAlarmCount = 0;
+                AcknowledgeAllAlarmEntries();
                 AppendLog("Manual verification marked as solved by user.");
             }
             return;
@@ -5650,7 +5900,7 @@ public partial class MainWindow : Window
         popup.Close();
     }
 
-    private static void TrimToMaxEntries(ObservableCollection<string> entries, int max)
+    private static void TrimToMaxEntries<T>(ObservableCollection<T> entries, int max)
     {
         while (entries.Count > max)
         {
@@ -5954,7 +6204,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        _unacknowledgedAlarmCount = 0;
+        AcknowledgeAllAlarmEntries();
         StatusTextBlock.Text = "Alerts acknowledged.";
         UpdateTerminalAlarmUi();
     }
@@ -5979,8 +6229,10 @@ public partial class MainWindow : Window
     {
         var alertsTabSelected = TerminalAlarmTabControl.SelectedIndex == 1;
         var list = alertsTabSelected ? AlarmListBox : TerminalListBox;
-        var selectedLines = list.SelectedItems.Cast<string>().ToList();
-        var source = alertsTabSelected ? _alarmEntries.ToList() : _terminalEntries.ToList();
+        var selectedLines = alertsTabSelected
+            ? list.SelectedItems.Cast<AlarmEntryRow>().Select(item => item.Text).ToList()
+            : list.SelectedItems.Cast<string>().ToList();
+        var source = alertsTabSelected ? _alarmEntries.Select(item => item.Text).ToList() : _terminalEntries.ToList();
         var linesToCopy = selectedLines.Count > 0 ? selectedLines : source;
         if (linesToCopy.Count == 0)
         {
@@ -6031,6 +6283,18 @@ public partial class MainWindow : Window
         {
             CopyCurrentTabButton.Content = "Copy";
         }
+    }
+
+    private void AcknowledgeAllAlarmEntries()
+    {
+        foreach (var entry in _alarmEntries)
+        {
+            entry.IsAcknowledged = true;
+        }
+
+        _unacknowledgedAlarmCount = 0;
+        AlarmListBox.Items.Refresh();
+        _logsPopupAlarmList?.Items.Refresh();
     }
 
     private void MainWindow_PreviewMouseDown(object sender, MouseButtonEventArgs e)
@@ -6256,7 +6520,6 @@ public partial class MainWindow : Window
         var popupAlarmList = new ListBox
         {
             Background = new SolidColorBrush(Color.FromRgb(17, 13, 13)),
-            Foreground = new SolidColorBrush(Color.FromRgb(252, 165, 165)),
             BorderThickness = new Thickness(0),
             FontFamily = new FontFamily("Consolas"),
             FontSize = 13,
@@ -6270,8 +6533,20 @@ public partial class MainWindow : Window
         {
             VisualTree = new FrameworkElementFactory(typeof(TextBlock)),
         };
-        popupAlarmList.ItemTemplate.VisualTree.SetBinding(TextBlock.TextProperty, new Binding("."));
+        popupAlarmList.ItemTemplate.VisualTree.SetBinding(TextBlock.TextProperty, new Binding(nameof(AlarmEntryRow.Text)));
         popupAlarmList.ItemTemplate.VisualTree.SetValue(TextBlock.TextWrappingProperty, TextWrapping.Wrap);
+        var popupAlarmStyle = new Style(typeof(TextBlock));
+        popupAlarmStyle.Setters.Add(new Setter(TextBlock.ForegroundProperty, new SolidColorBrush(Color.FromRgb(252, 165, 165))));
+        popupAlarmStyle.Triggers.Add(new DataTrigger
+        {
+            Binding = new Binding(nameof(AlarmEntryRow.IsAcknowledged)),
+            Value = true,
+            Setters =
+            {
+                new Setter(TextBlock.ForegroundProperty, new SolidColorBrush(Color.FromRgb(147, 197, 253))),
+            }
+        });
+        popupAlarmList.ItemTemplate.VisualTree.SetValue(TextBlock.StyleProperty, popupAlarmStyle);
 
         popupTab.Items.Add(new TabItem { Header = "Log", Content = popupLogList });
         popupTab.Items.Add(new TabItem { Header = "Alarms", Content = popupAlarmList });
@@ -6294,7 +6569,7 @@ public partial class MainWindow : Window
         var acknowledgeButton = new Button { Content = "Acknowledge alarms", Margin = new Thickness(0, 0, 8, 0), Padding = new Thickness(10, 4, 10, 4), Height = 30 };
         acknowledgeButton.Click += (_, _) =>
         {
-            _unacknowledgedAlarmCount = 0;
+            AcknowledgeAllAlarmEntries();
             UpdateTerminalAlarmUi();
         };
 
@@ -6302,11 +6577,11 @@ public partial class MainWindow : Window
         copyButton.Click += (_, _) =>
         {
             var selected = popupTab.SelectedIndex == 1
-                ? popupAlarmList.SelectedItems.Cast<string>().ToList()
+                ? popupAlarmList.SelectedItems.Cast<AlarmEntryRow>().Select(item => item.Text).ToList()
                 : popupLogList.SelectedItems.Cast<string>().ToList();
             var lines = selected.Count > 0
                 ? selected
-                : (popupTab.SelectedIndex == 1 ? _alarmEntries.ToList() : _terminalEntries.ToList());
+                : (popupTab.SelectedIndex == 1 ? _alarmEntries.Select(item => item.Text).ToList() : _terminalEntries.ToList());
             if (lines.Count == 0)
             {
                 return;
@@ -6527,14 +6802,6 @@ public partial class MainWindow : Window
         VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
         RefreshVillagePickerFromVillages(status.Villages, status.ActiveVillage);
         UpdateDashboardVillageList(status.Villages);
-
-        await _botService.NavigateToVillageResourceFieldsAsync(
-            options,
-            AppendLog,
-            GetSelectedVillageName(),
-            GetSelectedVillageUrl(),
-            cancellationToken);
-        AppendLog("Returned to dorf1 after login scan.");
     }
 
     private async Task<VillageStatus> ReadVillageStatusWithRetryAsync(BotOptions options, CancellationToken cancellationToken, bool resourceOnly = false, bool forceCurrentVillage = false)

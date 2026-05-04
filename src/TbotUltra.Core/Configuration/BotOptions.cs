@@ -122,6 +122,12 @@ public sealed class BotOptions
     [ConfigurationKeyName("hero_stat_priority")]
     public string HeroStatPriority { get; init; } = "fighting_strength,offence_bonus,defence_bonus,resources";
 
+    [ConfigurationKeyName("hero_adventure_pick_order")]
+    public string HeroAdventurePickOrder { get; init; } = "shortest"; // "shortest" or "top"
+
+    [ConfigurationKeyName("hero_hide_mode")]
+    public string HeroHideMode { get; init; } = "hide"; // "hide" or "fight"
+
     [ConfigurationKeyName("upgrade_selector_profile")]
     public string UpgradeSelectorProfile { get; init; } = "auto";
 

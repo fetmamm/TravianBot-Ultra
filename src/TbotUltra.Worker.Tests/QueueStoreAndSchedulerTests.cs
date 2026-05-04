@@ -110,6 +110,18 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
     }
 
     [Fact]
+    public void QueueStore_RemovesStaleTempFileBeforeSave()
+    {
+        File.WriteAllText($"{_queuePath}.tmp", "stale");
+        var store = new JsonQueueStore(_queuePath);
+
+        store.Add("status", null, priority: 1, maxRetries: 3);
+
+        Assert.False(File.Exists($"{_queuePath}.tmp"));
+        Assert.Single(store.GetAll());
+    }
+
+    [Fact]
     public void BotTaskRunner_RegistersHandlers_ForEveryAllowedTask()
     {
         var allowed = TaskCatalog.AllowedTaskNames;
@@ -118,6 +130,17 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
         {
             Assert.Contains(task, registered, StringComparer.OrdinalIgnoreCase);
         }
+    }
+
+    [Theory]
+    [InlineData("Resource slot 1 blocked (BlockedByQueue): workers busy.", true)]
+    [InlineData("Building cannot be built yet. Missing requirements.", true)]
+    [InlineData("Slot 20 reports max level reached.", true)]
+    [InlineData("Slot 20: already at level 3.", false)]
+    [InlineData("", false)]
+    public void BotTaskRunner_IsBlockedTaskResult_MatchesKnownFormats(string result, bool expected)
+    {
+        Assert.Equal(expected, BotTaskRunner.IsBlockedTaskResult(result));
     }
 
     public void Dispose()

@@ -6,9 +6,9 @@ public sealed partial class TravianClient
     {
         public const string Resources = "/dorf1.php";
         public const string Buildings = "/dorf2.php";
-        public const string Hero = "/hero.php";
-        public const string HeroAdventures = "/hero.php?t=3";
-        public const string HeroAdventureLegacy = "/hero_adventure.php";
+        // /hero.php is intentionally absent — it lands on the Appearance tab on T4.5+. Use HeroAdventures or HeroInventory.
+        public const string HeroAdventures = "/hero_adventure.php";
+        public const string HeroAdventureLegacy = "/hero.php?t=3";
         public const string HeroInventory = "/hero_inventory.php";
         public const string RallyPointTroops = "/build.php?id=39&t=1";
         public const string RallyPointSendTroops = "/build.php?id=39&t=2";

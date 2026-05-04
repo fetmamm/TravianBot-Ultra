@@ -59,6 +59,25 @@ public sealed record Building(
 
 public sealed record BuildQueueItem(string Text, string? TimeLeft);
 
+public enum ConstructionKind { Resource, Building, Unknown }
+
+public sealed record ActiveConstruction(
+    ConstructionKind Kind,
+    string Name,
+    int? Level,
+    int? TimeLeftSeconds,
+    string? FinishAtText);
+
+public sealed record ConstructionSlotStatus(
+    IReadOnlyList<ActiveConstruction> Active,
+    int ResourceSlotsUsed,
+    int BuildingSlotsUsed,
+    int ResourceSlotsMax,
+    int BuildingSlotsMax,
+    bool CanStartResource,
+    bool CanStartBuilding,
+    int? ShortestWaitSeconds);
+
 public sealed record ServerBuildChoice(int Gid, string Name, bool Available, string Reason);
 
 public sealed record ResourceStorageForecast(
@@ -122,6 +141,11 @@ public sealed record VillageStatus(
 public sealed record InboxStatus(
     int UnreadMessages = 0,
     int UnreadReports = 0);
+
+public sealed record PostLoginSnapshot(
+    VillageStatus VillageStatus,
+    InboxStatus InboxStatus,
+    int? AdventureCount);
 
 public sealed record FarmListOverview(
     string Name,
