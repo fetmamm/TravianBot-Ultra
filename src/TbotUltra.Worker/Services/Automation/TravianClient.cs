@@ -371,24 +371,7 @@ public sealed partial class TravianClient
             ServerTimeUtc: _serverTimeUtc);
     }
 
-    public async Task<AccountSnapshot> AnalyzeProfileAsync(CancellationToken cancellationToken = default)
-    {
-        Notify("AnalyzeProfileAsync started");
-        await EnsureLoggedInAsync();
-        await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
-        await GotoAsync(_config.VillageOverviewPath, cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading account info after profile analysis.", cancellationToken);
-        await EnsureLoggedInAsync();
-        var villages = await ReadVillagesAsync(cancellationToken);
-        return new AccountSnapshot(
-            Tribe: await ReadTribeAsync(cancellationToken),
-            ActiveVillage: await ReadActiveVillageNameAsync(cancellationToken),
-            VillageCount: villages.Count,
-            Villages: villages,
-            ServerTimeUtc: _serverTimeUtc);
-    }
-
-    public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(CancellationToken cancellationToken = default)
+public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(CancellationToken cancellationToken = default)
     {
         Notify("ReadAccountAnalysisSnapshotAsync started");
         await GotoAsync(_config.VillageOverviewPath, cancellationToken);
@@ -1782,6 +1765,66 @@ public sealed partial class TravianClient
         return villages;
     }
 
+    // Like ReadVillagesAsync but never navigates to spieler.php just to refresh the list.
+    // Order: fresh cache -> stale cache -> sidebar of current page -> server (last resort).
+    // Used by lightweight refresh paths (e.g. post-upgrade) where the page navigation would
+    // appear to the user as an unnecessary refresh.
+    private async Task<IReadOnlyList<Village>> ReadVillagesPreferCacheAsync(CancellationToken cancellationToken)
+    {
+        if (_cachedVillages is { Count: > 0 } cached
+            && DateTimeOffset.UtcNow - _cachedVillagesAt < VillagesCacheTtl)
+        {
+            return cached;
+        }
+
+        try
+        {
+            var sidebar = await ReadVillagesFromCurrentPageAsync(cancellationToken);
+            if (sidebar.Count > 0)
+            {
+                if (_cachedVillages is { Count: > 0 } prior)
+                {
+                    var merged = sidebar
+                        .Select(v =>
+                        {
+                            var match = prior.FirstOrDefault(p => string.Equals(p.Name, v.Name, StringComparison.Ordinal));
+                            if (match is null)
+                            {
+                                return v;
+                            }
+                            return v with
+                            {
+                                IsCapital = v.IsCapital ?? match.IsCapital,
+                                CoordX = match.CoordX,
+                                CoordY = match.CoordY,
+                                Population = match.Population,
+                                CropFields = match.CropFields,
+                            };
+                        })
+                        .ToList();
+                    _cachedVillages = merged;
+                    _cachedVillagesAt = DateTimeOffset.UtcNow;
+                    return merged;
+                }
+
+                _cachedVillages = sidebar.ToList();
+                _cachedVillagesAt = DateTimeOffset.UtcNow;
+                return sidebar;
+            }
+        }
+        catch (Exception ex)
+        {
+            Notify($"[ReadVillagesPreferCacheAsync] sidebar read failed, falling back: {ex.Message}");
+        }
+
+        if (_cachedVillages is { Count: > 0 } stale)
+        {
+            return stale;
+        }
+
+        return await ReadVillagesAsync(cancellationToken);
+    }
+
     private async Task<IReadOnlyList<Village>> ReadVillagesFromCurrentPageAsync(CancellationToken cancellationToken)
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading villages from current page.", cancellationToken);
@@ -1827,14 +1870,31 @@ public sealed partial class TravianClient
 
         return raw
             .Where(item => !string.IsNullOrWhiteSpace(item.Name))
-            .Select(item => new Village(
-                Name: item.Name!,
-                Url: item.Url,
-                IsCapital: item.IsCapital))
+            .Select(item =>
+            {
+                var (cachedX, cachedY) = TryGetCachedVillageCoords(item.Name!);
+                return new Village(
+                    Name: item.Name!,
+                    Url: item.Url,
+                    IsCapital: item.IsCapital ?? TryGetCachedCapitalState(item.Name!),
+                    CoordX: cachedX,
+                    CoordY: cachedY);
+            })
             .ToList();
     }
 
     private void InvalidateVillagesCache() => _cachedVillagesAt = DateTimeOffset.MinValue;
+
+    private void UpdateCachedVillages(IReadOnlyList<Village> villages)
+    {
+        if (villages.Count == 0)
+        {
+            return;
+        }
+
+        _cachedVillages = villages.ToList();
+        _cachedVillagesAt = DateTimeOffset.UtcNow;
+    }
 
     private async Task<IReadOnlyList<Village>> ReadVillagesFromServerAsync(CancellationToken cancellationToken)
     {

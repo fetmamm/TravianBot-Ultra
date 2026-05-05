@@ -618,6 +618,7 @@ public partial class MainWindow : Window
 
         _heroAttributePriorityItems.Move(fromIndex, toIndex);
         UpdateHeroPriorityOrders();
+        PersistHeroPriorityToConfig();
     }
 
     private HeroAttributePriorityItem? FindHeroAttributePriorityItem(DependencyObject? source)
@@ -660,6 +661,20 @@ public partial class MainWindow : Window
     private string BuildHeroPriorityPayload()
     {
         return string.Join(",", _heroAttributePriorityItems.Select(item => item.Key));
+    }
+
+    private void PersistHeroPriorityToConfig()
+    {
+        try
+        {
+            var config = _botConfigStore.Load();
+            config[BotOptionPayloadKeys.HeroStatPriority] = BuildHeroPriorityPayload();
+            _botConfigStore.Save(config);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Could not save hero attribute priority: {ex.Message}");
+        }
     }
 
     private static List<string> ParseHeroPriorityForUi(string? value)
@@ -996,6 +1011,114 @@ public partial class MainWindow : Window
                 .Select(part => part.Length == 1
                     ? char.ToUpperInvariant(part[0]).ToString()
                     : char.ToUpperInvariant(part[0]) + part[1..]));
+    }
+
+    private string BuildQueueDisplayName(QueueItem item)
+    {
+        if (item is null)
+        {
+            return "-";
+        }
+
+        var payload = item.Payload ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var slotId = TryGetIntPayloadValue(payload, BotOptionPayloadKeys.ResourceUpgradeSlotId)
+            ?? TryGetIntPayloadValue(payload, BotOptionPayloadKeys.BuildingUpgradeSlotId)
+            ?? TryGetIntPayloadValue(payload, BotOptionPayloadKeys.BuildingConstructSlotId);
+        var targetLevel = TryGetIntPayloadValue(payload, BotOptionPayloadKeys.ResourceUpgradeTargetLevel)
+            ?? TryGetIntPayloadValue(payload, BotOptionPayloadKeys.BuildingUpgradeTargetLevel)
+            ?? TryGetIntPayloadValue(payload, BotOptionPayloadKeys.TargetLevel);
+        var resourceName = GetPayloadValue(payload, BotOptionPayloadKeys.ResourceUpgradeName);
+        var buildingName = GetPayloadValue(payload, BotOptionPayloadKeys.BuildingUpgradeName)
+            ?? GetPayloadValue(payload, BotOptionPayloadKeys.BuildingConstructName);
+
+        if (string.Equals(item.TaskName, "upgrade_all_resources_to_level", StringComparison.OrdinalIgnoreCase)
+            && targetLevel.HasValue)
+        {
+            return $"Upgrade all resources to level {targetLevel.Value}";
+        }
+
+        if (string.Equals(item.TaskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase)
+            && targetLevel.HasValue)
+        {
+            var name = !string.IsNullOrWhiteSpace(resourceName)
+                ? resourceName
+                : (slotId.HasValue ? ResolveResourceName(slotId.Value) : null);
+            return !string.IsNullOrWhiteSpace(name)
+                ? $"Upgrade {name} to level {targetLevel.Value}"
+                : $"Upgrade resource slot {slotId ?? 0} to level {targetLevel.Value}";
+        }
+
+        if (string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase))
+        {
+            var slotSuffix = slotId.HasValue ? $" (slot {slotId.Value})" : string.Empty;
+            return !string.IsNullOrWhiteSpace(buildingName)
+                ? $"Construct {buildingName} to level 1{slotSuffix}"
+                : $"Construct building{slotSuffix}";
+        }
+
+        if (string.Equals(item.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+            && targetLevel.HasValue)
+        {
+            var name = !string.IsNullOrWhiteSpace(buildingName)
+                ? buildingName
+                : (slotId.HasValue ? ResolveBuildingName(slotId.Value) : null);
+            return !string.IsNullOrWhiteSpace(name)
+                ? $"Upgrade {name} to level {targetLevel.Value}{BuildSlotSuffix(slotId)}"
+                : $"Upgrade building slot {slotId ?? 0} to level {targetLevel.Value}";
+        }
+
+        if (string.Equals(item.TaskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase))
+        {
+            var name = !string.IsNullOrWhiteSpace(buildingName)
+                ? buildingName
+                : (slotId.HasValue ? ResolveBuildingName(slotId.Value) : null);
+            return !string.IsNullOrWhiteSpace(name)
+                ? $"Upgrade {name} to max level{BuildSlotSuffix(slotId)}"
+                : $"Upgrade building slot {slotId ?? 0} to max level";
+        }
+
+        if (string.Equals(item.TaskName, "demolish_building_to_level", StringComparison.OrdinalIgnoreCase)
+            && targetLevel.HasValue)
+        {
+            var targetBuilding = GetPayloadValue(payload, BotOptionPayloadKeys.TargetBuildingSlotOrName);
+            return !string.IsNullOrWhiteSpace(targetBuilding)
+                ? $"Demolish {targetBuilding} to level {targetLevel.Value}"
+                : $"Demolish building to level {targetLevel.Value}";
+        }
+
+        return string.IsNullOrWhiteSpace(item.DisplayName) ? HumanizeTaskName(item.TaskName) : item.DisplayName;
+    }
+
+    private static string? GetPayloadValue(IReadOnlyDictionary<string, string> payload, string key)
+    {
+        if (!payload.TryGetValue(key, out var value) || string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return value.Trim();
+    }
+
+    private static int? TryGetIntPayloadValue(IReadOnlyDictionary<string, string> payload, string key)
+    {
+        return payload.TryGetValue(key, out var raw) && int.TryParse(raw, out var value) ? value : null;
+    }
+
+    private string? ResolveResourceName(int slotId)
+    {
+        return (ResourcesDataGrid.ItemsSource as IEnumerable<ResourceFieldRow>)
+            ?.FirstOrDefault(row => row.SlotId == slotId)
+            ?.Name;
+    }
+
+    private string? ResolveBuildingName(int slotId)
+    {
+        return _buildingRows.FirstOrDefault(row => row.SlotId == slotId)?.Name;
+    }
+
+    private static string BuildSlotSuffix(int? slotId)
+    {
+        return slotId.HasValue ? $" (slot {slotId.Value})" : string.Empty;
     }
 
     private void AutomationLoopToggleButton_Click(object sender, RoutedEventArgs e)
@@ -1734,17 +1857,7 @@ public partial class MainWindow : Window
         try
         {
             payload ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            var selectedVillageName = GetSelectedVillageName();
-            var selectedVillageUrl = GetSelectedVillageUrl();
-            if (!string.IsNullOrWhiteSpace(selectedVillageName))
-            {
-                payload[BotOptionPayloadKeys.TargetVillageName] = selectedVillageName;
-            }
-
-            if (!string.IsNullOrWhiteSpace(selectedVillageUrl))
-            {
-                payload[BotOptionPayloadKeys.TargetVillageUrl] = selectedVillageUrl;
-            }
+            ApplySelectedVillageToPayload(payload);
 
             QueueItem? item;
             if (string.Equals(taskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase)
@@ -1965,92 +2078,6 @@ public partial class MainWindow : Window
         {
             FailOperation(operationId, operationSw, ex);
             StatusTextBlock.Text = "Logout failed.";
-        }
-        finally
-        {
-            ToggleUiBusy(false);
-            _operationCts?.Dispose();
-            _operationCts = null;
-        }
-    }
-
-    private async void AnalyzeProfileButton_Click(object sender, RoutedEventArgs e)
-    {
-        var operationId = BeginOperation("Analyze Profile");
-        var operationSw = Stopwatch.StartNew();
-        _operationCts = new CancellationTokenSource();
-        var operationToken = _operationCts.Token;
-        ToggleUiBusy(true);
-        try
-        {
-            var options = ApplySelectedVillageToOptions(LoadBotOptions());
-            AppendLog($"[{operationId}] INFO analyzing profile for server {options.ServerName}");
-            await EnsureChromiumInstalledAsync();
-            var snapshot = await _botService.AnalyzeProfileAsync(options, AppendLog, operationToken);
-
-            TribeInfoTextBlock.Text = $"Tribe: {snapshot.Tribe}";
-            VillagesInfoTextBlock.Text = $"Villages: {snapshot.VillageCount}";
-            try
-            {
-                var goldClubEnabled = await _botService.ReadAndPersistGoldClubStatusAsync(options, AppendLog, operationToken);
-                UpdateGoldClubInfo(goldClubEnabled);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                AppendLog($"Could not refresh Gold Club status: {ex.Message}");
-                UpdateGoldClubInfoFromStoredAnalysis();
-            }
-
-            var currentSelectedName = GetSelectedVillageName();
-            var villages = snapshot.Villages
-                .Select(v => new VillageSelectionItem
-                {
-                    Name = string.IsNullOrWhiteSpace(v.Name) ? "-" : v.Name,
-                    Url = v.Url ?? string.Empty,
-                    IsCapital = v.IsCapital == true,
-                    CoordX = v.CoordX,
-                    CoordY = v.CoordY,
-                    Population = v.Population,
-                    CropFields = v.CropFields,
-                })
-                .ToList();
-
-            if (villages.Count == 0)
-            {
-                villages.Add(new VillageSelectionItem { Name = "-", Url = string.Empty });
-            }
-
-            _suppressVillageSelectionChange = true;
-            try
-            {
-                VillageComboBox.ItemsSource = villages;
-                var selected = villages.FirstOrDefault(v =>
-                    string.Equals(v.Name, currentSelectedName, StringComparison.OrdinalIgnoreCase))
-                    ?? villages.FirstOrDefault(v =>
-                        string.Equals(v.Name, snapshot.ActiveVillage, StringComparison.OrdinalIgnoreCase))
-                    ?? villages[0];
-                VillageComboBox.SelectedItem = selected;
-            }
-            finally
-            {
-                _suppressVillageSelectionChange = false;
-            }
-
-            var capitalVillage = snapshot.Villages.FirstOrDefault(v => v.IsCapital == true);
-            var capitalName = capitalVillage?.Name ?? "Unknown";
-            AppendLog($"Profile analyzed: Tribe={snapshot.Tribe}, Capital={capitalName}, Villages={snapshot.VillageCount}");
-            StatusTextBlock.Text = $"Profile analyzed. Capital: {capitalName}";
-            CompleteOperation(operationId, operationSw, "Profile analyzed.");
-        }
-        catch (OperationCanceledException)
-        {
-            StatusTextBlock.Text = "Profile analysis paused.";
-            AppendLog("Profile analysis paused.");
-        }
-        catch (Exception ex)
-        {
-            FailOperation(operationId, operationSw, ex);
-            StatusTextBlock.Text = "Profile analysis failed.";
         }
         finally
         {
@@ -2498,6 +2525,7 @@ public partial class MainWindow : Window
                                 var deferred = _botService.MarkQueueItemDeferred(next.Id, queueWaitDelay);
                                 if (deferred)
                                 {
+                                    ScheduleDeferredBuildingsMidWaitRefresh(next, queueWaitDelay);
                                     AppendLog($"Queue item deferred: {next.TaskName}. Next try in {queueWaitDelay.TotalSeconds:F0}s.");
                                 }
                                 else
@@ -2857,8 +2885,14 @@ public partial class MainWindow : Window
             return;
         }
 
+        var existingItem = _botService.GetQueueItemsForDisplay().FirstOrDefault(item => item.Id == selected.Id);
         if (_botService.RemoveQueueItem(selected.Id))
         {
+            if (existingItem is not null)
+            {
+                ForgetBuildingQueueCachesForItem(existingItem);
+            }
+
             AppendLog($"Queue item removed: {selected.TaskName}.");
             RefreshQueueUi();
             return;
@@ -3175,14 +3209,14 @@ public partial class MainWindow : Window
         {
             var ordered = _botService.GetQueueItemsForDisplay().ToList();
             _queueServerTimeOffset = ResolveQueueServerTimeOffset();
+            var displayRunningId = ResolveDisplayRunningQueueItemId(ordered);
             var rows = ordered
                 .Select(item => new QueueItemRow
                 {
                     Id = item.Id,
-                    DisplayName = string.IsNullOrWhiteSpace(item.DisplayName) ? item.TaskName : item.DisplayName,
+                    DisplayName = BuildQueueDisplayName(item),
                     TaskName = item.TaskName,
-                    Priority = item.Priority,
-                    Status = item.Status,
+                    Status = item.Id == displayRunningId ? QueueStatus.Running : item.Status,
                     Retries = item.Retries,
                     MaxRetries = item.MaxRetries,
                     IsRuntimeOnly = item.IsRuntimeOnly,
@@ -3248,6 +3282,21 @@ public partial class MainWindow : Window
             AppendLog($"Queue load failed: {ex.Message}");
             UpdateExecutionStateIndicator();
         }
+    }
+
+    private static Guid? ResolveDisplayRunningQueueItemId(IReadOnlyList<QueueItem> ordered)
+    {
+        if (ordered.Any(item => item.Status == QueueStatus.Running))
+        {
+            return null;
+        }
+
+        var nowUtc = DateTimeOffset.UtcNow;
+        return ordered
+            .FirstOrDefault(item =>
+                !item.IsRuntimeOnly &&
+                item.Status == QueueStatus.Pending &&
+                item.NextAttemptAt > nowUtc)?.Id;
     }
 
     private void RefreshQueueUiOnUiThread(Guid? selectId = null)
@@ -3534,12 +3583,6 @@ public partial class MainWindow : Window
             return false;
         }
 
-        if (row.HasPendingUpgrade)
-        {
-            BuildingsInfoTextBlock.Text = $"{row.Name} already has a queued upgrade.";
-            return false;
-        }
-
         var currentLevel = row.Level ?? 0;
         var maxLevel = row.Gid is int gid ? BuildingCatalogService.MaxLevelFor(gid) : 40;
         if (currentLevel >= maxLevel)
@@ -3561,14 +3604,32 @@ public partial class MainWindow : Window
         {
             [BotOptionPayloadKeys.BuildingUpgradeSlotId] = slotId.ToString(),
             [BotOptionPayloadKeys.BuildingUpgradeTargetLevel] = targetLevel.ToString(),
+            [BotOptionPayloadKeys.BuildingUpgradeName] = row.Name,
         };
-        EnqueueQuickTask("upgrade_building_to_level", $"Upgrade slot {slotId} to level {targetLevel}", payload);
+        var item = EnqueueBuildingUpgradeTaskCoalesced(
+            "upgrade_building_to_level",
+            payload,
+            slotId,
+            targetLevel,
+            out var effectiveTargetLevel,
+            out var enqueued,
+            out var removedCount);
+        if (!enqueued)
+        {
+            BuildingsInfoTextBlock.Text = $"{row.Name} already has a queued upgrade to level {effectiveTargetLevel ?? targetLevel} or higher.";
+            return false;
+        }
+
+        targetLevel = effectiveTargetLevel ?? targetLevel;
         _buildingLastQueuedTargetBySlot[slotId] = (targetLevel, now);
         SetPendingBuildingUpgrade(slotId, targetLevel);
+        RequestQueueUiRefresh(selectId: item?.Id);
+        TriggerQueueAutoRunFromEnqueue();
         UpgradeSlotTextBox.Text = slotId.ToString();
         UpgradeTargetLevelTextBox.Text = targetLevel.ToString();
         BuildingsInfoTextBlock.Text = $"Queued {row.Name} in slot {slotId} to level {targetLevel}.";
-        AppendLog($"Queued single building upgrade: slot {slotId} -> level {targetLevel}.");
+        var removedSuffix = removedCount > 0 ? $" (replaced {removedCount} pending item(s))" : string.Empty;
+        AppendLog($"Queued single building upgrade: slot {slotId} -> level {targetLevel}{removedSuffix}.");
         return true;
     }
 
@@ -3612,9 +3673,23 @@ public partial class MainWindow : Window
             var maxPayload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 [BotOptionPayloadKeys.BuildingUpgradeSlotId] = slotId.ToString(),
+                [BotOptionPayloadKeys.BuildingUpgradeTargetLevel] = selected.MaxLevel.ToString(),
+                [BotOptionPayloadKeys.BuildingUpgradeName] = selected.Name,
             };
-            EnqueueQuickTask("upgrade_building_to_max", $"Upgrade slot {slotId} to max", maxPayload);
-            SetPendingBuildingUpgrade(slotId, selected.MaxLevel);
+            var queuedMax = EnqueueBuildingUpgradeTaskCoalesced(
+                "upgrade_building_to_max",
+                maxPayload,
+                slotId,
+                selected.MaxLevel,
+                out var effectiveTargetLevel,
+                out var enqueued,
+                out _);
+            if (enqueued)
+            {
+                SetPendingBuildingUpgrade(slotId, effectiveTargetLevel ?? selected.MaxLevel);
+                RequestQueueUiRefresh(selectId: queuedMax?.Id);
+                TriggerQueueAutoRunFromEnqueue();
+            }
             BuildingsInfoTextBlock.Text = $"Queued construct + upgrade to max for {selected.Name} in slot {slotId}.";
         }
         else if (targetLevel > 1)
@@ -3624,9 +3699,22 @@ public partial class MainWindow : Window
             {
                 [BotOptionPayloadKeys.BuildingUpgradeSlotId] = slotId.ToString(),
                 [BotOptionPayloadKeys.BuildingUpgradeTargetLevel] = clamped.ToString(),
+                [BotOptionPayloadKeys.BuildingUpgradeName] = selected.Name,
             };
-            EnqueueQuickTask("upgrade_building_to_level", $"Upgrade slot {slotId} to level {clamped}", payload);
-            SetPendingBuildingUpgrade(slotId, clamped);
+            var queuedUpgrade = EnqueueBuildingUpgradeTaskCoalesced(
+                "upgrade_building_to_level",
+                payload,
+                slotId,
+                clamped,
+                out var effectiveTargetLevel,
+                out var enqueued,
+                out _);
+            if (enqueued)
+            {
+                SetPendingBuildingUpgrade(slotId, effectiveTargetLevel ?? clamped);
+                RequestQueueUiRefresh(selectId: queuedUpgrade?.Id);
+                TriggerQueueAutoRunFromEnqueue();
+            }
             BuildingsInfoTextBlock.Text = $"Queued construct + upgrade to level {clamped} for {selected.Name} in slot {slotId}.";
         }
     }
@@ -3658,8 +3746,235 @@ public partial class MainWindow : Window
     {
         return _botService.GetQueueItemsForDisplay()
             .Where(item => item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused)
-            .OrderBy(item => item.CreatedAt)
             .ToList();
+    }
+
+    private static bool IsActiveBuildingQueueStatus(QueueStatus status)
+    {
+        return status is QueueStatus.Pending or QueueStatus.Paused or QueueStatus.Running;
+    }
+
+    private static bool TryReadBuildingConstructPayload(
+        IReadOnlyDictionary<string, string> payload,
+        out int slotId,
+        out int gid,
+        out string buildingName)
+    {
+        slotId = 0;
+        gid = 0;
+        buildingName = string.Empty;
+
+        if (!payload.TryGetValue(BotOptionPayloadKeys.BuildingConstructSlotId, out var slotRaw)
+            || !int.TryParse(slotRaw, out slotId))
+        {
+            return false;
+        }
+
+        if (!payload.TryGetValue(BotOptionPayloadKeys.BuildingConstructGid, out var gidRaw)
+            || !int.TryParse(gidRaw, out gid))
+        {
+            return false;
+        }
+
+        if (payload.TryGetValue(BotOptionPayloadKeys.BuildingConstructName, out var nameRaw))
+        {
+            buildingName = nameRaw?.Trim() ?? string.Empty;
+        }
+
+        return true;
+    }
+
+    private static bool TryReadBuildingUpgradePayload(
+        IReadOnlyDictionary<string, string> payload,
+        out int slotId,
+        out int? targetLevel)
+    {
+        slotId = 0;
+        targetLevel = null;
+
+        if (!payload.TryGetValue(BotOptionPayloadKeys.BuildingUpgradeSlotId, out var slotRaw)
+            || !int.TryParse(slotRaw, out slotId))
+        {
+            return false;
+        }
+
+        if (payload.TryGetValue(BotOptionPayloadKeys.BuildingUpgradeTargetLevel, out var targetRaw)
+            && int.TryParse(targetRaw, out var parsedTargetLevel))
+        {
+            targetLevel = parsedTargetLevel;
+        }
+
+        return true;
+    }
+
+    private void ForgetBuildingQueueCachesForItem(QueueItem item)
+    {
+        if (item.Payload.TryGetValue(BotOptionPayloadKeys.BuildingUpgradeSlotId, out var upgradeSlotRaw)
+            && int.TryParse(upgradeSlotRaw, out var upgradeSlotId))
+        {
+            _buildingLastQueuedTargetBySlot.Remove(upgradeSlotId);
+        }
+
+        if (item.Payload.TryGetValue(BotOptionPayloadKeys.BuildingConstructSlotId, out var constructSlotRaw)
+            && int.TryParse(constructSlotRaw, out var constructSlotId))
+        {
+            _buildingLastQueuedConstructBySlot.Remove(constructSlotId);
+        }
+    }
+
+    private void ApplySelectedVillageToPayload(Dictionary<string, string> payload)
+    {
+        var selectedVillageName = GetSelectedVillageName();
+        var selectedVillageUrl = GetSelectedVillageUrl();
+        if (!string.IsNullOrWhiteSpace(selectedVillageName))
+        {
+            payload[BotOptionPayloadKeys.TargetVillageName] = selectedVillageName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(selectedVillageUrl))
+        {
+            payload[BotOptionPayloadKeys.TargetVillageUrl] = selectedVillageUrl;
+        }
+    }
+
+    private QueueItem? EnqueueBuildingConstructTaskCoalesced(
+        Dictionary<string, string> payload,
+        int slotId,
+        int gid,
+        out bool enqueued,
+        out int removedCount)
+    {
+        var relatedItems = _botService.GetQueueItemsForDisplay()
+            .Where(item => IsActiveBuildingQueueStatus(item.Status))
+            .Where(item =>
+            {
+                if (string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase)
+                    && TryReadBuildingConstructPayload(item.Payload, out var existingSlotId, out _, out _))
+                {
+                    return existingSlotId == slotId;
+                }
+
+                if ((string.Equals(item.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(item.TaskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase))
+                    && TryReadBuildingUpgradePayload(item.Payload, out var existingUpgradeSlotId, out _))
+                {
+                    return existingUpgradeSlotId == slotId;
+                }
+
+                return false;
+            })
+            .ToList();
+
+        var matchingConstruct = relatedItems
+            .Where(item => string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase))
+            .FirstOrDefault(item =>
+                TryReadBuildingConstructPayload(item.Payload, out _, out var existingGid, out _)
+                && existingGid == gid);
+        if (matchingConstruct is not null)
+        {
+            enqueued = false;
+            removedCount = 0;
+            return matchingConstruct;
+        }
+
+        removedCount = 0;
+        foreach (var related in relatedItems.Where(item => item.Status is QueueStatus.Pending or QueueStatus.Paused))
+        {
+            if (_botService.RemoveQueueItem(related.Id))
+            {
+                ForgetBuildingQueueCachesForItem(related);
+                removedCount += 1;
+            }
+        }
+
+        ApplySelectedVillageToPayload(payload);
+        var created = _botService.Enqueue("construct_building", payload, priority: 0, maxRetries: 3);
+        enqueued = true;
+        return created;
+    }
+
+    private QueueItem? EnqueueBuildingUpgradeTaskCoalesced(
+        string taskName,
+        Dictionary<string, string> payload,
+        int slotId,
+        int? requestedTargetLevel,
+        out int? effectiveTargetLevel,
+        out bool enqueued,
+        out int removedCount)
+    {
+        var relatedItems = _botService.GetQueueItemsForDisplay()
+            .Where(item =>
+                (string.Equals(item.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(item.TaskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase))
+                && IsActiveBuildingQueueStatus(item.Status))
+            .Select(item =>
+            {
+                var parsed = TryReadBuildingUpgradePayload(item.Payload, out var parsedSlotId, out var parsedTargetLevel);
+                return new
+                {
+                    Item = item,
+                    Parsed = parsed,
+                    SlotId = parsedSlotId,
+                    TargetLevel = parsedTargetLevel,
+                    IsMax = string.Equals(item.TaskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase),
+                };
+            })
+            .Where(item => item.Parsed && item.SlotId == slotId)
+            .ToList();
+
+        var existingMax = relatedItems.FirstOrDefault(item => item.IsMax);
+        var highestExistingTarget = relatedItems
+            .Where(item => item.TargetLevel.HasValue)
+            .Select(item => item.TargetLevel!.Value)
+            .DefaultIfEmpty(0)
+            .Max();
+        effectiveTargetLevel = requestedTargetLevel.HasValue
+            ? Math.Max(requestedTargetLevel.Value, highestExistingTarget)
+            : highestExistingTarget > 0 ? highestExistingTarget : null;
+
+        if (string.Equals(taskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase))
+        {
+            if (existingMax is not null)
+            {
+                enqueued = false;
+                removedCount = 0;
+                return existingMax.Item;
+            }
+        }
+        else if (requestedTargetLevel.HasValue)
+        {
+            if (existingMax is not null || highestExistingTarget >= requestedTargetLevel.Value)
+            {
+                enqueued = false;
+                removedCount = 0;
+                return relatedItems
+                    .OrderByDescending(item => item.IsMax)
+                    .ThenByDescending(item => item.TargetLevel ?? 0)
+                    .ThenBy(item => item.Item.CreatedAt)
+                    .Select(item => item.Item)
+                    .FirstOrDefault();
+            }
+        }
+
+        removedCount = 0;
+        foreach (var related in relatedItems.Where(item => item.Item.Status is QueueStatus.Pending or QueueStatus.Paused))
+        {
+            if (_botService.RemoveQueueItem(related.Item.Id))
+            {
+                ForgetBuildingQueueCachesForItem(related.Item);
+                removedCount += 1;
+            }
+        }
+
+        if (effectiveTargetLevel.HasValue)
+        {
+            payload[BotOptionPayloadKeys.BuildingUpgradeTargetLevel] = effectiveTargetLevel.Value.ToString();
+        }
+
+        ApplySelectedVillageToPayload(payload);
+        var created = _botService.Enqueue(taskName, payload, priority: 0, maxRetries: 3);
+        enqueued = true;
+        return created;
     }
 
     private VillageStatus BuildProjectedBuildingStatus(VillageStatus status, IReadOnlyList<QueueItem>? queueItems = null)
@@ -4048,14 +4363,27 @@ public partial class MainWindow : Window
             [BotOptionPayloadKeys.BuildingConstructGid] = selectedBuilding.Gid.ToString(),
             [BotOptionPayloadKeys.BuildingConstructName] = selectedBuilding.Name,
         };
-        EnqueueQuickTask("construct_building", $"Construct {selectedBuilding.Name} in slot {slotId}", payload);
+        var item = EnqueueBuildingConstructTaskCoalesced(
+            payload,
+            slotId,
+            selectedBuilding.Gid,
+            out var enqueued,
+            out var removedCount);
+        if (!enqueued)
+        {
+            BuildingsInfoTextBlock.Text = $"{selectedBuilding.Name} is already queued for slot {slotId}.";
+            return false;
+        }
 
         _buildingLastQueuedConstructBySlot[slotId] = (selectedBuilding.Name, now);
         SetPendingBuildingConstruct(slotId, selectedBuilding.Name);
+        RequestQueueUiRefresh(selectId: item?.Id);
+        TriggerQueueAutoRunFromEnqueue();
         ConstructSlotTextBox.Text = slotId.ToString();
         ConstructBuildingComboBox.SelectedItem = _buildingCatalogOptions.FirstOrDefault(item => item.Gid == selectedBuilding.Gid);
         BuildingsInfoTextBlock.Text = $"Queued construct: {selectedBuilding.Name} in slot {slotId}.";
-        AppendLog($"Queued building construct: slot {slotId} -> {selectedBuilding.Name}.");
+        var removedSuffix = removedCount > 0 ? $" (replaced {removedCount} pending item(s))" : string.Empty;
+        AppendLog($"Queued building construct: slot {slotId} -> {selectedBuilding.Name}{removedSuffix}.");
         return true;
     }
 
@@ -4177,10 +4505,32 @@ public partial class MainWindow : Window
         var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             [BotOptionPayloadKeys.BuildingUpgradeSlotId] = slotId.ToString(),
+            [BotOptionPayloadKeys.BuildingUpgradeTargetLevel] = row.Gid is int gid ? BuildingCatalogService.MaxLevelFor(gid).ToString() : "40",
+            [BotOptionPayloadKeys.BuildingUpgradeName] = row.Name,
         };
-        EnqueueQuickTask("upgrade_building_to_max", $"Upgrade slot {slotId} to max level", payload);
+        var item = EnqueueBuildingUpgradeTaskCoalesced(
+            "upgrade_building_to_max",
+            payload,
+            slotId,
+            row.Gid is int existingGid ? BuildingCatalogService.MaxLevelFor(existingGid) : 40,
+            out var effectiveTargetLevel,
+            out var enqueued,
+            out var removedCount);
+        if (!enqueued)
+        {
+            BuildingsInfoTextBlock.Text = $"{row.Name} already has a queued max upgrade.";
+            return false;
+        }
+
+        SetPendingBuildingUpgrade(slotId, effectiveTargetLevel ?? (row.Gid is int effectiveGid ? BuildingCatalogService.MaxLevelFor(effectiveGid) : 40));
+        RequestQueueUiRefresh(selectId: item?.Id);
+        TriggerQueueAutoRunFromEnqueue();
         UpgradeSlotTextBox.Text = slotId.ToString();
         BuildingsInfoTextBlock.Text = $"Queued max-upgrade for slot {slotId}.";
+        if (removedCount > 0)
+        {
+            AppendLog($"Queued building max-upgrade: slot {slotId} (replaced {removedCount} pending item(s)).");
+        }
         return true;
     }
 
@@ -4276,6 +4626,7 @@ public partial class MainWindow : Window
 
         _heroAttributePriorityItems.Move(index, index - 1);
         UpdateHeroPriorityOrders();
+        PersistHeroPriorityToConfig();
     }
 
     private void HeroPriorityMoveDownButton_Click(object sender, RoutedEventArgs e)
@@ -4293,6 +4644,7 @@ public partial class MainWindow : Window
 
         _heroAttributePriorityItems.Move(index, index + 1);
         UpdateHeroPriorityOrders();
+        PersistHeroPriorityToConfig();
     }
 
     private async void RefreshHeroStatsButton_Click(object sender, RoutedEventArgs e)
@@ -4393,6 +4745,42 @@ public partial class MainWindow : Window
     {
         _inlineWaitUntilUtc = DateTimeOffset.MinValue;
         UpdateExecutionStateIndicator();
+    }
+
+    private bool IsBuildingUpgradeQueueTask(string taskName)
+    {
+        return string.Equals(taskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(taskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void ScheduleDeferredBuildingsMidWaitRefresh(QueueItem item, TimeSpan queueWaitDelay)
+    {
+        if (!IsBuildingUpgradeQueueTask(item.TaskName) || queueWaitDelay.TotalSeconds < 3)
+        {
+            return;
+        }
+
+        var halfDelay = TimeSpan.FromSeconds(Math.Max(1, Math.Floor(queueWaitDelay.TotalSeconds / 2d)));
+        var baseOptions = ApplySelectedVillageToOptions(LoadBotOptions());
+        var itemOptions = BotOptionsPayloadApplier.Apply(baseOptions, item.Payload);
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(halfDelay);
+                var status = await _botService.ReadBuildingsStatusAsync(itemOptions, AppendLog, CancellationToken.None);
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    _lastBuildingStatus = status;
+                    PopulateBuildingsTab(status);
+                });
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"Deferred dorf2 refresh skipped: {ex.Message}");
+            }
+        });
     }
 
     private async Task RefreshAdventureCountAfterLoginAsync(BotOptions options, CancellationToken cancellationToken)
@@ -5422,9 +5810,17 @@ public partial class MainWindow : Window
                 var now = DateTimeOffset.UtcNow;
                 var nextDeferredItem = _botService
                     .GetQueueItemsForDisplay()
-                    .Where(item => item.Status == QueueStatus.Pending && item.NextAttemptAt > now)
-                    .OrderBy(item => item.NextAttemptAt)
-                    .FirstOrDefault();
+                    .Where(item => !item.IsRuntimeOnly && item.Status == QueueStatus.Pending)
+                    .FirstOrDefault(item => item.NextAttemptAt > now);
+
+                if (nextDeferredItem is null)
+                {
+                    nextDeferredItem = _botService
+                        .GetQueueItemsForDisplay()
+                        .Where(item => item.Status == QueueStatus.Pending && item.NextAttemptAt > now)
+                        .OrderBy(item => item.NextAttemptAt)
+                        .FirstOrDefault();
+                }
 
                 if (nextDeferredItem is null)
                 {
@@ -5515,6 +5911,7 @@ public partial class MainWindow : Window
                     var deferred = _botService.MarkQueueItemDeferred(next.Id, queueWaitDelay);
                     if (deferred)
                     {
+                        ScheduleDeferredBuildingsMidWaitRefresh(next, queueWaitDelay);
                         AppendLog($"[AUTOQ {runId}] DEFER {tickSw.Elapsed.TotalSeconds:F1}s task={next.TaskName} | next try in {queueWaitDelay.TotalSeconds:F0}s");
                     }
                     else
@@ -7236,6 +7633,7 @@ public partial class MainWindow : Window
         {
             [BotOptionPayloadKeys.ResourceUpgradeSlotId] = row.SlotId.ToString(),
             [BotOptionPayloadKeys.ResourceUpgradeTargetLevel] = target.ToString(),
+            [BotOptionPayloadKeys.ResourceUpgradeName] = rowName,
         };
 
         EnqueueQuickTask("upgrade_resource_to_level", $"Upgrade {rowName} to level {target}", payload);

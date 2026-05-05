@@ -8,5 +8,8 @@ playwright/.auth/
 ms-playwright/
 logs/
 temp_build_out/
+**/debug_output/
+**/dataset_quarantine/
+**/review_dataset/
 **/bin/
 **/obj/

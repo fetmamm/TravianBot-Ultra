@@ -324,7 +324,6 @@
 
                         <DockPanel Grid.Row="2" Margin="0,0,0,8" LastChildFill="False">
                             <Button DockPanel.Dock="Right" x:Name="DashboardFunctionListButton" Height="32" Content="List" MinWidth="70" Click="DashboardFunctionListButton_Click" />
-                            <Button DockPanel.Dock="Right" x:Name="AnalyzeProfileButton" Height="32" Content="Analyze profile" MinWidth="130" Click="AnalyzeProfileButton_Click" />
                         </DockPanel>
 
                         <Grid Grid.Row="3">
@@ -1452,7 +1451,6 @@
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Task" Width="2.4*" Binding="{Binding DisplayName}" />
                                         <DataGridTextColumn Header="Status" Width="*" Binding="{Binding Status}" />
-                                        <DataGridTextColumn Header="Priority" Width="0.7*" Binding="{Binding Priority}" />
                                         <DataGridTextColumn Header="Retries" Width="0.7*" Binding="{Binding Retries}" />
                                         <DataGridTextColumn Header="Max" Width="0.6*" Binding="{Binding MaxRetries}" />
                                         <DataGridTextColumn Header="Next try" Width="1.5*" Binding="{Binding NextAttemptAtServer}" />

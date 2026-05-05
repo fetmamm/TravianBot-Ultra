@@ -60,10 +60,21 @@ public sealed partial class TravianClient
                     throw new InvalidOperationException($"Could not read level for resource slot {slotId}.");
                 }
                 lastKnownLevel = currentLevel;
+                var resourceName = string.IsNullOrWhiteSpace(field?.Name) ? $"slot {slotId}" : field!.Name;
 
                 if (currentLevel >= targetLevel)
                 {
                     return $"Resource slot {slotId} is level {currentLevel}. Target {targetLevel} reached after {upgrades} upgrades.";
+                }
+
+                // Pre-flight: if the build queue is already full (1 slot non-Plus, 2 slots Plus,
+                // separate resource slot for Romans), defer the task in the program queue rather
+                // than navigating to build.php and clicking only to be rejected. We are on dorf1
+                // here from the snapshot read, so the queue DOM is available without navigation.
+                var deferMessage = await CheckQueueOrDeferAsync(ConstructionKind.Resource, slotId, upgrades, cancellationToken);
+                if (deferMessage is not null)
+                {
+                    return deferMessage;
                 }
 
                 var queueFingerprintBefore = BuildQueueFingerprint(snapshot.BuildQueue);
@@ -91,6 +102,7 @@ public sealed partial class TravianClient
                 var expectedWaitSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken);
                 await ClickDetectedUpgradeCandidateAsync(slotId, actionability.CandidateIndex, cancellationToken);
                 await NavigateToResourceFieldsAfterUpgradeClickAsync(cancellationToken);
+                await WaitForPostUpgradeClickPageLoadAsync(cancellationToken);
                 upgrades += 1;
                 var progress = await WaitForResourceLevelAdvanceAsync(
                     slotId,
@@ -106,7 +118,8 @@ public sealed partial class TravianClient
 
                 if (progress.QueuedOrInProgress)
                 {
-                    return $"Resource slot {slotId}: queued upgrade toward level {effectiveTarget}. Evidence: {progress.Evidence}.";
+                    var queuedWaitSeconds = await ReadQueuedResourceWaitSecondsAsync(resourceName, expectedWaitSeconds, cancellationToken);
+                    return $"Resource slot {slotId}: queued upgrade toward level {effectiveTarget}. Evidence: {progress.Evidence}. queue_wait_seconds={queuedWaitSeconds}";
                 }
 
                 return $"Resource slot {slotId} blocked (NoImmediateProgress): Upgrade triggered but level is still {currentLevel} and no queue/in-progress evidence was detected queue_wait_seconds=6";
@@ -311,7 +324,7 @@ public sealed partial class TravianClient
     private async Task<VillageStatus> ReadCurrentVillageResourceStatusAsync(CancellationToken cancellationToken)
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared before reading resource status.", cancellationToken);
-        var villages = await ReadVillagesAsync(cancellationToken);
+        var villages = await ReadVillagesPreferCacheAsync(cancellationToken);
         var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
         var buildQueue = await ReadBuildQueueAsync(cancellationToken);
         var remaining = ResolveShortestQueueDurationSeconds(buildQueue);
@@ -331,8 +344,14 @@ public sealed partial class TravianClient
             Notify($"Fast capital detection: resource field above level 10 found — '{activeVillage}' is capital.");
             SaveCachedVillageState(activeVillage, true, null, null);
             cachedIsCapital = true;
-            // Rebuild villages list with updated capital flag
-            villages = (await ReadVillagesAsync(cancellationToken)).ToList();
+            // Update the in-memory list with the new capital flag instead of refetching
+            // from spieler.php — that re-fetch would cause a visible page navigation.
+            villages = villages
+                .Select(v => string.Equals(v.Name, activeVillage, StringComparison.Ordinal)
+                    ? v with { IsCapital = true }
+                    : v)
+                .ToList();
+            UpdateCachedVillages(villages);
         }
 
         return new VillageStatus(
@@ -712,7 +731,10 @@ public sealed partial class TravianClient
 
     private async Task NavigateToResourceFieldsAfterUpgradeClickAsync(CancellationToken cancellationToken)
     {
-        await GotoAsync(Paths.Resources, cancellationToken);
+        if (!IsCurrentUrlForPath(Paths.Resources))
+        {
+            await GotoAsync(Paths.Resources, cancellationToken);
+        }
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while returning to resource fields after upgrade click.", cancellationToken);
         await EnsureLoggedInAsync();
     }
@@ -770,9 +792,12 @@ public sealed partial class TravianClient
 
     private async Task<ResourceProgressSnapshot> ReadResourceProgressSnapshotAsync(CancellationToken cancellationToken)
     {
-        await GotoAsync(Paths.Resources, cancellationToken);
+        if (!IsCurrentUrlForPath(Paths.Resources))
+        {
+            await GotoAsync(Paths.Resources, cancellationToken);
+            await EnsureLoggedInAsync();
+        }
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading resource progress.", cancellationToken);
-        await EnsureLoggedInAsync();
         var fields = await ReadResourceFieldsAsync(cancellationToken);
         var queue = await ReadBuildQueueAsync(cancellationToken);
         return new ResourceProgressSnapshot(fields, queue);
@@ -787,6 +812,39 @@ public sealed partial class TravianClient
         }
 
         return Math.Min(seconds + 1, 12 * 60 * 60);
+    }
+
+    private async Task<int> ReadQueuedResourceWaitSecondsAsync(
+        string resourceName,
+        int? fallbackSeconds,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var active = await ReadActiveConstructionsAsync(cancellationToken);
+            var resourceTimers = active
+                .Where(item => item.Kind == ConstructionKind.Resource && item.TimeLeftSeconds is int seconds && seconds > 0)
+                .ToList();
+            if (resourceTimers.Count == 0)
+            {
+                return ComputeResourceUpgradeWaitSeconds(fallbackSeconds);
+            }
+
+            var matchingTimers = resourceTimers
+                .Where(item => SameBuildingName(item.Name, resourceName))
+                .Select(item => item.TimeLeftSeconds!.Value)
+                .ToList();
+            if (matchingTimers.Count > 0)
+            {
+                return ComputeResourceUpgradeWaitSeconds(matchingTimers.Min());
+            }
+
+            return ComputeResourceUpgradeWaitSeconds(resourceTimers.Min(item => item.TimeLeftSeconds!.Value));
+        }
+        catch
+        {
+            return ComputeResourceUpgradeWaitSeconds(fallbackSeconds);
+        }
     }
 
     private sealed record ResourceProgressSnapshot(

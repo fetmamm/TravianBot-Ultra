@@ -8,10 +8,12 @@ public static class BotOptionPayloadKeys
     public const string ResourceUpgradeSlotId = "resource_upgrade_slot_id";
     public const string ResourceUpgradeTargetLevel = "resource_upgrade_target_level";
     public const string ResourceUpgradeMaxAttempts = "resource_upgrade_max_attempts";
+    public const string ResourceUpgradeName = "resource_upgrade_name";
 
     public const string BuildingUpgradeSlotId = "building_upgrade_slot_id";
     public const string BuildingUpgradeTargetLevel = "building_upgrade_target_level";
     public const string BuildingUpgradeMaxAttempts = "building_upgrade_max_attempts";
+    public const string BuildingUpgradeName = "building_upgrade_name";
 
     public const string BuildingConstructSlotId = "building_construct_slot_id";
     public const string BuildingConstructGid = "building_construct_gid";

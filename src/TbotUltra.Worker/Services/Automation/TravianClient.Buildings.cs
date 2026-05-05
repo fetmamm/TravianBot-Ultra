@@ -7,6 +7,20 @@ namespace TbotUltra.Worker.Services;
 
 public sealed partial class TravianClient
 {
+    private async Task WaitForPostUpgradeClickPageLoadAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        }
+        catch
+        {
+            // Continue with the best available page state.
+        }
+
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared after upgrade click.", cancellationToken);
+    }
+
     public async Task<VillageStatus> ReadBuildingsStatusAsync(CancellationToken cancellationToken = default)
     {
         Notify("ReadBuildingsStatusAsync started");
@@ -184,14 +198,22 @@ public sealed partial class TravianClient
             {
                 return $"Slot {slotId}: already at level {currentLevel} (target {targetLevel}). Upgrades performed: {upgrades}.";
             }
-            var nextLevel = currentLevel + 1;
+            var buildingName = string.IsNullOrWhiteSpace(info.BuildingName) ? $"slot {slotId}" : info.BuildingName;
+            var highestKnownLevel = await ReadHighestKnownQueuedBuildingLevelAsync(buildingName, currentLevel, cancellationToken);
+            if (highestKnownLevel >= targetLevel)
+            {
+                var queuedWaitSeconds = await ReadQueuedBuildingWaitSecondsAsync(buildingName, 0, cancellationToken);
+                return $"Slot {slotId}: upgrade to level {targetLevel} already queued and still in progress. Upgrades performed: {upgrades}. queue_wait_seconds={queuedWaitSeconds}";
+            }
+            var nextLevel = highestKnownLevel + 1;
             var queueFingerprintBefore = BuildQueueFingerprint(await ReadBuildQueueAsync(cancellationToken));
 
-            // Tribe/Plus-aware slot gate: skip the build-page navigation entirely if the building slot is busy.
-            var slotWait = await WaitForConstructionSlotIfBusyAsync(ConstructionKind.Building, cancellationToken);
-            if (slotWait > 0)
+            // Tribe/Plus-aware slot gate: if the build queue is full, defer this task back to
+            // the program queue (queue_wait_seconds) rather than blocking the worker thread.
+            var deferMessage = await CheckQueueOrDeferAsync(ConstructionKind.Building, slotId, upgrades, cancellationToken);
+            if (deferMessage is not null)
             {
-                continue;
+                return deferMessage;
             }
 
             // Step 3: open the slot's build page.
@@ -236,6 +258,8 @@ public sealed partial class TravianClient
             }
 
             upgrades += 1;
+            await WaitForPostUpgradeClickPageLoadAsync(cancellationToken);
+            var postClickWaitSeconds = await ReadQueuedBuildingWaitSecondsAsync(buildingName, durationSeconds, cancellationToken);
             transientRetries = 0;
             var progress = await WaitForBuildingLevelAdvanceAsync(slotId, currentLevel, queueFingerprintBefore, cancellationToken);
             if (!progress.Advanced && !progress.QueuedOrInProgress)
@@ -246,7 +270,22 @@ public sealed partial class TravianClient
                 continue;
             }
 
-            return $"Slot {slotId}: queued upgrade to level {nextLevel}. Evidence: {progress.Evidence}.";
+            if (progress.Advanced)
+            {
+                if (nextLevel >= targetLevel)
+                {
+                    return $"Slot {slotId}: reached level {nextLevel} (target {targetLevel}). Upgrades performed: {upgrades}.";
+                }
+
+                continue;
+            }
+
+            if (nextLevel < targetLevel)
+            {
+                continue;
+            }
+
+            return $"Slot {slotId}: upgrade to level {nextLevel} queued and still in progress. Target level {targetLevel}. Upgrades performed: {upgrades}. queue_wait_seconds={postClickWaitSeconds}";
 
             }
             catch (Exception ex) when (IsTransientExecutionContextException(ex) && transientRetries < 6)
@@ -416,18 +455,26 @@ public sealed partial class TravianClient
             var currentLevel = info.Level;
             var gid = ParseGidFromBuildingCode(info.BuildingCode);
             var maxLevel = gid is int g ? BuildingCatalogService.MaxLevelFor(g) : 20;
+            var buildingName = string.IsNullOrWhiteSpace(info.BuildingName) ? $"slot {slotId}" : info.BuildingName;
             if (currentLevel >= maxLevel)
             {
                 return $"Slot {slotId}: already at max level {maxLevel}. Upgrades performed: {upgrades}.";
             }
-            var nextLevel = currentLevel + 1;
+            var highestKnownLevel = await ReadHighestKnownQueuedBuildingLevelAsync(buildingName, currentLevel, cancellationToken);
+            if (highestKnownLevel >= maxLevel)
+            {
+                var queuedWaitSeconds = await ReadQueuedBuildingWaitSecondsAsync(buildingName, 0, cancellationToken);
+                return $"Slot {slotId}: upgrade toward max already queued and still in progress (max {maxLevel}). Upgrades performed: {upgrades}. queue_wait_seconds={queuedWaitSeconds}";
+            }
+            var nextLevel = highestKnownLevel + 1;
             var queueFingerprintBefore = BuildQueueFingerprint(await ReadBuildQueueAsync(cancellationToken));
 
-            // Tribe/Plus-aware slot gate: skip the build-page navigation entirely if the building slot is busy.
-            var slotWait = await WaitForConstructionSlotIfBusyAsync(ConstructionKind.Building, cancellationToken);
-            if (slotWait > 0)
+            // Tribe/Plus-aware slot gate: if the build queue is full, defer this task back to
+            // the program queue (queue_wait_seconds) rather than blocking the worker thread.
+            var deferMessage = await CheckQueueOrDeferAsync(ConstructionKind.Building, slotId, upgrades, cancellationToken);
+            if (deferMessage is not null)
             {
-                continue;
+                return deferMessage;
             }
 
             // Step 3: open the slot's build page.
@@ -472,6 +519,8 @@ public sealed partial class TravianClient
             }
 
             upgrades += 1;
+            await WaitForPostUpgradeClickPageLoadAsync(cancellationToken);
+            var postClickWaitSeconds = await ReadQueuedBuildingWaitSecondsAsync(buildingName, durationSeconds, cancellationToken);
             transientRetries = 0;
             var progress = await WaitForBuildingLevelAdvanceAsync(slotId, currentLevel, queueFingerprintBefore, cancellationToken);
             if (!progress.Advanced && !progress.QueuedOrInProgress)
@@ -482,7 +531,22 @@ public sealed partial class TravianClient
                 continue;
             }
 
-            return $"Slot {slotId}: queued upgrade toward max (next level {nextLevel}). Evidence: {progress.Evidence}.";
+            if (progress.Advanced)
+            {
+                if (nextLevel >= maxLevel)
+                {
+                    return $"Slot {slotId}: reached max level {maxLevel}. Upgrades performed: {upgrades}.";
+                }
+
+                continue;
+            }
+
+            if (nextLevel < maxLevel)
+            {
+                continue;
+            }
+
+            return $"Slot {slotId}: upgrade toward max queued and still in progress (next level {nextLevel}, max {maxLevel}). Upgrades performed: {upgrades}. queue_wait_seconds={postClickWaitSeconds}";
 
             }
             catch (Exception ex) when (IsTransientExecutionContextException(ex) && transientRetries < 6)
@@ -516,10 +580,11 @@ public sealed partial class TravianClient
             cancellationToken.ThrowIfCancellationRequested();
             var queueFingerprintBefore = BuildQueueFingerprint(await ReadBuildQueueAsync(cancellationToken));
 
-            var slotWait = await WaitForConstructionSlotIfBusyAsync(ConstructionKind.Building, cancellationToken);
-            if (slotWait > 0)
+            // Pre-flight queue gate: defer to program queue if no construction slot is free.
+            var deferMessage = await CheckQueueOrDeferAsync(ConstructionKind.Building, slotId, attempt, cancellationToken);
+            if (deferMessage is not null)
             {
-                continue;
+                return deferMessage;
             }
 
             // Step 1: open the slot's construction page on the right category tab so the building's
@@ -977,11 +1042,8 @@ public sealed partial class TravianClient
 
     private async Task<IReadOnlyList<Building>> ReadBuildingsAsync(CancellationToken cancellationToken)
     {
-        if (!IsCurrentUrlForPath(Paths.Buildings))
-        {
-            await GotoAsync(Paths.Buildings, cancellationToken);
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the building overview.", cancellationToken);
-        }
+        await GotoAsync(Paths.Buildings, cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the building overview.", cancellationToken);
 
         await EnsureLoggedInAsync();
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading buildings.", cancellationToken);
@@ -1451,6 +1513,39 @@ public sealed partial class TravianClient
         return (tribe!, plusActive);
     }
 
+    // Non-blocking pre-flight check. Returns null if a slot is free for `kind`, otherwise
+    // a defer message containing queue_wait_seconds=N for the program queue to pick up.
+    // Use this instead of WaitForConstructionSlotIfBusyAsync when you want the task to be
+    // re-queued by the desktop auto-queue rather than sleep inside the worker call.
+    internal async Task<string?> CheckQueueOrDeferAsync(
+        ConstructionKind kind,
+        int slotId,
+        int upgrades,
+        CancellationToken cancellationToken)
+    {
+        var (tribe, plusActive) = await GetCachedTribeAndPlusAsync(cancellationToken);
+        var status = await EvaluateConstructionSlotsAsync(tribe, plusActive, cancellationToken);
+        var canStart = kind == ConstructionKind.Resource ? status.CanStartResource : status.CanStartBuilding;
+        if (canStart)
+        {
+            return null;
+        }
+
+        var isRomans = string.Equals(tribe, "Romans", StringComparison.OrdinalIgnoreCase);
+        var relevantWait = (isRomans
+                ? status.Active.Where(a => kind == ConstructionKind.Resource
+                    ? a.Kind == ConstructionKind.Resource
+                    : a.Kind != ConstructionKind.Resource)
+                : status.Active)
+            .Where(a => a.TimeLeftSeconds is int v && v > 0)
+            .Select(a => a.TimeLeftSeconds!.Value)
+            .DefaultIfEmpty(status.ShortestWaitSeconds ?? 0)
+            .Min();
+        var wait = Math.Max(relevantWait, 1);
+        var label = kind == ConstructionKind.Resource ? "Resource slot" : "Slot";
+        return $"{label} {slotId}: build queue full ({status.ResourceSlotsUsed}/{status.ResourceSlotsMax} resource, {status.BuildingSlotsUsed}/{status.BuildingSlotsMax} building, plus={plusActive}). Deferring upgrade. Upgrades performed: {upgrades}. queue_wait_seconds={wait}";
+    }
+
     public async Task<int> WaitForConstructionSlotIfBusyAsync(
         ConstructionKind kind,
         CancellationToken cancellationToken = default)
@@ -1895,34 +1990,84 @@ public sealed partial class TravianClient
         string queueFingerprintBefore,
         CancellationToken cancellationToken)
     {
-        VillageStatus? latestStatus = null;
         for (var i = 0; i < 4; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             await Task.Delay(400, cancellationToken);
-            latestStatus = await ReadVillageStatusAsync(cancellationToken);
-            var current = latestStatus.Buildings.FirstOrDefault(building => building.SlotId == slotId)?.Level;
-            if (current is int currentLevel && currentLevel > previousLevel)
+            var queueItems = await ReadBuildQueueAsync(cancellationToken);
+            var queueFingerprintAfter = BuildQueueFingerprint(queueItems);
+            if (!string.Equals(queueFingerprintBefore, queueFingerprintAfter, StringComparison.Ordinal))
             {
-                Notify($"Building slot {slotId} level increased from {previousLevel} to {currentLevel}.");
-                return new UpgradeProgressResult(true, false, "level advanced");
+                return new UpgradeProgressResult(false, true, "queue changed");
+            }
+
+            if (queueItems.Count > 0)
+            {
+                return new UpgradeProgressResult(false, true, "queue has entries");
+            }
+
+            var activeConstructions = await ReadActiveConstructionsAsync(cancellationToken);
+            if (activeConstructions.Any(item => item.Kind != ConstructionKind.Resource))
+            {
+                return new UpgradeProgressResult(false, true, "active building construction detected");
             }
         }
 
-        var queueFingerprintAfter = latestStatus is null
-            ? string.Empty
-            : BuildQueueFingerprint(latestStatus.BuildQueue);
-        if (!string.Equals(queueFingerprintBefore, queueFingerprintAfter, StringComparison.Ordinal))
-        {
-            return new UpgradeProgressResult(false, true, "queue changed");
-        }
-
-        if (latestStatus is not null && latestStatus.BuildQueue.Count > 0)
-        {
-            return new UpgradeProgressResult(false, true, "queue has entries");
-        }
-
         return new UpgradeProgressResult(false, false, "no queue or level change");
+    }
+
+    private async Task<int> ReadQueuedBuildingWaitSecondsAsync(
+        string buildingName,
+        int fallbackSeconds,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var active = await ReadActiveConstructionsAsync(cancellationToken);
+            var buildingTimers = active
+                .Where(item => item.Kind != ConstructionKind.Resource && item.TimeLeftSeconds is int seconds && seconds > 0)
+                .ToList();
+            if (buildingTimers.Count == 0)
+            {
+                return ComputeUpgradeWaitSeconds(fallbackSeconds);
+            }
+
+            var matchingTimers = buildingTimers
+                .Where(item => SameBuildingName(item.Name, buildingName))
+                .Select(item => item.TimeLeftSeconds!.Value)
+                .ToList();
+            if (matchingTimers.Count > 0)
+            {
+                return ComputeUpgradeWaitSeconds(matchingTimers.Min());
+            }
+
+            return ComputeUpgradeWaitSeconds(buildingTimers.Min(item => item.TimeLeftSeconds!.Value));
+        }
+        catch
+        {
+            return ComputeUpgradeWaitSeconds(fallbackSeconds);
+        }
+    }
+
+    private async Task<int> ReadHighestKnownQueuedBuildingLevelAsync(
+        string buildingName,
+        int currentLevel,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var active = await ReadActiveConstructionsAsync(cancellationToken);
+            var highestQueuedLevel = active
+                .Where(item => item.Kind != ConstructionKind.Resource && SameBuildingName(item.Name, buildingName))
+                .Select(item => item.Level ?? 0)
+                .DefaultIfEmpty(0)
+                .Max();
+            return Math.Max(currentLevel, highestQueuedLevel);
+        }
+        catch
+        {
+            return currentLevel;
+        }
     }
 
     private static void EnsureBuildingRequirementsMet(VillageStatus status, int? gid, string name)

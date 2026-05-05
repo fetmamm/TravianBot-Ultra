@@ -7,11 +7,17 @@ public sealed class PriorityFifoQueueScheduler : IQueueScheduler
     public QueueItem? SelectNext(IReadOnlyList<QueueItem> items)
     {
         var now = DateTimeOffset.UtcNow;
-        return Order(items)
+        var firstPending = Order(items)
             .FirstOrDefault(item =>
                 !item.IsRuntimeOnly &&
-                item.Status == QueueStatus.Pending &&
-                item.NextAttemptAt <= now);
+                item.Status == QueueStatus.Pending);
+
+        if (firstPending is null)
+        {
+            return null;
+        }
+
+        return firstPending.NextAttemptAt <= now ? firstPending : null;
     }
 
     public IReadOnlyList<QueueItem> OrderForDisplay(IReadOnlyList<QueueItem> items)

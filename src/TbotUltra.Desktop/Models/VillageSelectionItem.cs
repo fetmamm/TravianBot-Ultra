@@ -11,7 +11,7 @@ public sealed class VillageSelectionItem
     public int? CropFields { get; init; }
 
     public string CoordsText => (CoordX.HasValue && CoordY.HasValue)
-        ? $"({CoordX},{CoordY})"
+        ? $"({CoordX} | {CoordY})"
         : string.Empty;
 
     public string PopText

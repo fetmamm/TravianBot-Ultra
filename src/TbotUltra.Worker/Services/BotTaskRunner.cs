@@ -187,29 +187,7 @@ public sealed class BotTaskRunner
         return snapshot ?? throw new InvalidOperationException("Could not load post-login snapshot.");
     }
 
-    public async Task<AccountSnapshot> AnalyzeProfileAsync(
-        BotOptions options,
-        Action<string> log,
-        string? accountName = null,
-        CancellationToken cancellationToken = default)
-    {
-        AccountSnapshot? snapshot = null;
-        await ExecuteWithClientAsync(
-            options,
-            log,
-            accountName,
-            interactive: false,
-            cancellationToken,
-            async client =>
-            {
-                log($"Analyzing profile for server {options.ServerName}.");
-                await client.LoginAsync(cancellationToken);
-                snapshot = await client.AnalyzeProfileAsync(cancellationToken);
-            });
-        return snapshot ?? throw new InvalidOperationException("Could not analyze profile.");
-    }
-
-    public async Task<bool> ReadAndPersistGoldClubStatusAsync(
+public async Task<bool> ReadAndPersistGoldClubStatusAsync(
         BotOptions options,
         Action<string> log,
         string? accountName = null,
@@ -449,6 +427,30 @@ public sealed class BotTaskRunner
             });
 
         return status ?? throw new InvalidOperationException("Could not read village resource status.");
+    }
+
+    public async Task<VillageStatus> ReadBuildingsStatusAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        VillageStatus? status = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                log($"Reading buildings status for server {options.ServerName}.");
+                await client.LoginAsync(cancellationToken);
+                await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken);
+                status = await client.ReadBuildingsStatusAsync(cancellationToken);
+            });
+
+        return status ?? throw new InvalidOperationException("Could not read buildings status.");
     }
 
     public async Task<InboxStatus> ReadInboxStatusAsync(
@@ -1036,6 +1038,7 @@ public sealed class BotTaskRunner
         return
             value.Contains(" blocked ")
             || value.Contains("blocked (")
+            || value.Contains("queue_wait_seconds=")
             || value.Contains("cannot be built yet")
             || value.Contains("cannot be upgraded yet")
             || value.Contains("is not listed by the server")

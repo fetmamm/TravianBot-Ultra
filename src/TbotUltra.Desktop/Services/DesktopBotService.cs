@@ -94,12 +94,7 @@ public sealed class DesktopBotService : IDesktopBotService
         return _taskRunner.StartManualFarmingFromNatarsAsync(options, troopType, troopCount, troopVariancePercent, raidAttack, log, null, cancellationToken);
     }
 
-    public Task<AccountSnapshot> AnalyzeProfileAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
-    {
-        return _taskRunner.AnalyzeProfileAsync(options, log, null, cancellationToken);
-    }
-
-    public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepBrowserOpenAfterLogin, CancellationToken cancellationToken)
+public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepBrowserOpenAfterLogin, CancellationToken cancellationToken)
     {
         return _taskRunner.ExecuteLoginAsync(options, log, null, cancellationToken, keepBrowserOpenAfterLogin);
     }
@@ -139,6 +134,11 @@ public sealed class DesktopBotService : IDesktopBotService
     public Task ExecuteOnceAsync(BotOptions options, Action<string> log, IEnumerable<string>? tasksOverride, CancellationToken cancellationToken)
     {
         return _taskRunner.ExecuteOnceAsync(options, log, tasksOverride, null, cancellationToken);
+    }
+
+    public Task<VillageStatus> ReadBuildingsStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.ReadBuildingsStatusAsync(options, log, null, cancellationToken);
     }
 
     public Task<VillageStatus> ReadVillageStatusAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken)
