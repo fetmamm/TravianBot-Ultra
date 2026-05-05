@@ -31,8 +31,6 @@ public sealed class BotTaskRunner
             ["construct_building"] = ExecuteConstructBuildingAsync,
             // Loads the current village's building status and saves a JSON snapshot to disk.
             ["load_buildings_snapshot"] = ExecuteLoadBuildingsSnapshotAsync,
-            // Performs a full analysis of the account (tribe, gold club, building catalog) and saves it.
-            ["account_full_analysis"] = ExecuteAccountFullAnalysisAsync,
             // Demolishes a specified building to a target level.
             ["demolish_building_to_level"] = ExecuteDemolishBuildingToLevelAsync,
             // Manages hero actions: revives if dead, allocates points, and sends on adventures if HP allows.
@@ -907,21 +905,6 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
         var result = await context.Client.UpgradeAllTroopsAtSmithyAsync(context.CancellationToken);
         context.Log(result);
         await RefreshBuildingsSnapshotAfterTaskAsync(context);
-    }
-
-    private static async Task ExecuteAccountFullAnalysisAsync(TaskExecutionContext context)
-    {
-        var analysis = await context.Client.ReadAccountAnalysisSnapshotAsync(context.CancellationToken);
-        var completed = analysis with
-        {
-            SchemaVersion = AccountAnalysisConstants.CurrentSchemaVersion,
-            AccountName = context.Client.AccountName,
-            ServerUrl = context.Client.ServerUrl,
-            AnalyzedAtUtc = DateTimeOffset.UtcNow,
-        };
-
-        context.Runner._accountAnalysisStore.Save(completed);
-        context.Log($"Account analysis saved for '{completed.AccountName}'. Tribe={completed.Tribe}, GoldClub={completed.GoldClubEnabled}, Catalog={completed.BuildingCatalog.Count}.");
     }
 
     private static async Task ExecuteLoadBuildingsSnapshotAsync(TaskExecutionContext context)

@@ -7,6 +7,8 @@ namespace TbotUltra.Worker.Infrastructure;
 public sealed class BrowserSession : IAsyncDisposable
 {
     private const string LocalPlaywrightBrowsersDirectoryName = "ms-playwright";
+    private static readonly SemaphoreSlim WarmupGate = new(1, 1);
+    private static bool _warmupCompleted;
     private readonly BotOptions _config;
     private readonly AccountOptions _account;
     private readonly bool? _headlessOverride;
@@ -33,6 +35,41 @@ public sealed class BrowserSession : IAsyncDisposable
 
     public string PlaywrightBrowsersPath =>
         Path.Combine(_projectRoot, LocalPlaywrightBrowsersDirectoryName);
+
+    public static async Task<bool> WarmupAsync(string projectRoot, CancellationToken cancellationToken = default)
+    {
+        if (_warmupCompleted || !ChromiumAlreadyInstalled(projectRoot))
+        {
+            return false;
+        }
+
+        await WarmupGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (_warmupCompleted)
+            {
+                return false;
+            }
+
+            var playwrightBrowsersPath = Path.Combine(projectRoot, LocalPlaywrightBrowsersDirectoryName);
+            Directory.CreateDirectory(playwrightBrowsersPath);
+            Environment.SetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH", playwrightBrowsersPath);
+
+            using var playwright = await Playwright.CreateAsync();
+            var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+            {
+                Headless = true,
+            });
+
+            await browser.CloseAsync();
+            _warmupCompleted = true;
+            return true;
+        }
+        finally
+        {
+            WarmupGate.Release();
+        }
+    }
 
     public async Task<IPage> OpenPageAsync(CancellationToken cancellationToken = default)
     {
@@ -95,5 +132,31 @@ public sealed class BrowserSession : IAsyncDisposable
         }
 
         _playwright?.Dispose();
+    }
+
+    public static bool ChromiumAlreadyInstalled(string projectRoot)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(projectRoot))
+            {
+                return false;
+            }
+
+            var playwrightRoot = Path.Combine(projectRoot, LocalPlaywrightBrowsersDirectoryName);
+            if (!Directory.Exists(playwrightRoot))
+            {
+                return false;
+            }
+
+            var executables = Directory.GetFiles(playwrightRoot, "chrome.exe", SearchOption.AllDirectories);
+            return executables.Any(path =>
+                path.Contains("chromium-", StringComparison.OrdinalIgnoreCase) &&
+                path.Contains("chrome-win", StringComparison.OrdinalIgnoreCase));
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

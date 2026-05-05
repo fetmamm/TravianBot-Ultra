@@ -10,6 +10,8 @@ public partial class AppDialog : Window
 {
     private readonly MessageBoxButton _buttons;
     private readonly MessageBoxResult _defaultResult;
+    private readonly MessageBoxResult _cancelResult;
+    private readonly IReadOnlyList<(string Label, MessageBoxResult Result)>? _customButtons;
     private MessageBoxResult _result;
     private bool _resultChosen;
 
@@ -19,7 +21,9 @@ public partial class AppDialog : Window
         string title,
         MessageBoxButton buttons,
         MessageBoxImage icon,
-        MessageBoxResult defaultResult)
+        MessageBoxResult defaultResult,
+        MessageBoxResult? cancelResult = null,
+        IReadOnlyList<(string Label, MessageBoxResult Result)>? customButtons = null)
     {
         InitializeComponent();
 
@@ -27,8 +31,10 @@ public partial class AppDialog : Window
         Title = string.IsNullOrWhiteSpace(title) ? "Dialog" : title;
         MessageTextBlock.Text = message ?? string.Empty;
         _buttons = buttons;
+        _customButtons = customButtons;
         _defaultResult = defaultResult;
-        _result = ResolveDefaultResult(buttons, defaultResult);
+        _cancelResult = ResolveCancelResult(buttons, cancelResult, customButtons);
+        _result = ResolveDefaultResult(buttons, defaultResult, customButtons);
         ApplyIcon(icon);
         BuildButtons();
     }
@@ -87,10 +93,34 @@ public partial class AppDialog : Window
         return dialog;
     }
 
+    public static MessageBoxResult ShowCustom(
+        Window? owner,
+        string message,
+        string title,
+        IReadOnlyList<(string Label, MessageBoxResult Result)> buttons,
+        MessageBoxImage icon,
+        MessageBoxResult defaultResult,
+        MessageBoxResult cancelResult)
+    {
+        var dialog = new AppDialog(
+            owner,
+            message,
+            title,
+            MessageBoxButton.OK,
+            icon,
+            defaultResult,
+            cancelResult,
+            buttons);
+        _ = dialog.ShowDialog();
+        return dialog._result;
+    }
+
     private void BuildButtons()
     {
         ButtonsPanel.Children.Clear();
-        foreach (var (label, result) in ResolveButtonSet(_buttons))
+        var buttons = ResolveButtonSet(_buttons, _customButtons);
+        var defaultResult = ResolveDefaultResult(_buttons, _defaultResult, _customButtons);
+        foreach (var (label, result) in buttons)
         {
             var button = new Button
             {
@@ -99,8 +129,8 @@ public partial class AppDialog : Window
                 Height = 30,
                 Margin = new Thickness(8, 0, 0, 0),
                 Padding = new Thickness(12, 0, 12, 0),
-                IsDefault = result == ResolveDefaultResult(_buttons, _defaultResult),
-                IsCancel = result == ResolveCancelResult(_buttons),
+                IsDefault = result == defaultResult,
+                IsCancel = result == _cancelResult,
             };
 
             button.Click += (_, _) =>
@@ -141,7 +171,7 @@ public partial class AppDialog : Window
             return;
         }
 
-        _result = ResolveCancelResult(_buttons);
+        _result = _cancelResult;
         _resultChosen = true;
         DialogResult = false;
         Close();
@@ -154,11 +184,18 @@ public partial class AppDialog : Window
             return;
         }
 
-        _result = ResolveCancelResult(_buttons);
+        _result = _cancelResult;
     }
 
-    private static IReadOnlyList<(string label, MessageBoxResult result)> ResolveButtonSet(MessageBoxButton buttons)
+    private static IReadOnlyList<(string label, MessageBoxResult result)> ResolveButtonSet(
+        MessageBoxButton buttons,
+        IReadOnlyList<(string Label, MessageBoxResult Result)>? customButtons = null)
     {
+        if (customButtons is not null && customButtons.Count > 0)
+        {
+            return customButtons.Select(item => (item.Label, item.Result)).ToList();
+        }
+
         return buttons switch
         {
             MessageBoxButton.OKCancel => [("OK", MessageBoxResult.OK), ("Cancel", MessageBoxResult.Cancel)],
@@ -168,8 +205,17 @@ public partial class AppDialog : Window
         };
     }
 
-    private static MessageBoxResult ResolveCancelResult(MessageBoxButton buttons)
+    private static MessageBoxResult ResolveCancelResult(
+        MessageBoxButton buttons,
+        MessageBoxResult? configuredCancel = null,
+        IReadOnlyList<(string Label, MessageBoxResult Result)>? customButtons = null)
     {
+        var allowed = ResolveButtonSet(buttons, customButtons).Select(item => item.result).ToHashSet();
+        if (configuredCancel is not null && allowed.Contains(configuredCancel.Value))
+        {
+            return configuredCancel.Value;
+        }
+
         return buttons switch
         {
             MessageBoxButton.OKCancel => MessageBoxResult.Cancel,
@@ -179,14 +225,17 @@ public partial class AppDialog : Window
         };
     }
 
-    private static MessageBoxResult ResolveDefaultResult(MessageBoxButton buttons, MessageBoxResult configuredDefault)
+    private static MessageBoxResult ResolveDefaultResult(
+        MessageBoxButton buttons,
+        MessageBoxResult configuredDefault,
+        IReadOnlyList<(string Label, MessageBoxResult Result)>? customButtons = null)
     {
-        var allowed = ResolveButtonSet(buttons).Select(item => item.result).ToHashSet();
+        var allowed = ResolveButtonSet(buttons, customButtons).Select(item => item.result).ToHashSet();
         if (allowed.Contains(configuredDefault) && configuredDefault != MessageBoxResult.None)
         {
             return configuredDefault;
         }
 
-        return ResolveButtonSet(buttons).First().result;
+        return ResolveButtonSet(buttons, customButtons).First().result;
     }
 }

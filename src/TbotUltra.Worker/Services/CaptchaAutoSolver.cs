@@ -9,11 +9,15 @@ public sealed class CaptchaAutoSolver : ICaptchaAutoSolver
     {
         PropertyNameCaseInsensitive = true,
     };
+    private static readonly SemaphoreSlim WarmupGate = new(1, 1);
 
     private readonly string _pythonPath;
     private readonly string? _pythonHomePath;
     private readonly string _scriptPath;
     private readonly string _workingDirectory;
+    private readonly string _modelPath;
+    private readonly string _classesPath;
+    private bool _warmupCompleted;
 
     public CaptchaAutoSolver(ProjectContext projectContext)
     {
@@ -23,6 +27,38 @@ public sealed class CaptchaAutoSolver : ICaptchaAutoSolver
         var localVenvPythonPath = Path.Combine(_workingDirectory, ".venv", "Scripts", "python.exe");
         _pythonPath = File.Exists(packagedPythonPath) ? packagedPythonPath : localVenvPythonPath;
         _scriptPath = Path.Combine(_workingDirectory, "solve_runtime.py");
+        _modelPath = Path.Combine(_workingDirectory, "model.keras");
+        _classesPath = Path.Combine(_workingDirectory, "classes.txt");
+    }
+
+    public async Task<bool> WarmupAsync(CancellationToken cancellationToken)
+    {
+        if (_warmupCompleted || !CanWarmup())
+        {
+            return false;
+        }
+
+        await WarmupGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (_warmupCompleted)
+            {
+                return false;
+            }
+
+            var result = await ExecuteProcessAsync("--warmup", 120, cancellationToken);
+            if (!result.Success)
+            {
+                throw new InvalidOperationException(result.Reason);
+            }
+
+            _warmupCompleted = true;
+            return true;
+        }
+        finally
+        {
+            WarmupGate.Release();
+        }
     }
 
     public async Task<CaptchaSolverResult> TrySolveAsync(string imagePath, int timeoutSeconds, CancellationToken cancellationToken)
@@ -47,12 +83,25 @@ public sealed class CaptchaAutoSolver : ICaptchaAutoSolver
             return new CaptchaSolverResult(false, "", "", 0d, $"Captcha image not found: '{imagePath}'.");
         }
 
+        return await ExecuteProcessAsync($"--image \"{imagePath}\"", timeoutSeconds, cancellationToken);
+    }
+
+    private bool CanWarmup()
+    {
+        return File.Exists(_pythonPath)
+            && File.Exists(_scriptPath)
+            && File.Exists(_modelPath)
+            && File.Exists(_classesPath);
+    }
+
+    private async Task<CaptchaSolverResult> ExecuteProcessAsync(string arguments, int timeoutSeconds, CancellationToken cancellationToken)
+    {
         using var process = new Process();
         process.StartInfo = new ProcessStartInfo
         {
             FileName = _pythonPath,
             WorkingDirectory = _workingDirectory,
-            Arguments = $"solve_runtime.py --image \"{imagePath}\"",
+            Arguments = $"solve_runtime.py {arguments}",
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,

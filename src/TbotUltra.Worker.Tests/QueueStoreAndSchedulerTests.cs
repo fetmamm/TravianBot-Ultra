@@ -80,7 +80,6 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
     {
         Assert.True(TaskCatalog.IsAllowed("status"));
         Assert.True(TaskCatalog.IsAllowed("upgrade_building_to_max"));
-        Assert.True(TaskCatalog.IsAllowed("account_full_analysis"));
         Assert.True(TaskCatalog.IsAllowed("demolish_building_to_level"));
         Assert.True(TaskCatalog.IsAllowed("hero_manage"));
         Assert.False(TaskCatalog.IsAllowed("train_troops"));

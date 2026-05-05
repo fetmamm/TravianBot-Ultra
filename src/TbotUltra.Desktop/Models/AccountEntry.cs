@@ -13,8 +13,6 @@ public sealed class AccountEntry
     public string ServerName { get; set; } = string.Empty;
     public string ServerUrl { get; set; } = string.Empty;
     public bool IsActive { get; set; }
-    public bool IsAnalyzed { get; set; }
-    public string AnalysisStatus => IsAnalyzed ? "Yes" : "No";
     public string ServerSpeedLabel => ExtractServerSpeedLabel(ServerName);
 
     public string PickerName =>

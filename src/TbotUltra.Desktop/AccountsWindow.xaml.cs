@@ -25,7 +25,6 @@ public partial class AccountsWindow : Window
     private string _baselineUsername = string.Empty;
     private string _baselinePassword = string.Empty;
     private string _baselineServerUrl = string.Empty;
-    public bool RequestedRunAnalysisForActiveAccount { get; private set; }
     private bool _suppressSelectionChanged;
     private bool _isClosing;
 
@@ -174,44 +173,6 @@ public partial class AccountsWindow : Window
     private void UpdateButton_Click(object sender, RoutedEventArgs e)
     {
         SaveEditor(isUpdate: true);
-    }
-
-    private void RunAnalysisButton_Click(object sender, RoutedEventArgs e)
-    {
-        RequestedRunAnalysisForActiveAccount = true;
-        DialogResult = true;
-        Close();
-    }
-
-    private void ClearAnalysisButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (AccountsListBox.SelectedItem is not AccountEntry selected)
-        {
-            return;
-        }
-
-        var confirm = AppDialog.Show(
-            this,
-            $"Clear analysis for '{selected.Username}'?",
-            "Clear analysis",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
-        if (confirm != MessageBoxResult.Yes)
-        {
-            return;
-        }
-
-        try
-        {
-            _store.ClearAnalysis(selected.Name, selected.ServerUrl);
-            Reload();
-            SelectByName(selected.Name);
-            InfoTextBlock.Text = $"Cleared analysis for '{selected.Username}'.";
-        }
-        catch (Exception ex)
-        {
-            AppDialog.Show(this, ex.Message, "Clear analysis", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
     }
 
     private bool SaveEditor(bool isUpdate)
@@ -494,12 +455,14 @@ public partial class AccountsWindow : Window
             return true;
         }
 
-        var result = AppDialog.Show(
+        var result = AppDialog.ShowCustom(
             this,
-            "You have unsaved changes.\n\nYes: Save changes\nNo: Discard changes\nCancel: Stay on this window",
+            "You have unsaved changes.\n\nSave: Save changes\nDiscard: Discard changes\nCancel: Stay on this window",
             "Unsaved changes",
-            MessageBoxButton.YesNoCancel,
-            MessageBoxImage.Warning);
+            [("Save", MessageBoxResult.Yes), ("Discard", MessageBoxResult.No), ("Cancel", MessageBoxResult.Cancel)],
+            MessageBoxImage.Warning,
+            MessageBoxResult.Yes,
+            MessageBoxResult.Cancel);
 
         if (result == MessageBoxResult.Cancel)
         {
@@ -519,9 +482,6 @@ public partial class AccountsWindow : Window
         SaveButton.IsEnabled = !_editingExistingAccount;
         UpdateButton.IsEnabled = _editingExistingAccount && HasUnsavedChanges();
         DeleteButton.IsEnabled = _editingExistingAccount;
-        RunAnalysisButton.IsEnabled = !string.IsNullOrWhiteSpace(_activeAccountName);
-        ClearAnalysisButton.IsEnabled = _editingExistingAccount;
     }
 
 }
-

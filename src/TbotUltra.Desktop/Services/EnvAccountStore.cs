@@ -8,13 +8,10 @@ namespace TbotUltra.Desktop.Services;
 public sealed class EnvAccountStore
 {
     private readonly string _envPath;
-    private readonly AccountAnalysisStore _analysisStore;
 
     public EnvAccountStore(string envPath)
     {
         _envPath = envPath;
-        var root = Path.GetDirectoryName(envPath) ?? Directory.GetCurrentDirectory();
-        _analysisStore = new AccountAnalysisStore(root);
     }
 
     public string ActiveAccountName()
@@ -51,7 +48,6 @@ public sealed class EnvAccountStore
                 ServerName = values.GetValueOrDefault($"{prefix}SERVER_NAME", string.Empty),
                 ServerUrl = values.GetValueOrDefault($"{prefix}SERVER_URL", string.Empty),
                 IsActive = string.Equals(name, active, StringComparison.OrdinalIgnoreCase),
-                IsAnalyzed = _analysisStore.IsAnalyzed(name, values.GetValueOrDefault($"{prefix}SERVER_URL", string.Empty)),
             };
         }).ToList();
     }
@@ -125,12 +121,6 @@ public sealed class EnvAccountStore
 
         values["TBOT_ACTIVE_ACCOUNT"] = normalized;
         WriteValues(values);
-    }
-
-    public void ClearAnalysis(string accountName, string? serverUrl)
-    {
-        var normalized = NormalizeName(accountName);
-        _analysisStore.Delete(normalized, serverUrl);
     }
 
     private Dictionary<string, string> ReadValues()

@@ -2089,11 +2089,21 @@ public sealed partial class TravianClient
 
     private static void EnsureBuildingCanBeConstructed(VillageStatus status, int gid, string name)
     {
+        if (gid is 38 or 39)
+        {
+            throw new InvalidOperationException($"{name} requires building plans and is not supported yet.");
+        }
+
         var existing = status.Buildings
             .Where(building => building.Gid == gid || SameBuildingName(building.Name, name))
             .ToList();
         var duplicateAllowed = gid is 23 or 38 or 39;
         var wallGid = gid is 31 or 32 or 33 or 42 or 43;
+        if ((gid is 29 or 30) && status.IsCapital == true)
+        {
+            throw new InvalidOperationException($"{name} cannot be built in the capital.");
+        }
+
         if (gid is 10 or 11)
         {
             if (existing.Count > 0)

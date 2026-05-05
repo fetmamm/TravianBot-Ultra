@@ -67,6 +67,13 @@ public sealed partial class TravianClient
                     return $"Resource slot {slotId} is level {currentLevel}. Target {targetLevel} reached after {upgrades} upgrades.";
                 }
 
+                var highestKnownLevel = await ReadHighestKnownQueuedResourceLevelAsync(resourceName, currentLevel.Value, cancellationToken);
+                if (highestKnownLevel >= targetLevel)
+                {
+                    var queuedWaitSeconds = await ReadQueuedResourceWaitSecondsAsync(resourceName, null, cancellationToken);
+                    return $"Resource slot {slotId}: queued upgrade toward level {targetLevel}. queue_wait_seconds={queuedWaitSeconds}";
+                }
+
                 // Pre-flight: if the build queue is already full (1 slot non-Plus, 2 slots Plus,
                 // separate resource slot for Romans), defer the task in the program queue rather
                 // than navigating to build.php and clicking only to be rejected. We are on dorf1
@@ -86,6 +93,12 @@ public sealed partial class TravianClient
                 if (currentLevel >= effectiveTarget)
                 {
                     return $"Resource slot {slotId} is level {currentLevel}. Target {effectiveTarget} reached after {upgrades} upgrades.";
+                }
+
+                if (highestKnownLevel >= effectiveTarget)
+                {
+                    var queuedWaitSeconds = await ReadQueuedResourceWaitSecondsAsync(resourceName, null, cancellationToken);
+                    return $"Resource slot {slotId}: queued upgrade toward level {effectiveTarget}. queue_wait_seconds={queuedWaitSeconds}";
                 }
 
                 if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByMaxLevel)
@@ -119,6 +132,12 @@ public sealed partial class TravianClient
                 if (progress.QueuedOrInProgress)
                 {
                     var queuedWaitSeconds = await ReadQueuedResourceWaitSecondsAsync(resourceName, expectedWaitSeconds, cancellationToken);
+                    if (highestKnownLevel + 1 < effectiveTarget)
+                    {
+                        transientRetries = 0;
+                        continue;
+                    }
+
                     return $"Resource slot {slotId}: queued upgrade toward level {effectiveTarget}. Evidence: {progress.Evidence}. queue_wait_seconds={queuedWaitSeconds}";
                 }
 
@@ -844,6 +863,27 @@ public sealed partial class TravianClient
         catch
         {
             return ComputeResourceUpgradeWaitSeconds(fallbackSeconds);
+        }
+    }
+
+    private async Task<int> ReadHighestKnownQueuedResourceLevelAsync(
+        string resourceName,
+        int currentLevel,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var active = await ReadActiveConstructionsAsync(cancellationToken);
+            var highestQueuedLevel = active
+                .Where(item => item.Kind == ConstructionKind.Resource && SameBuildingName(item.Name, resourceName))
+                .Select(item => item.Level ?? 0)
+                .DefaultIfEmpty(0)
+                .Max();
+            return Math.Max(currentLevel, highestQueuedLevel);
+        }
+        catch
+        {
+            return currentLevel;
         }
     }
 

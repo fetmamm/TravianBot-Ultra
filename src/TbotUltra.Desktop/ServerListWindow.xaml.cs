@@ -26,12 +26,14 @@ public partial class ServerListWindow : Window
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
-        var warning = AppDialog.Show(
+        var warning = AppDialog.ShowCustom(
             this,
-            "Changing server URLs is not recommended and may break login or actions.\n\nPress OK to save anyway, or Cancel to abort.",
+            "Changing server URLs is not recommended and may break login or actions.\n\nPress Save to save anyway, or Cancel to abort.",
             "Warning",
-            MessageBoxButton.OKCancel,
-            MessageBoxImage.Warning);
+            [("Save", MessageBoxResult.OK), ("Cancel", MessageBoxResult.Cancel)],
+            MessageBoxImage.Warning,
+            MessageBoxResult.OK,
+            MessageBoxResult.Cancel);
         if (warning != MessageBoxResult.OK)
         {
             return;
@@ -152,12 +154,14 @@ public partial class ServerListWindow : Window
             return true;
         }
 
-        var result = AppDialog.Show(
+        var result = AppDialog.ShowCustom(
             this,
-            "You have unsaved server URL changes.\n\nYes: Save changes\nNo: Discard changes\nCancel: Stay on this window",
+            "You have unsaved server URL changes.\n\nSave: Save changes\nDiscard: Discard changes\nCancel: Stay on this window",
             "Unsaved changes",
-            MessageBoxButton.YesNoCancel,
-            MessageBoxImage.Warning);
+            [("Save", MessageBoxResult.Yes), ("Discard", MessageBoxResult.No), ("Cancel", MessageBoxResult.Cancel)],
+            MessageBoxImage.Warning,
+            MessageBoxResult.Yes,
+            MessageBoxResult.Cancel);
 
         if (result == MessageBoxResult.Cancel)
         {

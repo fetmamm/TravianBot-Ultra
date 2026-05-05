@@ -34,8 +34,8 @@ public static class BuildingCatalogService
         [30] = ("Great Stable", "army_buildings"),
         [34] = ("Stonemason", "infrastructure"),
         [37] = ("Hero Mansion", "army_buildings"),
-        [38] = ("Great Warehouse", "infrastructure"),
-        [39] = ("Great Granary", "infrastructure"),
+        [38] = ("Great Warehouse", "resource_buildings"),
+        [39] = ("Great Granary", "resource_buildings"),
         [40] = ("Wonder of the World", "infrastructure"),
     };
 
@@ -49,7 +49,7 @@ public static class BuildingCatalogService
         [41] = ("Horse Drinking Trough", "army_buildings"),
         [42] = ("Stone Wall", "infrastructure"),
         [43] = ("Makeshift Wall", "infrastructure"),
-        [44] = ("Command Center", "army_buildings"),
+        [44] = ("Command Center", "infrastructure"),
     };
 
     private static readonly Dictionary<int, List<BuildingRequirementEntry>> BuildingRequirements = new()
@@ -72,6 +72,8 @@ public static class BuildingCatalogService
         [26] = [new("Embassy", 1), new("Main Building", 5)],
         [27] = [new("Main Building", 10)],
         [28] = [new("Marketplace", 20), new("Stable", 10)],
+        [29] = [new("Barracks", 20)],
+        [30] = [new("Stable", 20)],
         [31] = [new("Rally Point", 1)],
         [32] = [new("Rally Point", 1)],
         [33] = [new("Rally Point", 1)],
@@ -79,7 +81,7 @@ public static class BuildingCatalogService
         [35] = [new("Main Building", 10)],
         [36] = [new("Rally Point", 1)],
         [37] = [new("Main Building", 3), new("Rally Point", 1)],
-        [41] = [new("Stable", 20)],
+        [41] = [new("Rally Point", 10), new("Stable", 20)],
         [42] = [new("Rally Point", 1)],
         [43] = [new("Rally Point", 1)],
         [44] = [new("Main Building", 10), new("Academy", 15)],

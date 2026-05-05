@@ -16,12 +16,13 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--image", required=True, help="Absolute or relative path to captcha image")
+    parser.add_argument("--image", help="Absolute or relative path to captcha image")
     parser.add_argument("--model", default="model.keras")
     parser.add_argument("--classes", default="classes.txt")
     parser.add_argument("--debug-dir", default="debug_output")
     parser.add_argument("--max-candidates", type=int, default=12)
     parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--warmup", action="store_true")
     return parser
 
 
@@ -196,6 +197,21 @@ def main() -> int:
             resolve_local_path(args.classes),
             config=config,
         )
+
+        if args.warmup:
+            payload = {
+                "success": True,
+                "answer": "",
+                "expression": "",
+                "confidence": 0.0,
+                "reason": "warmup complete",
+            }
+            print(json.dumps(payload, ensure_ascii=True, separators=(",", ":")))
+            return 0
+
+        if not args.image:
+            raise ValueError("--image is required unless --warmup is used")
+
         debug_dir = resolve_local_path(args.debug_dir)
 
         payload = try_solve_with_batch_heuristics(

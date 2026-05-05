@@ -224,6 +224,7 @@ public partial class BuildingConstructChoiceWindow : Window
         TargetLevelComboBox.SelectedIndex = 0;
         TargetLevelComboBox.IsEnabled = true;
         BuildButton.IsEnabled = true;
+        BuildMaxButton.IsEnabled = true;
     }
 
     private void BuildButton_Click(object sender, RoutedEventArgs e)
@@ -247,6 +248,18 @@ public partial class BuildingConstructChoiceWindow : Window
             SelectedTargetLevel = 1;
         }
 
+        DialogResult = true;
+        Close();
+    }
+
+    private void BuildMaxButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedOption is null)
+        {
+            return;
+        }
+
+        SelectedTargetLevel = 0;
         DialogResult = true;
         Close();
     }

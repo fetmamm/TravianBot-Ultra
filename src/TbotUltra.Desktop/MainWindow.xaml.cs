@@ -18,6 +18,7 @@ using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
 using TbotUltra.Worker;
 using TbotUltra.Worker.Domain;
+using TbotUltra.Worker.Infrastructure;
 using TbotUltra.Worker.Services;
 
 namespace TbotUltra.Desktop;
@@ -79,6 +80,7 @@ public partial class MainWindow : Window
     private readonly ServerDiscoveryService _serverDiscoveryService;
     private readonly ServerCatalogStore _serverCatalogStore;
     private readonly IDesktopBotService _botService;
+    private readonly ICaptchaAutoSolver _captchaAutoSolver;
     private readonly DispatcherTimer _clockTimer;
     private readonly DispatcherTimer _copyFeedbackTimer;
     private readonly DispatcherTimer _inboxRefreshTimer;
@@ -102,7 +104,6 @@ public partial class MainWindow : Window
     private readonly Dictionary<int, (int Target, DateTimeOffset At)> _buildingLastQueuedTargetBySlot = new();
     private readonly Dictionary<int, (string Name, DateTimeOffset At)> _buildingLastQueuedConstructBySlot = new();
     private readonly HashSet<int> _buildingDemolishingSlots = new();
-    private readonly HashSet<string> _analysisPromptDismissed = new(StringComparer.OrdinalIgnoreCase);
     private static readonly IReadOnlyDictionary<int, (double Left, double Top)> BuildingSlotLayoutById = CreateBuildingSlotLayout();
 
     private CancellationTokenSource? _loopCts;
@@ -188,7 +189,6 @@ public partial class MainWindow : Window
         ("upgrade_building_to_max", "Upgrade Building To Max", "Upgrades configured building slot to max level."),
         ("construct_building", "Construct Building", "Builds configured building in configured slot."),
         ("load_buildings_snapshot", "Load Building Snapshot", "Reads and stores current building snapshot."),
-        ("account_full_analysis", "Account Full Analysis", "Runs full account analysis and updates cache."),
         ("demolish_building_to_level", "Demolish Building", "Demolishes configured building to target level."),
         ("hero_manage", "Hero adventure", "Checks hero status (revive if dead, allocate points if leveled up) and then sends on adventure if HP allows."),
     ];
@@ -223,6 +223,7 @@ public partial class MainWindow : Window
         _serverCatalogStore = new ServerCatalogStore(_serverCatalogPath);
         var projectContext = new ProjectContext(_projectRoot);
         var captchaAutoSolver = new CaptchaAutoSolver(projectContext);
+        _captchaAutoSolver = captchaAutoSolver;
         var taskRunner = new BotTaskRunner(_accountProvider, projectContext, captchaAutoSolver);
         var queueStore = new JsonQueueStore(_queuePath);
         var queueScheduler = new PriorityFifoQueueScheduler();
@@ -328,11 +329,92 @@ public partial class MainWindow : Window
         UpdateManualFarmingExecutionCounter();
         SetNatarsProfileAnalyzed(false);
         LoadHeroPriorityToUi(null);
+        StartBackgroundWarmups();
     }
 
     private void TryApplyWindowIcon()
     {
         // Keep the application icon from the exe when the .ico resource is not WPF-decodable.
+    }
+
+    private void StartBackgroundWarmups()
+    {
+        _ = Task.Run(RunBackgroundWarmupsAsync);
+    }
+
+    private async Task RunBackgroundWarmupsAsync()
+    {
+        await RunChromiumWarmupAsync();
+        await RunCaptchaWarmupAsync();
+    }
+
+    private async Task RunChromiumWarmupAsync()
+    {
+        if (!BrowserSession.ChromiumAlreadyInstalled(_projectRoot))
+        {
+            AppendLog("Chromium warmup skipped: Chromium is not installed locally.");
+            return;
+        }
+
+        var sw = Stopwatch.StartNew();
+        AppendLog("Chromium warmup started.");
+        try
+        {
+            var warmed = await BrowserSession.WarmupAsync(_projectRoot);
+            sw.Stop();
+            if (!warmed)
+            {
+                AppendLog("Chromium warmup skipped: already completed.");
+                return;
+            }
+
+            AppendLog($"Chromium warmup completed in {sw.Elapsed.TotalSeconds:F1}s.");
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            AppendLog($"Chromium warmup skipped: {ex.Message}");
+        }
+    }
+
+    private async Task RunCaptchaWarmupAsync()
+    {
+        BotOptions options;
+        try
+        {
+            options = LoadBotOptions();
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Captcha warmup skipped: could not load config ({ex.Message}).");
+            return;
+        }
+
+        if (!options.CaptchaAutoSolveEnabled)
+        {
+            AppendLog("Captcha warmup skipped: captcha auto-solve is disabled.");
+            return;
+        }
+
+        var sw = Stopwatch.StartNew();
+        AppendLog("Captcha warmup started.");
+        try
+        {
+            var warmed = await _captchaAutoSolver.WarmupAsync(CancellationToken.None);
+            sw.Stop();
+            if (!warmed)
+            {
+                AppendLog("Captcha warmup skipped: dependencies missing or warmup already completed.");
+                return;
+            }
+
+            AppendLog($"Captcha warmup completed in {sw.Elapsed.TotalSeconds:F1}s.");
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            AppendLog($"Captcha warmup skipped: {ex.Message}");
+        }
     }
 
     private BotOptions LoadBotOptions()
@@ -1043,9 +1125,11 @@ public partial class MainWindow : Window
             var name = !string.IsNullOrWhiteSpace(resourceName)
                 ? resourceName
                 : (slotId.HasValue ? ResolveResourceName(slotId.Value) : null);
-            return !string.IsNullOrWhiteSpace(name)
-                ? $"Upgrade {name} to level {targetLevel.Value}"
-                : $"Upgrade resource slot {slotId ?? 0} to level {targetLevel.Value}";
+            return !string.IsNullOrWhiteSpace(name) && slotId.HasValue
+                ? $"Upgrade {name} slot {slotId.Value} to level {targetLevel.Value}"
+                : !string.IsNullOrWhiteSpace(name)
+                    ? $"Upgrade {name} to level {targetLevel.Value}"
+                    : $"Upgrade resource slot {slotId ?? 0} to level {targetLevel.Value}";
         }
 
         if (string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase))
@@ -2097,8 +2181,7 @@ public partial class MainWindow : Window
         {
             Owner = this,
         };
-        var result = window.ShowDialog();
-        var runAnalysisRequested = result == true && window.RequestedRunAnalysisForActiveAccount;
+        window.ShowDialog();
         var activeAccountAfterDialog = _accountStore.ActiveAccountName();
         if (!string.Equals(previouslyActiveAccount, activeAccountAfterDialog, StringComparison.OrdinalIgnoreCase))
         {
@@ -2106,27 +2189,6 @@ public partial class MainWindow : Window
         }
 
         LoadConfigToUi();
-        if (runAnalysisRequested)
-        {
-            await EnsureLoggedInForAnalysisAsync();
-            var activeAccount = _accountStore.ActiveAccountName();
-            EnqueueQuickTask("account_full_analysis", $"Run full analysis for account {activeAccount}");
-            StatusTextBlock.Text = $"Queued full analysis for '{activeAccount}'.";
-        }
-    }
-
-    private async void RunActiveAccountAnalysisButton_Click(object sender, RoutedEventArgs e)
-    {
-        var activeAccount = _accountStore.ActiveAccountName();
-        if (string.IsNullOrWhiteSpace(activeAccount))
-        {
-            StatusTextBlock.Text = "No active account selected.";
-            return;
-        }
-
-        await EnsureLoggedInForAnalysisAsync();
-        EnqueueQuickTask("account_full_analysis", $"Run full analysis for account {activeAccount}");
-        StatusTextBlock.Text = $"Queued full analysis for '{activeAccount}'.";
     }
 
     private void AccountComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -2231,7 +2293,6 @@ public partial class MainWindow : Window
             _buildQueueRemainingSeconds = -1;
             _activeVillageResourceMaxLevel = NonCapitalResourceMaxLevel;
             _lastBuildingStatus = null;
-            _analysisPromptDismissed.Clear();
 
             SetResourceRows([]);
             _buildingRows.Clear();
@@ -2526,6 +2587,7 @@ public partial class MainWindow : Window
                                 if (deferred)
                                 {
                                     ScheduleDeferredBuildingsMidWaitRefresh(next, queueWaitDelay);
+                                    ScheduleDeferredResourcesMidWaitRefresh(next, queueWaitDelay);
                                     AppendLog($"Queue item deferred: {next.TaskName}. Next try in {queueWaitDelay.TotalSeconds:F0}s.");
                                 }
                                 else
@@ -2963,6 +3025,8 @@ public partial class MainWindow : Window
             _autoQueueRunCts?.Cancel();
             _loopCts?.Cancel();
             _botService.ClearQueue();
+            _buildingLastQueuedTargetBySlot.Clear();
+            _buildingLastQueuedConstructBySlot.Clear();
             ClearPendingResourceLevelsFromUi();
             RefreshQueueUi();
             AppendLog("Queue cleared and running actions stopped.");
@@ -3208,6 +3272,7 @@ public partial class MainWindow : Window
         try
         {
             var ordered = _botService.GetQueueItemsForDisplay().ToList();
+            ClearStaleBuildingPendingCaches(ordered);
             _queueServerTimeOffset = ResolveQueueServerTimeOffset();
             var displayRunningId = ResolveDisplayRunningQueueItemId(ordered);
             var rows = ordered
@@ -3328,83 +3393,6 @@ public partial class MainWindow : Window
 
         _queueUiRefreshTimer.Stop();
         _queueUiRefreshTimer.Start();
-    }
-
-    private async Task PromptAccountAnalysisIfNeededAsync(string accountName)
-    {
-        if (!_isLoggedIn)
-        {
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(accountName))
-        {
-            return;
-        }
-
-        if (_analysisPromptDismissed.Contains(accountName))
-        {
-            return;
-        }
-
-        if (IsAnalysisDone(accountName))
-        {
-            return;
-        }
-
-        await Dispatcher.InvokeAsync(() =>
-        {
-            var result = AppDialog.Show(
-                this,
-                $"Account '{accountName}' has no saved full analysis.\n\nRun full analysis now?",
-                "Account analysis",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
-
-            if (result == MessageBoxResult.Yes)
-            {
-                EnqueueQuickTask("account_full_analysis", $"Run full analysis for account {accountName}");
-                RefreshAccountPicker();
-                return;
-            }
-
-            _analysisPromptDismissed.Add(accountName);
-            AppendLog($"Account analysis postponed for '{accountName}'.");
-        });
-    }
-
-    private async Task EnsureLoggedInForAnalysisAsync()
-    {
-        if (_isLoggedIn)
-        {
-            return;
-        }
-
-        LoginButton_Click(this, new RoutedEventArgs());
-        var startedAt = DateTimeOffset.UtcNow;
-        while ((DateTimeOffset.UtcNow - startedAt).TotalSeconds < 45)
-        {
-            if (_isLoggedIn)
-            {
-                return;
-            }
-
-            await Task.Delay(250);
-        }
-
-        throw new InvalidOperationException("Could not complete login before running account analysis.");
-    }
-
-    private bool IsAnalysisDone(string accountName)
-    {
-        try
-        {
-            return _accountAnalysisStore.IsAnalyzed(accountName, GetActiveAccountServerUrl());
-        }
-        catch
-        {
-            return false;
-        }
     }
 
     private void LoadBuildingsButton_Click(object sender, RoutedEventArgs e)
@@ -4072,8 +4060,7 @@ public partial class MainWindow : Window
                 continue;
             }
 
-            if (string.Equals(item.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
-                && item.Payload.TryGetValue(BotOptionPayloadKeys.BuildingUpgradeTargetLevel, out var targetRaw)
+            if (item.Payload.TryGetValue(BotOptionPayloadKeys.BuildingUpgradeTargetLevel, out var targetRaw)
                 && int.TryParse(targetRaw, out var targetLevel))
             {
                 result[slotId] = targetLevel;
@@ -4081,6 +4068,39 @@ public partial class MainWindow : Window
         }
 
         return result;
+    }
+
+    private void ClearStaleBuildingPendingCaches(IReadOnlyList<QueueItem>? queueItems = null)
+    {
+        var activeItems = queueItems ?? GetActiveQueueItems();
+        var activeUpgradeSlots = new HashSet<int>();
+        var activeConstructSlots = new HashSet<int>();
+
+        foreach (var item in activeItems)
+        {
+            if ((string.Equals(item.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(item.TaskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase))
+                && TryReadBuildingUpgradePayload(item.Payload, out var slotId, out _))
+            {
+                activeUpgradeSlots.Add(slotId);
+            }
+
+            if (string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase)
+                && TryReadBuildingConstructPayload(item.Payload, out var constructSlotId, out _, out _))
+            {
+                activeConstructSlots.Add(constructSlotId);
+            }
+        }
+
+        foreach (var slotId in _buildingLastQueuedTargetBySlot.Keys.Except(activeUpgradeSlots).ToList())
+        {
+            _buildingLastQueuedTargetBySlot.Remove(slotId);
+        }
+
+        foreach (var slotId in _buildingLastQueuedConstructBySlot.Keys.Except(activeConstructSlots).ToList())
+        {
+            _buildingLastQueuedConstructBySlot.Remove(slotId);
+        }
     }
 
     private static string NormalizeBuildingName(string? name)
@@ -4321,6 +4341,18 @@ public partial class MainWindow : Window
                 if (currentHighest < 20)
                 {
                     reason = $"{selectedBuilding.Name} can only be duplicated after an existing one reaches level 20.";
+                    return false;
+                }
+            }
+        }
+        else if (selectedBuilding.Gid == 23)
+        {
+            if (existingSameGidLevels.Count > 0)
+            {
+                var currentHighest = existingSameGidLevels.Max();
+                if (currentHighest < 10)
+                {
+                    reason = $"{selectedBuilding.Name} can only be duplicated after an existing one reaches level 10.";
                     return false;
                 }
             }
@@ -4753,6 +4785,11 @@ public partial class MainWindow : Window
             || string.Equals(taskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool IsResourceUpgradeQueueTask(string taskName)
+    {
+        return string.Equals(taskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase);
+    }
+
     private void ScheduleDeferredBuildingsMidWaitRefresh(QueueItem item, TimeSpan queueWaitDelay)
     {
         if (!IsBuildingUpgradeQueueTask(item.TaskName) || queueWaitDelay.TotalSeconds < 3)
@@ -4779,6 +4816,35 @@ public partial class MainWindow : Window
             catch (Exception ex)
             {
                 AppendLog($"Deferred dorf2 refresh skipped: {ex.Message}");
+            }
+        });
+    }
+
+    private void ScheduleDeferredResourcesMidWaitRefresh(QueueItem item, TimeSpan queueWaitDelay)
+    {
+        if (!IsResourceUpgradeQueueTask(item.TaskName) || queueWaitDelay.TotalSeconds < 3)
+        {
+            return;
+        }
+
+        var halfDelay = TimeSpan.FromSeconds(Math.Max(1, Math.Floor(queueWaitDelay.TotalSeconds / 2d)));
+        var baseOptions = ApplySelectedVillageToOptions(LoadBotOptions());
+        var itemOptions = BotOptionsPayloadApplier.Apply(baseOptions, item.Payload);
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(halfDelay);
+                var status = await _botService.ReadVillageResourceStatusAsync(itemOptions, AppendLog, null, null, CancellationToken.None);
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    ApplyResourceStatusToUi(status);
+                });
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"Deferred dorf1 refresh skipped: {ex.Message}");
             }
         });
     }
@@ -5860,11 +5926,6 @@ public partial class MainWindow : Window
                 SetActiveFunctionExecution(string.IsNullOrWhiteSpace(next.DisplayName) ? next.TaskName : next.DisplayName);
                 await _botService.ExecuteQueueItemAsync(options, next, AppendLog, cancellationToken);
                 _botService.MarkQueueItemSucceeded(next.Id);
-                if (string.Equals(next.TaskName, "account_full_analysis", StringComparison.OrdinalIgnoreCase))
-                {
-                    _analysisPromptDismissed.Remove(_accountStore.ActiveAccountName());
-                    await Dispatcher.InvokeAsync(RefreshAccountPicker);
-                }
                 if (IsResourceUpgradeTask(next.TaskName))
                 {
                     var fastUpdated = await TryApplyFastResourceLevelUpdateAsync(next.TaskName, terminalCountBefore);
@@ -5912,6 +5973,7 @@ public partial class MainWindow : Window
                     if (deferred)
                     {
                         ScheduleDeferredBuildingsMidWaitRefresh(next, queueWaitDelay);
+                        ScheduleDeferredResourcesMidWaitRefresh(next, queueWaitDelay);
                         AppendLog($"[AUTOQ {runId}] DEFER {tickSw.Elapsed.TotalSeconds:F1}s task={next.TaskName} | next try in {queueWaitDelay.TotalSeconds:F0}s");
                     }
                     else
@@ -6037,12 +6099,17 @@ public partial class MainWindow : Window
 
                     if (IsAlarmMessage(part))
                     {
+                        var isAcknowledgedAlarm = IsAutoAcknowledgedAlarmMessage(part);
                         _alarmEntries.Insert(0, new AlarmEntryRow
                         {
                             Text = line,
-                            IsAcknowledged = false,
+                            IsAcknowledged = isAcknowledgedAlarm,
                         });
-                        _unacknowledgedAlarmCount += 1;
+                        if (!isAcknowledgedAlarm)
+                        {
+                            _unacknowledgedAlarmCount += 1;
+                        }
+
                         linesForSessionLog.Add($"[{GetServerNow():yyyy-MM-dd HH:mm:ss}] [ALARM] {part}");
                     }
 
@@ -6380,6 +6447,11 @@ public partial class MainWindow : Window
         }
 
         var value = message.ToLowerInvariant();
+        if (IsAutoAcknowledgedAlarmMessage(message))
+        {
+            return true;
+        }
+
         if (value.Contains(" started]"))
         {
             return false;
@@ -6429,6 +6501,20 @@ public partial class MainWindow : Window
             || value.Contains("invalid")
             || value.Contains("not logged in")
             || value.Contains("could not");
+    }
+
+    private static bool IsAutoAcknowledgedAlarmMessage(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        var value = message.ToLowerInvariant();
+        return value.Contains("chromium warmup")
+            || value.Contains("captcha warmup")
+            || (value.Contains("ui sync snapshot failed")
+                && value.Contains("execution context was destroyed"));
     }
 
     private static bool IsManualFarmingExecutionMessage(string message)
@@ -7051,7 +7137,7 @@ public partial class MainWindow : Window
     {
         if (!forceInstall)
         {
-            if (_chromiumEnsured || ChromiumAlreadyInstalled(_projectRoot))
+            if (_chromiumEnsured || BrowserSession.ChromiumAlreadyInstalled(_projectRoot))
             {
                 _chromiumEnsured = true;
                 return;
@@ -7100,32 +7186,6 @@ public partial class MainWindow : Window
 
         _chromiumEnsured = true;
         AppendLog("Chromium install complete.");
-    }
-
-    private static bool ChromiumAlreadyInstalled(string projectRoot)
-    {
-        try
-        {
-            if (string.IsNullOrWhiteSpace(projectRoot))
-            {
-                return false;
-            }
-
-            var playwrightRoot = Path.Combine(projectRoot, "ms-playwright");
-            if (!Directory.Exists(playwrightRoot))
-            {
-                return false;
-            }
-
-            var executables = Directory.GetFiles(playwrightRoot, "chrome.exe", SearchOption.AllDirectories);
-            return executables.Any(path =>
-                path.Contains("chromium-", StringComparison.OrdinalIgnoreCase) &&
-                path.Contains("chrome-win", StringComparison.OrdinalIgnoreCase));
-        }
-        catch
-        {
-            return false;
-        }
     }
 
     private async Task LoadResourcesAfterUpgradeAsync(CancellationToken cancellationToken = default, bool resourceOnly = false)
@@ -8083,6 +8143,32 @@ public partial class MainWindow : Window
         _buildQueueReachedZeroPendingCompletion = false;
         UpdateBuildQueueStatusText();
         RefreshVillagePicker(status);
+    }
+
+    private void ApplyResourceStatusToUi(VillageStatus status)
+    {
+        var queuedTargetsBySlot = GetQueuedResourceTargetsBySlot();
+        var resourceMaxLevel = ResolveResourceMaxLevelFromStatus(status);
+        var rows = status.ResourceFields
+            .Where(item => item.SlotId is not null)
+            .OrderBy(item => item.SlotId)
+            .Select(item => new ResourceFieldRow
+            {
+                SlotId = item.SlotId ?? 0,
+                FieldType = item.FieldType,
+                Name = item.Name,
+                Level = item.Level,
+                Url = item.Url ?? string.Empty,
+                PendingTargetLevel = ResolveQueuedResourceTarget(item.SlotId ?? 0, item.Level ?? 0, queuedTargetsBySlot),
+                IsMaxLevel = (item.Level ?? 0) >= resourceMaxLevel,
+            })
+            .ToList();
+
+        SetResourceRows(rows);
+        ApplyVillageStatusToUi(status);
+
+        var capitalText = status.IsCapital == true ? "Yes" : status.IsCapital == false ? "No" : "Unknown";
+        ResourcesInfoTextBlock.Text = $"Loaded {rows.Count} resource fields. Capital: {capitalText}. {BuildResourceForecastSummary(status)}";
     }
 
     private int ResolveResourceMaxLevelFromStatus(VillageStatus status)

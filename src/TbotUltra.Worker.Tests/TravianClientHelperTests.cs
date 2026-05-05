@@ -1,6 +1,7 @@
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
 using Xunit;
+using System.Reflection;
 
 namespace TbotUltra.Worker.Tests;
 
@@ -209,6 +210,28 @@ public sealed class TravianClientHelperTests
         ];
         var status = TravianClient.ComputeConstructionSlotStatus(active, "Romans", travianPlusActive: true);
         Assert.Equal(75, status.ShortestWaitSeconds);
+    }
+
+    [Fact]
+    public void EnsureBuildingCanBeConstructed_BlocksGreatWarehouseWithoutBuildingPlans()
+    {
+        var status = new VillageStatus(
+            ActiveVillage: "Capital",
+            Villages: [],
+            Resources: new Dictionary<string, string>(),
+            ResourceFields: [],
+            Buildings: [],
+            BuildQueue: []);
+
+        var ex = Assert.Throws<TargetInvocationException>(() => InvokeEnsureBuildingCanBeConstructed(status, 38, "Great Warehouse"));
+        Assert.Equal("Great Warehouse requires building plans and is not supported yet.", ex.InnerException?.Message);
+    }
+
+    private static void InvokeEnsureBuildingCanBeConstructed(VillageStatus status, int gid, string name)
+    {
+        var method = typeof(TravianClient).GetMethod("EnsureBuildingCanBeConstructed", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+        method!.Invoke(null, [status, gid, name]);
     }
 
     [Theory]
