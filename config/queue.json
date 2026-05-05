@@ -270,13 +270,13 @@
       "target_village_url": "dorf2.php?newdid=16561"
     },
     "priority": 0,
-    "status": "Running",
+    "status": "Pending",
     "retries": 0,
     "maxRetries": 3,
     "isRuntimeOnly": false,
-    "nextAttemptAt": "2026-05-05T18:28:26.8277419+00:00",
+    "nextAttemptAt": "2026-05-05T18:29:40.874916+00:00",
     "createdAt": "2026-05-05T17:09:23.0953893+00:00",
-    "updatedAt": "2026-05-05T18:28:26.827742+00:00"
+    "updatedAt": "2026-05-05T18:28:30.8749174+00:00"
   },
   {
     "id": "e3935669-adc2-4a69-abf2-3ad8088368de",
