@@ -1,5 +1,7 @@
 using System.Text.Json.Nodes;
 using System.Windows;
+using System.Windows.Controls;
+using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Services;
 
 namespace TbotUltra.Desktop;
@@ -24,6 +26,8 @@ public partial class SettingsWindow : Window
         HumanLikeCheckBox.IsChecked = _config["human_like_enabled"]?.GetValue<bool>() ?? false;
         AllowGoldSpendingCheckBox.IsChecked = _config["allow_gold_spending"]?.GetValue<bool>() ?? false;
         AllowSilverSpendingCheckBox.IsChecked = _config["allow_silver_spending"]?.GetValue<bool>() ?? false;
+        SelectQueueWaitThresholdMode(_config[BotOptionPayloadKeys.QueueWaitThresholdMode]?.GetValue<string>() ?? "10");
+        SelectFarmDispatchDelayMinutes(_config[BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes]?.GetValue<int>() ?? 1);
         GoldLimitSlider.Value = Math.Clamp(_config["gold_limit"]?.GetValue<int>() ?? 100, 0, 200);
         SilverLimitSlider.Value = Math.Clamp(_config["silver_limit"]?.GetValue<int>() ?? 100, 0, 1000);
         UpdateLimitLabels();
@@ -37,6 +41,8 @@ public partial class SettingsWindow : Window
             _config["human_like_enabled"] = HumanLikeCheckBox.IsChecked == true;
             _config["allow_gold_spending"] = AllowGoldSpendingCheckBox.IsChecked == true;
             _config["allow_silver_spending"] = AllowSilverSpendingCheckBox.IsChecked == true;
+            _config[BotOptionPayloadKeys.QueueWaitThresholdMode] = GetSelectedQueueWaitThresholdMode();
+            _config[BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes] = GetSelectedFarmDispatchDelayMinutes();
             _config["gold_limit"] = (int)Math.Round(GoldLimitSlider.Value);
             _config["silver_limit"] = (int)Math.Round(SilverLimitSlider.Value);
             _store.Save(_config);
@@ -74,6 +80,8 @@ public partial class SettingsWindow : Window
         HumanLikeCheckBox.IsChecked = false;
         AllowGoldSpendingCheckBox.IsChecked = false;
         AllowSilverSpendingCheckBox.IsChecked = false;
+        SelectQueueWaitThresholdMode("10");
+        SelectFarmDispatchDelayMinutes(1);
         GoldLimitSlider.Value = 100;
         SilverLimitSlider.Value = 100;
         UpdateLimitLabels();
@@ -98,6 +106,58 @@ public partial class SettingsWindow : Window
 
         GoldLimitTextBlock.Text = $"Gold limit: {(int)Math.Round(GoldLimitSlider.Value)}";
         SilverLimitTextBlock.Text = $"Silver limit: {(int)Math.Round(SilverLimitSlider.Value)}";
+    }
+
+    private void SelectQueueWaitThresholdMode(string mode)
+    {
+        var normalized = string.IsNullOrWhiteSpace(mode) ? "10" : mode.Trim();
+        foreach (var item in QueueWaitThresholdComboBox.Items.OfType<ComboBoxItem>())
+        {
+            if (string.Equals(item.Tag?.ToString(), normalized, StringComparison.OrdinalIgnoreCase))
+            {
+                QueueWaitThresholdComboBox.SelectedItem = item;
+                return;
+            }
+        }
+
+        QueueWaitThresholdComboBox.SelectedIndex = 2;
+    }
+
+    private string GetSelectedQueueWaitThresholdMode()
+    {
+        if (QueueWaitThresholdComboBox.SelectedItem is ComboBoxItem item
+            && !string.IsNullOrWhiteSpace(item.Tag?.ToString()))
+        {
+            return item.Tag!.ToString()!;
+        }
+
+        return "10";
+    }
+
+    private void SelectFarmDispatchDelayMinutes(int minutes)
+    {
+        var normalized = Math.Clamp(minutes, 1, 5).ToString();
+        foreach (var item in FarmDispatchDelayComboBox.Items.OfType<ComboBoxItem>())
+        {
+            if (string.Equals(item.Tag?.ToString(), normalized, StringComparison.OrdinalIgnoreCase))
+            {
+                FarmDispatchDelayComboBox.SelectedItem = item;
+                return;
+            }
+        }
+
+        FarmDispatchDelayComboBox.SelectedIndex = 0;
+    }
+
+    private int GetSelectedFarmDispatchDelayMinutes()
+    {
+        if (FarmDispatchDelayComboBox.SelectedItem is ComboBoxItem item
+            && int.TryParse(item.Tag?.ToString(), out var minutes))
+        {
+            return Math.Clamp(minutes, 1, 5);
+        }
+
+        return 1;
     }
 }
 

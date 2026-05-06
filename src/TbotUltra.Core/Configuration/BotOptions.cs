@@ -50,6 +50,18 @@ public sealed class BotOptions
     [ConfigurationKeyName("loop_tasks")]
     public List<string> LoopTasks { get; init; } = ["status"];
 
+    [ConfigurationKeyName("continuous_loop_groups")]
+    public List<string> ContinuousLoopGroups { get; init; } = [];
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmListNames)]
+    public List<string> ContinuousFarmListNames { get; init; } = [];
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes)]
+    public int ContinuousFarmDispatchDelayMinutes { get; init; } = 1;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.QueueWaitThresholdMode)]
+    public string QueueWaitThresholdMode { get; init; } = "10";
+
     [ConfigurationKeyName("github_releases_url")]
     public string GithubReleasesUrl { get; init; } = string.Empty;
 

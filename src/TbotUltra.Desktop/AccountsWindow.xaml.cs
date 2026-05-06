@@ -48,8 +48,11 @@ public partial class AccountsWindow : Window
 
     private void Reload()
     {
-        _accounts = _store.ListAccounts();
         _activeAccountName = _store.ActiveAccountName();
+        _accounts = _store.ListAccounts()
+            .OrderByDescending(account => string.Equals(account.Name, _activeAccountName, StringComparison.OrdinalIgnoreCase))
+            .ThenBy(account => account.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
         foreach (var account in _accounts)
         {
             account.IsActive = string.Equals(account.Name, _activeAccountName, StringComparison.OrdinalIgnoreCase);

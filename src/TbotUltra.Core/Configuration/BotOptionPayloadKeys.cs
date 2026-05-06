@@ -26,6 +26,9 @@ public static class BotOptionPayloadKeys
     public const string HeroStatPriority = "hero_stat_priority";
     public const string HeroAdventurePickOrder = "hero_adventure_pick_order"; // "shortest" or "top"
     public const string HeroHideMode = "hero_hide_mode"; // "hide" or "fight"
+    public const string ContinuousFarmListNames = "continuous_farm_list_names";
+    public const string ContinuousFarmDispatchDelayMinutes = "continuous_farm_dispatch_delay_minutes";
+    public const string QueueWaitThresholdMode = "queue_wait_threshold_mode";
 
     public const string UpgradeSelectorProfile = "upgrade_selector_profile";
     public const string CaptchaAutoSolveEnabled = "captcha_auto_solve_enabled";

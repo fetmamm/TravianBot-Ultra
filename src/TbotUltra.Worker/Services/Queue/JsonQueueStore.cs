@@ -113,6 +113,7 @@ public sealed class JsonQueueStore : IQueueStore
             var group = items
                 .OrderByDescending(item => item.Priority)
                 .ThenBy(item => item.CreatedAt)
+                .Where(item => item.Group == items.FirstOrDefault(entry => entry.Id == id)?.Group)
                 .ToList();
 
             var index = group.FindIndex(item => item.Id == id);
@@ -146,6 +147,7 @@ public sealed class JsonQueueStore : IQueueStore
             var group = items
                 .OrderByDescending(item => item.Priority)
                 .ThenBy(item => item.CreatedAt)
+                .Where(item => item.Group == items.FirstOrDefault(entry => entry.Id == id)?.Group)
                 .ToList();
 
             var index = group.FindIndex(item => item.Id == id);
@@ -348,6 +350,11 @@ public sealed class JsonQueueStore : IQueueStore
             try
             {
                 var items = JsonSerializer.Deserialize<List<QueueItem>>(raw, JsonOptions) ?? [];
+                foreach (var item in items.Where(item => item is not null))
+                {
+                    item!.Group = QueueGroupCatalog.ResolveGroup(item.TaskName);
+                }
+
                 return items.Where(item => item is not null).ToList()!;
             }
             catch (JsonException ex)
@@ -430,6 +437,7 @@ public sealed class JsonQueueStore : IQueueStore
             Id = source.Id,
             TaskName = source.TaskName,
             DisplayName = source.DisplayName,
+            Group = source.Group,
             Payload = new Dictionary<string, string>(source.Payload, StringComparer.OrdinalIgnoreCase),
             Priority = source.Priority,
             Status = source.Status,
@@ -456,6 +464,7 @@ public sealed class JsonQueueStore : IQueueStore
             Id = Guid.NewGuid(),
             TaskName = taskName.Trim(),
             DisplayName = string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim(),
+            Group = QueueGroupCatalog.ResolveGroup(taskName),
             Payload = payload is null
                 ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 : new Dictionary<string, string>(payload, StringComparer.OrdinalIgnoreCase),

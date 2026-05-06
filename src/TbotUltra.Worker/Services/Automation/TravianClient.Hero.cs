@@ -264,6 +264,62 @@ public sealed partial class TravianClient
         await PauseForManualStepIfVisibleAsync("Manual verification appeared on legacy hero adventures page.", cancellationToken);
     }
 
+    private async Task OpenHeroAdventuresPageAsync(CancellationToken cancellationToken)
+    {
+        if (await IsHeroAdventuresPageAsync(cancellationToken))
+        {
+            return;
+        }
+
+        try
+        {
+            await GotoAsync(Paths.HeroAdventures, cancellationToken);
+            await WaitForNavigationSettledAsync(cancellationToken);
+            await PauseForManualStepIfVisibleAsync("Manual verification appeared on hero adventures page.", cancellationToken);
+            if (await IsHeroAdventuresPageAsync(cancellationToken))
+            {
+                return;
+            }
+        }
+        catch (Exception ex) when (IsTransientExecutionContextException(ex))
+        {
+            Notify($"Hero adventures modern page hit transient navigation issue. Falling back to {Paths.HeroAdventureLegacy}.");
+        }
+
+        await GotoAsync(Paths.HeroAdventureLegacy, cancellationToken);
+        await WaitForNavigationSettledAsync(cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared on legacy hero adventures page.", cancellationToken);
+    }
+
+    private async Task<bool> IsHeroAdventuresPageAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        try
+        {
+            return await _page.EvaluateAsync<bool>(
+                """
+                () => {
+                  const url = (window.location.href || '').toLowerCase();
+                  if (url.includes('/hero_adventure.php') || url.includes('/hero.php?t=3')) {
+                    return true;
+                  }
+
+                  if (document.querySelector('a.gotoAdventure[href*="start_adventure.php"]')) {
+                    return true;
+                  }
+
+                  const text = (document.body?.innerText || '').toLowerCase();
+                  return text.includes('adventure')
+                    && (text.includes('to the adventure') || text.includes('arrival in') || text.includes('back in'));
+                }
+                """);
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            return false;
+        }
+    }
+
     private async Task<bool> HasAdventureEntryOnPageAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -566,7 +622,7 @@ public sealed partial class TravianClient
         var heroHpFromSidebar = await ReadHeroHpFromSidebarAsync(cancellationToken);
 
         // Step 2: /hero_adventure.php — authoritative adventure count + selection target.
-        await GotoAsync(Paths.HeroAdventures, cancellationToken);
+        await OpenHeroAdventuresPageAsync(cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared on adventures page.", cancellationToken);
         var adventureCount = await CountAdventureRowsAsync(cancellationToken);
 
@@ -606,20 +662,20 @@ public sealed partial class TravianClient
                 actions.Add($"points_allocated={allocated}");
             }
             // Return to adventure page for dispatch.
-            await GotoAsync(Paths.HeroAdventures, cancellationToken);
+            await OpenHeroAdventuresPageAsync(cancellationToken);
             await PauseForManualStepIfVisibleAsync("Manual verification appeared after allocating points.", cancellationToken);
         }
 
         // Step 4: dispatch adventure if hero is in village, has HP and adventures exist.
         var canSendByHp = !status.IsDead && (hpPercent ?? 0) >= Math.Clamp(minHpForAdventure, 1, 100);
-        var dispatchedDurationSeconds = 0;
+        var heroReturnWaitSeconds = status.SecondsUntilReturn;
         if (adventureCount > 0 && canSendByHp && inVillage)
         {
-            var (sent, durationSeconds) = await TrySendHeroToAdventureAsync(adventurePickOrder, cancellationToken);
-            dispatchedDurationSeconds = durationSeconds;
+            var (sent, durationSeconds, returnSeconds) = await TrySendHeroToAdventureAsync(adventurePickOrder, cancellationToken);
+            heroReturnWaitSeconds = returnSeconds > 0 ? returnSeconds : durationSeconds > 0 ? durationSeconds * 2 : null;
             if (sent)
             {
-                actions.Add($"adventure_sent({adventurePickOrder},duration={durationSeconds}s,return_eta={durationSeconds * 2}s)");
+                actions.Add($"adventure_sent({adventurePickOrder},duration={durationSeconds}s,return_eta={heroReturnWaitSeconds ?? 0}s)");
             }
             else
             {
@@ -645,9 +701,19 @@ public sealed partial class TravianClient
         if (hideApplied) actions.Add($"hide_mode_set={(string.Equals(hideMode, "fight", StringComparison.OrdinalIgnoreCase) ? "fight" : "hide")}");
 
         var summary = $"Hero status: dead={status.IsDead}, hp={hpPercent?.ToString() ?? "?"}%, adventures={adventureCount}, points={status.UnassignedPoints}, in_village={inVillage}";
+        if (heroReturnWaitSeconds is > 0 && actions.Count == 0)
+        {
+            return $"{summary}. Hero is away. queue_wait_seconds={heroReturnWaitSeconds.Value}";
+        }
+
         if (actions.Count == 0)
         {
             return $"{summary}. No hero action was needed.";
+        }
+
+        if (heroReturnWaitSeconds is > 0)
+        {
+            return $"{summary}. Actions: {string.Join(", ", actions)}. queue_wait_seconds={heroReturnWaitSeconds.Value}";
         }
 
         return $"{summary}. Actions: {string.Join(", ", actions)}.";
@@ -719,6 +785,19 @@ public sealed partial class TravianClient
                 return null;
               };
 
+              const parseInlineTimer = (value, patterns) => {
+                const text = (value || '').replace(/\s+/g, ' ').trim();
+                if (!text) return null;
+                for (const pattern of patterns) {
+                  const match = text.match(pattern);
+                  if (!match || !match[1]) continue;
+                  const parsed = parseTimer(match[1]);
+                  if (parsed !== null) return parsed;
+                }
+
+                return null;
+              };
+
               const text = (document.body?.innerText || '').toLowerCase();
               const dead = /\bdead\b|\btot\b|\bdeceased\b|\bdöd\b/.test(text);
 
@@ -751,7 +830,12 @@ public sealed partial class TravianClient
 
               const returnTimer =
                 parseTimer(document.querySelector('[class*="return" i] [class*="timer" i]')?.textContent || '')
-                ?? parseTimer(document.querySelector('.heroReturn .timer')?.textContent || '');
+                ?? parseTimer(document.querySelector('.heroReturn .timer')?.textContent || '')
+                ?? parseInlineTimer(document.body?.innerText || '', [
+                  /back\s+in\s*:?\s*(\d{1,3}:\d{2}:\d{2})/i,
+                  /return\s+in\s*:?\s*(\d{1,3}:\d{2}:\d{2})/i,
+                  /arrival\s+in\s*:?\s*\d{1,3}:\d{2}:\d{2}(?:\s*hour)?\s*\|\s*back\s+in\s*:?\s*(\d{1,3}:\d{2}:\d{2})/i
+                ]);
 
               const exists = !!document.querySelector('#heroImage, #heroStatus, [class*="hero" i]');
               return JSON.stringify({
@@ -1330,9 +1414,9 @@ public sealed partial class TravianClient
         _ => snapshot,
     };
 
-    private async Task<(bool Sent, int DurationSeconds)> TrySendHeroToAdventureAsync(string pickOrder, CancellationToken cancellationToken)
+    private async Task<(bool Sent, int DurationSeconds, int ReturnSeconds)> TrySendHeroToAdventureAsync(string pickOrder, CancellationToken cancellationToken)
     {
-        await GotoAsync(Paths.HeroAdventures, cancellationToken);
+        await OpenHeroAdventuresPageAsync(cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening adventures.", cancellationToken);
 
         // Step 1: pick a row (top or shortest), open the adventure detail page, and report its duration.
@@ -1359,7 +1443,7 @@ public sealed partial class TravianClient
               if (order === 'shortest') entries.sort((a, b) => a.duration - b.duration);
               const chosen = entries[0];
               chosen.link.click();
-              return JSON.stringify({ ok: true, durationSeconds: chosen.duration });
+              return JSON.stringify({ ok: true, durationSeconds: chosen.duration, returnSeconds: 0 });
             }
             """);
 
@@ -1369,15 +1453,17 @@ public sealed partial class TravianClient
 
         if (picked is null || !picked.Ok)
         {
-            return (false, 0);
+            return (false, 0, 0);
         }
 
         var duration = picked.DurationSeconds ?? 0;
-        Notify($"[adventure] picked {pickOrder} adventure, duration={duration}s, hero return ETA={duration * 2}s");
+        var fallbackReturnSeconds = duration > 0 ? duration * 2 : 0;
 
         // Step 2: confirm on the start_adventure.php page by clicking #start (button[name="s1"]).
         await WaitForNavigationSettledAsync(cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared on adventure detail page.", cancellationToken);
+        var fallbackReturnFromDetail = await ReadAdventureReturnSecondsAsync(cancellationToken) ?? fallbackReturnSeconds;
+        Notify($"[adventure] picked {pickOrder} adventure, duration={duration}s, hero return ETA={fallbackReturnFromDetail}s");
 
         var confirmed = await _page.EvaluateAsync<bool>(
             """
@@ -1391,7 +1477,84 @@ public sealed partial class TravianClient
             }
             """);
 
-        return (confirmed, duration);
+        if (!confirmed)
+        {
+            return (false, duration, fallbackReturnFromDetail);
+        }
+
+        await WaitForNavigationSettledAsync(cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared after starting hero adventure.", cancellationToken);
+        var dispatched = await IsHeroAdventureActivePageAsync(cancellationToken);
+        var returnSeconds = await ReadAdventureReturnSecondsAsync(cancellationToken) ?? fallbackReturnFromDetail;
+        Notify($"[adventure] dispatch confirmed={dispatched}, hero return ETA={returnSeconds}s");
+
+        return (dispatched, duration, returnSeconds);
+    }
+
+    private async Task<int?> ReadAdventureReturnSecondsAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var raw = await _page.EvaluateAsync<string?>(
+            """
+            () => {
+              const clean = (value) => (value || '').replace(/\s+/g, ' ').trim();
+              const text = clean(document.body?.innerText || '');
+              if (!text) return null;
+
+              const patterns = [
+                /back\s+in\s*:\s*(\d{1,3}:\d{2}:\d{2})/i,
+                /back\s+in\s+(\d{1,3}:\d{2}:\d{2})/i,
+                /return\s+in\s*:\s*(\d{1,3}:\d{2}:\d{2})/i,
+              ];
+
+              for (const pattern of patterns) {
+                const match = text.match(pattern);
+                if (match && match[1]) return match[1];
+              }
+
+              const labels = Array.from(document.querySelectorAll('td, div, span, p'));
+              for (const label of labels) {
+                const labelText = clean(label.textContent || '');
+                if (!/back\s+in|return\s+in/i.test(labelText)) continue;
+                const timer = label.querySelector?.('.timer')?.textContent || '';
+                const timerText = clean(timer);
+                if (/^\d{1,3}:\d{2}:\d{2}$/.test(timerText)) return timerText;
+                const inline = labelText.match(/(\d{1,3}:\d{2}:\d{2})/);
+                if (inline && inline[1]) return inline[1];
+              }
+
+              return null;
+            }
+            """);
+
+        return ParseDurationToSeconds(raw);
+    }
+
+    private async Task<bool> IsHeroAdventureActivePageAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        try
+        {
+            return await _page.EvaluateAsync<bool>(
+                """
+                () => {
+                  const clean = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                  const statusText = clean(document.querySelector('.heroStatusMessage')?.textContent || '');
+                  if (statusText.includes('hero is on adventure') || statusText.includes('arrival in')) {
+                    return true;
+                  }
+
+                  const bodyText = clean(document.body?.innerText || '');
+                  return bodyText.includes('hero is on adventure')
+                    || bodyText.includes('arrival in')
+                    || bodyText.includes('back in');
+                }
+                """);
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            return false;
+        }
     }
 
     private sealed class AdventurePickJs
@@ -1401,6 +1564,9 @@ public sealed partial class TravianClient
 
         [JsonPropertyName("durationSeconds")]
         public int? DurationSeconds { get; init; }
+
+        [JsonPropertyName("returnSeconds")]
+        public int? ReturnSeconds { get; init; }
     }
 
     private async Task<bool> IsHeroInActiveVillageAsync(CancellationToken cancellationToken)

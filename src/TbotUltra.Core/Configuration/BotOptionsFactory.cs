@@ -7,6 +7,10 @@ public static class BotOptionsFactory
     public static BotOptions FromConfiguration(IConfiguration configuration)
     {
         var tasks = configuration.GetSection("loop_tasks").Get<List<string>>() ?? ["status"];
+        var continuousLoopGroups = configuration.GetSection("continuous_loop_groups").Get<List<string>>() ?? [];
+        var continuousFarmListNames = configuration.GetSection(BotOptionPayloadKeys.ContinuousFarmListNames).Get<List<string>>() ?? [];
+        var continuousFarmDispatchDelayMinutes = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes, 1), 1, 5);
+        var queueWaitThresholdMode = configuration[BotOptionPayloadKeys.QueueWaitThresholdMode] ?? "10";
 
         return new BotOptions
         {
@@ -22,6 +26,10 @@ public static class BotOptionsFactory
             CaptchaSolverMaxAttempts = configuration.GetValue(BotOptionPayloadKeys.CaptchaSolverMaxAttempts, 1),
             LoopIntervalSeconds = configuration.GetValue("loop_interval_seconds", 60),
             LoopTasks = tasks,
+            ContinuousLoopGroups = continuousLoopGroups,
+            ContinuousFarmListNames = continuousFarmListNames,
+            ContinuousFarmDispatchDelayMinutes = continuousFarmDispatchDelayMinutes,
+            QueueWaitThresholdMode = queueWaitThresholdMode,
             GithubReleasesUrl = configuration["github_releases_url"] ?? string.Empty,
             HumanLikeEnabled = configuration.GetValue("human_like_enabled", false),
             HumanLikeSpeed = configuration["human_like_speed"] ?? "medium",
@@ -73,6 +81,10 @@ public static class BotOptionsFactory
             CaptchaSolverMaxAttempts = source.CaptchaSolverMaxAttempts,
             LoopIntervalSeconds = source.LoopIntervalSeconds,
             LoopTasks = source.LoopTasks,
+            ContinuousLoopGroups = source.ContinuousLoopGroups,
+            ContinuousFarmListNames = source.ContinuousFarmListNames,
+            ContinuousFarmDispatchDelayMinutes = source.ContinuousFarmDispatchDelayMinutes,
+            QueueWaitThresholdMode = source.QueueWaitThresholdMode,
             GithubReleasesUrl = source.GithubReleasesUrl,
             HumanLikeEnabled = source.HumanLikeEnabled,
             HumanLikeSpeed = source.HumanLikeSpeed,

@@ -182,19 +182,21 @@ public sealed partial class TravianClient
                 var resourceFields = await ReadResourceFieldsAsync(cancellationToken);
                 NotifyResourceLevelIncreases(knownLevelsBySlot, resourceFields);
                 knownLevelsBySlot = BuildResourceLevelMap(resourceFields);
-                var waited = await WaitForConstructionSlotIfBusyAsync(ConstructionKind.Resource, cancellationToken);
-                if (waited > 0)
-                {
-                    transientRetries = 0;
-                    continue;
-                }
-
                 var fallbackMax = 40;
                 var candidates = resourceFields
                     .Where(field => field.SlotId is not null && field.Level is not null)
                     .OrderBy(field => field.Level ?? 0)
                     .ThenBy(field => field.SlotId ?? 999)
                     .ToList();
+
+                var preflightSlot = candidates.FirstOrDefault(field => (field.Level ?? 0) < Math.Min(targetLevel, fallbackMax))?.SlotId
+                    ?? candidates.FirstOrDefault()?.SlotId
+                    ?? 0;
+                var deferMessage = await CheckQueueOrDeferAsync(ConstructionKind.Resource, preflightSlot, upgrades, cancellationToken);
+                if (deferMessage is not null)
+                {
+                    return deferMessage;
+                }
 
                 var attemptedAny = false;
                 var blockReasons = new List<string>();
@@ -245,7 +247,12 @@ public sealed partial class TravianClient
 
                     if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByQueue)
                     {
-                        // The top-of-loop build queue read will detect the remaining duration and wait.
+                        var queueDeferMessage = await CheckQueueOrDeferAsync(ConstructionKind.Resource, slot, upgrades, cancellationToken);
+                        if (queueDeferMessage is not null)
+                        {
+                            return queueDeferMessage;
+                        }
+
                         Notify($"Resource slot {slot} blocked by queue. Retrying after queue clears.");
                         transientRetries = 0;
                         goto NextLoopTick;
@@ -254,6 +261,10 @@ public sealed partial class TravianClient
                     if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources)
                     {
                         var waitSeconds = ClampResourceWaitSeconds(actionability.QueueWaitSeconds);
+                        if (ShouldDeferLongWait(waitSeconds))
+                        {
+                            return $"Resource slot {slot} blocked by resources. queue_wait_seconds={waitSeconds}";
+                        }
                         Notify($"Resource slot {slot} blocked by resources. Waiting {waitSeconds}s. queue_wait_seconds={waitSeconds}");
                         await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
                         transientRetries = 0;

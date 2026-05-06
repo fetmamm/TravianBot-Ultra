@@ -17,6 +17,7 @@ public static class TaskCatalog
         "hero_manage",
         "hero_set_hide_mode",
         "upgrade_troops_at_smithy",
+        "send_farmlists",
     ];
 
     private static readonly HashSet<string> AllowedSet = new(AllowedTaskNamesValue, StringComparer.OrdinalIgnoreCase);

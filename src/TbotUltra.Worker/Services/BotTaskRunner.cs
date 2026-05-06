@@ -39,6 +39,8 @@ public sealed class BotTaskRunner
             ["hero_set_hide_mode"] = ExecuteHeroSetHideModeAsync,
             // Walks through the Smithy and clicks every "Upgrade" button until none remain.
             ["upgrade_troops_at_smithy"] = ExecuteUpgradeTroopsAtSmithyAsync,
+            // Sends one of the selected farmlists that is ready right now.
+            ["send_farmlists"] = ExecuteSendFarmlistsAsync,
         };
 
     private readonly IAccountProvider _accountProvider;
@@ -905,6 +907,8 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
         var result = await context.Client.UpgradeAllTroopsAtSmithyAsync(context.CancellationToken);
         context.Log(result);
         await RefreshBuildingsSnapshotAfterTaskAsync(context);
+        ThrowIfTroopsGroupBlocked(result);
+        ThrowIfTaskBlocked("upgrade_troops_at_smithy", result);
     }
 
     private static async Task ExecuteLoadBuildingsSnapshotAsync(TaskExecutionContext context)
@@ -987,6 +991,49 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             : $"Hero hide mode already '{context.Options.HeroHideMode}' — no change.");
     }
 
+    private static async Task ExecuteSendFarmlistsAsync(TaskExecutionContext context)
+    {
+        var selectedNames = (context.Options.ContinuousFarmListNames ?? [])
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (selectedNames.Count <= 0)
+        {
+            throw new InvalidOperationException("No farm lists selected for continuous farming.");
+        }
+
+        var overview = await context.Client.ReadFarmListsOverviewAsync(context.CancellationToken);
+        var matchingLists = overview
+            .Where(item => item is not null && selectedNames.Contains(item.Name, StringComparer.OrdinalIgnoreCase))
+            .OrderBy(item => item.RemainingSeconds is > 0 ? item.RemainingSeconds.Value : 0)
+            .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (matchingLists.Count <= 0)
+        {
+            throw new InvalidOperationException("Selected farm lists were not found on the farm page.");
+        }
+
+        var ready = matchingLists.FirstOrDefault(item => item.RemainingSeconds is null or <= 0);
+        if (ready is null)
+        {
+            var waitSeconds = matchingLists
+                .Where(item => item.RemainingSeconds is > 0)
+                .Min(item => item.RemainingSeconds) ?? 60;
+            throw new InvalidOperationException($"No selected farm list is ready. queue_wait_seconds={ResolveQueueWaitDelaySeconds(context.Options, waitSeconds)}");
+        }
+
+        var remainingSeconds = await context.Client.SendFarmListNowAsync(ready.Name, context.CancellationToken);
+        var dispatchDelaySeconds = Math.Clamp(context.Options.ContinuousFarmDispatchDelayMinutes, 1, 5) * 60;
+        var nextWaitSeconds = Math.Max(dispatchDelaySeconds, remainingSeconds ?? 0);
+        var nextTimer = remainingSeconds is > 0
+            ? TimeSpan.FromSeconds(remainingSeconds.Value).ToString(remainingSeconds.Value >= 3600 ? @"hh\:mm\:ss" : @"mm\:ss")
+            : "Ready";
+        context.Log(
+            $"Continuous farming sent '{ready.Name}'. Next timer={nextTimer}. Dispatch delay={dispatchDelaySeconds / 60} min.");
+        throw new InvalidOperationException($"Continuous farming cooldown active. queue_wait_seconds={Math.Max(1, nextWaitSeconds)}");
+    }
+
     private static async Task ExecuteHeroManageAsync(TaskExecutionContext context)
     {
         var result = await context.Client.ManageHeroAsync(
@@ -998,6 +1045,7 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             context.Options.HeroHideMode,
             context.CancellationToken);
         context.Log(result);
+        ThrowIfTaskBlocked("hero_manage", result);
     }
 
     private static void ThrowIfTaskBlocked(string taskName, string result)
@@ -1008,6 +1056,25 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
         }
 
         throw new InvalidOperationException($"Task '{taskName}' could not execute successfully: {result}");
+    }
+
+    private static void ThrowIfTroopsGroupBlocked(string result)
+    {
+        if (string.IsNullOrWhiteSpace(result))
+        {
+            return;
+        }
+
+        if (result.Contains("Smithy not found in this village", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"Task 'upgrade_troops_at_smithy' blocked permanently: troops_blocked=smithy_missing | {result}");
+        }
+
+        if (result.Contains("Smithy:", StringComparison.OrdinalIgnoreCase)
+            && result.Contains("All done", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"Task 'upgrade_troops_at_smithy' blocked permanently: troops_blocked=all_done | {result}");
+        }
     }
 
     internal static bool IsBlockedTaskResult(string? result)
@@ -1027,6 +1094,28 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             || value.Contains("is not listed by the server")
             || value.Contains("cannot be built in slot")
             || value.Contains("reports max level reached");
+    }
+
+    private static int ResolveQueueWaitDelaySeconds(BotOptions options, int waitSeconds)
+    {
+        if (waitSeconds <= 0)
+        {
+            return 1;
+        }
+
+        var mode = options.QueueWaitThresholdMode?.Trim();
+        if (string.Equals(mode, "smart", StringComparison.OrdinalIgnoreCase))
+        {
+            return waitSeconds;
+        }
+
+        if (!int.TryParse(mode, out var thresholdSeconds) || thresholdSeconds < 0)
+        {
+            thresholdSeconds = 10;
+        }
+
+        thresholdSeconds = Math.Max(1, thresholdSeconds);
+        return Math.Max(1, Math.Min(thresholdSeconds, waitSeconds));
     }
 
     private sealed record TaskExecutionContext(

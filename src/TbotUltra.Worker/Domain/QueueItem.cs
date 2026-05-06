@@ -5,6 +5,7 @@ public sealed class QueueItem
     public Guid Id { get; set; } = Guid.NewGuid();
     public string TaskName { get; set; } = string.Empty;
     public string? DisplayName { get; set; }
+    public QueueGroup Group { get; set; } = QueueGroup.Construction;
     public Dictionary<string, string> Payload { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public int Priority { get; set; }
     public QueueStatus Status { get; set; } = QueueStatus.Pending;

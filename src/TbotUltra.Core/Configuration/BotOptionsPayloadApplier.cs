@@ -28,6 +28,9 @@ public static class BotOptionsPayloadApplier
         var heroHideMode = source.HeroHideMode;
         var upgradeSelectorProfile = source.UpgradeSelectorProfile;
         var natarVillageSelection = source.NatarVillageSelection;
+        var continuousFarmListNames = source.ContinuousFarmListNames;
+        var continuousFarmDispatchDelayMinutes = source.ContinuousFarmDispatchDelayMinutes;
+        var queueWaitThresholdMode = source.QueueWaitThresholdMode;
 
         if (payload is not null)
         {
@@ -176,6 +179,29 @@ public static class BotOptionsPayloadApplier
                 if (key.Equals(BotOptionPayloadKeys.UpgradeSelectorProfile, StringComparison.OrdinalIgnoreCase))
                 {
                     upgradeSelectorProfile = value;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ContinuousFarmListNames, StringComparison.OrdinalIgnoreCase))
+                {
+                    continuousFarmListNames = value
+                        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                        .Where(item => !string.IsNullOrWhiteSpace(item))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var dispatchDelayMinutes))
+                {
+                    continuousFarmDispatchDelayMinutes = Math.Clamp(dispatchDelayMinutes, 1, 5);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.QueueWaitThresholdMode, StringComparison.OrdinalIgnoreCase))
+                {
+                    queueWaitThresholdMode = value;
                 }
             }
         }
@@ -194,6 +220,10 @@ public static class BotOptionsPayloadApplier
             CaptchaSolverMaxAttempts = captchaSolverMaxAttempts,
             LoopIntervalSeconds = source.LoopIntervalSeconds,
             LoopTasks = source.LoopTasks,
+            ContinuousLoopGroups = source.ContinuousLoopGroups,
+            ContinuousFarmListNames = continuousFarmListNames,
+            ContinuousFarmDispatchDelayMinutes = continuousFarmDispatchDelayMinutes,
+            QueueWaitThresholdMode = queueWaitThresholdMode,
             GithubReleasesUrl = source.GithubReleasesUrl,
             HumanLikeEnabled = source.HumanLikeEnabled,
             HumanLikeSpeed = source.HumanLikeSpeed,

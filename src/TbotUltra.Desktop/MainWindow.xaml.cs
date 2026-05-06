@@ -1,9 +1,11 @@
 using System.Diagnostics;
 using System.IO;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -25,10 +27,14 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow : Window
 {
+    private const string ContinuousLoopGroupOrderConfigKey = "continuous_loop_group_order";
+    private const string DashboardVisibleGroupsConfigKey = "dashboard_visible_groups";
     private const int ResourceFieldMaxLevel = 40;
     private const int NonCapitalResourceMaxLevel = 10;
     private const int MaxFarmListsShown = 120;
     private const int MaxLogLinesPerFlush = 220;
+    private const int MaxSessionLogFiles = 5;
+    private const int ContinuousLoopMaxSleepSliceSeconds = 5;
     private const string RuntimeManualTaskPrefix = "desktop_runtime_manual";
 
     private sealed class ManualExecutionState
@@ -37,6 +43,20 @@ public partial class MainWindow : Window
         public string OperationName { get; init; } = string.Empty;
         public Guid QueueItemId { get; init; }
         public ManualExecutionOutcome Outcome { get; set; }
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    private struct MemoryStatusEx
+    {
+        public uint Length;
+        public uint MemoryLoad;
+        public ulong TotalPhys;
+        public ulong AvailPhys;
+        public ulong TotalPageFile;
+        public ulong AvailPageFile;
+        public ulong TotalVirtual;
+        public ulong AvailVirtual;
+        public ulong AvailExtendedVirtual;
     }
 
     private sealed record NatarListRow(
@@ -153,9 +173,19 @@ public partial class MainWindow : Window
     private AppDialog? _captchaAutoSolvePopup;
     private DateTimeOffset _lastVerificationPopupAt = DateTimeOffset.MinValue;
     private DateTimeOffset _inlineWaitUntilUtc = DateTimeOffset.MinValue;
+    private DateTimeOffset _constructionInlineWaitUntilUtc = DateTimeOffset.MinValue;
     private int _manualFarmSessionExecutionCount;
     private string? _activeAutomationTaskName;
     private string? _activeFunctionDisplayName;
+    private string? _troopsBlockedReasonKey;
+    private string? _troopsBlockedReasonText;
+    private bool _troopsBlockedPreviouslyEnabled;
+    private string? _farmingBlockedReasonKey;
+    private string? _farmingBlockedReasonText;
+    private bool _farmingBlockedPreviouslyEnabled;
+    private string? _heroBlockedReasonKey;
+    private string? _heroBlockedReasonText;
+    private bool _heroBlockedPreviouslyEnabled;
     private string? _pendingManualOperationId;
     private readonly Dictionary<string, string> _operationNamesById = new(StringComparer.OrdinalIgnoreCase);
     private ManualExecutionState? _activeManualExecution;
@@ -170,28 +200,19 @@ public partial class MainWindow : Window
     private bool _suppressFarmListUiRefresh;
     private bool _farmingOperationBusy;
     private bool _natarsProfileAnalyzed;
+    private DateTimeOffset _lastFarmListsAnalysisAt = DateTimeOffset.MinValue;
     private string _lastVillageSwitchRefreshKey = string.Empty;
     private DateTimeOffset _lastVillageSwitchRefreshAt = DateTimeOffset.MinValue;
     private VillageStatus? _lastBuildingStatus;
     private readonly object _pendingLogSync = new();
     private readonly Queue<string> _pendingLogMessages = new();
     private readonly object _sessionLogWriteSync = new();
+    private readonly List<string> _sessionLogLines = [];
+    private readonly List<string> _sessionAlarmLines = [];
     private bool _logFlushQueued;
-
-    private static readonly (string TaskName, string Title, string Description)[] AutomationLoopTaskCatalog =
-    [
-        ("status", "Check Village Status", "Reads current village status, resources and queue."),
-        ("scan_all_villages", "Scan All Villages", "Scans and logs status for all villages."),
-        ("account_snapshot", "Account Snapshot", "Reads tribe, active village and village count."),
-        ("upgrade_resource_to_level", "Upgrade Resource To Level", "Upgrades configured resource slot to target level."),
-        ("upgrade_all_resources_to_level", "Upgrade All Resources", "Upgrades all resource fields toward configured level."),
-        ("upgrade_building_to_level", "Upgrade Building To Level", "Upgrades configured building slot to target level."),
-        ("upgrade_building_to_max", "Upgrade Building To Max", "Upgrades configured building slot to max level."),
-        ("construct_building", "Construct Building", "Builds configured building in configured slot."),
-        ("load_buildings_snapshot", "Load Building Snapshot", "Reads and stores current building snapshot."),
-        ("demolish_building_to_level", "Demolish Building", "Demolishes configured building to target level."),
-        ("hero_manage", "Hero adventure", "Checks hero status (revive if dead, allocate points if leveled up) and then sends on adventure if HP allows."),
-    ];
+    private int _lastContinuousLoopGroupIndex = -1;
+    private bool _continuousLoopConstructionStatusNeedsSync = true;
+    private bool _restartContinuousLoopAfterStop;
 
     public ObservableCollection<ResourceFieldRow> WoodFields => _woodFields;
     public ObservableCollection<ResourceFieldRow> ClayFields => _clayFields;
@@ -282,6 +303,7 @@ public partial class MainWindow : Window
         FarmListsItemsControl.ItemsSource = _farmLists;
         _farmLists.CollectionChanged += (_, _) =>
         {
+            SyncFarmListSelectionHandlers();
             if (_suppressFarmListUiRefresh)
             {
                 return;
@@ -490,6 +512,7 @@ public partial class MainWindow : Window
         {
             GoldClubInfoTextBlock.Text = "Yes";
             GoldClubInfoTextBlock.Foreground = System.Windows.Media.Brushes.Green;
+            ClearFarmingBlockedState();
         }
         else if (enabled == false)
         {
@@ -877,44 +900,46 @@ public partial class MainWindow : Window
 
     private void LoadAutomationLoopTasks(BotOptions options)
     {
-        var configured = (options.LoopTasks ?? [])
+        var configured = (options.ContinuousLoopGroups ?? [])
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .Select(name => name.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+        if (configured.Count <= 0)
+        {
+            configured = (options.LoopTasks ?? [])
+                .Select(NormalizeLegacyLoopTaskName)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Select(QueueGroupCatalog.ResolveGroup)
+                .Select(QueueGroupCatalog.GetKey)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
 
-        var known = AutomationLoopTaskCatalog.ToDictionary(item => item.TaskName, item => item, StringComparer.OrdinalIgnoreCase);
-        var orderedNames = configured
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var orderedNames = LoadConfiguredContinuousLoopGroupOrder();
+        var visibleGroups = LoadConfiguredDashboardVisibleGroups();
 
         _suppressAutomationLoopConfigWrite = true;
         try
         {
             _automationLoopTasks.Clear();
-            foreach (var taskName in orderedNames)
+            foreach (var groupKey in orderedNames)
             {
-                if (known.TryGetValue(taskName, out var catalogItem))
+                if (!QueueGroupCatalog.TryParse(groupKey, out var group))
                 {
-                    _automationLoopTasks.Add(new LoopTaskOption
-                    {
-                        TaskName = catalogItem.TaskName,
-                        Title = catalogItem.Title,
-                        Description = catalogItem.Description,
-                        IsEnabled = configured.Contains(taskName, StringComparer.OrdinalIgnoreCase),
-                    });
+                    continue;
                 }
-                else
+
+                _automationLoopTasks.Add(new LoopTaskOption
                 {
-                    _automationLoopTasks.Add(new LoopTaskOption
-                    {
-                        TaskName = taskName,
-                        Title = HumanizeTaskName(taskName),
-                        Description = "Custom loop task from bot.json.",
-                        IsEnabled = true,
-                    });
-                }
+                    TaskName = groupKey,
+                    Title = QueueGroupCatalog.GetTitle(group),
+                    Description = QueueGroupCatalog.GetDescription(group),
+                    IsEnabled = configured.Contains(groupKey, StringComparer.OrdinalIgnoreCase),
+                    IsVisible = visibleGroups.Contains(groupKey, StringComparer.OrdinalIgnoreCase),
+                    StateText = "Idle",
+                    DetailText = "No queued task.",
+                });
             }
 
             UpdateAutomationLoopOrders();
@@ -938,9 +963,10 @@ public partial class MainWindow : Window
     private void UpdateAutomationLoopSummaryText()
     {
         var enabledCount = _automationLoopTasks.Count(item => item.IsEnabled);
+        var visibleCount = _automationLoopTasks.Count(item => item.IsVisible);
         AutomationLoopSummaryTextBlock.Text = enabledCount <= 0
-            ? "No loop task enabled. Enable at least one task for continuous loop."
-            : $"Loop cycles through {enabledCount} enabled task(s). Drag cards to change execution order.";
+            ? $"No group enabled. Visible on dashboard: {visibleCount}."
+            : $"Continuous loop uses {enabledCount} enabled group(s). Visible on dashboard: {visibleCount}.";
         UpdateAutomationLoopColumns();
     }
 
@@ -951,7 +977,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        var columns = _automationLoopTasks.Count <= 7 ? 1 : 2;
+        var visibleCount = Math.Max(1, _automationLoopTasks.Count(item => item.IsVisible));
+        var columns = visibleCount <= 4 ? 1 : 2;
         var factory = new FrameworkElementFactory(typeof(VerticalFirstUniformGrid));
         factory.SetValue(VerticalFirstUniformGrid.ColumnsProperty, columns);
         AutomationLoopListBox.ItemsPanel = new ItemsPanelTemplate(factory);
@@ -976,6 +1003,67 @@ public partial class MainWindow : Window
         _ = Dispatcher.BeginInvoke((Action)Apply);
     }
 
+    private QueueGroup? GetActiveContinuousLoopGroup()
+    {
+        var taskName = _activeAutomationTaskName;
+        if (string.IsNullOrWhiteSpace(taskName))
+        {
+            return null;
+        }
+
+        return QueueGroupCatalog.ResolveGroup(taskName);
+    }
+
+    private bool HasEnabledContinuousLoopGroupsExcept(QueueGroup excludedGroup)
+    {
+        return GetContinuousLoopEnabledGroupsInOrder().Any(group => group != excludedGroup);
+    }
+
+    private void StartContinuousLoopRunner()
+    {
+        var initialOptions = LoadBotOptions();
+        _loopStopRequested = false;
+        _queueStopRequested = false;
+        _continuousLoopConstructionStatusNeedsSync = true;
+        _loopCts = new CancellationTokenSource();
+        var token = _loopCts.Token;
+
+        StartLoopButton.Content = "Pause bot";
+        StartLoopButton.IsEnabled = true;
+        SetLoopIndicator(true);
+        AppendLog($"Loop started. Interval={initialOptions.LoopIntervalSeconds}s");
+
+        _loopTask = Task.Run(() => RunContinuousLoopAsync(token), token);
+        _ = TrackLoopCompletionAsync(_loopTask);
+    }
+
+    private bool IsContinuousLoopGroupEnabled(QueueGroup group)
+    {
+        return GetContinuousLoopEnabledGroupsInOrder().Contains(group);
+    }
+
+    private IReadOnlyList<QueueItem> GetContinuousLoopRelevantQueueItems()
+    {
+        var enabledGroups = GetContinuousLoopEnabledGroupsInOrder().ToHashSet();
+        if (enabledGroups.Count <= 0)
+        {
+            return [];
+        }
+
+        return _botService.GetQueueItemsForDisplay()
+            .Where(item => enabledGroups.Contains(item.Group))
+            .ToList();
+    }
+
+    private static IReadOnlyList<QueueItem> OrderContinuousLoopGroupItems(IEnumerable<QueueItem> items)
+    {
+        return items
+            .OrderBy(item => item.IsRuntimeOnly)
+            .ThenByDescending(item => item.Priority)
+            .ThenBy(item => item.CreatedAt)
+            .ToList();
+    }
+
     private void SetActiveFunctionExecution(string? displayName)
     {
         void Apply()
@@ -995,6 +1083,269 @@ public partial class MainWindow : Window
         _ = Dispatcher.BeginInvoke((Action)Apply);
     }
 
+    private static bool TryExtractTroopsBlockedReason(string? message, out string reasonKey, out string reasonText)
+    {
+        reasonKey = string.Empty;
+        reasonText = string.Empty;
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        var value = message.Trim();
+        if (value.Contains("Smithy not found in this village", StringComparison.OrdinalIgnoreCase))
+        {
+            reasonKey = TroopsBlockedReasonSmithyMissing;
+            reasonText = "Smithy missing";
+            return true;
+        }
+
+        if (value.Contains("Smithy:", StringComparison.OrdinalIgnoreCase)
+            && value.Contains("All done", StringComparison.OrdinalIgnoreCase))
+        {
+            reasonKey = TroopsBlockedReasonAllDone;
+            reasonText = "All upgrades completed";
+            return true;
+        }
+
+        return false;
+    }
+
+    private void SetTroopsBlockedState(string reasonKey, string reasonText)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.Invoke(() => SetTroopsBlockedState(reasonKey, reasonText));
+            return;
+        }
+
+        var troopsOption = _automationLoopTasks.FirstOrDefault(item =>
+            string.Equals(item.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Troops), StringComparison.OrdinalIgnoreCase));
+        if (troopsOption is not null)
+        {
+            _troopsBlockedPreviouslyEnabled = troopsOption.IsEnabled;
+            troopsOption.IsEnabled = false;
+        }
+
+        _troopsBlockedReasonKey = reasonKey;
+        _troopsBlockedReasonText = reasonText;
+        UpdateAutomationLoopRunningIndicators();
+        PersistAutomationLoopTasksToConfig();
+    }
+
+    private void SetFarmingBlockedState(string reasonKey, string reasonText)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.Invoke(() => SetFarmingBlockedState(reasonKey, reasonText));
+            return;
+        }
+
+        var farmingOption = _automationLoopTasks.FirstOrDefault(item =>
+            string.Equals(item.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Farming), StringComparison.OrdinalIgnoreCase));
+        if (farmingOption is not null)
+        {
+            _farmingBlockedPreviouslyEnabled = farmingOption.IsEnabled;
+            farmingOption.IsEnabled = false;
+        }
+
+        _farmingBlockedReasonKey = reasonKey;
+        _farmingBlockedReasonText = reasonText;
+        UpdateAutomationLoopRunningIndicators();
+        PersistAutomationLoopTasksToConfig();
+    }
+
+    private void SetHeroBlockedState(string reasonKey, string reasonText)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.Invoke(() => SetHeroBlockedState(reasonKey, reasonText));
+            return;
+        }
+
+        var heroOption = _automationLoopTasks.FirstOrDefault(item =>
+            string.Equals(item.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Hero), StringComparison.OrdinalIgnoreCase));
+        if (heroOption is not null)
+        {
+            _heroBlockedPreviouslyEnabled = heroOption.IsEnabled;
+            heroOption.IsEnabled = false;
+        }
+
+        _heroBlockedReasonKey = reasonKey;
+        _heroBlockedReasonText = reasonText;
+        UpdateAutomationLoopRunningIndicators();
+        PersistAutomationLoopTasksToConfig();
+    }
+
+    private void ClearTroopsBlockedState()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.Invoke(ClearTroopsBlockedState);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_troopsBlockedReasonKey) && string.IsNullOrWhiteSpace(_troopsBlockedReasonText))
+        {
+            return;
+        }
+
+        _troopsBlockedReasonKey = null;
+        _troopsBlockedReasonText = null;
+        var troopsOption = _automationLoopTasks.FirstOrDefault(item =>
+            string.Equals(item.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Troops), StringComparison.OrdinalIgnoreCase));
+        if (troopsOption is not null && _troopsBlockedPreviouslyEnabled)
+        {
+            troopsOption.IsEnabled = true;
+        }
+
+        _troopsBlockedPreviouslyEnabled = false;
+        UpdateAutomationLoopRunningIndicators();
+        PersistAutomationLoopTasksToConfig();
+    }
+
+    private void ClearFarmingBlockedState()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.Invoke(ClearFarmingBlockedState);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_farmingBlockedReasonKey) && string.IsNullOrWhiteSpace(_farmingBlockedReasonText))
+        {
+            return;
+        }
+
+        _farmingBlockedReasonKey = null;
+        _farmingBlockedReasonText = null;
+        var farmingOption = _automationLoopTasks.FirstOrDefault(item =>
+            string.Equals(item.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Farming), StringComparison.OrdinalIgnoreCase));
+        if (farmingOption is not null && _farmingBlockedPreviouslyEnabled)
+        {
+            farmingOption.IsEnabled = true;
+        }
+
+        _farmingBlockedPreviouslyEnabled = false;
+        UpdateAutomationLoopRunningIndicators();
+        PersistAutomationLoopTasksToConfig();
+    }
+
+    private void ClearHeroBlockedState()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.Invoke(ClearHeroBlockedState);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_heroBlockedReasonKey) && string.IsNullOrWhiteSpace(_heroBlockedReasonText))
+        {
+            return;
+        }
+
+        _heroBlockedReasonKey = null;
+        _heroBlockedReasonText = null;
+        var heroOption = _automationLoopTasks.FirstOrDefault(item =>
+            string.Equals(item.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Hero), StringComparison.OrdinalIgnoreCase));
+        if (heroOption is not null && _heroBlockedPreviouslyEnabled)
+        {
+            heroOption.IsEnabled = true;
+        }
+
+        _heroBlockedPreviouslyEnabled = false;
+        UpdateAutomationLoopRunningIndicators();
+        PersistAutomationLoopTasksToConfig();
+    }
+
+    private void TryClearTroopsBlockedStateFromVillageStatus(VillageStatus status)
+    {
+        if (!string.Equals(_troopsBlockedReasonKey, TroopsBlockedReasonSmithyMissing, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var hasSmithy = status.Buildings.Any(item =>
+            item.Gid == 12
+            || string.Equals(item.Name, "Smithy", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(item.Name, "Blacksmith", StringComparison.OrdinalIgnoreCase));
+        if (hasSmithy)
+        {
+            ClearTroopsBlockedState();
+            AppendLog("Troops group re-enabled: Smithy detected after building refresh.");
+        }
+    }
+
+    private int? ResolveConstructionGroupRemainingSeconds()
+    {
+        var remainingSeconds = _buildQueueRemainingSeconds > 0 ? _buildQueueRemainingSeconds : 0;
+        if (_constructionInlineWaitUntilUtc > DateTimeOffset.UtcNow)
+        {
+            var inlineSeconds = (int)Math.Ceiling((_constructionInlineWaitUntilUtc - DateTimeOffset.UtcNow).TotalSeconds);
+            remainingSeconds = Math.Max(remainingSeconds, Math.Max(0, inlineSeconds));
+        }
+
+        return remainingSeconds > 0 ? remainingSeconds : null;
+    }
+
+    private bool IsConstructionGroupReady()
+    {
+        return ResolveConstructionGroupRemainingSeconds() is not > 0;
+    }
+
+    private void ApplyConstructionInlineWait(TimeSpan waitDelay)
+    {
+        if (waitDelay <= TimeSpan.Zero)
+        {
+            return;
+        }
+
+        var waitUntilUtc = DateTimeOffset.UtcNow.Add(waitDelay);
+        if (waitUntilUtc <= _constructionInlineWaitUntilUtc)
+        {
+            return;
+        }
+
+        _constructionInlineWaitUntilUtc = waitUntilUtc;
+        UpdateAutomationLoopRunningIndicators();
+    }
+
+    private bool IsTroopsGroupBlocked()
+    {
+        return !string.IsNullOrWhiteSpace(_troopsBlockedReasonKey);
+    }
+
+    private bool IsFarmingGroupBlocked()
+    {
+        return !string.IsNullOrWhiteSpace(_farmingBlockedReasonKey);
+    }
+
+    private bool IsHeroGroupBlocked()
+    {
+        return !string.IsNullOrWhiteSpace(_heroBlockedReasonKey);
+    }
+
+    private void ApplyHeroAdventureAvailability(int? count)
+    {
+        if (count is null)
+        {
+            HeroAdventureCountTextBlock.Text = "?";
+            return;
+        }
+
+        HeroAdventureCountTextBlock.Text = count.Value.ToString();
+        if (count.Value > 0)
+        {
+            ClearHeroBlockedState();
+            return;
+        }
+
+        if (IsContinuousLoopGroupEnabled(QueueGroup.Hero) || IsHeroGroupBlocked())
+        {
+            SetHeroBlockedState(HeroBlockedReasonNoAdventures, "No adventures");
+        }
+    }
+
     private bool IsFunctionExecutionRunning(bool hasRunningQueueItems)
     {
         return hasRunningQueueItems
@@ -1008,9 +1359,10 @@ public partial class MainWindow : Window
         var isRunning = (_loopTask is not null && !_loopTask.IsCompleted) || _autoQueueRunning;
         var hasPausedQueueItems = false;
         string? queueRunningTaskName = null;
+        IReadOnlyList<QueueItem> queueItems = [];
         try
         {
-            var queueItems = _botService.GetQueueItemsForDisplay();
+            queueItems = _botService.GetQueueItemsForDisplay();
             hasPausedQueueItems = queueItems.Any(item => item.Status == QueueStatus.Paused);
             queueRunningTaskName = queueItems.FirstOrDefault(item => item.Status == QueueStatus.Running)?.TaskName;
         }
@@ -1021,16 +1373,106 @@ public partial class MainWindow : Window
 
         var runningTaskName = !string.IsNullOrWhiteSpace(queueRunningTaskName)
             ? queueRunningTaskName
-            : _activeAutomationTaskName;
-        if (string.IsNullOrWhiteSpace(runningTaskName) && isRunning)
-        {
-            runningTaskName = _automationLoopTasks.FirstOrDefault(item => item.IsEnabled)?.TaskName;
-        }
+            : isRunning
+                ? _activeAutomationTaskName
+                : null;
+
+        var runningGroup = string.IsNullOrWhiteSpace(runningTaskName)
+            ? (QueueGroup?)null
+            : QueueGroupCatalog.ResolveGroup(runningTaskName);
 
         foreach (var item in _automationLoopTasks)
         {
-            item.IsRunning = !string.IsNullOrWhiteSpace(runningTaskName)
-                && string.Equals(item.TaskName, runningTaskName, StringComparison.OrdinalIgnoreCase);
+            if (!QueueGroupCatalog.TryParse(item.TaskName, out var group))
+            {
+                item.IsRunning = false;
+                item.StateText = "Idle";
+                item.DetailText = "Unknown group.";
+                item.QueuedCount = 0;
+                item.RemainingSeconds = null;
+                continue;
+            }
+
+            var groupItems = queueItems.Where(entry => entry.Group == group).ToList();
+            var pendingCount = groupItems.Count(entry => entry.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused);
+            var deferred = groupItems
+                .Where(entry => entry.Status == QueueStatus.Pending && entry.NextAttemptAt > DateTimeOffset.UtcNow)
+                .OrderBy(entry => entry.NextAttemptAt)
+                .FirstOrDefault();
+            var runningItem = groupItems.FirstOrDefault(entry => entry.Status == QueueStatus.Running);
+            var paused = groupItems.Any(entry => entry.Status == QueueStatus.Paused);
+            var constructionWaitSeconds = group == QueueGroup.Construction
+                ? ResolveConstructionGroupRemainingSeconds()
+                : (int?)null;
+
+            item.QueuedCount = pendingCount;
+            item.IsRunning = runningGroup.HasValue && runningGroup.Value == group;
+            item.IsBlocked = false;
+            item.BlockedText = "Blocked";
+            if (runningItem is not null || item.IsRunning)
+            {
+                item.StateText = "Running";
+                item.DetailText = runningItem is not null
+                    ? BuildQueueDisplayName(runningItem)
+                    : "Coordinator active.";
+                item.RemainingSeconds = null;
+            }
+            else if (deferred is not null || constructionWaitSeconds is > 0)
+            {
+                item.StateText = "Waiting";
+                if (deferred is not null)
+                {
+                    item.DetailText = $"Next try {FormatQueueServerTime(deferred.NextAttemptAt)}";
+                    item.RemainingSeconds = Math.Max(0, (int)Math.Ceiling((deferred.NextAttemptAt - DateTimeOffset.UtcNow).TotalSeconds));
+                }
+                else
+                {
+                    item.DetailText = "Build queue active.";
+                    item.RemainingSeconds = constructionWaitSeconds;
+                }
+            }
+            else if (group == QueueGroup.Troops && IsTroopsGroupBlocked())
+            {
+                item.StateText = "Blocked";
+                item.DetailText = _troopsBlockedReasonText ?? "Troops group blocked.";
+                item.RemainingSeconds = null;
+                item.IsBlocked = true;
+                item.BlockedText = _troopsBlockedReasonText ?? "Blocked";
+            }
+            else if (group == QueueGroup.Farming && IsFarmingGroupBlocked())
+            {
+                item.StateText = "Blocked";
+                item.DetailText = _farmingBlockedReasonText ?? "Farming group blocked.";
+                item.RemainingSeconds = null;
+                item.IsBlocked = true;
+                item.BlockedText = _farmingBlockedReasonText ?? "Blocked";
+            }
+            else if (group == QueueGroup.Hero && IsHeroGroupBlocked())
+            {
+                item.StateText = "Blocked";
+                item.DetailText = _heroBlockedReasonText ?? "Hero group blocked.";
+                item.RemainingSeconds = null;
+                item.IsBlocked = true;
+                item.BlockedText = _heroBlockedReasonText ?? "Blocked";
+            }
+            else if (!item.IsEnabled)
+            {
+                item.StateText = "Disabled";
+                item.DetailText = pendingCount > 0 ? $"{pendingCount} queued." : "No queued task.";
+                item.RemainingSeconds = null;
+            }
+            else if (paused)
+            {
+                item.StateText = "Paused";
+                item.DetailText = "Contains paused task.";
+                item.RemainingSeconds = null;
+            }
+            else
+            {
+                item.StateText = item.IsEnabled ? "Idle" : "Disabled";
+                item.DetailText = pendingCount > 0 ? $"{pendingCount} queued." : "No queued task.";
+                item.RemainingSeconds = null;
+            }
         }
 
         if (isRunning)
@@ -1063,21 +1505,120 @@ public partial class MainWindow : Window
 
         try
         {
-            var enabledTaskNames = _automationLoopTasks
+            var enabledGroupNames = _automationLoopTasks
                 .Where(item => item.IsEnabled)
+                .Select(item => item.TaskName)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .ToList();
+            var orderedGroupNames = _automationLoopTasks
+                .Select(item => item.TaskName)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .ToList();
+            var visibleGroupNames = _automationLoopTasks
+                .Where(item => item.IsVisible)
                 .Select(item => item.TaskName)
                 .Where(name => !string.IsNullOrWhiteSpace(name))
                 .ToList();
 
             var config = _botConfigStore.Load();
-            config["loop_tasks"] = new JsonArray(enabledTaskNames.Select(name => JsonValue.Create(name)!).ToArray());
+            config["continuous_loop_groups"] = new JsonArray(enabledGroupNames.Select(name => JsonValue.Create(name)!).ToArray());
+            config[ContinuousLoopGroupOrderConfigKey] = new JsonArray(orderedGroupNames.Select(name => JsonValue.Create(name)!).ToArray());
+            config[DashboardVisibleGroupsConfigKey] = new JsonArray(visibleGroupNames.Select(name => JsonValue.Create(name)!).ToArray());
+
+            var existingLoopTasks = config["loop_tasks"] as JsonArray ?? new JsonArray();
+            var normalizedLoopTasks = existingLoopTasks
+                .Select(node => NormalizeLegacyLoopTaskName(node?.ToString()))
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (normalizedLoopTasks.Count > 0)
+            {
+                config["loop_tasks"] = new JsonArray(normalizedLoopTasks.Select(name => JsonValue.Create(name)!).ToArray());
+            }
+
             _botConfigStore.Save(config);
         }
         catch (Exception ex)
         {
-            AppendLog($"Could not save loop task order: {ex.Message}");
+            AppendLog($"Could not save continuous loop groups: {ex.Message}");
         }
     }
+
+    private List<string> LoadConfiguredDashboardVisibleGroups()
+    {
+        try
+        {
+            var config = _botConfigStore.Load();
+            var configuredVisible = (config[DashboardVisibleGroupsConfigKey] as JsonArray ?? new JsonArray())
+                .Select(node => node?.ToString())
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Select(name => name!.Trim())
+                .Where(name => QueueGroupCatalog.TryParse(name, out _))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (configuredVisible.Count > 0)
+            {
+                return configuredVisible;
+            }
+        }
+        catch
+        {
+            // Ignore read errors and fall back to all visible.
+        }
+
+        return QueueGroupCatalog.AllGroups
+            .Select(QueueGroupCatalog.GetKey)
+            .ToList();
+    }
+
+    private List<string> LoadConfiguredContinuousLoopGroupOrder()
+    {
+        try
+        {
+            var config = _botConfigStore.Load();
+            var configuredOrder = (config[ContinuousLoopGroupOrderConfigKey] as JsonArray ?? new JsonArray())
+                .Select(node => node?.ToString())
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Select(name => name!.Trim())
+                .Where(name => QueueGroupCatalog.TryParse(name, out _))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            foreach (var groupKey in QueueGroupCatalog.AllGroups.Select(QueueGroupCatalog.GetKey))
+            {
+                if (!configuredOrder.Contains(groupKey, StringComparer.OrdinalIgnoreCase))
+                {
+                    configuredOrder.Add(groupKey);
+                }
+            }
+
+            return configuredOrder;
+        }
+        catch
+        {
+            return QueueGroupCatalog.AllGroups
+                .Select(QueueGroupCatalog.GetKey)
+                .ToList();
+        }
+    }
+
+    private static string NormalizeLegacyLoopTaskName(string? taskName)
+    {
+        if (string.IsNullOrWhiteSpace(taskName))
+        {
+            return string.Empty;
+        }
+
+        return string.Equals(taskName.Trim(), "hero_send_adventure", StringComparison.OrdinalIgnoreCase)
+            ? "hero_manage"
+            : taskName.Trim();
+    }
+
+    private const string TroopsBlockedReasonSmithyMissing = "smithy_missing";
+    private const string TroopsBlockedReasonAllDone = "all_done";
+    private const string FarmingBlockedReasonNoGoldClub = "no_goldclub";
+    private const string HeroBlockedReasonNoAdventures = "no_adventures";
 
     private static string HumanizeTaskName(string taskName)
     {
@@ -1170,6 +1711,15 @@ public partial class MainWindow : Window
                 : $"Demolish building to level {targetLevel.Value}";
         }
 
+        if (string.Equals(item.TaskName, "send_farmlists", StringComparison.OrdinalIgnoreCase))
+        {
+            var names = (GetPayloadValue(payload, BotOptionPayloadKeys.ContinuousFarmListNames) ?? string.Empty)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            return names.Length > 0
+                ? $"Send farmlists: {string.Join(", ", names)}"
+                : "Send selected farmlists";
+        }
+
         return string.IsNullOrWhiteSpace(item.DisplayName) ? HumanizeTaskName(item.TaskName) : item.DisplayName;
     }
 
@@ -1213,6 +1763,35 @@ public partial class MainWindow : Window
         }
 
         option.IsEnabled = toggle.IsChecked == true;
+        if (!option.IsEnabled
+            && QueueGroupCatalog.TryParse(option.TaskName, out var disabledGroup)
+            && ContinuousRunToggleButton?.IsChecked == true
+            && GetActiveContinuousLoopGroup() == disabledGroup
+            && _loopTask is not null
+            && !_loopTask.IsCompleted)
+        {
+            _restartContinuousLoopAfterStop = HasEnabledContinuousLoopGroupsExcept(disabledGroup);
+            _loopStopRequested = true;
+            _loopCts?.Cancel();
+            AppendLog($"{QueueGroupCatalog.GetTitle(disabledGroup)} group disabled. Stopping current loop task.");
+        }
+
+        if (option.IsEnabled
+            && string.Equals(option.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Troops), StringComparison.OrdinalIgnoreCase))
+        {
+            ClearTroopsBlockedState();
+        }
+        else if (option.IsEnabled
+            && string.Equals(option.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Farming), StringComparison.OrdinalIgnoreCase))
+        {
+            ClearFarmingBlockedState();
+        }
+        else if (option.IsEnabled
+            && string.Equals(option.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Hero), StringComparison.OrdinalIgnoreCase))
+        {
+            ClearHeroBlockedState();
+        }
+
         UpdateAutomationLoopSummaryText();
         UpdateAutomationLoopRunningIndicators();
         PersistAutomationLoopTasksToConfig();
@@ -1373,6 +1952,7 @@ public partial class MainWindow : Window
         }
 
         var lists = await _botService.ReadFarmListsOverviewAsync(options, AppendLog, cancellationToken) ?? [];
+        var selectedFarmLists = LoadConfiguredContinuousFarmListNames();
         _suppressFarmListUiRefresh = true;
         try
         {
@@ -1417,7 +1997,7 @@ public partial class MainWindow : Window
                     Name = pair.Key,
                     ActiveFarmCount = pair.Value.Active,
                     TotalFarmCount = pair.Value.Total,
-                    IsEnabled = true,
+                    IsEnabled = selectedFarmLists.Count <= 0 || selectedFarmLists.Contains(pair.Key),
                     RemainingSeconds = pair.Value.RemainingSeconds,
                 });
                 displayedRows++;
@@ -1434,7 +2014,9 @@ public partial class MainWindow : Window
         }
 
         SetFarmingFeatureAvailability(true);
+        _lastFarmListsAnalysisAt = DateTimeOffset.UtcNow;
         UpdateFarmingUiState();
+        SyncFarmListSelectionHandlers();
         RefreshFarmListsItemsControl();
         return true;
     }
@@ -2499,165 +3081,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var initialOptions = LoadBotOptions();
-        _loopStopRequested = false;
-        _queueStopRequested = false;
-        _loopCts = new CancellationTokenSource();
-        var token = _loopCts.Token;
-
-        StartLoopButton.Content = "Pause bot";
-        StartLoopButton.IsEnabled = true;
-        SetLoopIndicator(true);
-        AppendLog($"Loop started. Interval={initialOptions.LoopIntervalSeconds}s");
-
-        _loopTask = Task.Run(async () =>
-        {
-            while (!token.IsCancellationRequested)
-            {
-                if (_loopStopRequested)
-                {
-                    AppendLog("Loop stop requested. Exiting after current action.");
-                    break;
-                }
-
-                var loopDelaySeconds = 60;
-                var tickId = System.Threading.Interlocked.Increment(ref _loopTickCounter);
-                var tickSw = Stopwatch.StartNew();
-                var tickOutcome = "idle";
-                try
-                {
-                    var options = ApplySelectedVillageToOptions(LoadBotOptions());
-                    loopDelaySeconds = options.LoopIntervalSeconds;
-                    AppendLog($"[LOOP {tickId}] START interval={loopDelaySeconds}s, headless={options.Headless}");
-                    await EnsureChromiumInstalledAsync();
-                        var next = _botService.SelectNextQueueItem();
-                        if (next is not null)
-                        {
-                        var terminalCountBefore = await Dispatcher.InvokeAsync(() => _terminalEntries.Count);
-                        tickOutcome = $"queue:{next.TaskName}";
-                        AppendLog($"[LOOP {tickId}] PICK queue item id={next.Id}, task={next.TaskName}, retries={next.Retries}/{next.MaxRetries}");
-                        SetActiveAutomationTask(next.TaskName);
-                        SetActiveFunctionExecution(string.IsNullOrWhiteSpace(next.DisplayName) ? next.TaskName : next.DisplayName);
-                        _botService.MarkQueueItemRunning(next.Id);
-                        RefreshQueueUiOnUiThread(next.Id);
-
-                        try
-                        {
-                            await _botService.ExecuteQueueItemAsync(options, next, AppendLog, token);
-                            _botService.MarkQueueItemSucceeded(next.Id);
-                            if (IsResourceUpgradeTask(next.TaskName))
-                            {
-                                var fastUpdated = await TryApplyFastResourceLevelUpdateAsync(next.TaskName, terminalCountBefore);
-                                if (!fastUpdated)
-                                {
-                    await LoadResourcesAfterUpgradeAsync(token, resourceOnly: true);
-                                }
-                            }
-                            else if (string.Equals(next.TaskName, "load_buildings_snapshot", StringComparison.OrdinalIgnoreCase))
-                            {
-                                await LoadBuildingsSnapshotIntoUiAsync(token);
-                            }
-                            else if (string.Equals(next.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase))
-                            {
-                                // Run snapshot read off the UI thread, then marshal the UI update back via the dispatcher.
-                                // Otherwise WPF throws cross-thread on HeroAttributesStatusTextBlock.Text and the
-                                // status remains stuck at "Hero stats not loaded."
-                                try
-                                {
-                                    var snapshot = await _botService.ReadHeroAttributesAsync(options, AppendLog, token);
-                                    await Dispatcher.InvokeAsync(() => ApplyHeroAttributeSnapshotToUi(snapshot));
-                                }
-                                catch (Exception ex)
-                                {
-                                    AppendLog($"Hero stats refresh after run failed: {ex.Message}");
-                                }
-                            }
-                            AppendLog($"Queue item succeeded: {next.TaskName}");
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            _botService.MarkQueueItemDeferred(next.Id, TimeSpan.Zero);
-                            AppendLog($"Queue item paused: {next.TaskName}");
-                        }
-                        catch (Exception ex)
-                        {
-                            if (TryExtractQueueWaitDelay(ex.Message, out var queueWaitDelay))
-                            {
-                                var deferred = _botService.MarkQueueItemDeferred(next.Id, queueWaitDelay);
-                                if (deferred)
-                                {
-                                    ScheduleDeferredBuildingsMidWaitRefresh(next, queueWaitDelay);
-                                    ScheduleDeferredResourcesMidWaitRefresh(next, queueWaitDelay);
-                                    AppendLog($"Queue item deferred: {next.TaskName}. Next try in {queueWaitDelay.TotalSeconds:F0}s.");
-                                }
-                                else
-                                {
-                                    _botService.MarkQueueItemExecutionFailed(next.Id);
-                                    AppendLog($"Queue item failed: {next.TaskName}. {ex.Message}");
-                                    RaiseAlarmIfQueueItemPermanentlyFailed(next, ex.Message);
-                                }
-                            }
-                            else
-                            {
-                                _botService.MarkQueueItemExecutionFailed(next.Id);
-                                AppendLog($"Queue item failed: {next.TaskName}. {ex.Message}");
-                                RaiseAlarmIfQueueItemPermanentlyFailed(next, ex.Message);
-                            }
-                        }
-                        finally
-                        {
-                            SetActiveAutomationTask(null);
-                            SetActiveFunctionExecution(null);
-                            RefreshQueueUiOnUiThread(next.Id);
-                        }
-                    }
-                    else
-                    {
-                        SetActiveAutomationTask(null);
-                        SetActiveFunctionExecution("Loop tasks");
-                        tickOutcome = "fallback";
-                        try
-                        {
-                            await _botService.ExecuteFallbackTasksAsync(options, AppendLog, token);
-                        }
-                        finally
-                        {
-                            SetActiveFunctionExecution(null);
-                        }
-                    }
-
-                    _ = Dispatcher.BeginInvoke(() =>
-                    {
-                        LastScanInfoTextBlock.Text = $"Last scan: {GetServerNow():HH:mm:ss}";
-                    });
-                    AppendLog($"[LOOP {tickId}] OK {tickSw.Elapsed.TotalSeconds:F1}s | {tickOutcome}");
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    AppendLog($"[LOOP {tickId}] FAIL {tickSw.Elapsed.TotalSeconds:F1}s | {FormatExceptionForLog(ex)}");
-                }
-
-                try
-                {
-                    if (_loopStopRequested)
-                    {
-                        break;
-                    }
-
-                    await Task.Delay(TimeSpan.FromSeconds(loopDelaySeconds), token);
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-            }
-        }, token);
-
-        _ = TrackLoopCompletionAsync(_loopTask);
+        StartContinuousLoopRunner();
     }
 
     private void StopBotButton_Click(object sender, RoutedEventArgs e)
@@ -2758,29 +3182,24 @@ public partial class MainWindow : Window
 
     private void DashboardFunctionListButton_Click(object sender, RoutedEventArgs e)
     {
-        var catalogByTask = AutomationLoopTaskCatalog
+        var currentByGroup = _automationLoopTasks
             .ToDictionary(item => item.TaskName, item => item, StringComparer.OrdinalIgnoreCase);
-        var currentByTask = _automationLoopTasks
-            .ToDictionary(item => item.TaskName, item => item, StringComparer.OrdinalIgnoreCase);
-
-        var orderedTaskNames = new List<string>();
-        orderedTaskNames.AddRange(_automationLoopTasks.Select(item => item.TaskName));
-        orderedTaskNames.AddRange(AutomationLoopTaskCatalog.Select(item => item.TaskName));
-        orderedTaskNames = orderedTaskNames
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+        var orderedGroupKeys = QueueGroupCatalog.AllGroups
+            .Select(QueueGroupCatalog.GetKey)
             .ToList();
 
-        var options = orderedTaskNames
-            .Select(taskName => new DashboardFunctionOption
+        var options = orderedGroupKeys
+            .Select(groupKey =>
             {
-                Key = taskName,
-                Label = currentByTask.TryGetValue(taskName, out var current)
-                    ? current.Title
-                    : catalogByTask.TryGetValue(taskName, out var catalog)
-                        ? catalog.Title
-                        : HumanizeTaskName(taskName),
-                IsVisible = currentByTask.TryGetValue(taskName, out var selected) && selected.IsEnabled,
+                QueueGroupCatalog.TryParse(groupKey, out var group);
+                return new DashboardFunctionOption
+                {
+                    Key = groupKey,
+                    Label = currentByGroup.TryGetValue(groupKey, out var current)
+                        ? current.Title
+                        : QueueGroupCatalog.GetTitle(group),
+                    IsVisible = currentByGroup.TryGetValue(groupKey, out var selected) && selected.IsVisible,
+                };
             })
             .ToList();
 
@@ -2793,7 +3212,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var selectedTaskNames = dialog.SelectedVisibility
+        var selectedGroupNames = dialog.SelectedVisibility
             .Where(item => item.Value)
             .Select(item => item.Key)
             .Where(name => !string.IsNullOrWhiteSpace(name))
@@ -2803,38 +3222,39 @@ public partial class MainWindow : Window
         try
         {
             _automationLoopTasks.Clear();
-            foreach (var taskName in orderedTaskNames.Where(selectedTaskNames.Contains))
+            foreach (var groupKey in orderedGroupKeys)
             {
-                if (currentByTask.TryGetValue(taskName, out var existing))
+                if (!QueueGroupCatalog.TryParse(groupKey, out var group))
+                {
+                    continue;
+                }
+
+                if (currentByGroup.TryGetValue(groupKey, out var existing))
                 {
                     _automationLoopTasks.Add(new LoopTaskOption
                     {
                         TaskName = existing.TaskName,
                         Title = existing.Title,
                         Description = existing.Description,
-                        IsEnabled = true,
-                    });
-                    continue;
-                }
-
-                if (catalogByTask.TryGetValue(taskName, out var catalog))
-                {
-                    _automationLoopTasks.Add(new LoopTaskOption
-                    {
-                        TaskName = catalog.TaskName,
-                        Title = catalog.Title,
-                        Description = catalog.Description,
-                        IsEnabled = true,
+                        IsEnabled = existing.IsEnabled && selectedGroupNames.Contains(groupKey),
+                        IsVisible = selectedGroupNames.Contains(groupKey),
+                        StateText = existing.StateText,
+                        DetailText = existing.DetailText,
+                        QueuedCount = existing.QueuedCount,
+                        RemainingSeconds = existing.RemainingSeconds,
                     });
                     continue;
                 }
 
                 _automationLoopTasks.Add(new LoopTaskOption
                 {
-                    TaskName = taskName,
-                    Title = HumanizeTaskName(taskName),
-                    Description = "Custom loop task from bot.json.",
-                    IsEnabled = true,
+                    TaskName = groupKey,
+                    Title = QueueGroupCatalog.GetTitle(group),
+                    Description = QueueGroupCatalog.GetDescription(group),
+                    IsEnabled = false,
+                    IsVisible = selectedGroupNames.Contains(groupKey),
+                    StateText = "Idle",
+                    DetailText = "No queued task.",
                 });
             }
         }
@@ -3062,6 +3482,7 @@ public partial class MainWindow : Window
             Margin = new Thickness(0, 0, 0, 8),
             ItemsSource = QueueDataGrid.ItemsSource,
         };
+        activeGrid.Columns.Add(new DataGridTextColumn { Header = "Group", Binding = new Binding("GroupName"), Width = new DataGridLength(1.15, DataGridLengthUnitType.Star) });
         activeGrid.Columns.Add(new DataGridTextColumn { Header = "Task", Binding = new Binding("DisplayName"), Width = new DataGridLength(2, DataGridLengthUnitType.Star) });
         activeGrid.Columns.Add(new DataGridTextColumn { Header = "Status", Binding = new Binding("Status"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
         activeGrid.Columns.Add(new DataGridTextColumn { Header = "Retries", Binding = new Binding("Retries"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
@@ -3078,6 +3499,7 @@ public partial class MainWindow : Window
             BorderThickness = new Thickness(1),
             ItemsSource = QueueHistoryDataGrid.ItemsSource,
         };
+        historyGrid.Columns.Add(new DataGridTextColumn { Header = "Group", Binding = new Binding("GroupName"), Width = new DataGridLength(1.15, DataGridLengthUnitType.Star) });
         historyGrid.Columns.Add(new DataGridTextColumn { Header = "Completed task", Binding = new Binding("DisplayName"), Width = new DataGridLength(2, DataGridLengthUnitType.Star) });
         historyGrid.Columns.Add(new DataGridTextColumn { Header = "Status", Binding = new Binding("Status"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
         historyGrid.Columns.Add(new DataGridTextColumn { Header = "Created", Binding = new Binding("CreatedAtServer"), Width = new DataGridLength(2, DataGridLengthUnitType.Star) });
@@ -3279,6 +3701,8 @@ public partial class MainWindow : Window
                 .Select(item => new QueueItemRow
                 {
                     Id = item.Id,
+                    Group = item.Group,
+                    GroupName = QueueGroupCatalog.GetTitle(item.Group),
                     DisplayName = BuildQueueDisplayName(item),
                     TaskName = item.TaskName,
                     Status = item.Id == displayRunningId ? QueueStatus.Running : item.Status,
@@ -3326,7 +3750,7 @@ public partial class MainWindow : Window
                 }
             }
 
-            QueueInfoTextBlock.Text = $"Queue active: {activeRows.Count} | Queue done: {historyRows.Count}";
+            QueueInfoTextBlock.Text = $"Queue active: {activeRows.Count} | done: {historyRows.Count}";
             if (_queuePopupWindow?.Content is Grid queuePopupRoot && queuePopupRoot.Children.Count >= 2)
             {
                 if (queuePopupRoot.Children[0] is DataGrid popupActiveGrid)
@@ -4856,12 +5280,12 @@ public partial class MainWindow : Window
             var count = await _botService.RefreshAdventureCountAsync(options, AppendLog, cancellationToken);
             if (count is null)
             {
-                HeroAdventureCountTextBlock.Text = "?";
+                ApplyHeroAdventureAvailability(null);
                 AppendLog("Adventure count: not found on current page.");
             }
             else
             {
-                HeroAdventureCountTextBlock.Text = count.Value.ToString();
+                ApplyHeroAdventureAvailability(count.Value);
                 AppendLog($"Adventure count after login: {count.Value}.");
             }
         }
@@ -4913,12 +5337,12 @@ public partial class MainWindow : Window
 
         if (snapshot.AdventureCount is null)
         {
-            HeroAdventureCountTextBlock.Text = "?";
+            ApplyHeroAdventureAvailability(null);
             AppendLog("Adventure count: not found on current page.");
         }
         else
         {
-            HeroAdventureCountTextBlock.Text = snapshot.AdventureCount.Value.ToString();
+            ApplyHeroAdventureAvailability(snapshot.AdventureCount.Value);
             AppendLog($"Adventure count after login: {snapshot.AdventureCount.Value}.");
         }
     }
@@ -4935,12 +5359,12 @@ public partial class MainWindow : Window
             var count = await _botService.RefreshAdventureCountAsync(options, AppendLog, CancellationToken.None);
             if (count is null)
             {
-                HeroAdventureCountTextBlock.Text = "?";
+                ApplyHeroAdventureAvailability(null);
                 HeroAdventureStatusTextBlock.Text = "Adventures not found on current page.";
             }
             else
             {
-                HeroAdventureCountTextBlock.Text = count.Value.ToString();
+                ApplyHeroAdventureAvailability(count.Value);
                 HeroAdventureStatusTextBlock.Text = $"Adventures available: {count.Value}.";
             }
 
@@ -5072,6 +5496,7 @@ public partial class MainWindow : Window
         _lastBuildingStatus = status;
         await Dispatcher.InvokeAsync(() =>
         {
+            TryClearTroopsBlockedStateFromVillageStatus(status);
             PopulateBuildingsTab(status);
             BuildingsInfoTextBlock.Text = $"Loaded {status.Buildings.Count} building slots from queue snapshot.";
         });
@@ -5630,6 +6055,68 @@ public partial class MainWindow : Window
         }
     }
 
+    private void SyncFarmListSelectionHandlers()
+    {
+        foreach (var row in _farmLists)
+        {
+            row.PropertyChanged -= FarmListStatusRow_PropertyChanged;
+            row.PropertyChanged += FarmListStatusRow_PropertyChanged;
+        }
+    }
+
+    private void FarmListStatusRow_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_suppressFarmListUiRefresh)
+        {
+            return;
+        }
+
+        if (!string.Equals(e.PropertyName, nameof(FarmListStatusRow.IsEnabled), StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        PersistContinuousFarmListSelectionToConfig();
+        UpdateAutomationLoopRunningIndicators();
+        UpdateFarmingUiState();
+    }
+
+    private IReadOnlySet<string> LoadConfiguredContinuousFarmListNames()
+    {
+        try
+        {
+            var options = LoadBotOptions();
+            return options.ContinuousFarmListNames
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Select(name => name.Trim())
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    private void PersistContinuousFarmListSelectionToConfig()
+    {
+        try
+        {
+            var selectedNames = _farmLists
+                .Where(item => item.IsEnabled)
+                .Select(item => item.Name)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var config = _botConfigStore.Load();
+            config[BotOptionPayloadKeys.ContinuousFarmListNames] = new JsonArray(selectedNames.Select(name => JsonValue.Create(name)!).ToArray());
+            _botConfigStore.Save(config);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Could not save selected farmlists: {ex.Message}");
+        }
+    }
+
     private void SetFarmingOperationBusy(bool busy)
     {
         if (!Dispatcher.CheckAccess())
@@ -5740,10 +6227,11 @@ public partial class MainWindow : Window
     {
         try
         {
-            var accounts = _accountStore.ListAccounts()
-                .OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
-                .ToList();
             var active = _accountStore.ActiveAccountName();
+            var accounts = _accountStore.ListAccounts()
+                .OrderByDescending(item => string.Equals(item.Name, active, StringComparison.OrdinalIgnoreCase))
+                .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
             _suppressAccountSelectionChange = true;
             try
@@ -5812,6 +6300,21 @@ public partial class MainWindow : Window
 
     private void TriggerQueueAutoRunFromEnqueue()
     {
+        // When continuous-run is toggled ON, queued items must NOT auto-start from an enqueue.
+        // They may only begin when the user presses "Start bot", or be picked up by a runner
+        // that is already executing (the existing ExecuteQueuedItemsNowAsync / loop will see
+        // new items on its next iteration).
+        if (ContinuousRunToggleButton?.IsChecked == true)
+        {
+            var alreadyRunning = _autoQueueRunning
+                || (_loopTask is not null && !_loopTask.IsCompleted);
+
+            if (!alreadyRunning)
+            {
+                return;
+            }
+        }
+
         _queueStopRequested = false;
         _ = TriggerQueueAutoRunAsync();
     }
@@ -5839,6 +6342,367 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             AppendLog($"Could not resume paused queue items: {ex.Message}");
+        }
+    }
+
+    private IReadOnlyList<QueueGroup> GetContinuousLoopEnabledGroupsInOrder()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            return Dispatcher.Invoke(GetContinuousLoopEnabledGroupsInOrder);
+        }
+
+        return _automationLoopTasks
+            .Where(item => item.IsEnabled)
+            .Select(item => QueueGroupCatalog.TryParse(item.TaskName, out var group) ? group : (QueueGroup?)null)
+            .Where(group => group.HasValue)
+            .Select(group => group!.Value)
+            .ToList();
+    }
+
+    private async Task EnsureContinuousLoopRuntimeItemsAsync(BotOptions options)
+    {
+        var enabledGroups = GetContinuousLoopEnabledGroupsInOrder();
+        if (enabledGroups.Count <= 0)
+        {
+            return;
+        }
+
+        var activeItems = _botService.GetQueueItemsForDisplay()
+            .Where(item => item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused)
+            .ToList();
+
+        bool HasActiveTask(string taskName)
+        {
+            return activeItems.Any(item =>
+                string.Equals(item.TaskName, taskName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (enabledGroups.Contains(QueueGroup.Hero) && !IsHeroGroupBlocked() && !HasActiveTask("hero_manage"))
+        {
+            var adventureCount = await _botService.RefreshAdventureCountAsync(options, AppendLog, CancellationToken.None);
+            await Dispatcher.InvokeAsync(() => ApplyHeroAdventureAvailability(adventureCount));
+            if (adventureCount is not > 0)
+            {
+                return;
+            }
+
+            _botService.EnqueueRuntime("hero_manage", "Hero adventure", null, priority: -50, maxRetries: 0);
+        }
+
+        if (enabledGroups.Contains(QueueGroup.Troops) && !IsTroopsGroupBlocked() && !HasActiveTask("upgrade_troops_at_smithy"))
+        {
+            _botService.EnqueueRuntime("upgrade_troops_at_smithy", "Troop upgrades", null, priority: -50, maxRetries: 0);
+        }
+
+        if (enabledGroups.Contains(QueueGroup.Farming) && !IsFarmingGroupBlocked() && !HasActiveTask("send_farmlists"))
+        {
+            var goldClubEnabled = await _botService.ReadAndPersistGoldClubStatusAsync(options, AppendLog, CancellationToken.None);
+            UpdateGoldClubInfo(goldClubEnabled);
+            if (!goldClubEnabled)
+            {
+                SetFarmingBlockedState(FarmingBlockedReasonNoGoldClub, "No goldclub");
+                return;
+            }
+
+            await EnsureContinuousFarmListsReadyAsync(options);
+            var selectedFarmLists = Dispatcher.CheckAccess()
+                ? _farmLists
+                    .Where(item => item.IsEnabled)
+                    .Select(item => item.Name)
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList()
+                : Dispatcher.Invoke(() => _farmLists
+                    .Where(item => item.IsEnabled)
+                    .Select(item => item.Name)
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList());
+            if (selectedFarmLists.Count > 0)
+            {
+                var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    [BotOptionPayloadKeys.ContinuousFarmListNames] = string.Join(",", selectedFarmLists),
+                    [BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes] = options.ContinuousFarmDispatchDelayMinutes.ToString(),
+                };
+                _botService.EnqueueRuntime("send_farmlists", "Send selected farmlists", payload, priority: -50, maxRetries: 0);
+            }
+        }
+    }
+
+    private async Task EnsureContinuousLoopConstructionStatusAsync(BotOptions options, CancellationToken cancellationToken)
+    {
+        if (!_continuousLoopConstructionStatusNeedsSync
+            || !GetContinuousLoopEnabledGroupsInOrder().Contains(QueueGroup.Construction))
+        {
+            return;
+        }
+
+        try
+        {
+            var status = await ReadVillageStatusWithRetryAsync(options, cancellationToken, resourceOnly: false);
+            await Dispatcher.InvokeAsync(() =>
+            {
+                _lastBuildingStatus = status;
+                ApplyVillageStatusToUi(status);
+                PopulateBuildingsTab(status);
+            });
+            _continuousLoopConstructionStatusNeedsSync = false;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Continuous construction status sync failed: {ex.Message}");
+        }
+    }
+
+    private async Task EnsureContinuousFarmListsReadyAsync(BotOptions options)
+    {
+        var farmingEnabled = GetContinuousLoopEnabledGroupsInOrder().Contains(QueueGroup.Farming);
+        if (!farmingEnabled || _farmingOperationBusy)
+        {
+            return;
+        }
+
+        var farmSnapshot = Dispatcher.CheckAccess()
+            ? new
+            {
+                TotalCount = _farmLists.Count,
+                SelectedNames = _farmLists.Where(item => item.IsEnabled).Select(item => item.Name).Where(name => !string.IsNullOrWhiteSpace(name)).ToList(),
+                AvailableNames = _farmLists.Select(item => item.Name).Where(name => !string.IsNullOrWhiteSpace(name)).ToList(),
+            }
+            : await Dispatcher.InvokeAsync(() => new
+            {
+                TotalCount = _farmLists.Count,
+                SelectedNames = _farmLists.Where(item => item.IsEnabled).Select(item => item.Name).Where(name => !string.IsNullOrWhiteSpace(name)).ToList(),
+                AvailableNames = _farmLists.Select(item => item.Name).Where(name => !string.IsNullOrWhiteSpace(name)).ToList(),
+            });
+
+        var needsAnalyze = farmSnapshot.TotalCount <= 0
+            || farmSnapshot.SelectedNames.Count <= 0
+            || farmSnapshot.SelectedNames.Any(name => !farmSnapshot.AvailableNames.Any(existing => string.Equals(existing, name, StringComparison.OrdinalIgnoreCase)))
+            || _lastFarmListsAnalysisAt == DateTimeOffset.MinValue;
+
+        if (!needsAnalyze)
+        {
+            return;
+        }
+
+        AppendLog("Continuous farming: analyzing farmlists before runtime send.");
+        try
+        {
+            await RefreshFarmListsFromServerAsync(options, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Continuous farming analyze failed: {ex.Message}");
+        }
+    }
+
+    private QueueItem? SelectNextQueueItemForContinuousLoop()
+    {
+        var orderedGroups = GetContinuousLoopEnabledGroupsInOrder().ToList();
+        if (orderedGroups.Count <= 0)
+        {
+            return null;
+        }
+
+        var queueItems = _botService.GetQueueItemsForDisplay();
+        var now = DateTimeOffset.UtcNow;
+        for (var i = 1; i <= orderedGroups.Count; i++)
+        {
+            var index = (_lastContinuousLoopGroupIndex + i) % orderedGroups.Count;
+            var group = orderedGroups[index];
+            if (group == QueueGroup.Construction && !IsConstructionGroupReady())
+            {
+                continue;
+            }
+
+            var orderedGroupItems = OrderContinuousLoopGroupItems(
+                queueItems.Where(item =>
+                    item.Group == group &&
+                    item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused));
+            var head = orderedGroupItems.FirstOrDefault();
+            if (head is null)
+            {
+                continue;
+            }
+
+            if (head.Status != QueueStatus.Pending || head.NextAttemptAt > now)
+            {
+                continue;
+            }
+
+            _lastContinuousLoopGroupIndex = index;
+            return head;
+        }
+
+        return null;
+    }
+
+    private async Task RunContinuousLoopAsync(CancellationToken token)
+    {
+        while (!token.IsCancellationRequested)
+        {
+            if (_loopStopRequested)
+            {
+                AppendLog("Loop stop requested. Exiting after current action.");
+                break;
+            }
+
+            var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            var loopDelaySeconds = Math.Max(5, options.LoopIntervalSeconds);
+            var tickId = Interlocked.Increment(ref _loopTickCounter);
+            var tickSw = Stopwatch.StartNew();
+            try
+            {
+                AppendLog($"[LOOP {tickId}] START interval={loopDelaySeconds}s, headless={options.Headless}");
+                await EnsureChromiumInstalledAsync();
+                await EnsureContinuousLoopConstructionStatusAsync(options, token);
+                await EnsureContinuousLoopRuntimeItemsAsync(options);
+
+                var next = SelectNextQueueItemForContinuousLoop();
+                if (next is not null)
+                {
+                    var terminalCountBefore = await Dispatcher.InvokeAsync(() => _terminalEntries.Count);
+                    AppendLog($"[LOOP {tickId}] PICK group={next.Group}, task={next.TaskName}, retries={next.Retries}/{next.MaxRetries}");
+                    SetActiveAutomationTask(next.TaskName);
+                    SetActiveFunctionExecution(string.IsNullOrWhiteSpace(next.DisplayName) ? next.TaskName : next.DisplayName);
+                    _botService.MarkQueueItemRunning(next.Id);
+                    RefreshQueueUiOnUiThread(next.Id);
+
+                    try
+                    {
+                        await _botService.ExecuteQueueItemAsync(options, next, AppendLog, token);
+                        _botService.MarkQueueItemSucceeded(next.Id);
+                        if (IsResourceUpgradeTask(next.TaskName))
+                        {
+                            var fastUpdated = await TryApplyFastResourceLevelUpdateAsync(next.TaskName, terminalCountBefore);
+                            if (!fastUpdated)
+                            {
+                                await LoadResourcesAfterUpgradeAsync(token, resourceOnly: true);
+                            }
+                        }
+                        if (NeedsConstructionStatusRefresh(next.TaskName))
+                        {
+                            await RefreshConstructionStatusAsync(token);
+                        }
+                        else if (string.Equals(next.TaskName, "load_buildings_snapshot", StringComparison.OrdinalIgnoreCase))
+                        {
+                            await LoadBuildingsSnapshotIntoUiAsync(token);
+                        }
+                        else if (string.Equals(next.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase))
+                        {
+                            try
+                            {
+                                var snapshot = await _botService.ReadHeroAttributesAsync(options, AppendLog, token);
+                                await Dispatcher.InvokeAsync(() => ApplyHeroAttributeSnapshotToUi(snapshot));
+                            }
+                            catch (Exception ex)
+                            {
+                                AppendLog($"Hero stats refresh after run failed: {ex.Message}");
+                            }
+                        }
+
+                        AppendLog($"[LOOP {tickId}] OK {tickSw.Elapsed.TotalSeconds:F1}s | queue:{next.TaskName}");
+                        _ = Dispatcher.BeginInvoke(() => LastScanInfoTextBlock.Text = $"Last scan: {GetServerNow():HH:mm:ss}");
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        _botService.MarkQueueItemDeferred(next.Id, TimeSpan.Zero);
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        if (TryHandleTroopsBlockedExecution(next, ex, $"[LOOP {tickId}]"))
+                        {
+                            continue;
+                        }
+
+                        if (TryExtractQueueWaitDelay(ex.Message, out var queueWaitDelay))
+                        {
+                            if (IsConstructionQueueTask(next.TaskName))
+                            {
+                                await Dispatcher.InvokeAsync(() => ApplyConstructionInlineWait(queueWaitDelay));
+                            }
+
+                            var deferred = _botService.MarkQueueItemDeferred(next.Id, queueWaitDelay);
+                            if (deferred)
+                            {
+                                ScheduleDeferredBuildingsMidWaitRefresh(next, queueWaitDelay);
+                                ScheduleDeferredResourcesMidWaitRefresh(next, queueWaitDelay);
+                                AppendLog($"[LOOP {tickId}] DEFER {tickSw.Elapsed.TotalSeconds:F1}s task={next.TaskName} | next try in {queueWaitDelay.TotalSeconds:F0}s");
+                            }
+                            else
+                            {
+                                _botService.MarkQueueItemExecutionFailed(next.Id);
+                                AppendLog($"[LOOP {tickId}] FAIL {tickSw.Elapsed.TotalSeconds:F1}s | {FormatExceptionForLog(ex)}");
+                                RaiseAlarmIfQueueItemPermanentlyFailed(next, ex.Message);
+                            }
+                        }
+                        else
+                        {
+                            _botService.MarkQueueItemExecutionFailed(next.Id);
+                            AppendLog($"[LOOP {tickId}] FAIL {tickSw.Elapsed.TotalSeconds:F1}s | {FormatExceptionForLog(ex)}");
+                            RaiseAlarmIfQueueItemPermanentlyFailed(next, ex.Message);
+                        }
+                    }
+                    finally
+                    {
+                        SetActiveAutomationTask(null);
+                        SetActiveFunctionExecution(null);
+                        RefreshQueueUiOnUiThread(next.Id);
+                    }
+                }
+                else
+                {
+                    var waitDelay = ResolveContinuousLoopWaitDelay(loopDelaySeconds);
+                    AppendLog($"[LOOP {tickId}] WAIT {waitDelay.TotalSeconds:F0}s");
+                    await Task.Delay(waitDelay, token);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"[LOOP {tickId}] FAIL {tickSw.Elapsed.TotalSeconds:F1}s | {FormatExceptionForLog(ex)}");
+                await Task.Delay(TimeSpan.FromSeconds(loopDelaySeconds), token);
+            }
+        }
+    }
+
+    private TimeSpan ResolveContinuousLoopWaitDelay(int fallbackSeconds)
+    {
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            var nextDeferred = GetContinuousLoopRelevantQueueItems()
+                .Where(item => item.Status == QueueStatus.Pending && item.NextAttemptAt > now)
+                .OrderBy(item => item.NextAttemptAt)
+                .FirstOrDefault();
+            if (nextDeferred is null)
+            {
+                return TimeSpan.FromSeconds(Math.Min(fallbackSeconds, ContinuousLoopMaxSleepSliceSeconds));
+            }
+
+            var delay = nextDeferred.NextAttemptAt - now;
+            if (delay < TimeSpan.FromSeconds(1))
+            {
+                return TimeSpan.FromSeconds(1);
+            }
+
+            var maxSlice = TimeSpan.FromSeconds(ContinuousLoopMaxSleepSliceSeconds);
+            return delay <= maxSlice ? delay : maxSlice;
+        }
+        catch
+        {
+            return TimeSpan.FromSeconds(Math.Min(fallbackSeconds, ContinuousLoopMaxSleepSliceSeconds));
         }
     }
 
@@ -5934,6 +6798,10 @@ public partial class MainWindow : Window
                         await LoadResourcesAfterUpgradeAsync(cancellationToken, resourceOnly: true);
                     }
                 }
+                if (NeedsConstructionStatusRefresh(next.TaskName))
+                {
+                    await RefreshConstructionStatusAsync(cancellationToken);
+                }
                 else if (string.Equals(next.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase))
                 {
                     // Same post-run refresh the loop runner does — read the authoritative attributes-tab
@@ -5958,6 +6826,11 @@ public partial class MainWindow : Window
             }
             catch (Exception ex)
             {
+                if (TryHandleTroopsBlockedExecution(next, ex, $"[AUTOQ {runId}]"))
+                {
+                    continue;
+                }
+
                 if (ex is InvalidOperationException ioe
                     && ioe.Message.Contains("different thread owns it", StringComparison.OrdinalIgnoreCase))
                 {
@@ -5969,6 +6842,11 @@ public partial class MainWindow : Window
 
                 if (TryExtractQueueWaitDelay(ex.Message, out var queueWaitDelay))
                 {
+                    if (IsConstructionQueueTask(next.TaskName))
+                    {
+                        await Dispatcher.InvokeAsync(() => ApplyConstructionInlineWait(queueWaitDelay));
+                    }
+
                     var deferred = _botService.MarkQueueItemDeferred(next.Id, queueWaitDelay);
                     if (deferred)
                     {
@@ -6038,7 +6916,8 @@ public partial class MainWindow : Window
         try
         {
             var messages = new List<string>(MaxLogLinesPerFlush);
-            var linesForSessionLog = new List<string>(MaxLogLinesPerFlush * 2);
+            var logLinesForSessionLog = new List<string>(MaxLogLinesPerFlush * 2);
+            var alarmLinesForSessionLog = new List<string>(MaxLogLinesPerFlush);
             var hasMore = false;
             lock (_pendingLogSync)
             {
@@ -6079,7 +6958,7 @@ public partial class MainWindow : Window
                 {
                     var line = $"[{GetServerNow():yyyy-MM-dd HH:mm:ss}] {part}";
                     _terminalEntries.Insert(0, line);
-                    linesForSessionLog.Add(line);
+                    logLinesForSessionLog.Add(line);
                     TryApplyInlineResourceLevelUpdateFromLog(part);
                     TryApplyPlusStatusFromLog(part);
                     if (TryExtractQueueWaitDelay(part, out var queueWaitDelay))
@@ -6110,7 +6989,7 @@ public partial class MainWindow : Window
                             _unacknowledgedAlarmCount += 1;
                         }
 
-                        linesForSessionLog.Add($"[{GetServerNow():yyyy-MM-dd HH:mm:ss}] [ALARM] {part}");
+                        alarmLinesForSessionLog.Add(line);
                     }
 
                     if (IsCaptchaSessionStartMessage(part) && !_captchaSessionActive)
@@ -6161,7 +7040,7 @@ public partial class MainWindow : Window
             TrimToMaxEntries(_terminalEntries, 1000);
             TrimToMaxEntries(_alarmEntries, 200);
             UpdateCaptchaStatsUi();
-            TryAppendSessionLogLines(linesForSessionLog);
+            TryAppendSessionLogLines(logLinesForSessionLog, alarmLinesForSessionLog);
 
             if (lastRawMessage is not null)
             {
@@ -6197,6 +7076,7 @@ public partial class MainWindow : Window
             if (!string.IsNullOrWhiteSpace(sessionLogDirectory))
             {
                 Directory.CreateDirectory(sessionLogDirectory);
+                TrimOldSessionLogFiles(sessionLogDirectory);
             }
 
             var header = new[]
@@ -6204,11 +7084,25 @@ public partial class MainWindow : Window
                 "=== Tbot Ultra Session Log ===",
                 $"Started: {DateTime.Now:yyyy-MM-dd HH:mm:ss}",
                 $"ProjectRoot: {_projectRoot}",
+                $"AppVersion: {ReadAppVersionForLog()}",
+                $"MachineName: {Environment.MachineName}",
+                $"UserName: {Environment.UserName}",
+                $"OS: {RuntimeInformation.OSDescription}",
+                $"ProcessArchitecture: {RuntimeInformation.ProcessArchitecture}",
+                $"DotNet: {RuntimeInformation.FrameworkDescription}",
+                $"CPU: {ReadCpuDescriptionForLog()}",
+                $"LogicalProcessors: {Environment.ProcessorCount}",
+                $"RAM: {ReadRamDescriptionForLog()}",
+                $"Screen: {(int)SystemParameters.PrimaryScreenWidth}x{(int)SystemParameters.PrimaryScreenHeight}",
+                string.Empty,
+                "=== ALARMS ===",
+                string.Empty,
+                "=== LOGS ===",
                 string.Empty,
             };
             lock (_sessionLogWriteSync)
             {
-                File.AppendAllLines(_sessionLogPath, header);
+                File.WriteAllLines(_sessionLogPath, header);
             }
         }
         catch (Exception ex)
@@ -6217,9 +7111,102 @@ public partial class MainWindow : Window
         }
     }
 
-    private void TryAppendSessionLogLines(IReadOnlyList<string> lines)
+    private void TrimOldSessionLogFiles(string sessionLogDirectory)
     {
-        if (lines.Count <= 0)
+        try
+        {
+            var oldFiles = new DirectoryInfo(sessionLogDirectory)
+                .GetFiles("TbotUltra_Log_*.txt", SearchOption.TopDirectoryOnly)
+                .OrderByDescending(file => file.CreationTimeUtc)
+                .ThenByDescending(file => file.Name, StringComparer.OrdinalIgnoreCase)
+                .Skip(MaxSessionLogFiles - 1)
+                .ToList();
+
+            foreach (var file in oldFiles)
+            {
+                try
+                {
+                    file.Delete();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Could not delete old session log '{file.FullName}': {ex}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Could not trim old session logs: {ex}");
+        }
+    }
+
+    private string ReadAppVersionForLog()
+    {
+        try
+        {
+            var version = File.Exists(_versionPath)
+                ? File.ReadAllText(_versionPath).Trim()
+                : "dev";
+            return string.IsNullOrWhiteSpace(version) ? "dev" : version;
+        }
+        catch
+        {
+            return "unknown";
+        }
+    }
+
+    private static string ReadCpuDescriptionForLog()
+    {
+        try
+        {
+            var identifier = Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER");
+            if (!string.IsNullOrWhiteSpace(identifier))
+            {
+                return identifier.Trim();
+            }
+        }
+        catch
+        {
+        }
+
+        return "unknown";
+    }
+
+    private static string ReadRamDescriptionForLog()
+    {
+        try
+        {
+            var memoryStatus = new MemoryStatusEx
+            {
+                Length = (uint)Marshal.SizeOf<MemoryStatusEx>(),
+            };
+
+            if (!GlobalMemoryStatusEx(ref memoryStatus) || memoryStatus.TotalPhys == 0)
+            {
+                return "unknown";
+            }
+
+            var totalBytes = memoryStatus.TotalPhys;
+            if (totalBytes > 0)
+            {
+                var totalGb = totalBytes / (1024d * 1024d * 1024d);
+                return $"{totalGb:F1} GB";
+            }
+        }
+        catch
+        {
+        }
+
+        return "unknown";
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GlobalMemoryStatusEx(ref MemoryStatusEx memoryStatus);
+
+    private void TryAppendSessionLogLines(IReadOnlyList<string> logLines, IReadOnlyList<string> alarmLines)
+    {
+        if (logLines.Count <= 0 && alarmLines.Count <= 0)
         {
             return;
         }
@@ -6228,7 +7215,32 @@ public partial class MainWindow : Window
         {
             lock (_sessionLogWriteSync)
             {
-                File.AppendAllLines(_sessionLogPath, lines);
+                if (alarmLines.Count > 0)
+                {
+                    _sessionAlarmLines.AddRange(alarmLines);
+                }
+
+                if (logLines.Count > 0)
+                {
+                    _sessionLogLines.AddRange(logLines);
+                }
+
+                var content = new List<string>(_sessionAlarmLines.Count + _sessionLogLines.Count + 8)
+                {
+                    "=== Tbot Ultra Session Log ===",
+                    $"Started: {DateTime.Now:yyyy-MM-dd HH:mm:ss}",
+                    $"ProjectRoot: {_projectRoot}",
+                    string.Empty,
+                    "=== ALARMS ===",
+                };
+
+                content.AddRange(_sessionAlarmLines);
+                content.Add(string.Empty);
+                content.Add("=== LOGS ===");
+                content.AddRange(_sessionLogLines);
+                content.Add(string.Empty);
+
+                File.WriteAllLines(_sessionLogPath, content);
             }
         }
         catch (Exception ex)
@@ -6513,6 +7525,10 @@ public partial class MainWindow : Window
         var value = message.ToLowerInvariant();
         return value.Contains("chromium warmup")
             || value.Contains("captcha warmup")
+            || (value.Contains("hero_adventure.php")
+                && value.Contains("transient navigation context error")
+                && value.Contains("retrying"))
+            || value.Contains("the calling thread cannot access this object because a different thread owns it")
             || (value.Contains("ui sync snapshot failed")
                 && value.Contains("execution context was destroyed"));
     }
@@ -7893,6 +8909,48 @@ public partial class MainWindow : Window
         return true;
     }
 
+    private async Task RefreshConstructionStatusAsync(CancellationToken cancellationToken)
+    {
+        var options = ApplySelectedVillageToOptions(LoadBotOptions());
+        var status = await ReadVillageStatusWithRetryAsync(options, cancellationToken, resourceOnly: false);
+        await Dispatcher.InvokeAsync(() =>
+        {
+            _lastBuildingStatus = status;
+            ApplyVillageStatusToUi(status);
+            PopulateBuildingsTab(status);
+        });
+    }
+
+    private static bool NeedsConstructionStatusRefresh(string taskName)
+    {
+        return IsResourceUpgradeTask(taskName)
+            || IsBuildingMutationTask(taskName);
+    }
+
+    private static bool IsConstructionQueueTask(string taskName)
+    {
+        return IsResourceUpgradeTask(taskName)
+            || IsBuildingMutationTask(taskName);
+    }
+
+    private bool TryHandleTroopsBlockedExecution(QueueItem queueItem, Exception ex, string logPrefix)
+    {
+        if (!string.Equals(queueItem.TaskName, "upgrade_troops_at_smithy", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!TryExtractTroopsBlockedReason(ex.Message, out var reasonKey, out var reasonText))
+        {
+            return false;
+        }
+
+        _botService.MarkQueueItemSucceeded(queueItem.Id);
+        SetTroopsBlockedState(reasonKey, reasonText);
+        AppendLog($"{logPrefix} BLOCKED task={queueItem.TaskName} | {reasonText}");
+        return true;
+    }
+
     private void RaiseAlarmIfQueueItemPermanentlyFailed(QueueItem queueItem, string errorMessage)
     {
         try
@@ -7919,6 +8977,13 @@ public partial class MainWindow : Window
         UpdateExecutionStateIndicator();
     }
 
+    private void SetLoopStateBadge(string stateText, Color color, string startButtonText)
+    {
+        LoopStateTextBlock.Text = $"State: {stateText}";
+        LoopStateBadge.Background = new SolidColorBrush(color);
+        StartLoopButton.Content = startButtonText;
+    }
+
     private void UpdateExecutionStateIndicator()
     {
         UpdateAutomationLoopRunningIndicators();
@@ -7926,15 +8991,25 @@ public partial class MainWindow : Window
         var loopRunning = _loopTask is not null && !_loopTask.IsCompleted;
         var hasPausedQueueItems = false;
         var hasRunningQueueItems = false;
+        var hasFailedQueueItems = false;
         var hasDeferredQueueItems = false;
+        var hasReadyQueueItems = false;
         DateTimeOffset? earliestNextAttemptUtc = null;
+        var enabledGroups = GetContinuousLoopEnabledGroupsInOrder().ToHashSet();
         try
         {
             var nowUtc = DateTimeOffset.UtcNow;
             var queueItems = _botService.GetQueueItemsForDisplay();
-            hasPausedQueueItems = queueItems.Any(item => item.Status == QueueStatus.Paused);
-            hasRunningQueueItems = queueItems.Any(item => item.Status == QueueStatus.Running);
-            var deferredItems = queueItems
+            var relevantQueueItems = enabledGroups.Count > 0
+                ? queueItems.Where(item => enabledGroups.Contains(item.Group)).ToList()
+                : [];
+            hasPausedQueueItems = relevantQueueItems.Any(item => item.Status == QueueStatus.Paused);
+            hasRunningQueueItems = relevantQueueItems.Any(item => item.Status == QueueStatus.Running);
+            hasFailedQueueItems = relevantQueueItems.Any(item => item.Status == QueueStatus.Failed);
+            hasReadyQueueItems = relevantQueueItems.Any(item =>
+                item.Status == QueueStatus.Pending &&
+                item.NextAttemptAt <= nowUtc);
+            var deferredItems = relevantQueueItems
                 .Where(item => item.Status == QueueStatus.Pending && item.NextAttemptAt > nowUtc)
                 .ToList();
             hasDeferredQueueItems = deferredItems.Count > 0;
@@ -7956,56 +9031,106 @@ public partial class MainWindow : Window
         var nowForWait = DateTimeOffset.UtcNow;
         var hasInlineWait = _inlineWaitUntilUtc > nowForWait;
         var functionExecutionRunning = IsFunctionExecutionRunning(hasRunningQueueItems);
-        if ((hasDeferredQueueItems && !hasRunningQueueItems && !_uiBusy && !functionExecutionRunning) || hasInlineWait)
+        var continuousModeEnabled = ContinuousRunToggleButton?.IsChecked == true;
+        var continuousModeActive = continuousModeEnabled && (loopRunning || _autoQueueRunning || hasDeferredQueueItems || hasInlineWait || functionExecutionRunning);
+
+        if (!continuousModeEnabled)
         {
-            int remainingSeconds;
-            if (hasInlineWait)
+            if ((hasDeferredQueueItems && !hasRunningQueueItems && !_uiBusy && !functionExecutionRunning) || hasInlineWait)
             {
-                remainingSeconds = (int)Math.Ceiling((_inlineWaitUntilUtc - nowForWait).TotalSeconds);
-            }
-            else
-            {
-                remainingSeconds = earliestNextAttemptUtc.HasValue
-                    ? (int)Math.Ceiling((earliestNextAttemptUtc.Value - nowForWait).TotalSeconds)
-                    : 0;
+                var remainingSeconds = hasInlineWait
+                    ? (int)Math.Ceiling((_inlineWaitUntilUtc - nowForWait).TotalSeconds)
+                    : earliestNextAttemptUtc.HasValue
+                        ? (int)Math.Ceiling((earliestNextAttemptUtc.Value - nowForWait).TotalSeconds)
+                        : 0;
+                remainingSeconds = Math.Max(0, remainingSeconds);
+                LoopStateTextBlock.Text = remainingSeconds > 0
+                    ? $"State: waiting ({FormatCountdown(remainingSeconds)})"
+                    : "State: waiting";
+                LoopStateBadge.Background = new SolidColorBrush(Color.FromRgb(202, 138, 4));
+                StartLoopButton.Content = (loopRunning || _autoQueueRunning) ? "Pause bot" : "Start bot";
+                return;
             }
 
-            remainingSeconds = Math.Max(0, remainingSeconds);
-            LoopStateTextBlock.Text = remainingSeconds > 0
-                ? $"State: waiting ({FormatCountdown(remainingSeconds)})"
-                : "State: waiting";
-            LoopStateBadge.Background = new SolidColorBrush(Color.FromRgb(202, 138, 4));
-            StartLoopButton.Content = (loopRunning || _autoQueueRunning) ? "Pause bot" : "Start bot";
+            if (functionExecutionRunning)
+            {
+                SetLoopStateBadge("function running", Color.FromRgb(37, 99, 235), "Pause bot");
+                return;
+            }
+
+            if (loopRunning)
+            {
+                SetLoopStateBadge("loop running", Color.FromRgb(22, 163, 74), "Pause bot");
+                return;
+            }
+
+            if (hasPausedQueueItems)
+            {
+                SetLoopStateBadge("paused", Color.FromRgb(217, 119, 6), "Start bot");
+                return;
+            }
+
+            SetLoopStateBadge("idle", Color.FromRgb(107, 114, 128), "Start bot");
+            return;
+        }
+
+        if ((continuousModeActive || hasInlineWait || hasDeferredQueueItems)
+            && !hasReadyQueueItems
+            && !functionExecutionRunning
+            && !hasRunningQueueItems
+            && !_uiBusy)
+        {
+            if (hasInlineWait || hasDeferredQueueItems)
+            {
+                int remainingSeconds;
+                if (hasInlineWait)
+                {
+                    remainingSeconds = (int)Math.Ceiling((_inlineWaitUntilUtc - nowForWait).TotalSeconds);
+                }
+                else
+                {
+                    remainingSeconds = earliestNextAttemptUtc.HasValue
+                        ? (int)Math.Ceiling((earliestNextAttemptUtc.Value - nowForWait).TotalSeconds)
+                        : 0;
+                }
+
+                _ = Math.Max(0, remainingSeconds);
+                SetLoopStateBadge("waiting", Color.FromRgb(202, 138, 4), (loopRunning || _autoQueueRunning) ? "Pause bot" : "Start bot");
+                return;
+            }
+
+            if (continuousModeActive)
+            {
+                SetLoopStateBadge("idle", Color.FromRgb(107, 114, 128), "Pause bot");
+                return;
+            }
+        }
+
+        if (continuousModeActive)
+        {
+            SetLoopStateBadge("running", Color.FromRgb(22, 163, 74), "Pause bot");
             return;
         }
 
         if (functionExecutionRunning)
         {
-            LoopStateTextBlock.Text = "State: function running";
-            LoopStateBadge.Background = new SolidColorBrush(Color.FromRgb(37, 99, 235));
-            StartLoopButton.Content = "Pause bot";
+            SetLoopStateBadge("running", Color.FromRgb(22, 163, 74), "Pause bot");
             return;
         }
 
         if (loopRunning)
         {
-            LoopStateTextBlock.Text = "State: loop running";
-            LoopStateBadge.Background = new SolidColorBrush(Color.FromRgb(22, 163, 74));
-            StartLoopButton.Content = "Pause bot";
+            SetLoopStateBadge("running", Color.FromRgb(22, 163, 74), "Pause bot");
             return;
         }
 
         if (hasPausedQueueItems)
         {
-            LoopStateTextBlock.Text = "State: paused";
-            LoopStateBadge.Background = new SolidColorBrush(Color.FromRgb(217, 119, 6));
-            StartLoopButton.Content = "Start bot";
+            SetLoopStateBadge("paused", Color.FromRgb(217, 119, 6), "Start bot");
             return;
         }
 
-        LoopStateTextBlock.Text = "State: idle";
-        LoopStateBadge.Background = new SolidColorBrush(Color.FromRgb(107, 114, 128));
-        StartLoopButton.Content = "Start bot";
+        SetLoopStateBadge("idle", Color.FromRgb(107, 114, 128), "Start bot");
     }
 
     private void UpdateExecutionStateIndicatorOnUiThread()
@@ -8033,6 +9158,17 @@ public partial class MainWindow : Window
                 StartLoopButton.IsEnabled = true;
                 SetLoopIndicator(false);
                 AppendLog("Loop stopped.");
+                if (_restartContinuousLoopAfterStop
+                    && ContinuousRunToggleButton?.IsChecked == true
+                    && _isLoggedIn
+                    && (_loopTask is null || _loopTask.IsCompleted))
+                {
+                    _restartContinuousLoopAfterStop = false;
+                    StartContinuousLoopRunner();
+                    return;
+                }
+
+                _restartContinuousLoopAfterStop = false;
             });
         }
     }
@@ -8140,8 +9276,15 @@ public partial class MainWindow : Window
 
         _buildQueueActiveCount = status.ActiveBuildCount;
         _buildQueueRemainingSeconds = status.BuildQueueRemainingSeconds ?? -1;
+        if (_buildQueueRemainingSeconds > 0 || _buildQueueActiveCount <= 0)
+        {
+            _constructionInlineWaitUntilUtc = DateTimeOffset.MinValue;
+        }
+
         _buildQueueReachedZeroPendingCompletion = false;
+        TryClearTroopsBlockedStateFromVillageStatus(status);
         UpdateBuildQueueStatusText();
+        UpdateAutomationLoopRunningIndicators();
         RefreshVillagePicker(status);
     }
 
@@ -8315,6 +9458,7 @@ public partial class MainWindow : Window
         }
 
         UpdateBuildQueueStatusText();
+        UpdateAutomationLoopRunningIndicators();
     }
 
     private static string FormatCountdown(int seconds)
@@ -8696,5 +9840,3 @@ public partial class MainWindow : Window
         return (name, url);
     }
 }
-
-

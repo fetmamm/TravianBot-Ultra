@@ -1,6 +1,6 @@
 {
-  "server_name": "SS-Travi VIP 200x",
-  "base_url": "https://vip.ss-travi.com",
+  "server_name": "SS-Travi PRO 1024x",
+  "base_url": "https://pro.ss-travi.com",
   "login_path": "/login.php",
   "village_overview_path": "/dorf1.php",
   "headless": false,
@@ -11,7 +11,7 @@
   "captcha_solver_max_attempts": 2,
   "loop_interval_seconds": 60,
   "loop_tasks": [
-    "hero_send_adventure"
+    "hero_manage"
   ],
   "github_releases_url": "",
   "human_like_enabled": false,
@@ -20,5 +20,22 @@
   "allow_silver_spending": false,
   "gold_limit": 100,
   "silver_limit": 100,
-  "natar_village_selection": "farm_villages"
+  "natar_village_selection": "farm_villages",
+  "continuous_loop_groups": [
+    "construction",
+    "hero"
+  ],
+  "continuous_loop_group_order": [
+    "construction",
+    "troops",
+    "hero",
+    "farming"
+  ],
+  "dashboard_visible_groups": [
+    "construction",
+    "troops",
+    "hero",
+    "farming"
+  ],
+  "hero_stat_priority": "fighting_strength,offence_bonus,defence_bonus,resources"
 }

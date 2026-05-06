@@ -243,6 +243,10 @@ public sealed partial class TravianClient
                 if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources)
                 {
                     var waitSeconds = ClampResourceWaitSeconds(actionability.QueueWaitSeconds);
+                    if (ShouldDeferLongWait(waitSeconds))
+                    {
+                        return $"Slot {slotId} blocked by resources. queue_wait_seconds={waitSeconds}";
+                    }
                     Notify($"Slot {slotId} blocked by resources. Waiting {waitSeconds}s. queue_wait_seconds={waitSeconds}");
                     await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
                     continue;
@@ -250,6 +254,10 @@ public sealed partial class TravianClient
                 if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByQueue)
                 {
                     var waitSeconds = ClampResourceWaitSeconds(actionability.QueueWaitSeconds);
+                    if (ShouldDeferLongWait(waitSeconds))
+                    {
+                        return $"Slot {slotId} blocked by queue. queue_wait_seconds={waitSeconds}";
+                    }
                     Notify($"Slot {slotId} blocked by queue. Waiting {waitSeconds}s. queue_wait_seconds={waitSeconds}");
                     await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
                     continue;
@@ -504,6 +512,10 @@ public sealed partial class TravianClient
                 if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources)
                 {
                     var waitSeconds = ClampResourceWaitSeconds(actionability.QueueWaitSeconds);
+                    if (ShouldDeferLongWait(waitSeconds))
+                    {
+                        return $"Slot {slotId} blocked by resources. queue_wait_seconds={waitSeconds}";
+                    }
                     Notify($"Slot {slotId} blocked by resources. Waiting {waitSeconds}s. queue_wait_seconds={waitSeconds}");
                     await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
                     continue;
@@ -511,6 +523,10 @@ public sealed partial class TravianClient
                 if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByQueue)
                 {
                     var waitSeconds = ClampResourceWaitSeconds(actionability.QueueWaitSeconds);
+                    if (ShouldDeferLongWait(waitSeconds))
+                    {
+                        return $"Slot {slotId} blocked by queue. queue_wait_seconds={waitSeconds}";
+                    }
                     Notify($"Slot {slotId} blocked by queue. Waiting {waitSeconds}s. queue_wait_seconds={waitSeconds}");
                     await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
                     continue;
@@ -830,6 +846,12 @@ public sealed partial class TravianClient
                 }
                 consecutiveZeroDurationReloads = 0;
                 var waitSec = Math.Clamp(dur + 1, 2, 600);
+                if (ShouldDeferLongWait(waitSec))
+                {
+                    Notify($"Smithy: research in progress, deferring for {waitSec}s.");
+                    return $"Smithy: research in progress. queue_wait_seconds={waitSec}";
+                }
+
                 Notify($"Smithy: research in progress, waiting {waitSec}s.");
                 await Task.Delay(TimeSpan.FromSeconds(waitSec), cancellationToken);
                 await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
@@ -905,20 +927,40 @@ public sealed partial class TravianClient
             return await _page.EvaluateAsync<int?>(
                 """
                 () => {
-                  // Look for HH:MM:SS or MM:SS countdown timers, especially under a Duration label.
-                  const all = Array.from(document.querySelectorAll('.timer, .duration, .researchDuration, span, td'));
-                  let best = null;
-                  for (const el of all) {
-                    const text = (el.textContent || '').trim();
-                    const m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(text);
-                    if (!m) continue;
-                    const hh = m[3] !== undefined ? parseInt(m[1], 10) : 0;
-                    const mm = m[3] !== undefined ? parseInt(m[2], 10) : parseInt(m[1], 10);
-                    const ss = m[3] !== undefined ? parseInt(m[3], 10) : parseInt(m[2], 10);
-                    const total = hh * 3600 + mm * 60 + ss;
-                    if (best === null || total > best) best = total;
+                  const parseSeconds = (value) => {
+                    if (!value) return null;
+                    const text = String(value).trim();
+                    if (!text) return null;
+                    if (/^\d+$/.test(text)) {
+                      return parseInt(text, 10);
+                    }
+
+                    const match = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(text);
+                    if (!match) return null;
+                    const hasHours = match[3] !== undefined;
+                    const hh = hasHours ? parseInt(match[1], 10) : 0;
+                    const mm = hasHours ? parseInt(match[2], 10) : parseInt(match[1], 10);
+                    const ss = hasHours ? parseInt(match[3], 10) : parseInt(match[2], 10);
+                    return hh * 3600 + mm * 60 + ss;
+                  };
+
+                  const progressTimers = Array.from(document.querySelectorAll('table.under_progress .timer'));
+                  const progressValues = progressTimers
+                    .map(el => parseSeconds(el.getAttribute('value')) ?? parseSeconds(el.textContent))
+                    .filter(value => value !== null);
+                  if (progressValues.length > 0) {
+                    return Math.min(...progressValues);
                   }
-                  return best;
+
+                  const all = Array.from(document.querySelectorAll('.timer, .duration, .researchDuration, span, td'));
+                  const values = all
+                    .map(el => parseSeconds(el.getAttribute?.('value')) ?? parseSeconds(el.textContent))
+                    .filter(value => value !== null);
+                  if (values.length > 0) {
+                    return Math.min(...values);
+                  }
+
+                  return null;
                 }
                 """);
         }
@@ -926,6 +968,27 @@ public sealed partial class TravianClient
         {
             return null;
         }
+    }
+
+    private bool ShouldDeferLongWait(int waitSeconds)
+    {
+        if (waitSeconds <= 0)
+        {
+            return false;
+        }
+
+        var mode = _config.QueueWaitThresholdMode?.Trim();
+        if (string.Equals(mode, "smart", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!int.TryParse(mode, out var thresholdSeconds) || thresholdSeconds < 0)
+        {
+            thresholdSeconds = 10;
+        }
+
+        return waitSeconds > thresholdSeconds;
     }
 
     public async Task<IReadOnlyList<ServerBuildChoice>> ReadAvailableBuildingsForSlotAsync(int slotId, CancellationToken cancellationToken = default)
