@@ -68,7 +68,11 @@ public partial class MainWindow : Window
     private sealed record UiSyncVillagePayload(
         string? Name,
         string? Url,
-        bool? IsCapital);
+        bool? IsCapital,
+        int? CoordX,
+        int? CoordY,
+        int? Population,
+        int? CropFields);
 
     private sealed record UiSyncPayload(
         int? Gold,
@@ -210,15 +214,61 @@ public partial class MainWindow : Window
     private readonly List<string> _sessionLogLines = [];
     private readonly List<string> _sessionAlarmLines = [];
     private bool _logFlushQueued;
-    private int _lastContinuousLoopGroupIndex = -1;
     private bool _continuousLoopConstructionStatusNeedsSync = true;
     private bool _restartContinuousLoopAfterStop;
+    private bool _startContinuousLoopAfterQueueStop;
 
     public ObservableCollection<ResourceFieldRow> WoodFields => _woodFields;
     public ObservableCollection<ResourceFieldRow> ClayFields => _clayFields;
     public ObservableCollection<ResourceFieldRow> IronFields => _ironFields;
     public ObservableCollection<ResourceFieldRow> CroplandFields => _croplandFields;
     public ObservableCollection<BuildingSlotRow> BuildingSlots => _buildingRows;
+
+    private static bool IsPinnedBuildingTopSlot(int slotId)
+    {
+        return slotId == 26 || slotId == 39 || slotId == 40;
+    }
+
+    private void BuildingTopSlotsView_Filter(object sender, FilterEventArgs e)
+    {
+        e.Accepted = e.Item is BuildingSlotRow row && IsPinnedBuildingTopSlot(row.SlotId);
+    }
+
+    private void BuildingRemainingSlotsView_Filter(object sender, FilterEventArgs e)
+    {
+        e.Accepted = e.Item is BuildingSlotRow row && !IsPinnedBuildingTopSlot(row.SlotId);
+    }
+
+    private void InitializeBuildingSlotPlaceholders()
+    {
+        if (_buildingRows.Count > 0)
+        {
+            return;
+        }
+
+        foreach (var slotId in Enumerable.Range(19, 22))
+        {
+            BuildingSlotLayoutById.TryGetValue(slotId, out var layout);
+            var isWallSlot = slotId == 40;
+            var isRallyPointSlot = IsRallyPointSlot(slotId);
+            _buildingRows.Add(new BuildingSlotRow
+            {
+                SlotId = slotId,
+                Name = isRallyPointSlot ? "Rally Point" : isWallSlot ? "Wall" : "Empty",
+                Level = isWallSlot || isRallyPointSlot ? 0 : null,
+                Gid = null,
+                Category = string.Empty,
+                Requirements = string.Empty,
+                PendingTargetLevel = null,
+                PendingConstructName = string.Empty,
+                IsDemolishing = false,
+                MapLeft = layout.Left,
+                MapTop = layout.Top,
+                IsWallSlot = isWallSlot,
+                IsRallyPointSlot = isRallyPointSlot,
+            });
+        }
+    }
 
     public MainWindow()
     {
@@ -301,6 +351,7 @@ public partial class MainWindow : Window
         AutomationLoopListBox.ItemsSource = _automationLoopTasks;
         HeroAttributePriorityItemsControl.ItemsSource = _heroAttributePriorityItems;
         FarmListsItemsControl.ItemsSource = _farmLists;
+        InitializeBuildingSlotPlaceholders();
         _farmLists.CollectionChanged += (_, _) =>
         {
             SyncFarmListSelectionHandlers();
@@ -508,11 +559,20 @@ public partial class MainWindow : Window
 
     private void UpdateGoldClubInfo(bool? enabled)
     {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.Invoke(() => UpdateGoldClubInfo(enabled));
+            return;
+        }
+
         if (enabled == true)
         {
             GoldClubInfoTextBlock.Text = "Yes";
             GoldClubInfoTextBlock.Foreground = System.Windows.Media.Brushes.Green;
-            ClearFarmingBlockedState();
+            if (string.Equals(_farmingBlockedReasonKey, FarmingBlockedReasonNoGoldClub, StringComparison.OrdinalIgnoreCase))
+            {
+                ClearFarmingBlockedState();
+            }
         }
         else if (enabled == false)
         {
@@ -525,6 +585,25 @@ public partial class MainWindow : Window
             GoldClubInfoTextBlock.Foreground = System.Windows.Media.Brushes.Gray;
         }
         UpdateAccountInfoLabel(_accountStore.ActiveAccountName());
+    }
+
+    private void ApplyFarmingAvailabilityFromGoldClubStatus(bool? enabled)
+    {
+        if (enabled == true)
+        {
+            if (string.Equals(_farmingBlockedReasonKey, FarmingBlockedReasonNoGoldClub, StringComparison.OrdinalIgnoreCase))
+            {
+                ClearFarmingBlockedState();
+            }
+
+            return;
+        }
+
+        if (enabled == false
+            && !string.Equals(_farmingBlockedReasonKey, FarmingBlockedReasonNoGoldClub, StringComparison.OrdinalIgnoreCase))
+        {
+            SetFarmingBlockedState(FarmingBlockedReasonNoGoldClub, "No goldclub");
+        }
     }
 
     private void UpdatePlusInfo(bool? active)
@@ -611,13 +690,28 @@ public partial class MainWindow : Window
             {
                 VillagesInfoTextBlock.Text = $"Villages: {payload.Villages.Count}";
                 var currentSelectedName = GetSelectedVillageName();
+                var existingVillageData = (VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem>)
+                    ?.Where(item => !string.IsNullOrWhiteSpace(item.Name))
+                    .GroupBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase)
+                    ?? new Dictionary<string, VillageSelectionItem>(StringComparer.OrdinalIgnoreCase);
                 var villages = payload.Villages
                     .Where(v => !string.IsNullOrWhiteSpace(v.Name))
-                    .Select(v => new VillageSelectionItem
+                    .Select(v =>
                     {
-                        Name = v.Name!,
-                        Url = v.Url ?? string.Empty,
-                        IsCapital = v.IsCapital == true,
+                        var name = v.Name!;
+                        existingVillageData.TryGetValue(name, out var existing);
+
+                        return new VillageSelectionItem
+                        {
+                            Name = name,
+                            Url = v.Url ?? existing?.Url ?? string.Empty,
+                            IsCapital = v.IsCapital ?? existing?.IsCapital ?? false,
+                            CoordX = v.CoordX ?? existing?.CoordX,
+                            CoordY = v.CoordY ?? existing?.CoordY,
+                            Population = v.Population ?? existing?.Population,
+                            CropFields = v.CropFields ?? existing?.CropFields,
+                        };
                     })
                     .ToList();
 
@@ -636,6 +730,12 @@ public partial class MainWindow : Window
                 {
                     _suppressVillageSelectionChange = false;
                 }
+
+                DashboardVillageList.ItemsSource = villages
+                    .OrderByDescending(v => v.IsCapital)
+                    .ThenByDescending(v => v.Population ?? -1)
+                    .ThenBy(v => v.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
             }
         }
         catch
@@ -1104,7 +1204,7 @@ public partial class MainWindow : Window
             && value.Contains("All done", StringComparison.OrdinalIgnoreCase))
         {
             reasonKey = TroopsBlockedReasonAllDone;
-            reasonText = "All upgrades completed";
+            reasonText = "All troops fully developed";
             return true;
         }
 
@@ -1258,21 +1358,36 @@ public partial class MainWindow : Window
         PersistAutomationLoopTasksToConfig();
     }
 
-    private void TryClearTroopsBlockedStateFromVillageStatus(VillageStatus status)
+    private static bool HasSmithyInVillageStatus(VillageStatus status)
     {
-        if (!string.Equals(_troopsBlockedReasonKey, TroopsBlockedReasonSmithyMissing, StringComparison.OrdinalIgnoreCase))
+        return status.Buildings.Any(item =>
+            item.Gid == 12
+            || string.Equals(item.Name, "Smithy", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(item.Name, "Blacksmith", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void ApplyTroopsAvailabilityFromVillageStatus(VillageStatus status)
+    {
+        var hasSmithy = HasSmithyInVillageStatus(status);
+        if (hasSmithy)
+        {
+            if (string.Equals(_troopsBlockedReasonKey, TroopsBlockedReasonSmithyMissing, StringComparison.OrdinalIgnoreCase))
+            {
+                ClearTroopsBlockedState();
+                AppendLog("Troops group re-enabled: Smithy detected after building refresh.");
+            }
+
+            return;
+        }
+
+        if (string.Equals(_troopsBlockedReasonKey, TroopsBlockedReasonAllDone, StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
 
-        var hasSmithy = status.Buildings.Any(item =>
-            item.Gid == 12
-            || string.Equals(item.Name, "Smithy", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(item.Name, "Blacksmith", StringComparison.OrdinalIgnoreCase));
-        if (hasSmithy)
+        if (!string.Equals(_troopsBlockedReasonKey, TroopsBlockedReasonSmithyMissing, StringComparison.OrdinalIgnoreCase))
         {
-            ClearTroopsBlockedState();
-            AppendLog("Troops group re-enabled: Smithy detected after building refresh.");
+            SetTroopsBlockedState(TroopsBlockedReasonSmithyMissing, "Smithy missing");
         }
     }
 
@@ -1340,7 +1455,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (IsContinuousLoopGroupEnabled(QueueGroup.Hero) || IsHeroGroupBlocked())
+        if (!string.Equals(_heroBlockedReasonKey, HeroBlockedReasonNoAdventures, StringComparison.OrdinalIgnoreCase))
         {
             SetHeroBlockedState(HeroBlockedReasonNoAdventures, "No adventures");
         }
@@ -1618,6 +1733,7 @@ public partial class MainWindow : Window
     private const string TroopsBlockedReasonSmithyMissing = "smithy_missing";
     private const string TroopsBlockedReasonAllDone = "all_done";
     private const string FarmingBlockedReasonNoGoldClub = "no_goldclub";
+    private const string FarmingBlockedReasonNoFarmLists = "no_farmlists";
     private const string HeroBlockedReasonNoAdventures = "no_adventures";
 
     private static string HumanizeTaskName(string taskName)
@@ -1784,6 +1900,7 @@ public partial class MainWindow : Window
         else if (option.IsEnabled
             && string.Equals(option.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Farming), StringComparison.OrdinalIgnoreCase))
         {
+            _lastFarmListsAnalysisAt = DateTimeOffset.MinValue;
             ClearFarmingBlockedState();
         }
         else if (option.IsEnabled
@@ -1946,78 +2063,97 @@ public partial class MainWindow : Window
         UpdateGoldClubInfo(goldClubEnabled);
         if (!goldClubEnabled)
         {
-            _farmLists.Clear();
-            SetFarmingFeatureAvailability(false, "Farming unavailable: Gold Club is not active on this account.");
+            await Dispatcher.InvokeAsync(() =>
+            {
+                _farmLists.Clear();
+                SetFarmingFeatureAvailability(false, "Farming unavailable: Gold Club is not active on this account.");
+            });
             return false;
         }
 
         var lists = await _botService.ReadFarmListsOverviewAsync(options, AppendLog, cancellationToken) ?? [];
         var selectedFarmLists = LoadConfiguredContinuousFarmListNames();
-        _suppressFarmListUiRefresh = true;
-        try
+        var mergedByName = new Dictionary<string, (int Active, int Total, int? RemainingSeconds)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var list in lists)
         {
-            _farmLists.Clear();
-            var mergedByName = new Dictionary<string, (int Active, int Total, int? RemainingSeconds)>(StringComparer.OrdinalIgnoreCase);
-            foreach (var list in lists)
+            if (list is null)
             {
-                if (list is null)
-                {
-                    continue;
-                }
+                continue;
+            }
 
-                var normalizedName = string.IsNullOrWhiteSpace(list.Name) ? "Farm list" : list.Name.Trim();
-                if (!mergedByName.TryGetValue(normalizedName, out var existing))
-                {
-                    mergedByName[normalizedName] = (
-                        Active: Math.Max(0, list.ActiveFarmCount),
-                        Total: Math.Max(0, list.TotalFarmCount),
-                        RemainingSeconds: list.RemainingSeconds is > 0 ? list.RemainingSeconds : null);
-                    continue;
-                }
-
-                var incomingRemaining = list.RemainingSeconds is > 0 ? list.RemainingSeconds : null;
+            var normalizedName = string.IsNullOrWhiteSpace(list.Name) ? "Farm list" : list.Name.Trim();
+            if (!mergedByName.TryGetValue(normalizedName, out var existing))
+            {
                 mergedByName[normalizedName] = (
-                    Active: Math.Max(existing.Active, Math.Max(0, list.ActiveFarmCount)),
-                    Total: Math.Max(existing.Total, Math.Max(0, list.TotalFarmCount)),
-                    RemainingSeconds: existing.RemainingSeconds is > 0
-                        ? existing.RemainingSeconds
-                        : incomingRemaining);
+                    Active: Math.Max(0, list.ActiveFarmCount),
+                    Total: Math.Max(0, list.TotalFarmCount),
+                    RemainingSeconds: list.RemainingSeconds is > 0 ? list.RemainingSeconds : null);
+                continue;
             }
 
-            var displayedRows = 0;
-            foreach (var pair in mergedByName.OrderBy(pair => pair.Key))
-            {
-                if (displayedRows >= MaxFarmListsShown)
-                {
-                    break;
-                }
-
-                _farmLists.Add(new FarmListStatusRow
-                {
-                    Name = pair.Key,
-                    ActiveFarmCount = pair.Value.Active,
-                    TotalFarmCount = pair.Value.Total,
-                    IsEnabled = selectedFarmLists.Count <= 0 || selectedFarmLists.Contains(pair.Key),
-                    RemainingSeconds = pair.Value.RemainingSeconds,
-                });
-                displayedRows++;
-            }
-
-            if (mergedByName.Count > MaxFarmListsShown)
-            {
-                AppendLog($"Farm list UI limited to {MaxFarmListsShown} rows (detected {mergedByName.Count}).");
-            }
+            var incomingRemaining = list.RemainingSeconds is > 0 ? list.RemainingSeconds : null;
+            mergedByName[normalizedName] = (
+                Active: Math.Max(existing.Active, Math.Max(0, list.ActiveFarmCount)),
+                Total: Math.Max(existing.Total, Math.Max(0, list.TotalFarmCount)),
+                RemainingSeconds: existing.RemainingSeconds is > 0
+                    ? existing.RemainingSeconds
+                    : incomingRemaining);
         }
-        finally
+
+        await Dispatcher.InvokeAsync(() =>
         {
-            _suppressFarmListUiRefresh = false;
+            _suppressFarmListUiRefresh = true;
+            try
+            {
+                _farmLists.Clear();
+                var displayedRows = 0;
+                foreach (var pair in mergedByName.OrderBy(pair => pair.Key))
+                {
+                    if (displayedRows >= MaxFarmListsShown)
+                    {
+                        break;
+                    }
+
+                    _farmLists.Add(new FarmListStatusRow
+                    {
+                        Name = pair.Key,
+                        ActiveFarmCount = pair.Value.Active,
+                        TotalFarmCount = pair.Value.Total,
+                        IsEnabled = selectedFarmLists.Count <= 0 || selectedFarmLists.Contains(pair.Key),
+                        RemainingSeconds = pair.Value.RemainingSeconds,
+                    });
+                    displayedRows++;
+                }
+            }
+            finally
+            {
+                _suppressFarmListUiRefresh = false;
+            }
+
+            SetFarmingFeatureAvailability(true);
+            _lastFarmListsAnalysisAt = DateTimeOffset.UtcNow;
+            if (_farmLists.Count > 0)
+            {
+                if (string.Equals(_farmingBlockedReasonKey, FarmingBlockedReasonNoFarmLists, StringComparison.OrdinalIgnoreCase))
+                {
+                    ClearFarmingBlockedState();
+                }
+            }
+            else
+            {
+                SetFarmingBlockedState(FarmingBlockedReasonNoFarmLists, "No farmlists available");
+            }
+
+            UpdateFarmingUiState();
+            SyncFarmListSelectionHandlers();
+            RefreshFarmListsItemsControl();
+        });
+
+        if (mergedByName.Count > MaxFarmListsShown)
+        {
+            AppendLog($"Farm list UI limited to {MaxFarmListsShown} rows (detected {mergedByName.Count}).");
         }
 
-        SetFarmingFeatureAvailability(true);
-        _lastFarmListsAnalysisAt = DateTimeOffset.UtcNow;
-        UpdateFarmingUiState();
-        SyncFarmListSelectionHandlers();
-        RefreshFarmListsItemsControl();
         return true;
     }
 
@@ -2683,6 +2819,44 @@ public partial class MainWindow : Window
             RefreshNatarsProfileAnalyzedFromCache();
             var snapshot = await _botService.LoadPostLoginSnapshotAsync(options, AppendLog, cancellationToken: operationToken);
             ApplyPostLoginSnapshot(snapshot);
+            if (options.PostLoginAnalyzeFarmlists)
+            {
+                try
+                {
+                    await RefreshFarmListsFromServerAsync(options, operationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    AppendLog($"Post-login farmlist analyze failed: {ex.Message}");
+                }
+            }
+
+            if (options.PostLoginAnalyzeHero)
+            {
+                try
+                {
+                    await RefreshHeroStatsAsync(operationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    AppendLog($"Post-login hero analyze failed: {ex.Message}");
+                }
+            }
+
+            await _botService.NavigateToVillageResourceFieldsAsync(
+                options,
+                AppendLog,
+                GetSelectedVillageName(),
+                GetSelectedVillageUrl(),
+                cancellationToken: operationToken);
             CompleteOperation(operationId, operationSw, "Login completed.");
         }
         catch (OperationCanceledException)
@@ -2964,50 +3138,7 @@ public partial class MainWindow : Window
         ToggleUiBusy(true);
         try
         {
-            await EnsureChromiumInstalledAsync();
-            var options = LoadBotOptions();
-            var status = await ReadVillageStatusWithRetryAsync(options, operationToken, resourceOnly: true, forceCurrentVillage: true);
-            var resourceMaxLevel = ResolveResourceMaxLevelFromStatus(status);
-            var requestedTargetLevel = Math.Min(targetLevel, resourceMaxLevel);
-            _resourcePendingTargetBySlot.Clear();
-            var rows = status.ResourceFields
-                .Where(item => item.SlotId is not null && item.Level is not null)
-                .Select(item => new ResourceFieldRow
-                {
-                    SlotId = item.SlotId ?? 0,
-                    FieldType = item.FieldType,
-                    Name = item.Name,
-                    Level = item.Level,
-                    Url = item.Url ?? string.Empty,
-                    PendingTargetLevel = null,
-                    IsMaxLevel = (item.Level ?? 0) >= resourceMaxLevel,
-                })
-                .ToList();
-
-            SetResourceRows(rows);
-            ApplyVillageStatusToUi(status);
-
-            var orderedUpgrades = rows
-                .Where(row => (row.Level ?? 0) < requestedTargetLevel)
-                .OrderBy(row => row.Level ?? 0)
-                .ThenBy(row => row.SlotId)
-                .ToList();
-
-            if (orderedUpgrades.Count == 0)
-            {
-                AppendLog($"[{operationId}] OK 0.0s | All resource fields are already at or above level {requestedTargetLevel}.");
-                return;
-            }
-
-            var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                [BotOptionPayloadKeys.ResourceUpgradeTargetLevel] = requestedTargetLevel.ToString(),
-            };
-
-            var item = _botService.Enqueue("upgrade_all_resources_to_level", payload, priority: 0, maxRetries: 3);
-            RequestQueueUiRefresh(selectId: item.Id);
-            TriggerQueueAutoRunFromEnqueue();
-            AppendLog($"[{operationId}] OK 0.0s | Queued upgrade-all toward level {requestedTargetLevel}. The worker will upgrade the lowest resource field first.");
+            await QueueUpgradeAllResourcesAsync(operationId, operationToken, targetLevel);
         }
         catch (OperationCanceledException)
         {
@@ -3025,6 +3156,84 @@ public partial class MainWindow : Window
             _operationCts?.Dispose();
             _operationCts = null;
         }
+    }
+
+    private async void UpgradeAllResourcesToMaxButton_Click(object sender, RoutedEventArgs e)
+    {
+        var operationId = BeginOperation("UpgradeAllResourcesToMax");
+        _operationCts = new CancellationTokenSource();
+        var operationToken = _operationCts.Token;
+        ToggleUiBusy(true);
+        try
+        {
+            await QueueUpgradeAllResourcesAsync(operationId, operationToken, null);
+        }
+        catch (OperationCanceledException)
+        {
+            ClearPendingResourceLevelsFromUi();
+            StatusTextBlock.Text = "Upgrade all resources paused.";
+            AppendLog("Upgrade all resources paused.");
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"[{operationId}] FAIL 0.0s | {FormatExceptionForLog(ex)}");
+        }
+        finally
+        {
+            ToggleUiBusy(false);
+            _operationCts?.Dispose();
+            _operationCts = null;
+        }
+    }
+
+    private async Task QueueUpgradeAllResourcesAsync(string operationId, CancellationToken operationToken, int? targetLevel)
+    {
+        await EnsureChromiumInstalledAsync();
+        var options = LoadBotOptions();
+        var status = await ReadVillageStatusWithRetryAsync(options, operationToken, resourceOnly: true, forceCurrentVillage: true);
+        var resourceMaxLevel = ResolveResourceMaxLevelFromStatus(status);
+        var requestedTargetLevel = targetLevel.HasValue
+            ? Math.Min(targetLevel.Value, resourceMaxLevel)
+            : resourceMaxLevel;
+        _resourcePendingTargetBySlot.Clear();
+        var rows = status.ResourceFields
+            .Where(item => item.SlotId is not null && item.Level is not null)
+            .Select(item => new ResourceFieldRow
+            {
+                SlotId = item.SlotId ?? 0,
+                FieldType = item.FieldType,
+                Name = item.Name,
+                Level = item.Level,
+                Url = item.Url ?? string.Empty,
+                PendingTargetLevel = null,
+                IsMaxLevel = (item.Level ?? 0) >= resourceMaxLevel,
+            })
+            .ToList();
+
+        SetResourceRows(rows);
+        ApplyVillageStatusToUi(status);
+
+        var orderedUpgrades = rows
+            .Where(row => (row.Level ?? 0) < requestedTargetLevel)
+            .OrderBy(row => row.Level ?? 0)
+            .ThenBy(row => row.SlotId)
+            .ToList();
+
+        if (orderedUpgrades.Count == 0)
+        {
+            AppendLog($"[{operationId}] OK 0.0s | All resource fields are already at or above level {requestedTargetLevel}.");
+            return;
+        }
+
+        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.ResourceUpgradeTargetLevel] = requestedTargetLevel.ToString(),
+        };
+
+        var item = _botService.Enqueue("upgrade_all_resources_to_level", payload, priority: 0, maxRetries: 3);
+        RequestQueueUiRefresh(selectId: item.Id);
+        TriggerQueueAutoRunFromEnqueue();
+        AppendLog($"[{operationId}] OK 0.0s | Queued upgrade-all toward level {requestedTargetLevel}. The worker will upgrade the lowest resource field first.");
     }
 
     private void OpenVerificationBrowserButton_Click(object sender, RoutedEventArgs e)
@@ -3061,8 +3270,9 @@ public partial class MainWindow : Window
 
         if (_autoQueueRunning)
         {
+            _startContinuousLoopAfterQueueStop = true;
             _queueStopRequested = true;
-            AppendLog("Pause requested. Letting current task finish before stopping.");
+            AppendLog("Continuous loop requested. Letting current queue task finish before switching.");
             return;
         }
 
@@ -3128,6 +3338,7 @@ public partial class MainWindow : Window
 
         _queueStopRequested = true;
         _loopStopRequested = true;
+        _startContinuousLoopAfterQueueStop = false;
         _operationCts?.Cancel();
         _autoQueueRunCts?.Cancel();
         _loopCts?.Cancel();
@@ -3439,17 +3650,13 @@ public partial class MainWindow : Window
     {
         try
         {
-            _loopStopRequested = true;
-            _queueStopRequested = true;
-            _operationCts?.Cancel();
-            _autoQueueRunCts?.Cancel();
-            _loopCts?.Cancel();
-            _botService.ClearQueue();
-            _buildingLastQueuedTargetBySlot.Clear();
-            _buildingLastQueuedConstructBySlot.Clear();
-            ClearPendingResourceLevelsFromUi();
-            RefreshQueueUi();
-            AppendLog("Queue cleared and running actions stopped.");
+            if (ReferenceEquals(QueueSectionTabControl?.SelectedItem, HistoryQueueTabItem))
+            {
+                ClearHistoryQueueItems();
+                return;
+            }
+
+            ClearActiveQueueItems();
         }
         catch (Exception ex)
         {
@@ -3485,8 +3692,7 @@ public partial class MainWindow : Window
         activeGrid.Columns.Add(new DataGridTextColumn { Header = "Group", Binding = new Binding("GroupName"), Width = new DataGridLength(1.15, DataGridLengthUnitType.Star) });
         activeGrid.Columns.Add(new DataGridTextColumn { Header = "Task", Binding = new Binding("DisplayName"), Width = new DataGridLength(2, DataGridLengthUnitType.Star) });
         activeGrid.Columns.Add(new DataGridTextColumn { Header = "Status", Binding = new Binding("Status"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
-        activeGrid.Columns.Add(new DataGridTextColumn { Header = "Retries", Binding = new Binding("Retries"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
-        activeGrid.Columns.Add(new DataGridTextColumn { Header = "Next try", Binding = new Binding("NextAttemptAtServer"), Width = new DataGridLength(2, DataGridLengthUnitType.Star) });
+        activeGrid.Columns.Add(new DataGridTextColumn { Header = "Retries", Binding = new Binding("RetriesText"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
 
         var historyGrid = new DataGrid
         {
@@ -3751,6 +3957,7 @@ public partial class MainWindow : Window
             }
 
             QueueInfoTextBlock.Text = $"Queue active: {activeRows.Count} | done: {historyRows.Count}";
+            UpdateQueueClearButtonContent();
             if (_queuePopupWindow?.Content is Grid queuePopupRoot && queuePopupRoot.Children.Count >= 2)
             {
                 if (queuePopupRoot.Children[0] is DataGrid popupActiveGrid)
@@ -3788,6 +3995,83 @@ public partial class MainWindow : Window
                 item.NextAttemptAt > nowUtc)?.Id;
     }
 
+    private void UpdateQueueClearButtonContent()
+    {
+        if (QueueClearButton is null)
+        {
+            return;
+        }
+
+        QueueClearButton.Content = ReferenceEquals(QueueSectionTabControl?.SelectedItem, HistoryQueueTabItem)
+            ? "Clear history"
+            : "Clear active queue";
+    }
+
+    private void ClearActiveQueueItems()
+    {
+        var activeRows = (QueueDataGrid.ItemsSource as IEnumerable<QueueItemRow>)?.ToList() ?? [];
+        if (activeRows.Count == 0)
+        {
+            AppendLog("Active queue is already empty.");
+            return;
+        }
+
+        _loopStopRequested = true;
+        _queueStopRequested = true;
+        _operationCts?.Cancel();
+        _autoQueueRunCts?.Cancel();
+        _loopCts?.Cancel();
+
+        var removed = 0;
+        foreach (var row in activeRows)
+        {
+            var existingItem = _botService.GetQueueItemsForDisplay().FirstOrDefault(item => item.Id == row.Id);
+            if (!_botService.RemoveQueueItem(row.Id))
+            {
+                continue;
+            }
+
+            if (existingItem is not null)
+            {
+                ForgetBuildingQueueCachesForItem(existingItem);
+            }
+
+            removed += 1;
+        }
+
+        _buildingLastQueuedTargetBySlot.Clear();
+        _buildingLastQueuedConstructBySlot.Clear();
+        ClearPendingResourceLevelsFromUi();
+        RefreshQueueUi();
+        AppendLog(removed > 0
+            ? "Active queue cleared and running actions stopped."
+            : "Could not clear active queue.");
+    }
+
+    private void ClearHistoryQueueItems()
+    {
+        var historyRows = (QueueHistoryDataGrid.ItemsSource as IEnumerable<QueueItemRow>)?.ToList() ?? [];
+        if (historyRows.Count == 0)
+        {
+            AppendLog("History is already empty.");
+            return;
+        }
+
+        var removed = 0;
+        foreach (var row in historyRows)
+        {
+            if (_botService.RemoveQueueItem(row.Id))
+            {
+                removed += 1;
+            }
+        }
+
+        RefreshQueueUi();
+        AppendLog(removed > 0
+            ? "Queue history cleared."
+            : "Could not clear queue history.");
+    }
+
     private void RefreshQueueUiOnUiThread(Guid? selectId = null)
     {
         RequestQueueUiRefresh(selectId);
@@ -3817,6 +4101,16 @@ public partial class MainWindow : Window
 
         _queueUiRefreshTimer.Stop();
         _queueUiRefreshTimer.Start();
+    }
+
+    private void QueueSectionTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!ReferenceEquals(sender, QueueSectionTabControl))
+        {
+            return;
+        }
+
+        UpdateQueueClearButtonContent();
     }
 
     private void LoadBuildingsButton_Click(object sender, RoutedEventArgs e)
@@ -5334,6 +5628,7 @@ public partial class MainWindow : Window
         RefreshVillagePickerFromVillages(status.Villages, status.ActiveVillage);
         UpdateDashboardVillageList(status.Villages);
         UpdateInboxButtons(snapshot.InboxStatus.UnreadMessages, snapshot.InboxStatus.UnreadReports);
+        ApplyFarmingAvailabilityFromGoldClubStatus(TryGetStoredGoldClubEnabled(_accountStore.ActiveAccountName()));
 
         if (snapshot.AdventureCount is null)
         {
@@ -5496,7 +5791,7 @@ public partial class MainWindow : Window
         _lastBuildingStatus = status;
         await Dispatcher.InvokeAsync(() =>
         {
-            TryClearTroopsBlockedStateFromVillageStatus(status);
+            ApplyTroopsAvailabilityFromVillageStatus(status);
             PopulateBuildingsTab(status);
             BuildingsInfoTextBlock.Text = $"Loaded {status.Buildings.Count} building slots from queue snapshot.";
         });
@@ -5873,11 +6168,9 @@ public partial class MainWindow : Window
             SetEnabled(LoginButton, defaultEnabled);
             SetEnabled(LogoutButton, defaultEnabled);
             SetEnabled(SettingsButton, defaultEnabled);
-            SetEnabled(QueueAddButton, defaultEnabled);
             SetEnabled(QueueRemoveButton, defaultEnabled);
             SetEnabled(QueueMoveUpButton, defaultEnabled);
             SetEnabled(QueueMoveDownButton, defaultEnabled);
-            SetEnabled(QueueRetryButton, defaultEnabled);
             SetEnabled(QueueClearButton, defaultEnabled);
             SetEnabled(QueueRefreshButton, defaultEnabled);
             SetEnabled(ResetProgramButton, true);
@@ -6294,6 +6587,22 @@ public partial class MainWindow : Window
                 _autoQueueRunCts = null;
                 UpdateExecutionStateIndicatorOnUiThread();
                 _queueAutoRunGate.Release();
+                _ = Dispatcher.BeginInvoke(() =>
+                {
+                    if (_startContinuousLoopAfterQueueStop
+                        && ContinuousRunToggleButton?.IsChecked == true
+                        && _isLoggedIn
+                        && !_uiBusy
+                        && !_autoQueueRunning
+                        && (_loopTask is null || _loopTask.IsCompleted))
+                    {
+                        _startContinuousLoopAfterQueueStop = false;
+                        StartContinuousLoopRunner();
+                        return;
+                    }
+
+                    _startContinuousLoopAfterQueueStop = false;
+                });
             }
         });
     }
@@ -6382,12 +6691,10 @@ public partial class MainWindow : Window
         {
             var adventureCount = await _botService.RefreshAdventureCountAsync(options, AppendLog, CancellationToken.None);
             await Dispatcher.InvokeAsync(() => ApplyHeroAdventureAvailability(adventureCount));
-            if (adventureCount is not > 0)
+            if (adventureCount is > 0)
             {
-                return;
+                _botService.EnqueueRuntime("hero_manage", "Hero adventure", null, priority: -50, maxRetries: 0);
             }
-
-            _botService.EnqueueRuntime("hero_manage", "Hero adventure", null, priority: -50, maxRetries: 0);
         }
 
         if (enabledGroups.Contains(QueueGroup.Troops) && !IsTroopsGroupBlocked() && !HasActiveTask("upgrade_troops_at_smithy"))
@@ -6399,34 +6706,50 @@ public partial class MainWindow : Window
         {
             var goldClubEnabled = await _botService.ReadAndPersistGoldClubStatusAsync(options, AppendLog, CancellationToken.None);
             UpdateGoldClubInfo(goldClubEnabled);
-            if (!goldClubEnabled)
+            if (goldClubEnabled)
+            {
+                await EnsureContinuousFarmListsReadyAsync(options);
+                var selectedFarmLists = Dispatcher.CheckAccess()
+                    ? _farmLists
+                        .Where(item => item.IsEnabled)
+                        .Select(item => item.Name)
+                        .Where(name => !string.IsNullOrWhiteSpace(name))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList()
+                    : Dispatcher.Invoke(() => _farmLists
+                        .Where(item => item.IsEnabled)
+                        .Select(item => item.Name)
+                        .Where(name => !string.IsNullOrWhiteSpace(name))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList());
+                var availableFarmListCount = Dispatcher.CheckAccess()
+                    ? _farmLists.Count
+                    : Dispatcher.Invoke(() => _farmLists.Count);
+                if (availableFarmListCount <= 0)
+                {
+                    SetFarmingBlockedState(FarmingBlockedReasonNoFarmLists, "No farmlists available");
+                }
+                else
+                {
+                    if (string.Equals(_farmingBlockedReasonKey, FarmingBlockedReasonNoFarmLists, StringComparison.OrdinalIgnoreCase))
+                    {
+                        ClearFarmingBlockedState();
+                    }
+                }
+
+                if (selectedFarmLists.Count > 0)
+                {
+                    var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        [BotOptionPayloadKeys.ContinuousFarmListNames] = string.Join(",", selectedFarmLists),
+                        [BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes] = options.ContinuousFarmDispatchDelayMinutes.ToString(),
+                    };
+                    _botService.EnqueueRuntime("send_farmlists", "Send selected farmlists", payload, priority: -50, maxRetries: 0);
+                }
+            }
+            else
             {
                 SetFarmingBlockedState(FarmingBlockedReasonNoGoldClub, "No goldclub");
-                return;
-            }
-
-            await EnsureContinuousFarmListsReadyAsync(options);
-            var selectedFarmLists = Dispatcher.CheckAccess()
-                ? _farmLists
-                    .Where(item => item.IsEnabled)
-                    .Select(item => item.Name)
-                    .Where(name => !string.IsNullOrWhiteSpace(name))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList()
-                : Dispatcher.Invoke(() => _farmLists
-                    .Where(item => item.IsEnabled)
-                    .Select(item => item.Name)
-                    .Where(name => !string.IsNullOrWhiteSpace(name))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList());
-            if (selectedFarmLists.Count > 0)
-            {
-                var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    [BotOptionPayloadKeys.ContinuousFarmListNames] = string.Join(",", selectedFarmLists),
-                    [BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes] = options.ContinuousFarmDispatchDelayMinutes.ToString(),
-                };
-                _botService.EnqueueRuntime("send_farmlists", "Send selected farmlists", payload, priority: -50, maxRetries: 0);
             }
         }
     }
@@ -6513,10 +6836,8 @@ public partial class MainWindow : Window
 
         var queueItems = _botService.GetQueueItemsForDisplay();
         var now = DateTimeOffset.UtcNow;
-        for (var i = 1; i <= orderedGroups.Count; i++)
+        foreach (var group in orderedGroups)
         {
-            var index = (_lastContinuousLoopGroupIndex + i) % orderedGroups.Count;
-            var group = orderedGroups[index];
             if (group == QueueGroup.Construction && !IsConstructionGroupReady())
             {
                 continue;
@@ -6537,7 +6858,6 @@ public partial class MainWindow : Window
                 continue;
             }
 
-            _lastContinuousLoopGroupIndex = index;
             return head;
         }
 
@@ -6618,7 +6938,7 @@ public partial class MainWindow : Window
                     }
                     catch (Exception ex)
                     {
-                        if (TryHandleTroopsBlockedExecution(next, ex, $"[LOOP {tickId}]"))
+                        if (await TryHandleTroopsBlockedExecutionAsync(next, ex, $"[LOOP {tickId}]"))
                         {
                             continue;
                         }
@@ -6681,6 +7001,11 @@ public partial class MainWindow : Window
     {
         try
         {
+            if (GetContinuousLoopEnabledGroupsInOrder().Count <= 0)
+            {
+                return TimeSpan.FromSeconds(Math.Max(5, fallbackSeconds));
+            }
+
             var now = DateTimeOffset.UtcNow;
             var nextDeferred = GetContinuousLoopRelevantQueueItems()
                 .Where(item => item.Status == QueueStatus.Pending && item.NextAttemptAt > now)
@@ -6826,7 +7151,7 @@ public partial class MainWindow : Window
             }
             catch (Exception ex)
             {
-                if (TryHandleTroopsBlockedExecution(next, ex, $"[AUTOQ {runId}]"))
+                if (await TryHandleTroopsBlockedExecutionAsync(next, ex, $"[AUTOQ {runId}]"))
                 {
                     continue;
                 }
@@ -8933,7 +9258,7 @@ public partial class MainWindow : Window
             || IsBuildingMutationTask(taskName);
     }
 
-    private bool TryHandleTroopsBlockedExecution(QueueItem queueItem, Exception ex, string logPrefix)
+    private async Task<bool> TryHandleTroopsBlockedExecutionAsync(QueueItem queueItem, Exception ex, string logPrefix)
     {
         if (!string.Equals(queueItem.TaskName, "upgrade_troops_at_smithy", StringComparison.OrdinalIgnoreCase))
         {
@@ -8945,10 +9270,45 @@ public partial class MainWindow : Window
             return false;
         }
 
+        if (string.Equals(reasonKey, TroopsBlockedReasonSmithyMissing, StringComparison.OrdinalIgnoreCase))
+        {
+            var verifiedMissing = await VerifySmithyMissingAsync();
+            if (verifiedMissing != true)
+            {
+                _botService.MarkQueueItemDeferred(queueItem.Id, TimeSpan.FromSeconds(10));
+                AppendLog(verifiedMissing == false
+                    ? $"{logPrefix} RETRY task={queueItem.TaskName} | Smithy exists after verification. Ignoring transient missing read."
+                    : $"{logPrefix} RETRY task={queueItem.TaskName} | Could not verify Smithy state. Skipping permanent block.");
+                return true;
+            }
+        }
+
         _botService.MarkQueueItemSucceeded(queueItem.Id);
         SetTroopsBlockedState(reasonKey, reasonText);
         AppendLog($"{logPrefix} BLOCKED task={queueItem.TaskName} | {reasonText}");
         return true;
+    }
+
+    private async Task<bool?> VerifySmithyMissingAsync()
+    {
+        try
+        {
+            var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            var status = await ReadVillageStatusWithRetryAsync(options, CancellationToken.None, resourceOnly: false);
+            await Dispatcher.InvokeAsync(() =>
+            {
+                _lastBuildingStatus = status;
+                ApplyVillageStatusToUi(status);
+                PopulateBuildingsTab(status);
+            });
+
+            return !HasSmithyInVillageStatus(status);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Smithy verification after blocked read failed: {ex.Message}");
+            return null;
+        }
     }
 
     private void RaiseAlarmIfQueueItemPermanentlyFailed(QueueItem queueItem, string errorMessage)
@@ -9276,13 +9636,29 @@ public partial class MainWindow : Window
 
         _buildQueueActiveCount = status.ActiveBuildCount;
         _buildQueueRemainingSeconds = status.BuildQueueRemainingSeconds ?? -1;
-        if (_buildQueueRemainingSeconds > 0 || _buildQueueActiveCount <= 0)
+        var hasDeferredConstructionQueueItem = false;
+        try
+        {
+            var nowUtc = DateTimeOffset.UtcNow;
+            hasDeferredConstructionQueueItem = _botService
+                .GetQueueItemsForDisplay()
+                .Any(item =>
+                    item.Group == QueueGroup.Construction
+                    && item.Status == QueueStatus.Pending
+                    && item.NextAttemptAt > nowUtc);
+        }
+        catch
+        {
+            // Ignore temporary queue read failures and keep the current inline wait state.
+        }
+
+        if (_buildQueueRemainingSeconds > 0 || (_buildQueueActiveCount <= 0 && !hasDeferredConstructionQueueItem))
         {
             _constructionInlineWaitUntilUtc = DateTimeOffset.MinValue;
         }
 
         _buildQueueReachedZeroPendingCompletion = false;
-        TryClearTroopsBlockedStateFromVillageStatus(status);
+        ApplyTroopsAvailabilityFromVillageStatus(status);
         UpdateBuildQueueStatusText();
         UpdateAutomationLoopRunningIndicators();
         RefreshVillagePicker(status);
@@ -9378,18 +9754,7 @@ public partial class MainWindow : Window
     private void RefreshVillagePicker(VillageStatus status)
     {
         var currentSelectedName = GetSelectedVillageName();
-        var villages = status.Villages
-            .Select(v => new VillageSelectionItem
-            {
-                Name = string.IsNullOrWhiteSpace(v.Name) ? "-" : v.Name,
-                Url = v.Url ?? string.Empty,
-                IsCapital = v.IsCapital == true,
-                CoordX = v.CoordX,
-                CoordY = v.CoordY,
-                Population = v.Population,
-                CropFields = v.CropFields,
-            })
-            .ToList();
+        var villages = BuildMergedVillageSelectionItems(status.Villages);
 
         if (villages.Count == 0)
         {
@@ -9411,6 +9776,12 @@ public partial class MainWindow : Window
         {
             _suppressVillageSelectionChange = false;
         }
+
+        DashboardVillageList.ItemsSource = villages
+            .OrderByDescending(v => v.IsCapital)
+            .ThenByDescending(v => v.Population ?? -1)
+            .ThenBy(v => v.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private void UpdateBuildQueueStatusText()
@@ -9610,21 +9981,10 @@ public partial class MainWindow : Window
 
     private void UpdateDashboardVillageList(IReadOnlyList<Village> villages)
     {
-        var items = villages
-            .Where(v => !string.IsNullOrWhiteSpace(v.Name))
-            .OrderByDescending(v => v.IsCapital == true)
+        var items = BuildMergedVillageSelectionItems(villages)
+            .OrderByDescending(v => v.IsCapital)
             .ThenByDescending(v => v.Population ?? -1)
             .ThenBy(v => v.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(v => new VillageSelectionItem
-            {
-                Name = v.Name,
-                Url = v.Url ?? string.Empty,
-                IsCapital = v.IsCapital == true,
-                CoordX = v.CoordX,
-                CoordY = v.CoordY,
-                Population = v.Population,
-                CropFields = v.CropFields,
-            })
             .ToList();
         DashboardVillageList.ItemsSource = items;
     }
@@ -9635,18 +9995,7 @@ public partial class MainWindow : Window
             ? GetSelectedVillageName()
             : preferredVillageName;
 
-        var items = villages
-            .Select(v => new VillageSelectionItem
-            {
-                Name = string.IsNullOrWhiteSpace(v.Name) ? "-" : v.Name,
-                Url = v.Url ?? string.Empty,
-                IsCapital = v.IsCapital == true,
-                CoordX = v.CoordX,
-                CoordY = v.CoordY,
-                Population = v.Population,
-                CropFields = v.CropFields,
-            })
-            .ToList();
+        var items = BuildMergedVillageSelectionItems(villages);
 
         if (items.Count == 0)
         {
@@ -9666,6 +10015,34 @@ public partial class MainWindow : Window
         {
             _suppressVillageSelectionChange = false;
         }
+    }
+
+    private List<VillageSelectionItem> BuildMergedVillageSelectionItems(IReadOnlyList<Village> villages)
+    {
+        var existingVillageData = Enumerable.Empty<VillageSelectionItem>()
+            .Concat(VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem> ?? [])
+            .Concat(DashboardVillageList.ItemsSource as IEnumerable<VillageSelectionItem> ?? [])
+            .Where(item => !string.IsNullOrWhiteSpace(item.Name))
+            .GroupBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+        return villages
+            .Where(v => !string.IsNullOrWhiteSpace(v.Name))
+            .Select(v =>
+            {
+                existingVillageData.TryGetValue(v.Name!, out var existing);
+                return new VillageSelectionItem
+                {
+                    Name = v.Name!,
+                    Url = string.IsNullOrWhiteSpace(v.Url) ? existing?.Url ?? string.Empty : v.Url,
+                    IsCapital = v.IsCapital ?? existing?.IsCapital ?? false,
+                    CoordX = v.CoordX ?? existing?.CoordX,
+                    CoordY = v.CoordY ?? existing?.CoordY,
+                    Population = v.Population ?? existing?.Population,
+                    CropFields = v.CropFields ?? existing?.CropFields,
+                };
+            })
+            .ToList();
     }
 
     private bool IsExecutionActiveForVillageChange()

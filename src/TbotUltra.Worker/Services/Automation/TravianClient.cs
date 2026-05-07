@@ -62,7 +62,14 @@ public sealed partial class TravianClient
         public double Height { get; init; }
     }
 
-    private sealed record UiSyncVillage(string Name, string? Url, bool? IsCapital);
+    private sealed record UiSyncVillage(
+        string Name,
+        string? Url,
+        bool? IsCapital,
+        int? CoordX,
+        int? CoordY,
+        int? Population,
+        int? CropFields);
     private sealed record UiSyncSnapshot(int? Gold, int? Silver, string ActiveVillage, IReadOnlyList<UiSyncVillage> Villages);
 
     // Session-level cache for the villages list. Spieler.php is expensive to load and the data
@@ -355,14 +362,28 @@ public sealed partial class TravianClient
         return await IsLoggedInAsync();
     }
 
-    public async Task<AccountSnapshot> ReadAccountSnapshotAsync(CancellationToken cancellationToken = default)
+    public async Task<AccountSnapshot> ReadAccountSnapshotAsync(bool forceRefreshVillages = false, CancellationToken cancellationToken = default)
     {
         Notify("ReadAccountSnapshotAsync started");
         await GotoAsync(_config.VillageOverviewPath, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading account info.", cancellationToken);
         await EnsureLoggedInAsync();
 
-        var villages = await ReadVillagesAsync(cancellationToken);
+        IReadOnlyList<Village> villages;
+        if (forceRefreshVillages)
+        {
+            villages = await ReadVillagesFromServerAsync(cancellationToken);
+            if (villages.Count > 0)
+            {
+                _cachedVillages = villages.ToList();
+                _cachedVillagesAt = DateTimeOffset.UtcNow;
+            }
+        }
+        else
+        {
+            villages = await ReadVillagesAsync(cancellationToken);
+        }
+
         return new AccountSnapshot(
             Tribe: await ReadTribeAsync(cancellationToken),
             ActiveVillage: await ReadActiveVillageNameAsync(cancellationToken),
@@ -1022,13 +1043,13 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         {
             var currency = await ReadCurrencyAsync(cancellationToken);
             var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
-            var villages = await ReadVillagesFromCurrentPageAsync(cancellationToken);
+            var villages = await ReadVillagesPreferCacheAsync(cancellationToken);
             var payload = JsonSerializer.Serialize(new UiSyncSnapshot(
                 Gold: currency.Gold,
                 Silver: currency.Silver,
                 ActiveVillage: activeVillage,
                 Villages: villages
-                    .Select(v => new UiSyncVillage(v.Name, v.Url, v.IsCapital))
+                    .Select(v => new UiSyncVillage(v.Name, v.Url, v.IsCapital, v.CoordX, v.CoordY, v.Population, v.CropFields))
                     .ToList()));
             _lastUiSyncAt = now;
             Notify($"[ui-sync] {payload}");
@@ -1833,6 +1854,12 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             """
             () => {
               const clean = (value) => (value || '').replace(/\s+/g, ' ').trim();
+              const parseCoordPart = (value) => {
+                const text = clean(value).replace(/[()]/g, '');
+                if (!text) return null;
+                const parsed = Number.parseInt(text, 10);
+                return Number.isFinite(parsed) ? parsed : null;
+              };
               const rows = [];
               const seen = new Set();
               const selectors = [
@@ -1852,10 +1879,20 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                   seen.add(key);
                   const container = node.closest('li, .active, .listEntry, .village') || node.parentElement || node;
                   const classText = clean(`${node.className || ''} ${container.className || ''}`).toLowerCase();
+                  const x = parseCoordPart(
+                    container.querySelector('.coordinateX')?.textContent
+                    || node.parentElement?.querySelector('.coordinateX')?.textContent
+                    || '');
+                  const y = parseCoordPart(
+                    container.querySelector('.coordinateY')?.textContent
+                    || node.parentElement?.querySelector('.coordinateY')?.textContent
+                    || '');
                   rows.push({
                     name,
                     url,
-                    isCapital: classText.includes('capital') ? true : null
+                    isCapital: classText.includes('capital') ? true : null,
+                    x,
+                    y
                   });
                 }
 
@@ -1877,8 +1914,8 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                     Name: item.Name!,
                     Url: item.Url,
                     IsCapital: item.IsCapital ?? TryGetCachedCapitalState(item.Name!),
-                    CoordX: cachedX,
-                    CoordY: cachedY);
+                    CoordX: item.X ?? cachedX,
+                    CoordY: item.Y ?? cachedY);
             })
             .ToList();
     }
@@ -1900,8 +1937,10 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading villages.", cancellationToken);
         var previousUrl = _page.Url;
+        string? activeVillageBeforeProfile = null;
         try
         {
+            activeVillageBeforeProfile = await ReadActiveVillageNameAsync(cancellationToken);
             await GotoAsync(Paths.PlayerProfile, cancellationToken);
             await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading villages on spieler.php.", cancellationToken);
             await EnsureLoggedInAsync();
@@ -1933,6 +1972,36 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                       y: Number.parseInt(pair[2], 10)
                     };
                   };
+                  const parseVillageId = (value) => {
+                    const source = value || '';
+                    const match =
+                      source.match(/[?&]newdid=(\d+)/i)
+                      || source.match(/[?&]vid=(\d+)/i)
+                      || source.match(/[?&]z=(\d+)/i)
+                      || source.match(/[?&]d=(\d+)/i);
+                    if (!match) return null;
+                    const parsed = Number.parseInt(match[1], 10);
+                    return Number.isFinite(parsed) ? parsed : null;
+                  };
+                  const resolveVillageHref = (row, preferredHref) => {
+                    const preferredId = parseVillageId(preferredHref || '');
+                    if (preferredId !== null && !/karte\.php/i.test(preferredHref || '')) {
+                      return preferredHref || '';
+                    }
+
+                    const candidates = [
+                      preferredHref || '',
+                      ...Array.from(row.querySelectorAll('a[href]')).map(node => node.getAttribute('href') || '')
+                    ];
+                    for (const href of candidates) {
+                      const villageId = parseVillageId(href);
+                      if (villageId !== null) {
+                        return `dorf1.php?newdid=${villageId}`;
+                      }
+                    }
+
+                    return preferredHref || '';
+                  };
 
                   const rows = [];
                   const seen = new Set();
@@ -1956,11 +2025,17 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                     const profileLikeRow = !!row.querySelector('td.coords, a[href*="karte.php"], span.mainVillage');
                     if (!profileLikeRow) continue;
 
-                    const villageHref = nameAnchor?.getAttribute('href') || '';
+                    const villageHref = resolveVillageHref(row, nameAnchor?.getAttribute('href') || '');
                     const coordAnchor = row.querySelector('td.coords a[href*="karte.php"], a[href*="karte.php"]');
                     const coordHref = coordAnchor?.getAttribute('href') || '';
+                    const coordXText = clean(row.querySelector('td.coords .coordinateX')?.textContent || '');
+                    const coordYText = clean(row.querySelector('td.coords .coordinateY')?.textContent || '');
                     const coordText = clean(coordAnchor?.textContent || row.querySelector('td.coords')?.textContent || '');
-                    const coord = parseCoords(coordHref || coordText || rowText);
+                    const coord = parseCoords(
+                      coordHref
+                      || (coordXText && coordYText ? `${coordXText}|${coordYText}` : '')
+                      || coordText
+                      || rowText);
 
                     const popText = clean(
                       row.querySelector('td.inhabitants, td.population, td.pop')?.textContent
@@ -2039,6 +2114,22 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             }
         }
 
+        if (!string.IsNullOrWhiteSpace(activeVillageBeforeProfile))
+        {
+            var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+            if (activeCoords.X.HasValue && activeCoords.Y.HasValue && _cachedVillages is { Count: > 0 } cachedVillages)
+            {
+                var enriched = cachedVillages
+                    .Select(v => string.Equals(v.Name, activeVillageBeforeProfile, StringComparison.Ordinal)
+                        ? v with { CoordX = v.CoordX ?? activeCoords.X, CoordY = v.CoordY ?? activeCoords.Y }
+                        : v)
+                    .ToList();
+                UpdateCachedVillages(enriched);
+                SaveCachedVillageState(activeVillageBeforeProfile, null, activeCoords.X, activeCoords.Y);
+                return enriched;
+            }
+        }
+
         var rawJson = await _page.EvaluateAsync<string>(
             """
             () => {
@@ -2093,6 +2184,88 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             .ThenByDescending(v => v.Population ?? -1)
             .ThenBy(v => v.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    private async Task<(int? X, int? Y)> TryReadActiveVillageCoordsFromCurrentPageAsync(CancellationToken cancellationToken)
+    {
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading active village coordinates.", cancellationToken);
+
+        var coord = await _page.EvaluateAsync<ActiveVillageCoordJs>(
+            """
+            () => {
+              const clean = (value) => (value || '').replace(/\s+/g, ' ').trim();
+              const parseCoords = (value) => {
+                const source = clean(value);
+                if (!source) return { x: null, y: null };
+
+                const query = source.match(/[?&]x=(-?\d+).*?[?&]y=(-?\d+)/i) || source.match(/[?&]y=(-?\d+).*?[?&]x=(-?\d+)/i);
+                if (query) {
+                  const first = Number.parseInt(query[1], 10);
+                  const second = Number.parseInt(query[2], 10);
+                  if (source.toLowerCase().includes('?y=')) {
+                    return { x: second, y: first };
+                  }
+                  return { x: first, y: second };
+                }
+
+                const pair = source.match(/\(\s*(-?\d+)\s*[|,]\s*(-?\d+)\s*\)/)
+                  || source.match(/\b(-?\d+)\s*[|,]\s*(-?\d+)\b/);
+                if (!pair) return { x: null, y: null };
+                return {
+                  x: Number.parseInt(pair[1], 10),
+                  y: Number.parseInt(pair[2], 10)
+                };
+              };
+
+              const candidates = [];
+              const selectors = [
+                '#villageNameField',
+                '.villageNameField',
+                '#sidebarBoxVillagelist .active',
+                '#sidebarBoxVillagelist .active a[href*="newdid"]',
+                '#content h1',
+                '.boxTitle'
+              ];
+
+              for (const selector of selectors) {
+                for (const node of document.querySelectorAll(selector)) {
+                  candidates.push(clean(node.textContent || ''));
+                  if (node instanceof Element) {
+                    candidates.push(clean(node.getAttribute('title') || ''));
+                    candidates.push(clean(node.getAttribute('aria-label') || ''));
+                    for (const anchor of node.querySelectorAll('a[href*="karte.php"], a[href*="x="][href*="y="]')) {
+                      candidates.push(clean(anchor.getAttribute('href') || ''));
+                      candidates.push(clean(anchor.textContent || ''));
+                      candidates.push(clean(anchor.getAttribute('title') || ''));
+                    }
+
+                    const next = node.nextElementSibling;
+                    const prev = node.previousElementSibling;
+                    if (next) candidates.push(clean(next.textContent || ''));
+                    if (prev) candidates.push(clean(prev.textContent || ''));
+                  }
+                }
+              }
+
+              for (const value of candidates) {
+                const parsed = parseCoords(value);
+                if (Number.isFinite(parsed.x) && Number.isFinite(parsed.y)) {
+                  return parsed;
+                }
+              }
+
+              for (const anchor of document.querySelectorAll('a[href*="karte.php"], a[href*="x="][href*="y="]')) {
+                const parsed = parseCoords(anchor.getAttribute('href') || anchor.textContent || '');
+                if (Number.isFinite(parsed.x) && Number.isFinite(parsed.y)) {
+                  return parsed;
+                }
+              }
+
+              return { x: null, y: null };
+            }
+            """);
+
+        return (coord?.X, coord?.Y);
     }
 
     private async Task<(int? Warehouse, int? Granary)> ReadStorageCapacitiesAsync(CancellationToken cancellationToken)
@@ -4149,6 +4322,15 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         public string? VillageName { get; init; }
     }
 
+    private sealed class ActiveVillageCoordJs
+    {
+        [JsonPropertyName("x")]
+        public int? X { get; init; }
+
+        [JsonPropertyName("y")]
+        public int? Y { get; init; }
+    }
+
     private sealed class PlayerProfileVillageRowJs
     {
         [JsonPropertyName("name")]
@@ -4183,5 +4365,11 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
         [JsonPropertyName("isCapital")]
         public bool? IsCapital { get; init; }
+
+        [JsonPropertyName("x")]
+        public int? X { get; init; }
+
+        [JsonPropertyName("y")]
+        public int? Y { get; init; }
     }
 }

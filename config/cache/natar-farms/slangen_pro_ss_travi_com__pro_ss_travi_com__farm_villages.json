@@ -1,0 +1,1009 @@
+{
+  "schemaVersion": 1,
+  "analyzedAtUtc": "2026-05-06T17:11:56.7010136+00:00",
+  "accountName": "slangen_pro_ss_travi_com",
+  "serverUrl": "https://pro.ss-travi.com",
+  "selectionMode": "farm_villages",
+  "coordinates": [
+    {
+      "x": -100,
+      "y": -84,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -100,
+      "y": -50,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -100,
+      "y": 31,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -100,
+      "y": 45,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -98,
+      "y": -26,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -97,
+      "y": 41,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -96,
+      "y": -49,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -96,
+      "y": 38,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -95,
+      "y": -83,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -94,
+      "y": 96,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -93,
+      "y": 34,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -89,
+      "y": -60,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -88,
+      "y": 43,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -86,
+      "y": 75,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -85,
+      "y": 17,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -84,
+      "y": -25,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -84,
+      "y": -24,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -83,
+      "y": -89,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -83,
+      "y": 35,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -80,
+      "y": -70,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -80,
+      "y": 38,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -79,
+      "y": -2,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -78,
+      "y": -86,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -78,
+      "y": -54,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -78,
+      "y": 27,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -77,
+      "y": 52,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -76,
+      "y": -95,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -76,
+      "y": -25,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -76,
+      "y": 31,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -76,
+      "y": 96,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -75,
+      "y": 26,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -75,
+      "y": 45,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -74,
+      "y": 82,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -73,
+      "y": 100,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -70,
+      "y": -22,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -70,
+      "y": 7,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -70,
+      "y": 46,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -69,
+      "y": -34,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -69,
+      "y": 26,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -68,
+      "y": -44,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -67,
+      "y": -96,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -67,
+      "y": -86,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -67,
+      "y": 87,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -64,
+      "y": -93,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -63,
+      "y": 33,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -62,
+      "y": 23,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -59,
+      "y": -16,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -59,
+      "y": -10,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -58,
+      "y": 98,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -57,
+      "y": -73,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -56,
+      "y": -71,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -56,
+      "y": 2,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -55,
+      "y": -97,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -55,
+      "y": -88,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -55,
+      "y": 2,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -54,
+      "y": 63,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -53,
+      "y": 91,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -52,
+      "y": 16,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -52,
+      "y": 52,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -49,
+      "y": -61,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -49,
+      "y": 18,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -49,
+      "y": 19,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -47,
+      "y": -58,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -44,
+      "y": -33,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -42,
+      "y": 99,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -41,
+      "y": -98,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -40,
+      "y": 4,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -40,
+      "y": 58,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -39,
+      "y": -97,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -39,
+      "y": -70,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -38,
+      "y": -15,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -35,
+      "y": 7,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -34,
+      "y": -72,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -32,
+      "y": 40,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -31,
+      "y": -98,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -30,
+      "y": -27,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -30,
+      "y": 3,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -29,
+      "y": -76,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -29,
+      "y": -59,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -29,
+      "y": 70,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -28,
+      "y": -45,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -28,
+      "y": 60,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -26,
+      "y": -41,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -24,
+      "y": -79,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -22,
+      "y": -17,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -22,
+      "y": 56,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -22,
+      "y": 61,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -21,
+      "y": -70,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -21,
+      "y": 75,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -21,
+      "y": 91,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -20,
+      "y": 82,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -17,
+      "y": 33,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -17,
+      "y": 60,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -16,
+      "y": 74,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -15,
+      "y": -70,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -15,
+      "y": 52,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -10,
+      "y": -92,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -8,
+      "y": 87,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -6,
+      "y": 42,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -6,
+      "y": 99,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -5,
+      "y": -45,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -4,
+      "y": 78,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -2,
+      "y": 51,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": -1,
+      "y": 38,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 1,
+      "y": -100,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 1,
+      "y": -27,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 2,
+      "y": -39,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 4,
+      "y": -87,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 4,
+      "y": 62,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 5,
+      "y": 62,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 11,
+      "y": 25,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 11,
+      "y": 69,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 12,
+      "y": 53,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 14,
+      "y": 53,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 15,
+      "y": 42,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 15,
+      "y": 73,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 18,
+      "y": -40,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 18,
+      "y": 54,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 19,
+      "y": -52,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 19,
+      "y": 53,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 21,
+      "y": -23,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 24,
+      "y": -24,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 24,
+      "y": 91,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 26,
+      "y": 94,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 28,
+      "y": -56,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 28,
+      "y": 71,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 29,
+      "y": 17,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 31,
+      "y": -18,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 32,
+      "y": -81,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 33,
+      "y": -24,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 33,
+      "y": 34,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 36,
+      "y": -2,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 36,
+      "y": 59,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 37,
+      "y": 16,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 39,
+      "y": -71,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 39,
+      "y": 65,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 39,
+      "y": 80,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 42,
+      "y": 8,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 42,
+      "y": 40,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 43,
+      "y": -46,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 43,
+      "y": -25,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 44,
+      "y": 34,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 46,
+      "y": -7,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 46,
+      "y": 41,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 46,
+      "y": 47,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 47,
+      "y": -24,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 47,
+      "y": 21,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 47,
+      "y": 24,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 47,
+      "y": 78,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 48,
+      "y": 47,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 49,
+      "y": -56,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 52,
+      "y": -38,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 52,
+      "y": 31,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 52,
+      "y": 96,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 55,
+      "y": -26,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 56,
+      "y": 25,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 57,
+      "y": -60,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 60,
+      "y": -94,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 60,
+      "y": -92,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 61,
+      "y": -24,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 62,
+      "y": 7,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 62,
+      "y": 100,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 63,
+      "y": -100,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 64,
+      "y": 59,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 66,
+      "y": -69,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 68,
+      "y": -25,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 69,
+      "y": -47,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 71,
+      "y": 69,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 72,
+      "y": -20,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 73,
+      "y": -27,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 73,
+      "y": 34,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 74,
+      "y": -46,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 74,
+      "y": 73,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 77,
+      "y": 98,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 81,
+      "y": -56,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 82,
+      "y": -89,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 82,
+      "y": -38,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 83,
+      "y": -94,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 83,
+      "y": -88,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 83,
+      "y": -10,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 85,
+      "y": -70,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 85,
+      "y": 5,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 85,
+      "y": 99,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 87,
+      "y": 4,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 88,
+      "y": -84,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 88,
+      "y": -47,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 88,
+      "y": 16,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 89,
+      "y": -45,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 89,
+      "y": 83,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 90,
+      "y": -50,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 91,
+      "y": 56,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 92,
+      "y": -75,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 92,
+      "y": 97,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 94,
+      "y": -52,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 94,
+      "y": -20,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 95,
+      "y": -71,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 98,
+      "y": -100,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 99,
+      "y": -33,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 100,
+      "y": -97,
+      "villageName": "Natar farm village"
+    },
+    {
+      "x": 100,
+      "y": -68,
+      "villageName": "Natar farm village"
+    }
+  ]
+}

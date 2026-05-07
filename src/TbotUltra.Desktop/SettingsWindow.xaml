@@ -108,6 +108,23 @@
                                     <ComboBoxItem Content="5 min" Tag="5" />
                                 </ComboBox>
                             </Grid>
+
+                            <TextBlock Text="After login"
+                                       FontWeight="SemiBold"
+                                       Foreground="#111827"
+                                       Margin="0,14,0,6" />
+                            <TextBlock Text="Optional extra reads to run after login. Existing post-login actions are always kept."
+                                       Foreground="#64748B"
+                                       TextWrapping="Wrap"
+                                       Margin="0,0,0,8" />
+                            <CheckBox x:Name="PostLoginAnalyzeFarmlistsCheckBox"
+                                      Margin="0,0,0,8"
+                                      Content="Analyze farmlists" />
+                            <CheckBox x:Name="PostLoginAnalyzeHeroCheckBox"
+                                      Margin="0,0,0,8"
+                                      Content="Analyze hero" />
+                            <CheckBox x:Name="PostLoginReadTroopTrainingQueueCheckBox"
+                                      Content="Read troop training queue (Barracks and Stable)" />
                         </StackPanel>
                     </Border>
 

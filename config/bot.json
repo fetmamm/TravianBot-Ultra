@@ -21,10 +21,7 @@
   "gold_limit": 100,
   "silver_limit": 100,
   "natar_village_selection": "farm_villages",
-  "continuous_loop_groups": [
-    "construction",
-    "hero"
-  ],
+  "continuous_loop_groups": [],
   "continuous_loop_group_order": [
     "construction",
     "troops",
@@ -37,5 +34,10 @@
     "hero",
     "farming"
   ],
-  "hero_stat_priority": "fighting_strength,offence_bonus,defence_bonus,resources"
+  "hero_stat_priority": "fighting_strength,offence_bonus,defence_bonus,resources",
+  "queue_wait_threshold_mode": "2",
+  "continuous_farm_dispatch_delay_minutes": 2,
+  "post_login_analyze_farmlists": true,
+  "post_login_read_troop_training_queue": true,
+  "post_login_analyze_hero": true
 }

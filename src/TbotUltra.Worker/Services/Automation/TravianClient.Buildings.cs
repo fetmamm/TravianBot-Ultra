@@ -758,25 +758,12 @@ public sealed partial class TravianClient
     {
         Notify("UpgradeAllTroopsAtSmithyAsync started");
 
-        // Step 1: navigate to dorf2 and find the Smithy slot.
-        if (IsCurrentUrlForPath(Paths.Buildings))
-        {
-            await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
-        }
-        else
-        {
-            await GotoAsync(Paths.Buildings, cancellationToken);
-        }
-
-        var slots = await ReadBuildingInfosAsync(cancellationToken);
-        var smithyEntry = slots.FirstOrDefault(kvp =>
-            ParseGidFromBuildingCode(kvp.Value.BuildingCode) == 12 && kvp.Value.Level > 0);
-        if (smithyEntry.Value is null)
+        var smithySlotId = await TryResolveSmithySlotIdAsync(cancellationToken);
+        if (!smithySlotId.HasValue)
         {
             return "Smithy not found in this village. Build a Smithy first.";
         }
-        var smithySlotId = smithyEntry.Key;
-        Notify($"Smithy found at slot {smithySlotId} (level {smithyEntry.Value.Level}).");
+        Notify($"Smithy found at slot {smithySlotId.Value}.");
 
         const int safetyCap = 60;
         var totalUpgradeClicks = 0;
@@ -788,7 +775,7 @@ public sealed partial class TravianClient
             cancellationToken.ThrowIfCancellationRequested();
 
             // Always start each iteration on the smithy page.
-            var smithyPath = Paths.BuildBySlot(smithySlotId);
+            var smithyPath = Paths.BuildBySlot(smithySlotId.Value);
             if (!IsCurrentUrlForPath(smithyPath))
             {
                 await GotoAsync(smithyPath, cancellationToken);
@@ -808,8 +795,8 @@ public sealed partial class TravianClient
                 "() => /improve\\s+the\\s+(blacksmith|smithy)/i.test(document.body.innerText || '')");
             if (needsSmithyUpgrade)
             {
-                Notify($"Smithy capacity exhausted (\"Improve the blacksmith\" detected). Upgrading slot {smithySlotId} to max.");
-                var upgradeResult = await UpgradeBuildingToMaxAsync(smithySlotId, cancellationToken: cancellationToken);
+                Notify($"Smithy capacity exhausted (\"Improve the blacksmith\" detected). Upgrading slot {smithySlotId.Value} to max.");
+                var upgradeResult = await UpgradeBuildingToMaxAsync(smithySlotId.Value, cancellationToken: cancellationToken);
                 Notify($"Smithy upgrade result: {upgradeResult}");
                 consecutiveEmptyReloads = 0;
                 consecutiveZeroDurationReloads = 0;
@@ -827,6 +814,13 @@ public sealed partial class TravianClient
                 // Brief pause then reload to refresh button state.
                 await Task.Delay(500, cancellationToken);
                 continue;
+            }
+
+            if (await IsSmithyFullyDevelopedAsync(cancellationToken))
+            {
+                Notify($"Smithy: fully developed detected. Total clicks: {totalUpgradeClicks}.");
+                await GotoAsync(Paths.Buildings, cancellationToken);
+                return $"Smithy: upgraded {totalUpgradeClicks} troop(s). All done.";
             }
 
             // No clickable upgrade button. Inspect research-in-progress duration.
@@ -871,6 +865,43 @@ public sealed partial class TravianClient
         }
 
         return $"Smithy: hit safety cap of {safetyCap} iterations after {totalUpgradeClicks} click(s).";
+    }
+
+    private async Task<int?> TryResolveSmithySlotIdAsync(CancellationToken cancellationToken)
+    {
+        const int attempts = 3;
+        for (var attempt = 1; attempt <= attempts; attempt++)
+        {
+            if (IsCurrentUrlForPath(Paths.Buildings))
+            {
+                await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+            }
+            else
+            {
+                await GotoAsync(Paths.Buildings, cancellationToken);
+            }
+
+            await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the building overview.", cancellationToken);
+            await EnsureLoggedInAsync();
+            await PauseForManualStepIfVisibleAsync("Manual verification appeared while resolving the Smithy slot.", cancellationToken);
+
+            var slots = await ReadBuildingInfosAsync(cancellationToken);
+            var smithyEntry = slots.FirstOrDefault(kvp =>
+                ParseGidFromBuildingCode(kvp.Value.BuildingCode) == 12 && kvp.Value.Level > 0);
+            if (smithyEntry.Value is not null)
+            {
+                Notify($"Smithy found at slot {smithyEntry.Key} on overview attempt {attempt}/{attempts}.");
+                return smithyEntry.Key;
+            }
+
+            if (attempt < attempts)
+            {
+                Notify($"Smithy not detected on overview attempt {attempt}/{attempts}. Reloading and retrying.");
+                await Task.Delay(350, cancellationToken);
+            }
+        }
+
+        return null;
     }
 
     private async Task<(bool Clicked, string Label)> ClickFirstSmithyUpgradeButtonAsync(CancellationToken cancellationToken)
@@ -920,6 +951,43 @@ public sealed partial class TravianClient
         }
     }
 
+    private async Task<bool> IsSmithyFullyDevelopedAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _page.EvaluateAsync<bool>(
+                """
+                () => {
+                  const clean = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                  const rows = Array.from(document.querySelectorAll('.build_details.researches .research'));
+                  if (rows.length === 0) {
+                    return false;
+                  }
+
+                  let fullyDevelopedRows = 0;
+                  for (const row of rows) {
+                    const ctaText = clean(row.querySelector('.cta')?.textContent || '');
+                    const levelText = clean(row.querySelector('.level')?.textContent || '');
+                    if (ctaText.includes('fully developed') || ctaText.includes('fully researched')) {
+                      fullyDevelopedRows += 1;
+                      continue;
+                    }
+
+                    if (levelText.includes('level 20') && ctaText.includes('none')) {
+                      fullyDevelopedRows += 1;
+                    }
+                  }
+
+                  return fullyDevelopedRows > 0 && fullyDevelopedRows === rows.length;
+                }
+                """);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private async Task<int?> ReadSmithyResearchDurationSecondsAsync(CancellationToken cancellationToken)
     {
         try
@@ -952,8 +1020,10 @@ public sealed partial class TravianClient
                     return Math.min(...progressValues);
                   }
 
-                  const all = Array.from(document.querySelectorAll('.timer, .duration, .researchDuration, span, td'));
-                  const values = all
+                  const scoped = Array.from(document.querySelectorAll(
+                    '.under_progress .timer, .under_progress [id^="timer"], .build_details.researches .timer, .build_details.researches [id^="timer"], .research .timer, .research [id^="timer"], .researchDuration, .duration'
+                  ));
+                  const values = scoped
                     .map(el => parseSeconds(el.getAttribute?.('value')) ?? parseSeconds(el.textContent))
                     .filter(value => value !== null);
                   if (values.length > 0) {

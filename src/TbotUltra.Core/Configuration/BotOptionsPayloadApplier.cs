@@ -31,6 +31,9 @@ public static class BotOptionsPayloadApplier
         var continuousFarmListNames = source.ContinuousFarmListNames;
         var continuousFarmDispatchDelayMinutes = source.ContinuousFarmDispatchDelayMinutes;
         var queueWaitThresholdMode = source.QueueWaitThresholdMode;
+        var postLoginAnalyzeFarmlists = source.PostLoginAnalyzeFarmlists;
+        var postLoginAnalyzeHero = source.PostLoginAnalyzeHero;
+        var postLoginReadTroopTrainingQueue = source.PostLoginReadTroopTrainingQueue;
 
         if (payload is not null)
         {
@@ -202,6 +205,27 @@ public static class BotOptionsPayloadApplier
                 if (key.Equals(BotOptionPayloadKeys.QueueWaitThresholdMode, StringComparison.OrdinalIgnoreCase))
                 {
                     queueWaitThresholdMode = value;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.PostLoginAnalyzeFarmlists, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var analyzeFarmlists))
+                {
+                    postLoginAnalyzeFarmlists = analyzeFarmlists;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.PostLoginAnalyzeHero, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var analyzeHero))
+                {
+                    postLoginAnalyzeHero = analyzeHero;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.PostLoginReadTroopTrainingQueue, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var readTroopTrainingQueue))
+                {
+                    postLoginReadTroopTrainingQueue = readTroopTrainingQueue;
                 }
             }
         }
@@ -224,6 +248,9 @@ public static class BotOptionsPayloadApplier
             ContinuousFarmListNames = continuousFarmListNames,
             ContinuousFarmDispatchDelayMinutes = continuousFarmDispatchDelayMinutes,
             QueueWaitThresholdMode = queueWaitThresholdMode,
+            PostLoginAnalyzeFarmlists = postLoginAnalyzeFarmlists,
+            PostLoginAnalyzeHero = postLoginAnalyzeHero,
+            PostLoginReadTroopTrainingQueue = postLoginReadTroopTrainingQueue,
             GithubReleasesUrl = source.GithubReleasesUrl,
             HumanLikeEnabled = source.HumanLikeEnabled,
             HumanLikeSpeed = source.HumanLikeSpeed,

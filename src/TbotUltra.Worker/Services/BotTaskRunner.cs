@@ -167,7 +167,7 @@ public sealed class BotTaskRunner
             options,
             log,
             accountName,
-            interactive: false,
+            interactive: true,
             cancellationToken,
             async client =>
             {
@@ -175,6 +175,9 @@ public sealed class BotTaskRunner
                 await client.LoginAsync(cancellationToken);
                 await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken, skipFeatureRefresh: true);
 
+                // Visit spieler.php once after login so village/account data is refreshed from
+                // the authoritative profile page before the lighter status reads use the cache.
+                await client.ReadAccountSnapshotAsync(forceRefreshVillages: true, cancellationToken);
                 var villageStatus = await client.ReadVillageStatusAsync(cancellationToken);
                 var inboxStatus = new InboxStatus(villageStatus.UnreadMessages, villageStatus.UnreadReports);
 
@@ -203,7 +206,7 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             options,
             log,
             accountName,
-            interactive: false,
+            interactive: true,
             cancellationToken,
             async client =>
             {
@@ -212,7 +215,7 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
                 serverUrl = client.ServerUrl;
                 if (string.IsNullOrWhiteSpace(tribe) || string.Equals(tribe, "Unknown", StringComparison.OrdinalIgnoreCase))
                 {
-                    var snapshot = await client.ReadAccountSnapshotAsync(cancellationToken);
+                    var snapshot = await client.ReadAccountSnapshotAsync(cancellationToken: cancellationToken);
                     tribe = snapshot.Tribe;
                 }
             });
@@ -811,7 +814,7 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
 
     private static async Task ExecuteAccountSnapshotAsync(TaskExecutionContext context)
     {
-        var snapshot = await context.Client.ReadAccountSnapshotAsync(context.CancellationToken);
+        var snapshot = await context.Client.ReadAccountSnapshotAsync(cancellationToken: context.CancellationToken);
         context.Log($"Account snapshot read. Tribe={snapshot.Tribe}, ActiveVillage={snapshot.ActiveVillage}, VillageCount={snapshot.VillageCount}, ServerTimeUtc={snapshot.ServerTimeUtc}");
     }
 

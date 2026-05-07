@@ -29,6 +29,9 @@ public static class BotOptionPayloadKeys
     public const string ContinuousFarmListNames = "continuous_farm_list_names";
     public const string ContinuousFarmDispatchDelayMinutes = "continuous_farm_dispatch_delay_minutes";
     public const string QueueWaitThresholdMode = "queue_wait_threshold_mode";
+    public const string PostLoginAnalyzeFarmlists = "post_login_analyze_farmlists";
+    public const string PostLoginAnalyzeHero = "post_login_analyze_hero";
+    public const string PostLoginReadTroopTrainingQueue = "post_login_read_troop_training_queue";
 
     public const string UpgradeSelectorProfile = "upgrade_selector_profile";
     public const string CaptchaAutoSolveEnabled = "captcha_auto_solve_enabled";

@@ -14,6 +14,13 @@
         ShowInTaskbar="True"
         Background="#F3F4F6">
     <Window.Resources>
+        <CollectionViewSource x:Key="BuildingTopSlotsView"
+                              Source="{Binding BuildingSlots, ElementName=RootWindow}"
+                              Filter="BuildingTopSlotsView_Filter" />
+        <CollectionViewSource x:Key="BuildingRemainingSlotsView"
+                              Source="{Binding BuildingSlots, ElementName=RootWindow}"
+                              Filter="BuildingRemainingSlotsView_Filter" />
+
         <Style TargetType="Button">
             <Setter Property="Height" Value="30" />
             <Setter Property="Padding" Value="9,3" />
@@ -48,12 +55,14 @@
         </Style>
 
         <Style x:Key="ContinuousRunToggleStyle" TargetType="ToggleButton">
-            <Setter Property="Width" Value="48" />
+            <Setter Property="Width" Value="44" />
             <Setter Property="Height" Value="24" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="Margin" Value="0" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Background" Value="#9CA3AF" />
+            <Setter Property="Background" Value="#E5E7EB" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
@@ -61,31 +70,154 @@
                             <Border x:Name="Track"
                                     Background="{TemplateBinding Background}"
                                     CornerRadius="12"
-                                    BorderBrush="#6B7280"
+                                    BorderBrush="#CBD5E1"
                                     BorderThickness="1" />
                             <Ellipse x:Name="Thumb"
-                                     Width="20"
-                                     Height="20"
+                                     Width="18"
+                                     Height="18"
                                      Margin="2"
                                      Fill="#FFFFFF"
-                                     Stroke="#E5E7EB"
+                                     Stroke="#D1D5DB"
                                      StrokeThickness="1"
-                                     HorizontalAlignment="Left" />
+                                     HorizontalAlignment="Left">
+                                <Ellipse.Effect>
+                                    <DropShadowEffect BlurRadius="4"
+                                                      ShadowDepth="1"
+                                                      Direction="270"
+                                                      Opacity="0.14" />
+                                </Ellipse.Effect>
+                            </Ellipse>
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Track" Property="Background" Value="#16A34A" />
-                                <Setter TargetName="Track" Property="BorderBrush" Value="#15803D" />
+                                <Setter TargetName="Track" Property="Background" Value="#030826" />
+                                <Setter TargetName="Track" Property="BorderBrush" Value="#030826" />
                                 <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right" />
+                                <Setter TargetName="Thumb" Property="Stroke" Value="#E5E7EB" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Track" Property="BorderBrush" Value="#94A3B8" />
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True" />
+                                    <Condition Property="IsChecked" Value="True" />
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Track" Property="Background" Value="#111827" />
+                                <Setter TargetName="Track" Property="BorderBrush" Value="#111827" />
+                            </MultiTrigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Track" Property="Background" Value="#D1D5DB" />
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsPressed" Value="True" />
+                                    <Condition Property="IsChecked" Value="True" />
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Track" Property="Background" Value="#1F2937" />
+                                <Setter TargetName="Track" Property="BorderBrush" Value="#1F2937" />
+                            </MultiTrigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Track" Property="BorderBrush" Value="#2563EB" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Track" Property="Opacity" Value="0.65" />
+                                <Setter TargetName="Track" Property="Opacity" Value="0.55" />
+                                <Setter TargetName="Thumb" Property="Opacity" Value="0.75" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <DataTemplate x:Key="BuildingSlotButtonTemplate">
+			<Button Margin="1"
+					Background="#FFFFFF"
+					BorderBrush="#D1D5DB"
+					BorderThickness="1"
+					Padding="8,7"
+					Width="110"
+					MinHeight="72"
+					Tag="{Binding}"
+					Click="BuildingSlotCircleButton_Click"
+					HorizontalContentAlignment="Stretch"
+					VerticalContentAlignment="Stretch">
+				<Button.Template>
+					<ControlTemplate TargetType="Button">
+						<Border x:Name="SlotCardBorder"
+								Background="{TemplateBinding Background}"
+								BorderBrush="{TemplateBinding BorderBrush}"
+								BorderThickness="{TemplateBinding BorderThickness}"
+								CornerRadius="6"
+								SnapsToDevicePixels="True">
+							<ContentPresenter Margin="{TemplateBinding Padding}"
+											  HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+											  VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+						</Border>
+						<ControlTemplate.Triggers>
+							<DataTrigger Binding="{Binding HasPendingUpgrade}" Value="True">
+								<Setter TargetName="SlotCardBorder" Property="BorderBrush" Value="#D97706" />
+								<Setter TargetName="SlotCardBorder" Property="Background" Value="#FFFBEB" />
+							</DataTrigger>
+							<DataTrigger Binding="{Binding HasPendingConstruct}" Value="True">
+								<Setter TargetName="SlotCardBorder" Property="BorderBrush" Value="#16A34A" />
+								<Setter TargetName="SlotCardBorder" Property="Background" Value="#F0FDF4" />
+							</DataTrigger>
+							<Trigger Property="IsMouseOver" Value="True">
+								<Setter TargetName="SlotCardBorder" Property="Background" Value="#F9FAFB" />
+								<Setter TargetName="SlotCardBorder" Property="BorderBrush" Value="#93C5FD" />
+							</Trigger>
+							<Trigger Property="IsPressed" Value="True">
+								<Setter TargetName="SlotCardBorder" Property="Background" Value="#DBEAFE" />
+								<Setter TargetName="SlotCardBorder" Property="BorderBrush" Value="#60A5FA" />
+							</Trigger>
+						</ControlTemplate.Triggers>
+					</ControlTemplate>
+				</Button.Template>
+				<StackPanel>
+					<TextBlock Text="{Binding SlotLabel}"
+							   FontSize="11"
+							   Foreground="#9CA3AF"
+							   HorizontalAlignment="Left" />
+					<TextBlock Text="{Binding NameLabel}"
+							   FontSize="11"
+							   FontWeight="SemiBold"
+							   TextWrapping="Wrap"
+                               TextTrimming="CharacterEllipsis"
+                               MaxHeight="32"
+							   Margin="0,3,0,0">
+						<TextBlock.Style>
+							<Style TargetType="TextBlock">
+								<Setter Property="Foreground" Value="#111827" />
+								<Style.Triggers>
+									<DataTrigger Binding="{Binding IsOccupied}" Value="False">
+										<Setter Property="Foreground" Value="#2563EB" />
+									</DataTrigger>
+								</Style.Triggers>
+							</Style>
+						</TextBlock.Style>
+					</TextBlock>
+					<TextBlock Text="{Binding LevelStatusLabel}"
+							   FontSize="11"
+							   Margin="0,3,0,0">
+						<TextBlock.Style>
+							<Style TargetType="TextBlock">
+								<Setter Property="Foreground" Value="#6B7280" />
+								<Style.Triggers>
+									<DataTrigger Binding="{Binding IsMaxLevel}" Value="True">
+										<Setter Property="Foreground" Value="#D97706" />
+									</DataTrigger>
+									<DataTrigger Binding="{Binding IsDemolishing}" Value="True">
+										<Setter Property="Foreground" Value="#DC2626" />
+										<Setter Property="FontWeight" Value="SemiBold" />
+									</DataTrigger>
+								</Style.Triggers>
+							</Style>
+						</TextBlock.Style>
+					</TextBlock>
+				</StackPanel>
+			</Button>
+        </DataTemplate>
     </Window.Resources>
 
     <Grid>
@@ -578,11 +710,19 @@
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
-                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                        <StackPanel Grid.Row="0" Margin="0,0,0,8">
+                            <TextBlock Text="Resources"
+                                       FontSize="22"
+                                       FontWeight="SemiBold"
+                                       Foreground="#111827"
+                                       Margin="0,0,0,12" />
+                            <StackPanel Orientation="Horizontal">
                             <Button x:Name="LoadResourcesButton" Content="↻" Width="42" FontSize="16" Click="LoadResourcesButton_Click" ToolTip="Refresh resources" />
                             <TextBlock Text="Target level" VerticalAlignment="Center" Margin="0,0,8,0" />
                             <ComboBox x:Name="ResourceTargetLevelComboBox" Width="90" Margin="0,0,8,0" />
-                            <Button x:Name="UpgradeAllResourcesButton" Content="Upgrade all to level" Width="160" Click="UpgradeAllResourcesButton_Click" />
+                            <Button x:Name="UpgradeAllResourcesButton" Content="Upgrade all to level" Width="160" Background="#030826" Foreground="White" BorderBrush="#030826" Click="UpgradeAllResourcesButton_Click" />
+                            <Button x:Name="UpgradeAllResourcesToMaxButton" Content="Upgrade to max" Width="140" Margin="8,0,0,0" Background="#FCD34D" Foreground="#1F2937" BorderBrush="#F59E0B" Click="UpgradeAllResourcesToMaxButton_Click" />
+                            </StackPanel>
                         </StackPanel>
                         <Border Grid.Row="1" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="10" Background="#FFFFFF" Padding="12">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
@@ -742,7 +882,7 @@
 
             <!-- Load-knapp -->
             <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
-                <Button x:Name="LoadBuildingsButton" Content="Load buildings" Width="118" Height="28" Click="LoadBuildingsButton_Click" />
+                <Button x:Name="LoadBuildingsButton" Content="Load buildings" Width="118" Height="28" Background="#030826" Foreground="White" BorderBrush="#030826" Click="LoadBuildingsButton_Click" />
                 <Button x:Name="UpgradeAllBuildingsToMaxButton" Content="Upgrade all to max" Width="136" Height="28" Margin="6,0,0,0" Click="UpgradeAllBuildingsToMaxButton_Click" />
 				
 				<!-- Dolda kontroller för bakåtkompatibilitet med code-behind -->
@@ -758,89 +898,32 @@
 
             <!-- Slot-grid -->
             <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
-                <ItemsControl x:Name="BuildingSlotsItemsControl"
-                              ItemsSource="{Binding BuildingSlots, ElementName=RootWindow}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <UniformGrid Columns="5" />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-						<DataTemplate>
-							<Border Margin="3"
-									Background="#FFFFFF"
-									BorderBrush="#D1D5DB"
-									BorderThickness="1"
-									CornerRadius="6">
-								<Border.Style>
-									<Style TargetType="Border">
-										<Style.Triggers>
-											<DataTrigger Binding="{Binding HasPendingUpgrade}" Value="True">
-												<Setter Property="BorderBrush" Value="#D97706" />
-												<Setter Property="Background" Value="#FFFBEB" />
-											</DataTrigger>
-											<DataTrigger Binding="{Binding HasPendingConstruct}" Value="True">
-												<Setter Property="BorderBrush" Value="#16A34A" />
-												<Setter Property="Background" Value="#F0FDF4" />
-											</DataTrigger>
-										</Style.Triggers>
-									</Style>
-								</Border.Style>
-								<Button Background="Transparent"
-										BorderThickness="0"
-										Padding="5,4"
-                                        MinHeight="60"
-										Tag="{Binding}"
-										Click="BuildingSlotCircleButton_Click"
-										HorizontalContentAlignment="Stretch"
-										VerticalContentAlignment="Stretch">
-									<StackPanel>
-										<TextBlock Text="{Binding SlotLabel}"
-												   FontSize="11"
-												   Foreground="#9CA3AF"
-												   HorizontalAlignment="Left" />
-										<TextBlock Text="{Binding NameLabel}"
-												   FontSize="11"
-												   FontWeight="SemiBold"
-												   TextWrapping="Wrap"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   MaxHeight="30"
-												   Margin="0,2,0,0">
-											<TextBlock.Style>
-												<Style TargetType="TextBlock">
-													<Setter Property="Foreground" Value="#111827" />
-													<Style.Triggers>
-														<DataTrigger Binding="{Binding IsOccupied}" Value="False">
-															<Setter Property="Foreground" Value="#2563EB" />
-														</DataTrigger>
-													</Style.Triggers>
-												</Style>
-											</TextBlock.Style>
-										</TextBlock>
-										<TextBlock Text="{Binding LevelStatusLabel}"
-												   FontSize="11"
-												   Margin="0,1,0,0">
-											<TextBlock.Style>
-												<Style TargetType="TextBlock">
-													<Setter Property="Foreground" Value="#6B7280" />
-													<Style.Triggers>
-														<DataTrigger Binding="{Binding IsMaxLevel}" Value="True">
-															<Setter Property="Foreground" Value="#D97706" />
-														</DataTrigger>
-														<DataTrigger Binding="{Binding IsDemolishing}" Value="True">
-															<Setter Property="Foreground" Value="#DC2626" />
-															<Setter Property="FontWeight" Value="SemiBold" />
-														</DataTrigger>
-													</Style.Triggers>
-												</Style>
-											</TextBlock.Style>
-										</TextBlock>
-									</StackPanel>
-								</Button>
-							</Border>
-						</DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                <StackPanel>
+                    <ItemsControl ItemsSource="{Binding Source={StaticResource BuildingTopSlotsView}}"
+                                  ItemTemplate="{StaticResource BuildingSlotButtonTemplate}"
+                                  Width="448"
+                                  HorizontalAlignment="Left">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="4" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+
+                    <Border Height="10" Background="Transparent" />
+
+                    <ItemsControl x:Name="BuildingSlotsItemsControl"
+                                  ItemsSource="{Binding Source={StaticResource BuildingRemainingSlotsView}}"
+                                  ItemTemplate="{StaticResource BuildingSlotButtonTemplate}"
+                                  Width="448"
+                                  HorizontalAlignment="Left">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="4" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                </StackPanel>
             </ScrollViewer>
         </Grid>
     </Grid>
@@ -1377,9 +1460,6 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
                         <!-- Header -->
@@ -1404,8 +1484,8 @@
                                     BorderBrush="#E5E7EB" />
                             <Button x:Name="QueueClearButton"
                                     DockPanel.Dock="Right"
-                                    Content="Clear queue"
-                                    Width="100"
+                                    Content="Clear active queue"
+                                    Width="120"
                                     Margin="0,0,8,0"
                                     Click="QueueClearButton_Click"
                                     Background="#FEE2E2"
@@ -1421,14 +1501,17 @@
                                        Margin="0,4,0,0" />
                         </StackPanel>
 
-                        <!-- Active queue card -->
-                        <Border Grid.Row="2"
-                                Background="#FFFFFF"
-                                BorderBrush="#E5E7EB"
-                                BorderThickness="1"
-                                CornerRadius="8"
-                                Padding="12"
-                                Margin="2,0,2,12">
+                        <TabControl x:Name="QueueSectionTabControl"
+                                    Grid.Row="2"
+                                    Margin="2,0,2,2"
+                                    SelectionChanged="QueueSectionTabControl_SelectionChanged">
+                            <TabItem x:Name="ActiveQueueTabItem" Header="Active queue">
+                                <Border Background="#FFFFFF"
+                                        BorderBrush="#E5E7EB"
+                                        BorderThickness="1"
+                                        CornerRadius="8"
+                                        Padding="12"
+                                        Margin="0,8,0,0">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
@@ -1445,14 +1528,12 @@
                                                    VerticalAlignment="Center" />
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                        <Button x:Name="QueueAddButton" Content="Add" Width="76" Click="QueueAddButton_Click" Background="#FFFFFF" BorderBrush="#E5E7EB" />
-                                        <Button x:Name="QueueRemoveButton" Content="Remove" Width="76" Margin="6,0,0,0" Click="QueueRemoveButton_Click" Background="#FFFFFF" BorderBrush="#E5E7EB" />
+                                        <Button x:Name="QueueRemoveButton" Content="Remove" Width="76" Click="QueueRemoveButton_Click" Background="#FFFFFF" BorderBrush="#E5E7EB" />
                                         <Rectangle Width="1" Fill="#E5E7EB" Margin="10,3,10,3" />
                                         <Button x:Name="QueueMoveUpButton" Content="↑" Width="36" Click="QueueMoveUpButton_Click" Background="#FFFFFF" BorderBrush="#E5E7EB" ToolTip="Move up" />
                                         <Button x:Name="QueueMoveDownButton" Content="↓" Width="36" Margin="6,0,0,0" Click="QueueMoveDownButton_Click" Background="#FFFFFF" BorderBrush="#E5E7EB" ToolTip="Move down" />
                                         <Rectangle Width="1" Fill="#E5E7EB" Margin="10,3,10,3" />
-                                        <Button x:Name="QueueRetryButton" Content="Retry" Width="68" Click="QueueRetryButton_Click" Background="#FFFFFF" BorderBrush="#E5E7EB" />
-                                        <Button x:Name="QueueRefreshButton" Content="Refresh" Width="76" Margin="6,0,0,0" Click="QueueRefreshButton_Click" Background="#FFFFFF" BorderBrush="#E5E7EB" />
+                                        <Button x:Name="QueueRefreshButton" Content="Refresh" Width="76" Click="QueueRefreshButton_Click" Background="#FFFFFF" BorderBrush="#E5E7EB" />
                                     </StackPanel>
                                 </DockPanel>
 
@@ -1512,27 +1593,40 @@
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Group" Width="1.15*" Binding="{Binding GroupName}" />
                                         <DataGridTextColumn Header="Task" Width="2.4*" Binding="{Binding DisplayName}" />
-                                        <DataGridTextColumn Header="Status" Width="*" Binding="{Binding Status}" />
-                                        <DataGridTextColumn Header="Retries" Width="0.7*" Binding="{Binding Retries}" />
-                                        <DataGridTextColumn Header="Max" Width="0.6*" Binding="{Binding MaxRetries}" />
-                                        <DataGridTextColumn Header="Next try" Width="1.5*" Binding="{Binding NextAttemptAtServer}" />
+                                        <DataGridTemplateColumn Header="Status" Width="*">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Status}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="#1F2937" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Running">
+                                                                        <Setter Property="Foreground" Value="#16A34A" />
+                                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTextColumn Header="Retries" Width="0.9*" Binding="{Binding RetriesText}" />
                                         <DataGridTextColumn Header="Created" Width="1.5*" Binding="{Binding CreatedAtServer}" />
                                     </DataGrid.Columns>
                                 </DataGrid>
                             </Grid>
                         </Border>
 
-                        <!-- Spacing -->
-                        <Border Grid.Row="3" Height="0" />
-
-                        <!-- History card -->
-                        <Border Grid.Row="4"
-                                Background="#FFFFFF"
-                                BorderBrush="#E5E7EB"
-                                BorderThickness="1"
-                                CornerRadius="8"
-                                Padding="12"
-                                Margin="2,0,2,2">
+                            </TabItem>
+                            <TabItem x:Name="HistoryQueueTabItem" Header="History">
+                                <Border Background="#FFFFFF"
+                                        BorderBrush="#E5E7EB"
+                                        BorderThickness="1"
+                                        CornerRadius="8"
+                                        Padding="12"
+                                        Margin="0,8,0,0">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
@@ -1601,7 +1695,25 @@
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Group" Width="1.15*" Binding="{Binding GroupName}" />
                                         <DataGridTextColumn Header="Completed task" Width="2.4*" Binding="{Binding DisplayName}" />
-                                        <DataGridTextColumn Header="Status" Width="*" Binding="{Binding Status}" />
+                                        <DataGridTemplateColumn Header="Status" Width="*">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Status}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="#4B5563" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Running">
+                                                                        <Setter Property="Foreground" Value="#16A34A" />
+                                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
                                         <DataGridTextColumn Header="Retries" Width="0.7*" Binding="{Binding Retries}" />
                                         <DataGridTextColumn Header="Created" Width="1.5*" Binding="{Binding CreatedAtServer}" />
                                     </DataGrid.Columns>
@@ -1609,7 +1721,8 @@
                             </Grid>
                         </Border>
 
-                        <Border Grid.Row="5" Height="0" />
+                            </TabItem>
+                        </TabControl>
                     </Grid>
                 </TabItem>
 

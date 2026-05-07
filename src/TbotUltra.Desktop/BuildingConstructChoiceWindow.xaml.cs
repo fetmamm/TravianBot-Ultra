@@ -20,40 +20,48 @@ public partial class BuildingConstructChoiceWindow : Window
 
         TitleTextBlock.Text = $"Build in slot {slotId}";
 
-        var available = options.Where(o => o.Availability == BuildingConstructAvailability.Available)
-            .OrderBy(o => o.Category, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(o => o.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        var locked = options.Where(o => o.Availability == BuildingConstructAvailability.Locked)
-            .OrderBy(o => o.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        var alreadyBuilt = options.Where(o => o.Availability == BuildingConstructAvailability.AlreadyBuilt)
-            .OrderBy(o => o.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var available = options.Where(o => o.Availability == BuildingConstructAvailability.Available).ToList();
+        var locked = options.Where(o => o.Availability == BuildingConstructAvailability.Locked).ToList();
+        var alreadyBuilt = options.Where(o => o.Availability == BuildingConstructAvailability.AlreadyBuilt).ToList();
         var unavailable = options.Where(o => o.Availability == BuildingConstructAvailability.Unavailable)
             .OrderBy(o => o.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        PopulateAvailableByCategory(AvailablePanel, available);
-        PopulateSection(LockedPanel, locked, clickable: false);
-        PopulateSection(AlreadyBuiltPanel, alreadyBuilt, clickable: false);
-        PopulateSection(UnavailablePanel, unavailable, clickable: false);
+        PopulateCategorySection(InfrastructureAvailablePanel, available, "infrastructure", clickable: true);
+        PopulateCategorySection(InfrastructureLockedPanel, locked, "infrastructure", clickable: false);
+        PopulateCategorySection(InfrastructureAlreadyBuiltPanel, alreadyBuilt, "infrastructure", clickable: false);
 
-        if (available.Count == 0)
-        {
-            AddPlaceholder(AvailablePanel, "No buildings ready to construct here.");
-        }
-        if (locked.Count == 0)
-        {
-            AddPlaceholder(LockedPanel, "(none)");
-        }
-        if (alreadyBuilt.Count == 0)
-        {
-            AddPlaceholder(AlreadyBuiltPanel, "(none)");
-        }
+        PopulateCategorySection(ArmyAvailablePanel, available, "army_buildings", clickable: true);
+        PopulateCategorySection(ArmyLockedPanel, locked, "army_buildings", clickable: false);
+        PopulateCategorySection(ArmyAlreadyBuiltPanel, alreadyBuilt, "army_buildings", clickable: false);
+
+        PopulateCategorySection(ResourcesAvailablePanel, available, "resource_buildings", clickable: true);
+        PopulateCategorySection(ResourcesLockedPanel, locked, "resource_buildings", clickable: false);
+        PopulateCategorySection(ResourcesAlreadyBuiltPanel, alreadyBuilt, "resource_buildings", clickable: false);
+
+        PopulateSection(UnavailablePanel, unavailable, clickable: false);
         if (unavailable.Count == 0)
         {
             AddPlaceholder(UnavailablePanel, "(none)");
+        }
+    }
+
+    private void PopulateCategorySection(StackPanel panel, IReadOnlyList<BuildingCatalogOption> items, string categoryKey, bool clickable)
+    {
+        var entries = items
+            .Where(o => string.Equals(o.Category?.Trim(), categoryKey, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(o => o.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (entries.Count <= 0)
+        {
+            AddPlaceholder(panel, "(none)");
+            return;
+        }
+
+        foreach (var option in entries)
+        {
+            panel.Children.Add(BuildOptionElement(option, clickable));
         }
     }
 
@@ -62,67 +70,6 @@ public partial class BuildingConstructChoiceWindow : Window
         foreach (var option in items)
         {
             panel.Children.Add(BuildOptionElement(option, clickable));
-        }
-    }
-
-    private static readonly (string Key, string Label)[] CategoryOrder =
-    {
-        ("infrastructure", "Infrastructure"),
-        ("army_buildings", "Army"),
-        ("resource_buildings", "Resource buildings"),
-    };
-
-    private void PopulateAvailableByCategory(StackPanel panel, IReadOnlyList<BuildingCatalogOption> items)
-    {
-        var grouped = items
-            .GroupBy(o => o.Category ?? string.Empty, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
-
-        foreach (var (key, label) in CategoryOrder)
-        {
-            if (!grouped.TryGetValue(key, out var entries) || entries.Count == 0)
-            {
-                continue;
-            }
-
-            panel.Children.Add(new TextBlock
-            {
-                Text = label,
-                FontWeight = FontWeights.SemiBold,
-                FontSize = 12,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x37, 0x41, 0x51)),
-                Margin = new Thickness(0, 6, 0, 4),
-            });
-            foreach (var option in entries.OrderBy(o => o.Name, StringComparer.OrdinalIgnoreCase))
-            {
-                panel.Children.Add(BuildOptionElement(option, clickable: true));
-            }
-        }
-
-        // Any leftover categories not in the main three (e.g., resource_field) — shown last.
-        var seenKeys = CategoryOrder.Select(c => c.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var pair in grouped)
-        {
-            if (seenKeys.Contains(pair.Key) || pair.Value.Count == 0)
-            {
-                continue;
-            }
-
-            var fallbackLabel = string.IsNullOrWhiteSpace(pair.Key)
-                ? "Other"
-                : char.ToUpper(pair.Key[0]) + pair.Key[1..].Replace('_', ' ');
-            panel.Children.Add(new TextBlock
-            {
-                Text = fallbackLabel,
-                FontWeight = FontWeights.SemiBold,
-                FontSize = 12,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x37, 0x41, 0x51)),
-                Margin = new Thickness(0, 6, 0, 4),
-            });
-            foreach (var option in pair.Value.OrderBy(o => o.Name, StringComparer.OrdinalIgnoreCase))
-            {
-                panel.Children.Add(BuildOptionElement(option, clickable: true));
-            }
         }
     }
 
@@ -142,7 +89,7 @@ public partial class BuildingConstructChoiceWindow : Window
     {
         var detail = option.Availability switch
         {
-            BuildingConstructAvailability.Available => $"{option.Category} · max level {option.MaxLevel}",
+            BuildingConstructAvailability.Available => $"{HumanizeCategory(option.Category)} · max level {option.MaxLevel}",
             BuildingConstructAvailability.Locked => $"Requires: {option.MissingRequirementsText}",
             BuildingConstructAvailability.AlreadyBuilt => option.UnavailableReason,
             BuildingConstructAvailability.Unavailable => option.UnavailableReason,
@@ -190,7 +137,7 @@ public partial class BuildingConstructChoiceWindow : Window
             return button;
         }
 
-        var border = new Border
+        return new Border
         {
             Background = new SolidColorBrush(Color.FromRgb(0xF9, 0xFA, 0xFB)),
             BorderBrush = new SolidColorBrush(Color.FromRgb(0xE5, 0xE7, 0xEB)),
@@ -201,7 +148,17 @@ public partial class BuildingConstructChoiceWindow : Window
             Child = stack,
             Opacity = option.Availability == BuildingConstructAvailability.Unavailable ? 0.65 : 1.0,
         };
-        return border;
+    }
+
+    private static string HumanizeCategory(string? category)
+    {
+        return category?.Trim().ToLowerInvariant() switch
+        {
+            "infrastructure" => "Infrastructure",
+            "army_buildings" => "Army",
+            "resource_buildings" => "Resources",
+            _ => "Other",
+        };
     }
 
     private void OptionButton_Click(object sender, RoutedEventArgs e)
@@ -213,7 +170,7 @@ public partial class BuildingConstructChoiceWindow : Window
 
         SelectedOption = option;
         SelectedNameTextBlock.Text = option.DisplayLabel;
-        SelectedDetailsTextBlock.Text = $"{option.Category} · max level {option.MaxLevel}";
+        SelectedDetailsTextBlock.Text = $"{HumanizeCategory(option.Category)} · max level {option.MaxLevel}";
 
         TargetLevelComboBox.Items.Clear();
         for (var lvl = 1; lvl <= option.MaxLevel; lvl++)
@@ -237,7 +194,7 @@ public partial class BuildingConstructChoiceWindow : Window
         var selected = TargetLevelComboBox.SelectedItem?.ToString();
         if (string.Equals(selected, MaxLevelSentinel, StringComparison.OrdinalIgnoreCase))
         {
-            SelectedTargetLevel = 0; // 0 = build to max
+            SelectedTargetLevel = 0;
         }
         else if (int.TryParse(selected, out var lvl))
         {

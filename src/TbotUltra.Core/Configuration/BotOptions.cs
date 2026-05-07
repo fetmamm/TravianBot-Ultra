@@ -62,6 +62,15 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.QueueWaitThresholdMode)]
     public string QueueWaitThresholdMode { get; init; } = "10";
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.PostLoginAnalyzeFarmlists)]
+    public bool PostLoginAnalyzeFarmlists { get; init; }
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.PostLoginAnalyzeHero)]
+    public bool PostLoginAnalyzeHero { get; init; }
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.PostLoginReadTroopTrainingQueue)]
+    public bool PostLoginReadTroopTrainingQueue { get; init; }
+
     [ConfigurationKeyName("github_releases_url")]
     public string GithubReleasesUrl { get; init; } = string.Empty;
 
