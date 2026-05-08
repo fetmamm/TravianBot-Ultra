@@ -925,14 +925,14 @@
                                         <StackPanel Grid.Column="0">
                                             <TextBlock Text="Hero min HP for adventure" Foreground="#374151" FontSize="12" />
                                             <TextBox x:Name="HeroMinHpTextBox"
-                                                     Text="60"
+                                                     Text="{Binding MinHpForAdventure, UpdateSourceTrigger=PropertyChanged}"
                                                      Margin="0,4,12,0"
                                                      Padding="6,4"
                                                      BorderBrush="#E5E7EB" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="1" VerticalAlignment="Bottom">
-                                            <CheckBox x:Name="HeroAutoReviveCheckBox" Content="Auto revive" IsChecked="True" Margin="0,0,0,6" />
-                                            <CheckBox x:Name="HeroAutoAssignPointsCheckBox" Content="Auto assign attribute points" IsChecked="True" />
+                                            <CheckBox x:Name="HeroAutoReviveCheckBox" Content="Auto revive" IsChecked="{Binding AutoRevive}" Margin="0,0,0,6" />
+                                            <CheckBox x:Name="HeroAutoAssignPointsCheckBox" Content="Auto assign attribute points" IsChecked="{Binding AutoAssignPoints}" />
                                         </StackPanel>
                                     </Grid>
                                     <TextBlock Text="Adventure pick order" Foreground="#374151" FontSize="12" Margin="0,8,0,4" />
@@ -940,23 +940,25 @@
                                         <RadioButton x:Name="HeroAdventureShortestRadio"
                                                      Content="Shortest adventure first"
                                                      GroupName="HeroAdventureOrder"
-                                                     IsChecked="True"
+                                                     IsChecked="{Binding IsAdventurePickShortest}"
                                                      Margin="0,0,16,0" />
                                         <RadioButton x:Name="HeroAdventureTopRadio"
                                                      Content="Top adventure first"
-                                                     GroupName="HeroAdventureOrder" />
+                                                     GroupName="HeroAdventureOrder"
+                                                     IsChecked="{Binding IsAdventurePickTop}" />
                                     </StackPanel>
                                     <TextBlock Text="Hide hero" Foreground="#374151" FontSize="12" Margin="0,12,0,4" />
                                     <StackPanel Orientation="Vertical">
                                         <RadioButton x:Name="HeroHideRadio"
                                                      Content="Hero will hide during an attack on their home village."
                                                      GroupName="HeroHideMode"
-                                                     IsChecked="True"
+                                                     IsChecked="{Binding IsHideModeHide}"
                                                      Margin="0,0,0,4"
                                                      Checked="HeroHideModeRadio_Checked" />
                                         <RadioButton x:Name="HeroFightRadio"
                                                      Content="Your hero will always stay with the troops."
                                                      GroupName="HeroHideMode"
+                                                     IsChecked="{Binding IsHideModeFight}"
                                                      Checked="HeroHideModeRadio_Checked" />
                                     </StackPanel>
                                 </StackPanel>
@@ -1116,6 +1118,7 @@
                                                     BorderBrush="#030826" />
                                             <CheckBox x:Name="ContinuousAdventuresCheckBox"
                                                       Content="Continuous adventures"
+                                                      IsChecked="{Binding ContinuousAdventures}"
                                                       VerticalAlignment="Center"
                                                       Margin="14,0,0,0"
                                                       ToolTip="Re-queue Hero adventure after each run until no adventures remain." />

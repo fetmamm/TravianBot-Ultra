@@ -155,14 +155,17 @@ public partial class MainWindow
 
     private void HeroHideModeRadio_Checked(object sender, RoutedEventArgs e)
     {
-        // Checked fires during InitializeComponent for the XAML-default IsChecked="True", before
-        // services and other controls are wired — bail out until the window has finished loading.
+        // Checked fires for the XAML-default IsChecked="True" radio during
+        // InitializeComponent (before services are wired) and again when
+        // LoadConfigToUi pushes the persisted hide mode into the VM through
+        // a binding — both should be ignored. Only user-driven toggles after
+        // the window is loaded should propagate to the worker.
         if (_suppressHeroHideModeApply || !IsLoaded)
         {
             return;
         }
 
-        var mode = HeroFightRadio?.IsChecked == true ? "fight" : "hide";
+        var mode = _heroViewModel.HideMode;
         var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             [BotOptionPayloadKeys.HeroHideMode] = mode,
@@ -172,7 +175,8 @@ public partial class MainWindow
 
     private void QueueHeroManageButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!int.TryParse(HeroMinHpTextBox.Text.Trim(), out var minHp) || minHp < 1 || minHp > 100)
+        var minHp = _heroViewModel.MinHpForAdventure;
+        if (minHp < 1 || minHp > 100)
         {
             BuildingsInfoTextBlock.Text = "Hero minimum HP must be an integer 1-100.";
             return;
@@ -181,14 +185,14 @@ public partial class MainWindow
         var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             [BotOptionPayloadKeys.HeroMinHpForAdventure] = minHp.ToString(),
-            [BotOptionPayloadKeys.HeroAutoRevive] = HeroAutoReviveCheckBox.IsChecked == true ? "true" : "false",
-            [BotOptionPayloadKeys.HeroAutoAssignPoints] = HeroAutoAssignPointsCheckBox.IsChecked == true ? "true" : "false",
+            [BotOptionPayloadKeys.HeroAutoRevive] = _heroViewModel.AutoRevive ? "true" : "false",
+            [BotOptionPayloadKeys.HeroAutoAssignPoints] = _heroViewModel.AutoAssignPoints ? "true" : "false",
             [BotOptionPayloadKeys.HeroStatPriority] = _heroViewModel.BuildPriorityPayload(),
-            [BotOptionPayloadKeys.HeroAdventurePickOrder] = HeroAdventureTopRadio?.IsChecked == true ? "top" : "shortest",
-            [BotOptionPayloadKeys.HeroHideMode] = HeroFightRadio?.IsChecked == true ? "fight" : "hide",
+            [BotOptionPayloadKeys.HeroAdventurePickOrder] = _heroViewModel.AdventurePickOrder,
+            [BotOptionPayloadKeys.HeroHideMode] = _heroViewModel.HideMode,
         };
 
-        var continuous = ContinuousAdventuresCheckBox?.IsChecked == true;
+        var continuous = _heroViewModel.ContinuousAdventures;
         var copies = 1;
         if (continuous && int.TryParse(_heroViewModel.AdventureCountText.Trim(), out var available) && available > 1)
         {

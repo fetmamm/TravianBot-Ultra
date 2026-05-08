@@ -535,19 +535,10 @@ public partial class MainWindow : Window
             PersistTroopTrainingConfig();
         }
         TroopsInfoTextBlock.Text = "Configure troop building rules and refresh queues when needed.";
-        HeroMinHpTextBox.Text = Math.Clamp(options.HeroMinHpForAdventure, 1, 100).ToString();
-        HeroAutoReviveCheckBox.IsChecked = options.HeroAutoRevive;
-        HeroAutoAssignPointsCheckBox.IsChecked = options.HeroAutoAssignPoints;
-        _heroViewModel.LoadPriorityFromConfig(options.HeroStatPriority);
-        var topFirst = string.Equals(options.HeroAdventurePickOrder, "top", StringComparison.OrdinalIgnoreCase);
-        HeroAdventureTopRadio.IsChecked = topFirst;
-        HeroAdventureShortestRadio.IsChecked = !topFirst;
-        var fightMode = string.Equals(options.HeroHideMode, "fight", StringComparison.OrdinalIgnoreCase);
         _suppressHeroHideModeApply = true;
         try
         {
-            HeroFightRadio.IsChecked = fightMode;
-            HeroHideRadio.IsChecked = !fightMode;
+            _heroViewModel.LoadSettingsFromConfig(options);
         }
         finally
         {

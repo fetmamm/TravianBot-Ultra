@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Common;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Worker.Domain;
@@ -33,6 +34,15 @@ public sealed class HeroViewModel : BaseViewModel
     private string _attributesStatusText = "Hero stats not loaded.";
     private string _adventureCountText = "?";
     private string _adventureStatusText = "Adventures not loaded.";
+
+    private int _minHpForAdventure = 60;
+    private bool _autoRevive = true;
+    private bool _autoAssignPoints = true;
+    private bool _isAdventurePickTop;
+    private bool _isAdventurePickShortest = true;
+    private bool _isHideModeFight;
+    private bool _isHideModeHide = true;
+    private bool _continuousAdventures;
 
     /// <summary>
     /// Optional sink for [ui-apply] trace lines. Defaulted to a no-op so
@@ -76,6 +86,140 @@ public sealed class HeroViewModel : BaseViewModel
     {
         get => _adventureStatusText;
         set => SetProperty(ref _adventureStatusText, value);
+    }
+
+    /// <summary>
+    /// Minimum hero HP required before an adventure is queued (1-100).
+    /// Bound to the HeroMinHpTextBox.
+    /// </summary>
+    public int MinHpForAdventure
+    {
+        get => _minHpForAdventure;
+        set => SetProperty(ref _minHpForAdventure, Math.Clamp(value, 1, 100));
+    }
+
+    /// <summary>True to send the hero to revive when HP is below the threshold.</summary>
+    public bool AutoRevive
+    {
+        get => _autoRevive;
+        set => SetProperty(ref _autoRevive, value);
+    }
+
+    /// <summary>True to auto-assign attribute points based on the priority list.</summary>
+    public bool AutoAssignPoints
+    {
+        get => _autoAssignPoints;
+        set => SetProperty(ref _autoAssignPoints, value);
+    }
+
+    /// <summary>
+    /// Adventure pick order — top of the list. Mutually exclusive with
+    /// <see cref="IsAdventurePickShortest"/>.
+    /// </summary>
+    public bool IsAdventurePickTop
+    {
+        get => _isAdventurePickTop;
+        set
+        {
+            if (SetProperty(ref _isAdventurePickTop, value) && value)
+            {
+                IsAdventurePickShortest = false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Adventure pick order — shortest distance. Mutually exclusive with
+    /// <see cref="IsAdventurePickTop"/>.
+    /// </summary>
+    public bool IsAdventurePickShortest
+    {
+        get => _isAdventurePickShortest;
+        set
+        {
+            if (SetProperty(ref _isAdventurePickShortest, value) && value)
+            {
+                IsAdventurePickTop = false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Hero hide mode is set to "fight". Mutually exclusive with
+    /// <see cref="IsHideModeHide"/>.
+    /// </summary>
+    public bool IsHideModeFight
+    {
+        get => _isHideModeFight;
+        set
+        {
+            if (SetProperty(ref _isHideModeFight, value) && value)
+            {
+                IsHideModeHide = false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Hero hide mode is set to "hide". Mutually exclusive with
+    /// <see cref="IsHideModeFight"/>.
+    /// </summary>
+    public bool IsHideModeHide
+    {
+        get => _isHideModeHide;
+        set
+        {
+            if (SetProperty(ref _isHideModeHide, value) && value)
+            {
+                IsHideModeFight = false;
+            }
+        }
+    }
+
+    /// <summary>True to keep re-queuing hero adventures while any remain.</summary>
+    public bool ContinuousAdventures
+    {
+        get => _continuousAdventures;
+        set => SetProperty(ref _continuousAdventures, value);
+    }
+
+    /// <summary>String form of the adventure pick order, "top" or "shortest".</summary>
+    public string AdventurePickOrder => IsAdventurePickTop ? "top" : "shortest";
+
+    /// <summary>String form of the hide mode, "fight" or "hide".</summary>
+    public string HideMode => IsHideModeFight ? "fight" : "hide";
+
+    /// <summary>
+    /// Loads all hero settings (min HP, revive, auto-assign, pick order,
+    /// hide mode) from a freshly read <see cref="BotOptions"/>. Also refreshes
+    /// the priority list.
+    /// </summary>
+    public void LoadSettingsFromConfig(BotOptions options)
+    {
+        MinHpForAdventure = options.HeroMinHpForAdventure;
+        AutoRevive = options.HeroAutoRevive;
+        AutoAssignPoints = options.HeroAutoAssignPoints;
+        var topFirst = string.Equals(options.HeroAdventurePickOrder, "top", StringComparison.OrdinalIgnoreCase);
+        if (topFirst)
+        {
+            IsAdventurePickTop = true;
+        }
+        else
+        {
+            IsAdventurePickShortest = true;
+        }
+
+        var fightMode = string.Equals(options.HeroHideMode, "fight", StringComparison.OrdinalIgnoreCase);
+        if (fightMode)
+        {
+            IsHideModeFight = true;
+        }
+        else
+        {
+            IsHideModeHide = true;
+        }
+
+        LoadPriorityFromConfig(options.HeroStatPriority);
     }
 
     /// <summary>
