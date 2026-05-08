@@ -85,7 +85,7 @@ public partial class MainWindow
 
     private async Task RefreshInboxIndicatorsAsync(bool logErrors, bool force = false)
     {
-        if (_isAppClosing)
+        if (_loopController.IsClosing)
         {
             return;
         }

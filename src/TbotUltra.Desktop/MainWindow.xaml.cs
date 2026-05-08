@@ -162,10 +162,7 @@ public partial class MainWindow : Window
     private Guid? _pendingQueueUiSelectId;
     private volatile bool _autoQueueRunning;
     private volatile bool _uiBusy;
-    private volatile bool _isAppClosing;
     private volatile bool _inboxAutoEnabled;
-    private volatile bool _loopStopRequested;
-    private volatile bool _queueStopRequested;
     private volatile bool _isLoggedIn;
     private volatile bool _browserSessionLikelyOpen;
     private bool _farmingFeaturesAvailable = true;
@@ -946,8 +943,8 @@ public partial class MainWindow : Window
     private void StartContinuousLoopRunner()
     {
         var initialOptions = LoadBotOptions();
-        _loopStopRequested = false;
-        _queueStopRequested = false;
+        _loopController.ClearLoopStopRequest();
+        _loopController.ClearQueueStopRequest();
         _continuousLoopConstructionStatusNeedsSync = true;
         _loopCts = _loopController.CreateCts("loop");
         var token = _loopCts.Token;
@@ -1579,7 +1576,7 @@ public partial class MainWindow : Window
             && !_loopTask.IsCompleted)
         {
             _restartContinuousLoopAfterStop = HasEnabledContinuousLoopGroupsExcept(disabledGroup);
-            _loopStopRequested = true;
+            _loopController.RequestLoopStop();
             _loopCts?.Cancel();
             AppendLog($"{QueueGroupCatalog.GetTitle(disabledGroup)} group disabled. Stopping current loop task.");
         }
@@ -1992,8 +1989,8 @@ public partial class MainWindow : Window
     {
         try
         {
-            _loopStopRequested = true;
-            _queueStopRequested = true;
+            _loopController.RequestLoopStop();
+            _loopController.RequestQueueStop();
             _operationCts?.Cancel();
             _autoQueueRunCts?.Cancel();
             _loopCts?.Cancel();
@@ -2058,12 +2055,12 @@ public partial class MainWindow : Window
             {
                 // Graceful pause: don't pick up new queue items. Let the currently running
                 // task finish; the runner will exit at its next iteration check.
-                _queueStopRequested = true;
+                _loopController.RequestQueueStop();
                 AppendLog("Pause requested. Letting current task finish before stopping.");
                 return;
             }
 
-            _queueStopRequested = false;
+            _loopController.ClearQueueStopRequest();
             ResumePausedQueueItems();
             _ = TriggerQueueAutoRunAsync();
             AppendLog("Function queue start requested.");
@@ -2073,14 +2070,14 @@ public partial class MainWindow : Window
         if (_autoQueueRunning)
         {
             _startContinuousLoopAfterQueueStop = true;
-            _queueStopRequested = true;
+            _loopController.RequestQueueStop();
             AppendLog("Continuous loop requested. Letting current queue task finish before switching.");
             return;
         }
 
         if (_uiBusy && (_loopTask is null || _loopTask.IsCompleted))
         {
-            _queueStopRequested = true;
+            _loopController.RequestQueueStop();
             AppendLog("Pause requested. Letting current function finish before stopping.");
             return;
         }
@@ -2088,7 +2085,7 @@ public partial class MainWindow : Window
         if (_loopTask is not null && !_loopTask.IsCompleted)
         {
             // Pause the loop gracefully too — flag stop, let current iteration finish.
-            _loopStopRequested = true;
+            _loopController.RequestLoopStop();
             AppendLog("Pause requested. Loop will stop after the current iteration.");
             return;
         }
@@ -2099,12 +2096,12 @@ public partial class MainWindow : Window
     private void StopBotButton_Click(object sender, RoutedEventArgs e)
     {
         // Hard stop: abort whatever is running right now (including waits) and clear state.
-        _queueStopRequested = true;
+        _loopController.RequestQueueStop();
         _operationCts?.Cancel();
         _autoQueueRunCts?.Cancel();
         if (ContinuousRunToggleButton.IsChecked == true)
         {
-            _loopStopRequested = true;
+            _loopController.RequestLoopStop();
             _loopCts?.Cancel();
         }
 
@@ -2138,8 +2135,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        _queueStopRequested = true;
-        _loopStopRequested = true;
+        _loopController.RequestQueueStop();
+        _loopController.RequestLoopStop();
         _startContinuousLoopAfterQueueStop = false;
         _operationCts?.Cancel();
         _autoQueueRunCts?.Cancel();
@@ -2337,15 +2334,14 @@ public partial class MainWindow : Window
     {
         try
         {
-            _isAppClosing = true;
             _loopController.MarkClosing();
             _inboxAutoEnabled = false;
             _clockTimer.Stop();
             _copyFeedbackTimer.Stop();
             _inboxRefreshTimer.Stop();
             _buildQueueCountdownTimer.Stop();
-            _loopStopRequested = true;
-            _queueStopRequested = true;
+            _loopController.RequestLoopStop();
+            _loopController.RequestQueueStop();
             _loopCts?.Cancel();
             _villageSwitchCts?.Cancel();
             _queueAutoRunCts.Cancel();
@@ -3891,8 +3887,8 @@ public partial class MainWindow : Window
         var label = string.IsNullOrWhiteSpace(villageName) ? "-" : villageName;
         AppendLog($"Village changed to '{label}' while bot is running. Stopping active work and clearing queue.");
 
-        _loopStopRequested = true;
-        _queueStopRequested = true;
+        _loopController.RequestLoopStop();
+        _loopController.RequestQueueStop();
         _operationCts?.Cancel();
         _autoQueueRunCts?.Cancel();
         _loopCts?.Cancel();

@@ -470,8 +470,8 @@ public partial class MainWindow
             return;
         }
 
-        _loopStopRequested = true;
-        _queueStopRequested = true;
+        _loopController.RequestLoopStop();
+        _loopController.RequestQueueStop();
         _operationCts?.Cancel();
         _autoQueueRunCts?.Cancel();
         _loopCts?.Cancel();

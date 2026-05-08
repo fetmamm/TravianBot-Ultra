@@ -24,6 +24,8 @@ public sealed class LoopController : IDisposable
     private readonly SemaphoreSlim _queueAutoRunGate = new(1, 1);
     private long _gateAcquireSeq;
     private bool _disposed;
+    private volatile bool _loopStopRequested;
+    private volatile bool _queueStopRequested;
 
     /// <summary>
     /// Optional sink for structured log lines. Defaults to <see cref="Debug.WriteLine(string)"/>
@@ -52,6 +54,58 @@ public sealed class LoopController : IDisposable
         IsClosing = true;
         Logger.Invoke("[loop] Controller marked closing.");
     }
+
+    /// <summary>
+    /// True when a graceful stop of the continuous-loop runner has been
+    /// requested. The runner polls this between ticks and exits cleanly.
+    /// </summary>
+    public bool LoopStopRequested => _loopStopRequested;
+
+    /// <summary>
+    /// True when a graceful stop of the queue auto-runner has been requested.
+    /// The runner polls this between items and exits cleanly.
+    /// </summary>
+    public bool QueueStopRequested => _queueStopRequested;
+
+    /// <summary>
+    /// Sets <see cref="LoopStopRequested"/>. Idempotent; logs only on
+    /// transition from false to true.
+    /// </summary>
+    public void RequestLoopStop()
+    {
+        if (_loopStopRequested)
+        {
+            return;
+        }
+
+        _loopStopRequested = true;
+        Logger.Invoke("[loop] Loop stop requested.");
+    }
+
+    /// <summary>
+    /// Sets <see cref="QueueStopRequested"/>. Idempotent; logs only on
+    /// transition from false to true.
+    /// </summary>
+    public void RequestQueueStop()
+    {
+        if (_queueStopRequested)
+        {
+            return;
+        }
+
+        _queueStopRequested = true;
+        Logger.Invoke("[loop] Queue stop requested.");
+    }
+
+    /// <summary>
+    /// Clears <see cref="LoopStopRequested"/> ahead of starting a new run.
+    /// </summary>
+    public void ClearLoopStopRequest() => _loopStopRequested = false;
+
+    /// <summary>
+    /// Clears <see cref="QueueStopRequested"/> ahead of starting a new run.
+    /// </summary>
+    public void ClearQueueStopRequest() => _queueStopRequested = false;
 
     /// <summary>
     /// Tries to acquire the queue-auto-run gate without blocking. Returns a

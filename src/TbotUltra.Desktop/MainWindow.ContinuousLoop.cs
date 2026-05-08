@@ -20,7 +20,7 @@ public partial class MainWindow
             return;
         }
 
-        if (_queueStopRequested)
+        if (_loopController.QueueStopRequested)
         {
             return;
         }
@@ -85,7 +85,7 @@ public partial class MainWindow
             }
         }
 
-        _queueStopRequested = false;
+        _loopController.ClearQueueStopRequest();
         _ = TriggerQueueAutoRunAsync();
     }
 
@@ -334,7 +334,7 @@ public partial class MainWindow
     {
         while (!token.IsCancellationRequested)
         {
-            if (_loopStopRequested)
+            if (_loopController.LoopStopRequested)
             {
                 AppendLog("Loop stop requested. Exiting after current action.");
                 break;
@@ -514,7 +514,7 @@ public partial class MainWindow
         AppendLog($"[AUTOQ {runId}] START");
         while (!cancellationToken.IsCancellationRequested)
         {
-            if (_queueStopRequested)
+            if (_loopController.QueueStopRequested)
             {
                 AppendLog($"[AUTOQ {runId}] STOPPED (graceful stop requested).");
                 return;
@@ -648,7 +648,7 @@ public partial class MainWindow
                     && ioe.Message.Contains("different thread owns it", StringComparison.OrdinalIgnoreCase))
                 {
                     _botService.MarkQueueItemExecutionFailed(next.Id);
-                    _queueStopRequested = true;
+                    _loopController.RequestQueueStop();
                     AppendLog($"[AUTOQ {runId}] FAIL {tickSw.Elapsed.TotalSeconds:F1}s task={next.TaskName} | UI thread access error detected. Auto-queue paused to prevent spam.");
                     return;
                 }
