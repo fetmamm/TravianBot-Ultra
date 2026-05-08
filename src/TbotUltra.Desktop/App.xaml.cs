@@ -3,6 +3,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
+using TbotUltra.Desktop.Services.Orchestration;
 using TbotUltra.Desktop.ViewModels;
 
 namespace TbotUltra.Desktop;
@@ -39,6 +40,11 @@ public partial class App : Application
         // DesktopBotService, etc.) will move here in follow-up commits as their owners
         // are migrated to constructor injection.
         services.AddTransient<MainViewModel>();
+
+        // Orchestration. LoopController owns the queue-auto-run gate and the
+        // is-closing flag; subsequent commits will fold the continuous-loop
+        // CancellationTokenSources into it as well.
+        services.AddSingleton<LoopController>();
 
         return services.BuildServiceProvider();
     }

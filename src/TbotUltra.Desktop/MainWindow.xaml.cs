@@ -15,10 +15,12 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Travian;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
+using TbotUltra.Desktop.Services.Orchestration;
 using TbotUltra.Worker;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Infrastructure;
@@ -147,7 +149,7 @@ public partial class MainWindow : Window
     private int _lastUnreadReports;
     private long _operationCounter;
     private long _loopTickCounter;
-    private readonly SemaphoreSlim _queueAutoRunGate = new(1, 1);
+    private readonly LoopController _loopController;
     private readonly CancellationTokenSource _queueAutoRunCts = new();
     private CancellationTokenSource? _autoQueueRunCts;
     private readonly SemaphoreSlim _inboxRefreshGate = new(1, 1);
@@ -278,6 +280,9 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         TryApplyWindowIcon();
+
+        _loopController = App.Services.GetRequiredService<LoopController>();
+        _loopController.Logger = AppendLog;
 
         _projectRoot = ProjectRootLocator.FindProjectRoot();
         _versionPath = Path.Combine(_projectRoot, "VERSION");
@@ -944,7 +949,7 @@ public partial class MainWindow : Window
         _loopStopRequested = false;
         _queueStopRequested = false;
         _continuousLoopConstructionStatusNeedsSync = true;
-        _loopCts = new CancellationTokenSource();
+        _loopCts = _loopController.CreateCts("loop");
         var token = _loopCts.Token;
 
         StartLoopButton.Content = "Pause bot";
@@ -1759,7 +1764,7 @@ public partial class MainWindow : Window
     {
         var operationId = BeginOperation("Login");
         var operationSw = Stopwatch.StartNew();
-        _operationCts = new CancellationTokenSource();
+        _operationCts = _loopController.CreateCts("operation");
         var operationToken = _operationCts.Token;
         ToggleUiBusy(true);
         try
@@ -1850,7 +1855,7 @@ public partial class MainWindow : Window
     {
         var operationId = BeginOperation("Logout");
         var operationSw = Stopwatch.StartNew();
-        _operationCts = new CancellationTokenSource();
+        _operationCts = _loopController.CreateCts("operation");
         var operationToken = _operationCts.Token;
         ToggleUiBusy(true);
         try
@@ -2333,6 +2338,7 @@ public partial class MainWindow : Window
         try
         {
             _isAppClosing = true;
+            _loopController.MarkClosing();
             _inboxAutoEnabled = false;
             _clockTimer.Stop();
             _copyFeedbackTimer.Stop();
@@ -2871,14 +2877,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        try
-        {
-            if (!await _queueAutoRunGate.WaitAsync(0, _queueAutoRunCts.Token))
-            {
-                return;
-            }
-        }
-        catch (OperationCanceledException)
+        var gateLease = await _loopController.TryAcquireQueueAutoRunGateAsync(_queueAutoRunCts.Token);
+        if (gateLease is null)
         {
             return;
         }
@@ -2899,7 +2899,7 @@ public partial class MainWindow : Window
                 _autoQueueRunCts?.Dispose();
                 _autoQueueRunCts = null;
                 UpdateExecutionStateIndicatorOnUiThread();
-                _queueAutoRunGate.Release();
+                gateLease.Dispose();
                 _ = Dispatcher.BeginInvoke(() =>
                 {
                     if (_startContinuousLoopAfterQueueStop
@@ -4443,7 +4443,7 @@ public partial class MainWindow : Window
 
         _villageSwitchCts?.Cancel();
         _villageSwitchCts?.Dispose();
-        _villageSwitchCts = new CancellationTokenSource();
+        _villageSwitchCts = _loopController.CreateCts("village-switch");
         var operationToken = _villageSwitchCts.Token;
         var operationId = BeginOperation("SwitchVillage");
         var operationSw = Stopwatch.StartNew();
@@ -4641,7 +4641,7 @@ public partial class MainWindow : Window
     {
         var operationId = BeginOperation("OpenVerificationBrowser");
         var operationSw = Stopwatch.StartNew();
-        _operationCts = new CancellationTokenSource();
+        _operationCts = _loopController.CreateCts("operation");
         var operationToken = _operationCts.Token;
         ToggleUiBusy(true);
         try
