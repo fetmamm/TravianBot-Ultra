@@ -503,7 +503,7 @@
                                                                 </StackPanel>
 
                                                                 <ItemsControl Grid.Column="1"
-                                                                              ItemsSource="{Binding TroopTrainingBuildings, ElementName=RootWindow}"
+                                                                              ItemsSource="{Binding TroopTrainingVm.Buildings, ElementName=RootWindow}"
                                                                               Margin="16,0,0,0"
                                                                               VerticalAlignment="Center">
                                                                     <ItemsControl.Style>
