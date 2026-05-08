@@ -32,43 +32,6 @@ public partial class MainWindow
         BuildingsInfoTextBlock.Text = "Queued buildings load.";
     }
 
-    private void UpgradeTroopsButton_Click(object sender, RoutedEventArgs e)
-    {
-        EnqueueQuickTask("upgrade_troops_at_smithy", "Upgrade all troops at Smithy");
-        TroopsInfoTextBlock.Text = "Queued: upgrade all troops at Smithy.";
-        AppendLog("Queued upgrade_troops_at_smithy task.");
-    }
-
-    private void BuildTroopsNowButton_Click(object sender, RoutedEventArgs e)
-    {
-        EnqueueQuickTask("build_troops", "Build troops");
-        TroopsInfoTextBlock.Text = "Queued: build troops.";
-        AppendLog("Queued build_troops task.");
-    }
-
-    private async void RefreshTroopQueuesButton_Click(object sender, RoutedEventArgs e)
-    {
-        RefreshTroopQueuesButton.IsEnabled = false;
-        var operationId = BeginOperation("Refresh troop queues");
-        try
-        {
-            await EnsureChromiumInstalledAsync();
-            var options = ApplySelectedVillageToOptions(LoadBotOptions());
-            await RefreshTroopTrainingQueuesAsync(options, CancellationToken.None, _lastBuildingStatus?.Buildings, refreshBuildingsBeforeRead: true);
-            TroopsInfoTextBlock.Text = "Troop training queues refreshed.";
-            AppendLog($"[{operationId}] Troop training queues refreshed.");
-        }
-        catch (Exception ex)
-        {
-            TroopsInfoTextBlock.Text = $"Could not refresh troop queues: {ex.Message}";
-            AppendLog($"[{operationId}] Troop queue refresh failed: {ex.Message}");
-        }
-        finally
-        {
-            RefreshTroopQueuesButton.IsEnabled = true;
-        }
-    }
-
     private void UpgradeAllBuildingsToMaxButton_Click(object sender, RoutedEventArgs e)
     {
         // Always refresh snapshot first so we work from current levels.

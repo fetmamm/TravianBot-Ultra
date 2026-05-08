@@ -53,6 +53,51 @@ public partial class MainWindow
         UpdateAutomationLoopRunningIndicators();
     }
 
+    /// <summary>
+    /// Queues an "upgrade troops at smithy" runtime task. Called by the
+    /// Troops panel's Upgrade button.
+    /// </summary>
+    internal void OnTroopsUpgradeClicked()
+    {
+        EnqueueQuickTask("upgrade_troops_at_smithy", "Upgrade all troops at Smithy");
+        _troopTrainingViewModel.InfoText = "Queued: upgrade all troops at Smithy.";
+        AppendLog("Queued upgrade_troops_at_smithy task.");
+    }
+
+    /// <summary>
+    /// Queues a one-shot "build troops" task. Called by the Troops panel's
+    /// Build-now button.
+    /// </summary>
+    internal void OnTroopsBuildNowClicked()
+    {
+        EnqueueQuickTask("build_troops", "Build troops");
+        _troopTrainingViewModel.InfoText = "Queued: build troops.";
+        AppendLog("Queued build_troops task.");
+    }
+
+    /// <summary>
+    /// Operation-bracketed refresh of troop queues. Called by the Troops
+    /// panel's Refresh-queues button (the panel toggles its own IsEnabled
+    /// around the call).
+    /// </summary>
+    internal async Task RefreshTroopQueuesCoreAsync()
+    {
+        var operationId = BeginOperation("Refresh troop queues");
+        try
+        {
+            await EnsureChromiumInstalledAsync();
+            var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            await RefreshTroopTrainingQueuesAsync(options, CancellationToken.None, _lastBuildingStatus?.Buildings, refreshBuildingsBeforeRead: true);
+            _troopTrainingViewModel.InfoText = "Troop training queues refreshed.";
+            AppendLog($"[{operationId}] Troop training queues refreshed.");
+        }
+        catch (Exception ex)
+        {
+            _troopTrainingViewModel.InfoText = $"Could not refresh troop queues: {ex.Message}";
+            AppendLog($"[{operationId}] Troop queue refresh failed: {ex.Message}");
+        }
+    }
+
     private void PersistTroopTrainingConfig()
     {
         try

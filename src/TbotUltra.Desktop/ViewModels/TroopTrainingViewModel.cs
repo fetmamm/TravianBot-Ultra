@@ -39,9 +39,21 @@ public sealed class TroopTrainingViewModel : BaseViewModel
     ];
 
     private bool _isConfigSuppressed;
+    private string _infoText = "Configure troop building rules and refresh queues when needed.";
 
     /// <summary>The three building rules shown as rows on the panel.</summary>
     public ObservableCollection<TroopTrainingBuildingOption> Buildings { get; } = [];
+
+    /// <summary>
+    /// Status / hint line shown above the row list (e.g. "Queued: build troops.",
+    /// "Troop training queues refreshed.", error messages from the refresh
+    /// button). MainWindow's button handlers and LoadConfigToUi push values here.
+    /// </summary>
+    public string InfoText
+    {
+        get => _infoText;
+        set => SetProperty(ref _infoText, value);
+    }
 
     /// <summary>
     /// Raised when a user-driven option change crosses one of the persisted

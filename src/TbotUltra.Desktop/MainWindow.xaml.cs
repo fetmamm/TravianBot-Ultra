@@ -545,7 +545,7 @@ public partial class MainWindow : Window
         {
             PersistTroopTrainingConfig();
         }
-        TroopsInfoTextBlock.Text = "Configure troop building rules and refresh queues when needed.";
+        _troopTrainingViewModel.InfoText = "Configure troop building rules and refresh queues when needed.";
         _suppressHeroHideModeApply = true;
         try
         {
