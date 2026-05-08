@@ -40,6 +40,7 @@ public partial class App : Application
         // DesktopBotService, etc.) will move here in follow-up commits as their owners
         // are migrated to constructor injection.
         services.AddTransient<MainViewModel>();
+        services.AddSingleton<HeroViewModel>();
 
         // Orchestration. LoopController owns the queue-auto-run gate and the
         // is-closing flag; subsequent commits will fold the continuous-loop

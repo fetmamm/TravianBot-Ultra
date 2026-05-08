@@ -21,6 +21,7 @@ using TbotUltra.Core.Travian;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
 using TbotUltra.Desktop.Services.Orchestration;
+using TbotUltra.Desktop.ViewModels;
 using TbotUltra.Worker;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Infrastructure;
@@ -115,7 +116,6 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<string> _terminalEntries = [];
     private readonly ObservableCollection<AlarmEntryRow> _alarmEntries = [];
     private readonly ObservableCollection<LoopTaskOption> _automationLoopTasks = [];
-    private readonly ObservableCollection<HeroAttributePriorityItem> _heroAttributePriorityItems = [];
     private readonly ObservableCollection<FarmListStatusRow> _farmLists = [];
     private readonly ObservableCollection<TroopTrainingBuildingOption> _troopTrainingBuildingOptions = [];
     private readonly ObservableCollection<ResourceFieldRow> _woodFields = [];
@@ -150,6 +150,7 @@ public partial class MainWindow : Window
     private long _operationCounter;
     private long _loopTickCounter;
     private readonly LoopController _loopController;
+    private readonly HeroViewModel _heroViewModel;
     private readonly CancellationTokenSource _queueAutoRunCts = new();
     private CancellationTokenSource? _autoQueueRunCts;
     private readonly SemaphoreSlim _inboxRefreshGate = new(1, 1);
@@ -280,6 +281,7 @@ public partial class MainWindow : Window
 
         _loopController = App.Services.GetRequiredService<LoopController>();
         _loopController.Logger = AppendLog;
+        _heroViewModel = App.Services.GetRequiredService<HeroViewModel>();
 
         _projectRoot = ProjectRootLocator.FindProjectRoot();
         _versionPath = Path.Combine(_projectRoot, "VERSION");
@@ -356,7 +358,7 @@ public partial class MainWindow : Window
         AlarmListBox.ItemsSource = _alarmEntries;
         UpdateCaptchaStatsUi();
         AutomationLoopListBox.ItemsSource = _automationLoopTasks;
-        HeroAttributePriorityItemsControl.ItemsSource = _heroAttributePriorityItems;
+        HeroAttributePriorityItemsControl.ItemsSource = _heroViewModel.AttributePriorityItems;
         FarmListsItemsControl.ItemsSource = _farmLists;
         InitializeTroopTrainingBuildingOptions();
         InitializeBuildingSlotPlaceholders();

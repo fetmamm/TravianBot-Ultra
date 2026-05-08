@@ -22,12 +22,12 @@ public partial class MainWindow
     private void LoadHeroPriorityToUi(string? configuredPriority)
     {
         var order = ParseHeroPriorityForUi(configuredPriority);
-        var existingPoints = _heroAttributePriorityItems.ToDictionary(item => item.Key, item => item.PointsText, StringComparer.OrdinalIgnoreCase);
-        _heroAttributePriorityItems.Clear();
+        var existingPoints = _heroViewModel.AttributePriorityItems.ToDictionary(item => item.Key, item => item.PointsText, StringComparer.OrdinalIgnoreCase);
+        _heroViewModel.AttributePriorityItems.Clear();
 
         for (var i = 0; i < order.Count; i++)
         {
-            _heroAttributePriorityItems.Add(new HeroAttributePriorityItem
+            _heroViewModel.AttributePriorityItems.Add(new HeroAttributePriorityItem
             {
                 Key = order[i],
                 Title = GetHeroAttributeTitle(order[i]),
@@ -39,9 +39,9 @@ public partial class MainWindow
 
     private void UpdateHeroPriorityOrders()
     {
-        for (var i = 0; i < _heroAttributePriorityItems.Count; i++)
+        for (var i = 0; i < _heroViewModel.AttributePriorityItems.Count; i++)
         {
-            _heroAttributePriorityItems[i].Order = i + 1;
+            _heroViewModel.AttributePriorityItems[i].Order = i + 1;
         }
     }
 
@@ -82,21 +82,21 @@ public partial class MainWindow
         }
 
         var targetItem = FindHeroAttributePriorityItem(e.OriginalSource as DependencyObject);
-        var fromIndex = _heroAttributePriorityItems.IndexOf(sourceItem);
+        var fromIndex = _heroViewModel.AttributePriorityItems.IndexOf(sourceItem);
         if (fromIndex < 0)
         {
             return;
         }
 
         var toIndex = targetItem is null
-            ? _heroAttributePriorityItems.Count - 1
-            : _heroAttributePriorityItems.IndexOf(targetItem);
+            ? _heroViewModel.AttributePriorityItems.Count - 1
+            : _heroViewModel.AttributePriorityItems.IndexOf(targetItem);
         if (toIndex < 0 || fromIndex == toIndex)
         {
             return;
         }
 
-        _heroAttributePriorityItems.Move(fromIndex, toIndex);
+        _heroViewModel.AttributePriorityItems.Move(fromIndex, toIndex);
         UpdateHeroPriorityOrders();
         PersistHeroPriorityToConfig();
     }
@@ -119,10 +119,10 @@ public partial class MainWindow
     private void ApplyHeroAttributeSnapshotToUi(HeroAttributeSnapshot snapshot)
     {
         AppendLog(
-            $"[ui-apply] free={snapshot.FreePoints} fight={snapshot.FightingStrength} off={snapshot.OffenceBonus} def={snapshot.DefenceBonus} res={snapshot.Resources}, items={_heroAttributePriorityItems.Count}, thread=" +
+            $"[ui-apply] free={snapshot.FreePoints} fight={snapshot.FightingStrength} off={snapshot.OffenceBonus} def={snapshot.DefenceBonus} res={snapshot.Resources}, items={_heroViewModel.AttributePriorityItems.Count}, thread=" +
             (Dispatcher.CheckAccess() ? "ui" : "background"));
 
-        foreach (var item in _heroAttributePriorityItems)
+        foreach (var item in _heroViewModel.AttributePriorityItems)
         {
             var points = item.Key switch
             {
@@ -140,7 +140,7 @@ public partial class MainWindow
 
     private string BuildHeroPriorityPayload()
     {
-        return string.Join(",", _heroAttributePriorityItems.Select(item => item.Key));
+        return string.Join(",", _heroViewModel.AttributePriorityItems.Select(item => item.Key));
     }
 
     private void PersistHeroPriorityToConfig()
@@ -240,13 +240,13 @@ public partial class MainWindow
             return;
         }
 
-        var index = _heroAttributePriorityItems.IndexOf(item);
+        var index = _heroViewModel.AttributePriorityItems.IndexOf(item);
         if (index <= 0)
         {
             return;
         }
 
-        _heroAttributePriorityItems.Move(index, index - 1);
+        _heroViewModel.AttributePriorityItems.Move(index, index - 1);
         UpdateHeroPriorityOrders();
         PersistHeroPriorityToConfig();
     }
@@ -258,13 +258,13 @@ public partial class MainWindow
             return;
         }
 
-        var index = _heroAttributePriorityItems.IndexOf(item);
-        if (index < 0 || index >= _heroAttributePriorityItems.Count - 1)
+        var index = _heroViewModel.AttributePriorityItems.IndexOf(item);
+        if (index < 0 || index >= _heroViewModel.AttributePriorityItems.Count - 1)
         {
             return;
         }
 
-        _heroAttributePriorityItems.Move(index, index + 1);
+        _heroViewModel.AttributePriorityItems.Move(index, index + 1);
         UpdateHeroPriorityOrders();
         PersistHeroPriorityToConfig();
     }
