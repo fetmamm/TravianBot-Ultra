@@ -886,7 +886,8 @@
     </Grid>
 </TabItem>
 
-                <TabItem x:Name="HeroTabItem" Header="Hero / Adventures">
+                <TabItem x:Name="HeroTabItem" Header="Hero / Adventures"
+                         DataContext="{Binding HeroVm, ElementName=RootWindow}">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Background="#F3F4F6">
                         <StackPanel>
                             <!-- Header -->
@@ -1008,6 +1009,7 @@
                                                          BorderThickness="0"
                                                          Background="Transparent"
                                                          AllowDrop="True"
+                                                         ItemsSource="{Binding AttributePriorityItems}"
                                                          PreviewMouseLeftButtonDown="HeroAttributePriorityItemsControl_PreviewMouseLeftButtonDown"
                                                          PreviewMouseMove="HeroAttributePriorityItemsControl_PreviewMouseMove"
                                                          Drop="HeroAttributePriorityItemsControl_Drop">
@@ -1054,7 +1056,7 @@
                                                     </ListBox.ItemTemplate>
                                                 </ListBox>
                                                 <TextBlock x:Name="HeroAttributesStatusTextBlock"
-                                                           Text="Hero stats not loaded."
+                                                           Text="{Binding AttributesStatusText}"
                                                            Foreground="#6B7280"
                                                            FontSize="12"
                                                            Margin="2,4,0,0"
@@ -1089,7 +1091,7 @@
                                                     <StackPanel Orientation="Horizontal">
                                                         <TextBlock Text="Available:" Foreground="#166534" VerticalAlignment="Center" Margin="0,0,6,0" />
                                                         <TextBlock x:Name="HeroAdventureCountTextBlock"
-                                                                   Text="—"
+                                                                   Text="{Binding AdventureCountText}"
                                                                    FontWeight="SemiBold"
                                                                    FontSize="15"
                                                                    Foreground="#166534"
@@ -1121,7 +1123,7 @@
                                         <!-- Hidden but kept for code-behind compatibility. State is shown next to the Start bot button. -->
                                         <TextBlock x:Name="HeroAdventureStatusTextBlock"
                                                    Visibility="Collapsed"
-                                                   Text="Hero adventure status: idle." />
+                                                   Text="{Binding AdventureStatusText}" />
                                     </StackPanel>
                                 </Border>
                             </Grid>

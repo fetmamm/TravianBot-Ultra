@@ -151,6 +151,13 @@ public partial class MainWindow : Window
     private long _loopTickCounter;
     private readonly LoopController _loopController;
     private readonly HeroViewModel _heroViewModel;
+
+    /// <summary>
+    /// Public accessor so XAML can bind to the hero view model via
+    /// <c>{Binding HeroVm.X, ElementName=RootWindow}</c> or by setting
+    /// DataContext on a panel container.
+    /// </summary>
+    public HeroViewModel HeroVm => _heroViewModel;
     private readonly CancellationTokenSource _queueAutoRunCts = new();
     private CancellationTokenSource? _autoQueueRunCts;
     private readonly SemaphoreSlim _inboxRefreshGate = new(1, 1);
@@ -358,7 +365,6 @@ public partial class MainWindow : Window
         AlarmListBox.ItemsSource = _alarmEntries;
         UpdateCaptchaStatsUi();
         AutomationLoopListBox.ItemsSource = _automationLoopTasks;
-        HeroAttributePriorityItemsControl.ItemsSource = _heroViewModel.AttributePriorityItems;
         FarmListsItemsControl.ItemsSource = _farmLists;
         InitializeTroopTrainingBuildingOptions();
         InitializeBuildingSlotPlaceholders();

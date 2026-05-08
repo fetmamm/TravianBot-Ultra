@@ -135,7 +135,7 @@ public partial class MainWindow
             item.PointsText = points.ToString();
         }
 
-        HeroAttributesStatusTextBlock.Text = $"Free points: {snapshot.FreePoints}";
+        _heroViewModel.AttributesStatusText = $"Free points: {snapshot.FreePoints}";
     }
 
     private string BuildHeroPriorityPayload()
@@ -216,11 +216,11 @@ public partial class MainWindow
     {
         if (count is null)
         {
-            HeroAdventureCountTextBlock.Text = "?";
+            _heroViewModel.AdventureCountText = "?";
             return;
         }
 
-        HeroAdventureCountTextBlock.Text = count.Value.ToString();
+        _heroViewModel.AdventureCountText = count.Value.ToString();
         if (count.Value > 0)
         {
             ClearHeroBlockedState();
@@ -284,7 +284,7 @@ public partial class MainWindow
         catch (Exception ex)
         {
             FailOperation(operationId, operationSw, ex);
-            HeroAttributesStatusTextBlock.Text = $"Hero stats refresh failed: {ex.Message}";
+            _heroViewModel.AttributesStatusText = $"Hero stats refresh failed: {ex.Message}";
         }
         finally
         {
@@ -337,7 +337,7 @@ public partial class MainWindow
 
         var continuous = ContinuousAdventuresCheckBox?.IsChecked == true;
         var copies = 1;
-        if (continuous && int.TryParse(HeroAdventureCountTextBlock.Text.Trim(), out var available) && available > 1)
+        if (continuous && int.TryParse(_heroViewModel.AdventureCountText.Trim(), out var available) && available > 1)
         {
             copies = Math.Min(available, 20); // hard cap to avoid runaway queues if count is wrong
         }
@@ -390,12 +390,12 @@ public partial class MainWindow
             if (count is null)
             {
                 ApplyHeroAdventureAvailability(null);
-                HeroAdventureStatusTextBlock.Text = "Adventures not found on current page.";
+                _heroViewModel.AdventureStatusText = "Adventures not found on current page.";
             }
             else
             {
                 ApplyHeroAdventureAvailability(count.Value);
-                HeroAdventureStatusTextBlock.Text = $"Adventures available: {count.Value}.";
+                _heroViewModel.AdventureStatusText = $"Adventures available: {count.Value}.";
             }
 
             CompleteOperation(operationId, operationSw, $"Refresh adventures: {(count?.ToString() ?? "not found")}.");
@@ -403,7 +403,7 @@ public partial class MainWindow
         catch (Exception ex)
         {
             FailOperation(operationId, operationSw, ex);
-            HeroAdventureStatusTextBlock.Text = $"Refresh failed: {ex.Message}";
+            _heroViewModel.AdventureStatusText = $"Refresh failed: {ex.Message}";
         }
         finally
         {
@@ -449,7 +449,7 @@ public partial class MainWindow
     private void UpdateHeroCountdownText(int adventuresLeft)
     {
         var formatted = FormatHeroDuration(_heroCountdownRemainingSeconds);
-        HeroAdventureStatusTextBlock.Text =
+        _heroViewModel.AdventureStatusText =
             $"{_heroCountdownLabel}. Returns in {formatted}. Adventures left: {adventuresLeft}.";
     }
 
