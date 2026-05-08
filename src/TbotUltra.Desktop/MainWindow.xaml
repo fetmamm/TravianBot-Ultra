@@ -225,7 +225,19 @@
                     <Button x:Name="TroopsNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Troops" Tag="troops" Click="SidebarNavButton_Click" />
                     <Button x:Name="QueueNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Queue" Tag="queue" Click="SidebarNavButton_Click" />
                     <Button x:Name="LogsNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Logs" Tag="logs" Click="SidebarNavButton_Click" />
-                    <Button x:Name="InboxNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Messages / Reports" Tag="inbox" Click="SidebarNavButton_Click" />
+                    <Button x:Name="InboxNavButton" Content="Messages / Reports" Tag="inbox" Click="SidebarNavButton_Click"
+                            ToolTip="{Binding InboxVm.NavTooltip, ElementName=RootWindow}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource SidebarNavButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding InboxVm.HasUnreadMessages, ElementName=RootWindow}" Value="True">
+                                        <Setter Property="Background" Value="#DC2626" />
+                                        <Setter Property="Foreground" Value="White" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
                 </StackPanel>
 
                 <Border Grid.Row="5" Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="7">
@@ -1817,7 +1829,8 @@
                     </Grid>
                 </TabItem>
 
-                <TabItem x:Name="InboxTabItem" Header="Inbox">
+                <TabItem x:Name="InboxTabItem" Header="Inbox"
+                         DataContext="{Binding InboxVm, ElementName=RootWindow}">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -1834,7 +1847,7 @@
                             <Border Grid.Column="0" Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,8,0">
                                 <StackPanel>
                                     <TextBlock Text="Messages" FontSize="20" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,6" />
-                                    <TextBlock x:Name="MessageUnreadTextBlock" Text="Unread: -" Foreground="#374151" Margin="0,0,0,10" />
+                                    <TextBlock x:Name="MessageUnreadTextBlock" Text="{Binding MessageUnreadText}" Foreground="#374151" Margin="0,0,0,10" />
                                     <Button x:Name="MarkMessagesReadButton" Width="120" Margin="0" Content="Mark as read" Click="MarkMessagesReadButton_Click" />
                                 </StackPanel>
                             </Border>
@@ -1842,7 +1855,7 @@
                             <Border Grid.Column="1" Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="8" Padding="12" Margin="8,0,0,0">
                                 <StackPanel>
                                     <TextBlock Text="Reports" FontSize="20" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,6" />
-                                    <TextBlock x:Name="ReportsUnreadTextBlock" Text="Unread: -" Foreground="#374151" Margin="0,0,0,10" />
+                                    <TextBlock x:Name="ReportsUnreadTextBlock" Text="{Binding ReportsUnreadText}" Foreground="#374151" Margin="0,0,0,10" />
                                     <Button x:Name="MarkReportsReadButton" Width="120" Margin="0" Content="Mark as read" Click="MarkReportsReadButton_Click" />
                                 </StackPanel>
                             </Border>

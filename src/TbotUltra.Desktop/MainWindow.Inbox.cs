@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Media;
 
 namespace TbotUltra.Desktop;
 
@@ -132,21 +131,13 @@ public partial class MainWindow
 
     private void UpdateInboxButtons(int unreadMessages, int unreadReports)
     {
-        _lastUnreadMessages = unreadMessages;
-        _lastUnreadReports = unreadReports;
-        MessageUnreadTextBlock.Text = $"Unread: {unreadMessages}";
-        ReportsUnreadTextBlock.Text = $"Unread: {unreadReports}";
-        InboxNavButton.ToolTip = $"Messages {unreadMessages} | Reports {unreadReports}";
-
-        if (unreadMessages > 0)
-        {
-            InboxNavButton.Background = new SolidColorBrush(Color.FromRgb(220, 38, 38));
-            InboxNavButton.Foreground = Brushes.White;
-        }
-        else
-        {
-            InboxNavButton.Background = new SolidColorBrush(Color.FromRgb(243, 244, 246));
-            InboxNavButton.Foreground = new SolidColorBrush(Color.FromRgb(17, 24, 39));
-        }
+        // The Messages / Reports cards bind to InboxVm.MessageUnreadText /
+        // ReportsUnreadText, and the sidebar nav button picks up its
+        // background, foreground, and tooltip via a Style.DataTrigger on
+        // InboxVm.HasUnreadMessages plus a NavTooltip binding. Pushing the
+        // counts into the view model is enough — the bindings handle the
+        // rest.
+        _inboxViewModel.UnreadMessages = unreadMessages;
+        _inboxViewModel.UnreadReports = unreadReports;
     }
 }

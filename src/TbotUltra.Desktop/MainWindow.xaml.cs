@@ -143,19 +143,18 @@ public partial class MainWindow : Window
     private bool _suppressAccountSelectionChange;
     private bool _suppressVillageSelectionChange;
     private TimeSpan _queueServerTimeOffset;
-    private int _lastUnreadMessages;
-    private int _lastUnreadReports;
     private long _operationCounter;
     private long _loopTickCounter;
     private readonly LoopController _loopController;
 
-    // Initialized in a field initializer (i.e. before InitializeComponent runs)
+    // Initialized in field initializers (i.e. before InitializeComponent runs)
     // so XAML bindings such as {Binding HeroVm, ElementName=RootWindow} resolve
     // against a real instance the very first time WPF evaluates them. Setting
-    // it in the constructor body after InitializeComponent leaves bindings
-    // pointing at null permanently because HeroVm has no PropertyChanged event
-    // to refresh them when the field finally gets a value.
+    // them in the constructor body after InitializeComponent leaves bindings
+    // pointing at null permanently because the public properties have no
+    // PropertyChanged event to refresh them when the field finally gets a value.
     private readonly HeroViewModel _heroViewModel = App.Services.GetRequiredService<HeroViewModel>();
+    private readonly InboxViewModel _inboxViewModel = App.Services.GetRequiredService<InboxViewModel>();
 
     /// <summary>
     /// Public accessor so XAML can bind to the hero view model via
@@ -163,6 +162,13 @@ public partial class MainWindow : Window
     /// DataContext on a panel container.
     /// </summary>
     public HeroViewModel HeroVm => _heroViewModel;
+
+    /// <summary>
+    /// Public accessor for the inbox view model. The InboxTabItem inherits
+    /// this as DataContext; the sidebar nav button binds individual
+    /// properties via <c>ElementName=RootWindow</c>.
+    /// </summary>
+    public InboxViewModel InboxVm => _inboxViewModel;
     private readonly CancellationTokenSource _queueAutoRunCts = new();
     private CancellationTokenSource? _autoQueueRunCts;
     private readonly SemaphoreSlim _inboxRefreshGate = new(1, 1);
