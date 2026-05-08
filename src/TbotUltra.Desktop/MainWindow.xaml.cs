@@ -150,7 +150,14 @@ public partial class MainWindow : Window
     private long _operationCounter;
     private long _loopTickCounter;
     private readonly LoopController _loopController;
-    private readonly HeroViewModel _heroViewModel;
+
+    // Initialized in a field initializer (i.e. before InitializeComponent runs)
+    // so XAML bindings such as {Binding HeroVm, ElementName=RootWindow} resolve
+    // against a real instance the very first time WPF evaluates them. Setting
+    // it in the constructor body after InitializeComponent leaves bindings
+    // pointing at null permanently because HeroVm has no PropertyChanged event
+    // to refresh them when the field finally gets a value.
+    private readonly HeroViewModel _heroViewModel = App.Services.GetRequiredService<HeroViewModel>();
 
     /// <summary>
     /// Public accessor so XAML can bind to the hero view model via
@@ -288,7 +295,6 @@ public partial class MainWindow : Window
 
         _loopController = App.Services.GetRequiredService<LoopController>();
         _loopController.Logger = AppendLog;
-        _heroViewModel = App.Services.GetRequiredService<HeroViewModel>();
 
         _projectRoot = ProjectRootLocator.FindProjectRoot();
         _versionPath = Path.Combine(_projectRoot, "VERSION");
