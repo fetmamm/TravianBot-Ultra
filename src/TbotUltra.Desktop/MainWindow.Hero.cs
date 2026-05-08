@@ -1,93 +1,32 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Input;
-using System.Windows.Media;
 using TbotUltra.Core.Configuration;
-using TbotUltra.Desktop.Models;
 using TbotUltra.Worker;
 using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop;
 
+/// <summary>
+/// Hero / Adventures host-side logic. After 3b5 the Hero TabItem is rendered
+/// by <see cref="Views.HeroPanel"/>; this partial holds the methods that
+/// panel calls back into for service-bound work (refresh stats, refresh
+/// adventures, queue adventure, hide-mode push) plus the
+/// host-only helpers (priority persist, blocked-state interplay) that need
+/// access to MainWindow's private state.
+///
+/// Drag-and-drop scratch state and the drag handlers themselves live on
+/// <see cref="Views.HeroPanel"/>.
+/// </summary>
 public partial class MainWindow
 {
-    private void HeroAttributePriorityItemsControl_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        _heroPriorityDragStart = e.GetPosition(HeroAttributePriorityItemsControl);
-        _heroPriorityDragSource = FindHeroAttributePriorityItem(e.OriginalSource as DependencyObject);
-    }
-
-    private void HeroAttributePriorityItemsControl_PreviewMouseMove(object sender, MouseEventArgs e)
-    {
-        if (e.LeftButton != MouseButtonState.Pressed || _heroPriorityDragSource is null)
-        {
-            return;
-        }
-
-        var position = e.GetPosition(HeroAttributePriorityItemsControl);
-        var delta = position - _heroPriorityDragStart;
-        if (Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance
-            && Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance)
-        {
-            return;
-        }
-
-        DragDrop.DoDragDrop(HeroAttributePriorityItemsControl, _heroPriorityDragSource, DragDropEffects.Move);
-    }
-
-    private void HeroAttributePriorityItemsControl_Drop(object sender, DragEventArgs e)
-    {
-        if (!e.Data.GetDataPresent(typeof(HeroAttributePriorityItem)))
-        {
-            return;
-        }
-
-        if (e.Data.GetData(typeof(HeroAttributePriorityItem)) is not HeroAttributePriorityItem sourceItem)
-        {
-            return;
-        }
-
-        var targetItem = FindHeroAttributePriorityItem(e.OriginalSource as DependencyObject);
-        var fromIndex = _heroViewModel.AttributePriorityItems.IndexOf(sourceItem);
-        if (fromIndex < 0)
-        {
-            return;
-        }
-
-        var toIndex = targetItem is null
-            ? _heroViewModel.AttributePriorityItems.Count - 1
-            : _heroViewModel.AttributePriorityItems.IndexOf(targetItem);
-        if (toIndex < 0 || fromIndex == toIndex)
-        {
-            return;
-        }
-
-        _heroViewModel.AttributePriorityItems.Move(fromIndex, toIndex);
-        _heroViewModel.UpdateOrders();
-        PersistHeroPriorityToConfig();
-    }
-
-    private HeroAttributePriorityItem? FindHeroAttributePriorityItem(DependencyObject? source)
-    {
-        while (source is not null)
-        {
-            if (source is FrameworkElement { DataContext: HeroAttributePriorityItem item })
-            {
-                return item;
-            }
-
-            source = VisualTreeHelper.GetParent(source);
-        }
-
-        return null;
-    }
-
-    private void PersistHeroPriorityToConfig()
+    /// <summary>
+    /// Persists the current attribute priority order to <c>bot.json</c>.
+    /// Called from <see cref="Views.HeroPanel"/> after a drag-drop reorder.
+    /// </summary>
+    internal void PersistHeroPriorityToConfig()
     {
         try
         {
@@ -101,7 +40,13 @@ public partial class MainWindow
         }
     }
 
-    private void ApplyHeroAdventureAvailability(int? count)
+    /// <summary>
+    /// Updates the adventure-count badge and the Hero blocked-state flag
+    /// based on the latest adventure count. Stays on MainWindow because
+    /// SetHeroBlockedState / ClearHeroBlockedState share state with the
+    /// other group-blocked indicators.
+    /// </summary>
+    internal void ApplyHeroAdventureAvailability(int? count)
     {
         if (count is null)
         {
@@ -122,9 +67,13 @@ public partial class MainWindow
         }
     }
 
-    private async void RefreshHeroStatsButton_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// Operation-bracketed refresh of hero attributes. Called by the panel's
+    /// Refresh-hero-stats button (the panel toggles its own IsEnabled around
+    /// the call).
+    /// </summary>
+    internal async Task RefreshHeroStatsCoreAsync()
     {
-        RefreshHeroStatsButton.IsEnabled = false;
         var operationId = BeginOperation("Refresh hero stats");
         var operationSw = Stopwatch.StartNew();
 
@@ -139,10 +88,6 @@ public partial class MainWindow
             FailOperation(operationId, operationSw, ex);
             _heroViewModel.AttributesStatusText = $"Hero stats refresh failed: {ex.Message}";
         }
-        finally
-        {
-            RefreshHeroStatsButton.IsEnabled = true;
-        }
     }
 
     private async Task<HeroAttributeSnapshot> RefreshHeroStatsAsync(CancellationToken cancellationToken)
@@ -153,13 +98,15 @@ public partial class MainWindow
         return snapshot;
     }
 
-    private void HeroHideModeRadio_Checked(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// Pushes the current hide-mode (read from <see cref="_heroViewModel"/>)
+    /// to the worker as a <c>hero_set_hide_mode</c> task. The
+    /// <see cref="_suppressHeroHideModeApply"/> guard prevents the call
+    /// while LoadConfigToUi is replaying persisted state into the bound
+    /// radio buttons.
+    /// </summary>
+    internal void OnHeroHideModeChanged()
     {
-        // Checked fires for the XAML-default IsChecked="True" radio during
-        // InitializeComponent (before services are wired) and again when
-        // LoadConfigToUi pushes the persisted hide mode into the VM through
-        // a binding — both should be ignored. Only user-driven toggles after
-        // the window is loaded should propagate to the worker.
         if (_suppressHeroHideModeApply || !IsLoaded)
         {
             return;
@@ -173,7 +120,12 @@ public partial class MainWindow
         EnqueueQuickTask("hero_set_hide_mode", $"Set hero hide mode to '{mode}'", payload);
     }
 
-    private void QueueHeroManageButton_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// Validates form input and queues one (or up to 20 with continuous mode)
+    /// <c>hero_manage</c> task(s). Called by the panel's Hero-adventure
+    /// button.
+    /// </summary>
+    internal void QueueHeroAdventure()
     {
         var minHp = _heroViewModel.MinHpForAdventure;
         if (minHp < 1 || minHp > 100)
@@ -208,6 +160,10 @@ public partial class MainWindow
             : "Queued hero adventure.";
     }
 
+    /// <summary>
+    /// Refreshes the adventure count after a successful login. Called from
+    /// the post-login flow (not from the panel).
+    /// </summary>
     private async Task RefreshAdventureCountAfterLoginAsync(BotOptions options, CancellationToken cancellationToken)
     {
         try
@@ -234,9 +190,13 @@ public partial class MainWindow
         }
     }
 
-    private async void RefreshAdventuresButton_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// Operation-bracketed refresh of the available-adventures count.
+    /// Called by the panel's Refresh-adventures button (the panel toggles
+    /// its own IsEnabled around the call).
+    /// </summary>
+    internal async Task RefreshAdventuresCoreAsync()
     {
-        RefreshAdventuresButton.IsEnabled = false;
         var operationId = BeginOperation("Refresh adventures");
         var operationSw = Stopwatch.StartNew();
         try
@@ -261,10 +221,6 @@ public partial class MainWindow
         {
             FailOperation(operationId, operationSw, ex);
             _heroViewModel.AdventureStatusText = $"Refresh failed: {ex.Message}";
-        }
-        finally
-        {
-            RefreshAdventuresButton.IsEnabled = true;
         }
     }
 }

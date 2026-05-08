@@ -212,8 +212,6 @@ public partial class MainWindow : Window
     private ListBox? _logDragSourceList;
     private Point _automationLoopDragStart;
     private LoopTaskOption? _automationLoopDragSource;
-    private Point _heroPriorityDragStart;
-    private HeroAttributePriorityItem? _heroPriorityDragSource;
     private bool _suppressAutomationLoopConfigWrite;
     private bool _suppressTroopTrainingConfigWrite;
     private bool _suppressFarmListUiRefresh;
