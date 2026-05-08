@@ -44,39 +44,34 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0">
                             <TextBlock Text="Hero min HP for adventure" Foreground="#374151" FontSize="12" />
-                            <TextBox x:Name="HeroMinHpTextBox"
-                                     Text="{Binding MinHpForAdventure, UpdateSourceTrigger=PropertyChanged}"
+                            <TextBox Text="{Binding MinHpForAdventure, UpdateSourceTrigger=PropertyChanged}"
                                      Margin="0,4,12,0"
                                      Padding="6,4"
                                      BorderBrush="#E5E7EB" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" VerticalAlignment="Bottom">
-                            <CheckBox x:Name="HeroAutoReviveCheckBox" Content="Auto revive" IsChecked="{Binding AutoRevive}" Margin="0,0,0,6" />
-                            <CheckBox x:Name="HeroAutoAssignPointsCheckBox" Content="Auto assign attribute points" IsChecked="{Binding AutoAssignPoints}" />
+                            <CheckBox Content="Auto revive" IsChecked="{Binding AutoRevive}" Margin="0,0,0,6" />
+                            <CheckBox Content="Auto assign attribute points" IsChecked="{Binding AutoAssignPoints}" />
                         </StackPanel>
                     </Grid>
                     <TextBlock Text="Adventure pick order" Foreground="#374151" FontSize="12" Margin="0,8,0,4" />
                     <StackPanel Orientation="Horizontal">
-                        <RadioButton x:Name="HeroAdventureShortestRadio"
-                                     Content="Shortest adventure first"
+                        <RadioButton Content="Shortest adventure first"
                                      GroupName="HeroAdventureOrder"
                                      IsChecked="{Binding IsAdventurePickShortest}"
                                      Margin="0,0,16,0" />
-                        <RadioButton x:Name="HeroAdventureTopRadio"
-                                     Content="Top adventure first"
+                        <RadioButton Content="Top adventure first"
                                      GroupName="HeroAdventureOrder"
                                      IsChecked="{Binding IsAdventurePickTop}" />
                     </StackPanel>
                     <TextBlock Text="Hide hero" Foreground="#374151" FontSize="12" Margin="0,12,0,4" />
                     <StackPanel Orientation="Vertical">
-                        <RadioButton x:Name="HeroHideRadio"
-                                     Content="Hero will hide during an attack on their home village."
+                        <RadioButton Content="Hero will hide during an attack on their home village."
                                      GroupName="HeroHideMode"
                                      IsChecked="{Binding IsHideModeHide}"
                                      Margin="0,0,0,4"
                                      Checked="HeroHideModeRadio_Checked" />
-                        <RadioButton x:Name="HeroFightRadio"
-                                     Content="Your hero will always stay with the troops."
+                        <RadioButton Content="Your hero will always stay with the troops."
                                      GroupName="HeroHideMode"
                                      IsChecked="{Binding IsHideModeFight}"
                                      Checked="HeroHideModeRadio_Checked" />
@@ -177,8 +172,7 @@
                                         </DataTemplate>
                                     </ListBox.ItemTemplate>
                                 </ListBox>
-                                <TextBlock x:Name="HeroAttributesStatusTextBlock"
-                                           Text="{Binding AttributesStatusText}"
+                                <TextBlock Text="{Binding AttributesStatusText}"
                                            Foreground="#6B7280"
                                            FontSize="12"
                                            Margin="2,4,0,0"
@@ -212,8 +206,7 @@
                                         Margin="0,0,12,0">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="Available:" Foreground="#166534" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                        <TextBlock x:Name="HeroAdventureCountTextBlock"
-                                                   Text="{Binding AdventureCountText}"
+                                        <TextBlock Text="{Binding AdventureCountText}"
                                                    FontWeight="SemiBold"
                                                    FontSize="15"
                                                    Foreground="#166534"
@@ -229,23 +222,22 @@
                             </StackPanel>
                         </DockPanel>
                         <StackPanel Orientation="Horizontal">
-                            <Button x:Name="QueueHeroManageButton"
-                                    Content="Hero adventure"
+                            <Button Content="Hero adventure"
                                     Width="190"
                                     Click="QueueHeroManageButton_Click"
                                     Background="#030826"
                                     Foreground="White"
                                     BorderBrush="#030826" />
-                            <CheckBox x:Name="ContinuousAdventuresCheckBox"
-                                      Content="Continuous adventures"
+                            <CheckBox Content="Continuous adventures"
                                       IsChecked="{Binding ContinuousAdventures}"
                                       VerticalAlignment="Center"
                                       Margin="14,0,0,0"
                                       ToolTip="Re-queue Hero adventure after each run until no adventures remain." />
                         </StackPanel>
-                        <!-- Hidden but kept for code-behind compatibility. State is shown next to the Start bot button. -->
-                        <TextBlock x:Name="HeroAdventureStatusTextBlock"
-                                   Visibility="Collapsed"
+                        <!-- Hidden bound element kept so AdventureStatusText still drives a
+                             notify-property-changed receiver while the visible status line is
+                             rendered next to the Start bot button instead. -->
+                        <TextBlock Visibility="Collapsed"
                                    Text="{Binding AdventureStatusText}" />
                     </StackPanel>
                 </Border>

@@ -90,7 +90,7 @@ public sealed class HeroViewModel : BaseViewModel
 
     /// <summary>
     /// Minimum hero HP required before an adventure is queued (1-100).
-    /// Bound to the HeroMinHpTextBox.
+    /// Bound to the min-HP TextBox in HeroPanel.xaml.
     /// </summary>
     public int MinHpForAdventure
     {

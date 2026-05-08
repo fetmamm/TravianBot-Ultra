@@ -1527,7 +1527,7 @@
                             <Border Grid.Column="0" Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,8,0">
                                 <StackPanel>
                                     <TextBlock Text="Messages" FontSize="20" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,6" />
-                                    <TextBlock x:Name="MessageUnreadTextBlock" Text="{Binding MessageUnreadText}" Foreground="#374151" Margin="0,0,0,10" />
+                                    <TextBlock Text="{Binding MessageUnreadText}" Foreground="#374151" Margin="0,0,0,10" />
                                     <Button x:Name="MarkMessagesReadButton" Width="120" Margin="0" Content="Mark as read" Click="MarkMessagesReadButton_Click" />
                                 </StackPanel>
                             </Border>
@@ -1535,7 +1535,7 @@
                             <Border Grid.Column="1" Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="8" Padding="12" Margin="8,0,0,0">
                                 <StackPanel>
                                     <TextBlock Text="Reports" FontSize="20" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,6" />
-                                    <TextBlock x:Name="ReportsUnreadTextBlock" Text="{Binding ReportsUnreadText}" Foreground="#374151" Margin="0,0,0,10" />
+                                    <TextBlock Text="{Binding ReportsUnreadText}" Foreground="#374151" Margin="0,0,0,10" />
                                     <Button x:Name="MarkReportsReadButton" Width="120" Margin="0" Content="Mark as read" Click="MarkReportsReadButton_Click" />
                                 </StackPanel>
                             </Border>

@@ -39,8 +39,7 @@
                                FontWeight="SemiBold"
                                Foreground="#111827"
                                Margin="0,0,0,8" />
-                    <Button x:Name="UpgradeTroopsButton"
-                            Content="Upgrade troops"
+                    <Button Content="Upgrade troops"
                             Width="150"
                             Click="UpgradeTroopsButton_Click" />
                     <TextBlock Text="Smithy upgrades stay separate from troop building."
@@ -72,8 +71,7 @@
                                     Orientation="Horizontal"
                                     HorizontalAlignment="Right"
                                     Margin="16,0,0,0">
-                            <Button x:Name="BuildTroopsNowButton"
-                                    Content="Build now"
+                            <Button Content="Build now"
                                     Width="92"
                                     Margin="0,0,8,0"
                                     Click="BuildTroopsNowButton_Click" />
