@@ -117,7 +117,6 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<AlarmEntryRow> _alarmEntries = [];
     private readonly ObservableCollection<LoopTaskOption> _automationLoopTasks = [];
     private readonly ObservableCollection<FarmListStatusRow> _farmLists = [];
-    private readonly ObservableCollection<TroopTrainingBuildingOption> _troopTrainingBuildingOptions = [];
     private readonly ObservableCollection<ResourceFieldRow> _woodFields = [];
     private readonly ObservableCollection<ResourceFieldRow> _clayFields = [];
     private readonly ObservableCollection<ResourceFieldRow> _ironFields = [];
@@ -155,6 +154,7 @@ public partial class MainWindow : Window
     // PropertyChanged event to refresh them when the field finally gets a value.
     private readonly HeroViewModel _heroViewModel = App.Services.GetRequiredService<HeroViewModel>();
     private readonly InboxViewModel _inboxViewModel = App.Services.GetRequiredService<InboxViewModel>();
+    private readonly TroopTrainingViewModel _troopTrainingViewModel = App.Services.GetRequiredService<TroopTrainingViewModel>();
 
     /// <summary>
     /// Public accessor so XAML can bind to the hero view model via
@@ -169,6 +169,12 @@ public partial class MainWindow : Window
     /// properties via <c>ElementName=RootWindow</c>.
     /// </summary>
     public InboxViewModel InboxVm => _inboxViewModel;
+
+    /// <summary>
+    /// Public accessor for the troop-training view model. The TroopsTabItem
+    /// inherits this as DataContext.
+    /// </summary>
+    public TroopTrainingViewModel TroopTrainingVm => _troopTrainingViewModel;
     private readonly CancellationTokenSource _queueAutoRunCts = new();
     private CancellationTokenSource? _autoQueueRunCts;
     private readonly SemaphoreSlim _inboxRefreshGate = new(1, 1);
@@ -219,7 +225,6 @@ public partial class MainWindow : Window
     private Point _automationLoopDragStart;
     private LoopTaskOption? _automationLoopDragSource;
     private bool _suppressAutomationLoopConfigWrite;
-    private bool _suppressTroopTrainingConfigWrite;
     private bool _suppressFarmListUiRefresh;
     private bool _farmingOperationBusy;
     private bool _natarsProfileAnalyzed;
@@ -242,7 +247,6 @@ public partial class MainWindow : Window
     public ObservableCollection<ResourceFieldRow> IronFields => _ironFields;
     public ObservableCollection<ResourceFieldRow> CroplandFields => _croplandFields;
     public ObservableCollection<BuildingSlotRow> BuildingSlots => _buildingRows;
-    public ObservableCollection<TroopTrainingBuildingOption> TroopTrainingBuildings => _troopTrainingBuildingOptions;
 
     private static bool IsPinnedBuildingTopSlot(int slotId)
     {
@@ -337,7 +341,7 @@ public partial class MainWindow : Window
                 UpdateClockText();
                 HandleBrowserClosedSignal();
                 TickFarmListCountdowns();
-                TickTroopTrainingCountdowns();
+                _troopTrainingViewModel.TickCountdowns();
                 UpdateExecutionStateIndicator();
                 UpdateManualFarmingRunningState();
             }
@@ -375,7 +379,10 @@ public partial class MainWindow : Window
         UpdateCaptchaStatsUi();
         AutomationLoopListBox.ItemsSource = _automationLoopTasks;
         FarmListsItemsControl.ItemsSource = _farmLists;
-        InitializeTroopTrainingBuildingOptions();
+        _troopTrainingViewModel.Initialize();
+        _troopTrainingViewModel.UpdateTroopOptions(ResolveStoredTroopTrainingTribe());
+        _troopTrainingViewModel.ResetQueueStatus();
+        _troopTrainingViewModel.ConfigChanged += OnTroopTrainingConfigChanged;
         InitializeBuildingSlotPlaceholders();
         _farmLists.CollectionChanged += (_, _) =>
         {
@@ -533,8 +540,8 @@ public partial class MainWindow : Window
 
         var options = ApplySelectedVillageToOptions(LoadBotOptions());
         LoadAutomationLoopTasks(options);
-        LoadTroopTrainingConfigToUi(options);
-        if (UpdateTroopTrainingTroopOptions(ResolveStoredTroopTrainingTribe()))
+        _troopTrainingViewModel.ApplyConfigToBuildings(options);
+        if (_troopTrainingViewModel.UpdateTroopOptions(ResolveStoredTroopTrainingTribe()))
         {
             PersistTroopTrainingConfig();
         }
@@ -1328,7 +1335,7 @@ public partial class MainWindow : Window
                 ? ResolveConstructionGroupRemainingSeconds()
                 : (int?)null;
             var troopTrainingWaitSeconds = group == QueueGroup.TroopTraining
-                ? ResolveTroopTrainingGroupRemainingSeconds()
+                ? _troopTrainingViewModel.ResolveGroupRemainingSeconds()
                 : (int?)null;
 
             item.QueuedCount = pendingCount;
@@ -3550,7 +3557,7 @@ public partial class MainWindow : Window
         UpdateActiveVillageResourceMaxLevel(status);
         VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
         TribeInfoTextBlock.Text = $"Tribe: {status.Tribe}";
-        if (UpdateTroopTrainingTroopOptions(status.Tribe))
+        if (_troopTrainingViewModel.UpdateTroopOptions(status.Tribe))
         {
             PersistTroopTrainingConfig();
         }
@@ -3585,7 +3592,7 @@ public partial class MainWindow : Window
 
         _buildQueueReachedZeroPendingCompletion = false;
         ApplyTroopsAvailabilityFromVillageStatus(status);
-        ApplyTroopTrainingStatusToUi(status);
+        _troopTrainingViewModel.ApplyStatus(status, _lastBuildingStatus?.TroopTrainingQueues);
         UpdateBuildQueueStatusText();
         UpdateAutomationLoopRunningIndicators();
         RefreshVillagePicker(status);

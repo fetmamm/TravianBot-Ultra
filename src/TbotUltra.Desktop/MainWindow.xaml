@@ -1160,7 +1160,8 @@
                     </Grid>
                 </TabItem>
 
-                <TabItem x:Name="TroopsTabItem" Header="Troops">
+                <TabItem x:Name="TroopsTabItem" Header="Troops"
+                         DataContext="{Binding TroopTrainingVm, ElementName=RootWindow}">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -1242,7 +1243,7 @@
                                                TextWrapping="Wrap"
                                                Margin="0,0,0,10" />
 
-                                    <ItemsControl ItemsSource="{Binding TroopTrainingBuildings, ElementName=RootWindow}"
+                                    <ItemsControl ItemsSource="{Binding Buildings}"
                                                   Margin="0,0,0,10">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
@@ -1284,7 +1285,7 @@
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
 
-                                    <ItemsControl ItemsSource="{Binding TroopTrainingBuildings, ElementName=RootWindow}">
+                                    <ItemsControl ItemsSource="{Binding Buildings}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
                                                 <Border BorderBrush="#E5E7EB"
