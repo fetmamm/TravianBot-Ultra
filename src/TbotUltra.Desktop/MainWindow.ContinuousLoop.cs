@@ -386,7 +386,7 @@ public partial class MainWindow
                             try
                             {
                                 var snapshot = await _botService.ReadHeroAttributesAsync(options, AppendLog, token);
-                                await Dispatcher.InvokeAsync(() => ApplyHeroAttributeSnapshotToUi(snapshot));
+                                await Dispatcher.InvokeAsync(() => _heroViewModel.ApplyAttributeSnapshot(snapshot));
                             }
                             catch (Exception ex)
                             {
@@ -612,7 +612,7 @@ public partial class MainWindow
                     try
                     {
                         var snapshot = await _botService.ReadHeroAttributesAsync(options, AppendLog, cancellationToken);
-                        await Dispatcher.InvokeAsync(() => ApplyHeroAttributeSnapshotToUi(snapshot));
+                        await Dispatcher.InvokeAsync(() => _heroViewModel.ApplyAttributeSnapshot(snapshot));
                     }
                     catch (Exception refreshEx)
                     {

@@ -136,8 +136,6 @@ public partial class MainWindow : Window
 
     private CancellationTokenSource? _loopCts;
     private CancellationTokenSource? _operationCts;
-    private DispatcherTimer? _heroCountdownTimer;
-    private int _heroCountdownRemainingSeconds;
     private bool _suppressHeroHideModeApply;
     private CancellationTokenSource? _villageSwitchCts;
     private Task? _loopTask;
@@ -295,6 +293,7 @@ public partial class MainWindow : Window
 
         _loopController = App.Services.GetRequiredService<LoopController>();
         _loopController.Logger = AppendLog;
+        _heroViewModel.Logger = AppendLog;
 
         _projectRoot = ProjectRootLocator.FindProjectRoot();
         _versionPath = Path.Combine(_projectRoot, "VERSION");
@@ -423,7 +422,7 @@ public partial class MainWindow : Window
         UpdateFarmingUiState();
         UpdateManualFarmingExecutionCounter();
         SetNatarsProfileAnalyzed(false);
-        LoadHeroPriorityToUi(null);
+        _heroViewModel.LoadPriorityFromConfig(null);
         StartBackgroundWarmups();
     }
 
@@ -539,7 +538,7 @@ public partial class MainWindow : Window
         HeroMinHpTextBox.Text = Math.Clamp(options.HeroMinHpForAdventure, 1, 100).ToString();
         HeroAutoReviveCheckBox.IsChecked = options.HeroAutoRevive;
         HeroAutoAssignPointsCheckBox.IsChecked = options.HeroAutoAssignPoints;
-        LoadHeroPriorityToUi(options.HeroStatPriority);
+        _heroViewModel.LoadPriorityFromConfig(options.HeroStatPriority);
         var topFirst = string.Equals(options.HeroAdventurePickOrder, "top", StringComparison.OrdinalIgnoreCase);
         HeroAdventureTopRadio.IsChecked = topFirst;
         HeroAdventureShortestRadio.IsChecked = !topFirst;

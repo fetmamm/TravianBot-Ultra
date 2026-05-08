@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Threading;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Worker;
@@ -17,34 +16,6 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
-    private string _heroCountdownLabel = "Hero away";
-
-    private void LoadHeroPriorityToUi(string? configuredPriority)
-    {
-        var order = ParseHeroPriorityForUi(configuredPriority);
-        var existingPoints = _heroViewModel.AttributePriorityItems.ToDictionary(item => item.Key, item => item.PointsText, StringComparer.OrdinalIgnoreCase);
-        _heroViewModel.AttributePriorityItems.Clear();
-
-        for (var i = 0; i < order.Count; i++)
-        {
-            _heroViewModel.AttributePriorityItems.Add(new HeroAttributePriorityItem
-            {
-                Key = order[i],
-                Title = GetHeroAttributeTitle(order[i]),
-                Order = i + 1,
-                PointsText = existingPoints.GetValueOrDefault(order[i], "-"),
-            });
-        }
-    }
-
-    private void UpdateHeroPriorityOrders()
-    {
-        for (var i = 0; i < _heroViewModel.AttributePriorityItems.Count; i++)
-        {
-            _heroViewModel.AttributePriorityItems[i].Order = i + 1;
-        }
-    }
-
     private void HeroAttributePriorityItemsControl_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         _heroPriorityDragStart = e.GetPosition(HeroAttributePriorityItemsControl);
@@ -97,7 +68,7 @@ public partial class MainWindow
         }
 
         _heroViewModel.AttributePriorityItems.Move(fromIndex, toIndex);
-        UpdateHeroPriorityOrders();
+        _heroViewModel.UpdateOrders();
         PersistHeroPriorityToConfig();
     }
 
@@ -116,39 +87,12 @@ public partial class MainWindow
         return null;
     }
 
-    private void ApplyHeroAttributeSnapshotToUi(HeroAttributeSnapshot snapshot)
-    {
-        AppendLog(
-            $"[ui-apply] free={snapshot.FreePoints} fight={snapshot.FightingStrength} off={snapshot.OffenceBonus} def={snapshot.DefenceBonus} res={snapshot.Resources}, items={_heroViewModel.AttributePriorityItems.Count}, thread=" +
-            (Dispatcher.CheckAccess() ? "ui" : "background"));
-
-        foreach (var item in _heroViewModel.AttributePriorityItems)
-        {
-            var points = item.Key switch
-            {
-                "fighting_strength" => snapshot.FightingStrength,
-                "offence_bonus" => snapshot.OffenceBonus,
-                "defence_bonus" => snapshot.DefenceBonus,
-                "resources" => snapshot.Resources,
-                _ => 0,
-            };
-            item.PointsText = points.ToString();
-        }
-
-        _heroViewModel.AttributesStatusText = $"Free points: {snapshot.FreePoints}";
-    }
-
-    private string BuildHeroPriorityPayload()
-    {
-        return string.Join(",", _heroViewModel.AttributePriorityItems.Select(item => item.Key));
-    }
-
     private void PersistHeroPriorityToConfig()
     {
         try
         {
             var config = _botConfigStore.Load();
-            config[BotOptionPayloadKeys.HeroStatPriority] = BuildHeroPriorityPayload();
+            config[BotOptionPayloadKeys.HeroStatPriority] = _heroViewModel.BuildPriorityPayload();
             _botConfigStore.Save(config);
         }
         catch (Exception ex)
@@ -156,61 +100,6 @@ public partial class MainWindow
             AppendLog($"Could not save hero attribute priority: {ex.Message}");
         }
     }
-
-    private static List<string> ParseHeroPriorityForUi(string? value)
-    {
-        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["fighting_strength"] = "fighting_strength",
-            ["fighting strength"] = "fighting_strength",
-            ["fight"] = "fighting_strength",
-            ["strength"] = "fighting_strength",
-            ["offence_bonus"] = "offence_bonus",
-            ["offence bonus"] = "offence_bonus",
-            ["offense_bonus"] = "offence_bonus",
-            ["offense bonus"] = "offence_bonus",
-            ["offence"] = "offence_bonus",
-            ["offense"] = "offence_bonus",
-            ["off"] = "offence_bonus",
-            ["attack"] = "offence_bonus",
-            ["defence_bonus"] = "defence_bonus",
-            ["defence bonus"] = "defence_bonus",
-            ["defense_bonus"] = "defence_bonus",
-            ["defense bonus"] = "defence_bonus",
-            ["defence"] = "defence_bonus",
-            ["defense"] = "defence_bonus",
-            ["def"] = "defence_bonus",
-            ["resources"] = "resources",
-            ["resource"] = "resources",
-            ["production"] = "resources",
-        };
-
-        var parsed = (value ?? string.Empty)
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(item => map.GetValueOrDefault(item, string.Empty))
-            .Where(item => !string.IsNullOrWhiteSpace(item))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        foreach (var fallback in new[] { "fighting_strength", "offence_bonus", "defence_bonus", "resources" })
-        {
-            if (!parsed.Contains(fallback, StringComparer.OrdinalIgnoreCase))
-            {
-                parsed.Add(fallback);
-            }
-        }
-
-        return parsed;
-    }
-
-    private static string GetHeroAttributeTitle(string key) => key switch
-    {
-        "fighting_strength" => "Fighting strength",
-        "offence_bonus" => "Offence bonus",
-        "defence_bonus" => "Defence bonus",
-        "resources" => "Resources",
-        _ => key,
-    };
 
     private void ApplyHeroAdventureAvailability(int? count)
     {
@@ -231,42 +120,6 @@ public partial class MainWindow
         {
             SetHeroBlockedState(HeroBlockedReasonNoAdventures, "No adventures");
         }
-    }
-
-    private void HeroPriorityMoveUpButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not FrameworkElement { Tag: HeroAttributePriorityItem item })
-        {
-            return;
-        }
-
-        var index = _heroViewModel.AttributePriorityItems.IndexOf(item);
-        if (index <= 0)
-        {
-            return;
-        }
-
-        _heroViewModel.AttributePriorityItems.Move(index, index - 1);
-        UpdateHeroPriorityOrders();
-        PersistHeroPriorityToConfig();
-    }
-
-    private void HeroPriorityMoveDownButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not FrameworkElement { Tag: HeroAttributePriorityItem item })
-        {
-            return;
-        }
-
-        var index = _heroViewModel.AttributePriorityItems.IndexOf(item);
-        if (index < 0 || index >= _heroViewModel.AttributePriorityItems.Count - 1)
-        {
-            return;
-        }
-
-        _heroViewModel.AttributePriorityItems.Move(index, index + 1);
-        UpdateHeroPriorityOrders();
-        PersistHeroPriorityToConfig();
     }
 
     private async void RefreshHeroStatsButton_Click(object sender, RoutedEventArgs e)
@@ -296,7 +149,7 @@ public partial class MainWindow
     {
         var options = ApplySelectedVillageToOptions(LoadBotOptions());
         var snapshot = await _botService.ReadHeroAttributesAsync(options, AppendLog, cancellationToken);
-        ApplyHeroAttributeSnapshotToUi(snapshot);
+        _heroViewModel.ApplyAttributeSnapshot(snapshot);
         return snapshot;
     }
 
@@ -330,7 +183,7 @@ public partial class MainWindow
             [BotOptionPayloadKeys.HeroMinHpForAdventure] = minHp.ToString(),
             [BotOptionPayloadKeys.HeroAutoRevive] = HeroAutoReviveCheckBox.IsChecked == true ? "true" : "false",
             [BotOptionPayloadKeys.HeroAutoAssignPoints] = HeroAutoAssignPointsCheckBox.IsChecked == true ? "true" : "false",
-            [BotOptionPayloadKeys.HeroStatPriority] = BuildHeroPriorityPayload(),
+            [BotOptionPayloadKeys.HeroStatPriority] = _heroViewModel.BuildPriorityPayload(),
             [BotOptionPayloadKeys.HeroAdventurePickOrder] = HeroAdventureTopRadio?.IsChecked == true ? "top" : "shortest",
             [BotOptionPayloadKeys.HeroHideMode] = HeroFightRadio?.IsChecked == true ? "fight" : "hide",
         };
@@ -409,56 +262,5 @@ public partial class MainWindow
         {
             RefreshAdventuresButton.IsEnabled = true;
         }
-    }
-
-    private void StartHeroCountdown(int seconds, int adventuresLeft, string label)
-    {
-        StopHeroCountdown();
-        _heroCountdownRemainingSeconds = Math.Max(0, seconds);
-        _heroCountdownLabel = label;
-        UpdateHeroCountdownText(adventuresLeft);
-
-        _heroCountdownTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        _heroCountdownTimer.Tick += (_, _) =>
-        {
-            if (_heroCountdownRemainingSeconds > 0)
-            {
-                _heroCountdownRemainingSeconds -= 1;
-            }
-            UpdateHeroCountdownText(adventuresLeft);
-
-            if (_heroCountdownRemainingSeconds <= 0)
-            {
-                StopHeroCountdown();
-            }
-        };
-        _heroCountdownTimer.Start();
-    }
-
-    private void StopHeroCountdown()
-    {
-        if (_heroCountdownTimer is null)
-        {
-            return;
-        }
-
-        _heroCountdownTimer.Stop();
-        _heroCountdownTimer = null;
-    }
-
-    private void UpdateHeroCountdownText(int adventuresLeft)
-    {
-        var formatted = FormatHeroDuration(_heroCountdownRemainingSeconds);
-        _heroViewModel.AdventureStatusText =
-            $"{_heroCountdownLabel}. Returns in {formatted}. Adventures left: {adventuresLeft}.";
-    }
-
-    private static string FormatHeroDuration(int seconds)
-    {
-        var clamped = Math.Max(0, seconds);
-        var ts = TimeSpan.FromSeconds(clamped);
-        return ts.TotalHours >= 1
-            ? $"{(int)ts.TotalHours:00}:{ts.Minutes:00}:{ts.Seconds:00}"
-            : $"{ts.Minutes:00}:{ts.Seconds:00}";
     }
 }
