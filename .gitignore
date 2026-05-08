@@ -14,3 +14,4 @@ temp_build_out/
 **/bin/
 **/obj/
 .claude/worktrees/kind-cori-d469bc/
+/.claude
