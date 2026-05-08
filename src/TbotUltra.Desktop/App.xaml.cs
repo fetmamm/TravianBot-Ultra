@@ -2,6 +2,8 @@ using System.IO;
 using System.Text;
 using System.Windows;
 using System.Windows.Threading;
+using Microsoft.Extensions.DependencyInjection;
+using TbotUltra.Desktop.ViewModels;
 
 namespace TbotUltra.Desktop;
 
@@ -10,12 +12,35 @@ namespace TbotUltra.Desktop;
 /// </summary>
 public partial class App : Application
 {
+    /// <summary>
+    /// Application-wide service provider. Populated in <see cref="OnStartup"/>
+    /// before the StartupUri creates MainWindow. Use this from code that needs
+    /// to resolve services that are not yet wired through constructor injection.
+    /// </summary>
+    public static IServiceProvider Services { get; private set; } = null!;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         DispatcherUnhandledException += App_DispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
         TaskScheduler.UnobservedTaskException += TaskScheduler_UnobservedTaskException;
+
+        Services = ConfigureServices();
+
         base.OnStartup(e);
+    }
+
+    private static IServiceProvider ConfigureServices()
+    {
+        var services = new ServiceCollection();
+
+        // View models. Transient so each window/control gets its own instance.
+        // Services that MainWindow currently new()s in its constructor (BotConfigStore,
+        // DesktopBotService, etc.) will move here in follow-up commits as their owners
+        // are migrated to constructor injection.
+        services.AddTransient<MainViewModel>();
+
+        return services.BuildServiceProvider();
     }
 
     private void App_DispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
