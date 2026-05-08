@@ -1,0 +1,788 @@
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Travian;
+using TbotUltra.Worker.Domain;
+
+namespace TbotUltra.Worker.Services;
+
+public sealed partial class TravianClient
+{
+    private sealed record TroopTrainingRequest(
+        TroopTrainingBuildingType BuildingType,
+        string BuildingName,
+        bool IsEnabled,
+        string TroopType,
+        string MaxQueueMode,
+        string AmountMode,
+        int KeepResourcesPercent,
+        string RunMode,
+        int MinimumTroops,
+        int MinimumResourcesPercent);
+
+    private sealed record TroopTrainingCandidate(
+        TroopTrainingRequest Request,
+        TroopTrainingQueueStatus QueueStatus,
+        int QueueRemainingSeconds,
+        int? QueueLimitSeconds);
+
+    private sealed record TroopUnitBuildInfo(
+        bool Found,
+        bool CanTrain,
+        string TroopType,
+        int WoodCost,
+        int ClayCost,
+        int IronCost,
+        int CropCost);
+
+    private sealed record ResourceCapacitySnapshot(
+        int? WarehouseCapacity,
+        int? GranaryCapacity);
+
+    public async Task<IReadOnlyList<TroopTrainingQueueStatus>> ReadTroopTrainingQueuesAsync(
+        IReadOnlyList<Building>? knownBuildings = null,
+        CancellationToken cancellationToken = default)
+    {
+        LogFunctionStarted();
+        await EnsureLoggedInAsync();
+
+        IReadOnlyList<Building> buildings = knownBuildings ?? (await ReadBuildingsStatusAsync(cancellationToken)).Buildings;
+        Notify($"Troop queue scan: using {buildings.Count} known building(s).");
+        var statuses = new List<TroopTrainingQueueStatus>();
+        foreach (var buildingType in new[]
+                 {
+                     TroopTrainingBuildingType.Barracks,
+                     TroopTrainingBuildingType.Stable,
+                     TroopTrainingBuildingType.Workshop,
+                 })
+        {
+            Notify($"Troop queue scan: reading {buildingType}.");
+            var queueStatus = await ReadTroopTrainingQueueStatusAsync(buildings, buildingType, cancellationToken);
+            statuses.Add(queueStatus);
+            Notify($"Troop queue scan: {queueStatus.BuildingName} exists={queueStatus.Exists}, remaining={(queueStatus.RemainingSeconds is > 0 ? queueStatus.RemainingText : "Ready")}.");
+        }
+
+        return statuses;
+    }
+
+    public async Task<string> BuildTroopsAsync(CancellationToken cancellationToken = default)
+    {
+        LogFunctionStarted();
+        await EnsureLoggedInAsync();
+        Notify("Build troops: loading village status.");
+
+        var status = await ReadVillageStatusAsync(cancellationToken);
+        Notify($"Build troops: activeVillage='{status.ActiveVillage}', tribe='{status.Tribe}', resources={string.Join(", ", status.Resources.Select(pair => $"{pair.Key}={pair.Value}"))}.");
+        var requests = BuildTroopTrainingRequests(_config, status.Tribe);
+        Notify($"Build troops: loaded {requests.Count} building request(s) from config.");
+        Notify($"Build troops: requests={string.Join(" | ", requests.Select(item => $"{item.BuildingName}:enabled={item.IsEnabled}:troop='{item.TroopType}':limit='{item.MaxQueueMode}':mode='{item.AmountMode}':keep={item.KeepResourcesPercent}%:runMode='{item.RunMode}':minTroops={item.MinimumTroops}:minRes={item.MinimumResourcesPercent}%"))}.");
+        var enabledRequests = requests
+            .Where(item => item.IsEnabled && !string.IsNullOrWhiteSpace(item.TroopType))
+            .ToList();
+        Notify($"Build troops: queue scan limited to {enabledRequests.Count} enabled building(s).");
+
+        var queueStatuses = new List<TroopTrainingQueueStatus>();
+        foreach (var request in enabledRequests)
+        {
+            var queueStatus = await ReadTroopTrainingQueueStatusAsync(status.Buildings, request.BuildingType, cancellationToken);
+            queueStatuses.Add(queueStatus);
+        }
+
+        var candidates = enabledRequests
+            .Select(item =>
+            {
+                var queueStatus = queueStatuses.FirstOrDefault(entry => entry.BuildingType == item.BuildingType)
+                    ?? new TroopTrainingQueueStatus(item.BuildingType, item.BuildingName, false, null, [], null, "Building not found");
+                var queueRemainingSeconds = Math.Max(0, queueStatus.RemainingSeconds ?? 0);
+                return new TroopTrainingCandidate(
+                    item,
+                    queueStatus,
+                    queueRemainingSeconds,
+                    TryParseTroopTrainingQueueLimitSeconds(item.MaxQueueMode));
+            })
+            .Where(item => item.QueueStatus.Exists)
+            .OrderBy(item => item.QueueRemainingSeconds)
+            .ToList();
+        Notify($"Build troops: queue statuses={string.Join(" | ", queueStatuses.Select(item => $"{item.BuildingName}:exists={item.Exists}:slot={(item.SlotId?.ToString() ?? "null")}:remaining='{item.RemainingText}'"))}.");
+
+        if (candidates.Count > 0)
+        {
+            Notify($"Build troops: candidates={string.Join(" | ", candidates.Select(item => $"{item.Request.BuildingName}:{item.Request.TroopType}:queue={(item.QueueRemainingSeconds > 0 ? FormatDuration(item.QueueRemainingSeconds) : "Ready")}:limit={(item.QueueLimitSeconds is > 0 ? FormatDuration(item.QueueLimitSeconds.Value) : "NoLimit")}:mode={item.Request.AmountMode}:keep={item.Request.KeepResourcesPercent}%:runMode={item.Request.RunMode}:minTroops={item.Request.MinimumTroops}:minRes={item.Request.MinimumResourcesPercent}%"))}.");
+        }
+
+        if (candidates.Count <= 0)
+        {
+            Notify("Build troops: no enabled existing candidates after filtering.");
+            return "Build troops: no enabled troop building is available in this village.";
+        }
+
+        foreach (var candidate in candidates)
+        {
+            Notify($"Build troops: evaluating {candidate.Request.BuildingName} for troop '{candidate.Request.TroopType}'.");
+            if (candidate.QueueLimitSeconds is int limitSeconds
+                && candidate.QueueRemainingSeconds > limitSeconds)
+            {
+                Notify($"Build troops: skipped {candidate.Request.BuildingName} because queue {FormatDuration(candidate.QueueRemainingSeconds)} exceeds limit {FormatDuration(limitSeconds)}.");
+                continue;
+            }
+
+            var outcome = await TryTrainTroopsAtBuildingAsync(status, candidate, cancellationToken);
+            Notify($"Build troops: outcome for {candidate.Request.BuildingName}: success={outcome.Success}, message='{outcome.Message}'.");
+            if (outcome.Success)
+            {
+                return outcome.Message;
+            }
+        }
+
+        return "Build troops: no eligible troop could be trained this run.";
+    }
+
+    internal static int? TryParseTroopTrainingQueueLimitSeconds(string? mode)
+    {
+        if (string.IsNullOrWhiteSpace(mode)
+            || string.Equals(mode, "no_limit", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return int.TryParse(mode.Trim(), out var hours) && hours > 0
+            ? hours * 3600
+            : null;
+    }
+
+    internal static int ResolveTroopTrainingQueueRemainingSeconds(IReadOnlyList<BuildQueueItem> items)
+    {
+        return items
+            .Select(item => ParseDurationToSeconds(item.TimeLeft))
+            .Where(value => value.HasValue)
+            .Select(value => value!.Value)
+            .DefaultIfEmpty(0)
+            .Sum();
+    }
+
+    internal static int CalculateTroopTrainingAmount(
+        IReadOnlyDictionary<string, int> resources,
+        int woodCost,
+        int clayCost,
+        int ironCost,
+        int cropCost,
+        string amountMode,
+        int keepResourcesPercent)
+    {
+        if (woodCost <= 0 || clayCost <= 0 || ironCost <= 0 || cropCost <= 0)
+        {
+            return 0;
+        }
+
+        var normalizedMode = NormalizeTroopTrainingAmountMode(amountMode);
+        var reserveFactor = normalizedMode == "keep_resources"
+            ? Math.Clamp(keepResourcesPercent, 0, 95) / 100d
+            : 0d;
+
+        var woodAvailable = Math.Max(0, GetResource(resources, "wood") - (int)Math.Floor(GetResource(resources, "wood") * reserveFactor));
+        var clayAvailable = Math.Max(0, GetResource(resources, "clay") - (int)Math.Floor(GetResource(resources, "clay") * reserveFactor));
+        var ironAvailable = Math.Max(0, GetResource(resources, "iron") - (int)Math.Floor(GetResource(resources, "iron") * reserveFactor));
+        var cropAvailable = Math.Max(0, GetResource(resources, "crop") - (int)Math.Floor(GetResource(resources, "crop") * reserveFactor));
+
+        return new[]
+        {
+            woodAvailable / woodCost,
+            clayAvailable / clayCost,
+            ironAvailable / ironCost,
+            cropAvailable / cropCost,
+        }.Min();
+    }
+
+    internal static string NormalizeTroopTrainingAmountMode(string? amountMode)
+    {
+        return string.Equals(amountMode, "keep_resources", StringComparison.OrdinalIgnoreCase)
+            ? "keep_resources"
+            : "maximum";
+    }
+
+    private static int GetResource(IReadOnlyDictionary<string, int> resources, string key)
+    {
+        return resources.TryGetValue(key, out var value) ? Math.Max(0, value) : 0;
+    }
+
+    private static IReadOnlyList<TroopTrainingRequest> BuildTroopTrainingRequests(BotOptions options, string? tribe)
+    {
+        return
+        [
+            new TroopTrainingRequest(
+                TroopTrainingBuildingType.Barracks,
+                "Barracks",
+                options.TroopTrainingBarracksEnabled,
+                ResolveConfiguredTroopType(options.TroopTrainingBarracksTroopType, tribe, TroopTrainingBuildingType.Barracks),
+                options.TroopTrainingBarracksMaxQueueHours,
+                options.TroopTrainingBarracksAmountMode,
+                options.TroopTrainingBarracksKeepResourcesPercent,
+                options.TroopTrainingBarracksRunMode,
+                options.TroopTrainingBarracksMinimumTroops,
+                options.TroopTrainingBarracksMinimumResourcesPercent),
+            new TroopTrainingRequest(
+                TroopTrainingBuildingType.Stable,
+                "Stable",
+                options.TroopTrainingStableEnabled,
+                ResolveConfiguredTroopType(options.TroopTrainingStableTroopType, tribe, TroopTrainingBuildingType.Stable),
+                options.TroopTrainingStableMaxQueueHours,
+                options.TroopTrainingStableAmountMode,
+                options.TroopTrainingStableKeepResourcesPercent,
+                options.TroopTrainingStableRunMode,
+                options.TroopTrainingStableMinimumTroops,
+                options.TroopTrainingStableMinimumResourcesPercent),
+            new TroopTrainingRequest(
+                TroopTrainingBuildingType.Workshop,
+                "Workshop",
+                options.TroopTrainingWorkshopEnabled,
+                ResolveConfiguredTroopType(options.TroopTrainingWorkshopTroopType, tribe, TroopTrainingBuildingType.Workshop),
+                options.TroopTrainingWorkshopMaxQueueHours,
+                options.TroopTrainingWorkshopAmountMode,
+                options.TroopTrainingWorkshopKeepResourcesPercent,
+                options.TroopTrainingWorkshopRunMode,
+                options.TroopTrainingWorkshopMinimumTroops,
+                options.TroopTrainingWorkshopMinimumResourcesPercent),
+        ];
+    }
+
+    private static string ResolveConfiguredTroopType(string? configuredTroopType, string? tribe, TroopTrainingBuildingType buildingType)
+    {
+        if (!string.IsNullOrWhiteSpace(configuredTroopType))
+        {
+            return configuredTroopType;
+        }
+
+        return TroopCatalog.ResolveTroopTypesForTribe(tribe, buildingType).FirstOrDefault() ?? string.Empty;
+    }
+
+    private async Task<TroopTrainingQueueStatus> ReadTroopTrainingQueueStatusAsync(
+        IReadOnlyList<Building> buildings,
+        TroopTrainingBuildingType buildingType,
+        CancellationToken cancellationToken)
+    {
+        var building = ResolveTroopTrainingBuilding(buildings, buildingType);
+        var buildingName = ResolveTroopTrainingBuildingName(buildingType);
+        if (building is null || building.SlotId is not > 0)
+        {
+            Notify($"Troop queue scan: {buildingName} not found in current village.");
+            return new TroopTrainingQueueStatus(buildingType, buildingName, false, null, [], null, "Building not found");
+        }
+
+        Notify($"Troop queue scan: navigating to {buildingName} slot {building.SlotId.Value}.");
+        await GotoAsync(Paths.BuildBySlot(building.SlotId.Value), cancellationToken);
+        await PauseForManualStepIfVisibleAsync($"Manual verification appeared while reading the {buildingName} queue.", cancellationToken);
+        await EnsureLoggedInAsync();
+
+        var queueItems = await ReadTroopTrainingQueueFromCurrentPageAsync(cancellationToken);
+        var remainingSeconds = ResolveTroopTrainingQueueRemainingSeconds(queueItems);
+        Notify($"Troop queue scan: {buildingName} queue items={queueItems.Count}, maxRemaining={(remainingSeconds > 0 ? FormatDuration(remainingSeconds) : "Ready")}.");
+        return new TroopTrainingQueueStatus(
+            buildingType,
+            buildingName,
+            true,
+            building.SlotId,
+            queueItems,
+            remainingSeconds > 0 ? remainingSeconds : null,
+            remainingSeconds > 0 ? FormatDuration(remainingSeconds) : "Ready");
+    }
+
+    private async Task<(bool Success, string Message)> TryTrainTroopsAtBuildingAsync(
+        VillageStatus status,
+        TroopTrainingCandidate candidate,
+        CancellationToken cancellationToken)
+    {
+        var troopUnitId = TroopCatalog.ResolveTravianUnitId(status.Tribe, candidate.Request.TroopType);
+        Notify($"Build troops: resolved unit id for '{candidate.Request.TroopType}' in tribe '{status.Tribe}' => {(troopUnitId?.ToString() ?? "null")}.");
+        if (troopUnitId is null
+            || !TroopCatalog.IsTroopTypeAllowedForBuilding(status.Tribe, candidate.Request.TroopType, candidate.Request.BuildingType))
+        {
+            Notify($"Build troops: troop '{candidate.Request.TroopType}' is invalid for {candidate.Request.BuildingName}.");
+            return (false, $"Skip {candidate.Request.BuildingName}: troop '{candidate.Request.TroopType}' is not valid for this building.");
+        }
+
+        if (candidate.QueueStatus.SlotId is not > 0)
+        {
+            Notify($"Build troops: {candidate.Request.BuildingName} slot id missing.");
+            return (false, $"Skip {candidate.Request.BuildingName}: building slot not found.");
+        }
+
+        Notify($"Build troops: navigating to {candidate.Request.BuildingName} slot {candidate.QueueStatus.SlotId.Value}.");
+        await GotoAsync(Paths.BuildBySlot(candidate.QueueStatus.SlotId.Value), cancellationToken);
+        await PauseForManualStepIfVisibleAsync($"Manual verification appeared while opening the {candidate.Request.BuildingName}.", cancellationToken);
+        await EnsureLoggedInAsync();
+        Notify($"Build troops: page after navigation url='{_page.Url}'.");
+
+        var buildInfo = await ReadTroopUnitBuildInfoFromCurrentPageAsync(troopUnitId.Value, cancellationToken);
+        Notify($"Build troops: build info found={buildInfo.Found}, canTrain={buildInfo.CanTrain}, troopType='{buildInfo.TroopType}', costs=({buildInfo.WoodCost},{buildInfo.ClayCost},{buildInfo.IronCost},{buildInfo.CropCost}).");
+        if (!buildInfo.Found || !buildInfo.CanTrain)
+        {
+            return (false, $"Skip {candidate.Request.BuildingName}: '{candidate.Request.TroopType}' is not trainable right now.");
+        }
+
+        var parsedResources = ParseVillageResources(status.Resources);
+        var needsResourceRead =
+            string.Equals(candidate.Request.RunMode, "min_troops", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(candidate.Request.RunMode, "resource_percent", StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(candidate.Request.AmountMode, "maximum", StringComparison.OrdinalIgnoreCase);
+        if (needsResourceRead && parsedResources.Values.All(value => value <= 0))
+        {
+            Notify("Build troops: status resources were empty, reading resources from current page.");
+            parsedResources = await ReadVillageResourcesFromCurrentPageAsync(cancellationToken);
+        }
+
+        if (string.Equals(candidate.Request.RunMode, "resource_percent", StringComparison.OrdinalIgnoreCase))
+        {
+            var capacities = await ReadVillageStorageCapacitiesFromCurrentPageAsync(cancellationToken);
+            if (!MeetsMinimumResourcePercentThreshold(parsedResources, capacities, candidate.Request.MinimumResourcesPercent))
+            {
+                return (false, $"Skip {candidate.Request.BuildingName}: resources are below {candidate.Request.MinimumResourcesPercent}% of storage.");
+            }
+        }
+
+        var maximumTrainableAmount = CalculateTroopTrainingAmount(
+            parsedResources,
+            buildInfo.WoodCost,
+            buildInfo.ClayCost,
+            buildInfo.IronCost,
+            buildInfo.CropCost,
+            "maximum",
+            0);
+        Notify($"Build troops: maximum trainable amount with current resources={maximumTrainableAmount}.");
+        if (string.Equals(candidate.Request.RunMode, "min_troops", StringComparison.OrdinalIgnoreCase)
+            && maximumTrainableAmount < candidate.Request.MinimumTroops)
+        {
+            return (false, $"Skip {candidate.Request.BuildingName}: can only train {maximumTrainableAmount}, minimum is {candidate.Request.MinimumTroops}.");
+        }
+
+        var useMaxShortcut = string.Equals(candidate.Request.AmountMode, "maximum", StringComparison.OrdinalIgnoreCase);
+        var amount = 0;
+        if (!useMaxShortcut)
+        {
+            Notify($"Build troops: parsed resources wood={parsedResources["wood"]}, clay={parsedResources["clay"]}, iron={parsedResources["iron"]}, crop={parsedResources["crop"]}.");
+            amount = CalculateTroopTrainingAmount(
+                parsedResources,
+                buildInfo.WoodCost,
+                buildInfo.ClayCost,
+                buildInfo.IronCost,
+                buildInfo.CropCost,
+                candidate.Request.AmountMode,
+                candidate.Request.KeepResourcesPercent);
+            Notify($"Build troops: calculated amount={amount} using mode={candidate.Request.AmountMode}, keep={candidate.Request.KeepResourcesPercent}%.");
+            if (amount <= 0)
+            {
+                return (false, $"Skip {candidate.Request.BuildingName}: not enough free resources for '{candidate.Request.TroopType}'.");
+            }
+        }
+        else
+        {
+            Notify("Build troops: maximum mode selected, skipping resource amount calculation.");
+        }
+
+        Notify($"Build troops: submitting training for unitId={troopUnitId.Value}, amount={amount}, useMaxShortcut={useMaxShortcut}.");
+        var submitted = await SubmitTroopTrainingFromCurrentPageAsync(
+            troopUnitId.Value,
+            Math.Max(0, amount),
+            useMaxShortcut,
+            cancellationToken);
+        Notify($"Build troops: submit result submitted={submitted}.");
+        if (!submitted)
+        {
+            return (false, $"Skip {candidate.Request.BuildingName}: could not submit training for '{candidate.Request.TroopType}'.");
+        }
+
+        await Task.Delay(300, cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared after starting troop training.", cancellationToken);
+        Notify($"Build troops: page after submit url='{_page.Url}'.");
+        var queueItems = await ReadTroopTrainingQueueFromCurrentPageAsync(cancellationToken);
+        var queueSeconds = ResolveTroopTrainingQueueRemainingSeconds(queueItems);
+        var queueText = queueSeconds > 0 ? FormatDuration(queueSeconds) : "Ready";
+        Notify($"Build troops: queue after submit items={queueItems.Count}, remaining='{queueText}'.");
+        return (true, $"Build troops: queued {(useMaxShortcut ? "maximum" : amount.ToString())} {candidate.Request.TroopType} at {candidate.Request.BuildingName}. Queue={queueText}.");
+    }
+
+    private static IReadOnlyDictionary<string, int> ParseVillageResources(IReadOnlyDictionary<string, string> resources)
+    {
+        var result = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var key in new[] { "wood", "clay", "iron", "crop" })
+        {
+            result[key] = TryParseResourceValue(resources.TryGetValue(key, out var raw) ? raw : null) ?? 0;
+        }
+
+        return result;
+    }
+
+    private async Task<IReadOnlyDictionary<string, int>> ReadVillageResourcesFromCurrentPageAsync(CancellationToken cancellationToken)
+    {
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading current village resources.", cancellationToken);
+        var raw = await _page.EvaluateAsync<Dictionary<string, string>>(
+            """
+            () => {
+              const readFirst = (selectors) => {
+                for (const selector of selectors) {
+                  const node = document.querySelector(selector);
+                  if (!node) continue;
+                  const value =
+                    node.getAttribute('data-value')
+                    || node.getAttribute('value')
+                    || node.getAttribute('title')
+                    || node.textContent
+                    || '';
+                  const text = value.replace(/\s+/g, ' ').trim();
+                  if (text) return text;
+                }
+                return '';
+              };
+
+              return {
+                wood: readFirst(['#l1', '#stockBarResource1 .value', '.r1 .value', '[class*="r1"] .value']),
+                clay: readFirst(['#l2', '#stockBarResource2 .value', '.r2 .value', '[class*="r2"] .value']),
+                iron: readFirst(['#l3', '#stockBarResource3 .value', '.r3 .value', '[class*="r3"] .value']),
+                crop: readFirst(['#l4', '#stockBarResource4 .value', '.r4 .value', '[class*="r4"] .value'])
+              };
+            }
+            """);
+
+        var parsed = ParseVillageResources(raw ?? new Dictionary<string, string>());
+        Notify($"Build troops: current page resource payload wood='{raw?.GetValueOrDefault("wood")}', clay='{raw?.GetValueOrDefault("clay")}', iron='{raw?.GetValueOrDefault("iron")}', crop='{raw?.GetValueOrDefault("crop")}'.");
+        return parsed;
+    }
+
+    private async Task<ResourceCapacitySnapshot> ReadVillageStorageCapacitiesFromCurrentPageAsync(CancellationToken cancellationToken)
+    {
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading village storage capacities.", cancellationToken);
+        var raw = await _page.EvaluateAsync<Dictionary<string, string>>(
+            """
+            () => ({
+              warehouse: (document.querySelector('#stockBarWarehouse')?.textContent || '').trim(),
+              granary: (document.querySelector('#stockBarGranary')?.textContent || '').trim()
+            })
+            """);
+
+        return new ResourceCapacitySnapshot(
+            TryParseResourceValue(raw?.GetValueOrDefault("warehouse")),
+            TryParseResourceValue(raw?.GetValueOrDefault("granary")));
+    }
+
+    private static bool MeetsMinimumResourcePercentThreshold(
+        IReadOnlyDictionary<string, int> resources,
+        ResourceCapacitySnapshot capacities,
+        int thresholdPercent)
+    {
+        var threshold = Math.Clamp(thresholdPercent, 1, 100);
+        if (capacities.WarehouseCapacity is not > 0 || capacities.GranaryCapacity is not > 0)
+        {
+            return false;
+        }
+
+        return HasMinimumResourcePercent(resources, "wood", capacities.WarehouseCapacity.Value, threshold)
+            && HasMinimumResourcePercent(resources, "clay", capacities.WarehouseCapacity.Value, threshold)
+            && HasMinimumResourcePercent(resources, "iron", capacities.WarehouseCapacity.Value, threshold)
+            && HasMinimumResourcePercent(resources, "crop", capacities.GranaryCapacity.Value, threshold);
+    }
+
+    private static bool HasMinimumResourcePercent(IReadOnlyDictionary<string, int> resources, string key, int capacity, int thresholdPercent)
+    {
+        if (capacity <= 0)
+        {
+            return false;
+        }
+
+        var current = resources.TryGetValue(key, out var value) ? Math.Max(0, value) : 0;
+        return (current * 100d / capacity) >= thresholdPercent;
+    }
+
+    private static Building? ResolveTroopTrainingBuilding(IReadOnlyList<Building> buildings, TroopTrainingBuildingType buildingType)
+    {
+        var expectedGid = buildingType switch
+        {
+            TroopTrainingBuildingType.Barracks => 19,
+            TroopTrainingBuildingType.Stable => 20,
+            TroopTrainingBuildingType.Workshop => 21,
+            _ => 0,
+        };
+        var expectedName = ResolveTroopTrainingBuildingName(buildingType);
+        return buildings.FirstOrDefault(item =>
+            (item.Gid ?? 0) == expectedGid
+            || string.Equals(item.Name, expectedName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string ResolveTroopTrainingBuildingName(TroopTrainingBuildingType buildingType)
+    {
+        return buildingType switch
+        {
+            TroopTrainingBuildingType.Barracks => "Barracks",
+            TroopTrainingBuildingType.Stable => "Stable",
+            TroopTrainingBuildingType.Workshop => "Workshop",
+            _ => "Unknown",
+        };
+    }
+
+    private async Task<IReadOnlyList<BuildQueueItem>> ReadTroopTrainingQueueFromCurrentPageAsync(CancellationToken cancellationToken)
+    {
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading the troop training queue.", cancellationToken);
+        var rawJson = await _page.EvaluateAsync<string>(
+            """
+            () => {
+              const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
+              const rows = [];
+              const seen = new Set();
+
+              for (const row of document.querySelectorAll('table.under_progress tbody tr')) {
+                const desc = normalize(row.querySelector('td.desc')?.textContent || '');
+                const durCell = row.querySelector('td.dur');
+                const duration = normalize(durCell?.querySelector('.timer')?.textContent || durCell?.textContent || '');
+                if (!desc || !duration) continue;
+                const key = `${desc}|${duration}`;
+                if (seen.has(key)) continue;
+                seen.add(key);
+                rows.push({ text: desc, timeLeft: duration });
+              }
+
+              if (rows.length > 0) {
+                return JSON.stringify(rows);
+              }
+
+              const containers = [
+                ...document.querySelectorAll('.trainQueue, .trainingQueue, .queue, [class*="queue"], [id*="queue"], .contracts, .contract')
+              ];
+              const timeSelector = '.timer, .countdown, .value, [counting="down"], [id^="timer"]';
+
+              const pushCandidate = (element) => {
+                if (!element) return;
+                const timer = element.querySelector(timeSelector);
+                if (!timer) return;
+                const text = normalize(element.textContent || '');
+                const timeLeft = normalize(timer.textContent || '');
+                if (!text || !timeLeft) return;
+                const key = `${text}|${timeLeft}`;
+                if (seen.has(key)) return;
+                seen.add(key);
+                rows.push({ text, timeLeft });
+              };
+
+              for (const container of containers) {
+                pushCandidate(container);
+                for (const row of container.querySelectorAll('tr, li, .unit, .contract, .row')) {
+                  pushCandidate(row);
+                }
+              }
+
+              return JSON.stringify(rows);
+            }
+            """);
+
+        var raw = string.IsNullOrWhiteSpace(rawJson)
+            ? []
+            : JsonSerializer.Deserialize<List<BuildQueueJs>>(rawJson) ?? [];
+
+        Notify($"Troop queue scan raw json length={rawJson?.Length ?? 0}, parsedItems={raw.Count}.");
+
+        return raw
+            .Where(item => !string.IsNullOrWhiteSpace(item.Text))
+            .Select(item => new BuildQueueItem(item.Text!, item.TimeLeft))
+            .ToList();
+    }
+
+    private async Task<TroopUnitBuildInfo> ReadTroopUnitBuildInfoFromCurrentPageAsync(int troopIndex, CancellationToken cancellationToken)
+    {
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading troop build costs.", cancellationToken);
+        Notify($"Build troops: reading troop unit build info for t{troopIndex}.");
+        var rawJson = await _page.EvaluateAsync<string>(
+            """
+            (troopIndex) => {
+              const input = document.querySelector(`input[name="t${troopIndex}"], input[id="t${troopIndex}"]`);
+              if (!input) {
+                return JSON.stringify({ found: false });
+              }
+
+              const action = input.closest('.action') || input.closest('tr, li, form') || input.parentElement;
+              const row = action || input.parentElement;
+              const readCost = (key) => {
+                const iconNode = row.querySelector(`i.${key}Big, i.${key}, .${key}Big, .${key}`);
+                if (iconNode) {
+                  const valueNode =
+                    iconNode.closest('.inlineIcon')?.querySelector('.value')
+                    || iconNode.parentElement?.querySelector('.value')
+                    || iconNode.nextElementSibling;
+                  const digits = (valueNode?.textContent || '').replace(/[^\d]/g, '');
+                  if (digits) return Number(digits);
+                }
+
+                const nodes = Array.from(row.querySelectorAll('*'));
+                for (const node of nodes) {
+                  const className = (node.className || '').toString();
+                  if (!className || !className.split(/\s+/).some(item => item === `${key}Big` || item === key)) continue;
+                  const digits = (node.textContent || '').replace(/[^\d]/g, '');
+                  if (digits) return Number(digits);
+                }
+
+                return 0;
+              };
+
+              const nameNode = row.querySelector('.tit a:last-of-type, .title, h1, h2, h3, h4, .name, .desc, .unitName');
+              const name = nameNode ? (nameNode.textContent || '').replace(/\s+/g, ' ').trim() : `Troop ${troopIndex}`;
+              const disabled = input.disabled || input.getAttribute('aria-disabled') === 'true' || input.closest('.disabled');
+              const submitButton = (input.form || row.closest('form') || document).querySelector('button[type="submit"], input[type="submit"], .green, .button-container');
+
+              return JSON.stringify({
+                found: true,
+                canTrain: !disabled && !!submitButton,
+                troopType: name,
+                woodCost: readCost('r1'),
+                clayCost: readCost('r2'),
+                ironCost: readCost('r3'),
+                cropCost: readCost('r4')
+              });
+            }
+            """,
+            troopIndex);
+
+        Notify($"Build troops: raw build info payload for t{troopIndex}: {rawJson}");
+
+        try
+        {
+            using var doc = JsonDocument.Parse(rawJson ?? "{}");
+            var root = doc.RootElement;
+            return new TroopUnitBuildInfo(
+                root.TryGetProperty("found", out var found) && found.GetBoolean(),
+                root.TryGetProperty("canTrain", out var canTrain) && canTrain.GetBoolean(),
+                root.TryGetProperty("troopType", out var troopType) ? troopType.GetString() ?? string.Empty : string.Empty,
+                root.TryGetProperty("woodCost", out var woodCost) ? woodCost.GetInt32() : 0,
+                root.TryGetProperty("clayCost", out var clayCost) ? clayCost.GetInt32() : 0,
+                root.TryGetProperty("ironCost", out var ironCost) ? ironCost.GetInt32() : 0,
+                root.TryGetProperty("cropCost", out var cropCost) ? cropCost.GetInt32() : 0);
+        }
+        catch
+        {
+            return new TroopUnitBuildInfo(false, false, string.Empty, 0, 0, 0, 0);
+        }
+    }
+
+    private async Task<bool> SubmitTroopTrainingFromCurrentPageAsync(int troopIndex, int amount, bool useMaxShortcut, CancellationToken cancellationToken)
+    {
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while submitting troop training.", cancellationToken);
+        Notify($"Build troops submit: locating input t{troopIndex}. amount={amount}, useMaxShortcut={useMaxShortcut}.");
+        var input = _page.Locator($"input[name='t{troopIndex}'], input[id='t{troopIndex}']").First;
+        if (await input.CountAsync() <= 0)
+        {
+            Notify($"Troop training submit skipped: input t{troopIndex} not found.");
+            return false;
+        }
+
+        var action = input.Locator("xpath=ancestor::*[contains(@class,'action')][1]").First;
+        Notify($"Build troops submit: located action container for t{troopIndex}.");
+        if (useMaxShortcut)
+        {
+            Notify($"Build troops submit: resolving max value for t{troopIndex} from action link.");
+            var maxAmount = await ResolveTroopTrainingMaxAmountAsync(troopIndex);
+            Notify($"Build troops submit: resolved max value for t{troopIndex} => {(maxAmount?.ToString() ?? "null")}.");
+            if (maxAmount is not > 0)
+            {
+                Notify($"Troop training submit skipped: max value for t{troopIndex} was not found.");
+                return false;
+            }
+
+            await _page.EvaluateAsync(
+                """
+                (payload) => {
+                  const input = document.querySelector(`input[name="t${payload.troopIndex}"], input[id="t${payload.troopIndex}"]`);
+                  if (!input) {
+                    return false;
+                  }
+
+                  input.value = String(payload.maxAmount);
+                  input.dispatchEvent(new Event('input', { bubbles: true }));
+                  input.dispatchEvent(new Event('change', { bubbles: true }));
+                  return true;
+                }
+                """,
+                new { troopIndex, maxAmount = maxAmount.Value });
+            Notify($"Build troops submit: set t{troopIndex} directly to max value '{maxAmount.Value}'.");
+            Notify($"Clicked {maxAmount.Value}");
+        }
+        else
+        {
+            var integerAmount = Math.Max(0, amount);
+            if (integerAmount <= 0)
+            {
+                Notify($"Build troops submit: integer amount for t{troopIndex} was <= 0.");
+                return false;
+            }
+
+            await input.ClickAsync();
+            await input.FillAsync(integerAmount.ToString());
+            Notify($"Build troops submit: filled t{troopIndex} with '{integerAmount}'.");
+        }
+
+        await Task.Delay(150, cancellationToken);
+        var parsedValueRaw = await input.InputValueAsync();
+        var parsedDigits = new string(parsedValueRaw.Where(char.IsDigit).ToArray());
+        Notify($"Build troops submit: input t{troopIndex} now has raw='{parsedValueRaw}', digits='{parsedDigits}'.");
+        if (!int.TryParse(parsedDigits, out var parsedValue) || parsedValue <= 0)
+        {
+            Notify($"Troop training submit skipped: input t{troopIndex} stayed at '{parsedValueRaw}'.");
+            return false;
+        }
+
+        var form = input.Locator("xpath=ancestor::form[1]").First;
+        Notify($"Build troops submit: located form for t{troopIndex}.");
+        var submitButton = form.Locator("button.startTraining, button.green.startTraining, button[type='submit'].startTraining, button[type='submit'].green").First;
+        Notify($"Build troops submit: locating Train button for t{troopIndex}.");
+        if (await submitButton.CountAsync() <= 0)
+        {
+            Notify($"Troop training submit skipped: Train button not found for t{troopIndex}.");
+            return false;
+        }
+
+        var submitText = (await submitButton.InnerTextAsync()).Trim();
+        Notify($"Build troops submit: Train button text='{submitText}' for t{troopIndex}.");
+        await submitButton.ClickAsync();
+        Notify($"Build troops submit: clicked Train button for t{troopIndex} with parsedValue={parsedValue}.");
+        Notify("Train clicked");
+        return true;
+    }
+
+    private async Task<int?> ResolveTroopTrainingMaxAmountAsync(int troopIndex)
+    {
+        var rawValue = await _page.EvaluateAsync<string>(
+            """
+            (troopIndex) => {
+              const input = document.querySelector(`input[name="t${troopIndex}"], input[id="t${troopIndex}"]`);
+              if (!input) {
+                return "";
+              }
+
+              const action = input.closest('.action') || input.parentElement;
+              if (!action) {
+                return "";
+              }
+
+              const links = Array.from(action.querySelectorAll('a[href="#"], a'));
+              for (const link of links) {
+                const onclick = link.getAttribute('onclick') || '';
+                const onclickMatch = onclick.match(new RegExp(`t${troopIndex}\\.value=(\\d+)`));
+                if (onclickMatch && onclickMatch[1]) {
+                  return onclickMatch[1];
+                }
+
+                const text = (link.textContent || '').trim();
+                if (/^\d+$/.test(text)) {
+                  return text;
+                }
+              }
+
+              return "";
+            }
+            """,
+            troopIndex);
+
+        if (int.TryParse(rawValue, out var maxAmount) && maxAmount > 0)
+        {
+            return maxAmount;
+        }
+
+        Notify($"Build troops submit: failed to parse max value for t{troopIndex} from raw='{rawValue}'.");
+
+        return null;
+    }
+}

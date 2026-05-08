@@ -21,23 +21,49 @@
   "gold_limit": 100,
   "silver_limit": 100,
   "natar_village_selection": "farm_villages",
-  "continuous_loop_groups": [],
+  "continuous_loop_groups": [
+    "troop_training"
+  ],
   "continuous_loop_group_order": [
     "construction",
     "troops",
     "hero",
-    "farming"
+    "farming",
+    "troop_training"
   ],
   "dashboard_visible_groups": [
     "construction",
-    "troops",
     "hero",
-    "farming"
+    "troop_training"
   ],
   "hero_stat_priority": "fighting_strength,offence_bonus,defence_bonus,resources",
   "queue_wait_threshold_mode": "2",
   "continuous_farm_dispatch_delay_minutes": 2,
-  "post_login_analyze_farmlists": true,
+  "post_login_analyze_farmlists": false,
   "post_login_read_troop_training_queue": true,
-  "post_login_analyze_hero": true
+  "post_login_analyze_hero": false,
+  "troop_training_barracks_enabled": true,
+  "troop_training_barracks_troop_type": "Spearman",
+  "troop_training_barracks_max_queue_hours": "10",
+  "troop_training_barracks_amount_mode": "maximum",
+  "troop_training_barracks_keep_resources_percent": 10,
+  "troop_training_stable_enabled": true,
+  "troop_training_stable_troop_type": "Paladin",
+  "troop_training_stable_max_queue_hours": "10",
+  "troop_training_stable_amount_mode": "maximum",
+  "troop_training_stable_keep_resources_percent": 10,
+  "troop_training_workshop_enabled": false,
+  "troop_training_workshop_troop_type": "Ram",
+  "troop_training_workshop_max_queue_hours": "no_limit",
+  "troop_training_workshop_amount_mode": "maximum",
+  "troop_training_workshop_keep_resources_percent": 10,
+  "troop_training_barracks_run_mode": "min_troops",
+  "troop_training_barracks_minimum_troops": 1000,
+  "troop_training_barracks_minimum_resources_percent": 62,
+  "troop_training_stable_run_mode": "resource_percent",
+  "troop_training_stable_minimum_troops": 1,
+  "troop_training_stable_minimum_resources_percent": 43,
+  "troop_training_workshop_run_mode": "min_troops",
+  "troop_training_workshop_minimum_troops": 1,
+  "troop_training_workshop_minimum_resources_percent": 50
 }

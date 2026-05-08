@@ -13,3 +13,4 @@ temp_build_out/
 **/review_dataset/
 **/bin/
 **/obj/
+.claude/worktrees/kind-cori-d469bc/

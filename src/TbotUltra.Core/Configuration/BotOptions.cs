@@ -71,6 +71,78 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.PostLoginReadTroopTrainingQueue)]
     public bool PostLoginReadTroopTrainingQueue { get; init; }
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksEnabled)]
+    public bool TroopTrainingBarracksEnabled { get; init; }
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksTroopType)]
+    public string TroopTrainingBarracksTroopType { get; init; } = string.Empty;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksMaxQueueHours)]
+    public string TroopTrainingBarracksMaxQueueHours { get; init; } = "no_limit";
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksAmountMode)]
+    public string TroopTrainingBarracksAmountMode { get; init; } = "maximum";
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksKeepResourcesPercent)]
+    public int TroopTrainingBarracksKeepResourcesPercent { get; init; } = 10;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksRunMode)]
+    public string TroopTrainingBarracksRunMode { get; init; } = "min_troops";
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksMinimumTroops)]
+    public int TroopTrainingBarracksMinimumTroops { get; init; } = 1;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksMinimumResourcesPercent)]
+    public int TroopTrainingBarracksMinimumResourcesPercent { get; init; } = 50;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableEnabled)]
+    public bool TroopTrainingStableEnabled { get; init; }
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableTroopType)]
+    public string TroopTrainingStableTroopType { get; init; } = string.Empty;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableMaxQueueHours)]
+    public string TroopTrainingStableMaxQueueHours { get; init; } = "no_limit";
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableAmountMode)]
+    public string TroopTrainingStableAmountMode { get; init; } = "maximum";
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableKeepResourcesPercent)]
+    public int TroopTrainingStableKeepResourcesPercent { get; init; } = 10;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableRunMode)]
+    public string TroopTrainingStableRunMode { get; init; } = "min_troops";
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableMinimumTroops)]
+    public int TroopTrainingStableMinimumTroops { get; init; } = 1;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableMinimumResourcesPercent)]
+    public int TroopTrainingStableMinimumResourcesPercent { get; init; } = 50;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopEnabled)]
+    public bool TroopTrainingWorkshopEnabled { get; init; }
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopTroopType)]
+    public string TroopTrainingWorkshopTroopType { get; init; } = string.Empty;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopMaxQueueHours)]
+    public string TroopTrainingWorkshopMaxQueueHours { get; init; } = "no_limit";
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopAmountMode)]
+    public string TroopTrainingWorkshopAmountMode { get; init; } = "maximum";
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopKeepResourcesPercent)]
+    public int TroopTrainingWorkshopKeepResourcesPercent { get; init; } = 10;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopRunMode)]
+    public string TroopTrainingWorkshopRunMode { get; init; } = "min_troops";
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopMinimumTroops)]
+    public int TroopTrainingWorkshopMinimumTroops { get; init; } = 1;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopMinimumResourcesPercent)]
+    public int TroopTrainingWorkshopMinimumResourcesPercent { get; init; } = 50;
+
     [ConfigurationKeyName("github_releases_url")]
     public string GithubReleasesUrl { get; init; } = string.Empty;
 

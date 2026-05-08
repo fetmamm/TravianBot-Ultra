@@ -57,6 +57,30 @@ public static class TroopCatalog
         return FallbackTroops;
     }
 
+    public static IReadOnlyList<string> ResolveTroopTypesForTribe(string? tribe, TroopTrainingBuildingType buildingType)
+    {
+        var allTroops = ResolveTroopTypesForTribe(tribe);
+        return buildingType switch
+        {
+            TroopTrainingBuildingType.Barracks => allTroops.Take(3).ToList(),
+            TroopTrainingBuildingType.Stable => allTroops.Skip(3).Take(3).ToList(),
+            TroopTrainingBuildingType.Workshop => allTroops.Skip(6).Take(2).ToList(),
+            _ => [],
+        };
+    }
+
+    public static bool IsTroopTypeAllowedForBuilding(string? tribe, string? troopType, TroopTrainingBuildingType buildingType)
+    {
+        var normalized = Normalize(troopType);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return false;
+        }
+
+        return ResolveTroopTypesForTribe(tribe, buildingType)
+            .Any(item => string.Equals(Normalize(item), normalized, StringComparison.Ordinal));
+    }
+
     public static int? ResolveTroopIndex(string? troopType)
     {
         var normalized = Normalize(troopType);
@@ -74,6 +98,68 @@ public static class TroopCatalog
                     return index + 1;
                 }
             }
+        }
+
+        return null;
+    }
+
+    public static int? ResolveTravianUnitId(string? tribe, string? troopType)
+    {
+        var normalizedTroop = Normalize(troopType);
+        if (string.IsNullOrWhiteSpace(normalizedTroop))
+        {
+            return null;
+        }
+
+        var baseId = ResolveTribeUnitBaseId(tribe);
+        if (baseId is null)
+        {
+            return null;
+        }
+
+        var troopSet = ResolveTroopTypesForTribe(tribe);
+        for (var index = 0; index < troopSet.Count; index++)
+        {
+            if (string.Equals(Normalize(troopSet[index]), normalizedTroop, StringComparison.Ordinal))
+            {
+                return baseId.Value + index;
+            }
+        }
+
+        return null;
+    }
+
+    private static int? ResolveTribeUnitBaseId(string? tribe)
+    {
+        var value = (tribe ?? string.Empty).Trim().ToLowerInvariant();
+        if (value.Contains("roman"))
+        {
+            return 1;
+        }
+
+        if (value.Contains("teuton"))
+        {
+            return 11;
+        }
+
+        if (value.Contains("gaul"))
+        {
+            return 21;
+        }
+
+        if (value.Contains("egypt"))
+        {
+            return 51;
+        }
+
+        if (value.Contains("hun"))
+        {
+            return 61;
+        }
+
+        if (value.Contains("spartan"))
+        {
+            return 71;
         }
 
         return null;

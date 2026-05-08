@@ -17,6 +17,7 @@ public static class TaskCatalog
         "hero_manage",
         "hero_set_hide_mode",
         "upgrade_troops_at_smithy",
+        "build_troops",
         "send_farmlists",
     ];
 

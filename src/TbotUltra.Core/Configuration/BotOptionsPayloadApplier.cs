@@ -34,6 +34,30 @@ public static class BotOptionsPayloadApplier
         var postLoginAnalyzeFarmlists = source.PostLoginAnalyzeFarmlists;
         var postLoginAnalyzeHero = source.PostLoginAnalyzeHero;
         var postLoginReadTroopTrainingQueue = source.PostLoginReadTroopTrainingQueue;
+        var troopTrainingBarracksEnabled = source.TroopTrainingBarracksEnabled;
+        var troopTrainingBarracksTroopType = source.TroopTrainingBarracksTroopType;
+        var troopTrainingBarracksMaxQueueHours = source.TroopTrainingBarracksMaxQueueHours;
+        var troopTrainingBarracksAmountMode = source.TroopTrainingBarracksAmountMode;
+        var troopTrainingBarracksKeepResourcesPercent = source.TroopTrainingBarracksKeepResourcesPercent;
+        var troopTrainingBarracksRunMode = source.TroopTrainingBarracksRunMode;
+        var troopTrainingBarracksMinimumTroops = source.TroopTrainingBarracksMinimumTroops;
+        var troopTrainingBarracksMinimumResourcesPercent = source.TroopTrainingBarracksMinimumResourcesPercent;
+        var troopTrainingStableEnabled = source.TroopTrainingStableEnabled;
+        var troopTrainingStableTroopType = source.TroopTrainingStableTroopType;
+        var troopTrainingStableMaxQueueHours = source.TroopTrainingStableMaxQueueHours;
+        var troopTrainingStableAmountMode = source.TroopTrainingStableAmountMode;
+        var troopTrainingStableKeepResourcesPercent = source.TroopTrainingStableKeepResourcesPercent;
+        var troopTrainingStableRunMode = source.TroopTrainingStableRunMode;
+        var troopTrainingStableMinimumTroops = source.TroopTrainingStableMinimumTroops;
+        var troopTrainingStableMinimumResourcesPercent = source.TroopTrainingStableMinimumResourcesPercent;
+        var troopTrainingWorkshopEnabled = source.TroopTrainingWorkshopEnabled;
+        var troopTrainingWorkshopTroopType = source.TroopTrainingWorkshopTroopType;
+        var troopTrainingWorkshopMaxQueueHours = source.TroopTrainingWorkshopMaxQueueHours;
+        var troopTrainingWorkshopAmountMode = source.TroopTrainingWorkshopAmountMode;
+        var troopTrainingWorkshopKeepResourcesPercent = source.TroopTrainingWorkshopKeepResourcesPercent;
+        var troopTrainingWorkshopRunMode = source.TroopTrainingWorkshopRunMode;
+        var troopTrainingWorkshopMinimumTroops = source.TroopTrainingWorkshopMinimumTroops;
+        var troopTrainingWorkshopMinimumResourcesPercent = source.TroopTrainingWorkshopMinimumResourcesPercent;
 
         if (payload is not null)
         {
@@ -226,6 +250,162 @@ public static class BotOptionsPayloadApplier
                     && bool.TryParse(value, out var readTroopTrainingQueue))
                 {
                     postLoginReadTroopTrainingQueue = readTroopTrainingQueue;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksEnabled, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var barracksEnabled))
+                {
+                    troopTrainingBarracksEnabled = barracksEnabled;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksTroopType, StringComparison.OrdinalIgnoreCase))
+                {
+                    troopTrainingBarracksTroopType = value;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksMaxQueueHours, StringComparison.OrdinalIgnoreCase))
+                {
+                    troopTrainingBarracksMaxQueueHours = value;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksAmountMode, StringComparison.OrdinalIgnoreCase))
+                {
+                    troopTrainingBarracksAmountMode = value;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksKeepResourcesPercent, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var barracksKeepPercent))
+                {
+                    troopTrainingBarracksKeepResourcesPercent = Math.Clamp(barracksKeepPercent, 0, 95);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksRunMode, StringComparison.OrdinalIgnoreCase))
+                {
+                    troopTrainingBarracksRunMode = value;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksMinimumTroops, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var barracksMinimumTroops))
+                {
+                    troopTrainingBarracksMinimumTroops = Math.Max(1, barracksMinimumTroops);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksMinimumResourcesPercent, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var barracksMinimumResourcesPercent))
+                {
+                    troopTrainingBarracksMinimumResourcesPercent = Math.Clamp(barracksMinimumResourcesPercent, 1, 100);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableEnabled, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var stableEnabled))
+                {
+                    troopTrainingStableEnabled = stableEnabled;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableTroopType, StringComparison.OrdinalIgnoreCase))
+                {
+                    troopTrainingStableTroopType = value;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableMaxQueueHours, StringComparison.OrdinalIgnoreCase))
+                {
+                    troopTrainingStableMaxQueueHours = value;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableAmountMode, StringComparison.OrdinalIgnoreCase))
+                {
+                    troopTrainingStableAmountMode = value;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableKeepResourcesPercent, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var stableKeepPercent))
+                {
+                    troopTrainingStableKeepResourcesPercent = Math.Clamp(stableKeepPercent, 0, 95);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableRunMode, StringComparison.OrdinalIgnoreCase))
+                {
+                    troopTrainingStableRunMode = value;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableMinimumTroops, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var stableMinimumTroops))
+                {
+                    troopTrainingStableMinimumTroops = Math.Max(1, stableMinimumTroops);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableMinimumResourcesPercent, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var stableMinimumResourcesPercent))
+                {
+                    troopTrainingStableMinimumResourcesPercent = Math.Clamp(stableMinimumResourcesPercent, 1, 100);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopEnabled, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var workshopEnabled))
+                {
+                    troopTrainingWorkshopEnabled = workshopEnabled;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopTroopType, StringComparison.OrdinalIgnoreCase))
+                {
+                    troopTrainingWorkshopTroopType = value;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopMaxQueueHours, StringComparison.OrdinalIgnoreCase))
+                {
+                    troopTrainingWorkshopMaxQueueHours = value;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopAmountMode, StringComparison.OrdinalIgnoreCase))
+                {
+                    troopTrainingWorkshopAmountMode = value;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopKeepResourcesPercent, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var workshopKeepPercent))
+                {
+                    troopTrainingWorkshopKeepResourcesPercent = Math.Clamp(workshopKeepPercent, 0, 95);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopRunMode, StringComparison.OrdinalIgnoreCase))
+                {
+                    troopTrainingWorkshopRunMode = value;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopMinimumTroops, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var workshopMinimumTroops))
+                {
+                    troopTrainingWorkshopMinimumTroops = Math.Max(1, workshopMinimumTroops);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopMinimumResourcesPercent, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var workshopMinimumResourcesPercent))
+                {
+                    troopTrainingWorkshopMinimumResourcesPercent = Math.Clamp(workshopMinimumResourcesPercent, 1, 100);
                 }
             }
         }
@@ -251,6 +431,30 @@ public static class BotOptionsPayloadApplier
             PostLoginAnalyzeFarmlists = postLoginAnalyzeFarmlists,
             PostLoginAnalyzeHero = postLoginAnalyzeHero,
             PostLoginReadTroopTrainingQueue = postLoginReadTroopTrainingQueue,
+            TroopTrainingBarracksEnabled = troopTrainingBarracksEnabled,
+            TroopTrainingBarracksTroopType = troopTrainingBarracksTroopType,
+            TroopTrainingBarracksMaxQueueHours = troopTrainingBarracksMaxQueueHours,
+            TroopTrainingBarracksAmountMode = troopTrainingBarracksAmountMode,
+            TroopTrainingBarracksKeepResourcesPercent = troopTrainingBarracksKeepResourcesPercent,
+            TroopTrainingBarracksRunMode = troopTrainingBarracksRunMode,
+            TroopTrainingBarracksMinimumTroops = troopTrainingBarracksMinimumTroops,
+            TroopTrainingBarracksMinimumResourcesPercent = troopTrainingBarracksMinimumResourcesPercent,
+            TroopTrainingStableEnabled = troopTrainingStableEnabled,
+            TroopTrainingStableTroopType = troopTrainingStableTroopType,
+            TroopTrainingStableMaxQueueHours = troopTrainingStableMaxQueueHours,
+            TroopTrainingStableAmountMode = troopTrainingStableAmountMode,
+            TroopTrainingStableKeepResourcesPercent = troopTrainingStableKeepResourcesPercent,
+            TroopTrainingStableRunMode = troopTrainingStableRunMode,
+            TroopTrainingStableMinimumTroops = troopTrainingStableMinimumTroops,
+            TroopTrainingStableMinimumResourcesPercent = troopTrainingStableMinimumResourcesPercent,
+            TroopTrainingWorkshopEnabled = troopTrainingWorkshopEnabled,
+            TroopTrainingWorkshopTroopType = troopTrainingWorkshopTroopType,
+            TroopTrainingWorkshopMaxQueueHours = troopTrainingWorkshopMaxQueueHours,
+            TroopTrainingWorkshopAmountMode = troopTrainingWorkshopAmountMode,
+            TroopTrainingWorkshopKeepResourcesPercent = troopTrainingWorkshopKeepResourcesPercent,
+            TroopTrainingWorkshopRunMode = troopTrainingWorkshopRunMode,
+            TroopTrainingWorkshopMinimumTroops = troopTrainingWorkshopMinimumTroops,
+            TroopTrainingWorkshopMinimumResourcesPercent = troopTrainingWorkshopMinimumResourcesPercent,
             GithubReleasesUrl = source.GithubReleasesUrl,
             HumanLikeEnabled = source.HumanLikeEnabled,
             HumanLikeSpeed = source.HumanLikeSpeed,

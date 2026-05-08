@@ -1,3 +1,5 @@
+using TbotUltra.Core.Travian;
+
 namespace TbotUltra.Worker.Domain;
 
 public sealed record Village(
@@ -115,6 +117,15 @@ public sealed record HeroAdventureDispatchResult(
     bool WasRevived = false,
     bool IsOnTheWayHome = false);
 
+public sealed record TroopTrainingQueueStatus(
+    TroopTrainingBuildingType BuildingType,
+    string BuildingName,
+    bool Exists,
+    int? SlotId,
+    IReadOnlyList<BuildQueueItem> QueueItems,
+    int? RemainingSeconds,
+    string RemainingText);
+
 public sealed record VillageStatus(
     string ActiveVillage,
     IReadOnlyList<Village> Villages,
@@ -136,7 +147,8 @@ public sealed record VillageStatus(
     int UnreadReports = 0,
     int? WarehouseCapacity = null,
     int? GranaryCapacity = null,
-    IReadOnlyList<ResourceStorageForecast>? ResourceStorageForecasts = null);
+    IReadOnlyList<ResourceStorageForecast>? ResourceStorageForecasts = null,
+    IReadOnlyList<TroopTrainingQueueStatus>? TroopTrainingQueues = null);
 
 public sealed record InboxStatus(
     int UnreadMessages = 0,

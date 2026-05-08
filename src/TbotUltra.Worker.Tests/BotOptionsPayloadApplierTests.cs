@@ -28,6 +28,11 @@ public sealed class BotOptionsPayloadApplierTests
             HeroAutoAssignPoints = true,
             HeroStatPriority = "offense,resource,regeneration",
             UpgradeSelectorProfile = "auto",
+            TroopTrainingBarracksEnabled = true,
+            TroopTrainingBarracksTroopType = "Legionnaire",
+            TroopTrainingBarracksMaxQueueHours = "10",
+            TroopTrainingBarracksAmountMode = "maximum",
+            TroopTrainingBarracksKeepResourcesPercent = 10,
         };
 
         var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -46,6 +51,11 @@ public sealed class BotOptionsPayloadApplierTests
             [BotOptionPayloadKeys.HeroAutoAssignPoints] = "false",
             [BotOptionPayloadKeys.HeroStatPriority] = "resource,offense",
             [BotOptionPayloadKeys.UpgradeSelectorProfile] = "strict_green",
+            [BotOptionPayloadKeys.TroopTrainingBarracksEnabled] = "false",
+            [BotOptionPayloadKeys.TroopTrainingBarracksTroopType] = "Praetorian",
+            [BotOptionPayloadKeys.TroopTrainingBarracksMaxQueueHours] = "50",
+            [BotOptionPayloadKeys.TroopTrainingBarracksAmountMode] = "keep_resources",
+            [BotOptionPayloadKeys.TroopTrainingBarracksKeepResourcesPercent] = "25",
         };
 
         var result = BotOptionsPayloadApplier.Apply(source, payload);
@@ -64,5 +74,10 @@ public sealed class BotOptionsPayloadApplierTests
         Assert.False(result.HeroAutoAssignPoints);
         Assert.Equal("resource,offense", result.HeroStatPriority);
         Assert.Equal("strict_green", result.UpgradeSelectorProfile);
+        Assert.False(result.TroopTrainingBarracksEnabled);
+        Assert.Equal("Praetorian", result.TroopTrainingBarracksTroopType);
+        Assert.Equal("50", result.TroopTrainingBarracksMaxQueueHours);
+        Assert.Equal("keep_resources", result.TroopTrainingBarracksAmountMode);
+        Assert.Equal(25, result.TroopTrainingBarracksKeepResourcesPercent);
     }
 }

@@ -560,29 +560,83 @@
                                                                     </Style.Triggers>
                                                                 </Style>
                                                             </Border.Style>
-                                                            <StackPanel VerticalAlignment="Center">
-                                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" Foreground="#111827" />
-                                                                    <TextBlock Text="Running" Margin="8,0,0,0" Foreground="#16A34A" FontSize="12" FontWeight="SemiBold">
-                                                                        <TextBlock.Style>
-                                                                            <Style TargetType="TextBlock">
-                                                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                                                <Style.Triggers>
-                                                                                    <DataTrigger Binding="{Binding IsRunning}" Value="True">
-                                                                                        <Setter Property="Visibility" Value="Visible" />
-                                                                                    </DataTrigger>
-                                                                                </Style.Triggers>
-                                                                            </Style>
-                                                                        </TextBlock.Style>
-                                                                    </TextBlock>
+                                                            <Grid VerticalAlignment="Center">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                </Grid.ColumnDefinitions>
+
+                                                                <StackPanel Grid.Column="0">
+                                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" Foreground="#111827" />
+                                                                        <TextBlock Text="Running" Margin="8,0,0,0" Foreground="#16A34A" FontSize="12" FontWeight="SemiBold">
+                                                                            <TextBlock.Style>
+                                                                                <Style TargetType="TextBlock">
+                                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                                                                            <Setter Property="Visibility" Value="Visible" />
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </TextBlock.Style>
+                                                                        </TextBlock>
+                                                                    </StackPanel>
+                                                                    <TextBlock Text="{Binding Description}" Foreground="#4B5563" FontSize="12" Margin="0,2,0,0" />
+                                                                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                                                        <TextBlock Text="{Binding StateText}" Foreground="#1D4ED8" FontSize="12" FontWeight="SemiBold" Margin="0,0,10,0" />
+                                                                        <TextBlock Text="{Binding QueuedCount, StringFormat=Queued: {0}}" Foreground="#4B5563" FontSize="12" />
+                                                                    </StackPanel>
+                                                                    <TextBlock Text="{Binding DetailText}" Foreground="#6B7280" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap" />
                                                                 </StackPanel>
-                                                                <TextBlock Text="{Binding Description}" Foreground="#4B5563" FontSize="12" Margin="0,2,0,0" />
-                                                                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                                                                    <TextBlock Text="{Binding StateText}" Foreground="#1D4ED8" FontSize="12" FontWeight="SemiBold" Margin="0,0,10,0" />
-                                                                    <TextBlock Text="{Binding QueuedCount, StringFormat=Queued: {0}}" Foreground="#4B5563" FontSize="12" />
-                                                                </StackPanel>
-                                                                <TextBlock Text="{Binding DetailText}" Foreground="#6B7280" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap" />
-                                                            </StackPanel>
+
+                                                                <ItemsControl Grid.Column="1"
+                                                                              ItemsSource="{Binding TroopTrainingBuildings, ElementName=RootWindow}"
+                                                                              Margin="16,0,0,0"
+                                                                              VerticalAlignment="Center">
+                                                                    <ItemsControl.Style>
+                                                                        <Style TargetType="ItemsControl">
+                                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding TaskName}" Value="troop_training">
+                                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </ItemsControl.Style>
+                                                                    <ItemsControl.ItemsPanel>
+                                                                        <ItemsPanelTemplate>
+                                                                            <UniformGrid Columns="3" />
+                                                                        </ItemsPanelTemplate>
+                                                                    </ItemsControl.ItemsPanel>
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <StackPanel Margin="0,0,10,0">
+                                                                                <TextBlock Text="{Binding Title}"
+                                                                                           FontSize="13"
+                                                                                           FontWeight="SemiBold"
+                                                                                           Foreground="#111827"
+                                                                                           HorizontalAlignment="Center"
+                                                                                           TextAlignment="Center" />
+                                                                                <Border Margin="0,8,0,0"
+                                                                                        HorizontalAlignment="Center"
+                                                                                        Width="96"
+                                                                                        Padding="8,4"
+                                                                                        CornerRadius="8"
+                                                                                        Background="{Binding QueueBadgeBackground}"
+                                                                                        BorderBrush="{Binding QueueBadgeBorderBrush}"
+                                                                                        BorderThickness="1">
+                                                                                    <TextBlock Text="{Binding QueueTimerText}"
+                                                                                               Foreground="{Binding QueueBadgeForeground}"
+                                                                                               FontWeight="SemiBold"
+                                                                                               HorizontalAlignment="Center"
+                                                                                               TextAlignment="Center" />
+                                                                                </Border>
+                                                                            </StackPanel>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </Grid>
                                                         </Border>
 
                                                         <StackPanel Grid.Column="2"
@@ -616,7 +670,11 @@
                                                                     <Style TargetType="Border">
                                                                         <Setter Property="Background" Value="#DCFCE7" />
                                                                         <Setter Property="BorderBrush" Value="#22C55E" />
+                                                                        <Setter Property="Visibility" Value="Visible" />
                                                                         <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding TaskName}" Value="troop_training">
+                                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                            </DataTrigger>
                                                                             <DataTrigger Binding="{Binding IsBlocked}" Value="True">
                                                                                 <Setter Property="Background" Value="#E5E7EB" />
                                                                                 <Setter Property="BorderBrush" Value="#9CA3AF" />
@@ -1429,28 +1487,328 @@
 
                 <TabItem x:Name="TroopsTabItem" Header="Troops">
                     <Grid>
-                        <Border Background="#FFFFFF"
-                                BorderBrush="#D1D5DB"
-                                BorderThickness="1"
-                                CornerRadius="8"
-                                Padding="12">
-                            <StackPanel>
-                                <TextBlock Text="Troops"
-                                           FontSize="22"
-                                           FontWeight="SemiBold"
-                                           Foreground="#111827"
-                                           Margin="0,0,0,12" />
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Text="Troops"
+                                   FontSize="22"
+                                   FontWeight="SemiBold"
+                                   Foreground="#111827"
+                                   Margin="0,0,0,12" />
+
+                        <Grid Grid.Row="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="320" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0"
+                                    Background="#FFFFFF"
+                                    BorderBrush="#D1D5DB"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="12">
+                                <StackPanel>
+                                    <TextBlock Text="Upgrade"
+                                               FontSize="18"
+                                               FontWeight="SemiBold"
+                                               Foreground="#111827"
+                                               Margin="0,0,0,8" />
                                     <Button x:Name="UpgradeTroopsButton"
                                             Content="Upgrade troops"
                                             Width="150"
                                             Click="UpgradeTroopsButton_Click" />
+                                    <TextBlock Text="Smithy upgrades stay separate from troop building."
+                                               Foreground="#6B7280"
+                                               TextWrapping="Wrap"
+                                               Margin="0,8,0,0" />
                                 </StackPanel>
-                                <TextBlock x:Name="TroopsInfoTextBlock"
-                                           Foreground="#6B7280"
-                                           Margin="0,4,0,0" />
-                            </StackPanel>
-                        </Border>
+                            </Border>
+
+                            <Border Grid.Column="2"
+                                    Background="#FFFFFF"
+                                    BorderBrush="#D1D5DB"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="12">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="Build troops"
+                                                   FontSize="18"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#111827" />
+                                        <StackPanel Grid.Column="2"
+                                                    Orientation="Horizontal"
+                                                    HorizontalAlignment="Right"
+                                                    Margin="16,0,0,0">
+                                            <Button x:Name="BuildTroopsNowButton"
+                                                    Content="Build now"
+                                                    Width="92"
+                                                    Margin="0,0,8,0"
+                                                    Click="BuildTroopsNowButton_Click" />
+                                            <Button x:Name="RefreshTroopQueuesButton"
+                                                    Content="Refresh queues"
+                                                    Width="110"
+                                                    Click="RefreshTroopQueuesButton_Click" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <TextBlock x:Name="TroopsInfoTextBlock"
+                                               Foreground="#6B7280"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,10" />
+
+                                    <ItemsControl ItemsSource="{Binding TroopTrainingBuildings, ElementName=RootWindow}"
+                                                  Margin="0,0,0,10">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <UniformGrid Columns="3" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border BorderBrush="#E5E7EB"
+                                                        BorderThickness="1"
+                                                        CornerRadius="8"
+                                                        Padding="10"
+                                                        Margin="0,0,8,0"
+                                                        Background="#FFFFFF">
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Title}"
+                                                                   FontSize="13"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="#111827"
+                                                                   HorizontalAlignment="Center"
+                                                                   TextAlignment="Center" />
+                                                        <Border Margin="0,8,0,0"
+                                                                HorizontalAlignment="Center"
+                                                                Width="96"
+                                                                Padding="8,4"
+                                                                CornerRadius="8"
+                                                                Background="{Binding QueueBadgeBackground}"
+                                                                BorderBrush="{Binding QueueBadgeBorderBrush}"
+                                                                BorderThickness="1">
+                                                            <TextBlock Text="{Binding QueueTimerText}"
+                                                                       Foreground="{Binding QueueBadgeForeground}"
+                                                                       FontWeight="SemiBold"
+                                                                       HorizontalAlignment="Center"
+                                                                       TextAlignment="Center" />
+                                                        </Border>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <ItemsControl ItemsSource="{Binding TroopTrainingBuildings, ElementName=RootWindow}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border BorderBrush="#E5E7EB"
+                                                        BorderThickness="1"
+                                                        CornerRadius="8"
+                                                        Padding="10"
+                                                        Margin="0,0,0,10"
+                                                        Background="#F9FAFB">
+                                                    <StackPanel>
+                                                        <Grid Margin="0,0,0,8">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="180" />
+                                                                <ColumnDefinition Width="160" />
+                                                                <ColumnDefinition Width="190" />
+                                                                <ColumnDefinition Width="210" />
+                                                                <ColumnDefinition Width="110" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <StackPanel Grid.Column="0"
+                                                                        Margin="0,0,10,0">
+                                                                <TextBlock Text="{Binding Title}"
+                                                                           FontSize="15"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="#111827" />
+                                                            </StackPanel>
+                                                            <TextBlock Grid.Column="1"
+                                                                       Text="Troop"
+                                                                       Foreground="#6B7280"
+                                                                       FontSize="11"
+                                                                       Margin="8,4,0,0"
+                                                                       VerticalAlignment="Bottom" />
+                                                            <TextBlock Grid.Column="2"
+                                                                       Text="Max build queue"
+                                                                       Foreground="#6B7280"
+                                                                       FontSize="11"
+                                                                       Margin="0,4,0,0"
+                                                                       VerticalAlignment="Bottom" />
+                                                            <TextBlock Grid.Column="3"
+                                                                       Text="Amount mode"
+                                                                       Foreground="#6B7280"
+                                                                       FontSize="11"
+                                                                       Margin="0,4,0,0"
+                                                                       VerticalAlignment="Bottom" />
+                                                            <TextBlock Grid.Column="4"
+                                                                       Text="Keep %"
+                                                                       Foreground="#6B7280"
+                                                                       FontSize="11"
+                                                                       Margin="0,4,0,0"
+                                                                       VerticalAlignment="Bottom" />
+                                                        </Grid>
+
+                                                        <Grid Margin="0,0,0,8">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="180" />
+                                                                <ColumnDefinition Width="160" />
+                                                                <ColumnDefinition Width="190" />
+                                                                <ColumnDefinition Width="210" />
+                                                                <ColumnDefinition Width="110" />
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <CheckBox Grid.Column="0"
+                                                                      Content="Build troops"
+                                                                      VerticalAlignment="Center"
+                                                                      IsChecked="{Binding IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                                            <ComboBox Grid.Column="1"
+                                                                      Margin="8,0,8,0"
+                                                                      ItemsSource="{Binding TroopOptions}"
+                                                                      SelectedItem="{Binding SelectedTroop, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                      Width="160"
+                                                                      HorizontalAlignment="Left"
+                                                                      HorizontalContentAlignment="Left" />
+
+                                                            <ComboBox Grid.Column="2"
+                                                                      Margin="0,0,8,0"
+                                                                      Width="190"
+                                                                      HorizontalAlignment="Left"
+                                                                      HorizontalContentAlignment="Left"
+                                                                      SelectedValuePath="Tag"
+                                                                      SelectedValue="{Binding MaxQueueMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                                <ComboBoxItem Content="1h" Tag="1" />
+                                                                <ComboBoxItem Content="2h" Tag="2" />
+                                                                <ComboBoxItem Content="3h" Tag="3" />
+                                                                <ComboBoxItem Content="5h" Tag="5" />
+                                                                <ComboBoxItem Content="10h" Tag="10" />
+                                                                <ComboBoxItem Content="20h" Tag="20" />
+                                                                <ComboBoxItem Content="50h" Tag="50" />
+                                                                <ComboBoxItem Content="100h" Tag="100" />
+                                                                <ComboBoxItem Content="No limit" Tag="no_limit" />
+                                                            </ComboBox>
+
+                                                            <ComboBox Grid.Column="3"
+                                                                      Margin="0,0,8,0"
+                                                                      Width="210"
+                                                                      HorizontalAlignment="Left"
+                                                                      HorizontalContentAlignment="Left"
+                                                                      SelectedValuePath="Tag"
+                                                                      SelectedValue="{Binding AmountMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                                <ComboBoxItem Content="Maximum" Tag="maximum" />
+                                                                <ComboBoxItem Content="Keep resources" Tag="keep_resources" />
+                                                            </ComboBox>
+
+                                                            <ComboBox Grid.Column="4"
+                                                                      Width="110"
+                                                                      HorizontalAlignment="Left"
+                                                                      HorizontalContentAlignment="Left"
+                                                                      SelectedValuePath="Tag"
+                                                                      SelectedValue="{Binding KeepResourcesPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                      IsEnabled="{Binding UsesKeepResourcesMode}">
+                                                                <ComboBoxItem Content="0%" Tag="0" />
+                                                                <ComboBoxItem Content="5%" Tag="5" />
+                                                                <ComboBoxItem Content="10%" Tag="10" />
+                                                                <ComboBoxItem Content="15%" Tag="15" />
+                                                                <ComboBoxItem Content="20%" Tag="20" />
+                                                                <ComboBoxItem Content="25%" Tag="25" />
+                                                                <ComboBoxItem Content="30%" Tag="30" />
+                                                                <ComboBoxItem Content="40%" Tag="40" />
+                                                                <ComboBoxItem Content="50%" Tag="50" />
+                                                                <ComboBoxItem Content="60%" Tag="60" />
+                                                                <ComboBoxItem Content="70%" Tag="70" />
+                                                                <ComboBoxItem Content="80%" Tag="80" />
+                                                                <ComboBoxItem Content="90%" Tag="90" />
+                                                            </ComboBox>
+                                                        </Grid>
+
+                                                        <Grid Margin="0,0,0,4">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="180" />
+                                                                <ColumnDefinition Width="220" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <TextBlock Grid.Column="0"
+                                                                       Text="Run trigger"
+                                                                       Foreground="#6B7280"
+                                                                       FontSize="11"
+                                                                       VerticalAlignment="Center" />
+
+                                                            <StackPanel Grid.Column="1"
+                                                                        Orientation="Horizontal"
+                                                                        VerticalAlignment="Center">
+                                                                <RadioButton Content="Min troops"
+                                                                             Margin="0,0,12,0"
+                                                                             IsChecked="{Binding IsMinimumTroopsMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                                <RadioButton Content="% resources"
+                                                                             IsChecked="{Binding IsResourcePercentMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                            </StackPanel>
+
+                                                            <Grid Grid.Column="2">
+                                                                <TextBox Width="88"
+                                                                         Height="28"
+                                                                         HorizontalAlignment="Left"
+                                                                         VerticalAlignment="Center"
+                                                                         Text="{Binding MinimumTroopsText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}">
+                                                                    <TextBox.Style>
+                                                                        <Style TargetType="TextBox">
+                                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding UsesMinimumTroopsMode}" Value="True">
+                                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBox.Style>
+                                                                </TextBox>
+
+                                                                    <StackPanel Orientation="Horizontal"
+                                                                                VerticalAlignment="Center">
+                                                                        <StackPanel.Style>
+                                                                            <Style TargetType="StackPanel">
+                                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding UsesResourcePercentMode}" Value="True">
+                                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                        </StackPanel.Style>
+                                                                    <Slider Width="170"
+                                                                            Minimum="1"
+                                                                            Maximum="100"
+                                                                            TickFrequency="1"
+                                                                            IsSnapToTickEnabled="True"
+                                                                            Value="{Binding MinimumResourcesPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                                    <TextBlock Text="{Binding MinimumResourcesPercent, StringFormat={}{0}%}"
+                                                                               Margin="10,0,0,0"
+                                                                               VerticalAlignment="Center"
+                                                                               Foreground="#374151"
+                                                                               FontWeight="SemiBold" />
+                                                                </StackPanel>
+                                                            </Grid>
+                                                        </Grid>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
                     </Grid>
                 </TabItem>
 

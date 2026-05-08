@@ -11,6 +11,7 @@ public static class QueueGroupCatalog
             [QueueGroup.Troops] = ("troops", "Upgrade Troops", "Smithy and troop tasks."),
             [QueueGroup.Hero] = ("hero", "Hero", "Hero actions and adventures."),
             [QueueGroup.Farming] = ("farming", "Farming", "Selected farmlists."),
+            [QueueGroup.TroopTraining] = ("troop_training", "Build Troops", "Barracks, Stable, and Workshop."),
         };
 
     public static IReadOnlyList<QueueGroup> AllGroups => Metadata.Keys.ToList();
@@ -39,6 +40,11 @@ public static class QueueGroupCatalog
         if (string.Equals(taskName, "upgrade_troops_at_smithy", StringComparison.OrdinalIgnoreCase))
         {
             return QueueGroup.Troops;
+        }
+
+        if (string.Equals(taskName, "build_troops", StringComparison.OrdinalIgnoreCase))
+        {
+            return QueueGroup.TroopTraining;
         }
 
         return QueueGroup.Construction;

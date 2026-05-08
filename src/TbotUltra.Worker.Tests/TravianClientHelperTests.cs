@@ -1,5 +1,6 @@
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
+using TbotUltra.Core.Travian;
 using Xunit;
 using System.Reflection;
 
@@ -113,6 +114,59 @@ public sealed class TravianClientHelperTests
             new BuildQueueItem("B", "garbage"),
         ];
         Assert.Null(TravianClient.ResolveShortestQueueDurationSeconds(unparseable));
+    }
+
+    [Fact]
+    public void ResolveTroopTrainingQueueRemainingSeconds_ReturnsLongestOrZero()
+    {
+        IReadOnlyList<BuildQueueItem> queue =
+        [
+            new BuildQueueItem("A", "00:05:00"),
+            new BuildQueueItem("B", "01:15:00"),
+            new BuildQueueItem("C", null),
+        ];
+
+        Assert.Equal(4500, TravianClient.ResolveTroopTrainingQueueRemainingSeconds(queue));
+        Assert.Equal(0, TravianClient.ResolveTroopTrainingQueueRemainingSeconds([]));
+    }
+
+    [Theory]
+    [InlineData("no_limit", null)]
+    [InlineData("50", 180000)]
+    [InlineData("1", 3600)]
+    [InlineData("", null)]
+    public void TryParseTroopTrainingQueueLimitSeconds_ParsesExpectedValues(string value, int? expected)
+    {
+        Assert.Equal(expected, TravianClient.TryParseTroopTrainingQueueLimitSeconds(value));
+    }
+
+    [Theory]
+    [InlineData("maximum", 0, 10, 10)]
+    [InlineData("keep_resources", 10, 10, 9)]
+    [InlineData("keep_resources", 50, 10, 5)]
+    [InlineData("keep_resources", 95, 10, 0)]
+    public void CalculateTroopTrainingAmount_RespectsModeAndReserve(string amountMode, int keepPercent, int unitCost, int expected)
+    {
+        IReadOnlyDictionary<string, int> resources = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["wood"] = 100,
+            ["clay"] = 100,
+            ["iron"] = 100,
+            ["crop"] = 100,
+        };
+
+        var amount = TravianClient.CalculateTroopTrainingAmount(resources, unitCost, unitCost, unitCost, unitCost, amountMode, keepPercent);
+        Assert.Equal(expected, amount);
+    }
+
+    [Theory]
+    [InlineData("maximum", "maximum")]
+    [InlineData("keep_resources", "keep_resources")]
+    [InlineData("KEEP_RESOURCES", "keep_resources")]
+    [InlineData("", "maximum")]
+    public void NormalizeTroopTrainingAmountMode_NormalizesExpectedValues(string value, string expected)
+    {
+        Assert.Equal(expected, TravianClient.NormalizeTroopTrainingAmountMode(value));
     }
 
     [Theory]

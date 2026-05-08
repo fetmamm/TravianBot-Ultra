@@ -39,6 +39,8 @@ public sealed class BotTaskRunner
             ["hero_set_hide_mode"] = ExecuteHeroSetHideModeAsync,
             // Walks through the Smithy and clicks every "Upgrade" button until none remain.
             ["upgrade_troops_at_smithy"] = ExecuteUpgradeTroopsAtSmithyAsync,
+            // Builds troops from Barracks, Stable, or Workshop based on configured rules.
+            ["build_troops"] = ExecuteBuildTroopsAsync,
             // Sends one of the selected farmlists that is ready right now.
             ["send_farmlists"] = ExecuteSendFarmlistsAsync,
         };
@@ -179,6 +181,11 @@ public sealed class BotTaskRunner
                 // the authoritative profile page before the lighter status reads use the cache.
                 await client.ReadAccountSnapshotAsync(forceRefreshVillages: true, cancellationToken);
                 var villageStatus = await client.ReadVillageStatusAsync(cancellationToken);
+                if (options.PostLoginReadTroopTrainingQueue)
+                {
+                    var troopQueues = await client.ReadTroopTrainingQueuesAsync(villageStatus.Buildings, cancellationToken);
+                    villageStatus = villageStatus with { TroopTrainingQueues = troopQueues };
+                }
                 var inboxStatus = new InboxStatus(villageStatus.UnreadMessages, villageStatus.UnreadReports);
 
                 await client.NavigateToResourceFieldsAsync(cancellationToken);
@@ -454,6 +461,30 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             });
 
         return status ?? throw new InvalidOperationException("Could not read buildings status.");
+    }
+
+    public async Task<IReadOnlyList<TroopTrainingQueueStatus>> ReadTroopTrainingQueuesAsync(
+        BotOptions options,
+        Action<string> log,
+        IReadOnlyList<Building>? knownBuildings = null,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<TroopTrainingQueueStatus> statuses = [];
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: true,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken, skipFeatureRefresh: true);
+                statuses = await client.ReadTroopTrainingQueuesAsync(knownBuildings, cancellationToken);
+            });
+
+        return statuses;
     }
 
     public async Task<InboxStatus> ReadInboxStatusAsync(
@@ -912,6 +943,14 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
         await RefreshBuildingsSnapshotAfterTaskAsync(context);
         ThrowIfTroopsGroupBlocked(result);
         ThrowIfTaskBlocked("upgrade_troops_at_smithy", result);
+    }
+
+    private static async Task ExecuteBuildTroopsAsync(TaskExecutionContext context)
+    {
+        context.Log("build_troops: starting.");
+        var result = await context.Client.BuildTroopsAsync(context.CancellationToken);
+        context.Log(result);
+        ThrowIfTaskBlocked("build_troops", result);
     }
 
     private static async Task ExecuteLoadBuildingsSnapshotAsync(TaskExecutionContext context)
