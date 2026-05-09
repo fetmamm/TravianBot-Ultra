@@ -673,7 +673,8 @@
                     </Grid>
                 </TabItem>
 
-                <TabItem x:Name="ResourcesTabItem" Header="Resources">
+                <TabItem x:Name="ResourcesTabItem" Header="Resources"
+                         DataContext="{Binding ResourcesVm, ElementName=RootWindow}">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -706,7 +707,7 @@
 
                                 <StackPanel Grid.Column="0" Width="190" Margin="0,0,8,0">
                                     <TextBlock Text="Woodcutter" Foreground="#0F766E" FontWeight="SemiBold" Margin="0,0,0,8" />
-                                    <ItemsControl ItemsSource="{Binding WoodFields, ElementName=RootWindow}">
+                                    <ItemsControl ItemsSource="{Binding WoodFields}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
                                                 <Border Background="#E4F2F1" CornerRadius="6" Padding="8" Margin="0,0,0,6" Width="170">
@@ -734,7 +735,7 @@
 
                                 <StackPanel Grid.Column="1" Width="190" Margin="0,0,8,0">
                                     <TextBlock Text="Clay Pit" Foreground="#DC4C1D" FontWeight="SemiBold" Margin="0,0,0,8" />
-                                    <ItemsControl ItemsSource="{Binding ClayFields, ElementName=RootWindow}">
+                                    <ItemsControl ItemsSource="{Binding ClayFields}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
                                                 <Border Background="#FDECE5" CornerRadius="6" Padding="8" Margin="0,0,0,6" Width="170">
@@ -762,7 +763,7 @@
 
                                 <StackPanel Grid.Column="2" Width="190" Margin="0,0,8,0">
                                     <TextBlock Text="Iron Mine" Foreground="#334155" FontWeight="SemiBold" Margin="0,0,0,8" />
-                                    <ItemsControl ItemsSource="{Binding IronFields, ElementName=RootWindow}">
+                                    <ItemsControl ItemsSource="{Binding IronFields}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
                                                 <Border Background="#EAF0F4" CornerRadius="6" Padding="8" Margin="0,0,0,6" Width="170">
@@ -790,7 +791,7 @@
 
                                 <StackPanel x:Name="CroplandColumnPanel" Grid.Column="3" Width="190" Margin="0,0,0,0">
                                     <TextBlock Text="Cropland" Foreground="#C47F00" FontWeight="SemiBold" Margin="0,0,0,8" />
-                                    <ItemsControl x:Name="CroplandItemsControl" ItemsSource="{Binding CroplandFields, ElementName=RootWindow}">
+                                    <ItemsControl x:Name="CroplandItemsControl" ItemsSource="{Binding CroplandFields}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
                                                 <UniformGrid Columns="1" />

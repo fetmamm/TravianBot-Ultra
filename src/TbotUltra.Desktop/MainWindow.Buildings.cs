@@ -1603,10 +1603,10 @@ public partial class MainWindow
         // Resources tab — buildings snapshot doesn't carry them. Look them up directly.
         IEnumerable<ResourceFieldRow> rows = requirementName switch
         {
-            var n when n.Contains("Wood", StringComparison.OrdinalIgnoreCase) => _woodFields,
-            var n when n.Contains("Clay", StringComparison.OrdinalIgnoreCase) => _clayFields,
-            var n when n.Contains("Iron", StringComparison.OrdinalIgnoreCase) => _ironFields,
-            var n when n.Contains("Crop", StringComparison.OrdinalIgnoreCase) => _croplandFields,
+            var n when n.Contains("Wood", StringComparison.OrdinalIgnoreCase) => _resourcesViewModel.WoodFields,
+            var n when n.Contains("Clay", StringComparison.OrdinalIgnoreCase) => _resourcesViewModel.ClayFields,
+            var n when n.Contains("Iron", StringComparison.OrdinalIgnoreCase) => _resourcesViewModel.IronFields,
+            var n when n.Contains("Crop", StringComparison.OrdinalIgnoreCase) => _resourcesViewModel.CroplandFields,
             _ => [],
         };
         return rows

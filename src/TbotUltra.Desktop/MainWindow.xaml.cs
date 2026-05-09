@@ -117,10 +117,6 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<AlarmEntryRow> _alarmEntries = [];
     private readonly ObservableCollection<LoopTaskOption> _automationLoopTasks = [];
     private readonly ObservableCollection<FarmListStatusRow> _farmLists = [];
-    private readonly ObservableCollection<ResourceFieldRow> _woodFields = [];
-    private readonly ObservableCollection<ResourceFieldRow> _clayFields = [];
-    private readonly ObservableCollection<ResourceFieldRow> _ironFields = [];
-    private readonly ObservableCollection<ResourceFieldRow> _croplandFields = [];
     private readonly ObservableCollection<BuildingSlotRow> _buildingRows = [];
     private readonly ObservableCollection<BuildingCatalogOption> _buildingCatalogOptions = [];
     private readonly ObservableCollection<BuildingSlotRow> _demolishableBuildings = [];
@@ -155,6 +151,7 @@ public partial class MainWindow : Window
     private readonly HeroViewModel _heroViewModel = App.Services.GetRequiredService<HeroViewModel>();
     private readonly InboxViewModel _inboxViewModel = App.Services.GetRequiredService<InboxViewModel>();
     private readonly TroopTrainingViewModel _troopTrainingViewModel = App.Services.GetRequiredService<TroopTrainingViewModel>();
+    private readonly ResourcesViewModel _resourcesViewModel = App.Services.GetRequiredService<ResourcesViewModel>();
 
     /// <summary>
     /// Public accessor so XAML can bind to the hero view model via
@@ -175,6 +172,12 @@ public partial class MainWindow : Window
     /// inherits this as DataContext.
     /// </summary>
     public TroopTrainingViewModel TroopTrainingVm => _troopTrainingViewModel;
+
+    /// <summary>
+    /// Public accessor for the resources view model. The ResourcesTabItem
+    /// inherits this as DataContext.
+    /// </summary>
+    public ResourcesViewModel ResourcesVm => _resourcesViewModel;
     private readonly CancellationTokenSource _queueAutoRunCts = new();
     private CancellationTokenSource? _autoQueueRunCts;
     private readonly SemaphoreSlim _inboxRefreshGate = new(1, 1);
@@ -242,10 +245,6 @@ public partial class MainWindow : Window
     private bool _restartContinuousLoopAfterStop;
     private bool _startContinuousLoopAfterQueueStop;
 
-    public ObservableCollection<ResourceFieldRow> WoodFields => _woodFields;
-    public ObservableCollection<ResourceFieldRow> ClayFields => _clayFields;
-    public ObservableCollection<ResourceFieldRow> IronFields => _ironFields;
-    public ObservableCollection<ResourceFieldRow> CroplandFields => _croplandFields;
     public ObservableCollection<BuildingSlotRow> BuildingSlots => _buildingRows;
 
     private static bool IsPinnedBuildingTopSlot(int slotId)

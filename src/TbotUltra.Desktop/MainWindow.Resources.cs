@@ -516,10 +516,10 @@ public partial class MainWindow
 
     private void RepopulateResourceGroups(IEnumerable<ResourceFieldRow> rows)
     {
-        _woodFields.Clear();
-        _clayFields.Clear();
-        _ironFields.Clear();
-        _croplandFields.Clear();
+        _resourcesViewModel.WoodFields.Clear();
+        _resourcesViewModel.ClayFields.Clear();
+        _resourcesViewModel.IronFields.Clear();
+        _resourcesViewModel.CroplandFields.Clear();
 
         foreach (var row in rows.OrderBy(item => item.SlotId))
         {
@@ -536,7 +536,7 @@ public partial class MainWindow
             return;
         }
 
-        var isDenseCropland = _croplandFields.Count > 6;
+        var isDenseCropland = _resourcesViewModel.CroplandFields.Count > 6;
         var columns = isDenseCropland ? 2 : 1;
         var factory = new FrameworkElementFactory(typeof(UniformGrid));
         factory.SetValue(UniformGrid.ColumnsProperty, columns);
@@ -555,31 +555,31 @@ public partial class MainWindow
         var fieldType = row.FieldType?.Trim() ?? string.Empty;
         if (fieldType.Contains("wood", StringComparison.OrdinalIgnoreCase))
         {
-            return _woodFields;
+            return _resourcesViewModel.WoodFields;
         }
 
         if (fieldType.Contains("clay", StringComparison.OrdinalIgnoreCase))
         {
-            return _clayFields;
+            return _resourcesViewModel.ClayFields;
         }
 
         if (fieldType.Contains("iron", StringComparison.OrdinalIgnoreCase))
         {
-            return _ironFields;
+            return _resourcesViewModel.IronFields;
         }
 
         if (fieldType.Contains("crop", StringComparison.OrdinalIgnoreCase))
         {
-            return _croplandFields;
+            return _resourcesViewModel.CroplandFields;
         }
 
         return row.SlotId switch
         {
-            1 or 5 or 6 or 10 or 16 => _woodFields,
-            2 or 4 or 7 or 14 or 17 => _clayFields,
-            3 or 8 or 9 or 11 or 15 => _ironFields,
-            12 or 13 or 18 => _croplandFields,
-            _ => _croplandFields,
+            1 or 5 or 6 or 10 or 16 => _resourcesViewModel.WoodFields,
+            2 or 4 or 7 or 14 or 17 => _resourcesViewModel.ClayFields,
+            3 or 8 or 9 or 11 or 15 => _resourcesViewModel.IronFields,
+            12 or 13 or 18 => _resourcesViewModel.CroplandFields,
+            _ => _resourcesViewModel.CroplandFields,
         };
     }
 
