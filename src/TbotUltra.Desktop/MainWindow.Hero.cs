@@ -40,6 +40,26 @@ public partial class MainWindow
         }
     }
 
+    internal void PersistHeroSettingsToConfig()
+    {
+        try
+        {
+            var config = _botConfigStore.Load();
+            config[BotOptionPayloadKeys.HeroMinHpForAdventure] = _heroViewModel.MinHpForAdventure;
+            config[BotOptionPayloadKeys.HeroAutoRevive] = _heroViewModel.AutoRevive;
+            config[BotOptionPayloadKeys.HeroAutoAssignPoints] = _heroViewModel.AutoAssignPoints;
+            config[BotOptionPayloadKeys.HeroStatPriority] = _heroViewModel.BuildPriorityPayload();
+            config[BotOptionPayloadKeys.HeroAdventurePickOrder] = _heroViewModel.AdventurePickOrder;
+            config[BotOptionPayloadKeys.HeroHideMode] = _heroViewModel.HideMode;
+            config[BotOptionPayloadKeys.HeroContinuousAdventures] = _heroViewModel.ContinuousAdventures;
+            _botConfigStore.Save(config);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Could not save hero settings: {ex.Message}");
+        }
+    }
+
     /// <summary>
     /// Updates the adventure-count badge and the Hero blocked-state flag
     /// based on the latest adventure count. Stays on MainWindow because

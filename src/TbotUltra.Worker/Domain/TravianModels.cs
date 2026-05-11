@@ -84,8 +84,8 @@ public sealed record ServerBuildChoice(int Gid, string Name, bool Available, str
 
 public sealed record ResourceStorageForecast(
     string ResourceKey,
-    int? Current,
-    int? Capacity,
+    long? Current,
+    long? Capacity,
     double? PercentOfCapacity,
     double? ProductionPerHour,
     int? SecondsToFull);
@@ -145,8 +145,8 @@ public sealed record VillageStatus(
     DateTimeOffset? ServerTimeUtc = null,
     int UnreadMessages = 0,
     int UnreadReports = 0,
-    int? WarehouseCapacity = null,
-    int? GranaryCapacity = null,
+    long? WarehouseCapacity = null,
+    long? GranaryCapacity = null,
     IReadOnlyList<ResourceStorageForecast>? ResourceStorageForecasts = null,
     IReadOnlyList<TroopTrainingQueueStatus>? TroopTrainingQueues = null);
 

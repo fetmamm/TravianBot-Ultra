@@ -1,0 +1,536 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Input;
+using System.Windows.Media;
+using TbotUltra.Desktop.Models;
+
+namespace TbotUltra.Desktop;
+
+public partial class MainWindow
+{
+    private sealed record LogListAnchor(object? Item, bool FollowLiveTop);
+
+    private void CloseTerminalAlarmPopupButton_Click(object sender, RoutedEventArgs e)
+    {
+        MainTabControl.SelectedIndex = 0;
+    }
+
+    private void AcknowledgeAlarmButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_unacknowledgedAlarmCount == 0)
+        {
+            return;
+        }
+
+        AcknowledgeAllAlarmEntries();
+        StatusTextBlock.Text = "Alerts acknowledged.";
+        UpdateTerminalAlarmUi();
+    }
+
+    private void ClearCurrentLogButton_Click(object sender, RoutedEventArgs e)
+    {
+        var alarmsSelected = TerminalAlarmTabControl.SelectedIndex == 1;
+        if (alarmsSelected)
+        {
+            _alarmEntries.Clear();
+            _unacknowledgedAlarmCount = 0;
+        }
+        else
+        {
+            _terminalEntries.Clear();
+        }
+
+        UpdateTerminalAlarmUi();
+    }
+
+    private void CopyCurrentTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        var alertsTabSelected = TerminalAlarmTabControl.SelectedIndex == 1;
+        var list = alertsTabSelected ? AlarmListBox : TerminalListBox;
+        var selectedLines = alertsTabSelected
+            ? list.SelectedItems.Cast<AlarmEntryRow>().Select(item => item.Text).ToList()
+            : list.SelectedItems.Cast<string>().ToList();
+        var source = alertsTabSelected ? _alarmEntries.Select(item => item.Text).ToList() : _terminalEntries.ToList();
+        var linesToCopy = selectedLines.Count > 0 ? selectedLines : source;
+        if (linesToCopy.Count == 0)
+        {
+            return;
+        }
+
+        Clipboard.SetText(string.Join(Environment.NewLine, linesToCopy));
+        StatusTextBlock.Text = alertsTabSelected
+            ? "Alerts copied to clipboard."
+            : "Terminal log copied to clipboard.";
+
+        CopyFeedbackTextBlock.Text = "Copied";
+        CopyFeedbackTextBlock.Visibility = Visibility.Visible;
+        _copyFeedbackTimer.Stop();
+        _copyFeedbackTimer.Start();
+    }
+
+    private void UpdateTerminalAlarmUi()
+    {
+        var hasAlarms = _unacknowledgedAlarmCount > 0;
+        var hasAlarmEntries = _alarmEntries.Count > 0;
+        var alarmTabSelected = TerminalAlarmTabControl.SelectedIndex == 1;
+        var activeList = alarmTabSelected ? AlarmListBox : TerminalListBox;
+        var hasSelection = activeList.SelectedItems.Count > 0;
+        AcknowledgeAlarmButton.IsEnabled = hasAlarms;
+        CopyCurrentTabButton.IsEnabled = alarmTabSelected ? hasAlarmEntries : _terminalEntries.Count > 0;
+        CopyCurrentTabButton.ToolTip = alarmTabSelected ? "Copy alerts" : "Copy terminal";
+        ClearCurrentLogButton.IsEnabled = alarmTabSelected ? hasAlarmEntries : _terminalEntries.Count > 0;
+
+        if (hasAlarms)
+        {
+            LogsNavButton.Background = new SolidColorBrush(Color.FromRgb(220, 38, 38));
+            LogsNavButton.Foreground = Brushes.White;
+            LogsNavButton.ToolTip = $"Logs ({_unacknowledgedAlarmCount} alarms)";
+        }
+        else
+        {
+            LogsNavButton.Background = new SolidColorBrush(Color.FromRgb(243, 244, 246));
+            LogsNavButton.Foreground = new SolidColorBrush(Color.FromRgb(17, 24, 39));
+            LogsNavButton.ToolTip = "Logs";
+        }
+
+        if (hasSelection)
+        {
+            CopyCurrentTabButton.Content = "Copy selected";
+        }
+        else
+        {
+            CopyCurrentTabButton.Content = "Copy";
+        }
+    }
+
+    private void AcknowledgeAllAlarmEntries()
+    {
+        foreach (var entry in _alarmEntries)
+        {
+            entry.IsAcknowledged = true;
+        }
+
+        _unacknowledgedAlarmCount = 0;
+        AlarmListBox.Items.Refresh();
+        _logsPopupAlarmList?.Items.Refresh();
+    }
+
+    private void MainWindow_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is not DependencyObject source)
+        {
+            return;
+        }
+
+        if (IsDescendantOf(source, CopyCurrentTabButton)
+            || IsDescendantOf(source, PopoutLogsButton)
+            || IsDescendantOf(source, AcknowledgeAlarmButton)
+            || IsDescendantOf(source, ClearCurrentLogButton))
+        {
+            return;
+        }
+
+        if (!IsDescendantOf(source, TerminalListBox))
+        {
+            TerminalListBox.UnselectAll();
+        }
+
+        if (!IsDescendantOf(source, AlarmListBox))
+        {
+            AlarmListBox.UnselectAll();
+        }
+    }
+
+    private static bool IsDescendantOf(DependencyObject source, DependencyObject ancestor)
+    {
+        var current = source;
+        while (current is not null)
+        {
+            if (ReferenceEquals(current, ancestor))
+            {
+                return true;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return false;
+    }
+
+    private static T? FindAncestor<T>(DependencyObject? source) where T : DependencyObject
+    {
+        var current = source;
+        while (current is not null)
+        {
+            if (current is T typed)
+            {
+                return typed;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return null;
+    }
+
+    private void LogListBox_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not ListBox list)
+        {
+            return;
+        }
+
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control) || Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+        {
+            return;
+        }
+
+        var item = GetListBoxItemAt(list, e.GetPosition(list));
+        if (item is null)
+        {
+            return;
+        }
+
+        var index = list.ItemContainerGenerator.IndexFromContainer(item);
+        if (index < 0 || index >= list.Items.Count)
+        {
+            return;
+        }
+
+        _logDragSelecting = true;
+        _logDragSourceList = list;
+        _logDragAnchorIndex = index;
+        SelectListBoxRange(list, index, index);
+        list.Focus();
+        list.CaptureMouse();
+    }
+
+    private void LogListBox_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (!_logDragSelecting || _logDragSourceList is null || e.LeftButton != MouseButtonState.Pressed)
+        {
+            return;
+        }
+
+        if (!ReferenceEquals(sender, _logDragSourceList))
+        {
+            return;
+        }
+
+        var mousePosition = e.GetPosition(_logDragSourceList);
+        var item = GetListBoxItemAt(_logDragSourceList, mousePosition);
+        int index;
+        if (item is not null)
+        {
+            index = _logDragSourceList.ItemContainerGenerator.IndexFromContainer(item);
+        }
+        else if (_logDragSourceList.Items.Count > 0 && mousePosition.Y < 0)
+        {
+            index = 0;
+        }
+        else if (_logDragSourceList.Items.Count > 0 && mousePosition.Y > _logDragSourceList.ActualHeight)
+        {
+            index = _logDragSourceList.Items.Count - 1;
+        }
+        else
+        {
+            return;
+        }
+
+        if (index < 0 || index >= _logDragSourceList.Items.Count || _logDragAnchorIndex < 0)
+        {
+            return;
+        }
+
+        SelectListBoxRange(_logDragSourceList, _logDragAnchorIndex, index);
+    }
+
+    private void LogListBox_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_logDragSelecting)
+        {
+            return;
+        }
+
+        _logDragSelecting = false;
+        _logDragAnchorIndex = -1;
+        if (_logDragSourceList is not null && _logDragSourceList.IsMouseCaptured)
+        {
+            _logDragSourceList.ReleaseMouseCapture();
+        }
+
+        _logDragSourceList = null;
+        UpdateTerminalAlarmUi();
+    }
+
+    private static void SelectListBoxRange(ListBox list, int startIndex, int endIndex)
+    {
+        if (list.Items.Count == 0)
+        {
+            return;
+        }
+
+        var start = Math.Clamp(Math.Min(startIndex, endIndex), 0, list.Items.Count - 1);
+        var end = Math.Clamp(Math.Max(startIndex, endIndex), 0, list.Items.Count - 1);
+        list.SelectedItems.Clear();
+        for (var i = start; i <= end; i++)
+        {
+            list.SelectedItems.Add(list.Items[i]);
+        }
+
+        list.ScrollIntoView(list.Items[end]);
+    }
+
+    private static ListBoxItem? GetListBoxItemAt(ListBox list, Point point)
+    {
+        var hit = list.InputHitTest(point) as DependencyObject;
+        var direct = FindAncestor<ListBoxItem>(hit);
+        if (direct is not null)
+        {
+            return direct;
+        }
+
+        for (var i = 0; i < list.Items.Count; i++)
+        {
+            if (list.ItemContainerGenerator.ContainerFromIndex(i) is not ListBoxItem item)
+            {
+                continue;
+            }
+
+            var topLeft = item.TranslatePoint(new Point(0, 0), list);
+            var bounds = new Rect(topLeft, new Size(item.ActualWidth, item.ActualHeight));
+            if (bounds.Contains(point))
+            {
+                return item;
+            }
+        }
+
+        return null;
+    }
+
+    private static LogListAnchor CaptureLogListAnchor(ListBox? list)
+    {
+        if (list is null || list.Items.Count == 0)
+        {
+            return new LogListAnchor(null, true);
+        }
+
+        var scrollViewer = FindDescendant<ScrollViewer>(list);
+        if (scrollViewer is null)
+        {
+            return new LogListAnchor(null, true);
+        }
+
+        if (scrollViewer.VerticalOffset <= 0.5)
+        {
+            return new LogListAnchor(null, true);
+        }
+
+        var anchorIndex = Math.Clamp((int)Math.Floor(scrollViewer.VerticalOffset), 0, list.Items.Count - 1);
+        return new LogListAnchor(list.Items[anchorIndex], false);
+    }
+
+    private static void RestoreLogListAnchor(ListBox? list, LogListAnchor anchor)
+    {
+        if (list is null || list.Items.Count == 0)
+        {
+            return;
+        }
+
+        if (anchor.FollowLiveTop)
+        {
+            var scrollViewer = FindDescendant<ScrollViewer>(list);
+            scrollViewer?.ScrollToTop();
+            return;
+        }
+
+        if (anchor.Item is not null)
+        {
+            list.ScrollIntoView(anchor.Item);
+        }
+    }
+
+    private static T? FindDescendant<T>(DependencyObject root) where T : DependencyObject
+    {
+        var childCount = VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < childCount; i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is T typed)
+            {
+                return typed;
+            }
+
+            var nested = FindDescendant<T>(child);
+            if (nested is not null)
+            {
+                return nested;
+            }
+        }
+
+        return null;
+    }
+
+    private void PopoutLogsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_logsPopupWindow is not null)
+        {
+            _logsPopupWindow.Activate();
+            return;
+        }
+
+        var popupTab = new TabControl();
+        var popupLogList = new ListBox
+        {
+            Background = new SolidColorBrush(Color.FromRgb(2, 6, 23)),
+            Foreground = new SolidColorBrush(Color.FromRgb(147, 197, 253)),
+            BorderThickness = new Thickness(0),
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = 13,
+            SelectionMode = SelectionMode.Extended,
+            ItemsSource = _terminalEntries,
+        };
+        popupLogList.SetValue(ScrollViewer.HorizontalScrollBarVisibilityProperty, ScrollBarVisibility.Disabled);
+        popupLogList.ItemTemplate = new DataTemplate
+        {
+            VisualTree = new FrameworkElementFactory(typeof(TextBlock)),
+        };
+        popupLogList.ItemTemplate.VisualTree.SetBinding(TextBlock.TextProperty, new Binding("."));
+        popupLogList.ItemTemplate.VisualTree.SetValue(TextBlock.TextWrappingProperty, TextWrapping.Wrap);
+        var popupAlarmList = new ListBox
+        {
+            Background = new SolidColorBrush(Color.FromRgb(17, 13, 13)),
+            BorderThickness = new Thickness(0),
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = 13,
+            SelectionMode = SelectionMode.Extended,
+            ItemsSource = _alarmEntries,
+        };
+        _logsPopupLogList = popupLogList;
+        _logsPopupAlarmList = popupAlarmList;
+        popupAlarmList.SetValue(ScrollViewer.HorizontalScrollBarVisibilityProperty, ScrollBarVisibility.Disabled);
+        popupAlarmList.ItemTemplate = new DataTemplate
+        {
+            VisualTree = new FrameworkElementFactory(typeof(TextBlock)),
+        };
+        popupAlarmList.ItemTemplate.VisualTree.SetBinding(TextBlock.TextProperty, new Binding(nameof(AlarmEntryRow.Text)));
+        popupAlarmList.ItemTemplate.VisualTree.SetValue(TextBlock.TextWrappingProperty, TextWrapping.Wrap);
+        var popupAlarmStyle = new Style(typeof(TextBlock));
+        popupAlarmStyle.Setters.Add(new Setter(TextBlock.ForegroundProperty, new SolidColorBrush(Color.FromRgb(252, 165, 165))));
+        popupAlarmStyle.Triggers.Add(new DataTrigger
+        {
+            Binding = new Binding(nameof(AlarmEntryRow.IsAcknowledged)),
+            Value = true,
+            Setters =
+            {
+                new Setter(TextBlock.ForegroundProperty, new SolidColorBrush(Color.FromRgb(147, 197, 253))),
+            }
+        });
+        popupAlarmList.ItemTemplate.VisualTree.SetValue(TextBlock.StyleProperty, popupAlarmStyle);
+
+        popupTab.Items.Add(new TabItem { Header = "Log", Content = popupLogList });
+        popupTab.Items.Add(new TabItem { Header = "Alarms", Content = popupAlarmList });
+
+        var clearButton = new Button { Content = "Clear", Margin = new Thickness(0, 0, 8, 0), Padding = new Thickness(10, 4, 10, 4), Height = 30 };
+        clearButton.Click += (_, _) =>
+        {
+            if (popupTab.SelectedIndex == 1)
+            {
+                _alarmEntries.Clear();
+            }
+            else
+            {
+                _terminalEntries.Clear();
+            }
+
+            UpdateTerminalAlarmUi();
+        };
+
+        var acknowledgeButton = new Button { Content = "Acknowledge alarms", Margin = new Thickness(0, 0, 8, 0), Padding = new Thickness(10, 4, 10, 4), Height = 30 };
+        acknowledgeButton.Click += (_, _) =>
+        {
+            AcknowledgeAllAlarmEntries();
+            UpdateTerminalAlarmUi();
+        };
+
+        var copyButton = new Button { Content = "Copy", Margin = new Thickness(0, 0, 8, 0), Padding = new Thickness(10, 4, 10, 4), Height = 30 };
+        copyButton.Click += (_, _) =>
+        {
+            var selected = popupTab.SelectedIndex == 1
+                ? popupAlarmList.SelectedItems.Cast<AlarmEntryRow>().Select(item => item.Text).ToList()
+                : popupLogList.SelectedItems.Cast<string>().ToList();
+            var lines = selected.Count > 0
+                ? selected
+                : (popupTab.SelectedIndex == 1 ? _alarmEntries.Select(item => item.Text).ToList() : _terminalEntries.ToList());
+            if (lines.Count == 0)
+            {
+                return;
+            }
+
+            Clipboard.SetText(string.Join(Environment.NewLine, lines));
+        };
+
+        var closeButton = new Button { Content = "Close", Padding = new Thickness(10, 4, 10, 4), Height = 30 };
+
+        var footer = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 8, 0, 0),
+        };
+        footer.Children.Add(acknowledgeButton);
+        footer.Children.Add(copyButton);
+        footer.Children.Add(clearButton);
+        footer.Children.Add(closeButton);
+
+        var root = new Grid();
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        root.Children.Add(popupTab);
+        Grid.SetRow(footer, 1);
+        root.Children.Add(footer);
+        root.PreviewMouseDown += (_, args) =>
+        {
+            if (args.OriginalSource is not DependencyObject src)
+            {
+                return;
+            }
+
+            if (!IsDescendantOf(src, popupLogList))
+            {
+                popupLogList.UnselectAll();
+            }
+
+            if (!IsDescendantOf(src, popupAlarmList))
+            {
+                popupAlarmList.UnselectAll();
+            }
+        };
+
+        _logsPopupWindow = new Window
+        {
+            Title = "Logs",
+            Width = 700,
+            Height = 400,
+            MinWidth = 580,
+            MinHeight = 320,
+            Content = root,
+            WindowStartupLocation = WindowStartupLocation.Manual,
+            Left = Left + Width + 10,
+            Top = Top + 30,
+        };
+
+        _logsPopupWindow.Closed += (_, _) =>
+        {
+            _logsPopupWindow = null;
+            _logsPopupLogList = null;
+            _logsPopupAlarmList = null;
+        };
+        closeButton.Click += (_, _) => _logsPopupWindow?.Close();
+        _logsPopupWindow.Show();
+    }
+}

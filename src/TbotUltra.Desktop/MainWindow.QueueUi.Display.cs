@@ -1,14 +1,10 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Media;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
-using TbotUltra.Worker;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
 
@@ -135,220 +131,6 @@ public partial class MainWindow
         return slotId.HasValue ? $" (slot {slotId.Value})" : string.Empty;
     }
 
-    private void QueueAddButton_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var window = new AddQueueItemWindow(TbotUltra.Core.Tasks.TaskCatalog.AllowedTaskNames)
-            {
-                Owner = this,
-            };
-            if (window.ShowDialog() != true)
-            {
-                return;
-            }
-
-            var payload = window.Payload is null
-                ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                : new Dictionary<string, string>(window.Payload, StringComparer.OrdinalIgnoreCase);
-            var selectedVillageName = GetSelectedVillageName();
-            var selectedVillageUrl = GetSelectedVillageUrl();
-            if (!string.IsNullOrWhiteSpace(selectedVillageName))
-            {
-                payload[BotOptionPayloadKeys.TargetVillageName] = selectedVillageName;
-            }
-
-            if (!string.IsNullOrWhiteSpace(selectedVillageUrl))
-            {
-                payload[BotOptionPayloadKeys.TargetVillageUrl] = selectedVillageUrl;
-            }
-
-            var item = _botService.Enqueue(window.TaskName, payload, window.Priority, window.MaxRetries);
-            AppendLog($"Queue item added: {item.TaskName} (priority={item.Priority}).");
-            RefreshQueueUi();
-            TriggerQueueAutoRunFromEnqueue();
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Could not add queue item: {ex.Message}");
-        }
-    }
-
-    private void QueueRemoveButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (QueueDataGrid.SelectedItem is not QueueItemRow selected)
-        {
-            AppendLog("Select a queue item first.");
-            return;
-        }
-
-        var existingItem = _botService.GetQueueItemsForDisplay().FirstOrDefault(item => item.Id == selected.Id);
-        if (_botService.RemoveQueueItem(selected.Id))
-        {
-            if (existingItem is not null)
-            {
-                ForgetBuildingQueueCachesForItem(existingItem);
-            }
-
-            AppendLog($"Queue item removed: {selected.TaskName}.");
-            RefreshQueueUi();
-            return;
-        }
-
-        AppendLog("Could not remove queue item.");
-    }
-
-    private void QueueMoveUpButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (QueueDataGrid.SelectedItem is not QueueItemRow selected)
-        {
-            AppendLog("Select a queue item first.");
-            return;
-        }
-
-        if (_botService.MoveQueueItemUp(selected.Id))
-        {
-            RefreshQueueUi(selectId: selected.Id);
-            return;
-        }
-
-        AppendLog("Move up is only available within the same priority group.");
-    }
-
-    private void QueueMoveDownButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (QueueDataGrid.SelectedItem is not QueueItemRow selected)
-        {
-            AppendLog("Select a queue item first.");
-            return;
-        }
-
-        if (_botService.MoveQueueItemDown(selected.Id))
-        {
-            RefreshQueueUi(selectId: selected.Id);
-            return;
-        }
-
-        AppendLog("Move down is only available within the same priority group.");
-    }
-
-    private void QueueRetryButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (QueueDataGrid.SelectedItem is not QueueItemRow selected)
-        {
-            AppendLog("Select a queue item first.");
-            return;
-        }
-
-        if (_botService.RetryQueueItem(selected.Id))
-        {
-            AppendLog($"Queue item reset for retry: {selected.TaskName}.");
-            RefreshQueueUi(selectId: selected.Id);
-            return;
-        }
-
-        AppendLog("Retry is only available for failed or paused items.");
-    }
-
-    private void QueueClearButton_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            if (ReferenceEquals(QueueSectionTabControl?.SelectedItem, HistoryQueueTabItem))
-            {
-                ClearHistoryQueueItems();
-                return;
-            }
-
-            ClearActiveQueueItems();
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Could not clear queue: {ex.Message}");
-        }
-    }
-
-    private void QueueRefreshButton_Click(object sender, RoutedEventArgs e)
-    {
-        RefreshQueueUi();
-    }
-
-    private void QueuePopoutButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_queuePopupWindow is not null)
-        {
-            _queuePopupWindow.Activate();
-            return;
-        }
-
-        var activeGrid = new DataGrid
-        {
-            AutoGenerateColumns = false,
-            IsReadOnly = true,
-            CanUserAddRows = false,
-            CanUserDeleteRows = false,
-            CanUserReorderColumns = false,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(209, 213, 219)),
-            BorderThickness = new Thickness(1),
-            Margin = new Thickness(0, 0, 0, 8),
-            ItemsSource = QueueDataGrid.ItemsSource,
-        };
-        activeGrid.Columns.Add(new DataGridTextColumn { Header = "Group", Binding = new Binding("GroupName"), Width = new DataGridLength(1.15, DataGridLengthUnitType.Star) });
-        activeGrid.Columns.Add(new DataGridTextColumn { Header = "Task", Binding = new Binding("DisplayName"), Width = new DataGridLength(2, DataGridLengthUnitType.Star) });
-        activeGrid.Columns.Add(new DataGridTextColumn { Header = "Status", Binding = new Binding("Status"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
-        activeGrid.Columns.Add(new DataGridTextColumn { Header = "Retries", Binding = new Binding("RetriesText"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
-
-        var historyGrid = new DataGrid
-        {
-            AutoGenerateColumns = false,
-            IsReadOnly = true,
-            CanUserAddRows = false,
-            CanUserDeleteRows = false,
-            CanUserReorderColumns = false,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(209, 213, 219)),
-            BorderThickness = new Thickness(1),
-            ItemsSource = QueueHistoryDataGrid.ItemsSource,
-        };
-        historyGrid.Columns.Add(new DataGridTextColumn { Header = "Group", Binding = new Binding("GroupName"), Width = new DataGridLength(1.15, DataGridLengthUnitType.Star) });
-        historyGrid.Columns.Add(new DataGridTextColumn { Header = "Completed task", Binding = new Binding("DisplayName"), Width = new DataGridLength(2, DataGridLengthUnitType.Star) });
-        historyGrid.Columns.Add(new DataGridTextColumn { Header = "Status", Binding = new Binding("Status"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
-        historyGrid.Columns.Add(new DataGridTextColumn { Header = "Created", Binding = new Binding("CreatedAtServer"), Width = new DataGridLength(2, DataGridLengthUnitType.Star) });
-
-        var closeButton = new Button
-        {
-            Content = "Close",
-            Width = 90,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(0, 8, 0, 0),
-        };
-
-        var root = new Grid();
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.Children.Add(activeGrid);
-        Grid.SetRow(historyGrid, 1);
-        root.Children.Add(historyGrid);
-        Grid.SetRow(closeButton, 2);
-        root.Children.Add(closeButton);
-
-        _queuePopupWindow = new Window
-        {
-            Title = "Queue",
-            Width = 700,
-            Height = 400,
-            MinWidth = 580,
-            MinHeight = 320,
-            Content = root,
-            WindowStartupLocation = WindowStartupLocation.Manual,
-            Left = Left + Width + 10,
-            Top = Top + 30,
-        };
-        closeButton.Click += (_, _) => _queuePopupWindow?.Close();
-        _queuePopupWindow.Closed += (_, _) => _queuePopupWindow = null;
-        _queuePopupWindow.Show();
-    }
-
     private void RefreshQueueUi(Guid? selectId = null)
     {
         try
@@ -410,7 +192,7 @@ public partial class MainWindow
                 }
             }
 
-            QueueInfoTextBlock.Text = $"Queue active: {activeRows.Count} | done: {historyRows.Count}";
+            QueueInfoTextBlock.Text = $"Queue active: {activeRows.Count()} | done: {historyRows.Count()}";
             UpdateQueueClearButtonContent();
             if (_queuePopupWindow?.Content is Grid queuePopupRoot && queuePopupRoot.Children.Count >= 2)
             {
@@ -459,71 +241,6 @@ public partial class MainWindow
         QueueClearButton.Content = ReferenceEquals(QueueSectionTabControl?.SelectedItem, HistoryQueueTabItem)
             ? "Clear history"
             : "Clear active queue";
-    }
-
-    private void ClearActiveQueueItems()
-    {
-        var activeRows = (QueueDataGrid.ItemsSource as IEnumerable<QueueItemRow>)?.ToList() ?? [];
-        if (activeRows.Count == 0)
-        {
-            AppendLog("Active queue is already empty.");
-            return;
-        }
-
-        _loopController.RequestLoopStop();
-        _loopController.RequestQueueStop();
-        _operationCts?.Cancel();
-        _autoQueueRunCts?.Cancel();
-        _loopCts?.Cancel();
-
-        var removed = 0;
-        foreach (var row in activeRows)
-        {
-            var existingItem = _botService.GetQueueItemsForDisplay().FirstOrDefault(item => item.Id == row.Id);
-            if (!_botService.RemoveQueueItem(row.Id))
-            {
-                continue;
-            }
-
-            if (existingItem is not null)
-            {
-                ForgetBuildingQueueCachesForItem(existingItem);
-            }
-
-            removed += 1;
-        }
-
-        _buildingLastQueuedTargetBySlot.Clear();
-        _buildingLastQueuedConstructBySlot.Clear();
-        ClearPendingResourceLevelsFromUi();
-        RefreshQueueUi();
-        AppendLog(removed > 0
-            ? "Active queue cleared and running actions stopped."
-            : "Could not clear active queue.");
-    }
-
-    private void ClearHistoryQueueItems()
-    {
-        var historyRows = (QueueHistoryDataGrid.ItemsSource as IEnumerable<QueueItemRow>)?.ToList() ?? [];
-        if (historyRows.Count == 0)
-        {
-            AppendLog("History is already empty.");
-            return;
-        }
-
-        var removed = 0;
-        foreach (var row in historyRows)
-        {
-            if (_botService.RemoveQueueItem(row.Id))
-            {
-                removed += 1;
-            }
-        }
-
-        RefreshQueueUi();
-        AppendLog(removed > 0
-            ? "Queue history cleared."
-            : "Could not clear queue history.");
     }
 
     private void RefreshQueueUiOnUiThread(Guid? selectId = null)

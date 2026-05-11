@@ -15,6 +15,10 @@ public sealed class TroopTrainingBuildingOption : INotifyPropertyChanged
     private string _runMode = "min_troops";
     private int _minimumTroops = 1;
     private int _minimumResourcesPercent = 50;
+    private bool _checkWood = true;
+    private bool _checkClay = true;
+    private bool _checkIron = true;
+    private bool _checkCrop = true;
     private bool _exists;
     private int? _queueRemainingSeconds;
     private string _queueStatusText = "Queue not loaded.";
@@ -170,6 +174,66 @@ public sealed class TroopTrainingBuildingOption : INotifyPropertyChanged
             }
 
             _minimumResourcesPercent = normalized;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool CheckWood
+    {
+        get => _checkWood;
+        set
+        {
+            if (_checkWood == value)
+            {
+                return;
+            }
+
+            _checkWood = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool CheckClay
+    {
+        get => _checkClay;
+        set
+        {
+            if (_checkClay == value)
+            {
+                return;
+            }
+
+            _checkClay = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool CheckIron
+    {
+        get => _checkIron;
+        set
+        {
+            if (_checkIron == value)
+            {
+                return;
+            }
+
+            _checkIron = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool CheckCrop
+    {
+        get => _checkCrop;
+        set
+        {
+            if (_checkCrop == value)
+            {
+                return;
+            }
+
+            _checkCrop = value;
             OnPropertyChanged();
         }
     }

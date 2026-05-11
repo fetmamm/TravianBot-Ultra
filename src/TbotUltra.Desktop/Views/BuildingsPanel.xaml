@@ -1,0 +1,170 @@
+<UserControl x:Class="TbotUltra.Desktop.Views.BuildingsPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="600"
+             d:DesignWidth="760">
+    <UserControl.Resources>
+        <CollectionViewSource x:Key="BuildingTopSlotsView"
+                              Source="{Binding BuildingSlots, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Filter="BuildingTopSlotsView_Filter" />
+        <CollectionViewSource x:Key="BuildingRemainingSlotsView"
+                              Source="{Binding BuildingSlots, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Filter="BuildingRemainingSlotsView_Filter" />
+
+        <DataTemplate x:Key="BuildingSlotButtonTemplate">
+            <Button Margin="1"
+                    Background="#FFFFFF"
+                    BorderBrush="#D1D5DB"
+                    BorderThickness="1"
+                    Padding="8,7"
+                    Width="110"
+                    MinHeight="72"
+                    Tag="{Binding}"
+                    Click="BuildingSlotCircleButton_Click"
+                    HorizontalContentAlignment="Stretch"
+                    VerticalContentAlignment="Stretch">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="SlotCardBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <DataTrigger Binding="{Binding HasPendingUpgrade}" Value="True">
+                                <Setter TargetName="SlotCardBorder" Property="BorderBrush" Value="#D97706" />
+                                <Setter TargetName="SlotCardBorder" Property="Background" Value="#FFFBEB" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding HasPendingConstruct}" Value="True">
+                                <Setter TargetName="SlotCardBorder" Property="BorderBrush" Value="#16A34A" />
+                                <Setter TargetName="SlotCardBorder" Property="Background" Value="#F0FDF4" />
+                            </DataTrigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="SlotCardBorder" Property="Background" Value="#F9FAFB" />
+                                <Setter TargetName="SlotCardBorder" Property="BorderBrush" Value="#93C5FD" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="SlotCardBorder" Property="Background" Value="#DBEAFE" />
+                                <Setter TargetName="SlotCardBorder" Property="BorderBrush" Value="#60A5FA" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+                <StackPanel>
+                    <TextBlock Text="{Binding SlotLabel}"
+                               FontSize="11"
+                               Foreground="#9CA3AF"
+                               HorizontalAlignment="Left" />
+                    <TextBlock Text="{Binding NameLabel}"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               TextWrapping="Wrap"
+                               TextTrimming="CharacterEllipsis"
+                               MaxHeight="32"
+                               Margin="0,3,0,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="#111827" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsOccupied}" Value="False">
+                                        <Setter Property="Foreground" Value="#2563EB" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock Text="{Binding LevelStatusLabel}"
+                               FontSize="11"
+                               Margin="0,3,0,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="#6B7280" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsMaxLevel}" Value="True">
+                                        <Setter Property="Foreground" Value="#D97706" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsDemolishing}" Value="True">
+                                        <Setter Property="Foreground" Value="#DC2626" />
+                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+            </Button>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="260" />
+        </Grid.ColumnDefinitions>
+
+        <Grid Grid.Column="0" Margin="0,0,12,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0" Margin="0,0,0,4">
+                <TextBlock Text="Buildings" FontSize="24" FontWeight="SemiBold" Foreground="#111827" />
+                <TextBlock Text="Manage your village buildings. Click a slot to view and manage building details."
+                           Foreground="#6B7280" Margin="0,2,0,8" />
+            </StackPanel>
+
+            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
+                <Button Content="Load buildings"
+                        Width="118"
+                        Height="28"
+                        Background="#030826"
+                        Foreground="White"
+                        BorderBrush="#030826"
+                        Click="LoadBuildingsButton_Click" />
+                <Button Content="Upgrade all to max"
+                        Width="136"
+                        Height="28"
+                        Margin="6,0,0,0"
+                        Click="UpgradeAllBuildingsToMaxButton_Click" />
+            </StackPanel>
+
+            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <ItemsControl ItemsSource="{Binding Source={StaticResource BuildingTopSlotsView}}"
+                                  ItemTemplate="{StaticResource BuildingSlotButtonTemplate}"
+                                  Width="448"
+                                  HorizontalAlignment="Left">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="4" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+
+                    <Border Height="10" Background="Transparent" />
+
+                    <ItemsControl ItemsSource="{Binding Source={StaticResource BuildingRemainingSlotsView}}"
+                                  ItemTemplate="{StaticResource BuildingSlotButtonTemplate}"
+                                  Width="448"
+                                  HorizontalAlignment="Left">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="4" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</UserControl>

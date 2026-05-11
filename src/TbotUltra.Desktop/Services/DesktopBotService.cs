@@ -42,6 +42,7 @@ public sealed class DesktopBotService : IDesktopBotService
     public bool MarkQueueItemSucceeded(Guid id) => _queueStore.MarkSucceeded(id);
     public bool MarkQueueItemCanceled(Guid id) => _queueStore.MarkCanceled(id);
     public bool MarkQueueItemDeferred(Guid id, TimeSpan delay) => _queueStore.MarkDeferred(id, delay);
+    public bool UpdateDeferredQueueItem(Guid id, Dictionary<string, string>? payload, TimeSpan? delay = null) => _queueStore.UpdateDeferred(id, payload, delay);
     public bool MarkQueueItemExecutionFailed(Guid id) => _queueStore.MarkExecutionFailed(id);
 
     public Task ExecuteQueueItemAsync(BotOptions options, QueueItem item, Action<string> log, CancellationToken cancellationToken)
@@ -157,15 +158,21 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
             cancellationToken: cancellationToken);
     }
 
-    public Task<VillageStatus> ReadVillageResourceStatusAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken)
+    public Task<VillageStatus> ReadVillageResourceStatusAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken, bool currentPageOnly = false)
     {
         return _taskRunner.ReadVillageResourceStatusAsync(
             options,
             log,
             villageName: villageName,
             villageUrl: villageUrl,
+            currentPageOnly: currentPageOnly,
             accountName: null,
             cancellationToken: cancellationToken);
+    }
+
+    public Task<VillageStatus> ReadCurrentPageResourceStatusQuickAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.ReadCurrentPageResourceStatusQuickAsync(options, log, null, cancellationToken);
     }
 
     public Task NavigateToVillageResourceFieldsAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken)

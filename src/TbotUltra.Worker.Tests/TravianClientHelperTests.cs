@@ -12,13 +12,14 @@ public sealed class TravianClientHelperTests
     [InlineData(null, null)]
     [InlineData("", null)]
     [InlineData("   ", null)]
-    [InlineData("1234", 1234)]
-    [InlineData("1 234", 1234)]
-    [InlineData("12,345", 12345)]
-    [InlineData("12.345", 12345)]
-    [InlineData("/ 25 000", 25000)]
+    [InlineData("1234", 1234L)]
+    [InlineData("1 234", 1234L)]
+    [InlineData("12,345", 12345L)]
+    [InlineData("12.345", 12345L)]
+    [InlineData("/ 25 000", 25000L)]
     [InlineData("abc", null)]
-    public void TryParseResourceValue_ParsesDigitsOnly(string? raw, int? expected)
+    [InlineData("73,600,000,000", 73600000000L)]
+    public void TryParseResourceValue_ParsesDigitsOnly(string? raw, long? expected)
     {
         Assert.Equal(expected, TravianClient.TryParseResourceValue(raw));
     }
@@ -126,7 +127,7 @@ public sealed class TravianClientHelperTests
             new BuildQueueItem("C", null),
         ];
 
-        Assert.Equal(4500, TravianClient.ResolveTroopTrainingQueueRemainingSeconds(queue));
+        Assert.Equal(4800, TravianClient.ResolveTroopTrainingQueueRemainingSeconds(queue));
         Assert.Equal(0, TravianClient.ResolveTroopTrainingQueueRemainingSeconds([]));
     }
 
@@ -147,7 +148,7 @@ public sealed class TravianClientHelperTests
     [InlineData("keep_resources", 95, 10, 0)]
     public void CalculateTroopTrainingAmount_RespectsModeAndReserve(string amountMode, int keepPercent, int unitCost, int expected)
     {
-        IReadOnlyDictionary<string, int> resources = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        IReadOnlyDictionary<string, long> resources = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase)
         {
             ["wood"] = 100,
             ["clay"] = 100,
@@ -159,6 +160,21 @@ public sealed class TravianClientHelperTests
         Assert.Equal(expected, amount);
     }
 
+    [Fact]
+    public void CalculateTroopTrainingAmount_HandlesLargeResourceValuesWithoutIntClamp()
+    {
+        IReadOnlyDictionary<string, long> resources = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["wood"] = 41812000000L,
+            ["clay"] = 41812000000L,
+            ["iron"] = 41812000000L,
+            ["crop"] = 76853541651L,
+        };
+
+        var amount = TravianClient.CalculateTroopTrainingAmount(resources, 1000, 1000, 1000, 1000, "maximum", 0);
+        Assert.Equal(41812000, amount);
+    }
+
     [Theory]
     [InlineData("maximum", "maximum")]
     [InlineData("keep_resources", "keep_resources")]
@@ -167,6 +183,82 @@ public sealed class TravianClientHelperTests
     public void NormalizeTroopTrainingAmountMode_NormalizesExpectedValues(string value, string expected)
     {
         Assert.Equal(expected, TravianClient.NormalizeTroopTrainingAmountMode(value));
+    }
+
+    [Fact]
+    public void CalculateTroopTrainingRequiredResources_RespectsKeepResourcesReserve()
+    {
+        var required = TravianClient.CalculateTroopTrainingRequiredResources(
+            100,
+            100,
+            100,
+            100,
+            "keep_resources",
+            50,
+            1);
+
+        Assert.Equal(199, required["wood"]);
+        Assert.Equal(199, required["clay"]);
+        Assert.Equal(199, required["iron"]);
+        Assert.Equal(199, required["crop"]);
+    }
+
+    [Fact]
+    public void EstimateTroopTrainingWaitSeconds_UsesLongestFiniteMissingResource()
+    {
+        IReadOnlyDictionary<string, long> currentResources = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["wood"] = 100,
+            ["clay"] = 100,
+            ["iron"] = 100,
+            ["crop"] = 100,
+        };
+        IReadOnlyDictionary<string, long> requiredResources = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["wood"] = 200,
+            ["clay"] = 160,
+            ["iron"] = 100,
+            ["crop"] = 100,
+        };
+        IReadOnlyDictionary<string, double?> productionByHour = new Dictionary<string, double?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["wood"] = 100,
+            ["clay"] = 120,
+            ["iron"] = 0,
+            ["crop"] = 0,
+        };
+
+        var waitSeconds = TravianClient.EstimateTroopTrainingWaitSeconds(currentResources, requiredResources, productionByHour);
+        Assert.Equal(3600, waitSeconds);
+    }
+
+    [Fact]
+    public void EstimateTroopTrainingWaitSeconds_FallsBackToShortRecheckWhenProductionUnknown()
+    {
+        IReadOnlyDictionary<string, long> currentResources = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["wood"] = 100,
+            ["clay"] = 100,
+            ["iron"] = 100,
+            ["crop"] = 100,
+        };
+        IReadOnlyDictionary<string, long> requiredResources = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["wood"] = 200,
+            ["clay"] = 100,
+            ["iron"] = 100,
+            ["crop"] = 100,
+        };
+        IReadOnlyDictionary<string, double?> productionByHour = new Dictionary<string, double?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["wood"] = null,
+            ["clay"] = null,
+            ["iron"] = null,
+            ["crop"] = null,
+        };
+
+        var waitSeconds = TravianClient.EstimateTroopTrainingWaitSeconds(currentResources, requiredResources, productionByHour);
+        Assert.Equal(60, waitSeconds);
     }
 
     [Theory]

@@ -110,7 +110,7 @@ public partial class MainWindow
         var operationSw = Stopwatch.StartNew();
         _operationCts = new CancellationTokenSource();
         var operationToken = _operationCts.Token;
-        ToggleUiBusy(true);
+        ToggleResourceTabActionsBusy(true);
         try
         {
             var options = LoadBotOptions();
@@ -156,7 +156,7 @@ public partial class MainWindow
         }
         finally
         {
-            ToggleUiBusy(false);
+            ToggleResourceTabActionsBusy(false);
             _operationCts?.Dispose();
             _operationCts = null;
         }
@@ -173,7 +173,7 @@ public partial class MainWindow
 
         _operationCts = new CancellationTokenSource();
         var operationToken = _operationCts.Token;
-        ToggleUiBusy(true);
+        ToggleResourceTabActionsBusy(true);
         try
         {
             await QueueUpgradeAllResourcesAsync(operationId, operationToken, targetLevel);
@@ -190,7 +190,7 @@ public partial class MainWindow
         }
         finally
         {
-            ToggleUiBusy(false);
+            ToggleResourceTabActionsBusy(false);
             _operationCts?.Dispose();
             _operationCts = null;
         }
@@ -201,7 +201,7 @@ public partial class MainWindow
         var operationId = BeginOperation("UpgradeAllResourcesToMax");
         _operationCts = new CancellationTokenSource();
         var operationToken = _operationCts.Token;
-        ToggleUiBusy(true);
+        ToggleResourceTabActionsBusy(true);
         try
         {
             await QueueUpgradeAllResourcesAsync(operationId, operationToken, null);
@@ -218,10 +218,25 @@ public partial class MainWindow
         }
         finally
         {
-            ToggleUiBusy(false);
+            ToggleResourceTabActionsBusy(false);
             _operationCts?.Dispose();
             _operationCts = null;
         }
+    }
+
+    private void ToggleResourceTabActionsBusy(bool busy)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.BeginInvoke(() => ToggleResourceTabActionsBusy(busy));
+            return;
+        }
+
+        var enabled = !busy;
+        SetEnabled(LoadResourcesButton, enabled);
+        SetEnabled(ResourceTargetLevelComboBox, enabled);
+        SetEnabled(UpgradeAllResourcesButton, enabled);
+        SetEnabled(UpgradeAllResourcesToMaxButton, enabled);
     }
 
     private async Task QueueUpgradeAllResourcesAsync(string operationId, CancellationToken operationToken, int? targetLevel)
@@ -749,6 +764,8 @@ public partial class MainWindow
 
     private void ApplyResourceStatusToUi(VillageStatus status)
     {
+        status = MergeResourceStatusForUi(status);
+        AppendLog($"[resource-ui] village='{status.ActiveVillage}' | {BuildResourceLogSummary(status)}");
         var queuedTargetsBySlot = GetQueuedResourceTargetsBySlot();
         var resourceMaxLevel = ResolveResourceMaxLevelFromStatus(status);
         var rows = status.ResourceFields
@@ -768,9 +785,229 @@ public partial class MainWindow
 
         SetResourceRows(rows);
         ApplyVillageStatusToUi(status);
+        TriggerDeferredConstructionWaitRefresh(status, "resource_status_refresh");
+        TriggerDeferredTroopTrainingWaitRefresh(status, "resource_status_refresh");
 
         var capitalText = status.IsCapital == true ? "Yes" : status.IsCapital == false ? "No" : "Unknown";
         ResourcesInfoTextBlock.Text = $"Loaded {rows.Count} resource fields. Capital: {capitalText}. {BuildResourceForecastSummary(status)}";
+    }
+
+    private VillageStatus MergeResourceStatusForUi(VillageStatus status)
+    {
+        if (HasCompleteResourceUiSnapshot(status))
+        {
+            _lastResourceStatusForUi = status;
+            return status;
+        }
+
+        var previous = _lastResourceStatusForUi;
+        if (previous is null)
+        {
+            return status;
+        }
+
+        if (!string.Equals(previous.ActiveVillage, status.ActiveVillage, StringComparison.OrdinalIgnoreCase))
+        {
+            return status;
+        }
+
+        var mergedWarehouse = status.WarehouseCapacity ?? previous.WarehouseCapacity;
+        var mergedGranary = status.GranaryCapacity ?? previous.GranaryCapacity;
+        var mergedForecasts = BuildMergedResourceForecasts(status, previous, mergedWarehouse, mergedGranary);
+        var mergedStatus = status with
+        {
+            WarehouseCapacity = mergedWarehouse,
+            GranaryCapacity = mergedGranary,
+            ResourceStorageForecasts = mergedForecasts,
+        };
+
+        _lastResourceStatusForUi = mergedStatus;
+        AppendLog($"[resource-ui] preserved previous storage/prod data for village='{status.ActiveVillage}'.");
+        return mergedStatus;
+    }
+
+    private static bool HasCompleteResourceUiSnapshot(VillageStatus status)
+    {
+        if (status.WarehouseCapacity is null || status.GranaryCapacity is null)
+        {
+            return false;
+        }
+
+        if (status.ResourceStorageForecasts is null || status.ResourceStorageForecasts.Count == 0)
+        {
+            return false;
+        }
+
+        return status.ResourceStorageForecasts.Any(item => item.Capacity is not null || item.ProductionPerHour is not null);
+    }
+
+    private static IReadOnlyList<ResourceStorageForecast> BuildMergedResourceForecasts(
+        VillageStatus current,
+        VillageStatus previous,
+        long? warehouseCapacity,
+        long? granaryCapacity)
+    {
+        var currentForecasts = current.ResourceStorageForecasts?
+            .ToDictionary(item => item.ResourceKey, item => item, StringComparer.OrdinalIgnoreCase)
+            ?? new Dictionary<string, ResourceStorageForecast>(StringComparer.OrdinalIgnoreCase);
+        var previousForecasts = previous.ResourceStorageForecasts?
+            .ToDictionary(item => item.ResourceKey, item => item, StringComparer.OrdinalIgnoreCase)
+            ?? new Dictionary<string, ResourceStorageForecast>(StringComparer.OrdinalIgnoreCase);
+
+        var result = new List<ResourceStorageForecast>(4);
+        foreach (var key in new[] { "wood", "clay", "iron", "crop" })
+        {
+            currentForecasts.TryGetValue(key, out var currentForecast);
+            previousForecasts.TryGetValue(key, out var previousForecast);
+
+            var currentAmount = TryParseResourceValueForUi(current.Resources, key)
+                ?? currentForecast?.Current
+                ?? previousForecast?.Current;
+            var capacity = currentForecast?.Capacity
+                ?? previousForecast?.Capacity
+                ?? (string.Equals(key, "crop", StringComparison.OrdinalIgnoreCase) ? granaryCapacity : warehouseCapacity);
+            var productionPerHour = currentForecast?.ProductionPerHour ?? previousForecast?.ProductionPerHour;
+
+            double? percentOfCapacity = null;
+            if (capacity is > 0 && currentAmount is not null)
+            {
+                percentOfCapacity = Math.Clamp((double)currentAmount.Value / capacity.Value * 100d, 0d, 100d);
+            }
+
+            int? secondsToFull = null;
+            if (capacity is > 0 && currentAmount is not null && productionPerHour is > 0)
+            {
+                var remaining = Math.Max(0L, capacity.Value - currentAmount.Value);
+                var computedSeconds = Math.Ceiling((remaining / productionPerHour.Value) * 3600d);
+                secondsToFull = computedSeconds >= int.MaxValue
+                    ? int.MaxValue
+                    : (int)computedSeconds;
+            }
+
+            result.Add(new ResourceStorageForecast(
+                ResourceKey: key,
+                Current: currentAmount,
+                Capacity: capacity,
+                PercentOfCapacity: percentOfCapacity,
+                ProductionPerHour: productionPerHour,
+                SecondsToFull: secondsToFull));
+        }
+
+        return result;
+    }
+
+    private static long? TryParseResourceValueForUi(IReadOnlyDictionary<string, string>? resources, string key)
+    {
+        if (resources is null || !resources.TryGetValue(key, out var raw) || string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        var normalized = raw.Replace(" ", string.Empty).Replace("'", string.Empty).Replace(",", string.Empty).Trim();
+        return long.TryParse(normalized, out var parsed) ? parsed : null;
+    }
+
+    private async Task RefreshResourceSnapshotForUiAsync(
+        BotOptions? options = null,
+        CancellationToken cancellationToken = default,
+        bool forceCurrentVillage = false,
+        bool currentPageOnly = false)
+    {
+        if (_resourceSnapshotRefreshRunning)
+        {
+            return;
+        }
+
+        _resourceSnapshotRefreshRunning = true;
+        try
+        {
+            var effectiveOptions = forceCurrentVillage || currentPageOnly
+                ? LoadBotOptions()
+                : (options is null ? ApplySelectedVillageToOptions(LoadBotOptions()) : ApplySelectedVillageToOptions(options));
+            var selectedVillage = forceCurrentVillage || currentPageOnly ? "(current)" : (GetSelectedVillageName() ?? "-");
+            AppendLog($"[resource-refresh] start village='{selectedVillage}'");
+            var status = await ReadVillageStatusWithRetryAsync(
+                effectiveOptions,
+                cancellationToken,
+                resourceOnly: true,
+                forceCurrentVillage: forceCurrentVillage,
+                currentPageOnly: currentPageOnly);
+            AppendLog($"[resource-refresh] read village='{status.ActiveVillage}' | {BuildResourceLogSummary(status)}");
+
+            await Dispatcher.InvokeAsync(() =>
+            {
+                AppendLog($"[resource-refresh] applied village='{status.ActiveVillage}'");
+                ApplyResourceStatusToUi(status);
+            });
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"[resource-refresh] FAIL {ex.Message}");
+            throw;
+        }
+        finally
+        {
+            AppendLog("[resource-refresh] END");
+            _resourceSnapshotRefreshRunning = false;
+        }
+    }
+
+    private bool ShouldRunBackgroundResourceSnapshotRefresh()
+    {
+        if (!_isLoggedIn || !_browserSessionLikelyOpen || _resourceSnapshotRefreshRunning)
+        {
+            return false;
+        }
+
+        if (_uiBusy || _autoQueueRunning)
+        {
+            return false;
+        }
+
+        return _loopTask is null || _loopTask.IsCompleted;
+    }
+
+    private async Task HandleResourceSnapshotRefreshTickAsync()
+    {
+        if (!ShouldRunBackgroundResourceSnapshotRefresh())
+        {
+            return;
+        }
+
+        try
+        {
+            await RefreshResourceSnapshotForUiAsync(cancellationToken: CancellationToken.None, currentPageOnly: true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Background resource refresh skipped: {ex.Message}");
+        }
+    }
+
+    private async void StorageRefreshButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_resourceSnapshotRefreshRunning)
+        {
+            return;
+        }
+
+        SetEnabled(StorageRefreshButton, false);
+        try
+        {
+            await EnsureChromiumInstalledAsync();
+            AppendLog("[resource-refresh] manual quick refresh requested");
+            var options = LoadBotOptions();
+            var status = await _botService.ReadCurrentPageResourceStatusQuickAsync(options, AppendLog, CancellationToken.None);
+            ApplyResourceStatusToUi(status);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"[resource-refresh] manual quick refresh skipped: {ex.Message}");
+        }
+        finally
+        {
+            SetEnabled(StorageRefreshButton, !_uiBusy);
+        }
     }
 
     private int ResolveResourceMaxLevelFromStatus(VillageStatus status)
@@ -829,8 +1066,47 @@ public partial class MainWindow
             parts.Add($"{key} {percentText} (full in {etaText})");
         }
 
-        var warehouse = status.WarehouseCapacity?.ToString() ?? "-";
-        var granary = status.GranaryCapacity?.ToString() ?? "-";
+        var warehouse = FormatResourceLogNumber(status.WarehouseCapacity);
+        var granary = FormatResourceLogNumber(status.GranaryCapacity);
         return $"Warehouse={warehouse}, Granary={granary}. {string.Join(" | ", parts)}";
+    }
+
+    private static string BuildResourceLogSummary(VillageStatus status)
+    {
+        var forecasts = status.ResourceStorageForecasts?
+            .ToDictionary(item => item.ResourceKey, item => item, StringComparer.OrdinalIgnoreCase)
+            ?? new Dictionary<string, ResourceStorageForecast>(StringComparer.OrdinalIgnoreCase);
+
+        string Part(string key, string label)
+        {
+            forecasts.TryGetValue(key, out var forecast);
+            var current = FormatResourceLogNumber(forecast?.Current);
+            var production = FormatResourceLogNumber(forecast?.ProductionPerHour);
+            return $"{label} {current} @{production}/h";
+        }
+
+        return $"storage {FormatResourceLogNumber(status.WarehouseCapacity)}/{FormatResourceLogNumber(status.GranaryCapacity)} | {Part("wood", "W")} | {Part("clay", "C")} | {Part("iron", "I")} | {Part("crop", "Crop")}";
+    }
+
+    private static string FormatResourceLogNumber(long? value)
+    {
+        if (value is null)
+        {
+            return "-";
+        }
+
+        return value.Value.ToString("#,0", System.Globalization.CultureInfo.InvariantCulture).Replace(",", " ");
+    }
+
+    private static string FormatResourceLogNumber(double? value)
+    {
+        if (value is null || double.IsNaN(value.Value) || double.IsInfinity(value.Value))
+        {
+            return "-";
+        }
+
+        return Math.Round(value.Value, MidpointRounding.AwayFromZero)
+            .ToString("#,0", System.Globalization.CultureInfo.InvariantCulture)
+            .Replace(",", " ");
     }
 }

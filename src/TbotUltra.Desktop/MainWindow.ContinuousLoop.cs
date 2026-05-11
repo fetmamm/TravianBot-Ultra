@@ -237,6 +237,7 @@ public partial class MainWindow
                 ApplyVillageStatusToUi(status);
                 PopulateBuildingsTab(status);
             });
+            await RefreshResourceSnapshotForUiAsync(options, cancellationToken);
             _continuousLoopConstructionStatusNeedsSync = false;
         }
         catch (OperationCanceledException)
@@ -397,11 +398,11 @@ public partial class MainWindow
                         {
                             try
                             {
-                                await RefreshTroopTrainingQueuesAsync(options, token, _lastBuildingStatus?.Buildings, refreshBuildingsBeforeRead: true);
+                                await RefreshTroopTrainingUiAfterBuildAsync(options, token);
                             }
                             catch (Exception ex)
                             {
-                                AppendLog($"Troop queue refresh after run failed: {ex.Message}");
+                                AppendLog($"Troop/resource refresh after run failed: {ex.Message}");
                             }
                         }
 
@@ -430,6 +431,11 @@ public partial class MainWindow
                             var deferred = _botService.MarkQueueItemDeferred(next.Id, queueWaitDelay);
                             if (deferred)
                             {
+                                if (TryExtractDeferredUpgradePayload(ex.Message, next.Payload, out var updatedPayload))
+                                {
+                                    _botService.UpdateDeferredQueueItem(next.Id, updatedPayload);
+                                    next.Payload = updatedPayload;
+                                }
                                 ScheduleDeferredBuildingsMidWaitRefresh(next, queueWaitDelay);
                                 ScheduleDeferredResourcesMidWaitRefresh(next, queueWaitDelay);
                                 AppendLog($"[LOOP {tickId}] DEFER {tickSw.Elapsed.TotalSeconds:F1}s task={next.TaskName} | next try in {queueWaitDelay.TotalSeconds:F0}s");
@@ -623,11 +629,11 @@ public partial class MainWindow
                 {
                     try
                     {
-                        await RefreshTroopTrainingQueuesAsync(options, cancellationToken, _lastBuildingStatus?.Buildings, refreshBuildingsBeforeRead: true);
+                        await RefreshTroopTrainingUiAfterBuildAsync(options, cancellationToken);
                     }
                     catch (Exception refreshEx)
                     {
-                        AppendLog($"Troop queue refresh after run failed: {refreshEx.Message}");
+                        AppendLog($"Troop/resource refresh after run failed: {refreshEx.Message}");
                     }
                 }
                 AppendLog($"[AUTOQ {runId}] OK {tickSw.Elapsed.TotalSeconds:F1}s task={next.TaskName}");
@@ -663,6 +669,11 @@ public partial class MainWindow
                     var deferred = _botService.MarkQueueItemDeferred(next.Id, queueWaitDelay);
                     if (deferred)
                     {
+                        if (TryExtractDeferredUpgradePayload(ex.Message, next.Payload, out var updatedPayload))
+                        {
+                            _botService.UpdateDeferredQueueItem(next.Id, updatedPayload);
+                            next.Payload = updatedPayload;
+                        }
                         ScheduleDeferredBuildingsMidWaitRefresh(next, queueWaitDelay);
                         ScheduleDeferredResourcesMidWaitRefresh(next, queueWaitDelay);
                         AppendLog($"[AUTOQ {runId}] DEFER {tickSw.Elapsed.TotalSeconds:F1}s task={next.TaskName} | next try in {queueWaitDelay.TotalSeconds:F0}s");

@@ -418,6 +418,7 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
         Action<string> log,
         string? villageName = null,
         string? villageUrl = null,
+        bool currentPageOnly = false,
         string? accountName = null,
         CancellationToken cancellationToken = default)
     {
@@ -432,11 +433,59 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             {
                 log($"Reading village resource status for server {options.ServerName}.");
                 await client.LoginAsync(cancellationToken);
-                await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken, villageName, villageUrl);
-                status = await client.ReadVillageResourceStatusAsync(cancellationToken);
+                if (!currentPageOnly)
+                {
+                    await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken, villageName, villageUrl);
+                }
+
+                status = await client.ReadVillageResourceStatusAsync(
+                    cancellationToken,
+                    allowNavigationToResourcePage: !currentPageOnly);
+                var forecastCount = status?.ResourceStorageForecasts?.Count ?? 0;
+                var warehouse = FormatResourceStatusNumber(status?.WarehouseCapacity);
+                var granary = FormatResourceStatusNumber(status?.GranaryCapacity);
+                log($"Resource status: village='{status?.ActiveVillage ?? "-"}', fields={status?.ResourceFields.Count ?? 0}, forecasts={forecastCount}, storage={warehouse}/{granary}.");
             });
 
         return status ?? throw new InvalidOperationException("Could not read village resource status.");
+    }
+
+    public async Task<VillageStatus> ReadCurrentPageResourceStatusQuickAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        VillageStatus? status = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                log($"Quick resource status read for server {options.ServerName}.");
+                status = await client.ReadVillageResourceStatusAsync(
+                    cancellationToken,
+                    allowNavigationToResourcePage: false);
+                var forecastCount = status?.ResourceStorageForecasts?.Count ?? 0;
+                var warehouse = FormatResourceStatusNumber(status?.WarehouseCapacity);
+                var granary = FormatResourceStatusNumber(status?.GranaryCapacity);
+                log($"Quick resource status: village='{status?.ActiveVillage ?? "-"}', forecasts={forecastCount}, storage={warehouse}/{granary}.");
+            });
+
+        return status ?? throw new InvalidOperationException("Could not read current-page resource status.");
+    }
+
+    private static string FormatResourceStatusNumber(long? value)
+    {
+        if (value is null)
+        {
+            return "-";
+        }
+
+        return value.Value.ToString("#,0", System.Globalization.CultureInfo.InvariantCulture).Replace(",", " ");
     }
 
     public async Task<VillageStatus> ReadBuildingsStatusAsync(
@@ -1056,23 +1105,55 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             throw new InvalidOperationException("Selected farm lists were not found on the farm page.");
         }
 
-        var ready = matchingLists.FirstOrDefault(item => item.RemainingSeconds is null or <= 0);
+        var readyLists = matchingLists
+            .Where(item => item.RemainingSeconds is null or <= 0)
+            .ToList();
+        if (readyLists.Count > 0)
+        {
+            context.Log($"Continuous farming ready lists: {string.Join(", ", readyLists.Select(item => item.Name))}");
+        }
+
+        var ready = readyLists.FirstOrDefault();
         if (ready is null)
         {
             var waitSeconds = matchingLists
                 .Where(item => item.RemainingSeconds is > 0)
                 .Min(item => item.RemainingSeconds) ?? 60;
-            throw new InvalidOperationException($"No selected farm list is ready. queue_wait_seconds={ResolveQueueWaitDelaySeconds(context.Options, waitSeconds)}");
+            context.Log($"Continuous farming: no selected list is ready. Shortest remaining time={waitSeconds}s.");
+            throw new InvalidOperationException($"No selected farm list is ready. queue_wait_seconds={Math.Max(1, waitSeconds)}");
         }
 
         var remainingSeconds = await context.Client.SendFarmListNowAsync(ready.Name, context.CancellationToken);
         var dispatchDelaySeconds = Math.Clamp(context.Options.ContinuousFarmDispatchDelayMinutes, 1, 5) * 60;
-        var nextWaitSeconds = Math.Max(dispatchDelaySeconds, remainingSeconds ?? 0);
-        var nextTimer = remainingSeconds is > 0
-            ? TimeSpan.FromSeconds(remainingSeconds.Value).ToString(remainingSeconds.Value >= 3600 ? @"hh\:mm\:ss" : @"mm\:ss")
-            : "Ready";
-        context.Log(
-            $"Continuous farming sent '{ready.Name}'. Next timer={nextTimer}. Dispatch delay={dispatchDelaySeconds / 60} min.");
+        context.Log($"Continuous farming sending list '{ready.Name}'. Delay between sends={dispatchDelaySeconds}s.");
+
+        var refreshedOverview = await context.Client.ReadFarmListsOverviewAsync(context.CancellationToken);
+        var refreshedMatching = refreshedOverview
+            .Where(item => item is not null && selectedNames.Contains(item.Name, StringComparer.OrdinalIgnoreCase))
+            .OrderBy(item => item.RemainingSeconds is > 0 ? item.RemainingSeconds.Value : 0)
+            .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var otherReadyLists = refreshedMatching
+            .Where(item => !string.Equals(item.Name, ready.Name, StringComparison.OrdinalIgnoreCase))
+            .Where(item => item.RemainingSeconds is null or <= 0)
+            .Select(item => item.Name)
+            .ToList();
+
+        int nextWaitSeconds;
+        if (otherReadyLists.Count > 0)
+        {
+            context.Log($"Continuous farming: more ready lists found after send: {string.Join(", ", otherReadyLists)}. Waiting configured delay {dispatchDelaySeconds}s.");
+            nextWaitSeconds = dispatchDelaySeconds;
+        }
+        else
+        {
+            nextWaitSeconds = refreshedMatching
+                .Where(item => item.RemainingSeconds is > 0)
+                .Min(item => item.RemainingSeconds) ?? Math.Max(1, remainingSeconds ?? dispatchDelaySeconds);
+            context.Log($"Continuous farming: no additional list is ready. Shortest remaining time={nextWaitSeconds}s.");
+        }
+
+        context.Log($"Continuous farming becomes ready again in {nextWaitSeconds}s.");
         throw new InvalidOperationException($"Continuous farming cooldown active. queue_wait_seconds={Math.Max(1, nextWaitSeconds)}");
     }
 

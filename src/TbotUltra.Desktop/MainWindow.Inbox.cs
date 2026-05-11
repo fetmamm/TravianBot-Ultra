@@ -8,7 +8,17 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
-    private async void MarkMessagesReadButton_Click(object sender, RoutedEventArgs e)
+    internal void OnInboxMarkMessagesReadClicked()
+    {
+        MarkMessagesReadCore();
+    }
+
+    internal void OnInboxMarkReportsReadClicked()
+    {
+        MarkReportsReadCore();
+    }
+
+    private async void MarkMessagesReadCore()
     {
         var operationId = BeginOperation("MarkMessagesRead");
         var operationSw = Stopwatch.StartNew();
@@ -45,7 +55,7 @@ public partial class MainWindow
         }
     }
 
-    private async void MarkReportsReadButton_Click(object sender, RoutedEventArgs e)
+    private async void MarkReportsReadCore()
     {
         var operationId = BeginOperation("MarkReportsRead");
         var operationSw = Stopwatch.StartNew();

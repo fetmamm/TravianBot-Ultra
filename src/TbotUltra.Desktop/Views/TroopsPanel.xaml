@@ -87,6 +87,44 @@
                                TextWrapping="Wrap"
                                Margin="0,0,0,10" />
 
+                    <StackPanel Margin="0,0,0,10">
+                        <TextBlock Text="Resources to check for % resources"
+                                   Foreground="#6B7280"
+                                   FontSize="11"
+                                   Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal">
+                            <CheckBox Content="Wood"
+                                      Margin="0,0,12,0"
+                                      IsChecked="{Binding CheckWood, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <CheckBox Content="Clay"
+                                      Margin="0,0,12,0"
+                                      IsChecked="{Binding CheckClay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <CheckBox Content="Iron"
+                                      Margin="0,0,12,0"
+                                      IsChecked="{Binding CheckIron, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <CheckBox Content="Crop"
+                                      IsChecked="{Binding CheckCrop, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Margin="0,0,0,10">
+                        <TextBlock Text="Fallback wait when no exact troop ETA exists"
+                                   Foreground="#6B7280"
+                                   FontSize="11"
+                                   Margin="0,0,0,4" />
+                        <ComboBox Width="120"
+                                  HorizontalAlignment="Left"
+                                  SelectedValuePath="Tag"
+                                  SelectedValue="{Binding FallbackCooldownSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                            <ComboBoxItem Content="10s" Tag="10" />
+                            <ComboBoxItem Content="30s" Tag="30" />
+                            <ComboBoxItem Content="1 min" Tag="60" />
+                            <ComboBoxItem Content="2 min" Tag="120" />
+                            <ComboBoxItem Content="5 min" Tag="300" />
+                            <ComboBoxItem Content="10 min" Tag="600" />
+                        </ComboBox>
+                    </StackPanel>
+
                     <ItemsControl ItemsSource="{Binding Buildings}"
                                   Margin="0,0,0,10">
                         <ItemsControl.ItemsPanel>
@@ -172,12 +210,47 @@
                                                        FontSize="11"
                                                        Margin="0,4,0,0"
                                                        VerticalAlignment="Bottom" />
-                                            <TextBlock Grid.Column="4"
-                                                       Text="Keep %"
-                                                       Foreground="#6B7280"
-                                                       FontSize="11"
-                                                       Margin="0,4,0,0"
-                                                       VerticalAlignment="Bottom" />
+                                            <StackPanel Grid.Column="4"
+                                                        Orientation="Horizontal"
+                                                        Margin="0,4,0,0"
+                                                        VerticalAlignment="Bottom">
+                                                <TextBlock Text="Keep %"
+                                                           Foreground="#6B7280"
+                                                           FontSize="11"
+                                                           VerticalAlignment="Bottom" />
+                                                <Border Width="14"
+                                                        Height="14"
+                                                        Margin="6,0,0,0"
+                                                        CornerRadius="7"
+                                                        Background="#E5E7EB"
+                                                        BorderBrush="#D1D5DB"
+                                                        BorderThickness="1"
+                                                        VerticalAlignment="Center"
+                                                        ToolTipService.InitialShowDelay="0">
+                                                    <Border.ToolTip>
+                                                        <ToolTip MaxWidth="320">
+                                                            <StackPanel Width="280">
+                                                                <TextBlock Text="Keep %"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="#111827"
+                                                                           Margin="0,0,0,6" />
+                                                                <TextBlock TextWrapping="Wrap"
+                                                                           Text="Only used when Amount mode is set to Keep resources." />
+                                                                <TextBlock Margin="0,6,0,0"
+                                                                           TextWrapping="Wrap"
+                                                                           Text="The bot keeps this percent of each resource in storage and only spends the remainder on troop training." />
+                                                            </StackPanel>
+                                                        </ToolTip>
+                                                    </Border.ToolTip>
+                                                    <TextBlock Text="i"
+                                                               FontSize="10"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="#4B5563"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"
+                                                               TextAlignment="Center" />
+                                                </Border>
+                                            </StackPanel>
                                         </Grid>
 
                                         <Grid Margin="0,0,0,8">
@@ -261,11 +334,46 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
 
-                                            <TextBlock Grid.Column="0"
-                                                       Text="Run trigger"
-                                                       Foreground="#6B7280"
-                                                       FontSize="11"
-                                                       VerticalAlignment="Center" />
+                                            <StackPanel Grid.Column="0"
+                                                        Orientation="Horizontal"
+                                                        VerticalAlignment="Center">
+                                                <TextBlock Text="Run trigger"
+                                                           Foreground="#6B7280"
+                                                           FontSize="11"
+                                                           VerticalAlignment="Center" />
+                                                <Border Width="14"
+                                                        Height="14"
+                                                        Margin="6,0,0,0"
+                                                        CornerRadius="7"
+                                                        Background="#E5E7EB"
+                                                        BorderBrush="#D1D5DB"
+                                                        BorderThickness="1"
+                                                        VerticalAlignment="Center"
+                                                        ToolTipService.InitialShowDelay="0">
+                                                    <Border.ToolTip>
+                                                        <ToolTip MaxWidth="340">
+                                                            <StackPanel Width="300">
+                                                                <TextBlock Text="Run trigger"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="#111827"
+                                                                           Margin="0,0,0,6" />
+                                                                <TextBlock TextWrapping="Wrap"
+                                                                           Text="Min troops starts training when the current troop count drops below the value to the right." />
+                                                                <TextBlock Margin="0,6,0,0"
+                                                                           TextWrapping="Wrap"
+                                                                           Text="% resources starts training when available resources reach the selected percent threshold." />
+                                                            </StackPanel>
+                                                        </ToolTip>
+                                                    </Border.ToolTip>
+                                                    <TextBlock Text="i"
+                                                               FontSize="10"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="#4B5563"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"
+                                                               TextAlignment="Center" />
+                                                </Border>
+                                            </StackPanel>
 
                                             <StackPanel Grid.Column="1"
                                                         Orientation="Horizontal"
@@ -321,6 +429,7 @@
                                                 </StackPanel>
                                             </Grid>
                                         </Grid>
+
                                     </StackPanel>
                                 </Border>
                             </DataTemplate>

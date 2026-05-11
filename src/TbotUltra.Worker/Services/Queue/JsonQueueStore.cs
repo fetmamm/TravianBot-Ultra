@@ -284,6 +284,31 @@ public sealed class JsonQueueStore : IQueueStore
         });
     }
 
+    public bool UpdateDeferred(Guid id, Dictionary<string, string>? payload, TimeSpan? delay = null)
+    {
+        return Update(id, item =>
+        {
+            if (item.Status != QueueStatus.Pending)
+            {
+                return false;
+            }
+
+            if (payload is not null)
+            {
+                item.Payload = new Dictionary<string, string>(payload, StringComparer.OrdinalIgnoreCase);
+            }
+
+            if (delay.HasValue)
+            {
+                var effectiveDelay = delay.Value < TimeSpan.Zero ? TimeSpan.Zero : delay.Value;
+                item.NextAttemptAt = DateTimeOffset.UtcNow.Add(effectiveDelay);
+            }
+
+            item.UpdatedAt = DateTimeOffset.UtcNow;
+            return true;
+        });
+    }
+
     public bool MarkExecutionFailed(Guid id)
     {
         return Update(id, item =>

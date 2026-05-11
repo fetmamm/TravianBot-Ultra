@@ -173,4 +173,19 @@ public partial class MainWindow
             UpdateAutomationLoopRunningIndicators();
         });
     }
+
+    private async Task RefreshTroopTrainingUiAfterBuildAsync(BotOptions options, CancellationToken cancellationToken)
+    {
+        await RefreshTroopTrainingQueuesAsync(options, cancellationToken, _lastBuildingStatus?.Buildings, refreshBuildingsBeforeRead: true);
+
+        try
+        {
+            await RefreshResourceSnapshotForUiAsync(options, cancellationToken, currentPageOnly: true);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Troop build current-page resource refresh failed, falling back: {ex.Message}");
+            await RefreshResourceSnapshotForUiAsync(options, cancellationToken);
+        }
+    }
 }

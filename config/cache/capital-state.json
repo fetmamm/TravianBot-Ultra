@@ -64,6 +64,42 @@
       "updatedAtUtc": "2026-05-05T19:01:14.4689409+00:00"
     },
     {
+      "accountName": "fetto_ult_ss_travi_com",
+      "serverUrl": "https://ult.ss-travi.com",
+      "villageName": "fetto \u0060s village",
+      "isCapital": true,
+      "coordX": null,
+      "coordY": null,
+      "updatedAtUtc": "2026-05-10T14:39:03.4248678+00:00"
+    },
+    {
+      "accountName": "fet_mga_ss_travi_com",
+      "serverUrl": "https://mga.ss-travi.com",
+      "villageName": "Cap",
+      "isCapital": false,
+      "coordX": null,
+      "coordY": null,
+      "updatedAtUtc": "2026-05-11T14:41:17.7236552+00:00"
+    },
+    {
+      "accountName": "fet_mga_ss_travi_com",
+      "serverUrl": "https://mga.ss-travi.com",
+      "villageName": "Fet",
+      "isCapital": true,
+      "coordX": null,
+      "coordY": null,
+      "updatedAtUtc": "2026-05-11T14:41:17.7203027+00:00"
+    },
+    {
+      "accountName": "fet_mga_ss_travi_com",
+      "serverUrl": "https://mga.ss-travi.com",
+      "villageName": "fet \u0060s village",
+      "isCapital": true,
+      "coordX": null,
+      "coordY": null,
+      "updatedAtUtc": "2026-05-11T07:19:01.5147412+00:00"
+    },
+    {
       "accountName": "fet_ts50_x5_europe_travian_com",
       "serverUrl": "https://ts50.x5.europe.travian.com",
       "villageName": "FFFEEET",
@@ -106,7 +142,7 @@
       "isCapital": true,
       "coordX": null,
       "coordY": null,
-      "updatedAtUtc": "2026-05-07T21:12:17.4391876+00:00"
+      "updatedAtUtc": "2026-05-10T12:49:47.0620989+00:00"
     }
   ]
 }

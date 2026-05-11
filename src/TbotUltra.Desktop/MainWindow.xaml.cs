@@ -113,6 +113,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _copyFeedbackTimer;
     private readonly DispatcherTimer _inboxRefreshTimer;
     private readonly DispatcherTimer _buildQueueCountdownTimer;
+    private readonly DispatcherTimer _resourceSnapshotRefreshTimer;
     private readonly ObservableCollection<string> _terminalEntries = [];
     private readonly ObservableCollection<AlarmEntryRow> _alarmEntries = [];
     private readonly ObservableCollection<LoopTaskOption> _automationLoopTasks = [];
@@ -137,6 +138,9 @@ public partial class MainWindow : Window
     private bool _chromiumEnsured;
     private bool _suppressAccountSelectionChange;
     private bool _suppressVillageSelectionChange;
+    private bool _resourceSnapshotRefreshRunning;
+    private bool _deferredConstructionRefreshRunning;
+    private bool _deferredTroopTrainingRefreshRunning;
     private TimeSpan _queueServerTimeOffset;
     private long _operationCounter;
     private long _loopTickCounter;
@@ -235,6 +239,7 @@ public partial class MainWindow : Window
     private string _lastVillageSwitchRefreshKey = string.Empty;
     private DateTimeOffset _lastVillageSwitchRefreshAt = DateTimeOffset.MinValue;
     private VillageStatus? _lastBuildingStatus;
+    private VillageStatus? _lastResourceStatusForUi;
     private readonly object _pendingLogSync = new();
     private readonly Queue<string> _pendingLogMessages = new();
     private readonly object _sessionLogWriteSync = new();
@@ -301,6 +306,7 @@ public partial class MainWindow : Window
         _loopController = App.Services.GetRequiredService<LoopController>();
         _loopController.Logger = AppendLog;
         _heroViewModel.Logger = AppendLog;
+        _heroViewModel.PropertyChanged += HeroViewModel_PropertyChanged;
 
         _projectRoot = ProjectRootLocator.FindProjectRoot();
         _versionPath = Path.Combine(_projectRoot, "VERSION");
@@ -341,6 +347,7 @@ public partial class MainWindow : Window
                 HandleBrowserClosedSignal();
                 TickFarmListCountdowns();
                 _troopTrainingViewModel.TickCountdowns();
+                _resourcesViewModel.TickLiveForecasts();
                 UpdateExecutionStateIndicator();
                 UpdateManualFarmingRunningState();
             }
@@ -362,6 +369,9 @@ public partial class MainWindow : Window
         _buildQueueCountdownTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _buildQueueCountdownTimer.Tick += (_, _) => TickBuildQueueCountdown();
         _buildQueueCountdownTimer.Start();
+        _resourceSnapshotRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(16) };
+        _resourceSnapshotRefreshTimer.Tick += async (_, _) => await HandleResourceSnapshotRefreshTickAsync();
+        _resourceSnapshotRefreshTimer.Start();
         _queueUiRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(280) };
         _queueUiRefreshTimer.Tick += (_, _) =>
         {
@@ -385,12 +395,12 @@ public partial class MainWindow : Window
         InitializeBuildingSlotPlaceholders();
         _farmLists.CollectionChanged += (_, _) =>
         {
-            SyncFarmListSelectionHandlers();
             if (_suppressFarmListUiRefresh)
             {
                 return;
             }
 
+            SyncFarmListSelectionHandlers();
             UpdateFarmingUiState();
         };
         AlarmListBox.SelectionChanged += (_, _) => UpdateTerminalAlarmUi();
@@ -833,172 +843,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private void LoadAutomationLoopTasks(BotOptions options)
-    {
-        var configured = (options.ContinuousLoopGroups ?? [])
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .Select(name => name.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        if (configured.Count <= 0)
-        {
-            configured = (options.LoopTasks ?? [])
-                .Select(NormalizeLegacyLoopTaskName)
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Select(QueueGroupCatalog.ResolveGroup)
-                .Select(QueueGroupCatalog.GetKey)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-        }
-
-        var orderedNames = LoadConfiguredContinuousLoopGroupOrder();
-        var visibleGroups = LoadConfiguredDashboardVisibleGroups();
-
-        _suppressAutomationLoopConfigWrite = true;
-        try
-        {
-            _automationLoopTasks.Clear();
-            foreach (var groupKey in orderedNames)
-            {
-                if (!QueueGroupCatalog.TryParse(groupKey, out var group))
-                {
-                    continue;
-                }
-
-                _automationLoopTasks.Add(new LoopTaskOption
-                {
-                    TaskName = groupKey,
-                    Title = QueueGroupCatalog.GetTitle(group),
-                    Description = QueueGroupCatalog.GetDescription(group),
-                    IsEnabled = configured.Contains(groupKey, StringComparer.OrdinalIgnoreCase),
-                    IsVisible = visibleGroups.Contains(groupKey, StringComparer.OrdinalIgnoreCase),
-                    StateText = "Idle",
-                    DetailText = "No queued task.",
-                });
-            }
-
-            UpdateAutomationLoopOrders();
-            UpdateAutomationLoopSummaryText();
-            UpdateAutomationLoopRunningIndicators();
-        }
-        finally
-        {
-            _suppressAutomationLoopConfigWrite = false;
-        }
-    }
-
-    private void UpdateAutomationLoopOrders()
-    {
-        for (var i = 0; i < _automationLoopTasks.Count; i++)
-        {
-            _automationLoopTasks[i].Order = i + 1;
-        }
-    }
-
-    private void UpdateAutomationLoopSummaryText()
-    {
-        var enabledCount = _automationLoopTasks.Count(item => item.IsEnabled);
-        var visibleCount = _automationLoopTasks.Count(item => item.IsVisible);
-        AutomationLoopSummaryTextBlock.Text = enabledCount <= 0
-            ? $"No group enabled. Visible on dashboard: {visibleCount}."
-            : $"Continuous loop uses {enabledCount} enabled group(s). Visible on dashboard: {visibleCount}.";
-        UpdateAutomationLoopColumns();
-    }
-
-    private void UpdateAutomationLoopColumns()
-    {
-        if (AutomationLoopListBox is null)
-        {
-            return;
-        }
-
-        var visibleCount = Math.Max(1, _automationLoopTasks.Count(item => item.IsVisible));
-        var columns = visibleCount <= 4 ? 1 : 2;
-        var factory = new FrameworkElementFactory(typeof(VerticalFirstUniformGrid));
-        factory.SetValue(VerticalFirstUniformGrid.ColumnsProperty, columns);
-        AutomationLoopListBox.ItemsPanel = new ItemsPanelTemplate(factory);
-    }
-
-    private void SetActiveAutomationTask(string? taskName)
-    {
-        void Apply()
-        {
-            _activeAutomationTaskName = string.IsNullOrWhiteSpace(taskName)
-                ? null
-                : taskName;
-            UpdateAutomationLoopRunningIndicators();
-        }
-
-        if (Dispatcher.CheckAccess())
-        {
-            Apply();
-            return;
-        }
-
-        _ = Dispatcher.BeginInvoke((Action)Apply);
-    }
-
-    private QueueGroup? GetActiveContinuousLoopGroup()
-    {
-        var taskName = _activeAutomationTaskName;
-        if (string.IsNullOrWhiteSpace(taskName))
-        {
-            return null;
-        }
-
-        return QueueGroupCatalog.ResolveGroup(taskName);
-    }
-
-    private bool HasEnabledContinuousLoopGroupsExcept(QueueGroup excludedGroup)
-    {
-        return GetContinuousLoopEnabledGroupsInOrder().Any(group => group != excludedGroup);
-    }
-
-    private void StartContinuousLoopRunner()
-    {
-        var initialOptions = LoadBotOptions();
-        _loopController.ClearLoopStopRequest();
-        _loopController.ClearQueueStopRequest();
-        _continuousLoopConstructionStatusNeedsSync = true;
-        _loopCts = _loopController.CreateCts("loop");
-        var token = _loopCts.Token;
-
-        StartLoopButton.Content = "Pause bot";
-        StartLoopButton.IsEnabled = true;
-        SetLoopIndicator(true);
-        AppendLog($"Loop started. Interval={initialOptions.LoopIntervalSeconds}s");
-
-        _loopTask = Task.Run(() => RunContinuousLoopAsync(token), token);
-        _ = TrackLoopCompletionAsync(_loopTask);
-    }
-
-    private bool IsContinuousLoopGroupEnabled(QueueGroup group)
-    {
-        return GetContinuousLoopEnabledGroupsInOrder().Contains(group);
-    }
-
-    private IReadOnlyList<QueueItem> GetContinuousLoopRelevantQueueItems()
-    {
-        var enabledGroups = GetContinuousLoopEnabledGroupsInOrder().ToHashSet();
-        if (enabledGroups.Count <= 0)
-        {
-            return [];
-        }
-
-        return _botService.GetQueueItemsForDisplay()
-            .Where(item => enabledGroups.Contains(item.Group))
-            .ToList();
-    }
-
-    private static IReadOnlyList<QueueItem> OrderContinuousLoopGroupItems(IEnumerable<QueueItem> items)
-    {
-        return items
-            .OrderBy(item => item.IsRuntimeOnly)
-            .ThenByDescending(item => item.Priority)
-            .ThenBy(item => item.CreatedAt)
-            .ToList();
-    }
-
     private void SetActiveFunctionExecution(string? displayName)
     {
         void Apply()
@@ -1016,691 +860,6 @@ public partial class MainWindow : Window
         }
 
         _ = Dispatcher.BeginInvoke((Action)Apply);
-    }
-
-    private static bool TryExtractTroopsBlockedReason(string? message, out string reasonKey, out string reasonText)
-    {
-        reasonKey = string.Empty;
-        reasonText = string.Empty;
-        if (string.IsNullOrWhiteSpace(message))
-        {
-            return false;
-        }
-
-        var value = message.Trim();
-        if (value.Contains("Smithy not found in this village", StringComparison.OrdinalIgnoreCase))
-        {
-            reasonKey = TroopsBlockedReasonSmithyMissing;
-            reasonText = "Smithy missing";
-            return true;
-        }
-
-        if (value.Contains("Smithy:", StringComparison.OrdinalIgnoreCase)
-            && value.Contains("All done", StringComparison.OrdinalIgnoreCase))
-        {
-            reasonKey = TroopsBlockedReasonAllDone;
-            reasonText = "All troops fully developed";
-            return true;
-        }
-
-        return false;
-    }
-
-    private void SetTroopsBlockedState(string reasonKey, string reasonText)
-    {
-        if (!Dispatcher.CheckAccess())
-        {
-            Dispatcher.Invoke(() => SetTroopsBlockedState(reasonKey, reasonText));
-            return;
-        }
-
-        var troopsOption = _automationLoopTasks.FirstOrDefault(item =>
-            string.Equals(item.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Troops), StringComparison.OrdinalIgnoreCase));
-        if (troopsOption is not null)
-        {
-            _troopsBlockedPreviouslyEnabled = troopsOption.IsEnabled;
-            troopsOption.IsEnabled = false;
-        }
-
-        _troopsBlockedReasonKey = reasonKey;
-        _troopsBlockedReasonText = reasonText;
-        UpdateAutomationLoopRunningIndicators();
-        PersistAutomationLoopTasksToConfig();
-    }
-
-    private void SetFarmingBlockedState(string reasonKey, string reasonText)
-    {
-        if (!Dispatcher.CheckAccess())
-        {
-            Dispatcher.Invoke(() => SetFarmingBlockedState(reasonKey, reasonText));
-            return;
-        }
-
-        var farmingOption = _automationLoopTasks.FirstOrDefault(item =>
-            string.Equals(item.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Farming), StringComparison.OrdinalIgnoreCase));
-        if (farmingOption is not null)
-        {
-            _farmingBlockedPreviouslyEnabled = farmingOption.IsEnabled;
-            farmingOption.IsEnabled = false;
-        }
-
-        _farmingBlockedReasonKey = reasonKey;
-        _farmingBlockedReasonText = reasonText;
-        UpdateAutomationLoopRunningIndicators();
-        PersistAutomationLoopTasksToConfig();
-    }
-
-    private void SetHeroBlockedState(string reasonKey, string reasonText)
-    {
-        if (!Dispatcher.CheckAccess())
-        {
-            Dispatcher.Invoke(() => SetHeroBlockedState(reasonKey, reasonText));
-            return;
-        }
-
-        var heroOption = _automationLoopTasks.FirstOrDefault(item =>
-            string.Equals(item.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Hero), StringComparison.OrdinalIgnoreCase));
-        if (heroOption is not null)
-        {
-            _heroBlockedPreviouslyEnabled = heroOption.IsEnabled;
-            heroOption.IsEnabled = false;
-        }
-
-        _heroBlockedReasonKey = reasonKey;
-        _heroBlockedReasonText = reasonText;
-        UpdateAutomationLoopRunningIndicators();
-        PersistAutomationLoopTasksToConfig();
-    }
-
-    private void ClearTroopsBlockedState()
-    {
-        if (!Dispatcher.CheckAccess())
-        {
-            Dispatcher.Invoke(ClearTroopsBlockedState);
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(_troopsBlockedReasonKey) && string.IsNullOrWhiteSpace(_troopsBlockedReasonText))
-        {
-            return;
-        }
-
-        _troopsBlockedReasonKey = null;
-        _troopsBlockedReasonText = null;
-        var troopsOption = _automationLoopTasks.FirstOrDefault(item =>
-            string.Equals(item.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Troops), StringComparison.OrdinalIgnoreCase));
-        if (troopsOption is not null && _troopsBlockedPreviouslyEnabled)
-        {
-            troopsOption.IsEnabled = true;
-        }
-
-        _troopsBlockedPreviouslyEnabled = false;
-        UpdateAutomationLoopRunningIndicators();
-        PersistAutomationLoopTasksToConfig();
-    }
-
-    private void ClearFarmingBlockedState()
-    {
-        if (!Dispatcher.CheckAccess())
-        {
-            Dispatcher.Invoke(ClearFarmingBlockedState);
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(_farmingBlockedReasonKey) && string.IsNullOrWhiteSpace(_farmingBlockedReasonText))
-        {
-            return;
-        }
-
-        _farmingBlockedReasonKey = null;
-        _farmingBlockedReasonText = null;
-        var farmingOption = _automationLoopTasks.FirstOrDefault(item =>
-            string.Equals(item.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Farming), StringComparison.OrdinalIgnoreCase));
-        if (farmingOption is not null && _farmingBlockedPreviouslyEnabled)
-        {
-            farmingOption.IsEnabled = true;
-        }
-
-        _farmingBlockedPreviouslyEnabled = false;
-        UpdateAutomationLoopRunningIndicators();
-        PersistAutomationLoopTasksToConfig();
-    }
-
-    private void ClearHeroBlockedState()
-    {
-        if (!Dispatcher.CheckAccess())
-        {
-            Dispatcher.Invoke(ClearHeroBlockedState);
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(_heroBlockedReasonKey) && string.IsNullOrWhiteSpace(_heroBlockedReasonText))
-        {
-            return;
-        }
-
-        _heroBlockedReasonKey = null;
-        _heroBlockedReasonText = null;
-        var heroOption = _automationLoopTasks.FirstOrDefault(item =>
-            string.Equals(item.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Hero), StringComparison.OrdinalIgnoreCase));
-        if (heroOption is not null && _heroBlockedPreviouslyEnabled)
-        {
-            heroOption.IsEnabled = true;
-        }
-
-        _heroBlockedPreviouslyEnabled = false;
-        UpdateAutomationLoopRunningIndicators();
-        PersistAutomationLoopTasksToConfig();
-    }
-
-    private static bool HasSmithyInVillageStatus(VillageStatus status)
-    {
-        return status.Buildings.Any(item =>
-            item.Gid == 12
-            || string.Equals(item.Name, "Smithy", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(item.Name, "Blacksmith", StringComparison.OrdinalIgnoreCase));
-    }
-
-    private void ApplyTroopsAvailabilityFromVillageStatus(VillageStatus status)
-    {
-        var hasSmithy = HasSmithyInVillageStatus(status);
-        if (hasSmithy)
-        {
-            if (string.Equals(_troopsBlockedReasonKey, TroopsBlockedReasonSmithyMissing, StringComparison.OrdinalIgnoreCase))
-            {
-                ClearTroopsBlockedState();
-                AppendLog("Troops group re-enabled: Smithy detected after building refresh.");
-            }
-
-            return;
-        }
-
-        if (string.Equals(_troopsBlockedReasonKey, TroopsBlockedReasonAllDone, StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
-        if (!string.Equals(_troopsBlockedReasonKey, TroopsBlockedReasonSmithyMissing, StringComparison.OrdinalIgnoreCase))
-        {
-            SetTroopsBlockedState(TroopsBlockedReasonSmithyMissing, "Smithy missing");
-        }
-    }
-
-    private int? ResolveConstructionGroupRemainingSeconds()
-    {
-        var remainingSeconds = _buildQueueRemainingSeconds > 0 ? _buildQueueRemainingSeconds : 0;
-        if (_constructionInlineWaitUntilUtc > DateTimeOffset.UtcNow)
-        {
-            var inlineSeconds = (int)Math.Ceiling((_constructionInlineWaitUntilUtc - DateTimeOffset.UtcNow).TotalSeconds);
-            remainingSeconds = Math.Max(remainingSeconds, Math.Max(0, inlineSeconds));
-        }
-
-        return remainingSeconds > 0 ? remainingSeconds : null;
-    }
-
-    private bool IsConstructionGroupReady()
-    {
-        return ResolveConstructionGroupRemainingSeconds() is not > 0;
-    }
-
-    private void ApplyConstructionInlineWait(TimeSpan waitDelay)
-    {
-        if (waitDelay <= TimeSpan.Zero)
-        {
-            return;
-        }
-
-        var waitUntilUtc = DateTimeOffset.UtcNow.Add(waitDelay);
-        if (waitUntilUtc <= _constructionInlineWaitUntilUtc)
-        {
-            return;
-        }
-
-        _constructionInlineWaitUntilUtc = waitUntilUtc;
-        UpdateAutomationLoopRunningIndicators();
-    }
-
-    private bool IsTroopsGroupBlocked()
-    {
-        return !string.IsNullOrWhiteSpace(_troopsBlockedReasonKey);
-    }
-
-    private bool IsFarmingGroupBlocked()
-    {
-        return !string.IsNullOrWhiteSpace(_farmingBlockedReasonKey);
-    }
-
-    private bool IsHeroGroupBlocked()
-    {
-        return !string.IsNullOrWhiteSpace(_heroBlockedReasonKey);
-    }
-
-    private bool IsFunctionExecutionRunning(bool hasRunningQueueItems)
-    {
-        return hasRunningQueueItems
-            || _autoQueueRunning
-            || _uiBusy
-            || !string.IsNullOrWhiteSpace(_activeFunctionDisplayName);
-    }
-
-    private void UpdateAutomationLoopRunningIndicators()
-    {
-        var isRunning = (_loopTask is not null && !_loopTask.IsCompleted) || _autoQueueRunning;
-        var hasPausedQueueItems = false;
-        string? queueRunningTaskName = null;
-        IReadOnlyList<QueueItem> queueItems = [];
-        try
-        {
-            queueItems = _botService.GetQueueItemsForDisplay();
-            hasPausedQueueItems = queueItems.Any(item => item.Status == QueueStatus.Paused);
-            queueRunningTaskName = queueItems.FirstOrDefault(item => item.Status == QueueStatus.Running)?.TaskName;
-        }
-        catch
-        {
-            // Ignore temporary queue read failures.
-        }
-
-        var runningTaskName = !string.IsNullOrWhiteSpace(queueRunningTaskName)
-            ? queueRunningTaskName
-            : isRunning
-                ? _activeAutomationTaskName
-                : null;
-
-        var runningGroup = string.IsNullOrWhiteSpace(runningTaskName)
-            ? (QueueGroup?)null
-            : QueueGroupCatalog.ResolveGroup(runningTaskName);
-
-        foreach (var item in _automationLoopTasks)
-        {
-            if (!QueueGroupCatalog.TryParse(item.TaskName, out var group))
-            {
-                item.IsRunning = false;
-                item.StateText = "Idle";
-                item.DetailText = "Unknown group.";
-                item.QueuedCount = 0;
-                item.RemainingSeconds = null;
-                continue;
-            }
-
-            var groupItems = queueItems.Where(entry => entry.Group == group).ToList();
-            var pendingCount = groupItems.Count(entry => entry.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused);
-            var deferred = groupItems
-                .Where(entry => entry.Status == QueueStatus.Pending && entry.NextAttemptAt > DateTimeOffset.UtcNow)
-                .OrderBy(entry => entry.NextAttemptAt)
-                .FirstOrDefault();
-            var runningItem = groupItems.FirstOrDefault(entry => entry.Status == QueueStatus.Running);
-            var paused = groupItems.Any(entry => entry.Status == QueueStatus.Paused);
-            var constructionWaitSeconds = group == QueueGroup.Construction
-                ? ResolveConstructionGroupRemainingSeconds()
-                : (int?)null;
-            var troopTrainingWaitSeconds = group == QueueGroup.TroopTraining
-                ? _troopTrainingViewModel.ResolveGroupRemainingSeconds()
-                : (int?)null;
-
-            item.QueuedCount = pendingCount;
-            item.IsRunning = runningGroup.HasValue && runningGroup.Value == group;
-            item.IsBlocked = false;
-            item.BlockedText = "Blocked";
-            if (runningItem is not null || item.IsRunning)
-            {
-                item.StateText = "Running";
-                item.DetailText = runningItem is not null
-                    ? BuildQueueDisplayName(runningItem)
-                    : "Coordinator active.";
-                item.RemainingSeconds = null;
-            }
-            else if (deferred is not null || constructionWaitSeconds is > 0 || troopTrainingWaitSeconds is > 0)
-            {
-                item.StateText = "Waiting";
-                if (deferred is not null)
-                {
-                    item.DetailText = $"Next try {FormatQueueServerTime(deferred.NextAttemptAt)}";
-                    item.RemainingSeconds = Math.Max(0, (int)Math.Ceiling((deferred.NextAttemptAt - DateTimeOffset.UtcNow).TotalSeconds));
-                }
-                else if (troopTrainingWaitSeconds is > 0)
-                {
-                    item.DetailText = "Troop queue active.";
-                    item.RemainingSeconds = troopTrainingWaitSeconds;
-                }
-                else
-                {
-                    item.DetailText = "Build queue active.";
-                    item.RemainingSeconds = constructionWaitSeconds;
-                }
-            }
-            else if (group == QueueGroup.Troops && IsTroopsGroupBlocked())
-            {
-                item.StateText = "Blocked";
-                item.DetailText = _troopsBlockedReasonText ?? "Troops group blocked.";
-                item.RemainingSeconds = null;
-                item.IsBlocked = true;
-                item.BlockedText = _troopsBlockedReasonText ?? "Blocked";
-            }
-            else if (group == QueueGroup.Farming && IsFarmingGroupBlocked())
-            {
-                item.StateText = "Blocked";
-                item.DetailText = _farmingBlockedReasonText ?? "Farming group blocked.";
-                item.RemainingSeconds = null;
-                item.IsBlocked = true;
-                item.BlockedText = _farmingBlockedReasonText ?? "Blocked";
-            }
-            else if (group == QueueGroup.Hero && IsHeroGroupBlocked())
-            {
-                item.StateText = "Blocked";
-                item.DetailText = _heroBlockedReasonText ?? "Hero group blocked.";
-                item.RemainingSeconds = null;
-                item.IsBlocked = true;
-                item.BlockedText = _heroBlockedReasonText ?? "Blocked";
-            }
-            else if (!item.IsEnabled)
-            {
-                item.StateText = "Disabled";
-                item.DetailText = pendingCount > 0 ? $"{pendingCount} queued." : "No queued task.";
-                item.RemainingSeconds = null;
-            }
-            else if (paused)
-            {
-                item.StateText = "Paused";
-                item.DetailText = "Contains paused task.";
-                item.RemainingSeconds = null;
-            }
-            else
-            {
-                item.StateText = item.IsEnabled ? "Idle" : "Disabled";
-                item.DetailText = pendingCount > 0 ? $"{pendingCount} queued." : "No queued task.";
-                item.RemainingSeconds = null;
-            }
-        }
-
-        if (isRunning)
-        {
-            AutomationLoopRunStateDot.Fill = new SolidColorBrush(Color.FromRgb(22, 163, 74));
-            AutomationLoopRunStateTextBlock.Text = "Running";
-            AutomationLoopRunStateTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(22, 163, 74));
-            return;
-        }
-
-        if (hasPausedQueueItems)
-        {
-            AutomationLoopRunStateDot.Fill = new SolidColorBrush(Color.FromRgb(217, 119, 6));
-            AutomationLoopRunStateTextBlock.Text = "Paused";
-            AutomationLoopRunStateTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(217, 119, 6));
-            return;
-        }
-
-        AutomationLoopRunStateDot.Fill = new SolidColorBrush(Color.FromRgb(156, 163, 175));
-        AutomationLoopRunStateTextBlock.Text = "Idle";
-        AutomationLoopRunStateTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(107, 114, 128));
-    }
-
-    private void PersistAutomationLoopTasksToConfig()
-    {
-        if (_suppressAutomationLoopConfigWrite)
-        {
-            return;
-        }
-
-        try
-        {
-            var enabledGroupNames = _automationLoopTasks
-                .Where(item => item.IsEnabled)
-                .Select(item => item.TaskName)
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .ToList();
-            var orderedGroupNames = _automationLoopTasks
-                .Select(item => item.TaskName)
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .ToList();
-            var visibleGroupNames = _automationLoopTasks
-                .Where(item => item.IsVisible)
-                .Select(item => item.TaskName)
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .ToList();
-
-            var config = _botConfigStore.Load();
-            config["continuous_loop_groups"] = new JsonArray(enabledGroupNames.Select(name => JsonValue.Create(name)!).ToArray());
-            config[ContinuousLoopGroupOrderConfigKey] = new JsonArray(orderedGroupNames.Select(name => JsonValue.Create(name)!).ToArray());
-            config[DashboardVisibleGroupsConfigKey] = new JsonArray(visibleGroupNames.Select(name => JsonValue.Create(name)!).ToArray());
-
-            var existingLoopTasks = config["loop_tasks"] as JsonArray ?? new JsonArray();
-            var normalizedLoopTasks = existingLoopTasks
-                .Select(node => NormalizeLegacyLoopTaskName(node?.ToString()))
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            if (normalizedLoopTasks.Count > 0)
-            {
-                config["loop_tasks"] = new JsonArray(normalizedLoopTasks.Select(name => JsonValue.Create(name)!).ToArray());
-            }
-
-            _botConfigStore.Save(config);
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Could not save continuous loop groups: {ex.Message}");
-        }
-    }
-
-    private List<string> LoadConfiguredDashboardVisibleGroups()
-    {
-        try
-        {
-            var config = _botConfigStore.Load();
-            var configuredVisible = (config[DashboardVisibleGroupsConfigKey] as JsonArray ?? new JsonArray())
-                .Select(node => node?.ToString())
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Select(name => name!.Trim())
-                .Where(name => QueueGroupCatalog.TryParse(name, out _))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            if (configuredVisible.Count > 0)
-            {
-                return configuredVisible;
-            }
-        }
-        catch
-        {
-            // Ignore read errors and fall back to all visible.
-        }
-
-        return QueueGroupCatalog.AllGroups
-            .Select(QueueGroupCatalog.GetKey)
-            .ToList();
-    }
-
-    private List<string> LoadConfiguredContinuousLoopGroupOrder()
-    {
-        try
-        {
-            var config = _botConfigStore.Load();
-            var configuredOrder = (config[ContinuousLoopGroupOrderConfigKey] as JsonArray ?? new JsonArray())
-                .Select(node => node?.ToString())
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Select(name => name!.Trim())
-                .Where(name => QueueGroupCatalog.TryParse(name, out _))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            foreach (var groupKey in QueueGroupCatalog.AllGroups.Select(QueueGroupCatalog.GetKey))
-            {
-                if (!configuredOrder.Contains(groupKey, StringComparer.OrdinalIgnoreCase))
-                {
-                    configuredOrder.Add(groupKey);
-                }
-            }
-
-            return configuredOrder;
-        }
-        catch
-        {
-            return QueueGroupCatalog.AllGroups
-                .Select(QueueGroupCatalog.GetKey)
-                .ToList();
-        }
-    }
-
-    private static string NormalizeLegacyLoopTaskName(string? taskName)
-    {
-        if (string.IsNullOrWhiteSpace(taskName))
-        {
-            return string.Empty;
-        }
-
-        return string.Equals(taskName.Trim(), "hero_send_adventure", StringComparison.OrdinalIgnoreCase)
-            ? "hero_manage"
-            : taskName.Trim();
-    }
-
-    private const string TroopsBlockedReasonSmithyMissing = "smithy_missing";
-    private const string TroopsBlockedReasonAllDone = "all_done";
-    private const string FarmingBlockedReasonNoGoldClub = "no_goldclub";
-    private const string FarmingBlockedReasonNoFarmLists = "no_farmlists";
-    private const string HeroBlockedReasonNoAdventures = "no_adventures";
-
-    private static string HumanizeTaskName(string taskName)
-    {
-        if (string.IsNullOrWhiteSpace(taskName))
-        {
-            return "-";
-        }
-
-        return string.Join(
-            " ",
-            taskName
-                .Split('_', StringSplitOptions.RemoveEmptyEntries)
-                .Select(part => part.Length == 1
-                    ? char.ToUpperInvariant(part[0]).ToString()
-                    : char.ToUpperInvariant(part[0]) + part[1..]));
-    }
-
-    private void AutomationLoopToggleButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not ToggleButton { DataContext: LoopTaskOption option } toggle)
-        {
-            return;
-        }
-
-        option.IsEnabled = toggle.IsChecked == true;
-        if (!option.IsEnabled
-            && QueueGroupCatalog.TryParse(option.TaskName, out var disabledGroup)
-            && ContinuousRunToggleButton?.IsChecked == true
-            && GetActiveContinuousLoopGroup() == disabledGroup
-            && _loopTask is not null
-            && !_loopTask.IsCompleted)
-        {
-            _restartContinuousLoopAfterStop = HasEnabledContinuousLoopGroupsExcept(disabledGroup);
-            _loopController.RequestLoopStop();
-            _loopCts?.Cancel();
-            AppendLog($"{QueueGroupCatalog.GetTitle(disabledGroup)} group disabled. Stopping current loop task.");
-        }
-
-        if (option.IsEnabled
-            && string.Equals(option.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Troops), StringComparison.OrdinalIgnoreCase))
-        {
-            ClearTroopsBlockedState();
-        }
-        else if (option.IsEnabled
-            && string.Equals(option.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Farming), StringComparison.OrdinalIgnoreCase))
-        {
-            _lastFarmListsAnalysisAt = DateTimeOffset.MinValue;
-            ClearFarmingBlockedState();
-        }
-        else if (option.IsEnabled
-            && string.Equals(option.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Hero), StringComparison.OrdinalIgnoreCase))
-        {
-            ClearHeroBlockedState();
-        }
-
-        UpdateAutomationLoopSummaryText();
-        UpdateAutomationLoopRunningIndicators();
-        PersistAutomationLoopTasksToConfig();
-    }
-
-    private void AutomationLoopListBox_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        _automationLoopDragStart = e.GetPosition(AutomationLoopListBox);
-        _automationLoopDragSource = FindAutomationLoopTask(e.OriginalSource as DependencyObject);
-    }
-
-    private void AutomationLoopListBox_PreviewMouseMove(object sender, MouseEventArgs e)
-    {
-        if (e.LeftButton != MouseButtonState.Pressed || _automationLoopDragSource is null)
-        {
-            return;
-        }
-
-        var position = e.GetPosition(AutomationLoopListBox);
-        var delta = position - _automationLoopDragStart;
-        if (Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance
-            && Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance)
-        {
-            return;
-        }
-
-        DragDrop.DoDragDrop(AutomationLoopListBox, _automationLoopDragSource, DragDropEffects.Move);
-    }
-
-    private void AutomationLoopListBox_DragOver(object sender, DragEventArgs e)
-    {
-        e.Effects = e.Data.GetDataPresent(typeof(LoopTaskOption))
-            ? DragDropEffects.Move
-            : DragDropEffects.None;
-        e.Handled = true;
-    }
-
-    private void AutomationLoopListBox_Drop(object sender, DragEventArgs e)
-    {
-        if (!e.Data.GetDataPresent(typeof(LoopTaskOption)))
-        {
-            return;
-        }
-
-        if (e.Data.GetData(typeof(LoopTaskOption)) is not LoopTaskOption sourceOption)
-        {
-            return;
-        }
-
-        var targetOption = FindAutomationLoopTask(e.OriginalSource as DependencyObject);
-        var fromIndex = _automationLoopTasks.IndexOf(sourceOption);
-        if (fromIndex < 0)
-        {
-            return;
-        }
-
-        var toIndex = targetOption is null
-            ? _automationLoopTasks.Count - 1
-            : _automationLoopTasks.IndexOf(targetOption);
-        if (toIndex < 0)
-        {
-            toIndex = _automationLoopTasks.Count - 1;
-        }
-
-        if (fromIndex == toIndex)
-        {
-            return;
-        }
-
-        _automationLoopTasks.Move(fromIndex, toIndex);
-        UpdateAutomationLoopOrders();
-        UpdateAutomationLoopSummaryText();
-        UpdateAutomationLoopRunningIndicators();
-        PersistAutomationLoopTasksToConfig();
-    }
-
-    private LoopTaskOption? FindAutomationLoopTask(DependencyObject? source)
-    {
-        while (source is not null)
-        {
-            if (source is FrameworkElement { DataContext: LoopTaskOption option })
-            {
-                return option;
-            }
-
-            source = VisualTreeHelper.GetParent(source);
-        }
-
-        return null;
     }
 
     private void LoadVersionToUi()
@@ -1802,6 +961,7 @@ public partial class MainWindow : Window
             RefreshNatarsProfileAnalyzedFromCache();
             var snapshot = await _botService.LoadPostLoginSnapshotAsync(options, AppendLog, cancellationToken: operationToken);
             ApplyPostLoginSnapshot(snapshot);
+            await RefreshResourceSnapshotForUiAsync(options, operationToken, forceCurrentVillage: true);
             if (options.PostLoginAnalyzeFarmlists)
             {
                 try
@@ -1889,6 +1049,8 @@ public partial class MainWindow : Window
             _isLoggedIn = false;
             _browserSessionLikelyOpen = false;
             _inboxAutoEnabled = false;
+            _lastResourceStatusForUi = null;
+            _resourcesViewModel.ResetStorageForecasts();
             UpdateInboxButtons(0, 0);
             CompleteOperation(operationId, operationSw, "Logout completed.");
         }
@@ -2032,8 +1194,10 @@ public partial class MainWindow : Window
             _buildQueueRemainingSeconds = -1;
             _activeVillageResourceMaxLevel = NonCapitalResourceMaxLevel;
             _lastBuildingStatus = null;
+            _lastResourceStatusForUi = null;
 
             SetResourceRows([]);
+            _resourcesViewModel.ResetStorageForecasts();
             _buildingRows.Clear();
             _demolishableBuildings.Clear();
             BuildQueueStatusTextBlock.Text = "Build queue: idle";
@@ -2160,162 +1324,6 @@ public partial class MainWindow : Window
         StartLoopButton.Content = "Start bot";
         StartLoopButton.IsEnabled = true;
         AppendLog("Continuous run disabled. Running actions were stopped.");
-    }
-
-    private void SidebarNavButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not Button button)
-        {
-            return;
-        }
-
-        try
-        {
-            var targetTab = button.Tag?.ToString() switch
-            {
-                "dashboard" => DashboardTabItem,
-                "resources" => ResourcesTabItem,
-                "buildings" => BuildingsTabItem,
-                "hero" => HeroTabItem,
-                "farming" => FarmingTabItem,
-                "troops" => TroopsTabItem,
-                "queue" => QueueTabItem,
-                "logs" => LogsTabItem,
-                "inbox" => InboxTabItem,
-                _ => DashboardTabItem,
-            };
-
-            if (targetTab is not null)
-            {
-                MainTabControl.SelectedItem = targetTab;
-                if (ReferenceEquals(targetTab, FarmingTabItem))
-                {
-                    RefreshFarmListsItemsControl();
-                    SyncFarmingControlsEnabledState();
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Sidebar navigation failed: {ex.Message}");
-            MainTabControl.SelectedItem = DashboardTabItem;
-        }
-
-        UpdateSidebarSelection(button);
-    }
-
-    private void DashboardFunctionListButton_Click(object sender, RoutedEventArgs e)
-    {
-        var currentByGroup = _automationLoopTasks
-            .ToDictionary(item => item.TaskName, item => item, StringComparer.OrdinalIgnoreCase);
-        var orderedGroupKeys = QueueGroupCatalog.AllGroups
-            .Select(QueueGroupCatalog.GetKey)
-            .ToList();
-
-        var options = orderedGroupKeys
-            .Select(groupKey =>
-            {
-                QueueGroupCatalog.TryParse(groupKey, out var group);
-                return new DashboardFunctionOption
-                {
-                    Key = groupKey,
-                    Label = currentByGroup.TryGetValue(groupKey, out var current)
-                        ? current.Title
-                        : QueueGroupCatalog.GetTitle(group),
-                    IsVisible = currentByGroup.TryGetValue(groupKey, out var selected) && selected.IsVisible,
-                };
-            })
-            .ToList();
-
-        var dialog = new DashboardFunctionListWindow(options)
-        {
-            Owner = this,
-        };
-        if (dialog.ShowDialog() != true)
-        {
-            return;
-        }
-
-        var selectedGroupNames = dialog.SelectedVisibility
-            .Where(item => item.Value)
-            .Select(item => item.Key)
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        _suppressAutomationLoopConfigWrite = true;
-        try
-        {
-            _automationLoopTasks.Clear();
-            foreach (var groupKey in orderedGroupKeys)
-            {
-                if (!QueueGroupCatalog.TryParse(groupKey, out var group))
-                {
-                    continue;
-                }
-
-                if (currentByGroup.TryGetValue(groupKey, out var existing))
-                {
-                    _automationLoopTasks.Add(new LoopTaskOption
-                    {
-                        TaskName = existing.TaskName,
-                        Title = existing.Title,
-                        Description = existing.Description,
-                        IsEnabled = existing.IsEnabled && selectedGroupNames.Contains(groupKey),
-                        IsVisible = selectedGroupNames.Contains(groupKey),
-                        StateText = existing.StateText,
-                        DetailText = existing.DetailText,
-                        QueuedCount = existing.QueuedCount,
-                        RemainingSeconds = existing.RemainingSeconds,
-                    });
-                    continue;
-                }
-
-                _automationLoopTasks.Add(new LoopTaskOption
-                {
-                    TaskName = groupKey,
-                    Title = QueueGroupCatalog.GetTitle(group),
-                    Description = QueueGroupCatalog.GetDescription(group),
-                    IsEnabled = false,
-                    IsVisible = selectedGroupNames.Contains(groupKey),
-                    StateText = "Idle",
-                    DetailText = "No queued task.",
-                });
-            }
-        }
-        finally
-        {
-            _suppressAutomationLoopConfigWrite = false;
-        }
-
-        UpdateAutomationLoopOrders();
-        UpdateAutomationLoopSummaryText();
-        UpdateAutomationLoopRunningIndicators();
-        PersistAutomationLoopTasksToConfig();
-    }
-
-    private void UpdateSidebarSelection(Button selectedButton)
-    {
-        var navButtons = new[]
-        {
-            DashboardNavButton,
-            ResourcesNavButton,
-            BuildingsNavButton,
-            HeroNavButton,
-            FarmingNavButton,
-            TroopsNavButton,
-            QueueNavButton,
-            LogsNavButton,
-            InboxNavButton,
-        };
-
-        foreach (var nav in navButtons)
-        {
-            nav.BorderThickness = new Thickness(1);
-            nav.BorderBrush = new SolidColorBrush(Color.FromRgb(243, 244, 246));
-        }
-
-        _activeSidebarButton = selectedButton;
-        selectedButton.BorderBrush = new SolidColorBrush(Color.FromRgb(15, 23, 42));
     }
 
     private void HelpButton_Click(object sender, RoutedEventArgs e)
@@ -2517,9 +1525,10 @@ public partial class MainWindow : Window
             || string.Equals(taskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool IsResourceUpgradeQueueTask(string taskName)
+    private static bool IsResourceAwareQueueTask(string taskName)
     {
-        return string.Equals(taskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase);
+        return string.Equals(taskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(taskName, "build_troops", StringComparison.OrdinalIgnoreCase);
     }
 
     private void ScheduleDeferredBuildingsMidWaitRefresh(QueueItem item, TimeSpan queueWaitDelay)
@@ -2554,7 +1563,7 @@ public partial class MainWindow : Window
 
     private void ScheduleDeferredResourcesMidWaitRefresh(QueueItem item, TimeSpan queueWaitDelay)
     {
-        if (!IsResourceUpgradeQueueTask(item.TaskName) || queueWaitDelay.TotalSeconds < 3)
+        if (!IsResourceAwareQueueTask(item.TaskName) || queueWaitDelay.TotalSeconds < 3)
         {
             return;
         }
@@ -2604,6 +1613,7 @@ public partial class MainWindow : Window
 
         SetResourceRows(rows);
         ApplyVillageStatusToUi(status);
+        TriggerDeferredConstructionWaitRefresh(status, "post_login");
 
         _lastBuildingStatus = status;
         PopulateBuildingsTab(status);
@@ -2718,10 +1728,11 @@ public partial class MainWindow : Window
             SetEnabled(QueueRefreshButton, defaultEnabled);
             SetEnabled(ResetProgramButton, true);
             SetEnabled(LoadResourcesButton, defaultEnabled);
+            SetEnabled(StorageRefreshButton, defaultEnabled && !_resourceSnapshotRefreshRunning);
             SetEnabled(ResourceTargetLevelComboBox, defaultEnabled);
             SetEnabled(UpgradeAllResourcesButton, defaultEnabled);
-            SetEnabled(MarkMessagesReadButton, defaultEnabled);
-            SetEnabled(MarkReportsReadButton, defaultEnabled);
+            SetEnabled(UpgradeAllResourcesToMaxButton, defaultEnabled);
+            InboxPanelControl?.SetActionsEnabled(defaultEnabled);
             SetEnabled(StopBotButton, true);
 
             if (StartLoopButton is not null)
@@ -2972,9 +1983,10 @@ public partial class MainWindow : Window
         VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
         RefreshVillagePickerFromVillages(status.Villages, status.ActiveVillage);
         UpdateDashboardVillageList(status.Villages);
+        await RefreshResourceSnapshotForUiAsync(options, cancellationToken);
     }
 
-    private async Task<VillageStatus> ReadVillageStatusWithRetryAsync(BotOptions options, CancellationToken cancellationToken, bool resourceOnly = false, bool forceCurrentVillage = false)
+    private async Task<VillageStatus> ReadVillageStatusWithRetryAsync(BotOptions options, CancellationToken cancellationToken, bool resourceOnly = false, bool forceCurrentVillage = false, bool currentPageOnly = false)
     {
         static bool IsTransientExecutionContextError(Exception ex)
         {
@@ -3000,7 +2012,7 @@ public partial class MainWindow : Window
         {
             try
             {
-                status = await ReadVillageStatusAsync(options, cancellationToken, resourceOnly, forceCurrentVillage);
+                status = await ReadVillageStatusAsync(options, cancellationToken, resourceOnly, forceCurrentVillage, currentPageOnly);
                 break;
             }
             catch (Exception ex) when (attempt < statusAttempts && IsTransientExecutionContextError(ex))
@@ -3028,10 +2040,10 @@ public partial class MainWindow : Window
         }
 
         await Task.Delay(350, cancellationToken);
-        return await ReadVillageStatusAsync(options, cancellationToken, resourceOnly, forceCurrentVillage);
+        return await ReadVillageStatusAsync(options, cancellationToken, resourceOnly, forceCurrentVillage, currentPageOnly);
     }
 
-    private Task<VillageStatus> ReadVillageStatusAsync(BotOptions options, CancellationToken cancellationToken, bool resourceOnly, bool forceCurrentVillage = false)
+    private Task<VillageStatus> ReadVillageStatusAsync(BotOptions options, CancellationToken cancellationToken, bool resourceOnly, bool forceCurrentVillage = false, bool currentPageOnly = false)
     {
         var villageName = forceCurrentVillage ? null : GetSelectedVillageName();
         var villageUrl = forceCurrentVillage ? null : GetSelectedVillageUrl();
@@ -3043,7 +2055,8 @@ public partial class MainWindow : Window
                 AppendLog,
                 villageName,
                 villageUrl,
-                cancellationToken);
+                cancellationToken,
+                currentPageOnly);
         }
 
         return _botService.ReadVillageStatusAsync(
@@ -3161,6 +2174,551 @@ public partial class MainWindow : Window
         delay = TimeSpan.FromSeconds(effectiveSeconds);
         return true;
     }
+
+    private bool TryExtractDeferredUpgradePayload(string message, Dictionary<string, string> basePayload, out Dictionary<string, string> updatedPayload)
+    {
+        updatedPayload = new Dictionary<string, string>(basePayload, StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        var changed = false;
+        foreach (var key in DeferredUpgradePayloadKeys)
+        {
+            var match = Regex.Match(message, $@"(?<!\S){Regex.Escape(key)}=(?<value>\S+)", RegexOptions.IgnoreCase);
+            if (!match.Success)
+            {
+                continue;
+            }
+
+            updatedPayload[key] = match.Groups["value"].Value.Trim();
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private void TriggerDeferredConstructionWaitRefresh(VillageStatus status, string source)
+    {
+        if (_deferredConstructionRefreshRunning || status.Resources.Count == 0)
+        {
+            return;
+        }
+
+        _deferredConstructionRefreshRunning = true;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await RefreshDeferredConstructionWaitsAsync(status, source);
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"Deferred construction wait refresh skipped: {ex.Message}");
+            }
+            finally
+            {
+                _deferredConstructionRefreshRunning = false;
+            }
+        });
+    }
+
+    private async Task RefreshDeferredConstructionWaitsAsync(VillageStatus status, string source)
+    {
+        var currentResources = ReadCurrentResourcesFromStatus(status);
+        var productionByHour = ReadCurrentProductionByHourFromStatus(status);
+        var deferredItems = _botService
+            .GetQueueItemsForDisplay()
+            .Where(item => item.Status == QueueStatus.Pending)
+            .Where(item => IsConstructionQueueTask(item.TaskName))
+            .ToList();
+
+        foreach (var item in deferredItems)
+        {
+            if (!TryReadDeferredUpgradeRequirements(item.Payload, out var required))
+            {
+                continue;
+            }
+
+            var evaluation = EvaluateDeferredUpgradeWait(item.Payload, required, currentResources, productionByHour);
+            var updatedPayload = new Dictionary<string, string>(item.Payload, StringComparer.OrdinalIgnoreCase);
+            WriteDeferredUpgradeRuntimeValues(updatedPayload, currentResources, productionByHour, evaluation);
+            var remainingSeconds = Math.Max(0, (int)Math.Ceiling((item.NextAttemptAt - DateTimeOffset.UtcNow).TotalSeconds));
+
+            if (evaluation.ResourcesEnough)
+            {
+                if (remainingSeconds <= 1)
+                {
+                    continue;
+                }
+
+                var changed = _botService.UpdateDeferredQueueItem(item.Id, updatedPayload, TimeSpan.Zero);
+                if (changed)
+                {
+                    AppendLog($"Deferred upgrade resumed from {source}: {DescribeDeferredUpgrade(item.Payload)} now has enough resources.");
+                }
+                continue;
+            }
+
+            if (Math.Abs(remainingSeconds - evaluation.WaitSeconds) <= 5)
+            {
+                continue;
+            }
+
+            var delay = TimeSpan.FromSeconds(evaluation.WaitSeconds);
+            var updated = _botService.UpdateDeferredQueueItem(item.Id, updatedPayload, delay);
+            if (updated)
+            {
+                AppendLog($"Deferred upgrade wait updated from {source}: {DescribeDeferredUpgrade(item.Payload)} wait={evaluation.WaitSeconds}s reason={evaluation.WaitReason}.");
+            }
+        }
+
+        await Dispatcher.InvokeAsync(() => RefreshQueueUi());
+    }
+
+    private void TriggerDeferredTroopTrainingWaitRefresh(VillageStatus status, string source)
+    {
+        if (_deferredTroopTrainingRefreshRunning || status.Resources.Count == 0)
+        {
+            return;
+        }
+
+        _deferredTroopTrainingRefreshRunning = true;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await RefreshDeferredTroopTrainingWaitsAsync(status, source);
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"Deferred troop training wait refresh skipped: {ex.Message}");
+            }
+            finally
+            {
+                _deferredTroopTrainingRefreshRunning = false;
+            }
+        });
+    }
+
+    private async Task RefreshDeferredTroopTrainingWaitsAsync(VillageStatus status, string source)
+    {
+        var currentResources = ReadCurrentResourcesFromStatus(status);
+        var productionByHour = ReadCurrentProductionByHourFromStatus(status);
+        var warehouseCapacity = status.WarehouseCapacity;
+        var granaryCapacity = status.GranaryCapacity;
+        if (warehouseCapacity is not > 0 || granaryCapacity is not > 0)
+        {
+            return;
+        }
+
+        var options = ApplySelectedVillageToOptions(LoadBotOptions());
+        var fallbackCooldownSeconds = ResolveTroopTrainingFallbackCooldownSeconds(options.TroopTrainingFallbackCooldownSeconds);
+        var deferredItems = _botService
+            .GetQueueItemsForDisplay()
+            .Where(item => item.Status == QueueStatus.Pending)
+            .Where(item => string.Equals(item.TaskName, "build_troops", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (deferredItems.Count == 0)
+        {
+            return;
+        }
+
+        var requests = BuildDeferredTroopTrainingRequests(options);
+        var knownBuildings = _lastBuildingStatus?.Buildings ?? [];
+        foreach (var item in deferredItems)
+        {
+            var evaluation = EvaluateDeferredTroopTrainingWait(
+                requests,
+                knownBuildings,
+                currentResources,
+                productionByHour,
+                warehouseCapacity.Value,
+                granaryCapacity.Value,
+                fallbackCooldownSeconds);
+            var remainingSeconds = Math.Max(0, (int)Math.Ceiling((item.NextAttemptAt - DateTimeOffset.UtcNow).TotalSeconds));
+            if (evaluation.Ready)
+            {
+                if (remainingSeconds <= 1)
+                {
+                    continue;
+                }
+
+                if (_botService.UpdateDeferredQueueItem(item.Id, item.Payload, TimeSpan.Zero))
+                {
+                    AppendLog($"Deferred troop training resumed from {source}: resources now satisfy a % limit.");
+                }
+
+                continue;
+            }
+
+            if (Math.Abs(remainingSeconds - evaluation.WaitSeconds) <= 5)
+            {
+                continue;
+            }
+
+            if (_botService.UpdateDeferredQueueItem(item.Id, item.Payload, TimeSpan.FromSeconds(evaluation.WaitSeconds)))
+            {
+                AppendLog($"Deferred troop training wait updated from {source}: wait={evaluation.WaitSeconds}s reason={evaluation.WaitReason}.");
+            }
+        }
+
+        await Dispatcher.InvokeAsync(() => RefreshQueueUi());
+    }
+
+    private static Dictionary<string, long> ReadCurrentResourcesFromStatus(VillageStatus status)
+    {
+        var result = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        foreach (var key in new[] { "wood", "clay", "iron", "crop" })
+        {
+            status.Resources.TryGetValue(key, out var raw);
+            result[key] = TryParseDesktopResourceValue(raw) ?? 0;
+        }
+
+        return result;
+    }
+
+    private static Dictionary<string, double?> ReadCurrentProductionByHourFromStatus(VillageStatus status)
+    {
+        var result = new Dictionary<string, double?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var key in new[] { "wood", "clay", "iron", "crop" })
+        {
+            result[key] = status.ResourceStorageForecasts?
+                .FirstOrDefault(item => string.Equals(item.ResourceKey, key, StringComparison.OrdinalIgnoreCase))
+                ?.ProductionPerHour;
+        }
+
+        return result;
+    }
+
+    private sealed record DeferredTroopTrainingRequest(
+        string BuildingName,
+        bool Enabled,
+        string RunMode,
+        int MinimumResourcesPercent,
+        bool CheckWood,
+        bool CheckClay,
+        bool CheckIron,
+        bool CheckCrop);
+
+    private sealed record DeferredTroopTrainingEvaluation(
+        bool Ready,
+        int WaitSeconds,
+        string WaitReason);
+
+    private static IReadOnlyList<DeferredTroopTrainingRequest> BuildDeferredTroopTrainingRequests(BotOptions options)
+    {
+        return
+        [
+            new DeferredTroopTrainingRequest("Barracks", options.TroopTrainingBarracksEnabled, options.TroopTrainingBarracksRunMode, options.TroopTrainingBarracksMinimumResourcesPercent, options.TroopTrainingBarracksCheckWood, options.TroopTrainingBarracksCheckClay, options.TroopTrainingBarracksCheckIron, options.TroopTrainingBarracksCheckCrop),
+            new DeferredTroopTrainingRequest("Stable", options.TroopTrainingStableEnabled, options.TroopTrainingStableRunMode, options.TroopTrainingStableMinimumResourcesPercent, options.TroopTrainingStableCheckWood, options.TroopTrainingStableCheckClay, options.TroopTrainingStableCheckIron, options.TroopTrainingStableCheckCrop),
+            new DeferredTroopTrainingRequest("Workshop", options.TroopTrainingWorkshopEnabled, options.TroopTrainingWorkshopRunMode, options.TroopTrainingWorkshopMinimumResourcesPercent, options.TroopTrainingWorkshopCheckWood, options.TroopTrainingWorkshopCheckClay, options.TroopTrainingWorkshopCheckIron, options.TroopTrainingWorkshopCheckCrop),
+        ];
+    }
+
+    private static DeferredTroopTrainingEvaluation EvaluateDeferredTroopTrainingWait(
+        IReadOnlyList<DeferredTroopTrainingRequest> requests,
+        IReadOnlyList<Building> knownBuildings,
+        IReadOnlyDictionary<string, long> currentResources,
+        IReadOnlyDictionary<string, double?> productionByHour,
+        long warehouseCapacity,
+        long granaryCapacity,
+        int fallbackCooldownSeconds)
+    {
+        var enabledRequests = requests
+            .Where(item => item.Enabled)
+            .Where(item => string.Equals(item.RunMode, "resource_percent", StringComparison.OrdinalIgnoreCase))
+            .Where(item => knownBuildings.Count == 0 || knownBuildings.Any(building =>
+                string.Equals(building.Name, item.BuildingName, StringComparison.OrdinalIgnoreCase)
+                || (item.BuildingName == "Barracks" && (building.Gid ?? 0) == 19)
+                || (item.BuildingName == "Stable" && (building.Gid ?? 0) == 20)
+                || (item.BuildingName == "Workshop" && (building.Gid ?? 0) == 21)))
+            .ToList();
+        if (enabledRequests.Count == 0)
+        {
+            return new DeferredTroopTrainingEvaluation(false, fallbackCooldownSeconds, "fallback_cooldown");
+        }
+
+        var shortestWait = int.MaxValue;
+        var waitReason = "fallback_cooldown";
+        foreach (var request in enabledRequests)
+        {
+            var selectedKeys = ResolveDeferredTroopTrainingResourceKeys(request);
+            var meetsThreshold = true;
+            var requestWait = 0;
+            var requestReason = "fallback_cooldown";
+            foreach (var key in selectedKeys)
+            {
+                var capacity = string.Equals(key, "crop", StringComparison.OrdinalIgnoreCase)
+                    ? granaryCapacity
+                    : warehouseCapacity;
+                var threshold = (long)Math.Ceiling(capacity * (Math.Clamp(request.MinimumResourcesPercent, 1, 100) / 100d));
+                currentResources.TryGetValue(key, out var currentValue);
+                var missing = Math.Max(0L, threshold - currentValue);
+                if (missing <= 0)
+                {
+                    continue;
+                }
+
+                meetsThreshold = false;
+                productionByHour.TryGetValue(key, out var productionValue);
+                if (productionValue > 0)
+                {
+                    var perResourceWait = Math.Max(1, (int)Math.Ceiling((missing / productionValue.Value) * 3600d));
+                    requestWait = Math.Max(requestWait, perResourceWait);
+                    requestReason = "estimated_from_status";
+                }
+                else
+                {
+                    requestWait = Math.Max(requestWait, fallbackCooldownSeconds);
+                    requestReason = "recheck_needed";
+                }
+            }
+
+            if (meetsThreshold)
+            {
+                return new DeferredTroopTrainingEvaluation(true, 0, "ready");
+            }
+
+            if (requestWait > 0 && requestWait < shortestWait)
+            {
+                shortestWait = requestWait;
+                waitReason = requestReason;
+            }
+        }
+
+        if (shortestWait == int.MaxValue)
+        {
+            shortestWait = fallbackCooldownSeconds;
+        }
+
+        return new DeferredTroopTrainingEvaluation(false, shortestWait, waitReason);
+    }
+
+    private static IReadOnlyList<string> ResolveDeferredTroopTrainingResourceKeys(DeferredTroopTrainingRequest request)
+    {
+        var keys = new List<string>();
+        if (request.CheckWood)
+        {
+            keys.Add("wood");
+        }
+
+        if (request.CheckClay)
+        {
+            keys.Add("clay");
+        }
+
+        if (request.CheckIron)
+        {
+            keys.Add("iron");
+        }
+
+        if (request.CheckCrop)
+        {
+            keys.Add("crop");
+        }
+
+        return keys.Count > 0 ? keys : ["wood", "clay", "iron", "crop"];
+    }
+
+    private static int ResolveTroopTrainingFallbackCooldownSeconds(int configuredSeconds)
+    {
+        return configuredSeconds switch
+        {
+            10 or 30 or 60 or 120 or 300 or 600 => configuredSeconds,
+            _ => 30,
+        };
+    }
+
+    private static bool TryReadDeferredUpgradeRequirements(IReadOnlyDictionary<string, string> payload, out Dictionary<string, long> required)
+    {
+        required = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        var found = false;
+        foreach (var pair in DeferredRequirementKeys)
+        {
+            if (!payload.TryGetValue(pair.Value, out var raw) || !long.TryParse(raw, out var value))
+            {
+                continue;
+            }
+
+            required[pair.Key] = value;
+            found = true;
+        }
+
+        return found;
+    }
+
+    private static DeferredUpgradeEvaluation EvaluateDeferredUpgradeWait(
+        IReadOnlyDictionary<string, string> payload,
+        IReadOnlyDictionary<string, long> required,
+        IReadOnlyDictionary<string, long> currentResources,
+        IReadOnlyDictionary<string, double?> liveProductionByHour)
+    {
+        var resourcesEnough = true;
+        var longestFiniteWait = 0;
+        var hasUnknownWait = false;
+
+        foreach (var key in new[] { "wood", "clay", "iron", "crop" })
+        {
+            required.TryGetValue(key, out var requiredValue);
+            currentResources.TryGetValue(key, out var currentValue);
+            var missing = Math.Max(0, requiredValue - currentValue);
+            if (missing <= 0)
+            {
+                continue;
+            }
+
+            resourcesEnough = false;
+            liveProductionByHour.TryGetValue(key, out var liveProduction);
+            var production = liveProduction ?? ReadStoredProductionValue(payload, key);
+            if (production > 0)
+            {
+                var waitSeconds = (int)Math.Ceiling((missing / production.Value) * 3600d);
+                longestFiniteWait = Math.Max(longestFiniteWait, Math.Max(1, waitSeconds));
+                continue;
+            }
+
+            hasUnknownWait = true;
+        }
+
+        if (resourcesEnough)
+        {
+            return new DeferredUpgradeEvaluation(true, 0, "resources_ready");
+        }
+
+        var wait = longestFiniteWait > 0 ? longestFiniteWait : 60;
+        if (hasUnknownWait)
+        {
+            wait = Math.Max(30, Math.Min(wait, 60));
+        }
+
+        return new DeferredUpgradeEvaluation(false, wait, hasUnknownWait ? "recheck_needed" : "estimated_from_status");
+    }
+
+    private static void WriteDeferredUpgradeRuntimeValues(
+        Dictionary<string, string> payload,
+        IReadOnlyDictionary<string, long> currentResources,
+        IReadOnlyDictionary<string, double?> productionByHour,
+        DeferredUpgradeEvaluation evaluation)
+    {
+        foreach (var pair in DeferredCurrentKeys)
+        {
+            if (currentResources.TryGetValue(pair.Key, out var current))
+            {
+                payload[pair.Value] = current.ToString();
+            }
+        }
+
+        foreach (var pair in DeferredProductionKeys)
+        {
+            if (productionByHour.TryGetValue(pair.Key, out var production) && production.HasValue)
+            {
+                payload[pair.Value] = production.Value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+            }
+        }
+
+        payload[BotOptionPayloadKeys.UpgradeWaitSeconds] = evaluation.WaitSeconds.ToString();
+        payload[BotOptionPayloadKeys.UpgradeWaitReason] = evaluation.WaitReason;
+    }
+
+    private static double? ReadStoredProductionValue(IReadOnlyDictionary<string, string> payload, string resourceKey)
+    {
+        if (!DeferredProductionKeys.TryGetValue(resourceKey, out var key))
+        {
+            return null;
+        }
+
+        if (!payload.TryGetValue(key, out var raw))
+        {
+            return null;
+        }
+
+        return double.TryParse(raw, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var value)
+            ? value
+            : null;
+    }
+
+    private static long? TryParseDesktopResourceValue(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        var cleaned = raw.Replace("\u00a0", string.Empty, StringComparison.Ordinal)
+            .Replace(" ", string.Empty, StringComparison.Ordinal)
+            .Replace(".", string.Empty, StringComparison.Ordinal)
+            .Replace(",", string.Empty, StringComparison.Ordinal)
+            .Trim();
+        return long.TryParse(cleaned, out var value) ? value : null;
+    }
+
+    private static string DescribeDeferredUpgrade(IReadOnlyDictionary<string, string> payload)
+    {
+        if (payload.TryGetValue(BotOptionPayloadKeys.UpgradeBlockedLabel, out var blockedLabel) && !string.IsNullOrWhiteSpace(blockedLabel))
+        {
+            return blockedLabel.Replace('_', ' ');
+        }
+
+        if (payload.TryGetValue(BotOptionPayloadKeys.BuildingUpgradeName, out var buildingName) && !string.IsNullOrWhiteSpace(buildingName))
+        {
+            return buildingName;
+        }
+
+        if (payload.TryGetValue(BotOptionPayloadKeys.ResourceUpgradeName, out var resourceName) && !string.IsNullOrWhiteSpace(resourceName))
+        {
+            return resourceName;
+        }
+
+        return "upgrade";
+    }
+
+    private sealed record DeferredUpgradeEvaluation(bool ResourcesEnough, int WaitSeconds, string WaitReason);
+
+    private static readonly string[] DeferredUpgradePayloadKeys =
+    [
+        BotOptionPayloadKeys.UpgradeBlockedLabel,
+        BotOptionPayloadKeys.UpgradeRequiredWood,
+        BotOptionPayloadKeys.UpgradeRequiredClay,
+        BotOptionPayloadKeys.UpgradeRequiredIron,
+        BotOptionPayloadKeys.UpgradeRequiredCrop,
+        BotOptionPayloadKeys.UpgradeCurrentWood,
+        BotOptionPayloadKeys.UpgradeCurrentClay,
+        BotOptionPayloadKeys.UpgradeCurrentIron,
+        BotOptionPayloadKeys.UpgradeCurrentCrop,
+        BotOptionPayloadKeys.UpgradeProductionWood,
+        BotOptionPayloadKeys.UpgradeProductionClay,
+        BotOptionPayloadKeys.UpgradeProductionIron,
+        BotOptionPayloadKeys.UpgradeProductionCrop,
+        BotOptionPayloadKeys.UpgradeWaitSeconds,
+        BotOptionPayloadKeys.UpgradeWaitReason,
+    ];
+
+    private static readonly IReadOnlyDictionary<string, string> DeferredRequirementKeys = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["wood"] = BotOptionPayloadKeys.UpgradeRequiredWood,
+        ["clay"] = BotOptionPayloadKeys.UpgradeRequiredClay,
+        ["iron"] = BotOptionPayloadKeys.UpgradeRequiredIron,
+        ["crop"] = BotOptionPayloadKeys.UpgradeRequiredCrop,
+    };
+
+    private static readonly IReadOnlyDictionary<string, string> DeferredCurrentKeys = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["wood"] = BotOptionPayloadKeys.UpgradeCurrentWood,
+        ["clay"] = BotOptionPayloadKeys.UpgradeCurrentClay,
+        ["iron"] = BotOptionPayloadKeys.UpgradeCurrentIron,
+        ["crop"] = BotOptionPayloadKeys.UpgradeCurrentCrop,
+    };
+
+    private static readonly IReadOnlyDictionary<string, string> DeferredProductionKeys = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["wood"] = BotOptionPayloadKeys.UpgradeProductionWood,
+        ["clay"] = BotOptionPayloadKeys.UpgradeProductionClay,
+        ["iron"] = BotOptionPayloadKeys.UpgradeProductionIron,
+        ["crop"] = BotOptionPayloadKeys.UpgradeProductionCrop,
+    };
 
     private async Task RefreshConstructionStatusAsync(CancellationToken cancellationToken)
     {
@@ -3466,6 +3024,29 @@ public partial class MainWindow : Window
         ActiveAccountInfoTextBlock.Text = $"Account: {accountName} | Server: {ExtractServerSpeedLabel()}";
     }
 
+    private void HeroViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_suppressHeroHideModeApply)
+        {
+            return;
+        }
+
+        if (e.PropertyName is not (
+            nameof(HeroViewModel.MinHpForAdventure)
+            or nameof(HeroViewModel.AutoRevive)
+            or nameof(HeroViewModel.AutoAssignPoints)
+            or nameof(HeroViewModel.IsAdventurePickTop)
+            or nameof(HeroViewModel.IsAdventurePickShortest)
+            or nameof(HeroViewModel.IsHideModeFight)
+            or nameof(HeroViewModel.IsHideModeHide)
+            or nameof(HeroViewModel.ContinuousAdventures)))
+        {
+            return;
+        }
+
+        PersistHeroSettingsToConfig();
+    }
+
     private static string? TryGetFriendlyLoginError(Exception ex)
     {
         var message = ex.Message ?? string.Empty;
@@ -3554,6 +3135,7 @@ public partial class MainWindow : Window
     private void ApplyVillageStatusToUi(VillageStatus status)
     {
         UpdateActiveVillageResourceMaxLevel(status);
+        _resourcesViewModel.ApplyStorageForecasts(status);
         VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
         TribeInfoTextBlock.Text = $"Tribe: {status.Tribe}";
         if (_troopTrainingViewModel.UpdateTroopOptions(status.Tribe))
@@ -3808,6 +3390,7 @@ public partial class MainWindow : Window
             VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
             RefreshVillagePickerFromVillages(status.Villages, selectedVillage.Name);
             UpdateDashboardVillageList(status.Villages);
+            await RefreshResourceSnapshotForUiAsync(options, operationToken);
 
             CompleteOperation(operationId, operationSw, $"Village switched to '{selectedVillage.Name}' and UI refreshed.");
         }
@@ -3823,72 +3406,6 @@ public partial class MainWindow : Window
         {
             ToggleUiBusy(false);
         }
-    }
-
-    private void UpdateDashboardVillageList(IReadOnlyList<Village> villages)
-    {
-        var items = BuildMergedVillageSelectionItems(villages)
-            .OrderByDescending(v => v.IsCapital)
-            .ThenByDescending(v => v.Population ?? -1)
-            .ThenBy(v => v.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        DashboardVillageList.ItemsSource = items;
-    }
-
-    private void RefreshVillagePickerFromVillages(IReadOnlyList<Village> villages, string? preferredVillageName)
-    {
-        var currentSelectedName = string.IsNullOrWhiteSpace(preferredVillageName)
-            ? GetSelectedVillageName()
-            : preferredVillageName;
-
-        var items = BuildMergedVillageSelectionItems(villages);
-
-        if (items.Count == 0)
-        {
-            items.Add(new VillageSelectionItem { Name = "-", Url = string.Empty });
-        }
-
-        _suppressVillageSelectionChange = true;
-        try
-        {
-            VillageComboBox.ItemsSource = items;
-            var selected = items.FirstOrDefault(v =>
-                string.Equals(v.Name, currentSelectedName, StringComparison.OrdinalIgnoreCase))
-                ?? items[0];
-            VillageComboBox.SelectedItem = selected;
-        }
-        finally
-        {
-            _suppressVillageSelectionChange = false;
-        }
-    }
-
-    private List<VillageSelectionItem> BuildMergedVillageSelectionItems(IReadOnlyList<Village> villages)
-    {
-        var existingVillageData = Enumerable.Empty<VillageSelectionItem>()
-            .Concat(VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem> ?? [])
-            .Concat(DashboardVillageList.ItemsSource as IEnumerable<VillageSelectionItem> ?? [])
-            .Where(item => !string.IsNullOrWhiteSpace(item.Name))
-            .GroupBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
-
-        return villages
-            .Where(v => !string.IsNullOrWhiteSpace(v.Name))
-            .Select(v =>
-            {
-                existingVillageData.TryGetValue(v.Name!, out var existing);
-                return new VillageSelectionItem
-                {
-                    Name = v.Name!,
-                    Url = string.IsNullOrWhiteSpace(v.Url) ? existing?.Url ?? string.Empty : v.Url,
-                    IsCapital = v.IsCapital ?? existing?.IsCapital ?? false,
-                    CoordX = v.CoordX ?? existing?.CoordX,
-                    CoordY = v.CoordY ?? existing?.CoordY,
-                    Population = v.Population ?? existing?.Population,
-                    CropFields = v.CropFields ?? existing?.CropFields,
-                };
-            })
-            .ToList();
     }
 
     private bool IsExecutionActiveForVillageChange()

@@ -1,6 +1,7 @@
 using Microsoft.Playwright;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using TbotUltra.Core.Configuration;
 using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Worker.Services;
@@ -242,14 +243,11 @@ public sealed partial class TravianClient
                 var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: false);
                 if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources)
                 {
-                    var waitSeconds = ClampResourceWaitSeconds(actionability.QueueWaitSeconds);
-                    if (ShouldDeferLongWait(waitSeconds))
-                    {
-                        return $"Slot {slotId} blocked by resources. queue_wait_seconds={waitSeconds}";
-                    }
-                    Notify($"Slot {slotId} blocked by resources. Waiting {waitSeconds}s. queue_wait_seconds={waitSeconds}");
-                    await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
-                    continue;
+                    var snapshot = await ReadUpgradeResourceWaitSnapshotAsync(
+                        $"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}",
+                        ClampResourceWaitSeconds(actionability.QueueWaitSeconds),
+                        cancellationToken);
+                    return BuildUpgradeResourceBlockedResultMessage(snapshot);
                 }
                 if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByQueue)
                 {
@@ -311,6 +309,249 @@ public sealed partial class TravianClient
     internal static int ComputeBuildingUpgradeSafetyCap(int targetLevel)
         => Math.Max(1, targetLevel + 5);
 
+    private async Task<UpgradeResourceWaitSnapshot> ReadUpgradeResourceWaitSnapshotAsync(
+        string blockedLabel,
+        int fallbackWaitSeconds,
+        CancellationToken cancellationToken)
+    {
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading upgrade resource requirements.", cancellationToken);
+        var required = await _page.EvaluateAsync<Dictionary<string, long?>>(
+            """
+            () => {
+              const keys = ['wood', 'clay', 'iron', 'crop'];
+              const iconClasses = { wood: 'r1', clay: 'r2', iron: 'r3', crop: 'r4' };
+              const readCost = (key) => {
+                const iconClass = iconClasses[key];
+                const containers = [
+                  ...document.querySelectorAll('.upgradeBuilding, .contract, .contractWrapper, .build_details, #contract, form[action*="build.php"], .inlineIconList')
+                ];
+
+                const parseNumber = (value) => {
+                  const digits = (value || '').replace(/[^\d-]/g, '');
+                  if (!digits) return null;
+                  const parsed = Number(digits);
+                  return Number.isFinite(parsed) ? parsed : null;
+                };
+
+                const extractFromRoot = (root) => {
+                  if (!root) return null;
+                  const iconNode = root.querySelector(`i.${iconClass}, .${iconClass}, i.${iconClass}Big, .${iconClass}Big`);
+                  if (!iconNode) return null;
+
+                  const valueNode =
+                    iconNode.closest('.inlineIcon')?.querySelector('.value')
+                    || iconNode.parentElement?.querySelector('.value')
+                    || iconNode.nextElementSibling;
+                  const parsed = parseNumber(valueNode?.textContent || '');
+                  if (parsed !== null) return parsed;
+
+                  const row = iconNode.closest('tr, li, .inlineIcon, .contract, .row, .value, div');
+                  return parseNumber(row?.textContent || '');
+                };
+
+                for (const container of containers) {
+                  const parsed = extractFromRoot(container);
+                  if (parsed !== null) return parsed;
+                }
+
+                const globals = Array.from(document.querySelectorAll(`i.${iconClass}, .${iconClass}, i.${iconClass}Big, .${iconClass}Big`));
+                for (const node of globals) {
+                  const parsed = extractFromRoot(node.parentElement || node.closest('tr, li, .inlineIcon, .contract, .row, div'));
+                  if (parsed !== null) return parsed;
+                }
+
+                return null;
+              };
+
+              const result = {};
+              for (const key of keys) {
+                result[key] = readCost(key);
+              }
+
+              return result;
+            }
+            """);
+
+        var currentResources = await ReadResourcesAsync(cancellationToken);
+        var productionByHour = await ReadResourceProductionPerHourAsync(cancellationToken);
+
+        var values = new Dictionary<string, UpgradeResourceWaitValue>(StringComparer.OrdinalIgnoreCase);
+        var longestFiniteSeconds = 0;
+        var hasUnknownWait = false;
+
+        foreach (var key in new[] { "wood", "clay", "iron", "crop" })
+        {
+            required.TryGetValue(key, out var requiredValue);
+            currentResources.TryGetValue(key, out var currentRaw);
+            productionByHour.TryGetValue(key, out var productionValue);
+            var currentValue = TryParseResourceValue(currentRaw);
+            var missingValue = requiredValue.HasValue && currentValue.HasValue
+                ? Math.Max(0, requiredValue.Value - currentValue.Value)
+                : (long?)null;
+
+            int? waitSeconds = null;
+            string waitReason;
+            if (missingValue is null || missingValue <= 0)
+            {
+                waitSeconds = 0;
+                waitReason = "enough";
+            }
+            else if (productionValue is > 0)
+            {
+                var computedSeconds = (int)Math.Ceiling((missingValue.Value / productionValue.Value) * 3600d);
+                waitSeconds = Math.Max(1, computedSeconds);
+                longestFiniteSeconds = Math.Max(longestFiniteSeconds, waitSeconds.Value);
+                waitReason = "from_production";
+            }
+            else
+            {
+                hasUnknownWait = true;
+                waitReason = productionValue is null ? "production_unknown" : "production_non_positive";
+            }
+
+            values[key] = new UpgradeResourceWaitValue(
+                Required: requiredValue,
+                Current: currentValue,
+                Missing: missingValue,
+                ProductionPerHour: productionValue,
+                WaitSeconds: waitSeconds,
+                WaitReason: waitReason);
+        }
+
+        var resolvedWaitSeconds = longestFiniteSeconds > 0
+            ? longestFiniteSeconds
+            : Math.Max(30, fallbackWaitSeconds > 0 ? fallbackWaitSeconds : 60);
+        if (hasUnknownWait)
+        {
+            resolvedWaitSeconds = Math.Max(30, Math.Min(resolvedWaitSeconds, 60));
+        }
+
+        var snapshot = new UpgradeResourceWaitSnapshot(
+            blockedLabel,
+            values,
+            resolvedWaitSeconds,
+            hasUnknownWait ? "recheck_needed" : "estimated_from_page");
+        Notify(FormatUpgradeResourceWaitLog(snapshot));
+        return snapshot;
+    }
+
+    private static string FormatUpgradeResourceWaitLog(UpgradeResourceWaitSnapshot snapshot)
+    {
+        static string FormatValue(long? value) => value?.ToString() ?? "?";
+        static string FormatProduction(double? value) => value?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) ?? "?";
+        static string FormatWait(int? value) => value is null ? "?" : value.Value.ToString();
+
+        var parts = new List<string>();
+        foreach (var key in new[] { "wood", "clay", "iron", "crop" })
+        {
+            if (!snapshot.Values.TryGetValue(key, out var value))
+            {
+                continue;
+            }
+
+            parts.Add($"{key}: req={FormatValue(value.Required)}, cur={FormatValue(value.Current)}, miss={FormatValue(value.Missing)}, prod/h={FormatProduction(value.ProductionPerHour)}, wait_s={FormatWait(value.WaitSeconds)}, reason={value.WaitReason}");
+        }
+
+        return $"{snapshot.BlockedLabel}: waiting for resources | {string.Join(" | ", parts)} | queue_wait_seconds={snapshot.WaitSeconds} | wait_reason={snapshot.WaitReason}";
+    }
+
+    private static string BuildUpgradeResourceBlockedResultMessage(UpgradeResourceWaitSnapshot snapshot)
+    {
+        var builder = new System.Text.StringBuilder();
+        builder.Append(snapshot.BlockedLabel);
+        builder.Append(": blocked by resources. ");
+        builder.Append("queue_wait_seconds=");
+        builder.Append(snapshot.WaitSeconds);
+        builder.Append(' ');
+        builder.Append(BotOptionPayloadKeys.UpgradeBlockedLabel);
+        builder.Append('=');
+        builder.Append(SanitizePayloadToken(snapshot.BlockedLabel));
+        builder.Append(' ');
+        builder.Append(BotOptionPayloadKeys.UpgradeWaitReason);
+        builder.Append('=');
+        builder.Append(snapshot.WaitReason);
+        builder.Append(' ');
+        builder.Append(BotOptionPayloadKeys.UpgradeWaitSeconds);
+        builder.Append('=');
+        builder.Append(snapshot.WaitSeconds);
+
+        AppendUpgradeWaitValueTokens(builder, "wood", snapshot.Values);
+        AppendUpgradeWaitValueTokens(builder, "clay", snapshot.Values);
+        AppendUpgradeWaitValueTokens(builder, "iron", snapshot.Values);
+        AppendUpgradeWaitValueTokens(builder, "crop", snapshot.Values);
+        return builder.ToString();
+    }
+
+    private static void AppendUpgradeWaitValueTokens(
+        System.Text.StringBuilder builder,
+        string key,
+        IReadOnlyDictionary<string, UpgradeResourceWaitValue> values)
+    {
+        if (!values.TryGetValue(key, out var value))
+        {
+            return;
+        }
+
+        AppendLongToken(builder, RequiredKeyFor(key), value.Required);
+        AppendLongToken(builder, CurrentKeyFor(key), value.Current);
+        AppendDoubleToken(builder, ProductionKeyFor(key), value.ProductionPerHour);
+    }
+
+    private static string RequiredKeyFor(string key) => key switch
+    {
+        "wood" => BotOptionPayloadKeys.UpgradeRequiredWood,
+        "clay" => BotOptionPayloadKeys.UpgradeRequiredClay,
+        "iron" => BotOptionPayloadKeys.UpgradeRequiredIron,
+        _ => BotOptionPayloadKeys.UpgradeRequiredCrop,
+    };
+
+    private static string CurrentKeyFor(string key) => key switch
+    {
+        "wood" => BotOptionPayloadKeys.UpgradeCurrentWood,
+        "clay" => BotOptionPayloadKeys.UpgradeCurrentClay,
+        "iron" => BotOptionPayloadKeys.UpgradeCurrentIron,
+        _ => BotOptionPayloadKeys.UpgradeCurrentCrop,
+    };
+
+    private static string ProductionKeyFor(string key) => key switch
+    {
+        "wood" => BotOptionPayloadKeys.UpgradeProductionWood,
+        "clay" => BotOptionPayloadKeys.UpgradeProductionClay,
+        "iron" => BotOptionPayloadKeys.UpgradeProductionIron,
+        _ => BotOptionPayloadKeys.UpgradeProductionCrop,
+    };
+
+    private static void AppendLongToken(System.Text.StringBuilder builder, string key, long? value)
+    {
+        if (!value.HasValue)
+        {
+            return;
+        }
+
+        builder.Append(' ');
+        builder.Append(key);
+        builder.Append('=');
+        builder.Append(value.Value);
+    }
+
+    private static void AppendDoubleToken(System.Text.StringBuilder builder, string key, double? value)
+    {
+        if (!value.HasValue)
+        {
+            return;
+        }
+
+        builder.Append(' ');
+        builder.Append(key);
+        builder.Append('=');
+        builder.Append(value.Value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    private static string SanitizePayloadToken(string value)
+    {
+        return Regex.Replace(value ?? string.Empty, @"\s+", "_");
+    }
+
     /// <summary>
     /// Computes the post-action wait in milliseconds for any server speed.
     /// We always honour the page-reported duration; the 200ms minimum only kicks in when the
@@ -330,6 +571,20 @@ public sealed partial class TravianClient
     }
 
     private enum BuildPageState { Other, AtMaxLevel, WorkersBusy }
+
+    private sealed record UpgradeResourceWaitSnapshot(
+        string BlockedLabel,
+        IReadOnlyDictionary<string, UpgradeResourceWaitValue> Values,
+        int WaitSeconds,
+        string WaitReason);
+
+    private sealed record UpgradeResourceWaitValue(
+        long? Required,
+        long? Current,
+        long? Missing,
+        double? ProductionPerHour,
+        int? WaitSeconds,
+        string WaitReason);
 
     private async Task<BuildPageState> DetectBuildPageStateAsync()
     {
@@ -511,14 +766,11 @@ public sealed partial class TravianClient
                 var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: false);
                 if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources)
                 {
-                    var waitSeconds = ClampResourceWaitSeconds(actionability.QueueWaitSeconds);
-                    if (ShouldDeferLongWait(waitSeconds))
-                    {
-                        return $"Slot {slotId} blocked by resources. queue_wait_seconds={waitSeconds}";
-                    }
-                    Notify($"Slot {slotId} blocked by resources. Waiting {waitSeconds}s. queue_wait_seconds={waitSeconds}");
-                    await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
-                    continue;
+                    var snapshot = await ReadUpgradeResourceWaitSnapshotAsync(
+                        $"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}",
+                        ClampResourceWaitSeconds(actionability.QueueWaitSeconds),
+                        cancellationToken);
+                    return BuildUpgradeResourceBlockedResultMessage(snapshot);
                 }
                 if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByQueue)
                 {
@@ -628,6 +880,12 @@ public sealed partial class TravianClient
                     continue;
                 }
 
+                var existingProgress = await DetectConstructProgressAsync(slotId, gid, buildingName, queueFingerprintBefore, cancellationToken);
+                if (existingProgress.Started)
+                {
+                    return $"Queued {buildingName} in slot {slotId}. Evidence: {existingProgress.Evidence}.";
+                }
+
                 await CaptureFailureArtifactsAsync($"construct-slot-{slotId}-gid-{gid}-no-click", cancellationToken);
                 return $"Slot {slotId}: could not find 'Construct building' button for gid {gid}.";
             }
@@ -645,6 +903,58 @@ public sealed partial class TravianClient
         }
 
         return $"Slot {slotId}: hit safety cap while trying to queue {buildingName}.";
+    }
+
+    private async Task<(bool Started, string Evidence)> DetectConstructProgressAsync(
+        int slotId,
+        int gid,
+        string buildingName,
+        string queueFingerprintBefore,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var queueItems = await ReadBuildQueueAsync(cancellationToken);
+            var queueFingerprintAfter = BuildQueueFingerprint(queueItems);
+            if (!string.Equals(queueFingerprintBefore, queueFingerprintAfter, StringComparison.Ordinal))
+            {
+                return (true, "queue changed");
+            }
+
+            var activeConstructions = await ReadActiveConstructionsAsync(cancellationToken);
+            var matchingActiveConstruction = activeConstructions.FirstOrDefault(item =>
+                item.Kind != ConstructionKind.Resource
+                && SameBuildingName(item.Name, buildingName));
+            if (matchingActiveConstruction is not null)
+            {
+                return (true, $"active construction detected for {matchingActiveConstruction.Name}");
+            }
+
+            if (queueItems.Count > 0 && activeConstructions.Any(item => item.Kind != ConstructionKind.Resource))
+            {
+                return (true, "building queue has entries");
+            }
+
+            await GotoAsync(Paths.Buildings, cancellationToken);
+            await PauseForManualStepIfVisibleAsync($"Manual verification while verifying slot {slotId} construction state.", cancellationToken);
+            var slots = await ReadBuildingInfosAsync(cancellationToken);
+            if (slots.TryGetValue(slotId, out var slotInfo))
+            {
+                var slotGid = ParseGidFromBuildingCode(slotInfo.BuildingCode);
+                var sameBuilding = slotGid == gid || SameBuildingName(slotInfo.BuildingName, buildingName);
+                if (sameBuilding && slotInfo.Level >= 0)
+                {
+                    var slotLabel = string.IsNullOrWhiteSpace(slotInfo.BuildingName) ? buildingName : slotInfo.BuildingName;
+                    return (true, $"slot {slotId} now shows {slotLabel} level {slotInfo.Level}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Notify($"Construct progress verification for slot {slotId} skipped: {ex.Message}");
+        }
+
+        return (false, "no queue or construction evidence");
     }
 
     private async Task<bool> ClickConstructBuildingButtonAsync(int gid, CancellationToken cancellationToken)

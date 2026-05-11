@@ -95,6 +95,18 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksMinimumResourcesPercent)]
     public int TroopTrainingBarracksMinimumResourcesPercent { get; init; } = 50;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksCheckWood)]
+    public bool TroopTrainingBarracksCheckWood { get; init; } = true;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksCheckClay)]
+    public bool TroopTrainingBarracksCheckClay { get; init; } = true;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksCheckIron)]
+    public bool TroopTrainingBarracksCheckIron { get; init; } = true;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksCheckCrop)]
+    public bool TroopTrainingBarracksCheckCrop { get; init; } = true;
+
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableEnabled)]
     public bool TroopTrainingStableEnabled { get; init; }
 
@@ -119,6 +131,18 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableMinimumResourcesPercent)]
     public int TroopTrainingStableMinimumResourcesPercent { get; init; } = 50;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableCheckWood)]
+    public bool TroopTrainingStableCheckWood { get; init; } = true;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableCheckClay)]
+    public bool TroopTrainingStableCheckClay { get; init; } = true;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableCheckIron)]
+    public bool TroopTrainingStableCheckIron { get; init; } = true;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableCheckCrop)]
+    public bool TroopTrainingStableCheckCrop { get; init; } = true;
+
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopEnabled)]
     public bool TroopTrainingWorkshopEnabled { get; init; }
 
@@ -142,6 +166,21 @@ public sealed class BotOptions
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopMinimumResourcesPercent)]
     public int TroopTrainingWorkshopMinimumResourcesPercent { get; init; } = 50;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopCheckWood)]
+    public bool TroopTrainingWorkshopCheckWood { get; init; } = true;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopCheckClay)]
+    public bool TroopTrainingWorkshopCheckClay { get; init; } = true;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopCheckIron)]
+    public bool TroopTrainingWorkshopCheckIron { get; init; } = true;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopCheckCrop)]
+    public bool TroopTrainingWorkshopCheckCrop { get; init; } = true;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingFallbackCooldownSeconds)]
+    public int TroopTrainingFallbackCooldownSeconds { get; init; } = 30;
 
     [ConfigurationKeyName("github_releases_url")]
     public string GithubReleasesUrl { get; init; } = string.Empty;
@@ -219,7 +258,10 @@ public sealed class BotOptions
     public string HeroAdventurePickOrder { get; init; } = "shortest"; // "shortest" or "top"
 
     [ConfigurationKeyName("hero_hide_mode")]
-    public string HeroHideMode { get; init; } = "hide"; // "hide" or "fight"
+    public string HeroHideMode { get; init; } = "fight"; // "hide" or "fight"
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.HeroContinuousAdventures)]
+    public bool HeroContinuousAdventures { get; init; }
 
     [ConfigurationKeyName("upgrade_selector_profile")]
     public string UpgradeSelectorProfile { get; init; } = "auto";

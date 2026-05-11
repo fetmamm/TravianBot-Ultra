@@ -71,7 +71,7 @@
                                      IsChecked="{Binding IsHideModeHide}"
                                      Margin="0,0,0,4"
                                      Checked="HeroHideModeRadio_Checked" />
-                        <RadioButton Content="Your hero will always stay with the troops."
+                        <RadioButton Content="Your hero will stay with the troops."
                                      GroupName="HeroHideMode"
                                      IsChecked="{Binding IsHideModeFight}"
                                      Checked="HeroHideModeRadio_Checked" />
@@ -222,7 +222,7 @@
                             </StackPanel>
                         </DockPanel>
                         <StackPanel Orientation="Horizontal">
-                            <Button Content="Hero adventure"
+                            <Button Content="Start adventure"
                                     Width="190"
                                     Click="QueueHeroManageButton_Click"
                                     Background="#030826"

@@ -40,6 +40,11 @@ public sealed class TroopTrainingViewModel : BaseViewModel
 
     private bool _isConfigSuppressed;
     private string _infoText = "Configure troop building rules and refresh queues when needed.";
+    private bool _checkWood = true;
+    private bool _checkClay = true;
+    private bool _checkIron = true;
+    private bool _checkCrop = true;
+    private int _fallbackCooldownSeconds = 30;
 
     /// <summary>The three building rules shown as rows on the panel.</summary>
     public ObservableCollection<TroopTrainingBuildingOption> Buildings { get; } = [];
@@ -62,6 +67,97 @@ public sealed class TroopTrainingViewModel : BaseViewModel
     /// the event during bulk loads / dropdown rebuilds.
     /// </summary>
     public event Action? ConfigChanged;
+
+    public bool CheckWood
+    {
+        get => _checkWood;
+        set
+        {
+            if (!SetProperty(ref _checkWood, value))
+            {
+                return;
+            }
+
+            if (!_isConfigSuppressed)
+            {
+                ConfigChanged?.Invoke();
+            }
+        }
+    }
+
+    public bool CheckClay
+    {
+        get => _checkClay;
+        set
+        {
+            if (!SetProperty(ref _checkClay, value))
+            {
+                return;
+            }
+
+            if (!_isConfigSuppressed)
+            {
+                ConfigChanged?.Invoke();
+            }
+        }
+    }
+
+    public bool CheckIron
+    {
+        get => _checkIron;
+        set
+        {
+            if (!SetProperty(ref _checkIron, value))
+            {
+                return;
+            }
+
+            if (!_isConfigSuppressed)
+            {
+                ConfigChanged?.Invoke();
+            }
+        }
+    }
+
+    public bool CheckCrop
+    {
+        get => _checkCrop;
+        set
+        {
+            if (!SetProperty(ref _checkCrop, value))
+            {
+                return;
+            }
+
+            if (!_isConfigSuppressed)
+            {
+                ConfigChanged?.Invoke();
+            }
+        }
+    }
+
+    public int FallbackCooldownSeconds
+    {
+        get => _fallbackCooldownSeconds;
+        set
+        {
+            var normalized = value switch
+            {
+                10 or 30 or 60 or 120 or 300 or 600 => value,
+                _ => 30,
+            };
+
+            if (!SetProperty(ref _fallbackCooldownSeconds, normalized))
+            {
+                return;
+            }
+
+            if (!_isConfigSuppressed)
+            {
+                ConfigChanged?.Invoke();
+            }
+        }
+    }
 
     /// <summary>
     /// Populates <see cref="Buildings"/> with the three building types and
@@ -131,6 +227,12 @@ public sealed class TroopTrainingViewModel : BaseViewModel
                         break;
                 }
             }
+
+            CheckWood = options.TroopTrainingBarracksCheckWood;
+            CheckClay = options.TroopTrainingBarracksCheckClay;
+            CheckIron = options.TroopTrainingBarracksCheckIron;
+            CheckCrop = options.TroopTrainingBarracksCheckCrop;
+            FallbackCooldownSeconds = options.TroopTrainingFallbackCooldownSeconds;
         }
         finally
         {
@@ -157,6 +259,10 @@ public sealed class TroopTrainingViewModel : BaseViewModel
                     config[BotOptionPayloadKeys.TroopTrainingBarracksRunMode] = option.RunMode;
                     config[BotOptionPayloadKeys.TroopTrainingBarracksMinimumTroops] = option.MinimumTroops;
                     config[BotOptionPayloadKeys.TroopTrainingBarracksMinimumResourcesPercent] = option.MinimumResourcesPercent;
+                    config[BotOptionPayloadKeys.TroopTrainingBarracksCheckWood] = CheckWood;
+                    config[BotOptionPayloadKeys.TroopTrainingBarracksCheckClay] = CheckClay;
+                    config[BotOptionPayloadKeys.TroopTrainingBarracksCheckIron] = CheckIron;
+                    config[BotOptionPayloadKeys.TroopTrainingBarracksCheckCrop] = CheckCrop;
                     break;
                 case TroopTrainingBuildingType.Stable:
                     config[BotOptionPayloadKeys.TroopTrainingStableEnabled] = option.IsEnabled;
@@ -167,6 +273,10 @@ public sealed class TroopTrainingViewModel : BaseViewModel
                     config[BotOptionPayloadKeys.TroopTrainingStableRunMode] = option.RunMode;
                     config[BotOptionPayloadKeys.TroopTrainingStableMinimumTroops] = option.MinimumTroops;
                     config[BotOptionPayloadKeys.TroopTrainingStableMinimumResourcesPercent] = option.MinimumResourcesPercent;
+                    config[BotOptionPayloadKeys.TroopTrainingStableCheckWood] = CheckWood;
+                    config[BotOptionPayloadKeys.TroopTrainingStableCheckClay] = CheckClay;
+                    config[BotOptionPayloadKeys.TroopTrainingStableCheckIron] = CheckIron;
+                    config[BotOptionPayloadKeys.TroopTrainingStableCheckCrop] = CheckCrop;
                     break;
                 case TroopTrainingBuildingType.Workshop:
                     config[BotOptionPayloadKeys.TroopTrainingWorkshopEnabled] = option.IsEnabled;
@@ -177,9 +287,15 @@ public sealed class TroopTrainingViewModel : BaseViewModel
                     config[BotOptionPayloadKeys.TroopTrainingWorkshopRunMode] = option.RunMode;
                     config[BotOptionPayloadKeys.TroopTrainingWorkshopMinimumTroops] = option.MinimumTroops;
                     config[BotOptionPayloadKeys.TroopTrainingWorkshopMinimumResourcesPercent] = option.MinimumResourcesPercent;
+                    config[BotOptionPayloadKeys.TroopTrainingWorkshopCheckWood] = CheckWood;
+                    config[BotOptionPayloadKeys.TroopTrainingWorkshopCheckClay] = CheckClay;
+                    config[BotOptionPayloadKeys.TroopTrainingWorkshopCheckIron] = CheckIron;
+                    config[BotOptionPayloadKeys.TroopTrainingWorkshopCheckCrop] = CheckCrop;
                     break;
             }
         }
+
+        config[BotOptionPayloadKeys.TroopTrainingFallbackCooldownSeconds] = FallbackCooldownSeconds;
     }
 
     /// <summary>

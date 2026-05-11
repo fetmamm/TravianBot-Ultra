@@ -77,6 +77,8 @@ public sealed partial class TravianClient
     private static readonly TimeSpan VillagesCacheTtl = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan EnsureLoggedInMinInterval = TimeSpan.FromSeconds(16);
     private static readonly TimeSpan UiSyncMinInterval = TimeSpan.FromSeconds(20);
+    private static readonly object ResourceStatusCacheSync = new();
+    private static readonly Dictionary<string, CachedVillageResourceSnapshot> CachedVillageResourceSnapshotsByKey = new(StringComparer.OrdinalIgnoreCase);
     private List<Village>? _cachedVillages;
     private DateTimeOffset _cachedVillagesAt = DateTimeOffset.MinValue;
     private DateTimeOffset _lastEnsureLoggedInAt = DateTimeOffset.MinValue;
@@ -84,6 +86,14 @@ public sealed partial class TravianClient
     private bool _lastEnsureLoggedInSucceeded;
     private static readonly object NatarCacheSync = new();
     private static readonly Dictionary<string, List<NatarCoordinateJs>> CachedNatarCoordinatesByAccount = new(StringComparer.OrdinalIgnoreCase);
+
+    private sealed class CachedVillageResourceSnapshot
+    {
+        public IReadOnlyDictionary<string, double?> ProductionByHour { get; init; } = new Dictionary<string, double?>(StringComparer.OrdinalIgnoreCase);
+        public IReadOnlyList<ResourceField> ResourceFields { get; init; } = [];
+        public long? WarehouseCapacity { get; init; }
+        public long? GranaryCapacity { get; init; }
+    }
 
     public TravianClient(
         IPage page,
@@ -2268,34 +2278,25 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         return (coord?.X, coord?.Y);
     }
 
-    private async Task<(int? Warehouse, int? Granary)> ReadStorageCapacitiesAsync(CancellationToken cancellationToken)
+    private async Task<(long? Warehouse, long? Granary)> ReadStorageCapacitiesAsync(CancellationToken cancellationToken)
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading storage capacity.", cancellationToken);
-        var raw = await _page.EvaluateAsync<Dictionary<string, int?>>(
+        var raw = await _page.EvaluateAsync<Dictionary<string, string>>(
             """
             () => {
-              const parseNumber = (value) => {
-                const text = (value || '').replace(/\s+/g, ' ').trim();
-                if (!text) return null;
-                const match = text.match(/(\d[\d\s.,']*)/);
-                if (!match) return null;
-                const digits = match[1].replace(/[^\d]/g, '');
-                if (!digits) return null;
-                const parsed = Number(digits);
-                return Number.isFinite(parsed) ? parsed : null;
-              };
-
               const readFirst = (selectors) => {
                 for (const selector of selectors) {
                   for (const node of document.querySelectorAll(selector)) {
                     const value =
-                      parseNumber(node.getAttribute('data-value'))
-                      ?? parseNumber(node.getAttribute('data-max'))
-                      ?? parseNumber(node.getAttribute('data-capacity'))
-                      ?? parseNumber(node.getAttribute('title'))
-                      ?? parseNumber(node.getAttribute('aria-label'))
-                      ?? parseNumber(node.textContent || '');
-                    if (value !== null) return value;
+                      node.getAttribute('data-value')
+                      || node.getAttribute('data-max')
+                      || node.getAttribute('data-capacity')
+                      || node.getAttribute('title')
+                      || node.getAttribute('aria-label')
+                      || node.textContent
+                      || '';
+                    const text = String(value).trim();
+                    if (text) return text;
                   }
                 }
                 return null;
@@ -2333,9 +2334,9 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             return (null, null);
         }
 
-        raw.TryGetValue("warehouse", out var warehouse);
-        raw.TryGetValue("granary", out var granary);
-        return (warehouse, granary);
+        raw.TryGetValue("warehouse", out var warehouseRaw);
+        raw.TryGetValue("granary", out var granaryRaw);
+        return (TryParseResourceValue(warehouseRaw), TryParseResourceValue(granaryRaw));
     }
 
     private async Task<(int? Gold, int? Silver)> ReadCurrencyAsync(CancellationToken cancellationToken)
@@ -2361,7 +2362,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         for (var attempt = 0; attempt < 5; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var raw = await _page.EvaluateAsync<Dictionary<string, int?>>(
+            var raw = await _page.EvaluateAsync<Dictionary<string, long?>>(
                 """
                 () => {
                   const parseNumber = (value) => {
@@ -2447,7 +2448,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 raw.TryGetValue("silver", out var silver);
                 if (gold is not null || silver is not null)
                 {
-                    return (gold, silver);
+                    return (ClampLongToInt32(gold), ClampLongToInt32(silver));
                 }
             }
 
@@ -2896,47 +2897,43 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
     private async Task WaitForDispatchLimitToClearAsync(CancellationToken cancellationToken)
     {
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared while checking farm dispatch limit.", cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while checking farm dispatch limit.", cancellationToken);
 
-            var state = await _page.EvaluateAsync<FarmDispatchLimitStateJs>(
-                """
-                () => {
-                  const parse = (raw) => {
-                    const text = (raw || '').trim();
-                    if (!text) return null;
-                    const parts = text.split(':').map((p) => Number.parseInt(p.trim(), 10)).filter((n) => Number.isFinite(n));
-                    if (parts.length === 2) return (parts[0] * 60) + parts[1];
-                    if (parts.length === 3) return (parts[0] * 3600) + (parts[1] * 60) + parts[2];
-                    return null;
-                  };
+        var state = await _page.EvaluateAsync<FarmDispatchLimitStateJs>(
+            """
+            () => {
+              const parse = (raw) => {
+                const text = (raw || '').trim();
+                if (!text) return null;
+                const parts = text.split(':').map((p) => Number.parseInt(p.trim(), 10)).filter((n) => Number.isFinite(n));
+                if (parts.length === 2) return (parts[0] * 60) + parts[1];
+                if (parts.length === 3) return (parts[0] * 3600) + (parts[1] * 60) + parts[2];
+                return null;
+              };
 
-                  const hasLimit = !!document.querySelector('.dispatchLimitError');
-                  let minTimer = null;
-                  document.querySelectorAll('span[id^="timerTop"]').forEach((node) => {
-                    const seconds = parse(node.textContent || '');
-                    if (seconds === null) return;
-                    if (minTimer === null || seconds < minTimer) minTimer = seconds;
-                  });
+              const hasLimit = !!document.querySelector('.dispatchLimitError');
+              let minTimer = null;
+              document.querySelectorAll('span[id^="timerTop"]').forEach((node) => {
+                const seconds = parse(node.textContent || '');
+                if (seconds === null) return;
+                if (minTimer === null || seconds < minTimer) minTimer = seconds;
+              });
 
-                  return { hasLimit, minTimerSeconds: minTimer };
-                }
-                """);
-
-            if (state is null || !state.HasLimit)
-            {
-                return;
+              return { hasLimit, minTimerSeconds: minTimer };
             }
+            """);
 
-            var waitSeconds = state.MinTimerSeconds is > 0
-                ? Math.Max(1, state.MinTimerSeconds.Value)
-                : 1;
-            Notify($"Farm dispatch limit active. Waiting {waitSeconds}s before retry.");
-            await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
-            await GotoAsync(Paths.FarmListPage, cancellationToken);
+        if (state is null || !state.HasLimit)
+        {
+            return;
         }
+
+        var waitSeconds = state.MinTimerSeconds is > 0
+            ? Math.Max(1, state.MinTimerSeconds.Value)
+            : 1;
+        Notify($"Farm dispatch limit active. Deferring farming for {waitSeconds}s.");
+        throw new InvalidOperationException($"Farm dispatch limit active. queue_wait_seconds={waitSeconds}");
     }
 
     private async Task<bool> TryClickFarmListSendNowAsync(string farmListName, CancellationToken cancellationToken)
@@ -3519,7 +3516,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
         if (availableTroopCount.HasValue)
         {
-            troopCountToSend = Math.Min(randomizedTroopCount, Math.Max(0, availableTroopCount.Value));
+            troopCountToSend = (int)Math.Min(randomizedTroopCount, Math.Max(0L, availableTroopCount.Value));
             if (troopCountToSend < minimumAcceptedTroopCount)
             {
                 return new ManualAttackSendResult(
@@ -3538,7 +3535,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         {
             return new ManualAttackSendResult(
                 ManualAttackSendStatus.Failed,
-                availableTroopCount ?? 0,
+                availableTroopCount ?? 0L,
                 0,
                 minimumAcceptedTroopCount);
         }
@@ -3548,7 +3545,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         {
             return new ManualAttackSendResult(
                 ManualAttackSendStatus.Failed,
-                availableTroopCount ?? 0,
+                availableTroopCount ?? 0L,
                 troopCountToSend,
                 minimumAcceptedTroopCount);
         }
@@ -3558,7 +3555,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         {
             return new ManualAttackSendResult(
                 ManualAttackSendStatus.Failed,
-                availableTroopCount ?? 0,
+                availableTroopCount ?? 0L,
                 troopCountToSend,
                 minimumAcceptedTroopCount);
         }
@@ -3568,7 +3565,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         {
             return new ManualAttackSendResult(
                 ManualAttackSendStatus.Failed,
-                availableTroopCount ?? 0,
+                availableTroopCount ?? 0L,
                 troopCountToSend,
                 minimumAcceptedTroopCount);
         }
@@ -3579,7 +3576,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         {
             return new ManualAttackSendResult(
                 ManualAttackSendStatus.Failed,
-                availableTroopCount ?? 0,
+                availableTroopCount ?? 0L,
                 troopCountToSend,
                 minimumAcceptedTroopCount);
         }
@@ -3594,12 +3591,12 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             minimumAcceptedTroopCount);
     }
 
-    private async Task<int?> ReadAvailableTroopCountAsync(string fieldToken, CancellationToken cancellationToken)
+    private async Task<long?> ReadAvailableTroopCountAsync(string fieldToken, CancellationToken cancellationToken)
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading available troops.", cancellationToken);
         try
         {
-            var result = await _page.EvaluateAsync<int?>(
+            var result = await _page.EvaluateAsync<long?>(
                 """
                 (fieldToken) => {
                   const token = (fieldToken || '').toLowerCase();
@@ -3634,7 +3631,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         }
     }
 
-    private async Task<int?> WaitForAvailableTroopsAsync(string fieldToken, string troopType, CancellationToken cancellationToken)
+    private async Task<long?> WaitForAvailableTroopsAsync(string fieldToken, string troopType, CancellationToken cancellationToken)
     {
         for (var attempt = 1; attempt <= ManualFarmingNoTroopsRetryAttempts; attempt++)
         {
@@ -3886,7 +3883,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
     private sealed record ManualAttackSendResult(
         ManualAttackSendStatus Status,
-        int AvailableTroopCount,
+        long AvailableTroopCount,
         int SentTroopCount,
         int MinimumAcceptedTroopCount);
 
@@ -3898,9 +3895,24 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         StoppedByNoTroopsAlarm = 3,
     }
 
-    private static string FormatLargeCount(int value)
+    private static string FormatLargeCount(long value)
     {
         return Math.Max(0, value).ToString("#,0", CultureInfo.InvariantCulture);
+    }
+
+    private static int? ClampLongToInt32(long? value)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        return value.Value switch
+        {
+            < int.MinValue => int.MinValue,
+            > int.MaxValue => int.MaxValue,
+            _ => (int)value.Value,
+        };
     }
 
     private static int ResolveRandomizedTroopCount(int troopCount, int troopVariancePercent)

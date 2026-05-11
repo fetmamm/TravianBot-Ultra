@@ -2,5 +2,13 @@
   "fet": {
     "troopCount": 300000,
     "variancePercent": 5
+  },
+  "fetto_ult_ss_travi_com": {
+    "troopCount": 1,
+    "variancePercent": 10
+  },
+  "fet_mga_ss_travi_com": {
+    "troopCount": 10000000,
+    "variancePercent": 10
   }
 }
