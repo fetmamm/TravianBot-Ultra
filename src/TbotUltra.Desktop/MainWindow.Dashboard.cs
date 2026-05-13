@@ -30,6 +30,7 @@ public partial class MainWindow
                 "hero" => HeroTabItem,
                 "farming" => FarmingTabItem,
                 "troops" => TroopsTabItem,
+                "npc_trade" => NpcTradeTabItem,
                 "queue" => QueueTabItem,
                 "logs" => LogsTabItem,
                 "inbox" => InboxTabItem,
@@ -62,8 +63,14 @@ public partial class MainWindow
         var orderedGroupKeys = QueueGroupCatalog.AllGroups
             .Select(QueueGroupCatalog.GetKey)
             .ToList();
+        var selectableGroupKeys = orderedGroupKeys
+            .Where(groupKey =>
+                !string.Equals(groupKey, QueueGroupCatalog.GetKey(QueueGroup.BreweryCelebration), StringComparison.OrdinalIgnoreCase)
+                || IsTeutonsTribe(ResolveStoredTroopTrainingTribe()))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var options = orderedGroupKeys
+            .Where(selectableGroupKeys.Contains)
             .Select(groupKey =>
             {
                 QueueGroupCatalog.TryParse(groupKey, out var group);
@@ -104,6 +111,9 @@ public partial class MainWindow
                     continue;
                 }
 
+                var isSelectable = selectableGroupKeys.Contains(groupKey);
+                var isVisible = isSelectable && selectedGroupNames.Contains(groupKey);
+
                 if (currentByGroup.TryGetValue(groupKey, out var existing))
                 {
                     _automationLoopTasks.Add(new LoopTaskOption
@@ -111,8 +121,8 @@ public partial class MainWindow
                         TaskName = existing.TaskName,
                         Title = existing.Title,
                         Description = existing.Description,
-                        IsEnabled = existing.IsEnabled && selectedGroupNames.Contains(groupKey),
-                        IsVisible = selectedGroupNames.Contains(groupKey),
+                        IsEnabled = existing.IsEnabled && isVisible,
+                        IsVisible = isVisible,
                         StateText = existing.StateText,
                         DetailText = existing.DetailText,
                         QueuedCount = existing.QueuedCount,
@@ -127,7 +137,7 @@ public partial class MainWindow
                     Title = QueueGroupCatalog.GetTitle(group),
                     Description = QueueGroupCatalog.GetDescription(group),
                     IsEnabled = false,
-                    IsVisible = selectedGroupNames.Contains(groupKey),
+                    IsVisible = isVisible,
                     StateText = "Idle",
                     DetailText = "No queued task.",
                 });
@@ -154,6 +164,7 @@ public partial class MainWindow
             HeroNavButton,
             FarmingNavButton,
             TroopsNavButton,
+            NpcTradeNavButton,
             QueueNavButton,
             LogsNavButton,
             InboxNavButton,

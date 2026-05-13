@@ -167,7 +167,7 @@ public sealed class TroopTrainingBuildingOption : INotifyPropertyChanged
         get => _minimumResourcesPercent;
         set
         {
-            var normalized = Math.Clamp(value, 1, 100);
+            var normalized = Math.Clamp(value, 0, 100);
             if (_minimumResourcesPercent == normalized)
             {
                 return;

@@ -39,7 +39,7 @@ public sealed partial class TravianClient
         int IronCost,
         int CropCost);
 
-    private sealed record ResourceCapacitySnapshot(
+    internal sealed record ResourceCapacitySnapshot(
         long? WarehouseCapacity,
         long? GranaryCapacity);
 
@@ -103,15 +103,16 @@ public sealed partial class TravianClient
 
         var fallbackCooldownSeconds = ResolveTroopTrainingFallbackCooldownSeconds(_config.TroopTrainingFallbackCooldownSeconds);
         var liveSnapshot = await ReadTroopTrainingResourceSnapshotFromCurrentPageAsync(cancellationToken);
-        var currentResources = liveSnapshot.Resources;
-        var currentProductionByHour = liveSnapshot.ProductionByHour;
-        var currentCapacities = liveSnapshot.Capacities;
+        var mergedEarlySnapshot = MergeTroopTrainingResourceSnapshot(status.ActiveVillage, liveSnapshot, status);
+        var currentResources = mergedEarlySnapshot.Resources;
+        var currentProductionByHour = mergedEarlySnapshot.ProductionByHour;
+        var currentCapacities = mergedEarlySnapshot.Capacities;
         if (currentResources.Values.All(value => value <= 0))
         {
             Notify("Build troops: early snapshot was empty, falling back to village status resources.");
             currentResources = ParseVillageResources(status.Resources);
-            currentProductionByHour = ReadTroopTrainingProductionByHour(status);
-            currentCapacities = ResolveVillageStorageCapacities(status);
+            currentProductionByHour = mergedEarlySnapshot.ProductionByHour;
+            currentCapacities = mergedEarlySnapshot.Capacities;
         }
 
         var requestsToScan = new List<TroopTrainingRequest>();
@@ -537,15 +538,16 @@ public sealed partial class TravianClient
         }
 
         var liveResourceSnapshot = await ReadTroopTrainingResourceSnapshotFromCurrentPageAsync(cancellationToken);
-        var parsedResources = liveResourceSnapshot.Resources;
-        var productionByHour = liveResourceSnapshot.ProductionByHour;
-        var liveCapacities = liveResourceSnapshot.Capacities;
+        var mergedLiveResourceSnapshot = MergeTroopTrainingResourceSnapshot(status.ActiveVillage, liveResourceSnapshot, status);
+        var parsedResources = mergedLiveResourceSnapshot.Resources;
+        var productionByHour = mergedLiveResourceSnapshot.ProductionByHour;
+        var liveCapacities = mergedLiveResourceSnapshot.Capacities;
         if (parsedResources.Values.All(value => value <= 0))
         {
             Notify("Build troops: current page resources were empty, falling back to village status resources.");
             parsedResources = ParseVillageResources(status.Resources);
-            productionByHour = ReadTroopTrainingProductionByHour(status);
-            liveCapacities = ResolveVillageStorageCapacities(status);
+            productionByHour = mergedLiveResourceSnapshot.ProductionByHour;
+            liveCapacities = mergedLiveResourceSnapshot.Capacities;
         }
         Notify($"Build troops: live resources wood={parsedResources["wood"]}, clay={parsedResources["clay"]}, iron={parsedResources["iron"]}, crop={parsedResources["crop"]}.");
 
@@ -706,6 +708,39 @@ public sealed partial class TravianClient
         return new TroopTrainingResourceSnapshot(parsedResources, capacities, productionByHour);
     }
 
+    private TroopTrainingResourceSnapshot MergeTroopTrainingResourceSnapshot(
+        string villageName,
+        TroopTrainingResourceSnapshot liveSnapshot,
+        VillageStatus status)
+    {
+        var cachedSnapshot = TryGetCachedVillageResourceSnapshot(villageName);
+        var statusCapacities = ResolveVillageStorageCapacities(status);
+        var mergedCapacities = MergeTroopTrainingCapacities(
+            liveSnapshot.Capacities,
+            statusCapacities,
+            cachedSnapshot?.WarehouseCapacity,
+            cachedSnapshot?.GranaryCapacity);
+        var mergedProductionByHour = MergeTroopTrainingProductionByHour(
+            liveSnapshot.ProductionByHour,
+            ReadTroopTrainingProductionByHour(status),
+            cachedSnapshot?.ProductionByHour);
+
+        var usedStatusOrCacheCapacities =
+            (liveSnapshot.Capacities.WarehouseCapacity is not > 0 && mergedCapacities.WarehouseCapacity is > 0)
+            || (liveSnapshot.Capacities.GranaryCapacity is not > 0 && mergedCapacities.GranaryCapacity is > 0);
+        var usedStatusOrCacheProduction = !HasAnyProduction(liveSnapshot.ProductionByHour) && HasAnyProduction(mergedProductionByHour);
+        if (usedStatusOrCacheCapacities || usedStatusOrCacheProduction)
+        {
+            Notify(
+                $"Build troops: merged resource snapshot from cached/status data (prodMerged={usedStatusOrCacheProduction}, warehouse={mergedCapacities.WarehouseCapacity?.ToString() ?? "null"}, granary={mergedCapacities.GranaryCapacity?.ToString() ?? "null"}).");
+        }
+
+        return new TroopTrainingResourceSnapshot(
+            liveSnapshot.Resources,
+            mergedCapacities,
+            mergedProductionByHour);
+    }
+
     private async Task<IReadOnlyDictionary<string, long>> ReadVillageResourcesFromCurrentPageAsync(CancellationToken cancellationToken)
     {
         var snapshot = await ReadTroopTrainingResourceSnapshotFromCurrentPageAsync(cancellationToken);
@@ -717,6 +752,35 @@ public sealed partial class TravianClient
         return new ResourceCapacitySnapshot(
             status.WarehouseCapacity,
             status.GranaryCapacity);
+    }
+
+    internal static ResourceCapacitySnapshot MergeTroopTrainingCapacities(
+        ResourceCapacitySnapshot liveCapacities,
+        ResourceCapacitySnapshot statusCapacities,
+        long? cachedWarehouseCapacity,
+        long? cachedGranaryCapacity)
+    {
+        return new ResourceCapacitySnapshot(
+            liveCapacities.WarehouseCapacity is > 0
+                ? liveCapacities.WarehouseCapacity
+                : statusCapacities.WarehouseCapacity is > 0
+                    ? statusCapacities.WarehouseCapacity
+                    : cachedWarehouseCapacity,
+            liveCapacities.GranaryCapacity is > 0
+                ? liveCapacities.GranaryCapacity
+                : statusCapacities.GranaryCapacity is > 0
+                    ? statusCapacities.GranaryCapacity
+                    : cachedGranaryCapacity);
+    }
+
+    internal static IReadOnlyDictionary<string, double?> MergeTroopTrainingProductionByHour(
+        IReadOnlyDictionary<string, double?> liveProductionByHour,
+        IReadOnlyDictionary<string, double?> statusProductionByHour,
+        IReadOnlyDictionary<string, double?>? cachedProductionByHour)
+    {
+        return MergeProductionByHour(
+            MergeProductionByHour(liveProductionByHour, statusProductionByHour),
+            cachedProductionByHour);
     }
 
     private async Task<ResourceCapacitySnapshot> ReadVillageStorageCapacitiesFromCurrentPageAsync(CancellationToken cancellationToken)
@@ -751,7 +815,7 @@ public sealed partial class TravianClient
             candidate.Request.AmountMode,
             candidate.Request.KeepResourcesPercent,
             1);
-        var threshold = Math.Clamp(candidate.Request.MinimumResourcesPercent, 1, 100);
+        var threshold = Math.Clamp(candidate.Request.MinimumResourcesPercent, 0, 100);
         var selectedKeys = ResolveCheckedResourceKeys(candidate.Request).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         return new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase)
@@ -775,7 +839,7 @@ public sealed partial class TravianClient
         TroopTrainingRequest request,
         ResourceCapacitySnapshot capacities)
     {
-        var threshold = Math.Clamp(request.MinimumResourcesPercent, 1, 100);
+        var threshold = Math.Clamp(request.MinimumResourcesPercent, 0, 100);
         var selectedKeys = ResolveCheckedResourceKeys(request).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         return new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase)
@@ -794,7 +858,7 @@ public sealed partial class TravianClient
             return 0;
         }
 
-        return (long)Math.Ceiling(capacity.Value * (Math.Clamp(thresholdPercent, 1, 100) / 100d));
+        return (long)Math.Ceiling(capacity.Value * (Math.Clamp(thresholdPercent, 0, 100) / 100d));
     }
 
     private static TroopTrainingAttemptOutcome BuildTroopTrainingWaitOutcome(
@@ -922,7 +986,11 @@ public sealed partial class TravianClient
         ResourceCapacitySnapshot capacities,
         TroopTrainingRequest request)
     {
-        var threshold = Math.Clamp(request.MinimumResourcesPercent, 1, 100);
+        var threshold = Math.Clamp(request.MinimumResourcesPercent, 0, 100);
+        if (threshold <= 0)
+        {
+            return true;
+        }
         if (capacities.WarehouseCapacity is not > 0 || capacities.GranaryCapacity is not > 0)
         {
             return false;

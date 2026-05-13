@@ -8,7 +8,7 @@ public sealed partial class TravianClient
 {
     public async Task<VillageStatus> ReadVillageResourceStatusAsync(CancellationToken cancellationToken = default, bool allowNavigationToResourcePage = true)
     {
-        Notify("ReadVillageResourceStatusAsync started");
+        Notify("[ReadVillageResourceStatusAsync] started");
         if (allowNavigationToResourcePage && !IsCurrentUrlForPath(Paths.Resources))
         {
             await GotoAsync(Paths.Resources, cancellationToken);
@@ -26,13 +26,67 @@ public sealed partial class TravianClient
 
     public async Task NavigateToResourceFieldsAsync(CancellationToken cancellationToken = default)
     {
-        Notify("NavigateToResourceFieldsAsync started");
+        Notify("[NavigateToResourceFieldsAsync] started");
         if (!IsCurrentUrlForPath(Paths.Resources))
         {
             await GotoAsync(Paths.Resources, cancellationToken);
         }
 
         await EnsureLoggedInAsync();
+    }
+
+    public async Task<IReadOnlyDictionary<string, double?>> ReadCurrentPageResourceProductionPerHourAsync(CancellationToken cancellationToken = default)
+    {
+        Notify("[ReadCurrentPageResourceProductionPerHourAsync] started");
+        await EnsureLoggedInAsync();
+        if (!IsCurrentUrlForPath(Paths.Resources))
+        {
+            Notify("ReadCurrentPageResourceProductionPerHourAsync: current page is not dorf1, navigating to resource fields first.");
+            await GotoAsync(Paths.Resources, cancellationToken);
+            await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening resource fields for production read.", cancellationToken);
+            await EnsureLoggedInAsync();
+        }
+
+        await WaitForResourceSnapshotWidgetsAsync(cancellationToken);
+        var production = await ReadResourceProductionPerHourAsync(cancellationToken);
+        Notify($"ReadCurrentPageResourceProductionPerHourAsync: prod {BuildProductionValueLog(production)}");
+        return production;
+    }
+
+    private async Task NotifyCurrentResourceProductionForUiAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            Notify("Resource production update: start");
+            var production = await ReadCurrentPageResourceProductionPerHourAsync(cancellationToken);
+            if (production.Count == 0 || production.Values.All(value => value is null))
+            {
+                Notify("Resource production update: skipped because no production values were read.");
+                return;
+            }
+
+            var wood = production.TryGetValue("wood", out var woodValue) ? woodValue : null;
+            var clay = production.TryGetValue("clay", out var clayValue) ? clayValue : null;
+            var iron = production.TryGetValue("iron", out var ironValue) ? ironValue : null;
+            var crop = production.TryGetValue("crop", out var cropValue) ? cropValue : null;
+            Notify(
+                $"Resource production update: wood={FormatProductionUpdateValue(wood)} clay={FormatProductionUpdateValue(clay)} iron={FormatProductionUpdateValue(iron)} crop={FormatProductionUpdateValue(crop)}");
+        }
+        catch (Exception ex)
+        {
+            Notify($"Resource production update: failed ({ex.Message})");
+        }
+    }
+
+    private static string FormatProductionUpdateValue(double? value)
+    {
+        if (value is null || double.IsNaN(value.Value) || double.IsInfinity(value.Value))
+        {
+            return "-";
+        }
+
+        return Math.Round(value.Value, MidpointRounding.AwayFromZero)
+            .ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
     public async Task<string> UpgradeResourceToLevelAsync(int slotId, int targetLevel, CancellationToken cancellationToken = default)
@@ -139,6 +193,7 @@ public sealed partial class TravianClient
                     cancellationToken);
                 if (progress.Advanced)
                 {
+                    await NotifyCurrentResourceProductionForUiAsync(cancellationToken);
                     transientRetries = 0;
                     continue;
                 }
@@ -202,55 +257,59 @@ public sealed partial class TravianClient
                     .OrderBy(field => field.Level ?? 0)
                     .ThenBy(field => field.SlotId ?? 999)
                     .ToList();
-                var resources = await ReadResourcesAsync(cancellationToken);
-                var productionByHour = await ReadResourceProductionPerHourAsync(cancellationToken);
-                var candidates = await RankResourceUpgradeCandidatesAsync(
-                    candidateRows,
-                    targetLevel,
-                    fallbackMax,
-                    resources,
-                    productionByHour,
-                    cancellationToken);
+                Notify($"[UpgradeAllResourcesToLevelAsync] scanned {candidateRows.Count} resource fields on dorf1.");
+                await NotifyCurrentResourceProductionForUiAsync(cancellationToken);
 
-                var preflightSlot = candidates.FirstOrDefault(field => (field.Field.Level ?? 0) < Math.Min(targetLevel, fallbackMax))?.Field.SlotId
-                    ?? candidates.FirstOrDefault()?.Field.SlotId
+                var preflightSlot = candidateRows.FirstOrDefault(field => (field.Level ?? 0) < Math.Min(targetLevel, fallbackMax))?.SlotId
+                    ?? candidateRows.FirstOrDefault()?.SlotId
                     ?? 0;
                 var deferMessage = await CheckQueueOrDeferAsync(ConstructionKind.Resource, preflightSlot, upgrades, cancellationToken);
                 if (deferMessage is not null)
                 {
+                    Notify($"[UpgradeAllResourcesToLevelAsync] queue gate deferred before candidate scan. slot={preflightSlot} message={deferMessage}");
                     return deferMessage;
                 }
 
                 var attemptedAny = false;
                 var blockReasons = new List<string>();
+                UpgradeResourceWaitSnapshot? firstResourceBlockSnapshot = null;
 
-                foreach (var candidate in candidates)
+                foreach (var candidate in candidateRows)
                 {
-                    var slot = candidate.Field.SlotId ?? 0;
+                    var slot = candidate.SlotId ?? 0;
                     currentTransientSlot = slot;
-                    var level = candidate.Field.Level ?? 0;
+                    var level = candidate.Level ?? 0;
                     var preliminaryTarget = Math.Min(targetLevel, fallbackMax);
+                    var resourceName = string.IsNullOrWhiteSpace(candidate.Name)
+                        ? $"slot {slot}"
+                        : candidate.Name;
 
                     if (level >= preliminaryTarget)
                     {
+                        Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} level={level} already meets preliminary target {preliminaryTarget}. Skipping.");
                         continue;
                     }
 
+                    Notify($"[UpgradeAllResourcesToLevelAsync] evaluating slot={slot} name='{resourceName}' level={level} target={targetLevel}.");
                     var actionability = await AnalyzeUpgradeActionabilityAsync(slot, cancellationToken, performClick: false);
                     var cap = actionability.DetectedMaxLevel ?? fallbackMax;
                     var effectiveTarget = Math.Min(targetLevel, cap);
+                    Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} actionability={actionability.Outcome} effectiveTarget={effectiveTarget} max={actionability.DetectedMaxLevel?.ToString() ?? "unknown"} candidateIndex={actionability.CandidateIndex?.ToString() ?? "-"} reason={actionability.Reason}");
                     if (level >= effectiveTarget)
                     {
+                        Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} level={level} already meets effective target {effectiveTarget}. Skipping.");
                         continue;
                     }
 
                     if (actionability.Outcome == UpgradeAttemptOutcome.CanUpgrade)
                     {
                         attemptedAny = true;
+                        Notify($"[UpgradeAllResourcesToLevelAsync] clicking upgrade for slot={slot} from level={level} toward target={effectiveTarget}.");
                         var queueFingerprintBefore = BuildQueueFingerprint(await ReadBuildQueueAsync(cancellationToken));
                         var rawUpgradeSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken);
                         await ClickDetectedUpgradeCandidateAsync(slot, actionability.CandidateIndex, cancellationToken);
                         await NavigateToResourceFieldsAfterUpgradeClickAsync(cancellationToken);
+                        await WaitForPostUpgradeClickPageLoadAsync(cancellationToken);
                         upgrades += 1;
                         var progress = await WaitForResourceLevelAdvanceAsync(
                             slot,
@@ -258,10 +317,11 @@ public sealed partial class TravianClient
                             queueFingerprintBefore,
                             rawUpgradeSeconds,
                             cancellationToken);
+                        Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} click result advanced={progress.Advanced} queued={progress.QueuedOrInProgress} evidence={progress.Evidence}.");
                         if (!progress.Advanced && !progress.QueuedOrInProgress)
                         {
                             var upgradeWaitSeconds = ComputeResourceUpgradeWaitSeconds(rawUpgradeSeconds);
-                            Notify($"Resource slot {slot}: upgrade click did not confirm immediately ({progress.Evidence}). Waiting {upgradeWaitSeconds}s before retry.");
+                            Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} click did not confirm immediately ({progress.Evidence}). Waiting {upgradeWaitSeconds}s before retry.");
                             await Task.Delay(TimeSpan.FromSeconds(Math.Max(1, upgradeWaitSeconds)), cancellationToken);
                         }
                         transientRetries = 0;
@@ -273,27 +333,32 @@ public sealed partial class TravianClient
                         var queueDeferMessage = await CheckQueueOrDeferAsync(ConstructionKind.Resource, slot, upgrades, cancellationToken);
                         if (queueDeferMessage is not null)
                         {
+                            Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} deferred by queue gate after analysis. message={queueDeferMessage}");
                             return queueDeferMessage;
                         }
 
-                        Notify($"Resource slot {slot} blocked by queue. Retrying after queue clears.");
+                        Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} blocked by queue. Retrying after queue clears.");
                         transientRetries = 0;
                         goto NextLoopTick;
                     }
 
                     if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources)
                     {
-                        var label = string.IsNullOrWhiteSpace(candidate.Field.Name)
+                        var label = string.IsNullOrWhiteSpace(candidate.Name)
                             ? $"Resource slot {slot} upgrade to level {effectiveTarget}"
-                            : $"Resource slot {slot} ({candidate.Field.Name}) upgrade to level {effectiveTarget}";
+                            : $"Resource slot {slot} ({candidate.Name}) upgrade to level {effectiveTarget}";
                         var snapshot = await ReadUpgradeResourceWaitSnapshotAsync(
                             label,
                             ClampResourceWaitSeconds(actionability.QueueWaitSeconds),
                             cancellationToken);
-                        return BuildUpgradeResourceBlockedResultMessage(snapshot);
+                        firstResourceBlockSnapshot ??= snapshot;
+                        blockReasons.Add($"slot {slot}: {actionability.Outcome} ({actionability.Reason})");
+                        Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} blocked by resources. wait={snapshot.WaitSeconds}s reason={snapshot.WaitReason}.");
+                        continue;
                     }
 
                     blockReasons.Add($"slot {slot}: {actionability.Outcome} ({actionability.Reason})");
+                    Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} not actionable. outcome={actionability.Outcome}.");
                 }
 
                 if (!attemptedAny)
@@ -307,6 +372,12 @@ public sealed partial class TravianClient
                     if (!IsCurrentUrlForPath(Paths.Resources))
                     {
                         await GotoAsync(Paths.Resources, cancellationToken);
+                    }
+
+                    if (firstResourceBlockSnapshot is not null)
+                    {
+                        Notify($"[UpgradeAllResourcesToLevelAsync] no slot was actionable. Returning first resource wait snapshot after scanning all candidates.");
+                        return BuildUpgradeResourceBlockedResultMessage(firstResourceBlockSnapshot);
                     }
 
                     return $"No resource slot could be upgraded toward level {targetLevel}. Upgrades made: {upgrades}.{reasonSuffix}";
@@ -854,41 +925,95 @@ public sealed partial class TravianClient
 
     private async Task<IReadOnlyDictionary<string, double?>> ReadResourceProductionPerHourAsync(CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading production rates.", cancellationToken);
-        var raw = await _page.EvaluateAsync<Dictionary<string, double?>>(
-            """
-            () => {
-              const parseNumber = (value) => {
-                const text = (value || '').replace(/\s+/g, ' ').trim();
-                if (!text) return null;
-                const match = text.match(/([+-]?\d[\d\s.,']*)/);
-                if (!match) return null;
-                const cleaned = match[1].replace(/\s+/g, '').replace(/,/g, '.').replace(/[^0-9+.-]/g, '');
-                if (!cleaned) return null;
-                const parsed = Number(cleaned);
-                return Number.isFinite(parsed) ? parsed : null;
-              };
+        const int attempts = 4;
+        for (var attempt = 1; attempt <= attempts; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading production rates.", cancellationToken);
 
-              const readProductionByRow = (resourceClass) => {
-                const row = document.querySelector(`#production i.${resourceClass}`)?.closest('tr');
-                if (!row) return null;
+            var snapshot = await _page.EvaluateAsync<ResourceSnapshotDomReadResult>(
+                """
+                () => {
+                  const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+                  const parseNumber = (value) => {
+                    const text = clean(value);
+                    if (!text) return null;
+                    const match = text.match(/([+-]?\d[\d\s.,']*)/);
+                    if (!match) return null;
+                    const normalized = match[1].replace(/\s+/g, '').replace(/,/g, '').replace(/'/g, '');
+                    const parsed = Number(normalized);
+                    return Number.isFinite(parsed) ? parsed : null;
+                  };
 
-                const valueCell = row.querySelector('td.num');
-                return parseNumber(valueCell?.textContent || '')
-                  ?? parseNumber(valueCell?.getAttribute('data-value'))
-                  ?? parseNumber(row.textContent || '');
-              };
+                  const readProduction = (resourceClass) => {
+                    const row = document.querySelector(`#production i.${resourceClass}`)?.closest('tr');
+                    if (!row) return null;
+                    const valueCell = row.querySelector('td.num');
+                    return parseNumber(valueCell?.innerText || valueCell?.textContent || row.innerText || row.textContent || '');
+                  };
 
-              return {
-                wood: readProductionByRow('r1'),
-                clay: readProductionByRow('r2'),
-                iron: readProductionByRow('r3'),
-                crop: readProductionByRow('r4'),
-              };
+                  return {
+                    woodProduction: readProduction('r1'),
+                    clayProduction: readProduction('r2'),
+                    ironProduction: readProduction('r3'),
+                    cropProduction: readProduction('r4'),
+                    diagnostics: [
+                      `url=${location.pathname}${location.search}`,
+                      `ready=${document.readyState}`,
+                      `productionNode=${document.querySelector('#production') ? 'yes' : 'no'}`,
+                      `productionText=${String(readProduction('r1') ?? '-')}`,
+                      `bodyClass=${document.body?.className || '-'}`
+                    ].join(', ')
+                  };
+                }
+                """);
+
+            var productionByHour = new Dictionary<string, double?>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["wood"] = snapshot?.WoodProduction,
+                ["clay"] = snapshot?.ClayProduction,
+                ["iron"] = snapshot?.IronProduction,
+                ["crop"] = snapshot?.CropProduction,
+            };
+
+            if (productionByHour.Values.Any(value => value is not null))
+            {
+                if (attempt > 1)
+                {
+                    Notify($"Production read recovered on attempt {attempt}/{attempts}: {snapshot?.Diagnostics ?? "-"}");
+                }
+
+                return productionByHour;
             }
-            """);
 
-        return raw ?? new Dictionary<string, double?>(StringComparer.OrdinalIgnoreCase);
+            Notify($"Production read incomplete {attempt}/{attempts}: {snapshot?.Diagnostics ?? "-"}");
+
+            if (attempt == 2)
+            {
+                try
+                {
+                    await _page.ReloadAsync(new PageReloadOptions
+                    {
+                        WaitUntil = WaitUntilState.DOMContentLoaded,
+                        Timeout = _config.TimeoutMs,
+                    }).WaitAsync(cancellationToken);
+                    await WaitForNavigationSettledAsync(cancellationToken);
+                    await WaitForResourceSnapshotWidgetsAsync(cancellationToken);
+                }
+                catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+                {
+                    Notify($"Production read reload hit transient navigation context error: {ex.Message}");
+                }
+                catch (TimeoutException)
+                {
+                    Notify("Production read reload timed out while waiting for DOMContentLoaded.");
+                }
+            }
+
+            await Task.Delay(250 * attempt, cancellationToken);
+        }
+
+        return new Dictionary<string, double?>(StringComparer.OrdinalIgnoreCase);
     }
 
     private static IReadOnlyList<ResourceStorageForecast> BuildResourceForecasts(

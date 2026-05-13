@@ -31,6 +31,7 @@ public partial class SettingsWindow : Window
         PostLoginAnalyzeFarmlistsCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginAnalyzeFarmlists]?.GetValue<bool>() ?? false;
         PostLoginAnalyzeHeroCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginAnalyzeHero]?.GetValue<bool>() ?? false;
         PostLoginReadTroopTrainingQueueCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginReadTroopTrainingQueue]?.GetValue<bool>() ?? false;
+        PostLoginAnalyzeBreweryCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginAnalyzeBrewery]?.GetValue<bool>() ?? false;
         GoldLimitSlider.Value = Math.Clamp(_config["gold_limit"]?.GetValue<int>() ?? 100, 0, 200);
         SilverLimitSlider.Value = Math.Clamp(_config["silver_limit"]?.GetValue<int>() ?? 100, 0, 1000);
         UpdateLimitLabels();
@@ -49,6 +50,7 @@ public partial class SettingsWindow : Window
             _config[BotOptionPayloadKeys.PostLoginAnalyzeFarmlists] = PostLoginAnalyzeFarmlistsCheckBox.IsChecked == true;
             _config[BotOptionPayloadKeys.PostLoginAnalyzeHero] = PostLoginAnalyzeHeroCheckBox.IsChecked == true;
             _config[BotOptionPayloadKeys.PostLoginReadTroopTrainingQueue] = PostLoginReadTroopTrainingQueueCheckBox.IsChecked == true;
+            _config[BotOptionPayloadKeys.PostLoginAnalyzeBrewery] = PostLoginAnalyzeBreweryCheckBox.IsChecked == true;
             _config["gold_limit"] = (int)Math.Round(GoldLimitSlider.Value);
             _config["silver_limit"] = (int)Math.Round(SilverLimitSlider.Value);
             _store.Save(_config);
@@ -91,6 +93,7 @@ public partial class SettingsWindow : Window
         PostLoginAnalyzeFarmlistsCheckBox.IsChecked = false;
         PostLoginAnalyzeHeroCheckBox.IsChecked = false;
         PostLoginReadTroopTrainingQueueCheckBox.IsChecked = false;
+        PostLoginAnalyzeBreweryCheckBox.IsChecked = false;
         GoldLimitSlider.Value = 100;
         SilverLimitSlider.Value = 100;
         UpdateLimitLabels();

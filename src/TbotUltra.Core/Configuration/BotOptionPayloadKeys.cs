@@ -48,6 +48,7 @@ public static class BotOptionPayloadKeys
     public const string PostLoginAnalyzeFarmlists = "post_login_analyze_farmlists";
     public const string PostLoginAnalyzeHero = "post_login_analyze_hero";
     public const string PostLoginReadTroopTrainingQueue = "post_login_read_troop_training_queue";
+    public const string PostLoginAnalyzeBrewery = "post_login_analyze_brewery";
     public const string TroopTrainingBarracksEnabled = "troop_training_barracks_enabled";
     public const string TroopTrainingBarracksTroopType = "troop_training_barracks_troop_type";
     public const string TroopTrainingBarracksMaxQueueHours = "troop_training_barracks_max_queue_hours";
@@ -85,6 +86,7 @@ public static class BotOptionPayloadKeys
     public const string TroopTrainingWorkshopCheckIron = "troop_training_workshop_check_iron";
     public const string TroopTrainingWorkshopCheckCrop = "troop_training_workshop_check_crop";
     public const string TroopTrainingFallbackCooldownSeconds = "troop_training_fallback_cooldown_seconds";
+    public const string BreweryAutoCelebrationEnabled = "brewery_auto_celebration_enabled";
 
     public const string UpgradeSelectorProfile = "upgrade_selector_profile";
     public const string CaptchaAutoSolveEnabled = "captcha_auto_solve_enabled";

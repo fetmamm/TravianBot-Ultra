@@ -22,32 +22,106 @@
 
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="320" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="12" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <Border Grid.Column="0"
-                    Background="#FFFFFF"
-                    BorderBrush="#D1D5DB"
-                    BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="12">
-                <StackPanel>
-                    <TextBlock Text="Upgrade"
-                               FontSize="18"
-                               FontWeight="SemiBold"
-                               Foreground="#111827"
-                               Margin="0,0,0,8" />
-                    <Button Content="Upgrade troops"
-                            Width="150"
-                            Click="UpgradeTroopsButton_Click" />
-                    <TextBlock Text="Smithy upgrades stay separate from troop building."
-                               Foreground="#6B7280"
-                               TextWrapping="Wrap"
-                               Margin="0,8,0,0" />
-                </StackPanel>
-            </Border>
+            <Grid Grid.Column="0"
+                  Width="230">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="12" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="12" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0"
+                        Background="#FFFFFF"
+                        BorderBrush="#D1D5DB"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="12">
+                    <StackPanel>
+                        <TextBlock Text="Upgrade"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Foreground="#111827"
+                                   Margin="0,0,0,8" />
+                        <Button Content="Upgrade troops"
+                                Width="150"
+                                HorizontalAlignment="Left"
+                                Click="UpgradeTroopsButton_Click" />
+                        <TextBlock Text="Smithy upgrades stay separate from troop building."
+                                   Foreground="#6B7280"
+                                   TextWrapping="Wrap"
+                                   Margin="0,8,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="2"
+                        Background="#FFFFFF"
+                        BorderBrush="#D1D5DB"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="12">
+                    <StackPanel>
+                        <TextBlock Text="Celebration"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Foreground="#111827"
+                                   Margin="0,0,0,8" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <CheckBox Grid.Column="0"
+                                      Content="Auto celebration (Teutons only)"
+                                      VerticalAlignment="Center"
+                                      IsChecked="{Binding AutoCelebrationEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      IsEnabled="{Binding IsAutoCelebrationCheckboxEnabled}" />
+                            <Border Grid.Column="1"
+                                    Margin="12,0,0,0"
+                                    Width="72"
+                                    Padding="8,4"
+                                    CornerRadius="8"
+                                    Background="{Binding AutoCelebrationBadgeBackground}"
+                                    BorderBrush="{Binding AutoCelebrationBadgeBorderBrush}"
+                                    BorderThickness="1">
+                                <TextBlock Text="{Binding AutoCelebrationTimerText}"
+                                           Foreground="{Binding AutoCelebrationBadgeForeground}"
+                                           FontWeight="SemiBold"
+                                           HorizontalAlignment="Center"
+                                           TextAlignment="Center" />
+                            </Border>
+                        </Grid>
+                        <TextBlock Text="{Binding AutoCelebrationStatusText}"
+                                   Foreground="#6B7280"
+                                   TextWrapping="Wrap"
+                                   Margin="0,8,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="4"
+                        Background="#FFFFFF"
+                        BorderBrush="#D1D5DB"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="12">
+                    <StackPanel>
+                        <TextBlock Text="Settings"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Foreground="#111827" />
+                        <TextBlock Text="Troop controls can be added here."
+                                   Foreground="#6B7280"
+                                   TextWrapping="Wrap"
+                                   Margin="0,8,0,0" />
+                    </StackPanel>
+                </Border>
+            </Grid>
 
             <Border Grid.Column="2"
                     Background="#FFFFFF"
@@ -179,11 +253,11 @@
                                     <StackPanel>
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="180" />
-                                                <ColumnDefinition Width="160" />
-                                                <ColumnDefinition Width="190" />
-                                                <ColumnDefinition Width="210" />
+                                                <ColumnDefinition Width="120" />
+                                                <ColumnDefinition Width="140" />
                                                 <ColumnDefinition Width="110" />
+                                                <ColumnDefinition Width="120" />
+                                                <ColumnDefinition Width="120" />
                                             </Grid.ColumnDefinitions>
                                             <StackPanel Grid.Column="0"
                                                         Margin="0,0,10,0">
@@ -255,11 +329,11 @@
 
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="180" />
-                                                <ColumnDefinition Width="160" />
-                                                <ColumnDefinition Width="190" />
-                                                <ColumnDefinition Width="210" />
+                                                <ColumnDefinition Width="120" />
+                                                <ColumnDefinition Width="140" />
                                                 <ColumnDefinition Width="110" />
+                                                <ColumnDefinition Width="120" />
+                                                <ColumnDefinition Width="120" />
                                             </Grid.ColumnDefinitions>
 
                                             <CheckBox Grid.Column="0"
@@ -271,13 +345,13 @@
                                                       Margin="8,0,8,0"
                                                       ItemsSource="{Binding TroopOptions}"
                                                       SelectedItem="{Binding SelectedTroop, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                      Width="160"
+                                                      Width="120"
                                                       HorizontalAlignment="Left"
                                                       HorizontalContentAlignment="Left" />
 
                                             <ComboBox Grid.Column="2"
                                                       Margin="0,0,8,0"
-                                                      Width="190"
+                                                      Width="80"
                                                       HorizontalAlignment="Left"
                                                       HorizontalContentAlignment="Left"
                                                       SelectedValuePath="Tag"
@@ -295,7 +369,7 @@
 
                                             <ComboBox Grid.Column="3"
                                                       Margin="0,0,8,0"
-                                                      Width="210"
+                                                      Width="100"
                                                       HorizontalAlignment="Left"
                                                       HorizontalContentAlignment="Left"
                                                       SelectedValuePath="Tag"
@@ -305,7 +379,7 @@
                                             </ComboBox>
 
                                             <ComboBox Grid.Column="4"
-                                                      Width="110"
+                                                      Width="80"
                                                       HorizontalAlignment="Left"
                                                       HorizontalContentAlignment="Left"
                                                       SelectedValuePath="Tag"
@@ -329,8 +403,8 @@
 
                                         <Grid Margin="0,0,0,4">
                                             <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="120" />
                                                 <ColumnDefinition Width="180" />
-                                                <ColumnDefinition Width="220" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
 
@@ -416,7 +490,7 @@
                                                         </Style>
                                                         </StackPanel.Style>
                                                     <Slider Width="170"
-                                                            Minimum="1"
+                                                            Minimum="0"
                                                             Maximum="100"
                                                             TickFrequency="1"
                                                             IsSnapToTickEnabled="True"

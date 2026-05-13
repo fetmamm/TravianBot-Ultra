@@ -38,7 +38,7 @@ public partial class MainWindow : Window
     private const int MaxFarmListsShown = 120;
     private const int MaxLogLinesPerFlush = 220;
     private const int MaxSessionLogFiles = 5;
-    private const int ContinuousLoopMaxSleepSliceSeconds = 5;
+    private const int ContinuousLoopMaxSleepSliceSeconds = 1;
     private const string RuntimeManualTaskPrefix = "desktop_runtime_manual";
 
     private sealed class ManualExecutionState
@@ -114,6 +114,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _inboxRefreshTimer;
     private readonly DispatcherTimer _buildQueueCountdownTimer;
     private readonly DispatcherTimer _resourceSnapshotRefreshTimer;
+    private readonly DispatcherTimer _troopTrainingDeferredRefreshDebounceTimer;
     private readonly ObservableCollection<string> _terminalEntries = [];
     private readonly ObservableCollection<AlarmEntryRow> _alarmEntries = [];
     private readonly ObservableCollection<LoopTaskOption> _automationLoopTasks = [];
@@ -124,6 +125,7 @@ public partial class MainWindow : Window
     private readonly Dictionary<int, DateTimeOffset> _resourceClickCooldownBySlot = new();
     private readonly Dictionary<int, (int Target, DateTimeOffset At)> _resourceLastQueuedTargetBySlot = new();
     private readonly Dictionary<int, int> _resourcePendingTargetBySlot = new();
+    private FunctionTestWindow? _resourceTestFunctionsWindow;
     private readonly Dictionary<int, DateTimeOffset> _buildingClickCooldownBySlot = new();
     private readonly Dictionary<int, (int Target, DateTimeOffset At)> _buildingLastQueuedTargetBySlot = new();
     private readonly Dictionary<int, (string Name, DateTimeOffset At)> _buildingLastQueuedConstructBySlot = new();
@@ -139,8 +141,12 @@ public partial class MainWindow : Window
     private bool _suppressAccountSelectionChange;
     private bool _suppressVillageSelectionChange;
     private bool _resourceSnapshotRefreshRunning;
+    private bool _resourceProductionRefreshRunning;
+    private bool _resourceProductionRefreshPending;
     private bool _deferredConstructionRefreshRunning;
     private bool _deferredTroopTrainingRefreshRunning;
+    private VillageStatus? _pendingDeferredTroopTrainingRefreshStatus;
+    private string? _pendingDeferredTroopTrainingRefreshSource;
     private TimeSpan _queueServerTimeOffset;
     private long _operationCounter;
     private long _loopTickCounter;
@@ -223,6 +229,9 @@ public partial class MainWindow : Window
     private string? _heroBlockedReasonKey;
     private string? _heroBlockedReasonText;
     private bool _heroBlockedPreviouslyEnabled;
+    private string? _breweryBlockedReasonKey;
+    private string? _breweryBlockedReasonText;
+    private bool _breweryBlockedPreviouslyEnabled;
     private string? _pendingManualOperationId;
     private readonly Dictionary<string, string> _operationNamesById = new(StringComparer.OrdinalIgnoreCase);
     private ManualExecutionState? _activeManualExecution;
@@ -372,6 +381,15 @@ public partial class MainWindow : Window
         _resourceSnapshotRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(16) };
         _resourceSnapshotRefreshTimer.Tick += async (_, _) => await HandleResourceSnapshotRefreshTickAsync();
         _resourceSnapshotRefreshTimer.Start();
+        _troopTrainingDeferredRefreshDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _troopTrainingDeferredRefreshDebounceTimer.Tick += (_, _) =>
+        {
+            _troopTrainingDeferredRefreshDebounceTimer.Stop();
+            if (_lastResourceStatusForUi is not null)
+            {
+                TriggerDeferredTroopTrainingWaitRefresh(_lastResourceStatusForUi, "troop_config_changed", force: true);
+            }
+        };
         _queueUiRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(280) };
         _queueUiRefreshTimer.Tick += (_, _) =>
         {
@@ -548,12 +566,11 @@ public partial class MainWindow : Window
         SyncServerFromActiveAccount();
 
         var options = ApplySelectedVillageToOptions(LoadBotOptions());
+        var storedAutoCelebration = TryGetStoredAutoCelebrationPreference();
+        var hasExplicitAutoCelebrationSetting = storedAutoCelebration.HasValue;
         LoadAutomationLoopTasks(options);
-        _troopTrainingViewModel.ApplyConfigToBuildings(options);
-        if (_troopTrainingViewModel.UpdateTroopOptions(ResolveStoredTroopTrainingTribe()))
-        {
-            PersistTroopTrainingConfig();
-        }
+        _troopTrainingViewModel.ApplyConfigToBuildings(options, hasExplicitAutoCelebrationSetting, storedAutoCelebration.Value);
+        ApplyTroopTrainingTribeState(ResolveStoredTroopTrainingTribe());
         _troopTrainingViewModel.InfoText = "Configure troop building rules and refresh queues when needed.";
         _suppressHeroHideModeApply = true;
         try
@@ -700,7 +717,9 @@ public partial class MainWindow : Window
         var tribeMatch = TribeRegex.Match(line);
         if (tribeMatch.Success)
         {
-            TribeInfoTextBlock.Text = $"Tribe: {tribeMatch.Groups[1].Value}";
+            var tribe = tribeMatch.Groups[1].Value;
+            TribeInfoTextBlock.Text = $"Tribe: {tribe}";
+            ApplyTroopTrainingTribeState(tribe);
         }
 
         var uiSyncMatch = UiSyncRegex.Match(line);
@@ -991,6 +1010,22 @@ public partial class MainWindow : Window
                 catch (Exception ex)
                 {
                     AppendLog($"Post-login hero analyze failed: {ex.Message}");
+                }
+            }
+
+            if (options.PostLoginAnalyzeBrewery)
+            {
+                try
+                {
+                    await RefreshBreweryCelebrationStatusAsync(options, snapshot.VillageStatus, operationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    AppendLog($"Post-login brewery analyze failed: {ex.Message}");
                 }
             }
 
@@ -2277,10 +2312,17 @@ public partial class MainWindow : Window
         await Dispatcher.InvokeAsync(() => RefreshQueueUi());
     }
 
-    private void TriggerDeferredTroopTrainingWaitRefresh(VillageStatus status, string source)
+    private void TriggerDeferredTroopTrainingWaitRefresh(VillageStatus status, string source, bool force = false)
     {
-        if (_deferredTroopTrainingRefreshRunning || status.Resources.Count == 0)
+        if (!force && status.Resources.Count == 0)
         {
+            return;
+        }
+
+        if (_deferredTroopTrainingRefreshRunning)
+        {
+            _pendingDeferredTroopTrainingRefreshStatus = status;
+            _pendingDeferredTroopTrainingRefreshSource = source;
             return;
         }
 
@@ -2298,6 +2340,14 @@ public partial class MainWindow : Window
             finally
             {
                 _deferredTroopTrainingRefreshRunning = false;
+                if (_pendingDeferredTroopTrainingRefreshStatus is not null)
+                {
+                    var pendingStatus = _pendingDeferredTroopTrainingRefreshStatus;
+                    var pendingSource = _pendingDeferredTroopTrainingRefreshSource ?? "pending_refresh";
+                    _pendingDeferredTroopTrainingRefreshStatus = null;
+                    _pendingDeferredTroopTrainingRefreshSource = null;
+                    TriggerDeferredTroopTrainingWaitRefresh(pendingStatus, pendingSource, force: true);
+                }
             }
         });
     }
@@ -2454,7 +2504,13 @@ public partial class MainWindow : Window
                 var capacity = string.Equals(key, "crop", StringComparison.OrdinalIgnoreCase)
                     ? granaryCapacity
                     : warehouseCapacity;
-                var threshold = (long)Math.Ceiling(capacity * (Math.Clamp(request.MinimumResourcesPercent, 1, 100) / 100d));
+                var thresholdPercent = Math.Clamp(request.MinimumResourcesPercent, 0, 100);
+                if (thresholdPercent <= 0)
+                {
+                    continue;
+                }
+
+                var threshold = (long)Math.Ceiling(capacity * (thresholdPercent / 100d));
                 currentResources.TryGetValue(key, out var currentValue);
                 var missing = Math.Max(0L, threshold - currentValue);
                 if (missing <= 0)
@@ -2823,11 +2879,29 @@ public partial class MainWindow : Window
         UpdateExecutionStateIndicator();
     }
 
+    private void ApplyStartLoopButtonVisual(string startButtonText)
+    {
+        StartLoopButton.Content = startButtonText;
+
+        var highlightPauseState = string.Equals(startButtonText, "Pause bot", StringComparison.Ordinal);
+        if (highlightPauseState)
+        {
+            StartLoopButton.Background = new SolidColorBrush(Color.FromRgb(253, 230, 138));
+            StartLoopButton.BorderBrush = new SolidColorBrush(Color.FromRgb(245, 158, 11));
+            StartLoopButton.Foreground = new SolidColorBrush(Color.FromRgb(120, 53, 15));
+            return;
+        }
+
+        StartLoopButton.Background = new SolidColorBrush(Color.FromRgb(3, 8, 38));
+        StartLoopButton.BorderBrush = new SolidColorBrush(Color.FromRgb(3, 8, 38));
+        StartLoopButton.Foreground = Brushes.White;
+    }
+
     private void SetLoopStateBadge(string stateText, Color color, string startButtonText)
     {
         LoopStateTextBlock.Text = $"State: {stateText}";
         LoopStateBadge.Background = new SolidColorBrush(color);
-        StartLoopButton.Content = startButtonText;
+        ApplyStartLoopButtonVisual(startButtonText);
     }
 
     private void UpdateExecutionStateIndicator()
@@ -2894,7 +2968,7 @@ public partial class MainWindow : Window
                     ? $"State: waiting ({FormatCountdown(remainingSeconds)})"
                     : "State: waiting";
                 LoopStateBadge.Background = new SolidColorBrush(Color.FromRgb(202, 138, 4));
-                StartLoopButton.Content = (loopRunning || _autoQueueRunning) ? "Pause bot" : "Start bot";
+                ApplyStartLoopButtonVisual((loopRunning || _autoQueueRunning) ? "Pause bot" : "Start bot");
                 return;
             }
 
@@ -3134,14 +3208,12 @@ public partial class MainWindow : Window
 
     private void ApplyVillageStatusToUi(VillageStatus status)
     {
+        status = MergeResourceStatusForUi(status);
         UpdateActiveVillageResourceMaxLevel(status);
         _resourcesViewModel.ApplyStorageForecasts(status);
         VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
         TribeInfoTextBlock.Text = $"Tribe: {status.Tribe}";
-        if (_troopTrainingViewModel.UpdateTroopOptions(status.Tribe))
-        {
-            PersistTroopTrainingConfig();
-        }
+        ApplyTroopTrainingTribeState(status.Tribe);
         LastScanInfoTextBlock.Text = $"Last scan: {GetServerNow():HH:mm:ss}";
         var capitalText = status.IsCapital == true ? "Yes" : status.IsCapital == false ? "No" : "Unknown";
         var goldText = status.Gold?.ToString() ?? "-";
@@ -3174,6 +3246,7 @@ public partial class MainWindow : Window
         _buildQueueReachedZeroPendingCompletion = false;
         ApplyTroopsAvailabilityFromVillageStatus(status);
         _troopTrainingViewModel.ApplyStatus(status, _lastBuildingStatus?.TroopTrainingQueues);
+        ApplyLocalBreweryCelebrationStatus(status);
         UpdateBuildQueueStatusText();
         UpdateAutomationLoopRunningIndicators();
         RefreshVillagePicker(status);

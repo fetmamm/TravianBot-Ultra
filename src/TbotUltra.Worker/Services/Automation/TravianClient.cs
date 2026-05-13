@@ -78,7 +78,9 @@ public sealed partial class TravianClient
     private static readonly TimeSpan EnsureLoggedInMinInterval = TimeSpan.FromSeconds(16);
     private static readonly TimeSpan UiSyncMinInterval = TimeSpan.FromSeconds(20);
     private static readonly object ResourceStatusCacheSync = new();
+    private static readonly object HeroAttributeSnapshotCacheSync = new();
     private static readonly Dictionary<string, CachedVillageResourceSnapshot> CachedVillageResourceSnapshotsByKey = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, HeroAttributeSnapshot> CachedHeroAttributeSnapshotsByKey = new(StringComparer.OrdinalIgnoreCase);
     private List<Village>? _cachedVillages;
     private DateTimeOffset _cachedVillagesAt = DateTimeOffset.MinValue;
     private DateTimeOffset _lastEnsureLoggedInAt = DateTimeOffset.MinValue;

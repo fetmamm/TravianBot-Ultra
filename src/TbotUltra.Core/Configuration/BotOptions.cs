@@ -71,6 +71,9 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.PostLoginReadTroopTrainingQueue)]
     public bool PostLoginReadTroopTrainingQueue { get; init; }
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.PostLoginAnalyzeBrewery)]
+    public bool PostLoginAnalyzeBrewery { get; init; }
+
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksEnabled)]
     public bool TroopTrainingBarracksEnabled { get; init; }
 
@@ -181,6 +184,9 @@ public sealed class BotOptions
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingFallbackCooldownSeconds)]
     public int TroopTrainingFallbackCooldownSeconds { get; init; } = 30;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.BreweryAutoCelebrationEnabled)]
+    public bool BreweryAutoCelebrationEnabled { get; init; }
 
     [ConfigurationKeyName("github_releases_url")]
     public string GithubReleasesUrl { get; init; } = string.Empty;

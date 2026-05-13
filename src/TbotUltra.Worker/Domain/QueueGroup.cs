@@ -7,4 +7,5 @@ public enum QueueGroup
     Hero = 2,
     Farming = 3,
     TroopTraining = 4,
+    BreweryCelebration = 5,
 }

@@ -35,6 +35,7 @@ public static class BotOptionsPayloadApplier
         var postLoginAnalyzeFarmlists = source.PostLoginAnalyzeFarmlists;
         var postLoginAnalyzeHero = source.PostLoginAnalyzeHero;
         var postLoginReadTroopTrainingQueue = source.PostLoginReadTroopTrainingQueue;
+        var postLoginAnalyzeBrewery = source.PostLoginAnalyzeBrewery;
         var troopTrainingBarracksEnabled = source.TroopTrainingBarracksEnabled;
         var troopTrainingBarracksTroopType = source.TroopTrainingBarracksTroopType;
         var troopTrainingBarracksMaxQueueHours = source.TroopTrainingBarracksMaxQueueHours;
@@ -72,6 +73,7 @@ public static class BotOptionsPayloadApplier
         var troopTrainingWorkshopCheckIron = source.TroopTrainingWorkshopCheckIron;
         var troopTrainingWorkshopCheckCrop = source.TroopTrainingWorkshopCheckCrop;
         var troopTrainingFallbackCooldownSeconds = source.TroopTrainingFallbackCooldownSeconds;
+        var breweryAutoCelebrationEnabled = source.BreweryAutoCelebrationEnabled;
 
         if (payload is not null)
         {
@@ -274,6 +276,13 @@ public static class BotOptionsPayloadApplier
                     continue;
                 }
 
+                if (key.Equals(BotOptionPayloadKeys.PostLoginAnalyzeBrewery, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var analyzeBrewery))
+                {
+                    postLoginAnalyzeBrewery = analyzeBrewery;
+                    continue;
+                }
+
                 if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksEnabled, StringComparison.OrdinalIgnoreCase)
                     && bool.TryParse(value, out var barracksEnabled))
                 {
@@ -322,7 +331,7 @@ public static class BotOptionsPayloadApplier
                 if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksMinimumResourcesPercent, StringComparison.OrdinalIgnoreCase)
                     && int.TryParse(value, out var barracksMinimumResourcesPercent))
                 {
-                    troopTrainingBarracksMinimumResourcesPercent = Math.Clamp(barracksMinimumResourcesPercent, 1, 100);
+                    troopTrainingBarracksMinimumResourcesPercent = Math.Clamp(barracksMinimumResourcesPercent, 0, 100);
                     continue;
                 }
 
@@ -402,7 +411,7 @@ public static class BotOptionsPayloadApplier
                 if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableMinimumResourcesPercent, StringComparison.OrdinalIgnoreCase)
                     && int.TryParse(value, out var stableMinimumResourcesPercent))
                 {
-                    troopTrainingStableMinimumResourcesPercent = Math.Clamp(stableMinimumResourcesPercent, 1, 100);
+                    troopTrainingStableMinimumResourcesPercent = Math.Clamp(stableMinimumResourcesPercent, 0, 100);
                     continue;
                 }
 
@@ -482,7 +491,7 @@ public static class BotOptionsPayloadApplier
                 if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopMinimumResourcesPercent, StringComparison.OrdinalIgnoreCase)
                     && int.TryParse(value, out var workshopMinimumResourcesPercent))
                 {
-                    troopTrainingWorkshopMinimumResourcesPercent = Math.Clamp(workshopMinimumResourcesPercent, 1, 100);
+                    troopTrainingWorkshopMinimumResourcesPercent = Math.Clamp(workshopMinimumResourcesPercent, 0, 100);
                     continue;
                 }
 
@@ -522,6 +531,13 @@ public static class BotOptionsPayloadApplier
                         10 or 30 or 60 or 120 or 300 or 600 => troopTrainingFallbackCooldown,
                         _ => 30,
                     };
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.BreweryAutoCelebrationEnabled, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var autoCelebrationEnabled))
+                {
+                    breweryAutoCelebrationEnabled = autoCelebrationEnabled;
                 }
             }
         }
@@ -547,6 +563,7 @@ public static class BotOptionsPayloadApplier
             PostLoginAnalyzeFarmlists = postLoginAnalyzeFarmlists,
             PostLoginAnalyzeHero = postLoginAnalyzeHero,
             PostLoginReadTroopTrainingQueue = postLoginReadTroopTrainingQueue,
+            PostLoginAnalyzeBrewery = postLoginAnalyzeBrewery,
             TroopTrainingBarracksEnabled = troopTrainingBarracksEnabled,
             TroopTrainingBarracksTroopType = troopTrainingBarracksTroopType,
             TroopTrainingBarracksMaxQueueHours = troopTrainingBarracksMaxQueueHours,
@@ -584,6 +601,7 @@ public static class BotOptionsPayloadApplier
             TroopTrainingWorkshopCheckIron = troopTrainingWorkshopCheckIron,
             TroopTrainingWorkshopCheckCrop = troopTrainingWorkshopCheckCrop,
             TroopTrainingFallbackCooldownSeconds = troopTrainingFallbackCooldownSeconds,
+            BreweryAutoCelebrationEnabled = breweryAutoCelebrationEnabled,
             GithubReleasesUrl = source.GithubReleasesUrl,
             HumanLikeEnabled = source.HumanLikeEnabled,
             HumanLikeSpeed = source.HumanLikeSpeed,

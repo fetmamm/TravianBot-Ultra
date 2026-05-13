@@ -147,6 +147,11 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
         return _taskRunner.ReadTroopTrainingQueuesAsync(options, log, knownBuildings, null, cancellationToken);
     }
 
+    public Task<BreweryCelebrationStatus> ReadBreweryCelebrationStatusAsync(BotOptions options, Action<string> log, IReadOnlyList<Building>? knownBuildings, CancellationToken cancellationToken)
+    {
+        return _taskRunner.ReadBreweryCelebrationStatusAsync(options, log, knownBuildings, null, cancellationToken);
+    }
+
     public Task<VillageStatus> ReadVillageStatusAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken)
     {
         return _taskRunner.ReadVillageStatusAsync(
@@ -173,6 +178,11 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
     public Task<VillageStatus> ReadCurrentPageResourceStatusQuickAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.ReadCurrentPageResourceStatusQuickAsync(options, log, null, cancellationToken);
+    }
+
+    public Task<IReadOnlyDictionary<string, double?>> ReadCurrentPageResourceProductionPerHourAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.ReadCurrentPageResourceProductionPerHourAsync(options, log, null, cancellationToken);
     }
 
     public Task NavigateToVillageResourceFieldsAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken)

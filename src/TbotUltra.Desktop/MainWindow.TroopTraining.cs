@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using TbotUltra.Core.Accounts;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Worker.Domain;
 
@@ -26,6 +27,11 @@ namespace TbotUltra.Desktop;
 /// </summary>
 public partial class MainWindow
 {
+    private static bool IsTeutonsTribe(string? tribe)
+    {
+        return string.Equals(tribe?.Trim(), "Teutons", StringComparison.OrdinalIgnoreCase);
+    }
+
     private string ResolveStoredTroopTrainingTribe()
     {
         try
@@ -47,10 +53,193 @@ public partial class MainWindow
         return TribeInfoTextBlock?.Text?.Replace("Tribe:", string.Empty, StringComparison.OrdinalIgnoreCase).Trim() ?? "Unknown";
     }
 
+    private (bool? Value, bool HasValue) TryGetStoredAutoCelebrationPreference()
+    {
+        try
+        {
+            var accountName = _accountStore.ActiveAccountName();
+            if (!string.IsNullOrWhiteSpace(accountName)
+                && _accountAnalysisStore.TryLoad(accountName, out var analysis, GetActiveAccountServerUrl())
+                && analysis is not null
+                && analysis.AutoCelebrationEnabled.HasValue)
+            {
+                return (analysis.AutoCelebrationEnabled.Value, true);
+            }
+        }
+        catch
+        {
+            // Ignore temporary account analysis read failures.
+        }
+
+        return (null, false);
+    }
+
+    private void PersistAutoCelebrationPreferenceForActiveAccount(bool enabled)
+    {
+        try
+        {
+            var accountName = _accountStore.ActiveAccountName();
+            if (string.IsNullOrWhiteSpace(accountName))
+            {
+                return;
+            }
+
+            var serverUrl = GetActiveAccountServerUrl();
+            _accountAnalysisStore.TryLoad(accountName, out var existing, serverUrl);
+            var snapshot = new AccountAnalysisSnapshot(
+                SchemaVersion: AccountAnalysisConstants.CurrentSchemaVersion,
+                AnalyzedAtUtc: DateTimeOffset.UtcNow,
+                AccountName: string.IsNullOrWhiteSpace(existing?.AccountName) ? accountName : existing.AccountName,
+                ServerUrl: string.IsNullOrWhiteSpace(existing?.ServerUrl) ? serverUrl ?? string.Empty : existing.ServerUrl,
+                Tribe: string.IsNullOrWhiteSpace(existing?.Tribe) ? ResolveStoredTroopTrainingTribe() : existing.Tribe,
+                GoldClubEnabled: existing?.GoldClubEnabled ?? false,
+                BuildingCatalog: existing?.BuildingCatalog ?? [],
+                AutoCelebrationEnabled: enabled);
+            _accountAnalysisStore.Save(snapshot);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Could not save auto celebration preference: {ex.Message}");
+        }
+    }
+
+    private void ApplyTroopTrainingTribeState(string? tribe)
+    {
+        var troopOptionsChanged = _troopTrainingViewModel.UpdateTroopOptions(tribe);
+        var celebrationChanged = _troopTrainingViewModel.UpdateAutoCelebrationAvailability(tribe);
+        if (troopOptionsChanged || celebrationChanged)
+        {
+            PersistTroopTrainingConfig();
+            if (celebrationChanged)
+            {
+                PersistAutoCelebrationPreferenceForActiveAccount(_troopTrainingViewModel.AutoCelebrationEnabled);
+            }
+        }
+
+        SyncTeutonsOnlyAutomationGroups(tribe, persistChanges: true);
+    }
+
     private void OnTroopTrainingConfigChanged()
     {
         PersistTroopTrainingConfig();
+        PersistAutoCelebrationPreferenceForActiveAccount(_troopTrainingViewModel.AutoCelebrationEnabled);
         UpdateAutomationLoopRunningIndicators();
+        if (_lastResourceStatusForUi is not null)
+        {
+            _troopTrainingDeferredRefreshDebounceTimer.Stop();
+            _troopTrainingDeferredRefreshDebounceTimer.Start();
+        }
+    }
+
+    private static bool TryResolveBrewerySlotId(VillageStatus status, out int slotId)
+    {
+        slotId = status.Buildings
+            .FirstOrDefault(item =>
+                item.SlotId is > 0
+                && (item.Gid == 35 || string.Equals(item.Name, "Brewery", StringComparison.OrdinalIgnoreCase)))
+            ?.SlotId ?? 0;
+        return slotId > 0;
+    }
+
+    private void ApplyLocalBreweryCelebrationStatus(VillageStatus status)
+    {
+        if (!IsTeutonsTribe(status.Tribe))
+        {
+            ClearBreweryBlockedState();
+            _troopTrainingViewModel.ApplyBreweryCelebrationStatus(new BreweryCelebrationStatus(
+                false,
+                status.IsCapital,
+                false,
+                null,
+                false,
+                null,
+                "N/A",
+                "Teutons only."));
+            return;
+        }
+
+        if (status.IsCapital == false)
+        {
+            ClearBreweryBlockedState();
+            _troopTrainingViewModel.ApplyBreweryCelebrationStatus(new BreweryCelebrationStatus(
+                true,
+                false,
+                TryResolveBrewerySlotId(status, out var nonCapitalBrewerySlot) && nonCapitalBrewerySlot > 0,
+                nonCapitalBrewerySlot > 0 ? nonCapitalBrewerySlot : null,
+                false,
+                null,
+                "N/A",
+                "Capital village required."));
+            return;
+        }
+
+        if (!TryResolveBrewerySlotId(status, out var brewerySlotId))
+        {
+            if (!string.Equals(_breweryBlockedReasonKey, BreweryBlockedReasonMissing, StringComparison.OrdinalIgnoreCase))
+            {
+                SetBreweryBlockedState(BreweryBlockedReasonMissing, "Brewery missing");
+            }
+
+            _troopTrainingViewModel.ApplyBreweryCelebrationStatus(new BreweryCelebrationStatus(
+                true,
+                status.IsCapital,
+                false,
+                null,
+                false,
+                null,
+                "N/A",
+                "Brewery not found."));
+            return;
+        }
+
+        if (string.Equals(_breweryBlockedReasonKey, BreweryBlockedReasonMissing, StringComparison.OrdinalIgnoreCase))
+        {
+            ClearBreweryBlockedState();
+            AppendLog("Brewery celebration group re-enabled: Brewery detected after building refresh.");
+        }
+
+        _troopTrainingViewModel.ResetBreweryCelebrationStatus(
+            _troopTrainingViewModel.AutoCelebrationEnabled
+                ? "Reading celebration status..."
+                : "Disabled.");
+    }
+
+    private async Task RefreshBreweryCelebrationStatusAsync(BotOptions options, VillageStatus? status, CancellationToken cancellationToken)
+    {
+        if (status is null)
+        {
+            _troopTrainingViewModel.ResetBreweryCelebrationStatus();
+            UpdateAutomationLoopRunningIndicators();
+            return;
+        }
+
+        ApplyLocalBreweryCelebrationStatus(status);
+        UpdateAutomationLoopRunningIndicators();
+
+        if (!IsTeutonsTribe(status.Tribe)
+            || status.IsCapital == false
+            || !TryResolveBrewerySlotId(status, out _))
+        {
+            return;
+        }
+
+        try
+        {
+            var celebrationStatus = await _botService.ReadBreweryCelebrationStatusAsync(options, AppendLog, status.Buildings, cancellationToken);
+            await Dispatcher.InvokeAsync(() =>
+            {
+                _troopTrainingViewModel.ApplyBreweryCelebrationStatus(celebrationStatus);
+                UpdateAutomationLoopRunningIndicators();
+            });
+        }
+        catch (Exception ex)
+        {
+            await Dispatcher.InvokeAsync(() =>
+            {
+                _troopTrainingViewModel.ResetBreweryCelebrationStatus($"Could not read celebration status: {ex.Message}");
+                UpdateAutomationLoopRunningIndicators();
+            });
+        }
     }
 
     /// <summary>
@@ -140,6 +329,7 @@ public partial class MainWindow
 
                     _troopTrainingViewModel.ApplyStatus(_lastBuildingStatus, _lastBuildingStatus?.TroopTrainingQueues);
                 });
+                await RefreshBreweryCelebrationStatusAsync(options, refreshedStatus, cancellationToken);
             }
             catch (Exception ex)
             {

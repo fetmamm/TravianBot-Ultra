@@ -60,6 +60,18 @@ public static class TroopCatalog
     public static IReadOnlyList<string> ResolveTroopTypesForTribe(string? tribe, TroopTrainingBuildingType buildingType)
     {
         var allTroops = ResolveTroopTypesForTribe(tribe);
+        var value = (tribe ?? string.Empty).Trim().ToLowerInvariant();
+        if (value.Contains("teuton"))
+        {
+            return buildingType switch
+            {
+                TroopTrainingBuildingType.Barracks => allTroops.Take(4).ToList(),
+                TroopTrainingBuildingType.Stable => allTroops.Skip(4).Take(2).ToList(),
+                TroopTrainingBuildingType.Workshop => allTroops.Skip(6).Take(2).ToList(),
+                _ => [],
+            };
+        }
+
         return buildingType switch
         {
             TroopTrainingBuildingType.Barracks => allTroops.Take(3).ToList(),

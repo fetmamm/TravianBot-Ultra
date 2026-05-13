@@ -1,9 +1,10 @@
 {
   "schemaVersion": 1,
-  "analyzedAtUtc": "2026-05-11T14:41:25.5843685+00:00",
+  "analyzedAtUtc": "2026-05-12T18:53:42.3897091+00:00",
   "accountName": "fet_mga_ss_travi_com",
   "serverUrl": "https://mga.ss-travi.com",
   "tribe": "Teutons",
   "goldClubEnabled": true,
-  "buildingCatalog": []
+  "buildingCatalog": [],
+  "autoCelebrationEnabled": false
 }

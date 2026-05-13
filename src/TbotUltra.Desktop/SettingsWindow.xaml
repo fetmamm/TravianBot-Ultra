@@ -124,7 +124,10 @@
                                       Margin="0,0,0,8"
                                       Content="Analyze hero" />
                             <CheckBox x:Name="PostLoginReadTroopTrainingQueueCheckBox"
+                                      Margin="0,0,0,8"
                                       Content="Read troop training queue (Barracks, Stable, Workshop)" />
+                            <CheckBox x:Name="PostLoginAnalyzeBreweryCheckBox"
+                                      Content="Analyze brewery" />
                         </StackPanel>
                     </Border>
 

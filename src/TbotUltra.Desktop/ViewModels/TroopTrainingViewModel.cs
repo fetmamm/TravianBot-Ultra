@@ -45,6 +45,12 @@ public sealed class TroopTrainingViewModel : BaseViewModel
     private bool _checkIron = true;
     private bool _checkCrop = true;
     private int _fallbackCooldownSeconds = 30;
+    private bool _autoCelebrationEnabled;
+    private bool _autoCelebrationExplicitlyConfigured;
+    private bool _isAutoCelebrationAvailableForCurrentTribe;
+    private bool _autoCelebrationCanStart;
+    private int? _autoCelebrationRemainingSeconds;
+    private string _autoCelebrationStatusText = "Teutons only.";
 
     /// <summary>The three building rules shown as rows on the panel.</summary>
     public ObservableCollection<TroopTrainingBuildingOption> Buildings { get; } = [];
@@ -186,7 +192,7 @@ public sealed class TroopTrainingViewModel : BaseViewModel
     /// Bulk-applies persisted settings from <see cref="BotOptions"/> onto the
     /// existing rows. Suppresses <see cref="ConfigChanged"/> during the update.
     /// </summary>
-    public void ApplyConfigToBuildings(BotOptions options)
+    public void ApplyConfigToBuildings(BotOptions options, bool hasExplicitAutoCelebrationSetting, bool? autoCelebrationOverride = null)
     {
         _isConfigSuppressed = true;
         try
@@ -233,6 +239,8 @@ public sealed class TroopTrainingViewModel : BaseViewModel
             CheckIron = options.TroopTrainingBarracksCheckIron;
             CheckCrop = options.TroopTrainingBarracksCheckCrop;
             FallbackCooldownSeconds = options.TroopTrainingFallbackCooldownSeconds;
+            _autoCelebrationExplicitlyConfigured = hasExplicitAutoCelebrationSetting;
+            AutoCelebrationEnabled = autoCelebrationOverride ?? options.BreweryAutoCelebrationEnabled;
         }
         finally
         {
@@ -296,6 +304,7 @@ public sealed class TroopTrainingViewModel : BaseViewModel
         }
 
         config[BotOptionPayloadKeys.TroopTrainingFallbackCooldownSeconds] = FallbackCooldownSeconds;
+        config[BotOptionPayloadKeys.BreweryAutoCelebrationEnabled] = AutoCelebrationEnabled;
     }
 
     /// <summary>
@@ -335,6 +344,53 @@ public sealed class TroopTrainingViewModel : BaseViewModel
 
                     option.SelectedTroop = fallbackTroop;
                 }
+            }
+        }
+        finally
+        {
+            _isConfigSuppressed = false;
+        }
+
+        return configChanged;
+    }
+
+    public bool UpdateAutoCelebrationAvailability(string? tribe)
+    {
+        var isTeutons = string.Equals(tribe?.Trim(), "Teutons", StringComparison.OrdinalIgnoreCase);
+        var configChanged = false;
+
+        _isConfigSuppressed = true;
+        try
+        {
+            IsAutoCelebrationAvailableForCurrentTribe = isTeutons;
+            if (isTeutons)
+            {
+                if (!_autoCelebrationExplicitlyConfigured && !AutoCelebrationEnabled)
+                {
+                    AutoCelebrationEnabled = true;
+                    configChanged = true;
+                }
+
+                if (!AutoCelebrationEnabled)
+                {
+                    AutoCelebrationStatusText = "Disabled.";
+                }
+                else if (string.Equals(AutoCelebrationStatusText, "Teutons only.", StringComparison.Ordinal))
+                {
+                    AutoCelebrationStatusText = "Status not loaded.";
+                }
+            }
+            else
+            {
+                if (AutoCelebrationEnabled)
+                {
+                    AutoCelebrationEnabled = false;
+                    configChanged = true;
+                }
+
+                AutoCelebrationCanStart = false;
+                AutoCelebrationRemainingSeconds = null;
+                AutoCelebrationStatusText = "Teutons only.";
             }
         }
         finally
@@ -408,6 +464,25 @@ public sealed class TroopTrainingViewModel : BaseViewModel
         }
     }
 
+    public void ApplyBreweryCelebrationStatus(BreweryCelebrationStatus status)
+    {
+        AutoCelebrationCanStart = status.IsAvailableForTribe
+            && status.IsCapital == true
+            && status.BreweryExists
+            && !status.CelebrationRunning;
+        AutoCelebrationRemainingSeconds = status.CelebrationRunning ? status.RemainingSeconds : null;
+        AutoCelebrationStatusText = string.IsNullOrWhiteSpace(status.StatusText)
+            ? "Status unavailable."
+            : status.StatusText;
+    }
+
+    public void ResetBreweryCelebrationStatus(string statusText = "Status not loaded.")
+    {
+        AutoCelebrationCanStart = false;
+        AutoCelebrationRemainingSeconds = null;
+        AutoCelebrationStatusText = statusText;
+    }
+
     /// <summary>
     /// Returns the smallest positive remaining-seconds across all enabled
     /// rows, or <c>null</c> if any enabled row has no current queue (which
@@ -435,6 +510,18 @@ public sealed class TroopTrainingViewModel : BaseViewModel
             .Min();
     }
 
+    public int? ResolveBreweryCelebrationGroupRemainingSeconds()
+    {
+        if (!AutoCelebrationEnabled || !IsAutoCelebrationAvailableForCurrentTribe)
+        {
+            return null;
+        }
+
+        return AutoCelebrationRemainingSeconds is > 0
+            ? AutoCelebrationRemainingSeconds
+            : null;
+    }
+
     /// <summary>Decrements every row's countdown by one second. Called by the clock timer.</summary>
     public void TickCountdowns()
     {
@@ -447,7 +534,151 @@ public sealed class TroopTrainingViewModel : BaseViewModel
         {
             option.TickOneSecond();
         }
+
+        if (AutoCelebrationRemainingSeconds is > 0)
+        {
+            AutoCelebrationRemainingSeconds = Math.Max(0, AutoCelebrationRemainingSeconds.Value - 1);
+            if (AutoCelebrationRemainingSeconds == 0)
+            {
+                AutoCelebrationCanStart = true;
+                AutoCelebrationStatusText = "Ready.";
+                AutoCelebrationRemainingSeconds = null;
+            }
+        }
     }
+
+    public bool AutoCelebrationEnabled
+    {
+        get => _autoCelebrationEnabled;
+        set
+        {
+            var normalized = IsAutoCelebrationAvailableForCurrentTribe && value;
+            if (!SetProperty(ref _autoCelebrationEnabled, normalized))
+            {
+                return;
+            }
+
+            _autoCelebrationExplicitlyConfigured = true;
+            if (!normalized)
+            {
+                AutoCelebrationCanStart = false;
+                if (IsAutoCelebrationAvailableForCurrentTribe)
+                {
+                    AutoCelebrationStatusText = "Disabled.";
+                }
+            }
+
+            if (!_isConfigSuppressed)
+            {
+                ConfigChanged?.Invoke();
+            }
+        }
+    }
+
+    public bool IsAutoCelebrationAvailableForCurrentTribe
+    {
+        get => _isAutoCelebrationAvailableForCurrentTribe;
+        private set
+        {
+            if (!SetProperty(ref _isAutoCelebrationAvailableForCurrentTribe, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(IsAutoCelebrationCheckboxEnabled));
+            OnPropertyChanged(nameof(AutoCelebrationTimerText));
+            OnPropertyChanged(nameof(AutoCelebrationBadgeBackground));
+            OnPropertyChanged(nameof(AutoCelebrationBadgeBorderBrush));
+            OnPropertyChanged(nameof(AutoCelebrationBadgeForeground));
+        }
+    }
+
+    public bool IsAutoCelebrationCheckboxEnabled => IsAutoCelebrationAvailableForCurrentTribe;
+
+    public bool AutoCelebrationCanStart
+    {
+        get => _autoCelebrationCanStart;
+        private set
+        {
+            if (!SetProperty(ref _autoCelebrationCanStart, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(AutoCelebrationTimerText));
+            OnPropertyChanged(nameof(AutoCelebrationBadgeBackground));
+            OnPropertyChanged(nameof(AutoCelebrationBadgeBorderBrush));
+            OnPropertyChanged(nameof(AutoCelebrationBadgeForeground));
+        }
+    }
+
+    public int? AutoCelebrationRemainingSeconds
+    {
+        get => _autoCelebrationRemainingSeconds;
+        private set
+        {
+            var normalized = value.HasValue ? Math.Max(0, value.Value) : (int?)null;
+            if (!SetProperty(ref _autoCelebrationRemainingSeconds, normalized))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(AutoCelebrationTimerText));
+            OnPropertyChanged(nameof(AutoCelebrationBadgeBackground));
+            OnPropertyChanged(nameof(AutoCelebrationBadgeBorderBrush));
+            OnPropertyChanged(nameof(AutoCelebrationBadgeForeground));
+        }
+    }
+
+    public string AutoCelebrationStatusText
+    {
+        get => _autoCelebrationStatusText;
+        private set => SetProperty(ref _autoCelebrationStatusText, string.IsNullOrWhiteSpace(value) ? "Status unavailable." : value.Trim());
+    }
+
+    public string AutoCelebrationTimerText
+    {
+        get
+        {
+            if (!IsAutoCelebrationAvailableForCurrentTribe)
+            {
+                return "N/A";
+            }
+
+            if (AutoCelebrationRemainingSeconds is > 0)
+            {
+                var time = TimeSpan.FromSeconds(AutoCelebrationRemainingSeconds.Value);
+                var totalHours = (int)Math.Floor(time.TotalHours);
+                return $"{totalHours:00}:{time.Minutes:00}";
+            }
+
+            return AutoCelebrationCanStart ? "Ready" : "N/A";
+        }
+    }
+
+    public string AutoCelebrationBadgeBackground => !IsAutoCelebrationAvailableForCurrentTribe
+        ? "#E5E7EB"
+        : AutoCelebrationRemainingSeconds is > 0
+            ? "#FEF3C7"
+            : AutoCelebrationCanStart
+                ? "#DCFCE7"
+                : "#E5E7EB";
+
+    public string AutoCelebrationBadgeBorderBrush => !IsAutoCelebrationAvailableForCurrentTribe
+        ? "#9CA3AF"
+        : AutoCelebrationRemainingSeconds is > 0
+            ? "#F59E0B"
+            : AutoCelebrationCanStart
+                ? "#22C55E"
+                : "#9CA3AF";
+
+    public string AutoCelebrationBadgeForeground => !IsAutoCelebrationAvailableForCurrentTribe
+        ? "#4B5563"
+        : AutoCelebrationRemainingSeconds is > 0
+            ? "#B45309"
+            : AutoCelebrationCanStart
+                ? "#15803D"
+                : "#4B5563";
 
     private void OnOptionPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {

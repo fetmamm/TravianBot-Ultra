@@ -162,6 +162,88 @@ public partial class MainWindow
         }
     }
 
+    private void OpenResourceTestFunctionsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_resourceTestFunctionsWindow is not null)
+        {
+            if (!_resourceTestFunctionsWindow.IsVisible)
+            {
+                _resourceTestFunctionsWindow.Show();
+            }
+
+            _resourceTestFunctionsWindow.Activate();
+            return;
+        }
+
+        _resourceTestFunctionsWindow = new FunctionTestWindow
+        {
+            Owner = this,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+        };
+        _resourceTestFunctionsWindow.ResourceProductionTestRequested += TestResourceProductionButton_Click;
+        _resourceTestFunctionsWindow.Closed += (_, _) =>
+        {
+            _resourceTestFunctionsWindow.ResourceProductionTestRequested -= TestResourceProductionButton_Click;
+            _resourceTestFunctionsWindow = null;
+        };
+
+        _resourceTestFunctionsWindow.Show();
+    }
+
+    private async void TestResourceProductionButton_Click(object sender, RoutedEventArgs e)
+    {
+        var operationId = BeginOperation("TestResourceProduction");
+        var operationSw = Stopwatch.StartNew();
+        _operationCts = new CancellationTokenSource();
+        var operationToken = _operationCts.Token;
+        ToggleResourceTabActionsBusy(true);
+        try
+        {
+            var options = LoadBotOptions();
+            AppendLog($"[{operationId}] testing production DOM read on current page.");
+            var productionByHour = await _botService.ReadCurrentPageResourceProductionPerHourAsync(
+                options,
+                AppendLog,
+                operationToken);
+
+            var summary = string.Join(", ", new[] { "wood", "clay", "iron", "crop" }
+                .Select(key =>
+                {
+                    productionByHour.TryGetValue(key, out var value);
+                    var formatted = value?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) ?? "-";
+                    return $"{key}={formatted}/h";
+                }));
+
+            AppendLog($"[{operationId}] production DOM read result: {summary}");
+            if (productionByHour.Count > 0 && productionByHour.Values.Any(value => value is not null))
+            {
+                ApplyResourceProductionOnlyToUi(productionByHour);
+                AppendLog($"[{operationId}] applied production DOM read to UI.");
+            }
+            else
+            {
+                AppendLog($"[{operationId}] no production values returned from DOM read.");
+            }
+
+            CompleteOperation(operationId, operationSw, $"Production DOM read finished: {summary}");
+        }
+        catch (OperationCanceledException)
+        {
+            StatusTextBlock.Text = "Test production paused.";
+            AppendLog("Test production paused.");
+        }
+        catch (Exception ex)
+        {
+            FailOperation(operationId, operationSw, ex);
+        }
+        finally
+        {
+            ToggleResourceTabActionsBusy(false);
+            _operationCts?.Dispose();
+            _operationCts = null;
+        }
+    }
+
     private async void UpgradeAllResourcesButton_Click(object sender, RoutedEventArgs e)
     {
         var operationId = BeginOperation("UpgradeAllResources");
@@ -237,6 +319,10 @@ public partial class MainWindow
         SetEnabled(ResourceTargetLevelComboBox, enabled);
         SetEnabled(UpgradeAllResourcesButton, enabled);
         SetEnabled(UpgradeAllResourcesToMaxButton, enabled);
+        if (_resourceTestFunctionsWindow is not null)
+        {
+            _resourceTestFunctionsWindow.IsEnabled = enabled;
+        }
     }
 
     private async Task QueueUpgradeAllResourcesAsync(string operationId, CancellationToken operationToken, int? targetLevel)
@@ -762,6 +848,142 @@ public partial class MainWindow
         });
     }
 
+    private async Task TryRefreshResourceProductionOnlyAsync(CancellationToken cancellationToken)
+    {
+        if (_lastResourceStatusForUi is null)
+        {
+            AppendLog("[resource-production] skipped: no cached resource status for UI.");
+            return;
+        }
+
+        try
+        {
+            AppendLog("[resource-production] start");
+            var productionByHour = await _botService.ReadCurrentPageResourceProductionPerHourAsync(
+                LoadBotOptions(),
+                AppendLog,
+                cancellationToken);
+            if (productionByHour.Count == 0)
+            {
+                AppendLog("[resource-production] skipped: no production values were read.");
+                return;
+            }
+
+            var summary = string.Join(", ", new[] { "wood", "clay", "iron", "crop" }
+                .Select(key =>
+                {
+                    productionByHour.TryGetValue(key, out var value);
+                    var formatted = value?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) ?? "-";
+                    return $"{key}={formatted}/h";
+                }));
+            AppendLog($"[resource-production] read {summary}");
+            await Dispatcher.InvokeAsync(() => ApplyResourceProductionOnlyToUi(productionByHour));
+            AppendLog("[resource-production] applied to UI");
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"[resource-production] FAIL {ex.Message}");
+        }
+    }
+
+    private void QueueResourceProductionOnlyRefresh(string source)
+    {
+        if (_resourceProductionRefreshRunning)
+        {
+            _resourceProductionRefreshPending = true;
+            AppendLog($"[resource-production] pending while previous refresh is running (source={source}).");
+            return;
+        }
+
+        _resourceProductionRefreshRunning = true;
+        _resourceProductionRefreshPending = false;
+        AppendLog($"[resource-production] queued from {source}");
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await TryRefreshResourceProductionOnlyAsync(CancellationToken.None);
+            }
+            finally
+            {
+                _resourceProductionRefreshRunning = false;
+                if (_resourceProductionRefreshPending)
+                {
+                    _resourceProductionRefreshPending = false;
+                    QueueResourceProductionOnlyRefresh("pending_followup");
+                }
+            }
+        });
+    }
+
+    private void ApplyResourceProductionOnlyToUi(IReadOnlyDictionary<string, double?> productionByHour)
+    {
+        if (_lastResourceStatusForUi is null)
+        {
+            return;
+        }
+
+        var currentStatus = _lastResourceStatusForUi;
+        var currentForecasts = currentStatus.ResourceStorageForecasts?
+            .ToDictionary(item => item.ResourceKey, item => item, StringComparer.OrdinalIgnoreCase)
+            ?? new Dictionary<string, ResourceStorageForecast>(StringComparer.OrdinalIgnoreCase);
+        var updatedForecasts = new List<ResourceStorageForecast>(4);
+
+        foreach (var key in new[] { "wood", "clay", "iron", "crop" })
+        {
+            currentForecasts.TryGetValue(key, out var existingForecast);
+
+            var currentAmount = TryParseResourceValueForUi(currentStatus.Resources, key) ?? existingForecast?.Current;
+            var capacity = existingForecast?.Capacity
+                ?? (string.Equals(key, "crop", StringComparison.OrdinalIgnoreCase)
+                    ? currentStatus.GranaryCapacity
+                    : currentStatus.WarehouseCapacity);
+            var effectiveProduction = productionByHour.TryGetValue(key, out var liveProduction)
+                ? liveProduction
+                : existingForecast?.ProductionPerHour;
+
+            double? percentOfCapacity = null;
+            if (capacity is > 0 && currentAmount is not null)
+            {
+                percentOfCapacity = Math.Clamp((double)currentAmount.Value / capacity.Value * 100d, 0d, 100d);
+            }
+
+            int? secondsToFull = null;
+            if (capacity is > 0 && currentAmount is not null && effectiveProduction is > 0)
+            {
+                var remaining = Math.Max(0L, capacity.Value - currentAmount.Value);
+                var computedSeconds = Math.Ceiling((remaining / effectiveProduction.Value) * 3600d);
+                secondsToFull = computedSeconds >= int.MaxValue
+                    ? int.MaxValue
+                    : (int)computedSeconds;
+            }
+
+            updatedForecasts.Add(new ResourceStorageForecast(
+                ResourceKey: key,
+                Current: currentAmount,
+                Capacity: capacity,
+                PercentOfCapacity: percentOfCapacity,
+                ProductionPerHour: effectiveProduction,
+                SecondsToFull: secondsToFull));
+        }
+
+        var updatedStatus = currentStatus with
+        {
+            ResourceStorageForecasts = updatedForecasts,
+        };
+
+        _lastResourceStatusForUi = updatedStatus;
+        ApplyVillageStatusToUi(updatedStatus);
+        TriggerDeferredConstructionWaitRefresh(updatedStatus, "resource_production_refresh");
+        TriggerDeferredTroopTrainingWaitRefresh(updatedStatus, "resource_production_refresh");
+
+        var rowCount = (ResourcesDataGrid.ItemsSource as IEnumerable<ResourceFieldRow>)?.Count()
+            ?? updatedStatus.ResourceFields.Count;
+        var capitalText = updatedStatus.IsCapital == true ? "Yes" : updatedStatus.IsCapital == false ? "No" : "Unknown";
+        ResourcesInfoTextBlock.Text = $"Loaded {rowCount} resource fields. Capital: {capitalText}. {BuildResourceForecastSummary(updatedStatus)}";
+        AppendLog($"[resource-production] UI summary updated: {BuildResourceForecastSummary(updatedStatus)}");
+    }
+
     private void ApplyResourceStatusToUi(VillageStatus status)
     {
         status = MergeResourceStatusForUi(status);
@@ -959,12 +1181,29 @@ public partial class MainWindow
             return false;
         }
 
-        if (_uiBusy || _autoQueueRunning)
+        if (_uiBusy)
         {
             return false;
         }
 
-        return _loopTask is null || _loopTask.IsCompleted;
+        if (!string.IsNullOrWhiteSpace(_activeFunctionDisplayName))
+        {
+            return false;
+        }
+
+        try
+        {
+            if (_botService.GetQueueItemsForDisplay().Any(item => item.Status == QueueStatus.Running))
+            {
+                return false;
+            }
+        }
+        catch
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private async Task HandleResourceSnapshotRefreshTickAsync()

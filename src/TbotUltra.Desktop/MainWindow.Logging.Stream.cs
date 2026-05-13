@@ -90,6 +90,7 @@ public partial class MainWindow
                     _terminalEntries.Insert(0, line);
                     logLinesForSessionLog.Add(line);
                     TryApplyInlineResourceLevelUpdateFromLog(part);
+                    TryApplyInlineResourceProductionUpdateFromLog(part);
                     TryApplyPlusStatusFromLog(part);
                     if (TryExtractQueueWaitDelay(part, out var queueWaitDelay))
                     {
@@ -442,6 +443,50 @@ public partial class MainWindow
 
         SetResourceRows(updatedRows);
         ResourcesInfoTextBlock.Text = $"Resource slot {slotId} updated to level {nextLevel}.";
+    }
+
+    private void TryApplyInlineResourceProductionUpdateFromLog(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return;
+        }
+
+        var match = Regex.Match(
+            message,
+            @"Resource production update:\s+wood=(?<wood>[-\d.]+)\s+clay=(?<clay>[-\d.]+)\s+iron=(?<iron>[-\d.]+)\s+crop=(?<crop>[-\d.]+)",
+            RegexOptions.IgnoreCase);
+        if (!match.Success)
+        {
+            return;
+        }
+
+        static double? ParseValue(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw) || raw == "-")
+            {
+                return null;
+            }
+
+            return double.TryParse(raw, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var parsed)
+                ? parsed
+                : null;
+        }
+
+        var productionByHour = new Dictionary<string, double?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["wood"] = ParseValue(match.Groups["wood"].Value),
+            ["clay"] = ParseValue(match.Groups["clay"].Value),
+            ["iron"] = ParseValue(match.Groups["iron"].Value),
+            ["crop"] = ParseValue(match.Groups["crop"].Value),
+        };
+
+        if (productionByHour.Values.All(value => value is null))
+        {
+            return;
+        }
+
+        ApplyResourceProductionOnlyToUi(productionByHour);
     }
 
     private void ShowManualVerificationPopup(bool browserAlreadyOpen)

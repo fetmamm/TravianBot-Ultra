@@ -41,6 +41,8 @@ public sealed class BotTaskRunner
             ["upgrade_troops_at_smithy"] = ExecuteUpgradeTroopsAtSmithyAsync,
             // Builds troops from Barracks, Stable, or Workshop based on configured rules.
             ["build_troops"] = ExecuteBuildTroopsAsync,
+            // Starts or tracks the Teutons brewery celebration.
+            ["run_brewery_celebration"] = ExecuteRunBreweryCelebrationAsync,
             // Sends one of the selected farmlists that is ready right now.
             ["send_farmlists"] = ExecuteSendFarmlistsAsync,
         };
@@ -235,7 +237,8 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             ServerUrl: serverUrl,
             Tribe: string.IsNullOrWhiteSpace(tribe) ? "Unknown" : tribe,
             GoldClubEnabled: effectiveGoldClubEnabled,
-            BuildingCatalog: existing?.BuildingCatalog ?? []);
+            BuildingCatalog: existing?.BuildingCatalog ?? [],
+            AutoCelebrationEnabled: existing?.AutoCelebrationEnabled);
 
         _accountAnalysisStore.Save(completed);
         log($"Gold Club status saved for '{completed.AccountName}': {(completed.GoldClubEnabled ? "Yes" : "No")}.");
@@ -478,6 +481,41 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
         return status ?? throw new InvalidOperationException("Could not read current-page resource status.");
     }
 
+    public async Task<IReadOnlyDictionary<string, double?>> ReadCurrentPageResourceProductionPerHourAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyDictionary<string, double?>? productionByHour = null;
+        log($"Production-only resource read for server {options.ServerName}.");
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                productionByHour = await client.ReadCurrentPageResourceProductionPerHourAsync(cancellationToken);
+            });
+
+        if (productionByHour is not null)
+        {
+            var parts = new List<string>(4);
+            foreach (var key in new[] { "wood", "clay", "iron", "crop" })
+            {
+                productionByHour.TryGetValue(key, out var value);
+                var formatted = value?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) ?? "-";
+                parts.Add($"{key}={formatted}/h");
+            }
+
+            log($"Production-only resource read result: {string.Join(", ", parts)}");
+        }
+
+        return productionByHour ?? new Dictionary<string, double?>(StringComparer.OrdinalIgnoreCase);
+    }
+
     private static string FormatResourceStatusNumber(long? value)
     {
         if (value is null)
@@ -534,6 +572,30 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             });
 
         return statuses;
+    }
+
+    public async Task<BreweryCelebrationStatus> ReadBreweryCelebrationStatusAsync(
+        BotOptions options,
+        Action<string> log,
+        IReadOnlyList<Building>? knownBuildings = null,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        BreweryCelebrationStatus? status = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: true,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken, skipFeatureRefresh: true);
+                status = await client.ReadBreweryCelebrationStatusAsync(knownBuildings, cancellationToken);
+            });
+
+        return status ?? new BreweryCelebrationStatus(false, null, false, null, false, null, "N/A", "Status unavailable.");
     }
 
     public async Task<InboxStatus> ReadInboxStatusAsync(
@@ -1000,6 +1062,14 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
         var result = await context.Client.BuildTroopsAsync(context.CancellationToken);
         context.Log(result);
         ThrowIfTaskBlocked("build_troops", result);
+    }
+
+    private static async Task ExecuteRunBreweryCelebrationAsync(TaskExecutionContext context)
+    {
+        context.Log("run_brewery_celebration: starting.");
+        var result = await context.Client.RunBreweryCelebrationAsync(context.CancellationToken);
+        context.Log(result);
+        ThrowIfTaskBlocked("run_brewery_celebration", result);
     }
 
     private static async Task ExecuteLoadBuildingsSnapshotAsync(TaskExecutionContext context)

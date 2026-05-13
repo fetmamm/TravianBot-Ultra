@@ -204,13 +204,46 @@
                                         CornerRadius="6"
                                         Padding="10,6"
                                         Margin="0,0,12,0">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="#F0FDF4" />
+                                            <Setter Property="BorderBrush" Value="#BBF7D0" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding AdventureCountText}" Value="0">
+                                                    <Setter Property="Background" Value="#F3F4F6" />
+                                                    <Setter Property="BorderBrush" Value="#D1D5DB" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="Available:" Foreground="#166534" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <TextBlock Text="Available:" VerticalAlignment="Center" Margin="0,0,6,0">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="#166534" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding AdventureCountText}" Value="0">
+                                                            <Setter Property="Foreground" Value="#6B7280" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
                                         <TextBlock Text="{Binding AdventureCountText}"
                                                    FontWeight="SemiBold"
                                                    FontSize="15"
-                                                   Foreground="#166534"
-                                                   VerticalAlignment="Center" />
+                                                   VerticalAlignment="Center">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="#166534" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding AdventureCountText}" Value="0">
+                                                            <Setter Property="Foreground" Value="#6B7280" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
                                     </StackPanel>
                                 </Border>
                                 <Button x:Name="RefreshAdventuresButton"
@@ -228,11 +261,6 @@
                                     Background="#030826"
                                     Foreground="White"
                                     BorderBrush="#030826" />
-                            <CheckBox Content="Continuous adventures"
-                                      IsChecked="{Binding ContinuousAdventures}"
-                                      VerticalAlignment="Center"
-                                      Margin="14,0,0,0"
-                                      ToolTip="Re-queue Hero adventure after each run until no adventures remain." />
                         </StackPanel>
                         <!-- Hidden bound element kept so AdventureStatusText still drives a
                              notify-property-changed receiver while the visible status line is

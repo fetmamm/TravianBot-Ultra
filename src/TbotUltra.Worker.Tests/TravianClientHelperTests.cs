@@ -261,6 +261,61 @@ public sealed class TravianClientHelperTests
         Assert.Equal(60, waitSeconds);
     }
 
+    [Fact]
+    public void MergeTroopTrainingCapacities_UsesStatusThenCacheWhenLiveIsMissing()
+    {
+        var mergedFromStatus = TravianClient.MergeTroopTrainingCapacities(
+            new TravianClient.ResourceCapacitySnapshot(null, null),
+            new TravianClient.ResourceCapacitySnapshot(1000, 2000),
+            3000,
+            4000);
+
+        Assert.Equal(1000, mergedFromStatus.WarehouseCapacity);
+        Assert.Equal(2000, mergedFromStatus.GranaryCapacity);
+
+        var mergedFromCache = TravianClient.MergeTroopTrainingCapacities(
+            new TravianClient.ResourceCapacitySnapshot(null, null),
+            new TravianClient.ResourceCapacitySnapshot(null, null),
+            3000,
+            4000);
+
+        Assert.Equal(3000, mergedFromCache.WarehouseCapacity);
+        Assert.Equal(4000, mergedFromCache.GranaryCapacity);
+    }
+
+    [Fact]
+    public void MergeTroopTrainingProductionByHour_UsesStatusThenCacheWhenLiveIsMissing()
+    {
+        IReadOnlyDictionary<string, double?> live = new Dictionary<string, double?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["wood"] = null,
+            ["clay"] = 10,
+            ["iron"] = null,
+            ["crop"] = null,
+        };
+        IReadOnlyDictionary<string, double?> status = new Dictionary<string, double?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["wood"] = 20,
+            ["clay"] = null,
+            ["iron"] = null,
+            ["crop"] = null,
+        };
+        IReadOnlyDictionary<string, double?> cached = new Dictionary<string, double?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["wood"] = 30,
+            ["clay"] = 40,
+            ["iron"] = 50,
+            ["crop"] = 60,
+        };
+
+        var merged = TravianClient.MergeTroopTrainingProductionByHour(live, status, cached);
+
+        Assert.Equal(20, merged["wood"]);
+        Assert.Equal(10, merged["clay"]);
+        Assert.Equal(50, merged["iron"]);
+        Assert.Equal(60, merged["crop"]);
+    }
+
     [Theory]
     [InlineData(true, 40)]
     [InlineData(false, 10)]

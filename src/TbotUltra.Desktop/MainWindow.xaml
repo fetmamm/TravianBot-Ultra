@@ -127,6 +127,7 @@
                     <Button x:Name="HeroNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Hero / Adventures" Tag="hero" Click="SidebarNavButton_Click" />
                     <Button x:Name="FarmingNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Farming" Tag="farming" Click="SidebarNavButton_Click" />
                     <Button x:Name="TroopsNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Troops" Tag="troops" Click="SidebarNavButton_Click" />
+                    <Button x:Name="NpcTradeNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="NPC / Trade" Tag="npc_trade" Click="SidebarNavButton_Click" />
                     <Button x:Name="QueueNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Queue" Tag="queue" Click="SidebarNavButton_Click" />
                     <Button x:Name="LogsNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Logs" Tag="logs" Click="SidebarNavButton_Click" />
                     <Button x:Name="InboxNavButton" Content="Messages / Reports" Tag="inbox" Click="SidebarNavButton_Click"
@@ -260,20 +261,26 @@
                             Margin="0,0,0,8">
                         <StackPanel>
                             <DockPanel Margin="0,0,0,8">
+                                <Button x:Name="OpenResourceTestFunctionsButton"
+                                        DockPanel.Dock="Right"
+                                        Content="Test functions"
+                                        Padding="10,4"
+                                        Click="OpenResourceTestFunctionsButton_Click" />
+                                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                                 <TextBlock Text="Storage"
                                            FontWeight="SemiBold"
                                            Foreground="#111827"
-                                           VerticalAlignment="Center"
-                                           DockPanel.Dock="Left" />
+                                           VerticalAlignment="Center" />
                                 <Button x:Name="StorageRefreshButton"
-                                        DockPanel.Dock="Right"
                                         Width="26"
                                         Height="26"
                                         Padding="0"
+                                        Margin="8,0,8,0"
                                         FontFamily="Segoe MDL2 Assets"
                                         Content="&#xE72C;"
                                         ToolTip="Refresh storage from the current page"
                                         Click="StorageRefreshButton_Click" />
+                                </StackPanel>
                             </DockPanel>
                             <ItemsControl ItemsSource="{Binding StorageBars}">
                                 <ItemsControl.ItemsPanel>
@@ -373,7 +380,7 @@
                                         <Button x:Name="DashboardFunctionListButton"
                                                 DockPanel.Dock="Right"
                                                 Height="30"
-                                                Content="List"
+                                                Content="Function list"
                                                 MinWidth="70"
                                                 Click="DashboardFunctionListButton_Click" />
                                         <StackPanel DockPanel.Dock="Right" Visibility="Collapsed">
@@ -542,31 +549,55 @@
                                                                         Margin="-320,40,0,0"
                                                                         Padding="10,6"
                                                                         CornerRadius="6"
-                                                                        Background="#F0FDF4"
-                                                                        BorderBrush="#BBF7D0"
                                                                         BorderThickness="1"
                                                                         VerticalAlignment="Center"
                                                                         HorizontalAlignment="Left">
                                                                     <Border.Style>
                                                                         <Style TargetType="Border">
+                                                                            <Setter Property="Background" Value="#F0FDF4" />
+                                                                            <Setter Property="BorderBrush" Value="#BBF7D0" />
                                                                             <Setter Property="Visibility" Value="Collapsed" />
                                                                             <Style.Triggers>
                                                                                 <DataTrigger Binding="{Binding TaskName}" Value="hero">
                                                                                     <Setter Property="Visibility" Value="Visible" />
+                                                                                </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding HeroVm.AdventureCountText, ElementName=RootWindow}" Value="0">
+                                                                                    <Setter Property="Background" Value="#F3F4F6" />
+                                                                                    <Setter Property="BorderBrush" Value="#D1D5DB" />
                                                                                 </DataTrigger>
                                                                             </Style.Triggers>
                                                                         </Style>
                                                                     </Border.Style>
                                                                     <StackPanel Orientation="Horizontal">
                                                                         <TextBlock Text="Available:"
-                                                                                   Foreground="#166534"
                                                                                    VerticalAlignment="Center"
-                                                                                   Margin="0,0,6,0" />
+                                                                                   Margin="0,0,6,0">
+                                                                            <TextBlock.Style>
+                                                                                <Style TargetType="TextBlock">
+                                                                                    <Setter Property="Foreground" Value="#166534" />
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding HeroVm.AdventureCountText, ElementName=RootWindow}" Value="0">
+                                                                                            <Setter Property="Foreground" Value="#6B7280" />
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </TextBlock.Style>
+                                                                        </TextBlock>
                                                                         <TextBlock Text="{Binding HeroVm.AdventureCountText, ElementName=RootWindow}"
                                                                                    FontWeight="SemiBold"
                                                                                    FontSize="15"
-                                                                                   Foreground="#166534"
-                                                                                   VerticalAlignment="Center" />
+                                                                                   VerticalAlignment="Center">
+                                                                            <TextBlock.Style>
+                                                                                <Style TargetType="TextBlock">
+                                                                                    <Setter Property="Foreground" Value="#166534" />
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding HeroVm.AdventureCountText, ElementName=RootWindow}" Value="0">
+                                                                                            <Setter Property="Foreground" Value="#6B7280" />
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </TextBlock.Style>
+                                                                        </TextBlock>
                                                                     </StackPanel>
                                                                 </Border>
                                                             </Grid>
@@ -719,10 +750,12 @@
                                     Padding="10"
                                     Margin="0,12,0,0">
                                 <StackPanel>
-                                    <TextBlock Text="Production"
-                                               Foreground="#111827"
-                                               FontWeight="SemiBold"
-                                               Margin="0,0,0,8" />
+                                    <DockPanel Margin="0,0,0,8">
+                                        <TextBlock Text="Production"
+                                                   Foreground="#111827"
+                                                   FontWeight="SemiBold"
+                                                   VerticalAlignment="Center" />
+                                    </DockPanel>
                                     <ItemsControl ItemsSource="{Binding StorageBars}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
@@ -1058,108 +1091,130 @@
                                     </Grid>
                                 </Border>
 
-                                <Border Grid.Column="1"
-                                        Background="#FFFFFF"
-                                        BorderBrush="#D1D5DB"
-                                        BorderThickness="1"
-                                        CornerRadius="8"
-                                        Padding="12"
-                                        Margin="8,0,0,0">
-                                    <StackPanel>
-                                        <Grid Margin="0,0,0,12">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0"
-                                                       Text="Manual farming"
+                                <Grid Grid.Column="1" Margin="8,0,0,0">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="12" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+
+                                    <Border Grid.Row="0"
+                                            Background="#FFFFFF"
+                                            BorderBrush="#D1D5DB"
+                                            BorderThickness="1"
+                                            CornerRadius="8"
+                                            Padding="12">
+                                        <StackPanel>
+                                            <Grid Margin="0,0,0,12">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0"
+                                                           Text="Manual farming"
+                                                           FontSize="22"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="#111827"
+                                                           VerticalAlignment="Center" />
+                                                <StackPanel Grid.Column="1"
+                                                            HorizontalAlignment="Right">
+                                                    <TextBlock Text="Farmlist executions"
+                                                               Foreground="#6B7280"
+                                                               FontSize="12"
+                                                               HorizontalAlignment="Right" />
+                                                    <TextBlock x:Name="ManualFarmingExecutionCountTextBlock"
+                                                               Text="0"
+                                                               Foreground="#111827"
+                                                               FontSize="18"
+                                                               FontWeight="SemiBold"
+                                                               HorizontalAlignment="Right" />
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="190" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
+
+                                                <Button x:Name="AnalyzeNatarsProfileButton"
+                                                        Grid.Row="0"
+                                                        Grid.Column="0"
+                                                        Content="Analyze natars profile"
+                                                        Width="170"
+                                                        Margin="0,0,0,6"
+                                                        Click="AnalyzeNatarsProfileButton_Click" />
+                                                <Button x:Name="ShowNatarsListButton"
+                                                        Grid.Row="1"
+                                                        Grid.Column="0"
+                                                        Content="Show natars list"
+                                                        Width="170"
+                                                        Margin="0,0,0,6"
+                                                        Click="ShowNatarsListButton_Click" />
+                                                <Button x:Name="StartManualFarmingButton"
+                                                        Grid.Row="2"
+                                                        Grid.Column="0"
+                                                        Content="Start manual farming"
+                                                        Width="170"
+                                                        HorizontalAlignment="Center"
+                                                        Click="StartManualFarmingButton_Click" />
+
+                                                <StackPanel Grid.Row="0"
+                                                            Grid.Column="1"
+                                                            Orientation="Horizontal"
+                                                            VerticalAlignment="Center"
+                                                            Margin="10,0,0,6">
+                                                    <TextBlock Text="Analyzed:"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="#374151"
+                                                               Margin="0,0,6,0" />
+                                                    <Ellipse x:Name="NatarsProfileAnalyzedIndicator"
+                                                             Width="14"
+                                                             Height="14"
+                                                             VerticalAlignment="Center"
+                                                             Fill="#9CA3AF" />
+                                                </StackPanel>
+
+                                                <StackPanel Grid.Row="2"
+                                                            Grid.Column="1"
+                                                            Orientation="Horizontal"
+                                                            VerticalAlignment="Center"
+                                                            Margin="10,0,0,0">
+                                                    <TextBlock x:Name="ManualFarmingStateTextBlock"
+                                                               Text="State:"
+                                                               Foreground="#6B7280"
+                                                               Margin="0,0,8,0"
+                                                               VerticalAlignment="Center" />
+                                                    <Ellipse x:Name="ManualFarmingStateDot"
+                                                             Width="12"
+                                                             Height="12"
+                                                             VerticalAlignment="Center"
+                                                             Fill="#9CA3AF" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Grid.Row="2"
+                                            Background="#FFFFFF"
+                                            BorderBrush="#D1D5DB"
+                                            BorderThickness="1"
+                                            CornerRadius="8"
+                                            Padding="12">
+                                        <StackPanel>
+                                            <TextBlock Text="Settings"
                                                        FontSize="22"
                                                        FontWeight="SemiBold"
                                                        Foreground="#111827"
-                                                       VerticalAlignment="Center" />
-                                            <StackPanel Grid.Column="1"
-                                                        HorizontalAlignment="Right">
-                                                <TextBlock Text="Farmlist executions"
-                                                           Foreground="#6B7280"
-                                                           FontSize="12"
-                                                           HorizontalAlignment="Right" />
-                                                <TextBlock x:Name="ManualFarmingExecutionCountTextBlock"
-                                                           Text="0"
-                                                           Foreground="#111827"
-                                                           FontSize="18"
-                                                           FontWeight="SemiBold"
-                                                           HorizontalAlignment="Right" />
-                                            </StackPanel>
-                                        </Grid>
-
-                                        <Grid Margin="0,0,0,10">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="190" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <Grid.RowDefinitions>
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                            </Grid.RowDefinitions>
-
-                                            <Button x:Name="AnalyzeNatarsProfileButton"
-                                                    Grid.Row="0"
-                                                    Grid.Column="0"
-                                                    Content="Analyze natars profile"
-                                                    Width="170"
-                                                    Margin="0,0,0,6"
-                                                    Click="AnalyzeNatarsProfileButton_Click" />
-                                            <Button x:Name="ShowNatarsListButton"
-                                                    Grid.Row="1"
-                                                    Grid.Column="0"
-                                                    Content="Show natars list"
-                                                    Width="170"
-                                                    Margin="0,0,0,6"
-                                                    Click="ShowNatarsListButton_Click" />
-                                            <Button x:Name="StartManualFarmingButton"
-                                                    Grid.Row="2"
-                                                    Grid.Column="0"
-                                                    Content="Start manual farming"
-                                                    Width="170"
-                                                    HorizontalAlignment="Center"
-                                                    Click="StartManualFarmingButton_Click" />
-
-                                            <StackPanel Grid.Row="0"
-                                                        Grid.Column="1"
-                                                        Orientation="Horizontal"
-                                                        VerticalAlignment="Center"
-                                                        Margin="10,0,0,6">
-                                                <TextBlock Text="Analyzed:"
-                                                           VerticalAlignment="Center"
-                                                           Foreground="#374151"
-                                                           Margin="0,0,6,0" />
-                                                <Ellipse x:Name="NatarsProfileAnalyzedIndicator"
-                                                         Width="14"
-                                                         Height="14"
-                                                         VerticalAlignment="Center"
-                                                         Fill="#9CA3AF" />
-                                            </StackPanel>
-
-                                            <StackPanel Grid.Row="2"
-                                                        Grid.Column="1"
-                                                        Orientation="Horizontal"
-                                                        VerticalAlignment="Center"
-                                                        Margin="10,0,0,0">
-                                                <TextBlock x:Name="ManualFarmingStateTextBlock"
-                                                           Text="State:"
-                                                           Foreground="#6B7280"
-                                                           Margin="0,0,8,0"
-                                                           VerticalAlignment="Center" />
-                                                <Ellipse x:Name="ManualFarmingStateDot"
-                                                         Width="12"
-                                                         Height="12"
-                                                         VerticalAlignment="Center"
-                                                         Fill="#9CA3AF" />
-                                            </StackPanel>
-                                        </Grid>
-                                    </StackPanel>
-                                </Border>
+                                                       Margin="0,0,0,8" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
                             </Grid>
                         </Grid>
                     </Grid>
@@ -1176,16 +1231,22 @@
                     <Grid Background="#F3F4F6">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="16" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="16" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
 
-                        <Border Grid.Column="0"
+                        <Border Grid.Row="0"
+                                Grid.Column="0"
                                 Background="#FFFFFF"
                                 BorderBrush="#D1D5DB"
                                 BorderThickness="1"
                                 CornerRadius="8"
-                                Padding="16"
-                                Margin="0,0,8,0">
+                                Padding="16">
                             <StackPanel>
                                 <TextBlock Text="NPC"
                                            FontSize="22"
@@ -1198,22 +1259,56 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Grid.Column="1"
+                        <Border Grid.Row="0"
+                                Grid.Column="2"
+                                Background="#FFFFFF"
+                                BorderBrush="#D1D5DB"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="16">
+                            <StackPanel>
+                                <TextBlock Text="Trade"
+                                           FontSize="22"
+                                           FontWeight="SemiBold"
+                                           Foreground="#111827"
+                                           Margin="0,0,0,8" />
+                                <TextBlock Text="Trade settings will appear here."
+                                           Foreground="#6B7280"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Row="2"
+                                Grid.Column="0"
                                 Background="#FFFFFF"
                                 BorderBrush="#D1D5DB"
                                 BorderThickness="1"
                                 CornerRadius="8"
                                 Padding="16"
-                                Margin="8,0,0,0">
+                                MinHeight="130">
                             <StackPanel>
-                                <TextBlock Text="Trading"
+                                <TextBlock Text="Settings"
                                            FontSize="22"
                                            FontWeight="SemiBold"
                                            Foreground="#111827"
                                            Margin="0,0,0,8" />
-                                <TextBlock Text="Trading settings will appear here."
-                                           Foreground="#6B7280"
-                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Row="2"
+                                Grid.Column="2"
+                                Background="#FFFFFF"
+                                BorderBrush="#D1D5DB"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="16"
+                                MinHeight="130">
+                            <StackPanel>
+                                <TextBlock Text="Settings"
+                                           FontSize="22"
+                                           FontWeight="SemiBold"
+                                           Foreground="#111827"
+                                           Margin="0,0,0,8" />
                             </StackPanel>
                         </Border>
                     </Grid>

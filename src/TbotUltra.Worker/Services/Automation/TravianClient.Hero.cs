@@ -11,17 +11,14 @@ public sealed partial class TravianClient
     {
         Notify("SendHeroOnAdventureAsync started");
 
-        await EnsureFreshDorf1ForHeroAsync(forceReload: true, cancellationToken);
+        var quick = await ReadHeroQuickStatusAsync(allowDorf1Fallback: true, forceDorf1Reload: false, cancellationToken);
+        var statusText = quick.Sidebar.StatusText;
+        var inHomeVillage = quick.IsInVillage;
+        var isDead = quick.Status.IsDead || IsHeroStatusTextDead(statusText);
+        var isOnTheWay = (quick.Status.SecondsUntilReturn is > 0) || IsHeroStatusTextAway(statusText);
+        var adventures = ResolveAdventureCount(quick);
 
-        var sidebar = await ReadHeroSidebarStatusAsync(cancellationToken);
-        var statusText = sidebar.StatusText;
-        var statusLower = (statusText ?? string.Empty).ToLowerInvariant();
-        var inHomeVillage = statusLower.Contains("home village") || statusLower.Contains("in village");
-        var isDead = statusLower.Contains("dead") || statusLower.Contains("deceased");
-        var isOnTheWay = statusLower.Contains("on the way") || statusLower.Contains("back from") || statusLower.Contains("returning");
-        var adventures = sidebar.AdventureCount;
-
-        Notify($"Hero status on dorf1: '{statusText ?? "(unknown)"}', adventures available: {adventures}.");
+        Notify($"Hero quick status: '{statusText ?? "(unknown)"}', adventures available: {adventures}.");
 
         if (isDead)
         {
@@ -40,7 +37,7 @@ public sealed partial class TravianClient
 
         if (isOnTheWay)
         {
-            var etaSeconds = await ReadHeroReturnFromRallyPointAsync(cancellationToken);
+            var etaSeconds = quick.Status.SecondsUntilReturn ?? await ReadHeroReturnFromRallyPointAsync(cancellationToken);
             var etaText = etaSeconds is int e ? FormatDuration(e) : "(unknown)";
             return new HeroAdventureDispatchResult(
                 IsInHomeVillage: false,
@@ -72,12 +69,6 @@ public sealed partial class TravianClient
                 Dispatched: false,
                 SecondsUntilReturn: null,
                 Message: "No adventures available. Nothing to dispatch.");
-        }
-
-        var openedList = await ClickAdventureButtonOnDorf1Async(cancellationToken);
-        if (!openedList)
-        {
-            Notify("Could not click adventures button on dorf1. Trying direct adventure pages.");
         }
 
         await OpenAdventureListWithFallbackAsync(cancellationToken);
@@ -114,10 +105,6 @@ public sealed partial class TravianClient
         await WaitForNavigationSettledAsync(cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared after dispatching hero.", cancellationToken);
 
-        // Return to dorf1 so the bot leaves the adventure detail page in a known state.
-        await GotoAsync(Paths.Resources, cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared after returning to dorf1.", cancellationToken);
-
         var returnText = returnSeconds is int rs ? FormatDuration(rs) : "(unknown)";
         Notify($"Hero dispatched. Return in: {returnText}.");
 
@@ -133,16 +120,21 @@ public sealed partial class TravianClient
     public async Task<int?> RefreshAdventureCountAsync(bool forceReload = true, CancellationToken cancellationToken = default)
     {
         Notify("RefreshAdventureCountAsync started");
-        await EnsureFreshDorf1ForHeroAsync(forceReload, cancellationToken);
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
+
         var sidebar = await ReadHeroSidebarStatusAsync(cancellationToken);
         if (!sidebar.AdventureFound)
         {
-            if (!forceReload)
-            {
-                Notify("Adventure indicator not found on current page. Retrying with dorf1 reload.");
-                await EnsureFreshDorf1ForHeroAsync(forceReload: true, cancellationToken);
-                sidebar = await ReadHeroSidebarStatusAsync(cancellationToken);
-            }
+            Notify("Adventure indicator not found on current page. Trying dorf1 without reload.");
+            await EnsureFreshDorf1ForHeroAsync(forceReload: false, cancellationToken);
+            sidebar = await ReadHeroSidebarStatusAsync(cancellationToken);
+        }
+
+        if (!sidebar.AdventureFound && forceReload)
+        {
+            Notify("Adventure indicator still not found. Retrying with dorf1 reload.");
+            await EnsureFreshDorf1ForHeroAsync(forceReload: true, cancellationToken);
+            sidebar = await ReadHeroSidebarStatusAsync(cancellationToken);
         }
 
         if (!sidebar.AdventureFound)
@@ -153,6 +145,62 @@ public sealed partial class TravianClient
 
         Notify($"Adventures on current page: {sidebar.AdventureCount}.");
         return sidebar.AdventureCount;
+    }
+
+    private async Task<HeroQuickStatus> ReadHeroQuickStatusAsync(
+        bool allowDorf1Fallback,
+        bool forceDorf1Reload,
+        CancellationToken cancellationToken)
+    {
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
+
+        var status = await ReadHeroStatusAsync(cancellationToken);
+        var sidebar = await ReadHeroSidebarStatusAsync(cancellationToken);
+        var heroHpFromSidebar = await ReadHeroHpFromSidebarAsync(cancellationToken);
+        var inVillage = await IsHeroInActiveVillageAsync(cancellationToken);
+        var hasUnassignedPointsSignal = status.UnassignedPoints > 0 || await HasHeroLevelUpIndicatorAsync(cancellationToken);
+
+        var hasUsefulSignals = status.Exists
+            || sidebar.AdventureFound
+            || hasUnassignedPointsSignal
+            || IsCurrentUrlForPath(Paths.Resources);
+
+        if (!hasUsefulSignals && allowDorf1Fallback)
+        {
+            await EnsureFreshDorf1ForHeroAsync(forceDorf1Reload, cancellationToken);
+            status = await ReadHeroStatusAsync(cancellationToken);
+            sidebar = await ReadHeroSidebarStatusAsync(cancellationToken);
+            heroHpFromSidebar = await ReadHeroHpFromSidebarAsync(cancellationToken);
+            inVillage = await IsHeroInActiveVillageAsync(cancellationToken);
+            hasUnassignedPointsSignal = status.UnassignedPoints > 0 || await HasHeroLevelUpIndicatorAsync(cancellationToken);
+        }
+
+        return new HeroQuickStatus(status, sidebar, inVillage, heroHpFromSidebar, hasUnassignedPointsSignal);
+    }
+
+    private static int ResolveAdventureCount(HeroQuickStatus quick)
+    {
+        if (quick.Sidebar.AdventureFound)
+        {
+            return Math.Max(0, quick.Sidebar.AdventureCount);
+        }
+
+        return Math.Max(0, quick.Status.AdventuresAvailable);
+    }
+
+    private static bool IsHeroStatusTextDead(string? statusText)
+    {
+        var text = (statusText ?? string.Empty).ToLowerInvariant();
+        return text.Contains("dead", StringComparison.Ordinal)
+            || text.Contains("deceased", StringComparison.Ordinal);
+    }
+
+    private static bool IsHeroStatusTextAway(string? statusText)
+    {
+        var text = (statusText ?? string.Empty).ToLowerInvariant();
+        return text.Contains("on the way", StringComparison.Ordinal)
+            || text.Contains("back from", StringComparison.Ordinal)
+            || text.Contains("returning", StringComparison.Ordinal);
     }
 
     private async Task EnsureFreshDorf1ForHeroAsync(bool forceReload, CancellationToken cancellationToken)
@@ -613,8 +661,105 @@ public sealed partial class TravianClient
         CancellationToken cancellationToken = default)
     {
         Notify("ManageHeroAsync started");
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
+
+        var quick = await ReadHeroQuickStatusAsync(allowDorf1Fallback: true, forceDorf1Reload: false, cancellationToken);
+        var status = quick.Status;
+        var inVillage = quick.IsInVillage;
+        var hpPercent = status.HpPercent ?? quick.HeroHpFromSidebar;
+        var adventureHintCount = ResolveAdventureCount(quick);
+        if (!status.Exists && adventureHintCount == 0 && !quick.HasUnassignedPointsSignal)
+        {
+            return "Hero page is unavailable for this account.";
+        }
+
+        var actions = new List<string>();
+
+        if ((status.IsDead || IsHeroStatusTextDead(quick.Sidebar.StatusText)) && autoRevive)
+        {
+            var revived = await TryReviveHeroAsync(cancellationToken);
+            actions.Add(revived ? "revive_started" : "revive_not_available");
+
+            quick = await ReadHeroQuickStatusAsync(allowDorf1Fallback: true, forceDorf1Reload: false, cancellationToken);
+            status = quick.Status;
+            inVillage = quick.IsInVillage;
+            hpPercent = status.HpPercent ?? quick.HeroHpFromSidebar;
+            adventureHintCount = ResolveAdventureCount(quick);
+        }
+
+        if (quick.HasUnassignedPointsSignal)
+        {
+            Notify("Hero level up / unassigned points signal detected.");
+        }
+
+        if (autoAssignPoints && quick.HasUnassignedPointsSignal)
+        {
+            var allocated = await TryAllocateHeroPointsAsync(statPriority, cancellationToken);
+            if (allocated > 0)
+            {
+                actions.Add($"points_allocated={allocated}");
+            }
+        }
+
+        var heroReturnWaitSeconds = status.SecondsUntilReturn;
+        var adventureCount = adventureHintCount;
+        if (adventureHintCount > 0)
+        {
+            await OpenHeroAdventuresPageAsync(cancellationToken);
+            await PauseForManualStepIfVisibleAsync("Manual verification appeared on adventures page.", cancellationToken);
+            adventureCount = await CountAdventureRowsAsync(cancellationToken);
+            status = await ReadHeroStatusAsync(cancellationToken);
+            hpPercent ??= status.HpPercent;
+            heroReturnWaitSeconds = status.SecondsUntilReturn;
+        }
+
+        var canSendByHp = !status.IsDead && (hpPercent ?? 0) >= Math.Clamp(minHpForAdventure, 1, 100);
+
+        if (adventureCount > 0 && canSendByHp && inVillage)
+        {
+            var (sent, durationSeconds, returnSeconds) = await TrySendHeroToAdventureAsync(adventurePickOrder, cancellationToken);
+            heroReturnWaitSeconds = returnSeconds > 0 ? returnSeconds : durationSeconds > 0 ? durationSeconds * 2 : null;
+            if (sent)
+            {
+                actions.Add($"adventure_sent({adventurePickOrder},duration={durationSeconds}s,return_eta={heroReturnWaitSeconds ?? 0}s)");
+            }
+            else
+            {
+                actions.Add("adventure_not_clickable");
+            }
+        }
+        else if (adventureCount > 0 && !inVillage)
+        {
+            actions.Add("adventure_skipped_hero_away");
+        }
+        else if (adventureCount > 0 && !canSendByHp)
+        {
+            actions.Add($"adventure_skipped_hp_too_low(hp={hpPercent?.ToString() ?? "?"}%)");
+        }
+
+        var pointsText = quick.HasUnassignedPointsSignal
+            ? (status.UnassignedPoints > 0 ? status.UnassignedPoints.ToString() : "signal")
+            : status.UnassignedPoints.ToString();
+        var summary = $"Hero status: dead={status.IsDead}, hp={hpPercent?.ToString() ?? "?"}%, adventures={adventureCount}, points={pointsText}, in_village={inVillage}";
+        if (heroReturnWaitSeconds is > 0 && actions.Count == 0)
+        {
+            return $"{summary}. Hero is away. queue_wait_seconds={heroReturnWaitSeconds.Value}";
+        }
+
+        if (actions.Count == 0)
+        {
+            return $"{summary}. No hero action was needed.";
+        }
+
+        if (heroReturnWaitSeconds is > 0)
+        {
+            return $"{summary}. Actions: {string.Join(", ", actions)}. queue_wait_seconds={heroReturnWaitSeconds.Value}";
+        }
+
+        return $"{summary}. Actions: {string.Join(", ", actions)}.";
 
         // Step 1: dorf1 — quick hero-in-village check + sidebar HP read.
+        #if false
         await GotoAsync(Paths.Resources, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening dorf1 for hero check.", cancellationToken);
         await EnsureLoggedInAsync();
@@ -717,6 +862,7 @@ public sealed partial class TravianClient
         }
 
         return $"{summary}. Actions: {string.Join(", ", actions)}.";
+        #endif
     }
 
     private async Task<int> CountAdventureRowsAsync(CancellationToken cancellationToken)
@@ -751,8 +897,22 @@ public sealed partial class TravianClient
     public async Task<HeroAttributeSnapshot> ReadHeroAttributeSnapshotAsync(CancellationToken cancellationToken = default)
     {
         Notify("ReadHeroAttributeSnapshotAsync started");
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
+
+        var quick = await ReadHeroQuickStatusAsync(
+            allowDorf1Fallback: false,
+            forceDorf1Reload: false,
+            cancellationToken);
+        var cachedSnapshot = TryGetCachedHeroAttributeSnapshot();
+        if (cachedSnapshot is not null && !quick.HasUnassignedPointsSignal)
+        {
+            Notify("Hero attribute snapshot served from cache.");
+            return cachedSnapshot;
+        }
+
         await EnsureHeroInventoryAttributesTabAsync(cancellationToken);
         var snapshot = await ReadHeroInventorySnapshotAsync(cancellationToken);
+        SaveCachedHeroAttributeSnapshot(snapshot);
         Notify(
             $"Hero inventory snapshot: free points={snapshot.FreePoints}, fighting strength={snapshot.FightingStrength}, offence bonus={snapshot.OffenceBonus}, defence bonus={snapshot.DefenceBonus}, resources={snapshot.Resources}.");
         return snapshot;
@@ -977,6 +1137,7 @@ public sealed partial class TravianClient
         var saved = await ClickHeroSaveChangesAsync(cancellationToken);
         if (saved)
         {
+            InvalidateCachedHeroAttributeSnapshot();
             Notify("Hero points saved.");
         }
 
@@ -1167,6 +1328,18 @@ public sealed partial class TravianClient
                 || (!computedHidden(contentEl) && !layoutHidden(table))
                 || (!computedHidden(table) && !layoutHidden(table));
               if (expanded) return false; // already open — DO NOT toggle.
+
+              const closedSwitch =
+                document.querySelector('img.openedClosedSwitch.switchClosed')
+                || document.querySelector('.openedClosedSwitch.switchClosed');
+              if (closedSwitch) {
+                const clickable =
+                  closedSwitch.closest('.openCloseSwitchBar')
+                  || closedSwitch.closest('a, button, [role="button"], td, div, span')
+                  || closedSwitch;
+                clickable.click();
+                return true;
+              }
 
               const bar = Array.from(document.querySelectorAll('.openCloseSwitchBar'))
                 .find(b => /attribute|attribut/i.test((b.querySelector('.title')?.textContent || '')));
@@ -1387,6 +1560,40 @@ public sealed partial class TravianClient
         return true;
     }
 
+    private string BuildHeroAttributeSnapshotCacheKey()
+    {
+        return $"{_account.Name}|{_config.BaseUrl.TrimEnd('/')}";
+    }
+
+    private HeroAttributeSnapshot? TryGetCachedHeroAttributeSnapshot()
+    {
+        var key = BuildHeroAttributeSnapshotCacheKey();
+        lock (HeroAttributeSnapshotCacheSync)
+        {
+            return CachedHeroAttributeSnapshotsByKey.TryGetValue(key, out var snapshot)
+                ? snapshot
+                : null;
+        }
+    }
+
+    private void SaveCachedHeroAttributeSnapshot(HeroAttributeSnapshot snapshot)
+    {
+        var key = BuildHeroAttributeSnapshotCacheKey();
+        lock (HeroAttributeSnapshotCacheSync)
+        {
+            CachedHeroAttributeSnapshotsByKey[key] = snapshot with { };
+        }
+    }
+
+    private void InvalidateCachedHeroAttributeSnapshot()
+    {
+        var key = BuildHeroAttributeSnapshotCacheKey();
+        lock (HeroAttributeSnapshotCacheSync)
+        {
+            CachedHeroAttributeSnapshotsByKey.Remove(key);
+        }
+    }
+
     private static string GetHeroAttributeDisplayName(string stat) => stat switch
     {
         "fighting_strength" => "Fighting strength",
@@ -1596,6 +1803,13 @@ public sealed partial class TravianClient
             }
             """);
     }
+
+    private sealed record HeroQuickStatus(
+        HeroStatus Status,
+        HeroSidebarStatusJs Sidebar,
+        bool IsInVillage,
+        int? HeroHpFromSidebar,
+        bool HasUnassignedPointsSignal);
 
     private sealed class HeroSidebarStatusJs
     {

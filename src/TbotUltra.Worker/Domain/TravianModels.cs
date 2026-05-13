@@ -25,7 +25,8 @@ public sealed record AccountAnalysisSnapshot(
     string ServerUrl,
     string Tribe,
     bool GoldClubEnabled,
-    IReadOnlyList<TribeBuildingCatalogEntry> BuildingCatalog);
+    IReadOnlyList<TribeBuildingCatalogEntry> BuildingCatalog,
+    bool? AutoCelebrationEnabled = null);
 
 public sealed record TribeBuildingCatalogEntry(
     int Gid,
@@ -125,6 +126,16 @@ public sealed record TroopTrainingQueueStatus(
     IReadOnlyList<BuildQueueItem> QueueItems,
     int? RemainingSeconds,
     string RemainingText);
+
+public sealed record BreweryCelebrationStatus(
+    bool IsAvailableForTribe,
+    bool? IsCapital,
+    bool BreweryExists,
+    int? BrewerySlotId,
+    bool CelebrationRunning,
+    int? RemainingSeconds,
+    string RemainingText,
+    string StatusText);
 
 public sealed record VillageStatus(
     string ActiveVillage,

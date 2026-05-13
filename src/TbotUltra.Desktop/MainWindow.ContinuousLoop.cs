@@ -168,6 +168,14 @@ public partial class MainWindow
             _botService.EnqueueRuntime("build_troops", "Build troops", null, priority: -50, maxRetries: 0);
         }
 
+        if (enabledGroups.Contains(QueueGroup.BreweryCelebration)
+            && _troopTrainingViewModel.IsAutoCelebrationAvailableForCurrentTribe
+            && _troopTrainingViewModel.AutoCelebrationEnabled
+            && !HasActiveTask("run_brewery_celebration"))
+        {
+            _botService.EnqueueRuntime("run_brewery_celebration", "Auto celebration", null, priority: -50, maxRetries: 0);
+        }
+
         if (enabledGroups.Contains(QueueGroup.Farming) && !IsFarmingGroupBlocked() && !HasActiveTask("send_farmlists"))
         {
             var goldClubEnabled = await _botService.ReadAndPersistGoldClubStatusAsync(options, AppendLog, CancellationToken.None);
@@ -405,6 +413,17 @@ public partial class MainWindow
                                 AppendLog($"Troop/resource refresh after run failed: {ex.Message}");
                             }
                         }
+                        else if (string.Equals(next.TaskName, "run_brewery_celebration", StringComparison.OrdinalIgnoreCase))
+                        {
+                            try
+                            {
+                                await RefreshBreweryCelebrationStatusAsync(options, _lastBuildingStatus, token);
+                            }
+                            catch (Exception ex)
+                            {
+                                AppendLog($"Brewery celebration refresh after run failed: {ex.Message}");
+                            }
+                        }
 
                         AppendLog($"[LOOP {tickId}] OK {tickSw.Elapsed.TotalSeconds:F1}s | queue:{next.TaskName}");
                         _ = Dispatcher.BeginInvoke(() => LastScanInfoTextBlock.Text = $"Last scan: {GetServerNow():HH:mm:ss}");
@@ -634,6 +653,17 @@ public partial class MainWindow
                     catch (Exception refreshEx)
                     {
                         AppendLog($"Troop/resource refresh after run failed: {refreshEx.Message}");
+                    }
+                }
+                else if (string.Equals(next.TaskName, "run_brewery_celebration", StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        await RefreshBreweryCelebrationStatusAsync(options, _lastBuildingStatus, cancellationToken);
+                    }
+                    catch (Exception refreshEx)
+                    {
+                        AppendLog($"Brewery celebration refresh after run failed: {refreshEx.Message}");
                     }
                 }
                 AppendLog($"[AUTOQ {runId}] OK {tickSw.Elapsed.TotalSeconds:F1}s task={next.TaskName}");

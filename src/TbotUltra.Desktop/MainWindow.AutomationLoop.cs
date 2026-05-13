@@ -21,6 +21,7 @@ public partial class MainWindow
 {
     private const string TroopsBlockedReasonSmithyMissing = "smithy_missing";
     private const string TroopsBlockedReasonAllDone = "all_done";
+    private const string BreweryBlockedReasonMissing = "brewery_missing";
     private const string FarmingBlockedReasonNoGoldClub = "no_goldclub";
     private const string FarmingBlockedReasonNoFarmLists = "no_farmlists";
     private const string HeroBlockedReasonNoAdventures = "no_adventures";
@@ -72,6 +73,7 @@ public partial class MainWindow
             UpdateAutomationLoopOrders();
             UpdateAutomationLoopSummaryText();
             UpdateAutomationLoopRunningIndicators();
+            SyncTeutonsOnlyAutomationGroups(ResolveStoredTroopTrainingTribe());
         }
         finally
         {
@@ -285,6 +287,28 @@ public partial class MainWindow
         PersistAutomationLoopTasksToConfig();
     }
 
+    private void SetBreweryBlockedState(string reasonKey, string reasonText)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.Invoke(() => SetBreweryBlockedState(reasonKey, reasonText));
+            return;
+        }
+
+        var breweryOption = _automationLoopTasks.FirstOrDefault(item =>
+            string.Equals(item.TaskName, QueueGroupCatalog.GetKey(QueueGroup.BreweryCelebration), StringComparison.OrdinalIgnoreCase));
+        if (breweryOption is not null)
+        {
+            _breweryBlockedPreviouslyEnabled = breweryOption.IsEnabled;
+            breweryOption.IsEnabled = false;
+        }
+
+        _breweryBlockedReasonKey = reasonKey;
+        _breweryBlockedReasonText = reasonText;
+        UpdateAutomationLoopRunningIndicators();
+        PersistAutomationLoopTasksToConfig();
+    }
+
     private void ClearTroopsBlockedState()
     {
         if (!Dispatcher.CheckAccess())
@@ -362,6 +386,33 @@ public partial class MainWindow
         }
 
         _heroBlockedPreviouslyEnabled = false;
+        UpdateAutomationLoopRunningIndicators();
+        PersistAutomationLoopTasksToConfig();
+    }
+
+    private void ClearBreweryBlockedState()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.Invoke(ClearBreweryBlockedState);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_breweryBlockedReasonKey) && string.IsNullOrWhiteSpace(_breweryBlockedReasonText))
+        {
+            return;
+        }
+
+        _breweryBlockedReasonKey = null;
+        _breweryBlockedReasonText = null;
+        var breweryOption = _automationLoopTasks.FirstOrDefault(item =>
+            string.Equals(item.TaskName, QueueGroupCatalog.GetKey(QueueGroup.BreweryCelebration), StringComparison.OrdinalIgnoreCase));
+        if (breweryOption is not null && _breweryBlockedPreviouslyEnabled)
+        {
+            breweryOption.IsEnabled = true;
+        }
+
+        _breweryBlockedPreviouslyEnabled = false;
         UpdateAutomationLoopRunningIndicators();
         PersistAutomationLoopTasksToConfig();
     }
@@ -448,6 +499,11 @@ public partial class MainWindow
         return !string.IsNullOrWhiteSpace(_heroBlockedReasonKey);
     }
 
+    private bool IsBreweryGroupBlocked()
+    {
+        return !string.IsNullOrWhiteSpace(_breweryBlockedReasonKey);
+    }
+
     private bool IsFunctionExecutionRunning(bool hasRunningQueueItems)
     {
         return hasRunningQueueItems
@@ -509,6 +565,9 @@ public partial class MainWindow
             var troopTrainingWaitSeconds = group == QueueGroup.TroopTraining
                 ? _troopTrainingViewModel.ResolveGroupRemainingSeconds()
                 : (int?)null;
+            var breweryCelebrationWaitSeconds = group == QueueGroup.BreweryCelebration
+                ? _troopTrainingViewModel.ResolveBreweryCelebrationGroupRemainingSeconds()
+                : (int?)null;
 
             item.QueuedCount = pendingCount;
             item.IsRunning = runningGroup.HasValue && runningGroup.Value == group;
@@ -522,7 +581,7 @@ public partial class MainWindow
                     : "Coordinator active.";
                 item.RemainingSeconds = null;
             }
-            else if (deferred is not null || constructionWaitSeconds is > 0 || troopTrainingWaitSeconds is > 0)
+            else if (deferred is not null || constructionWaitSeconds is > 0 || troopTrainingWaitSeconds is > 0 || breweryCelebrationWaitSeconds is > 0)
             {
                 item.StateText = "Waiting";
                 if (deferred is not null)
@@ -534,6 +593,11 @@ public partial class MainWindow
                 {
                     item.DetailText = "Troop queue active.";
                     item.RemainingSeconds = troopTrainingWaitSeconds;
+                }
+                else if (breweryCelebrationWaitSeconds is > 0)
+                {
+                    item.DetailText = "Celebration running.";
+                    item.RemainingSeconds = breweryCelebrationWaitSeconds;
                 }
                 else
                 {
@@ -565,10 +629,34 @@ public partial class MainWindow
                 item.IsBlocked = true;
                 item.BlockedText = _heroBlockedReasonText ?? "Blocked";
             }
+            else if (group == QueueGroup.BreweryCelebration && IsBreweryGroupBlocked())
+            {
+                item.StateText = "Blocked";
+                item.DetailText = _breweryBlockedReasonText ?? "Brewery group blocked.";
+                item.RemainingSeconds = null;
+                item.IsBlocked = true;
+                item.BlockedText = _breweryBlockedReasonText ?? "Blocked";
+            }
             else if (!item.IsEnabled)
             {
                 item.StateText = "Disabled";
                 item.DetailText = pendingCount > 0 ? $"{pendingCount} queued." : "No queued task.";
+                item.RemainingSeconds = null;
+            }
+            else if (group == QueueGroup.BreweryCelebration
+                && _troopTrainingViewModel.IsAutoCelebrationAvailableForCurrentTribe
+                && !_troopTrainingViewModel.AutoCelebrationEnabled)
+            {
+                item.StateText = "Disabled";
+                item.DetailText = "Auto celebration is off.";
+                item.RemainingSeconds = null;
+            }
+            else if (group == QueueGroup.BreweryCelebration
+                && _troopTrainingViewModel.IsAutoCelebrationAvailableForCurrentTribe
+                && _troopTrainingViewModel.AutoCelebrationCanStart)
+            {
+                item.StateText = "Ready";
+                item.DetailText = "Celebration can start.";
                 item.RemainingSeconds = null;
             }
             else if (paused)
@@ -669,6 +757,14 @@ public partial class MainWindow
 
             if (configuredVisible.Count > 0)
             {
+                foreach (var groupKey in QueueGroupCatalog.AllGroups.Select(QueueGroupCatalog.GetKey))
+                {
+                    if (!configuredVisible.Contains(groupKey, StringComparer.OrdinalIgnoreCase))
+                    {
+                        configuredVisible.Add(groupKey);
+                    }
+                }
+
                 return configuredVisible;
             }
         }
@@ -741,6 +837,52 @@ public partial class MainWindow
                     : char.ToUpperInvariant(part[0]) + part[1..]));
     }
 
+    private bool SyncTeutonsOnlyAutomationGroups(string? tribe, bool persistChanges = false)
+    {
+        var option = _automationLoopTasks.FirstOrDefault(item =>
+            string.Equals(item.TaskName, QueueGroupCatalog.GetKey(QueueGroup.BreweryCelebration), StringComparison.OrdinalIgnoreCase));
+        if (option is null)
+        {
+            return false;
+        }
+
+        var isTeutons = IsTeutonsTribe(tribe);
+        var changed = false;
+        if (!isTeutons)
+        {
+            if (option.IsEnabled)
+            {
+                option.IsEnabled = false;
+                changed = true;
+            }
+
+            if (option.IsVisible)
+            {
+                option.IsVisible = false;
+                changed = true;
+            }
+        }
+        else if (!option.IsVisible)
+        {
+            option.IsVisible = true;
+            changed = true;
+        }
+
+        if (!changed)
+        {
+            return false;
+        }
+
+        UpdateAutomationLoopSummaryText();
+        UpdateAutomationLoopRunningIndicators();
+        if (persistChanges)
+        {
+            PersistAutomationLoopTasksToConfig();
+        }
+
+        return true;
+    }
+
     private void AutomationLoopToggleButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not ToggleButton { DataContext: LoopTaskOption option } toggle)
@@ -777,6 +919,11 @@ public partial class MainWindow
             && string.Equals(option.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Hero), StringComparison.OrdinalIgnoreCase))
         {
             ClearHeroBlockedState();
+        }
+        else if (option.IsEnabled
+            && string.Equals(option.TaskName, QueueGroupCatalog.GetKey(QueueGroup.BreweryCelebration), StringComparison.OrdinalIgnoreCase))
+        {
+            ClearBreweryBlockedState();
         }
 
         UpdateAutomationLoopSummaryText();

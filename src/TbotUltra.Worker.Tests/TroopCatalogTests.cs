@@ -19,10 +19,25 @@ public sealed class TroopCatalogTests
             TroopCatalog.ResolveTroopTypesForTribe("Romans", TroopTrainingBuildingType.Workshop));
     }
 
+    [Fact]
+    public void ResolveTroopTypesForTribeAndBuilding_SplitsTeutonTroopsWithScoutInBarracks()
+    {
+        Assert.Equal(
+            ["Clubswinger", "Spearman", "Axeman", "Scout"],
+            TroopCatalog.ResolveTroopTypesForTribe("Teutons", TroopTrainingBuildingType.Barracks));
+        Assert.Equal(
+            ["Paladin", "Teutonic Knight"],
+            TroopCatalog.ResolveTroopTypesForTribe("Teutons", TroopTrainingBuildingType.Stable));
+        Assert.Equal(
+            ["Ram", "Catapult"],
+            TroopCatalog.ResolveTroopTypesForTribe("Teutons", TroopTrainingBuildingType.Workshop));
+    }
+
     [Theory]
     [InlineData("Romans", "Legionnaire", TroopTrainingBuildingType.Barracks, true)]
     [InlineData("Romans", "Equites Legati", TroopTrainingBuildingType.Barracks, false)]
-    [InlineData("Teutons", "Scout", TroopTrainingBuildingType.Stable, true)]
+    [InlineData("Teutons", "Scout", TroopTrainingBuildingType.Barracks, true)]
+    [InlineData("Teutons", "Scout", TroopTrainingBuildingType.Stable, false)]
     [InlineData("Teutons", "Ram", TroopTrainingBuildingType.Workshop, true)]
     [InlineData("Teutons", "Settler", TroopTrainingBuildingType.Workshop, false)]
     public void IsTroopTypeAllowedForBuilding_ValidatesExpectedMatch(string tribe, string troopType, TroopTrainingBuildingType buildingType, bool expected)
