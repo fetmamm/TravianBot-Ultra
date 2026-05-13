@@ -51,6 +51,21 @@ public sealed class ResourcesViewModel : BaseViewModel
         CreateBar("crop", "Crop", "#C47F00", "#FFF5DF"),
     ];
 
+    public bool UseDenseCroplandLayout => CroplandFields.Count > 6;
+
+    public void RebuildFieldGroups(IEnumerable<ResourceFieldRow> rows)
+    {
+        WoodFields.Clear();
+        ClayFields.Clear();
+        IronFields.Clear();
+        CroplandFields.Clear();
+
+        foreach (var row in rows.OrderBy(item => item.SlotId))
+        {
+            GetBucket(row).Add(row);
+        }
+    }
+
     public void ApplyStorageForecasts(VillageStatus status)
     {
         var forecasts = status.ResourceStorageForecasts?
@@ -181,6 +196,39 @@ public sealed class ResourcesViewModel : BaseViewModel
             Current = current,
             PercentOfCapacity = percent,
             SecondsToFull = secondsToFull,
+        };
+    }
+
+    private ObservableCollection<ResourceFieldRow> GetBucket(ResourceFieldRow row)
+    {
+        var fieldType = row.FieldType?.Trim() ?? string.Empty;
+        if (fieldType.Contains("wood", StringComparison.OrdinalIgnoreCase))
+        {
+            return WoodFields;
+        }
+
+        if (fieldType.Contains("clay", StringComparison.OrdinalIgnoreCase))
+        {
+            return ClayFields;
+        }
+
+        if (fieldType.Contains("iron", StringComparison.OrdinalIgnoreCase))
+        {
+            return IronFields;
+        }
+
+        if (fieldType.Contains("crop", StringComparison.OrdinalIgnoreCase))
+        {
+            return CroplandFields;
+        }
+
+        return row.SlotId switch
+        {
+            1 or 5 or 6 or 10 or 16 => WoodFields,
+            2 or 4 or 7 or 14 or 17 => ClayFields,
+            3 or 8 or 9 or 11 or 15 => IronFields,
+            12 or 13 or 18 => CroplandFields,
+            _ => CroplandFields,
         };
     }
 

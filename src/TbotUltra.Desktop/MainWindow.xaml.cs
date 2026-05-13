@@ -1628,33 +1628,12 @@ public partial class MainWindow : Window
     private void ApplyPostLoginSnapshot(PostLoginSnapshot snapshot)
     {
         var status = snapshot.VillageStatus;
-        var queuedTargetsBySlot = GetQueuedResourceTargetsBySlot();
-        var resourceMaxLevel = ResolveResourceMaxLevelFromStatus(status);
-
-        var rows = status.ResourceFields
-            .Where(item => item.SlotId is not null)
-            .OrderBy(item => item.SlotId)
-            .Select(item => new ResourceFieldRow
-            {
-                SlotId = item.SlotId ?? 0,
-                FieldType = item.FieldType,
-                Name = item.Name,
-                Level = item.Level,
-                Url = item.Url ?? string.Empty,
-                PendingTargetLevel = ResolveQueuedResourceTarget(item.SlotId ?? 0, item.Level ?? 0, queuedTargetsBySlot),
-                IsMaxLevel = (item.Level ?? 0) >= resourceMaxLevel,
-            })
-            .ToList();
-
-        SetResourceRows(rows);
-        ApplyVillageStatusToUi(status);
+        var rows = ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: true);
         TriggerDeferredConstructionWaitRefresh(status, "post_login");
 
         _lastBuildingStatus = status;
         PopulateBuildingsTab(status);
 
-        var capitalText = status.IsCapital == true ? "Yes" : status.IsCapital == false ? "No" : "Unknown";
-        ResourcesInfoTextBlock.Text = $"Loaded {rows.Count} resource fields. Capital: {capitalText}. {BuildResourceForecastSummary(status)}";
         BuildingsInfoTextBlock.Text = $"Buildings loaded for active village '{status.ActiveVillage}'. Occupied slots: {_buildingRows.Count(row => row.IsOccupied)}, free slots: {_buildingRows.Count(row => !row.IsOccupied)}.";
         TribeInfoTextBlock.Text = $"Tribe: {status.Tribe}";
         VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
@@ -1762,8 +1741,8 @@ public partial class MainWindow : Window
             SetEnabled(QueueClearButton, defaultEnabled);
             SetEnabled(QueueRefreshButton, defaultEnabled);
             SetEnabled(ResetProgramButton, true);
-            SetEnabled(LoadResourcesButton, defaultEnabled);
             SetEnabled(StorageRefreshButton, defaultEnabled && !_resourceSnapshotRefreshRunning);
+            SetEnabled(LoadResourcesButton, defaultEnabled);
             SetEnabled(ResourceTargetLevelComboBox, defaultEnabled);
             SetEnabled(UpgradeAllResourcesButton, defaultEnabled);
             SetEnabled(UpgradeAllResourcesToMaxButton, defaultEnabled);
@@ -1986,32 +1965,11 @@ public partial class MainWindow : Window
     private async Task LoadCurrentVillageViewsAfterLoginAsync(BotOptions options, CancellationToken cancellationToken = default)
     {
         var status = await ReadVillageStatusWithRetryAsync(options, cancellationToken, resourceOnly: false, forceCurrentVillage: false);
-        var queuedTargetsBySlot = GetQueuedResourceTargetsBySlot();
-        var resourceMaxLevel = ResolveResourceMaxLevelFromStatus(status);
-
-        var rows = status.ResourceFields
-            .Where(item => item.SlotId is not null)
-            .OrderBy(item => item.SlotId)
-            .Select(item => new ResourceFieldRow
-            {
-                SlotId = item.SlotId ?? 0,
-                FieldType = item.FieldType,
-                Name = item.Name,
-                Level = item.Level,
-                Url = item.Url ?? string.Empty,
-                PendingTargetLevel = ResolveQueuedResourceTarget(item.SlotId ?? 0, item.Level ?? 0, queuedTargetsBySlot),
-                IsMaxLevel = (item.Level ?? 0) >= resourceMaxLevel,
-            })
-            .ToList();
-
-        SetResourceRows(rows);
-        ApplyVillageStatusToUi(status);
+        ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: true);
 
         _lastBuildingStatus = status;
         PopulateBuildingsTab(status);
 
-        var capitalText = status.IsCapital == true ? "Yes" : status.IsCapital == false ? "No" : "Unknown";
-        ResourcesInfoTextBlock.Text = $"Loaded {rows.Count} resource fields. Capital: {capitalText}. {BuildResourceForecastSummary(status)}";
         BuildingsInfoTextBlock.Text = $"Buildings loaded for active village '{status.ActiveVillage}'. Occupied slots: {_buildingRows.Count(row => row.IsOccupied)}, free slots: {_buildingRows.Count(row => !row.IsOccupied)}.";
 
         TribeInfoTextBlock.Text = $"Tribe: {status.Tribe}";
@@ -3433,30 +3391,10 @@ public partial class MainWindow : Window
             // 1. Read resources + buildings, update resource/building tabs
             var status = await ReadVillageStatusWithRetryAsync(options, operationToken, resourceOnly: false, forceCurrentVillage: false);
 
-            var queuedTargetsBySlot = GetQueuedResourceTargetsBySlot();
-            var resourceMaxLevel = ResolveResourceMaxLevelFromStatus(status);
-            var rows = status.ResourceFields
-                .Where(item => item.SlotId is not null)
-                .OrderBy(item => item.SlotId)
-                .Select(item => new ResourceFieldRow
-                {
-                    SlotId = item.SlotId ?? 0,
-                    FieldType = item.FieldType,
-                    Name = item.Name,
-                    Level = item.Level,
-                    Url = item.Url ?? string.Empty,
-                    PendingTargetLevel = ResolveQueuedResourceTarget(item.SlotId ?? 0, item.Level ?? 0, queuedTargetsBySlot),
-                    IsMaxLevel = (item.Level ?? 0) >= resourceMaxLevel,
-                })
-                .ToList();
-
-            SetResourceRows(rows);
-            ApplyVillageStatusToUi(status);
+            ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: true);
             _lastBuildingStatus = status;
             PopulateBuildingsTab(status);
 
-            var capitalText = status.IsCapital == true ? "Yes" : status.IsCapital == false ? "No" : "Unknown";
-            ResourcesInfoTextBlock.Text = $"Loaded {rows.Count} resource fields. Capital: {capitalText}. {BuildResourceForecastSummary(status)}";
             BuildingsInfoTextBlock.Text = $"Buildings loaded for selected village '{selectedVillage.Name}'. Occupied slots: {_buildingRows.Count(row => row.IsOccupied)}, free slots: {_buildingRows.Count(row => !row.IsOccupied)}.";
 
             TribeInfoTextBlock.Text = $"Tribe: {status.Tribe}";
