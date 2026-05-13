@@ -432,11 +432,7 @@ public partial class MainWindow : Window
         TerminalAlarmTabControl.SelectionChanged += (_, _) => UpdateTerminalAlarmUi();
         PreviewMouseDown += MainWindow_PreviewMouseDown;
 
-        VillageComboBox.ItemsSource = new[]
-        {
-            new VillageSelectionItem { Name = "-", Url = string.Empty },
-        };
-        VillageComboBox.SelectedIndex = 0;
+        ResetVillageSelectionUi();
         VillageComboBox.SelectionChanged += VillageComboBox_SelectionChanged;
         ResourceTargetLevelComboBox.ItemsSource = Enumerable.Range(1, 40).ToList();
         ResourceTargetLevelComboBox.SelectedItem = 10;
@@ -746,53 +742,7 @@ public partial class MainWindow : Window
             if (payload.Villages is { Count: > 0 })
             {
                 VillagesInfoTextBlock.Text = $"Villages: {payload.Villages.Count}";
-                var currentSelectedName = GetSelectedVillageName();
-                var existingVillageData = (VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem>)
-                    ?.Where(item => !string.IsNullOrWhiteSpace(item.Name))
-                    .GroupBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
-                    .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase)
-                    ?? new Dictionary<string, VillageSelectionItem>(StringComparer.OrdinalIgnoreCase);
-                var villages = payload.Villages
-                    .Where(v => !string.IsNullOrWhiteSpace(v.Name))
-                    .Select(v =>
-                    {
-                        var name = v.Name!;
-                        existingVillageData.TryGetValue(name, out var existing);
-
-                        return new VillageSelectionItem
-                        {
-                            Name = name,
-                            Url = v.Url ?? existing?.Url ?? string.Empty,
-                            IsCapital = v.IsCapital ?? existing?.IsCapital ?? false,
-                            CoordX = v.CoordX ?? existing?.CoordX,
-                            CoordY = v.CoordY ?? existing?.CoordY,
-                            Population = v.Population ?? existing?.Population,
-                            CropFields = v.CropFields ?? existing?.CropFields,
-                        };
-                    })
-                    .ToList();
-
-                _suppressVillageSelectionChange = true;
-                try
-                {
-                    VillageComboBox.ItemsSource = villages;
-                    var selected = villages.FirstOrDefault(v =>
-                        string.Equals(v.Name, currentSelectedName, StringComparison.OrdinalIgnoreCase))
-                        ?? villages.FirstOrDefault(v =>
-                            string.Equals(v.Name, payload.ActiveVillage, StringComparison.OrdinalIgnoreCase))
-                        ?? villages.FirstOrDefault();
-                    VillageComboBox.SelectedItem = selected;
-                }
-                finally
-                {
-                    _suppressVillageSelectionChange = false;
-                }
-
-                DashboardVillageList.ItemsSource = villages
-                    .OrderByDescending(v => v.IsCapital)
-                    .ThenByDescending(v => v.Population ?? -1)
-                    .ThenBy(v => v.Name, StringComparer.OrdinalIgnoreCase)
-                    .ToList();
+                SyncDashboardVillageUiFromPayloadVillages(payload.Villages, payload.ActiveVillage);
             }
         }
         catch
@@ -1165,19 +1115,13 @@ public partial class MainWindow : Window
 
     private void ResetVillageSelectionUi()
     {
-        _suppressVillageSelectionChange = true;
-        try
-        {
-            VillageComboBox.ItemsSource = new[]
+        ApplyVillagePickerItems(
+            new[]
             {
                 new VillageSelectionItem { Name = "-", Url = string.Empty },
-            };
-            VillageComboBox.SelectedIndex = 0;
-        }
-        finally
-        {
-            _suppressVillageSelectionChange = false;
-        }
+            },
+            preferredVillageName: "-",
+            fallbackVillageName: null);
     }
 
     private async void ResetProgramButton_Click(object sender, RoutedEventArgs e)
@@ -1637,8 +1581,7 @@ public partial class MainWindow : Window
         BuildingsInfoTextBlock.Text = $"Buildings loaded for active village '{status.ActiveVillage}'. Occupied slots: {_buildingRows.Count(row => row.IsOccupied)}, free slots: {_buildingRows.Count(row => !row.IsOccupied)}.";
         TribeInfoTextBlock.Text = $"Tribe: {status.Tribe}";
         VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
-        RefreshVillagePickerFromVillages(status.Villages, status.ActiveVillage);
-        UpdateDashboardVillageList(status.Villages);
+        SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage);
         UpdateInboxButtons(snapshot.InboxStatus.UnreadMessages, snapshot.InboxStatus.UnreadReports);
         ApplyFarmingAvailabilityFromGoldClubStatus(TryGetStoredGoldClubEnabled(_accountStore.ActiveAccountName()));
 
@@ -1974,8 +1917,7 @@ public partial class MainWindow : Window
 
         TribeInfoTextBlock.Text = $"Tribe: {status.Tribe}";
         VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
-        RefreshVillagePickerFromVillages(status.Villages, status.ActiveVillage);
-        UpdateDashboardVillageList(status.Villages);
+        SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage);
         await RefreshResourceSnapshotForUiAsync(options, cancellationToken);
     }
 
@@ -2058,36 +2000,6 @@ public partial class MainWindow : Window
             villageName,
             villageUrl,
             cancellationToken);
-    }
-
-    private void SelectVillageInPicker(string? activeVillageName)
-    {
-        if (string.IsNullOrWhiteSpace(activeVillageName))
-        {
-            return;
-        }
-
-        if (VillageComboBox.ItemsSource is not IEnumerable<VillageSelectionItem> villages)
-        {
-            return;
-        }
-
-        var selected = villages.FirstOrDefault(v =>
-            string.Equals(v.Name, activeVillageName, StringComparison.OrdinalIgnoreCase));
-        if (selected is null)
-        {
-            return;
-        }
-
-        _suppressVillageSelectionChange = true;
-        try
-        {
-            VillageComboBox.SelectedItem = selected;
-        }
-        finally
-        {
-            _suppressVillageSelectionChange = false;
-        }
     }
 
     private string BeginOperation(string operationName)
@@ -3212,35 +3124,7 @@ public partial class MainWindow : Window
 
     private void RefreshVillagePicker(VillageStatus status)
     {
-        var currentSelectedName = GetSelectedVillageName();
-        var villages = BuildMergedVillageSelectionItems(status.Villages);
-
-        if (villages.Count == 0)
-        {
-            villages.Add(new VillageSelectionItem { Name = "-", Url = string.Empty });
-        }
-
-        _suppressVillageSelectionChange = true;
-        try
-        {
-            VillageComboBox.ItemsSource = villages;
-            var selected = villages.FirstOrDefault(v =>
-                string.Equals(v.Name, currentSelectedName, StringComparison.OrdinalIgnoreCase))
-                ?? villages.FirstOrDefault(v =>
-                    string.Equals(v.Name, status.ActiveVillage, StringComparison.OrdinalIgnoreCase))
-                ?? villages[0];
-            VillageComboBox.SelectedItem = selected;
-        }
-        finally
-        {
-            _suppressVillageSelectionChange = false;
-        }
-
-        DashboardVillageList.ItemsSource = villages
-            .OrderByDescending(v => v.IsCapital)
-            .ThenByDescending(v => v.Population ?? -1)
-            .ThenBy(v => v.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage);
     }
 
     private void UpdateBuildQueueStatusText()
@@ -3326,139 +3210,6 @@ public partial class MainWindow : Window
         LogoutButton.Foreground = new SolidColorBrush(Color.FromRgb(17, 24, 39));
     }
 
-    private void VillageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_suppressVillageSelectionChange)
-        {
-            return;
-        }
-
-        if (VillageComboBox.SelectedItem is not VillageSelectionItem selected)
-        {
-            return;
-        }
-
-        StatusTextBlock.Text = $"Selected village: {selected.Name}";
-        _ = SwitchToSelectedVillageAndRefreshAsync(selected);
-    }
-
-    private async Task SwitchToSelectedVillageAndRefreshAsync(VillageSelectionItem selectedVillage)
-    {
-        if (selectedVillage is null)
-        {
-            return;
-        }
-
-        var switchKey = $"{selectedVillage.Name}|{selectedVillage.Url}";
-        var now = DateTimeOffset.UtcNow;
-        if (string.Equals(_lastVillageSwitchRefreshKey, switchKey, StringComparison.OrdinalIgnoreCase)
-            && (now - _lastVillageSwitchRefreshAt).TotalSeconds < 2)
-        {
-            return;
-        }
-
-        _lastVillageSwitchRefreshKey = switchKey;
-        _lastVillageSwitchRefreshAt = now;
-
-        if (IsExecutionActiveForVillageChange())
-        {
-            await StopAndClearForVillageChangeAsync(selectedVillage.Name);
-        }
-
-        if (_uiBusy || _autoQueueRunning || (_loopTask is not null && !_loopTask.IsCompleted))
-        {
-            AppendLog($"Village switch to '{selectedVillage.Name}' skipped because bot is still stopping.");
-            return;
-        }
-
-        if (!_isLoggedIn || !_browserSessionLikelyOpen)
-        {
-            return;
-        }
-
-        _villageSwitchCts?.Cancel();
-        _villageSwitchCts?.Dispose();
-        _villageSwitchCts = _loopController.CreateCts("village-switch");
-        var operationToken = _villageSwitchCts.Token;
-        var operationId = BeginOperation("SwitchVillage");
-        var operationSw = Stopwatch.StartNew();
-        ToggleUiBusy(true);
-        try
-        {
-            var options = ApplySelectedVillageToOptions(LoadBotOptions());
-            AppendLog($"[{operationId}] INFO switch village to '{selectedVillage.Name}'");
-
-            // 1. Read resources + buildings, update resource/building tabs
-            var status = await ReadVillageStatusWithRetryAsync(options, operationToken, resourceOnly: false, forceCurrentVillage: false);
-
-            ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: true);
-            _lastBuildingStatus = status;
-            PopulateBuildingsTab(status);
-
-            BuildingsInfoTextBlock.Text = $"Buildings loaded for selected village '{selectedVillage.Name}'. Occupied slots: {_buildingRows.Count(row => row.IsOccupied)}, free slots: {_buildingRows.Count(row => !row.IsOccupied)}.";
-
-            TribeInfoTextBlock.Text = $"Tribe: {status.Tribe}";
-            VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
-            RefreshVillagePickerFromVillages(status.Villages, selectedVillage.Name);
-            UpdateDashboardVillageList(status.Villages);
-            await RefreshResourceSnapshotForUiAsync(options, operationToken);
-
-            CompleteOperation(operationId, operationSw, $"Village switched to '{selectedVillage.Name}' and UI refreshed.");
-        }
-        catch (OperationCanceledException)
-        {
-            AppendLog($"[{operationId}] INFO canceled.");
-        }
-        catch (Exception ex)
-        {
-            FailOperation(operationId, operationSw, ex);
-        }
-        finally
-        {
-            ToggleUiBusy(false);
-        }
-    }
-
-    private bool IsExecutionActiveForVillageChange()
-    {
-        return _uiBusy || _autoQueueRunning || (_loopTask is not null && !_loopTask.IsCompleted);
-    }
-
-    private async Task StopAndClearForVillageChangeAsync(string? villageName)
-    {
-        var label = string.IsNullOrWhiteSpace(villageName) ? "-" : villageName;
-        AppendLog($"Village changed to '{label}' while bot is running. Stopping active work and clearing queue.");
-
-        _loopController.RequestLoopStop();
-        _loopController.RequestQueueStop();
-        _operationCts?.Cancel();
-        _autoQueueRunCts?.Cancel();
-        _loopCts?.Cancel();
-        _villageSwitchCts?.Cancel();
-
-        var stopDeadline = DateTime.UtcNow.AddSeconds(8);
-        while (DateTime.UtcNow < stopDeadline)
-        {
-            if (!_uiBusy && !_autoQueueRunning && (_loopTask is null || _loopTask.IsCompleted))
-            {
-                break;
-            }
-
-            await Task.Delay(120);
-        }
-
-        try
-        {
-            _botService.ClearQueue();
-            RefreshQueueUi();
-            AppendLog($"Queue cleared due to village change to '{label}'.");
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Could not clear queue after village change: {ex.Message}");
-        }
-    }
-
     private void HandleBrowserClosedSignal()
     {
         if (!_botService.ConsumeBrowserClosedByUserSignal())
@@ -3530,64 +3281,4 @@ public partial class MainWindow : Window
         support.ShowDialog();
     }
 
-    private string? GetSelectedVillageName()
-    {
-        var selection = GetSelectedVillageSelectionSnapshot();
-        return selection.Name;
-    }
-
-    private string? GetSelectedVillageUrl()
-    {
-        var selection = GetSelectedVillageSelectionSnapshot();
-        return selection.Url;
-    }
-
-    private BotOptions ApplySelectedVillageToOptions(BotOptions source)
-    {
-        var selection = GetSelectedVillageSelectionSnapshot();
-        var selectedName = selection.Name;
-        var selectedUrl = selection.Url;
-        if (string.IsNullOrWhiteSpace(selectedName) && string.IsNullOrWhiteSpace(selectedUrl))
-        {
-            return source;
-        }
-
-        return BotOptionsPayloadApplier.Apply(source, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            [BotOptionPayloadKeys.TargetVillageName] = selectedName ?? string.Empty,
-            [BotOptionPayloadKeys.TargetVillageUrl] = selectedUrl ?? string.Empty,
-        });
-    }
-
-    private (string? Name, string? Url) GetSelectedVillageSelectionSnapshot()
-    {
-        if (Dispatcher.CheckAccess())
-        {
-            return ReadSelectedVillageSelectionCore();
-        }
-
-        return Dispatcher.Invoke(ReadSelectedVillageSelectionCore);
-    }
-
-    private (string? Name, string? Url) ReadSelectedVillageSelectionCore()
-    {
-        if (VillageComboBox.SelectedItem is not VillageSelectionItem selected)
-        {
-            return (null, null);
-        }
-
-        string? name = null;
-        if (!string.IsNullOrWhiteSpace(selected.Name))
-        {
-            var trimmed = selected.Name.Trim();
-            if (!string.Equals(trimmed, "-", StringComparison.Ordinal)
-                && !string.Equals(trimmed, "Unknown village", StringComparison.OrdinalIgnoreCase))
-            {
-                name = trimmed;
-            }
-        }
-
-        var url = string.IsNullOrWhiteSpace(selected.Url) ? null : selected.Url.Trim();
-        return (name, url);
-    }
 }

@@ -35,7 +35,6 @@
   "dashboard_visible_groups": [
     "construction",
     "troops",
-    "hero",
     "farming",
     "troop_training",
     "brewery_celebration"
