@@ -24,7 +24,6 @@ public partial class SettingsWindow : Window
         _config = _store.Load();
         HeadlessCheckBox.IsChecked = _config["headless"]?.GetValue<bool>() ?? false;
         HumanLikeCheckBox.IsChecked = _config["human_like_enabled"]?.GetValue<bool>() ?? false;
-        AllowGoldSpendingCheckBox.IsChecked = _config["allow_gold_spending"]?.GetValue<bool>() ?? false;
         AllowSilverSpendingCheckBox.IsChecked = _config["allow_silver_spending"]?.GetValue<bool>() ?? false;
         SelectQueueWaitThresholdMode(_config[BotOptionPayloadKeys.QueueWaitThresholdMode]?.GetValue<string>() ?? "10");
         SelectFarmDispatchDelayMinutes(_config[BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes]?.GetValue<int>() ?? 1);
@@ -32,7 +31,6 @@ public partial class SettingsWindow : Window
         PostLoginAnalyzeHeroCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginAnalyzeHero]?.GetValue<bool>() ?? false;
         PostLoginReadTroopTrainingQueueCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginReadTroopTrainingQueue]?.GetValue<bool>() ?? false;
         PostLoginAnalyzeBreweryCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginAnalyzeBrewery]?.GetValue<bool>() ?? false;
-        GoldLimitSlider.Value = Math.Clamp(_config["gold_limit"]?.GetValue<int>() ?? 100, 0, 200);
         SilverLimitSlider.Value = Math.Clamp(_config["silver_limit"]?.GetValue<int>() ?? 100, 0, 1000);
         UpdateLimitLabels();
     }
@@ -43,7 +41,6 @@ public partial class SettingsWindow : Window
         {
             _config["headless"] = HeadlessCheckBox.IsChecked == true;
             _config["human_like_enabled"] = HumanLikeCheckBox.IsChecked == true;
-            _config["allow_gold_spending"] = AllowGoldSpendingCheckBox.IsChecked == true;
             _config["allow_silver_spending"] = AllowSilverSpendingCheckBox.IsChecked == true;
             _config[BotOptionPayloadKeys.QueueWaitThresholdMode] = GetSelectedQueueWaitThresholdMode();
             _config[BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes] = GetSelectedFarmDispatchDelayMinutes();
@@ -51,7 +48,6 @@ public partial class SettingsWindow : Window
             _config[BotOptionPayloadKeys.PostLoginAnalyzeHero] = PostLoginAnalyzeHeroCheckBox.IsChecked == true;
             _config[BotOptionPayloadKeys.PostLoginReadTroopTrainingQueue] = PostLoginReadTroopTrainingQueueCheckBox.IsChecked == true;
             _config[BotOptionPayloadKeys.PostLoginAnalyzeBrewery] = PostLoginAnalyzeBreweryCheckBox.IsChecked == true;
-            _config["gold_limit"] = (int)Math.Round(GoldLimitSlider.Value);
             _config["silver_limit"] = (int)Math.Round(SilverLimitSlider.Value);
             _store.Save(_config);
 
@@ -86,7 +82,6 @@ public partial class SettingsWindow : Window
     {
         HeadlessCheckBox.IsChecked = false;
         HumanLikeCheckBox.IsChecked = false;
-        AllowGoldSpendingCheckBox.IsChecked = false;
         AllowSilverSpendingCheckBox.IsChecked = false;
         SelectQueueWaitThresholdMode("10");
         SelectFarmDispatchDelayMinutes(1);
@@ -94,13 +89,7 @@ public partial class SettingsWindow : Window
         PostLoginAnalyzeHeroCheckBox.IsChecked = false;
         PostLoginReadTroopTrainingQueueCheckBox.IsChecked = false;
         PostLoginAnalyzeBreweryCheckBox.IsChecked = false;
-        GoldLimitSlider.Value = 100;
         SilverLimitSlider.Value = 100;
-        UpdateLimitLabels();
-    }
-
-    private void GoldLimitSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
         UpdateLimitLabels();
     }
 
@@ -111,12 +100,11 @@ public partial class SettingsWindow : Window
 
     private void UpdateLimitLabels()
     {
-        if (GoldLimitTextBlock is null || SilverLimitTextBlock is null)
+        if (SilverLimitTextBlock is null)
         {
             return;
         }
 
-        GoldLimitTextBlock.Text = $"Gold limit: {(int)Math.Round(GoldLimitSlider.Value)}";
         SilverLimitTextBlock.Text = $"Silver limit: {(int)Math.Round(SilverLimitSlider.Value)}";
     }
 

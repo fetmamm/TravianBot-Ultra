@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Linq;
 using System.Windows.Media;
+using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Common;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Worker.Domain;
@@ -52,6 +53,58 @@ public sealed class ResourcesViewModel : BaseViewModel
     ];
 
     public bool UseDenseCroplandLayout => CroplandFields.Count > 6;
+
+    private bool _isBuildLowestFirst = true;
+    private bool _isBuildSmart;
+
+    /// <summary>
+    /// Upgrade-all strategy: build the lowest-level field first. Mutually
+    /// exclusive with <see cref="IsBuildSmart"/>.
+    /// </summary>
+    public bool IsBuildLowestFirst
+    {
+        get => _isBuildLowestFirst;
+        set
+        {
+            if (SetProperty(ref _isBuildLowestFirst, value) && value)
+            {
+                IsBuildSmart = false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Upgrade-all strategy: build the field of the resource type with the
+    /// lowest current stock first. Mutually exclusive with
+    /// <see cref="IsBuildLowestFirst"/>.
+    /// </summary>
+    public bool IsBuildSmart
+    {
+        get => _isBuildSmart;
+        set
+        {
+            if (SetProperty(ref _isBuildSmart, value) && value)
+            {
+                IsBuildLowestFirst = false;
+            }
+        }
+    }
+
+    /// <summary>String form of the build strategy, "smart" or "lowest_first".</summary>
+    public string BuildStrategy => IsBuildSmart ? "smart" : "lowest_first";
+
+    /// <summary>Loads the resource build strategy from a freshly read <see cref="BotOptions"/>.</summary>
+    public void LoadSettingsFromConfig(BotOptions options)
+    {
+        if (string.Equals(options.ResourceBuildStrategy, "smart", StringComparison.OrdinalIgnoreCase))
+        {
+            IsBuildSmart = true;
+        }
+        else
+        {
+            IsBuildLowestFirst = true;
+        }
+    }
 
     public void RebuildFieldGroups(IEnumerable<ResourceFieldRow> rows)
     {

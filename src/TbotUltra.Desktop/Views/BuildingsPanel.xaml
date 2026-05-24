@@ -130,7 +130,8 @@
                         Background="#030826"
                         Foreground="White"
                         BorderBrush="#030826"
-                        Click="LoadBuildingsButton_Click" />
+                        Click="LoadBuildingsButton_Click"
+                        ToolTip="Read the current buildings from the village and refresh the buildings list with their slots and levels." />
                 <Button Content="Upgrade all to max"
                         Width="136"
                         Height="28"

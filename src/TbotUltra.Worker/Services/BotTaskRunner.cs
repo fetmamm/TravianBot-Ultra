@@ -598,6 +598,54 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
         return status ?? new BreweryCelebrationStatus(false, null, false, null, false, null, "N/A", "Status unavailable.");
     }
 
+    public async Task<string> RunNpcTradeForBuildingTestAsync(
+        BotOptions options,
+        Action<string> log,
+        TbotUltra.Core.Travian.TroopTrainingBuildingType buildingType,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = "NPC trade test: no result.";
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: true,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken, skipFeatureRefresh: true);
+                result = await client.RunNpcTradeForBuildingTestAsync(buildingType, cancellationToken);
+            });
+
+        log(result);
+        return result;
+    }
+
+    public async Task<string> RunBreweryCelebrationAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = "Brewery celebration: status unavailable.";
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: true,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken, skipFeatureRefresh: true);
+                result = await client.RunBreweryCelebrationAsync(cancellationToken);
+            });
+
+        return result;
+    }
+
     public async Task<InboxStatus> ReadInboxStatusAsync(
         BotOptions options,
         Action<string> log,
@@ -986,6 +1034,7 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
 
         var result = await context.Client.UpgradeAllResourcesToLevelAsync(
             context.Options.ResourceUpgradeTargetLevel.Value,
+            context.Options.ResourceBuildStrategy,
             context.CancellationToken);
         context.Log(result);
         ThrowIfTaskBlocked("upgrade_all_resources_to_level", result);

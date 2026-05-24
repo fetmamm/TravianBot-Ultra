@@ -167,6 +167,7 @@
                                            Margin="0,0,8,0" />
 						        <ToggleButton x:Name="ContinuousRunToggleButton"
                                               Style="{StaticResource ContinuousRunToggleStyle}"
+                                              IsChecked="True"
                                               ToolTip="When enabled, Start/Pause/Stop controls continuous running."
                                               Unchecked="ContinuousRunToggleButton_Unchecked" />
                             </StackPanel>
@@ -353,7 +354,8 @@
 
                         <DockPanel Grid.Row="0" Margin="0,0,0,10" LastChildFill="False">
                             <TextBlock DockPanel.Dock="Left" Text="Dashboard" FontSize="32" FontWeight="SemiBold" Foreground="#111827" VerticalAlignment="Center" />
-                            <Button DockPanel.Dock="Right" x:Name="ResetProgramButton" Height="32" Content="Reset program" Background="#FCD34D" Foreground="#1F2937" BorderBrush="#F59E0B" VerticalAlignment="Center" Margin="12,0,0,0" Click="ResetProgramButton_Click" />
+                            <Button DockPanel.Dock="Right" x:Name="ResetProgramButton" Height="32" Content="Reset program" Background="#FCD34D" Foreground="#1F2937" BorderBrush="#F59E0B" VerticalAlignment="Center" Margin="12,0,0,0" Click="ResetProgramButton_Click"
+                                    ToolTip="Restart the program: stops all running tasks, clears the queue, closes the browser session, and resets to the just-started state. Your saved login is kept — just press Login to start a new session." />
                         </DockPanel>
 
                         <Grid Grid.Row="1" Margin="0,0,0,10" Visibility="Collapsed">
@@ -364,14 +366,14 @@
                         <Grid Grid.Row="3">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="320" />
+                                <ColumnDefinition Width="260" />
                             </Grid.ColumnDefinitions>
 
                             <Border Grid.Column="0" Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="9" Padding="12" Margin="0,0,10,0">
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
 
@@ -395,6 +397,8 @@
                                              BorderThickness="0"
                                              Background="Transparent"
                                              SelectionMode="Single"
+                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                             ScrollViewer.VerticalScrollBarVisibility="Auto"
                                              AllowDrop="True"
                                              PreviewMouseLeftButtonDown="AutomationLoopListBox_PreviewMouseLeftButtonDown"
                                              PreviewMouseMove="AutomationLoopListBox_PreviewMouseMove"
@@ -409,7 +413,7 @@
                                             <Style TargetType="ListBoxItem">
                                                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                                                 <Setter Property="Padding" Value="0" />
-                                                <Setter Property="Margin" Value="0,0,8,8" />
+                                                <Setter Property="Margin" Value="0,0,6,6" />
                                                 <Setter Property="BorderThickness" Value="0" />
                                                 <Setter Property="Background" Value="Transparent" />
                                                 <Style.Triggers>
@@ -421,7 +425,7 @@
                                         </ListBox.ItemContainerStyle>
                                         <ListBox.ItemTemplate>
                                             <DataTemplate>
-                                                <Border BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="9" Padding="10" Background="#FFFFFF">
+                                                <Border BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="9" Padding="8" Background="#FFFFFF">
                                                     <Border.Style>
                                                         <Style TargetType="Border">
                                                             <Setter Property="Background" Value="#FFFFFF" />
@@ -446,14 +450,35 @@
                                                             <ColumnDefinition Width="Auto" />
                                                         </Grid.ColumnDefinitions>
 
-                                                        <ToggleButton Grid.Column="0"
-                                                                      Style="{StaticResource ContinuousRunToggleStyle}"
-                                                                      VerticalAlignment="Center"
-                                                                      Margin="0,0,10,0"
-                                                                      IsChecked="{Binding IsEnabled, Mode=TwoWay}"
-                                                                      Click="AutomationLoopToggleButton_Click" />
+                                                        <StackPanel Grid.Column="0"
+                                                                    Orientation="Vertical"
+                                                                    VerticalAlignment="Center"
+                                                                    HorizontalAlignment="Center"
+                                                                    Margin="0,0,8,0">
+                                                            <Border Width="24"
+                                                                    Height="24"
+                                                                    CornerRadius="12"
+                                                                    Margin="0,0,0,6"
+                                                                    Background="#2563EB">
+                                                                <Border.Style>
+                                                                    <Style TargetType="Border">
+                                                                        <Setter Property="Background" Value="#2563EB" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                                                                <Setter Property="Background" Value="#16A34A" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Border.Style>
+                                                                <TextBlock Text="{Binding Order}" Foreground="White" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                            </Border>
+                                                            <ToggleButton Style="{StaticResource ContinuousRunToggleStyle}"
+                                                                          HorizontalAlignment="Center"
+                                                                          IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                                                          Click="AutomationLoopToggleButton_Click" />
+                                                        </StackPanel>
 
-                                                        <Border Grid.Column="1" BorderBrush="#2563EB" BorderThickness="3,0,0,0" Padding="10,0,0,0">
+                                                        <Border Grid.Column="1" BorderBrush="#2563EB" BorderThickness="3,0,0,0" Padding="8,0,0,0">
                                                             <Border.Style>
                                                                 <Style TargetType="Border">
                                                                     <Setter Property="BorderBrush" Value="#2563EB" />
@@ -475,7 +500,7 @@
 
                                                                 <StackPanel Grid.Column="0">
                                                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" Foreground="#111827" />
+                                                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" Foreground="#111827" TextTrimming="CharacterEllipsis" />
                                                                         <TextBlock Text="Running" Margin="8,0,0,0" Foreground="#16A34A" FontSize="12" FontWeight="SemiBold">
                                                                             <TextBlock.Style>
                                                                                 <Style TargetType="TextBlock">
@@ -489,12 +514,63 @@
                                                                             </TextBlock.Style>
                                                                         </TextBlock>
                                                                     </StackPanel>
-                                                                    <TextBlock Text="{Binding Description}" Foreground="#4B5563" FontSize="12" Margin="0,2,0,0" />
-                                                                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                                                                        <TextBlock Text="{Binding StateText}" Foreground="#1D4ED8" FontSize="12" FontWeight="SemiBold" Margin="0,0,10,0" />
-                                                                        <TextBlock Text="{Binding QueuedCount, StringFormat=Queued: {0}}" Foreground="#4B5563" FontSize="12" />
+                                                                    <TextBlock Text="{Binding Description}" Foreground="#4B5563" FontSize="11" Margin="0,1,0,0" TextTrimming="CharacterEllipsis" />
+                                                                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0" VerticalAlignment="Center">
+                                                                        <TextBlock Text="{Binding StateText}" Foreground="#1D4ED8" FontSize="11" FontWeight="SemiBold" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                                                        <TextBlock Text="{Binding QueuedCount, StringFormat=Queued: {0}}" Foreground="#4B5563" FontSize="11" VerticalAlignment="Center" />
+                                                                        <Border Margin="8,0,0,0"
+                                                                                Padding="6,1"
+                                                                                CornerRadius="5"
+                                                                                BorderThickness="1"
+                                                                                VerticalAlignment="Center">
+                                                                            <Border.Style>
+                                                                                <Style TargetType="Border">
+                                                                                    <Setter Property="Background" Value="#F0FDF4" />
+                                                                                    <Setter Property="BorderBrush" Value="#BBF7D0" />
+                                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding TaskName}" Value="hero">
+                                                                                            <Setter Property="Visibility" Value="Visible" />
+                                                                                        </DataTrigger>
+                                                                                        <DataTrigger Binding="{Binding HeroVm.AdventureCountText, ElementName=RootWindow}" Value="0">
+                                                                                            <Setter Property="Background" Value="#F3F4F6" />
+                                                                                            <Setter Property="BorderBrush" Value="#D1D5DB" />
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </Border.Style>
+                                                                            <StackPanel Orientation="Horizontal">
+                                                                                <TextBlock Text="Adv:" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0">
+                                                                                    <TextBlock.Style>
+                                                                                        <Style TargetType="TextBlock">
+                                                                                            <Setter Property="Foreground" Value="#166534" />
+                                                                                            <Style.Triggers>
+                                                                                                <DataTrigger Binding="{Binding HeroVm.AdventureCountText, ElementName=RootWindow}" Value="0">
+                                                                                                    <Setter Property="Foreground" Value="#6B7280" />
+                                                                                                </DataTrigger>
+                                                                                            </Style.Triggers>
+                                                                                        </Style>
+                                                                                    </TextBlock.Style>
+                                                                                </TextBlock>
+                                                                                <TextBlock Text="{Binding HeroVm.AdventureCountText, ElementName=RootWindow}"
+                                                                                           FontWeight="SemiBold"
+                                                                                           FontSize="12"
+                                                                                           VerticalAlignment="Center">
+                                                                                    <TextBlock.Style>
+                                                                                        <Style TargetType="TextBlock">
+                                                                                            <Setter Property="Foreground" Value="#166534" />
+                                                                                            <Style.Triggers>
+                                                                                                <DataTrigger Binding="{Binding HeroVm.AdventureCountText, ElementName=RootWindow}" Value="0">
+                                                                                                    <Setter Property="Foreground" Value="#6B7280" />
+                                                                                                </DataTrigger>
+                                                                                            </Style.Triggers>
+                                                                                        </Style>
+                                                                                    </TextBlock.Style>
+                                                                                </TextBlock>
+                                                                            </StackPanel>
+                                                                        </Border>
                                                                     </StackPanel>
-                                                                    <TextBlock Text="{Binding DetailText}" Foreground="#6B7280" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap" />
+                                                                    <TextBlock Text="{Binding DetailText}" Foreground="#6B7280" FontSize="11" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" />
                                                                 </StackPanel>
 
                                                                 <ItemsControl Grid.Column="1"
@@ -519,24 +595,25 @@
                                                                     </ItemsControl.ItemsPanel>
                                                                     <ItemsControl.ItemTemplate>
                                                                         <DataTemplate>
-                                                                            <StackPanel Margin="0,0,6,0">
+                                                                            <StackPanel Margin="0,0,4,0">
                                                                                 <TextBlock Text="{Binding Title}"
-                                                                                           FontSize="13"
+                                                                                           FontSize="11"
                                                                                            FontWeight="SemiBold"
                                                                                            Foreground="#111827"
                                                                                            HorizontalAlignment="Left"
                                                                                            TextAlignment="Left" />
-                                                                                <Border Margin="0,8,0,0"
+                                                                                <Border Margin="0,4,0,0"
                                                                                         HorizontalAlignment="Left"
-                                                                                        Width="84"
-                                                                                        Padding="8,4"
-                                                                                        CornerRadius="8"
+                                                                                        Width="58"
+                                                                                        Padding="5,2"
+                                                                                        CornerRadius="6"
                                                                                         Background="{Binding QueueBadgeBackground}"
                                                                                         BorderBrush="{Binding QueueBadgeBorderBrush}"
                                                                                         BorderThickness="1">
                                                                                     <TextBlock Text="{Binding QueueTimerText}"
                                                                                                Foreground="{Binding QueueBadgeForeground}"
                                                                                                FontWeight="SemiBold"
+                                                                                               FontSize="11"
                                                                                                HorizontalAlignment="Center"
                                                                                                TextAlignment="Center" />
                                                                                 </Border>
@@ -544,62 +621,6 @@
                                                                         </DataTemplate>
                                                                     </ItemsControl.ItemTemplate>
                                                                 </ItemsControl>
-
-                                                                <Border Grid.Column="2"
-                                                                        Margin="-320,40,0,0"
-                                                                        Padding="10,6"
-                                                                        CornerRadius="6"
-                                                                        BorderThickness="1"
-                                                                        VerticalAlignment="Center"
-                                                                        HorizontalAlignment="Left">
-                                                                    <Border.Style>
-                                                                        <Style TargetType="Border">
-                                                                            <Setter Property="Background" Value="#F0FDF4" />
-                                                                            <Setter Property="BorderBrush" Value="#BBF7D0" />
-                                                                            <Setter Property="Visibility" Value="Collapsed" />
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding TaskName}" Value="hero">
-                                                                                    <Setter Property="Visibility" Value="Visible" />
-                                                                                </DataTrigger>
-                                                                                <DataTrigger Binding="{Binding HeroVm.AdventureCountText, ElementName=RootWindow}" Value="0">
-                                                                                    <Setter Property="Background" Value="#F3F4F6" />
-                                                                                    <Setter Property="BorderBrush" Value="#D1D5DB" />
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </Border.Style>
-                                                                    <StackPanel Orientation="Horizontal">
-                                                                        <TextBlock Text="Available:"
-                                                                                   VerticalAlignment="Center"
-                                                                                   Margin="0,0,6,0">
-                                                                            <TextBlock.Style>
-                                                                                <Style TargetType="TextBlock">
-                                                                                    <Setter Property="Foreground" Value="#166534" />
-                                                                                    <Style.Triggers>
-                                                                                        <DataTrigger Binding="{Binding HeroVm.AdventureCountText, ElementName=RootWindow}" Value="0">
-                                                                                            <Setter Property="Foreground" Value="#6B7280" />
-                                                                                        </DataTrigger>
-                                                                                    </Style.Triggers>
-                                                                                </Style>
-                                                                            </TextBlock.Style>
-                                                                        </TextBlock>
-                                                                        <TextBlock Text="{Binding HeroVm.AdventureCountText, ElementName=RootWindow}"
-                                                                                   FontWeight="SemiBold"
-                                                                                   FontSize="15"
-                                                                                   VerticalAlignment="Center">
-                                                                            <TextBlock.Style>
-                                                                                <Style TargetType="TextBlock">
-                                                                                    <Setter Property="Foreground" Value="#166534" />
-                                                                                    <Style.Triggers>
-                                                                                        <DataTrigger Binding="{Binding HeroVm.AdventureCountText, ElementName=RootWindow}" Value="0">
-                                                                                            <Setter Property="Foreground" Value="#6B7280" />
-                                                                                        </DataTrigger>
-                                                                                    </Style.Triggers>
-                                                                                </Style>
-                                                                            </TextBlock.Style>
-                                                                        </TextBlock>
-                                                                    </StackPanel>
-                                                                </Border>
                                                             </Grid>
                                                         </Border>
 
@@ -607,29 +628,11 @@
                                                                     Orientation="Vertical"
                                                                     VerticalAlignment="Center"
                                                                     HorizontalAlignment="Center">
-                                                            <Border Width="28"
-                                                                    Height="28"
-                                                                    CornerRadius="14"
-                                                                    Margin="0,0,0,8"
-                                                                    Background="#2563EB">
-                                                                <Border.Style>
-                                                                    <Style TargetType="Border">
-                                                                        <Setter Property="Background" Value="#2563EB" />
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding IsRunning}" Value="True">
-                                                                                <Setter Property="Background" Value="#16A34A" />
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </Border.Style>
-                                                                <TextBlock Text="{Binding Order}" Foreground="White" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                                            </Border>
-
-                                                                    <Border Padding="10,4"
+                                                                    <Border Padding="8,3"
                                                                             CornerRadius="8"
                                                                             VerticalAlignment="Center"
                                                                             BorderThickness="1"
-                                                                            MinWidth="82">
+                                                                            MinWidth="70">
                                                                 <Border.Style>
                                                                     <Style TargetType="Border">
                                                                         <Setter Property="Background" Value="#DCFCE7" />
@@ -740,8 +743,26 @@
                             <Button x:Name="LoadResourcesButton" Content="↻" Width="42" FontSize="16" Click="LoadResourcesButton_Click" ToolTip="Refresh resources" />
                             <TextBlock Text="Target level" VerticalAlignment="Center" Margin="0,0,8,0" />
                             <ComboBox x:Name="ResourceTargetLevelComboBox" Width="90" Margin="0,0,8,0" />
-                            <Button x:Name="UpgradeAllResourcesButton" Content="Upgrade all to level" Width="160" Background="#030826" Foreground="White" BorderBrush="#030826" Click="UpgradeAllResourcesButton_Click" />
-                            <Button x:Name="UpgradeAllResourcesToMaxButton" Content="Upgrade to max" Width="140" Margin="8,0,0,0" Background="#FCD34D" Foreground="#1F2937" BorderBrush="#F59E0B" Click="UpgradeAllResourcesToMaxButton_Click" />
+                            <Button x:Name="UpgradeAllResourcesButton" Content="Upgrade all to level" Width="160" Background="#030826" Foreground="White" BorderBrush="#030826" Click="UpgradeAllResourcesButton_Click"
+                                    ToolTip="Queue upgrades for every resource field up to the target level selected on the left, following the chosen Build order (Lowest level first or Smart)." />
+                            <Button x:Name="UpgradeAllResourcesToMaxButton" Content="Upgrade to max" Width="140" Margin="8,0,0,0" Background="#FCD34D" Foreground="#1F2937" BorderBrush="#F59E0B" Click="UpgradeAllResourcesToMaxButton_Click"
+                                    ToolTip="Queue upgrades for every resource field up to its maximum level, following the chosen Build order (Lowest level first or Smart)." />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="Build order:" VerticalAlignment="Center" Foreground="#374151" FontWeight="SemiBold" Margin="0,0,12,0" />
+                                <RadioButton Content="Lowest level first"
+                                             GroupName="ResourceBuildStrategy"
+                                             VerticalAlignment="Center"
+                                             Margin="0,0,16,0"
+                                             IsChecked="{Binding IsBuildLowestFirst}"
+                                             Click="ResourceBuildStrategyRadio_Click"
+                                             ToolTip="When using 'Upgrade all', always upgrade the resource field with the lowest level first, so all fields rise evenly toward the target level." />
+                                <RadioButton Content="Smart (least in storage)"
+                                             GroupName="ResourceBuildStrategy"
+                                             VerticalAlignment="Center"
+                                             IsChecked="{Binding IsBuildSmart}"
+                                             Click="ResourceBuildStrategyRadio_Click"
+                                             ToolTip="When using 'Upgrade all', prioritize fields that produce the resource you currently have the least of in storage (wood/clay/iron/crop), re-evaluated each pass to balance your stockpile." />
                             </StackPanel>
                             <Border Background="#FFFFFF"
                                     BorderBrush="#D1D5DB"
@@ -1227,40 +1248,116 @@
                     <views:TroopsPanel />
                 </TabItem>
 
-                <TabItem x:Name="NpcTradeTabItem" Header="NPC / Trade">
+                <TabItem x:Name="NpcTradeTabItem" Header="NPC / Trade"
+                         DataContext="{Binding TroopTrainingVm, ElementName=RootWindow}">
                     <Grid Background="#F3F4F6">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="16" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="16" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
 
-                        <Border Grid.Row="0"
-                                Grid.Column="0"
-                                Background="#FFFFFF"
-                                BorderBrush="#D1D5DB"
-                                BorderThickness="1"
-                                CornerRadius="8"
-                                Padding="16">
-                            <StackPanel>
-                                <TextBlock Text="NPC"
-                                           FontSize="22"
-                                           FontWeight="SemiBold"
-                                           Foreground="#111827"
-                                           Margin="0,0,0,8" />
-                                <TextBlock Text="NPC settings will appear here."
-                                           Foreground="#6B7280"
-                                           TextWrapping="Wrap" />
-                            </StackPanel>
-                        </Border>
+                        <StackPanel Grid.Column="0">
+                            <Border VerticalAlignment="Top"
+                                    Background="#FFFFFF"
+                                    BorderBrush="#D1D5DB"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="16">
+                                <StackPanel>
+                                    <TextBlock Text="NPC Trade"
+                                               FontSize="22"
+                                               FontWeight="SemiBold"
+                                               Foreground="#111827"
+                                               Margin="0,0,0,12" />
+                                    <CheckBox Content="Enable NPC trade while building troops"
+                                              IsChecked="{Binding NpcTradeEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Text="Trade when a selected resource is at/above"
+                                               Foreground="#6B7280"
+                                               FontSize="12"
+                                               TextWrapping="Wrap"
+                                               Margin="0,12,0,4" />
+                                    <ComboBox Width="100"
+                                              HorizontalAlignment="Left"
+                                              SelectedValuePath="Tag"
+                                              IsEnabled="{Binding NpcTradeEnabled}"
+                                              SelectedValue="{Binding NpcTradeThresholdPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                        <ComboBoxItem Content="50%" Tag="50" />
+                                        <ComboBoxItem Content="60%" Tag="60" />
+                                        <ComboBoxItem Content="70%" Tag="70" />
+                                        <ComboBoxItem Content="80%" Tag="80" />
+                                        <ComboBoxItem Content="90%" Tag="90" />
+                                        <ComboBoxItem Content="95%" Tag="95" />
+                                        <ComboBoxItem Content="100%" Tag="100" />
+                                    </ComboBox>
+                                    <TextBlock Text="Analyze resources"
+                                               Foreground="#6B7280"
+                                               FontSize="12"
+                                               Margin="0,12,0,4" />
+                                    <WrapPanel>
+                                        <CheckBox Content="Wood"
+                                                  Width="90"
+                                                  IsChecked="{Binding NpcTradeAnalyzeWood, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  IsEnabled="{Binding NpcTradeEnabled}" />
+                                        <CheckBox Content="Clay"
+                                                  Width="90"
+                                                  IsChecked="{Binding NpcTradeAnalyzeClay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  IsEnabled="{Binding NpcTradeEnabled}" />
+                                        <CheckBox Content="Iron"
+                                                  Width="90"
+                                                  Margin="0,6,0,0"
+                                                  IsChecked="{Binding NpcTradeAnalyzeIron, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  IsEnabled="{Binding NpcTradeEnabled}" />
+                                        <CheckBox Content="Crop"
+                                                  Width="90"
+                                                  Margin="0,6,0,0"
+                                                  IsChecked="{Binding NpcTradeAnalyzeCrop, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  IsEnabled="{Binding NpcTradeEnabled}" />
+                                    </WrapPanel>
+                                    <TextBlock Text="Distributes resources optimally for the troop being built. Needs gold spending allowed and keeps gold at/above the gold limit (3 gold per trade)."
+                                               Foreground="#6B7280"
+                                               FontSize="12"
+                                               TextWrapping="Wrap"
+                                               Margin="0,12,0,0" />
+                                </StackPanel>
+                            </Border>
 
-                        <Border Grid.Row="0"
-                                Grid.Column="2"
+                            <Border Margin="0,16,0,0"
+                                    VerticalAlignment="Top"
+                                    Background="#FFFFFF"
+                                    BorderBrush="#D1D5DB"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="16">
+                                <StackPanel>
+                                    <TextBlock Text="Gold"
+                                               FontSize="22"
+                                               FontWeight="SemiBold"
+                                               Foreground="#111827"
+                                               Margin="0,0,0,12" />
+                                    <CheckBox Content="Allow gold spending"
+                                              Margin="0,0,0,12"
+                                              IsChecked="{Binding AllowGoldSpending, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Text="{Binding GoldLimitText}"
+                                               Foreground="#111827"
+                                               Margin="0,0,0,4" />
+                                    <Slider Minimum="0"
+                                            Maximum="200"
+                                            TickFrequency="10"
+                                            IsSnapToTickEnabled="True"
+                                            IsEnabled="{Binding AllowGoldSpending}"
+                                            Value="{Binding GoldLimit, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Text="Gold-spending features (e.g. NPC trade) will not run if spending would take gold below this limit."
+                                               Foreground="#6B7280"
+                                               FontSize="12"
+                                               TextWrapping="Wrap"
+                                               Margin="0,12,0,0" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <Border Grid.Column="2"
+                                VerticalAlignment="Top"
                                 Background="#FFFFFF"
                                 BorderBrush="#D1D5DB"
                                 BorderThickness="1"
@@ -1275,40 +1372,6 @@
                                 <TextBlock Text="Trade settings will appear here."
                                            Foreground="#6B7280"
                                            TextWrapping="Wrap" />
-                            </StackPanel>
-                        </Border>
-
-                        <Border Grid.Row="2"
-                                Grid.Column="0"
-                                Background="#FFFFFF"
-                                BorderBrush="#D1D5DB"
-                                BorderThickness="1"
-                                CornerRadius="8"
-                                Padding="16"
-                                MinHeight="130">
-                            <StackPanel>
-                                <TextBlock Text="Settings"
-                                           FontSize="22"
-                                           FontWeight="SemiBold"
-                                           Foreground="#111827"
-                                           Margin="0,0,0,8" />
-                            </StackPanel>
-                        </Border>
-
-                        <Border Grid.Row="2"
-                                Grid.Column="2"
-                                Background="#FFFFFF"
-                                BorderBrush="#D1D5DB"
-                                BorderThickness="1"
-                                CornerRadius="8"
-                                Padding="16"
-                                MinHeight="130">
-                            <StackPanel>
-                                <TextBlock Text="Settings"
-                                           FontSize="22"
-                                           FontWeight="SemiBold"
-                                           Foreground="#111827"
-                                           Margin="0,0,0,8" />
                             </StackPanel>
                         </Border>
                     </Grid>
@@ -1589,10 +1652,26 @@
                 <TabItem x:Name="LogsTabItem" Header="Logs">
                     <Grid>
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
-                        <TabControl x:Name="TerminalAlarmTabControl" Grid.Row="0" Margin="0,0,0,8">
+                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8" VerticalAlignment="Center">
+                            <TextBlock Text="Filter:" VerticalAlignment="Center" Foreground="#374151" FontWeight="SemiBold" Margin="0,0,8,0" />
+                            <ComboBox x:Name="LogCategoryFilterComboBox"
+                                      Width="140"
+                                      Margin="0,0,12,0"
+                                      VerticalAlignment="Center"
+                                      SelectionChanged="LogCategoryFilterComboBox_SelectionChanged"
+                                      ToolTip="Show only log lines for this task category." />
+                            <CheckBox x:Name="LogCleanModeToggle"
+                                      Content="Clean"
+                                      VerticalAlignment="Center"
+                                      Checked="LogCleanModeToggle_Changed"
+                                      Unchecked="LogCleanModeToggle_Changed"
+                                      ToolTip="Hide high-volume noise lines (full log is still kept in the session file)." />
+                        </StackPanel>
+                        <TabControl x:Name="TerminalAlarmTabControl" Grid.Row="1" Margin="0,0,0,8">
                             <TabItem Header="Log">
                                 <Border Background="#020617" Padding="8">
                                     <ListBox x:Name="TerminalListBox"
@@ -1605,7 +1684,7 @@
                                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                         <ListBox.ItemTemplate>
                                             <DataTemplate>
-                                                <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
                                             </DataTemplate>
                                         </ListBox.ItemTemplate>
                                     </ListBox>
@@ -1640,7 +1719,7 @@
                                 </Border>
                             </TabItem>
                         </TabControl>
-                        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                             <TextBlock x:Name="CopyFeedbackTextBlock"
                                        Text=""
                                        Foreground="#16A34A"

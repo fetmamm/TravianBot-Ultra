@@ -138,18 +138,7 @@
                                        FontWeight="SemiBold"
                                        Foreground="#111827"
                                        Margin="0,0,0,10" />
-                            <CheckBox x:Name="AllowGoldSpendingCheckBox" Margin="0,0,0,8" Content="Allow gold spending" />
                             <CheckBox x:Name="AllowSilverSpendingCheckBox" Margin="0,0,0,12" Content="Allow silver spending" />
-
-                            <TextBlock x:Name="GoldLimitTextBlock" Text="Gold limit: 100" Margin="0,0,0,4" />
-                            <Slider x:Name="GoldLimitSlider"
-                                    Minimum="0"
-                                    Maximum="200"
-                                    Value="100"
-                                    TickFrequency="10"
-                                    IsSnapToTickEnabled="True"
-                                    Margin="0,0,0,10"
-                                    ValueChanged="GoldLimitSlider_ValueChanged" />
 
                             <TextBlock x:Name="SilverLimitTextBlock" Text="Silver limit: 100" Margin="0,0,0,4" />
                             <Slider x:Name="SilverLimitSlider"

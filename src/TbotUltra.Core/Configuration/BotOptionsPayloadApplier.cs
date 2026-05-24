@@ -12,6 +12,7 @@ public static class BotOptionsPayloadApplier
         var resourceUpgradeSlotId = source.ResourceUpgradeSlotId;
         var resourceUpgradeTargetLevel = source.ResourceUpgradeTargetLevel;
         var resourceUpgradeMaxAttempts = source.ResourceUpgradeMaxAttempts;
+        var resourceBuildStrategy = source.ResourceBuildStrategy;
         var buildingUpgradeSlotId = source.BuildingUpgradeSlotId;
         var buildingUpgradeTargetLevel = source.BuildingUpgradeTargetLevel;
         var buildingUpgradeMaxAttempts = source.BuildingUpgradeMaxAttempts;
@@ -74,6 +75,12 @@ public static class BotOptionsPayloadApplier
         var troopTrainingWorkshopCheckCrop = source.TroopTrainingWorkshopCheckCrop;
         var troopTrainingFallbackCooldownSeconds = source.TroopTrainingFallbackCooldownSeconds;
         var breweryAutoCelebrationEnabled = source.BreweryAutoCelebrationEnabled;
+        var npcTradeEnabled = source.NpcTradeEnabled;
+        var npcTradeThresholdPercent = source.NpcTradeThresholdPercent;
+        var npcTradeAnalyzeWood = source.NpcTradeAnalyzeWood;
+        var npcTradeAnalyzeClay = source.NpcTradeAnalyzeClay;
+        var npcTradeAnalyzeIron = source.NpcTradeAnalyzeIron;
+        var npcTradeAnalyzeCrop = source.NpcTradeAnalyzeCrop;
 
         if (payload is not null)
         {
@@ -125,6 +132,12 @@ public static class BotOptionsPayloadApplier
                 if (key.Equals(BotOptionPayloadKeys.ResourceUpgradeTargetLevel, StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out var resourceTarget))
                 {
                     resourceUpgradeTargetLevel = resourceTarget;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ResourceBuildStrategy, StringComparison.OrdinalIgnoreCase))
+                {
+                    resourceBuildStrategy = value.Equals("smart", StringComparison.OrdinalIgnoreCase) ? "smart" : "lowest_first";
                     continue;
                 }
 
@@ -538,6 +551,48 @@ public static class BotOptionsPayloadApplier
                     && bool.TryParse(value, out var autoCelebrationEnabled))
                 {
                     breweryAutoCelebrationEnabled = autoCelebrationEnabled;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.NpcTradeEnabled, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var npcEnabled))
+                {
+                    npcTradeEnabled = npcEnabled;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.NpcTradeThresholdPercent, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var npcThreshold))
+                {
+                    npcTradeThresholdPercent = Math.Clamp(npcThreshold, 1, 100);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.NpcTradeAnalyzeWood, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var npcWood))
+                {
+                    npcTradeAnalyzeWood = npcWood;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.NpcTradeAnalyzeClay, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var npcClay))
+                {
+                    npcTradeAnalyzeClay = npcClay;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.NpcTradeAnalyzeIron, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var npcIron))
+                {
+                    npcTradeAnalyzeIron = npcIron;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.NpcTradeAnalyzeCrop, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var npcCrop))
+                {
+                    npcTradeAnalyzeCrop = npcCrop;
                 }
             }
         }
@@ -602,6 +657,12 @@ public static class BotOptionsPayloadApplier
             TroopTrainingWorkshopCheckCrop = troopTrainingWorkshopCheckCrop,
             TroopTrainingFallbackCooldownSeconds = troopTrainingFallbackCooldownSeconds,
             BreweryAutoCelebrationEnabled = breweryAutoCelebrationEnabled,
+            NpcTradeEnabled = npcTradeEnabled,
+            NpcTradeThresholdPercent = npcTradeThresholdPercent,
+            NpcTradeAnalyzeWood = npcTradeAnalyzeWood,
+            NpcTradeAnalyzeClay = npcTradeAnalyzeClay,
+            NpcTradeAnalyzeIron = npcTradeAnalyzeIron,
+            NpcTradeAnalyzeCrop = npcTradeAnalyzeCrop,
             GithubReleasesUrl = source.GithubReleasesUrl,
             HumanLikeEnabled = source.HumanLikeEnabled,
             HumanLikeSpeed = source.HumanLikeSpeed,
@@ -614,6 +675,7 @@ public static class BotOptionsPayloadApplier
             ResourceUpgradeSlotId = resourceUpgradeSlotId,
             ResourceUpgradeTargetLevel = resourceUpgradeTargetLevel,
             ResourceUpgradeMaxAttempts = resourceUpgradeMaxAttempts,
+            ResourceBuildStrategy = resourceBuildStrategy,
             BuildingUpgradeSlotId = buildingUpgradeSlotId,
             BuildingUpgradeTargetLevel = buildingUpgradeTargetLevel,
             BuildingUpgradeMaxAttempts = buildingUpgradeMaxAttempts,

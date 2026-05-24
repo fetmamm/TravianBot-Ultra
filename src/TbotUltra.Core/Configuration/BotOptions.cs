@@ -188,6 +188,24 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.BreweryAutoCelebrationEnabled)]
     public bool BreweryAutoCelebrationEnabled { get; init; }
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.NpcTradeEnabled)]
+    public bool NpcTradeEnabled { get; init; }
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.NpcTradeThresholdPercent)]
+    public int NpcTradeThresholdPercent { get; init; } = 90;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.NpcTradeAnalyzeWood)]
+    public bool NpcTradeAnalyzeWood { get; init; } = true;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.NpcTradeAnalyzeClay)]
+    public bool NpcTradeAnalyzeClay { get; init; } = true;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.NpcTradeAnalyzeIron)]
+    public bool NpcTradeAnalyzeIron { get; init; } = true;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.NpcTradeAnalyzeCrop)]
+    public bool NpcTradeAnalyzeCrop { get; init; } = true;
+
     [ConfigurationKeyName("github_releases_url")]
     public string GithubReleasesUrl { get; init; } = string.Empty;
 
@@ -223,6 +241,9 @@ public sealed class BotOptions
 
     [ConfigurationKeyName("resource_upgrade_max_attempts")]
     public int ResourceUpgradeMaxAttempts { get; init; } = 30;
+
+    [ConfigurationKeyName("resource_build_strategy")]
+    public string ResourceBuildStrategy { get; init; } = "lowest_first"; // "lowest_first" or "smart"
 
     [ConfigurationKeyName("building_upgrade_slot_id")]
     public int? BuildingUpgradeSlotId { get; init; }

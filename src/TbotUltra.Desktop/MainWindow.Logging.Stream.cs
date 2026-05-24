@@ -9,6 +9,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Desktop.Services.Logging;
 
 namespace TbotUltra.Desktop;
 
@@ -87,7 +88,13 @@ public partial class MainWindow
                 foreach (var part in parts)
                 {
                     var line = $"[{GetServerNow():yyyy-MM-dd HH:mm:ss}] {part}";
-                    _terminalEntries.Insert(0, line);
+                    var isAlarm = IsAlarmMessage(part);
+                    _terminalEntries.Insert(0, new TerminalEntryRow
+                    {
+                        Text = line,
+                        Category = isAlarm ? LogCategory.Errors : LogClassifier.Classify(part),
+                        IsVerbose = LogClassifier.IsVerbose(part),
+                    });
                     logLinesForSessionLog.Add(line);
                     TryApplyInlineResourceLevelUpdateFromLog(part);
                     TryApplyInlineResourceProductionUpdateFromLog(part);
@@ -107,7 +114,7 @@ public partial class MainWindow
                         UpdateManualFarmingExecutionCounter();
                     }
 
-                    if (IsAlarmMessage(part))
+                    if (isAlarm)
                     {
                         var isAcknowledgedAlarm = IsAutoAcknowledgedAlarmMessage(part);
                         _alarmEntries.Insert(0, new AlarmEntryRow

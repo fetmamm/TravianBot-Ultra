@@ -70,9 +70,15 @@ public partial class MainWindow
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
         };
         _resourceTestFunctionsWindow.ResourceProductionTestRequested += TestResourceProductionButton_Click;
+        _resourceTestFunctionsWindow.NavigateToBreweryTestRequested += TestNavigateToBreweryButton_Click;
+        _resourceTestFunctionsWindow.StartCelebrationTestRequested += TestStartCelebrationButton_Click;
+        _resourceTestFunctionsWindow.NpcTradeBarracksTestRequested += TestNpcTradeBarracksButton_Click;
         _resourceTestFunctionsWindow.Closed += (_, _) =>
         {
             _resourceTestFunctionsWindow.ResourceProductionTestRequested -= TestResourceProductionButton_Click;
+            _resourceTestFunctionsWindow.NavigateToBreweryTestRequested -= TestNavigateToBreweryButton_Click;
+            _resourceTestFunctionsWindow.StartCelebrationTestRequested -= TestStartCelebrationButton_Click;
+            _resourceTestFunctionsWindow.NpcTradeBarracksTestRequested -= TestNpcTradeBarracksButton_Click;
             _resourceTestFunctionsWindow = null;
         };
 
@@ -120,6 +126,115 @@ public partial class MainWindow
         {
             StatusTextBlock.Text = "Test production paused.";
             AppendLog("Test production paused.");
+        }
+        catch (Exception ex)
+        {
+            FailOperation(operationId, operationSw, ex);
+        }
+        finally
+        {
+            ToggleResourceTabActionsBusy(false);
+            _operationCts?.Dispose();
+            _operationCts = null;
+        }
+    }
+
+    private async void TestNavigateToBreweryButton_Click(object sender, RoutedEventArgs e)
+    {
+        var operationId = BeginOperation("TestNavigateToBrewery");
+        var operationSw = Stopwatch.StartNew();
+        _operationCts = new CancellationTokenSource();
+        var operationToken = _operationCts.Token;
+        ToggleResourceTabActionsBusy(true);
+        try
+        {
+            var options = LoadBotOptions();
+            AppendLog($"[{operationId}] navigating to brewery (same path as auto celebration).");
+            var status = await _botService.ReadBreweryCelebrationStatusAsync(
+                options,
+                AppendLog,
+                null,
+                operationToken);
+
+            AppendLog($"[{operationId}] brewery status: {status.StatusText}");
+            CompleteOperation(operationId, operationSw, $"Navigate to brewery finished: {status.StatusText}");
+        }
+        catch (OperationCanceledException)
+        {
+            StatusTextBlock.Text = "Navigate to brewery paused.";
+            AppendLog("Navigate to brewery paused.");
+        }
+        catch (Exception ex)
+        {
+            FailOperation(operationId, operationSw, ex);
+        }
+        finally
+        {
+            ToggleResourceTabActionsBusy(false);
+            _operationCts?.Dispose();
+            _operationCts = null;
+        }
+    }
+
+    private async void TestStartCelebrationButton_Click(object sender, RoutedEventArgs e)
+    {
+        var operationId = BeginOperation("TestStartCelebration");
+        var operationSw = Stopwatch.StartNew();
+        _operationCts = new CancellationTokenSource();
+        var operationToken = _operationCts.Token;
+        ToggleResourceTabActionsBusy(true);
+        try
+        {
+            var options = LoadBotOptions();
+            AppendLog($"[{operationId}] starting brewery celebration (same path as auto celebration).");
+            var result = await _botService.RunBreweryCelebrationAsync(
+                options,
+                AppendLog,
+                operationToken);
+
+            AppendLog($"[{operationId}] celebration result: {result}");
+            CompleteOperation(operationId, operationSw, $"Start celebration finished: {result}");
+        }
+        catch (OperationCanceledException)
+        {
+            StatusTextBlock.Text = "Start celebration paused.";
+            AppendLog("Start celebration paused.");
+        }
+        catch (Exception ex)
+        {
+            FailOperation(operationId, operationSw, ex);
+        }
+        finally
+        {
+            ToggleResourceTabActionsBusy(false);
+            _operationCts?.Dispose();
+            _operationCts = null;
+        }
+    }
+
+    private async void TestNpcTradeBarracksButton_Click(object sender, RoutedEventArgs e)
+    {
+        var operationId = BeginOperation("TestNpcTradeBarracks");
+        var operationSw = Stopwatch.StartNew();
+        _operationCts = new CancellationTokenSource();
+        var operationToken = _operationCts.Token;
+        ToggleResourceTabActionsBusy(true);
+        try
+        {
+            var options = LoadBotOptions();
+            AppendLog($"[{operationId}] running NPC trade test for Barracks.");
+            var result = await _botService.RunNpcTradeForBuildingTestAsync(
+                options,
+                AppendLog,
+                TbotUltra.Core.Travian.TroopTrainingBuildingType.Barracks,
+                operationToken);
+            AppendLog($"[{operationId}] NPC trade test result: {result}");
+            CompleteOperation(operationId, operationSw, result);
+        }
+        catch (OperationCanceledException)
+        {
+            StatusTextBlock.Text = "NPC trade test paused.";
+            AppendLog("NPC trade test paused.");
         }
         catch (Exception ex)
         {
@@ -238,15 +353,39 @@ public partial class MainWindow
             return;
         }
 
+        var buildStrategy = _resourcesViewModel.BuildStrategy;
         var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             [BotOptionPayloadKeys.ResourceUpgradeTargetLevel] = requestedTargetLevel.ToString(),
+            [BotOptionPayloadKeys.ResourceBuildStrategy] = buildStrategy,
         };
 
         var item = _botService.Enqueue("upgrade_all_resources_to_level", payload, priority: 0, maxRetries: 3);
         RequestQueueUiRefresh(selectId: item.Id);
         TriggerQueueAutoRunFromEnqueue();
-        AppendLog($"[{operationId}] OK 0.0s | Queued upgrade-all toward level {requestedTargetLevel}. The worker will upgrade the lowest resource field first.");
+        var strategyText = string.Equals(buildStrategy, "smart", StringComparison.OrdinalIgnoreCase)
+            ? "the field of the resource with the least in storage first"
+            : "the lowest resource field first";
+        AppendLog($"[{operationId}] OK 0.0s | Queued upgrade-all toward level {requestedTargetLevel}. The worker will upgrade {strategyText}.");
+    }
+
+    private void ResourceBuildStrategyRadio_Click(object sender, RoutedEventArgs e)
+    {
+        PersistResourceBuildStrategyToConfig();
+    }
+
+    private void PersistResourceBuildStrategyToConfig()
+    {
+        try
+        {
+            var config = _botConfigStore.Load();
+            config[BotOptionPayloadKeys.ResourceBuildStrategy] = _resourcesViewModel.BuildStrategy;
+            _botConfigStore.Save(config);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Could not save resource build strategy: {ex.Message}");
+        }
     }
 
     private async Task LoadResourcesAfterUpgradeAsync(CancellationToken cancellationToken = default, bool resourceOnly = false)

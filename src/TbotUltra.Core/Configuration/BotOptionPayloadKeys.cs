@@ -7,6 +7,7 @@ public static class BotOptionPayloadKeys
 
     public const string ResourceUpgradeSlotId = "resource_upgrade_slot_id";
     public const string ResourceUpgradeTargetLevel = "resource_upgrade_target_level";
+    public const string ResourceBuildStrategy = "resource_build_strategy"; // "lowest_first" or "smart"
     public const string ResourceUpgradeMaxAttempts = "resource_upgrade_max_attempts";
     public const string ResourceUpgradeName = "resource_upgrade_name";
     public const string UpgradeRequiredWood = "upgrade_required_wood";
@@ -87,6 +88,12 @@ public static class BotOptionPayloadKeys
     public const string TroopTrainingWorkshopCheckCrop = "troop_training_workshop_check_crop";
     public const string TroopTrainingFallbackCooldownSeconds = "troop_training_fallback_cooldown_seconds";
     public const string BreweryAutoCelebrationEnabled = "brewery_auto_celebration_enabled";
+    public const string NpcTradeEnabled = "npc_trade_enabled";
+    public const string NpcTradeThresholdPercent = "npc_trade_threshold_percent";
+    public const string NpcTradeAnalyzeWood = "npc_trade_analyze_wood";
+    public const string NpcTradeAnalyzeClay = "npc_trade_analyze_clay";
+    public const string NpcTradeAnalyzeIron = "npc_trade_analyze_iron";
+    public const string NpcTradeAnalyzeCrop = "npc_trade_analyze_crop";
 
     public const string UpgradeSelectorProfile = "upgrade_selector_profile";
     public const string CaptchaAutoSolveEnabled = "captcha_auto_solve_enabled";

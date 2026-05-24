@@ -263,6 +263,18 @@ public partial class MainWindow
                 item.DetailText = "Celebration can start.";
                 item.RemainingSeconds = null;
             }
+            else if (group == QueueGroup.NpcTrade && !_troopTrainingViewModel.NpcTradeEnabled)
+            {
+                item.StateText = "Disabled";
+                item.DetailText = "NPC trade is off.";
+                item.RemainingSeconds = null;
+            }
+            else if (group == QueueGroup.NpcTrade)
+            {
+                item.StateText = "Ready";
+                item.DetailText = _troopTrainingViewModel.NpcTradeStatusText;
+                item.RemainingSeconds = null;
+            }
             else if (paused)
             {
                 item.StateText = "Paused";

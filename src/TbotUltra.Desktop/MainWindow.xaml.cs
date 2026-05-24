@@ -20,6 +20,7 @@ using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Travian;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
+using TbotUltra.Desktop.Services.Logging;
 using TbotUltra.Desktop.Services.Orchestration;
 using TbotUltra.Desktop.ViewModels;
 using TbotUltra.Worker;
@@ -39,6 +40,7 @@ public partial class MainWindow : Window
     private const int MaxLogLinesPerFlush = 220;
     private const int MaxSessionLogFiles = 5;
     private const int ContinuousLoopMaxSleepSliceSeconds = 1;
+    private const int ContinuousInboxCheckIntervalSeconds = 15;
     private const string RuntimeManualTaskPrefix = "desktop_runtime_manual";
 
     private sealed class ManualExecutionState
@@ -115,7 +117,10 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _buildQueueCountdownTimer;
     private readonly DispatcherTimer _resourceSnapshotRefreshTimer;
     private readonly DispatcherTimer _troopTrainingDeferredRefreshDebounceTimer;
-    private readonly ObservableCollection<string> _terminalEntries = [];
+    private readonly ObservableCollection<TerminalEntryRow> _terminalEntries = [];
+    private ICollectionView? _terminalView;
+    private LogCategory _terminalFilterCategory = LogCategory.All;
+    private bool _terminalCleanMode;
     private readonly ObservableCollection<AlarmEntryRow> _alarmEntries = [];
     private readonly ObservableCollection<LoopTaskOption> _automationLoopTasks = [];
     private readonly ObservableCollection<FarmListStatusRow> _farmLists = [];
@@ -201,6 +206,8 @@ public partial class MainWindow : Window
     private volatile bool _autoQueueRunning;
     private volatile bool _uiBusy;
     private volatile bool _inboxAutoEnabled;
+    private bool _loginInProgress;
+    private DateTimeOffset _lastContinuousInboxCheckUtc = DateTimeOffset.MinValue;
     private volatile bool _isLoggedIn;
     private volatile bool _browserSessionLikelyOpen;
     private bool _farmingFeaturesAvailable = true;
@@ -401,7 +408,10 @@ public partial class MainWindow : Window
 
         _queueServerTimeOffset = ResolveQueueServerTimeOffset();
 
-        TerminalListBox.ItemsSource = _terminalEntries;
+        _terminalView = CollectionViewSource.GetDefaultView(_terminalEntries);
+        _terminalView.Filter = TerminalEntryFilter;
+        TerminalListBox.ItemsSource = _terminalView;
+        InitializeLogFilterControls();
         AlarmListBox.ItemsSource = _alarmEntries;
         UpdateCaptchaStatsUi();
         AutomationLoopListBox.ItemsSource = _automationLoopTasks;
@@ -577,6 +587,8 @@ public partial class MainWindow : Window
         {
             _suppressHeroHideModeApply = false;
         }
+
+        _resourcesViewModel.LoadSettingsFromConfig(options);
 
         try
         {
@@ -901,6 +913,15 @@ public partial class MainWindow : Window
 
     private async void LoginButton_Click(object sender, RoutedEventArgs e)
     {
+        // Guard against re-entrancy (e.g. double-clicking Login or clicking while a login is
+        // already running). The button is also disabled via ToggleUiBusy, but this is belt-and-suspenders.
+        if (_loginInProgress)
+        {
+            AppendLog("Login already in progress. Ignoring extra click.");
+            return;
+        }
+
+        _loginInProgress = true;
         var operationId = BeginOperation("Login");
         var operationSw = Stopwatch.StartNew();
         _operationCts = _loopController.CreateCts("operation");
@@ -1004,6 +1025,7 @@ public partial class MainWindow : Window
             ToggleUiBusy(false);
             _operationCts?.Dispose();
             _operationCts = null;
+            _loginInProgress = false;
         }
     }
 
@@ -1127,7 +1149,7 @@ public partial class MainWindow : Window
     private async void ResetProgramButton_Click(object sender, RoutedEventArgs e)
     {
         var answer = AppDialog.Show(
-            "This will reset internal state, stop running operations, and clear queue data.\n\nThe program will remain open.\n\nContinue?",
+            "This will restart the program: stop running operations, clear the queue, close the browser session, and reset to the just-started state.\n\nThe program stays open and you can press Login to start a new session.\n\nContinue?",
             "Reset program",
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning,
@@ -1162,6 +1184,18 @@ public partial class MainWindow : Window
                 await Task.Delay(120);
             }
 
+            // Close the shared browser session so the program returns to its just-started state.
+            // This disposes Chromium but keeps the saved auth state, so the user can simply press
+            // Login again (no need to re-enter credentials).
+            try
+            {
+                await _botService.ShutdownAsync(AppendLog);
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"Could not close browser during reset: {ex.Message}");
+            }
+
             _botService.ClearQueue();
             _resourceClickCooldownBySlot.Clear();
             _resourceLastQueuedTargetBySlot.Clear();
@@ -1181,10 +1215,17 @@ public partial class MainWindow : Window
             _demolishableBuildings.Clear();
             BuildQueueStatusTextBlock.Text = "Build queue: idle";
 
+            // Return login/session state to startup: not logged in, browser closed, inbox idle.
+            _isLoggedIn = false;
+            _browserSessionLikelyOpen = false;
+            _inboxAutoEnabled = false;
+            UpdateLoginButtonsVisual(false);
+            UpdateInboxButtons(0, 0);
+
             RefreshQueueUi();
             UpdateExecutionStateIndicator();
-            StatusTextBlock.Text = "Program reset completed.";
-            AppendLog("Program reset completed. Internal state, running actions, and queue were reset.");
+            StatusTextBlock.Text = "Program reset. Press Login to start a new session.";
+            AppendLog("Program reset completed. Browser session closed, internal state and queue cleared. Press Login to start again.");
         }
         catch (Exception ex)
         {
@@ -3002,26 +3043,63 @@ public partial class MainWindow : Window
         var normalized = message.ToLowerInvariant();
         if (normalized.Contains("wrong password")
             || normalized.Contains("password is wrong")
+            || normalized.Contains("password is incorrect")
             || normalized.Contains("incorrect password")
             || normalized.Contains("invalid password"))
         {
             return "Login failed: wrong password.";
         }
 
-        if (normalized.Contains("username")
+        if (normalized.Contains("name or password")
+            || normalized.Contains("name or the password")
+            || normalized.Contains("username or password"))
+        {
+            return "Login failed: wrong username or password.";
+        }
+
+        if ((normalized.Contains("username") || normalized.Contains("user") || normalized.Contains("account"))
             && (normalized.Contains("not exist")
                 || normalized.Contains("doesn't exist")
                 || normalized.Contains("does not exist")
                 || normalized.Contains("unknown")
                 || normalized.Contains("not found")))
         {
-            return "Login failed: username does not exist.";
+            return "Login failed: that username does not exist on this server.";
         }
 
         if (normalized.Contains("invalid")
             && normalized.Contains("credential"))
         {
             return "Login failed: username does not exist or password is incorrect.";
+        }
+
+        if (normalized.Contains("too many login attempts"))
+        {
+            return "Login failed: too many attempts. Wait a moment before trying again.";
+        }
+
+        if (normalized.Contains("login form did not load"))
+        {
+            return "Login failed: the login page did not load. The server may be slow or unavailable.";
+        }
+
+        if (normalized.Contains("could not find login button")
+            || normalized.Contains("could not find input field"))
+        {
+            return "Login failed: the login controls were not found on the page.";
+        }
+
+        if (normalized.Contains("not confirmed before timeout")
+            || normalized.Contains("did not complete successfully")
+            || normalized.Contains("login was not confirmed"))
+        {
+            return "Login timed out. The page may be slow, or login/captcha needs attention in the browser.";
+        }
+
+        // Surface explicit "Login failed: ..." messages produced by the worker as-is.
+        if (message.StartsWith("Login failed:", StringComparison.OrdinalIgnoreCase))
+        {
+            return message;
         }
 
         return null;
@@ -3274,7 +3352,7 @@ public partial class MainWindow : Window
 
     private void SupportButton_Click(object sender, RoutedEventArgs e)
     {
-        var support = new SupportWindow(_projectRoot, _terminalEntries.ToList())
+        var support = new SupportWindow(_projectRoot, _terminalEntries.Select(entry => entry.Text).ToList())
         {
             Owner = this,
         };

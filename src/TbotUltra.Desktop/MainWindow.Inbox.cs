@@ -141,6 +141,12 @@ public partial class MainWindow
 
     private void UpdateInboxButtons(int unreadMessages, int unreadReports)
     {
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.BeginInvoke(() => UpdateInboxButtons(unreadMessages, unreadReports));
+            return;
+        }
+
         // The Messages / Reports cards bind to InboxVm.MessageUnreadText /
         // ReportsUnreadText, and the sidebar nav button picks up its
         // background, foreground, and tooltip via a Style.DataTrigger on

@@ -61,7 +61,16 @@ public sealed class VerticalFirstUniformGrid : Panel
         var columns = Math.Max(1, Columns);
         var rows = (int)Math.Ceiling(childCount / (double)columns);
         var cellWidth = finalSize.Width / columns;
-        var cellHeight = rows > 0 ? finalSize.Height / rows : 0;
+
+        // Use the natural (uniform) cell height instead of dividing the available
+        // height. When the panel is given more height than its content needs (e.g.
+        // hosted in a stretching ScrollViewer row), this keeps cards top-packed at
+        // their measured size rather than stretching them apart.
+        var cellHeight = 0d;
+        foreach (UIElement child in InternalChildren)
+        {
+            cellHeight = Math.Max(cellHeight, child.DesiredSize.Height);
+        }
 
         for (var index = 0; index < childCount; index++)
         {

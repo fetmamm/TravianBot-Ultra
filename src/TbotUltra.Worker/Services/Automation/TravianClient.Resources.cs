@@ -227,9 +227,10 @@ public sealed partial class TravianClient
     internal static int ComputeResourceUpgradeSafetyCap(int targetLevel)
         => Math.Max(10, targetLevel + 8);
 
-    public async Task<string> UpgradeAllResourcesToLevelAsync(int targetLevel, CancellationToken cancellationToken = default)
+    public async Task<string> UpgradeAllResourcesToLevelAsync(int targetLevel, string buildStrategy = "lowest_first", CancellationToken cancellationToken = default)
     {
-        Notify($"[UpgradeAllResourcesToLevelAsync] targetLevel={targetLevel} started");
+        var smartStrategy = string.Equals(buildStrategy, "smart", StringComparison.OrdinalIgnoreCase);
+        Notify($"[UpgradeAllResourcesToLevelAsync] targetLevel={targetLevel} strategy={(smartStrategy ? "smart" : "lowest_first")} started");
         if (targetLevel < 0)
         {
             throw new InvalidOperationException("Target level must be 0 or higher.");
@@ -252,11 +253,63 @@ public sealed partial class TravianClient
                 NotifyResourceLevelIncreases(knownLevelsBySlot, resourceFields);
                 knownLevelsBySlot = BuildResourceLevelMap(resourceFields);
                 var fallbackMax = 40;
-                var candidateRows = resourceFields
-                    .Where(field => field.SlotId is not null && field.Level is not null)
-                    .OrderBy(field => field.Level ?? 0)
-                    .ThenBy(field => field.SlotId ?? 999)
-                    .ToList();
+                var actionableFields = resourceFields
+                    .Where(field => field.SlotId is not null && field.Level is not null);
+
+                List<ResourceField> candidateRows;
+                Dictionary<string, long>? stockByType = null;
+                if (smartStrategy)
+                {
+                    try
+                    {
+                        var snapshot = await ReadResourceSnapshotAsync(cancellationToken);
+                        var parsed = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+                        foreach (var resourceKey in new[] { "wood", "clay", "iron", "crop" })
+                        {
+                            var raw = snapshot.Resources.TryGetValue(resourceKey, out var rawValue) ? rawValue : null;
+                            if (TryParseResourceValue(raw) is { } value)
+                            {
+                                parsed[resourceKey] = value;
+                            }
+                        }
+
+                        // Only use smart ordering when at least one stock value was readable.
+                        if (parsed.Count > 0)
+                        {
+                            stockByType = parsed;
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        Notify($"[UpgradeAllResourcesToLevelAsync] smart strategy could not read storage ({ex.Message}). Falling back to lowest-level-first.");
+                    }
+                }
+
+                if (stockByType is not null)
+                {
+                    candidateRows = actionableFields
+                        .OrderBy(field => stockByType.TryGetValue(field.FieldType, out var stock) ? stock : long.MaxValue)
+                        .ThenBy(field => field.Level ?? 0)
+                        .ThenBy(field => field.SlotId ?? 999)
+                        .ToList();
+                    string Stock(string key) => stockByType.TryGetValue(key, out var v) ? v.ToString() : "?";
+                    var orderNote = stockByType.Values.Distinct().Count() <= 1
+                        ? "tracked stocks equal; lowest-level-first tiebreak"
+                        : "ordered by lowest stock";
+                    Notify($"[UpgradeAllResourcesToLevelAsync] smart {orderNote}. wood={Stock("wood")} clay={Stock("clay")} iron={Stock("iron")} crop={Stock("crop")}.");
+                }
+                else
+                {
+                    candidateRows = actionableFields
+                        .OrderBy(field => field.Level ?? 0)
+                        .ThenBy(field => field.SlotId ?? 999)
+                        .ToList();
+                }
+
                 Notify($"[UpgradeAllResourcesToLevelAsync] scanned {candidateRows.Count} resource fields on dorf1.");
                 await NotifyCurrentResourceProductionForUiAsync(cancellationToken);
 

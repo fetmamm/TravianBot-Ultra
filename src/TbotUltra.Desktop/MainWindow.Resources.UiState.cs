@@ -447,7 +447,7 @@ public partial class MainWindow
         {
             var nowCount = _terminalEntries.Count;
             var added = Math.Max(0, nowCount - terminalCountBefore);
-            return _terminalEntries.Take(added).ToList();
+            return _terminalEntries.Take(added).Select(entry => entry.Text).ToList();
         });
 
         if (newLines.Count == 0)

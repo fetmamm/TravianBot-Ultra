@@ -156,6 +156,22 @@ public sealed partial class TravianClient
             return;
         }
 
+        // Tolerate a slow-loading login page: wait for the form to appear before filling it.
+        if (!await WaitForAnySelectorAsync(Selectors.LoginUsernameField, TimeSpan.FromSeconds(15), cancellationToken))
+        {
+            // Maybe a redirect logged us in, or a captcha/manual step is blocking the form.
+            if (await IsLoggedInAsync())
+            {
+                await RefreshAccountFeatureSignalsAsync(cancellationToken);
+                return;
+            }
+
+            if (!await CaptchaOrManualStepVisibleAsync())
+            {
+                throw new InvalidOperationException("Login form did not load (the page may be slow or unavailable).");
+            }
+        }
+
         await FillFirstAvailableAsync(Selectors.LoginUsernameField, _account.Username, cancellationToken);
         await FillFirstAvailableAsync(Selectors.LoginPasswordField, _account.Password, cancellationToken);
 
@@ -1173,7 +1189,132 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             return;
         }
 
+        // Fallback: no recognizable login button — submit the form by pressing Enter in the
+        // password field. Many login forms submit on Enter even without a matched button selector.
+        foreach (var selector in Selectors.LoginPasswordField)
+        {
+            var passwordField = _page.Locator(selector).First;
+            if (await passwordField.CountAsync() == 0)
+            {
+                continue;
+            }
+
+            try
+            {
+                await passwordField.PressAsync("Enter", new LocatorPressOptions { Timeout = _config.TimeoutMs });
+                Notify("Login button not found; submitted the form via Enter.");
+                return;
+            }
+            catch (PlaywrightException)
+            {
+                // Try next selector.
+            }
+            catch (TimeoutException)
+            {
+                // Try next selector.
+            }
+        }
+
         throw new InvalidOperationException("Could not find login button.");
+    }
+
+    /// <summary>
+    /// Polls for any of the given selectors until one appears or the timeout elapses. Used to
+    /// tolerate a slow-loading login page before interacting with the form.
+    /// </summary>
+    private async Task<bool> WaitForAnySelectorAsync(IEnumerable<string> selectors, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        var deadline = DateTime.UtcNow.Add(timeout);
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                if (await HasAnySelectorAsync(selectors))
+                {
+                    return true;
+                }
+            }
+            catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+            {
+                // Page is mid-navigation; retry below.
+            }
+
+            if (DateTime.UtcNow >= deadline)
+            {
+                return false;
+            }
+
+            await Task.Delay(250, cancellationToken);
+        }
+    }
+
+    private static readonly string[] LoginErrorPhrases =
+    {
+        "wrong password",
+        "password is wrong",
+        "password is incorrect",
+        "incorrect password",
+        "invalid password",
+        "name or password",
+        "name or the password",
+        "username or password",
+        "invalid credentials",
+        "does not exist",
+        "doesn't exist",
+        "unknown user",
+        "user not found",
+        "account not found",
+        "too many login attempts",
+    };
+
+    /// <summary>
+    /// While still on the login page, returns a visible error message (wrong credentials,
+    /// unknown user, etc.) if Travian rendered one, so the caller can fail fast with a clear
+    /// reason instead of waiting for the full login timeout. Returns null when no error is shown.
+    /// </summary>
+    private async Task<string?> TryReadVisibleLoginErrorAsync()
+    {
+        try
+        {
+            if (!_page.Url.Contains("login", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            return await _page.EvaluateAsync<string?>(
+                """
+                (phrases) => {
+                  const isVisible = (node) => {
+                    if (!node || !(node instanceof Element)) return false;
+                    const style = window.getComputedStyle(node);
+                    if (!style || style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity || '1') === 0) return false;
+                    const rect = node.getBoundingClientRect();
+                    return rect.width > 0 && rect.height > 0;
+                  };
+                  const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+
+                  const errorNodes = document.querySelectorAll('.error, p.error, .errorMessage, .error_message, [class*="error" i], [class*="warning" i]');
+                  for (const node of errorNodes) {
+                    if (!isVisible(node)) continue;
+                    const text = clean(node.innerText || node.textContent);
+                    if (text && text.length > 0 && text.length <= 200) return text;
+                  }
+
+                  const bodyText = clean(document.body && document.body.innerText).toLowerCase();
+                  for (const phrase of phrases) {
+                    if (bodyText.includes(phrase)) return phrase;
+                  }
+
+                  return null;
+                }
+                """,
+                LoginErrorPhrases);
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            return null;
+        }
     }
 
     private async Task<bool> TryClickFirstAsync(IEnumerable<string> selectors, CancellationToken cancellationToken)
@@ -1445,6 +1586,14 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 if (await IsLoggedInAsync())
                 {
                     return true;
+                }
+
+                // Fail fast on an explicit credential/account error instead of waiting the full
+                // login timeout (which can be minutes).
+                var loginError = await TryReadVisibleLoginErrorAsync();
+                if (loginError is not null)
+                {
+                    throw new InvalidOperationException($"Login failed: {loginError}");
                 }
 
                 if (await CaptchaOrManualStepVisibleAsync() && !manualMessageShown)

@@ -551,6 +551,35 @@ public sealed partial class TravianClient
         }
         Notify($"Build troops: live resources wood={parsedResources["wood"]}, clay={parsedResources["clay"]}, iron={parsedResources["iron"]}, crop={parsedResources["crop"]}.");
 
+        if (_config.NpcTradeEnabled)
+        {
+            var npcCapacities = liveCapacities;
+            if (npcCapacities.WarehouseCapacity is not > 0 || npcCapacities.GranaryCapacity is not > 0)
+            {
+                npcCapacities = await ReadVillageStorageCapacitiesFromCurrentPageAsync(cancellationToken);
+            }
+
+            var npcTraded = await TryNpcTradeForUnitAsync(
+                troopUnitId.Value,
+                candidate.Request.BuildingName,
+                parsedResources,
+                npcCapacities,
+                status.Gold,
+                cancellationToken);
+            if (npcTraded)
+            {
+                var afterNpcSnapshot = await ReadTroopTrainingResourceSnapshotFromCurrentPageAsync(cancellationToken);
+                var mergedAfterNpc = MergeTroopTrainingResourceSnapshot(status.ActiveVillage, afterNpcSnapshot, status);
+                if (!mergedAfterNpc.Resources.Values.All(value => value <= 0))
+                {
+                    parsedResources = mergedAfterNpc.Resources;
+                    productionByHour = mergedAfterNpc.ProductionByHour;
+                    liveCapacities = mergedAfterNpc.Capacities;
+                    Notify($"Build troops: resources after NPC trade wood={parsedResources["wood"]}, clay={parsedResources["clay"]}, iron={parsedResources["iron"]}, crop={parsedResources["crop"]}.");
+                }
+            }
+        }
+
         var useMaxShortcut = string.Equals(candidate.Request.AmountMode, "maximum", StringComparison.OrdinalIgnoreCase);
         var actualTrainableAmount = CalculateTroopTrainingAmount(
             parsedResources,

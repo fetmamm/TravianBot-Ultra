@@ -18,6 +18,7 @@ public partial class DashboardFunctionListWindow : Window
             Key = option.Key,
             Label = option.Label,
             IsVisible = option.IsVisible,
+            IsSelectable = option.IsSelectable,
         }).ToList() ?? [];
         FunctionOptionsListBox.ItemsSource = _options;
     }
@@ -42,7 +43,10 @@ public partial class DashboardFunctionListWindow : Window
     {
         foreach (var option in _options)
         {
-            option.IsVisible = true;
+            if (option.IsSelectable)
+            {
+                option.IsVisible = true;
+            }
         }
 
         FunctionOptionsListBox.Items.Refresh();

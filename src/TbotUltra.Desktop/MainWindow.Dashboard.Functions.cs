@@ -23,17 +23,20 @@ public partial class MainWindow
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var options = orderedGroupKeys
-            .Where(selectableGroupKeys.Contains)
             .Select(groupKey =>
             {
                 QueueGroupCatalog.TryParse(groupKey, out var group);
+                var isSelectable = selectableGroupKeys.Contains(groupKey);
                 return new DashboardFunctionOption
                 {
                     Key = groupKey,
                     Label = currentByGroup.TryGetValue(groupKey, out var current)
                         ? current.Title
                         : QueueGroupCatalog.GetTitle(group),
-                    IsVisible = currentByGroup.TryGetValue(groupKey, out var selected) && selected.IsVisible,
+                    IsVisible = isSelectable
+                        && currentByGroup.TryGetValue(groupKey, out var selected)
+                        && selected.IsVisible,
+                    IsSelectable = isSelectable,
                 };
             })
             .ToList();

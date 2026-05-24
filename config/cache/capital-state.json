@@ -1,6 +1,15 @@
 {
   "entries": [
     {
+      "accountName": "drake_elt_ss_travi_com",
+      "serverUrl": "https://elt.ss-travi.com",
+      "villageName": "drake \u0060s village",
+      "isCapital": true,
+      "coordX": null,
+      "coordY": null,
+      "updatedAtUtc": "2026-05-23T08:16:20.3372667+00:00"
+    },
+    {
       "accountName": "fet",
       "serverUrl": "https://5000000.travgame.com",
       "villageName": "Aldeia do Fet",

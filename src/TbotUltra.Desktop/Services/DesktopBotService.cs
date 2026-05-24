@@ -1,4 +1,5 @@
 using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Travian;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
 
@@ -150,6 +151,16 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
     public Task<BreweryCelebrationStatus> ReadBreweryCelebrationStatusAsync(BotOptions options, Action<string> log, IReadOnlyList<Building>? knownBuildings, CancellationToken cancellationToken)
     {
         return _taskRunner.ReadBreweryCelebrationStatusAsync(options, log, knownBuildings, null, cancellationToken);
+    }
+
+    public Task<string> RunBreweryCelebrationAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.RunBreweryCelebrationAsync(options, log, null, cancellationToken);
+    }
+
+    public Task<string> RunNpcTradeForBuildingTestAsync(BotOptions options, Action<string> log, TroopTrainingBuildingType buildingType, CancellationToken cancellationToken)
+    {
+        return _taskRunner.RunNpcTradeForBuildingTestAsync(options, log, buildingType, null, cancellationToken);
     }
 
     public Task<VillageStatus> ReadVillageStatusAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken)

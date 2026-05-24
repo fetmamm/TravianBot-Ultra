@@ -51,6 +51,14 @@ public sealed class TroopTrainingViewModel : BaseViewModel
     private bool _autoCelebrationCanStart;
     private int? _autoCelebrationRemainingSeconds;
     private string _autoCelebrationStatusText = "Teutons only.";
+    private bool _npcTradeEnabled;
+    private int _npcTradeThresholdPercent = 90;
+    private bool _npcTradeAnalyzeWood = true;
+    private bool _npcTradeAnalyzeClay = true;
+    private bool _npcTradeAnalyzeIron = true;
+    private bool _npcTradeAnalyzeCrop = true;
+    private bool _allowGoldSpending;
+    private int _goldLimit = 100;
 
     /// <summary>The three building rules shown as rows on the panel.</summary>
     public ObservableCollection<TroopTrainingBuildingOption> Buildings { get; } = [];
@@ -165,6 +173,152 @@ public sealed class TroopTrainingViewModel : BaseViewModel
         }
     }
 
+    public bool NpcTradeEnabled
+    {
+        get => _npcTradeEnabled;
+        set
+        {
+            if (!SetProperty(ref _npcTradeEnabled, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(NpcTradeStatusText));
+            if (!_isConfigSuppressed)
+            {
+                ConfigChanged?.Invoke();
+            }
+        }
+    }
+
+    public int NpcTradeThresholdPercent
+    {
+        get => _npcTradeThresholdPercent;
+        set
+        {
+            var normalized = Math.Clamp(value, 1, 100);
+            if (!SetProperty(ref _npcTradeThresholdPercent, normalized))
+            {
+                return;
+            }
+
+            if (!_isConfigSuppressed)
+            {
+                ConfigChanged?.Invoke();
+            }
+        }
+    }
+
+    public bool NpcTradeAnalyzeWood
+    {
+        get => _npcTradeAnalyzeWood;
+        set
+        {
+            if (!SetProperty(ref _npcTradeAnalyzeWood, value))
+            {
+                return;
+            }
+
+            if (!_isConfigSuppressed)
+            {
+                ConfigChanged?.Invoke();
+            }
+        }
+    }
+
+    public bool NpcTradeAnalyzeClay
+    {
+        get => _npcTradeAnalyzeClay;
+        set
+        {
+            if (!SetProperty(ref _npcTradeAnalyzeClay, value))
+            {
+                return;
+            }
+
+            if (!_isConfigSuppressed)
+            {
+                ConfigChanged?.Invoke();
+            }
+        }
+    }
+
+    public bool NpcTradeAnalyzeIron
+    {
+        get => _npcTradeAnalyzeIron;
+        set
+        {
+            if (!SetProperty(ref _npcTradeAnalyzeIron, value))
+            {
+                return;
+            }
+
+            if (!_isConfigSuppressed)
+            {
+                ConfigChanged?.Invoke();
+            }
+        }
+    }
+
+    public bool NpcTradeAnalyzeCrop
+    {
+        get => _npcTradeAnalyzeCrop;
+        set
+        {
+            if (!SetProperty(ref _npcTradeAnalyzeCrop, value))
+            {
+                return;
+            }
+
+            if (!_isConfigSuppressed)
+            {
+                ConfigChanged?.Invoke();
+            }
+        }
+    }
+
+    public string NpcTradeStatusText => NpcTradeEnabled
+        ? "Trades while building troops."
+        : "NPC trade is off.";
+
+    public bool AllowGoldSpending
+    {
+        get => _allowGoldSpending;
+        set
+        {
+            if (!SetProperty(ref _allowGoldSpending, value))
+            {
+                return;
+            }
+
+            if (!_isConfigSuppressed)
+            {
+                ConfigChanged?.Invoke();
+            }
+        }
+    }
+
+    public int GoldLimit
+    {
+        get => _goldLimit;
+        set
+        {
+            var normalized = Math.Clamp(value, 0, 200);
+            if (!SetProperty(ref _goldLimit, normalized))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(GoldLimitText));
+            if (!_isConfigSuppressed)
+            {
+                ConfigChanged?.Invoke();
+            }
+        }
+    }
+
+    public string GoldLimitText => $"Gold limit: {GoldLimit}";
+
     /// <summary>
     /// Populates <see cref="Buildings"/> with the three building types and
     /// hooks per-item PropertyChanged for change tracking. Idempotent.
@@ -239,6 +393,14 @@ public sealed class TroopTrainingViewModel : BaseViewModel
             CheckIron = options.TroopTrainingBarracksCheckIron;
             CheckCrop = options.TroopTrainingBarracksCheckCrop;
             FallbackCooldownSeconds = options.TroopTrainingFallbackCooldownSeconds;
+            NpcTradeEnabled = options.NpcTradeEnabled;
+            NpcTradeThresholdPercent = options.NpcTradeThresholdPercent;
+            NpcTradeAnalyzeWood = options.NpcTradeAnalyzeWood;
+            NpcTradeAnalyzeClay = options.NpcTradeAnalyzeClay;
+            NpcTradeAnalyzeIron = options.NpcTradeAnalyzeIron;
+            NpcTradeAnalyzeCrop = options.NpcTradeAnalyzeCrop;
+            AllowGoldSpending = options.AllowGoldSpending;
+            GoldLimit = options.GoldLimit;
             _autoCelebrationExplicitlyConfigured = hasExplicitAutoCelebrationSetting;
             AutoCelebrationEnabled = autoCelebrationOverride ?? options.BreweryAutoCelebrationEnabled;
         }
@@ -305,6 +467,14 @@ public sealed class TroopTrainingViewModel : BaseViewModel
 
         config[BotOptionPayloadKeys.TroopTrainingFallbackCooldownSeconds] = FallbackCooldownSeconds;
         config[BotOptionPayloadKeys.BreweryAutoCelebrationEnabled] = AutoCelebrationEnabled;
+        config[BotOptionPayloadKeys.NpcTradeEnabled] = NpcTradeEnabled;
+        config[BotOptionPayloadKeys.NpcTradeThresholdPercent] = NpcTradeThresholdPercent;
+        config[BotOptionPayloadKeys.NpcTradeAnalyzeWood] = NpcTradeAnalyzeWood;
+        config[BotOptionPayloadKeys.NpcTradeAnalyzeClay] = NpcTradeAnalyzeClay;
+        config[BotOptionPayloadKeys.NpcTradeAnalyzeIron] = NpcTradeAnalyzeIron;
+        config[BotOptionPayloadKeys.NpcTradeAnalyzeCrop] = NpcTradeAnalyzeCrop;
+        config["allow_gold_spending"] = AllowGoldSpending;
+        config["gold_limit"] = GoldLimit;
     }
 
     /// <summary>

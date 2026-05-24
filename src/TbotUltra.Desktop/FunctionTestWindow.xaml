@@ -2,9 +2,9 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Test functions"
-        Height="180"
+        Height="370"
         Width="320"
-        MinHeight="180"
+        MinHeight="370"
         MinWidth="300"
         ShowInTaskbar="False">
     <Grid Margin="12">
@@ -13,14 +13,42 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Button x:Name="TestResourceProductionButton"
-                Grid.Row="0"
-                HorizontalAlignment="Left"
-                Padding="10,4"
-                Content="Read production/h"
-                ToolTip="ReadCurrentPageResourceProductionPerHourAsync"
-                ToolTipService.InitialShowDelay="0"
-                Click="TestResourceProductionButton_Click" />
+        <StackPanel Grid.Row="0" Orientation="Vertical">
+            <Button x:Name="TestResourceProductionButton"
+                    HorizontalAlignment="Left"
+                    Padding="10,4"
+                    Content="Read production/h"
+                    ToolTip="Reads resource production per hour from the current page (ReadCurrentPageResourceProductionPerHourAsync)."
+                    ToolTipService.InitialShowDelay="500"
+                    Click="TestResourceProductionButton_Click" />
+
+            <Button x:Name="TestNavigateToBreweryButton"
+                    HorizontalAlignment="Left"
+                    Margin="0,8,0,0"
+                    Padding="10,4"
+                    Content="Navigate to brewery"
+                    ToolTip="Logs in, switches to the target village and opens the brewery building page, exactly as the auto celebration function does before reading status."
+                    ToolTipService.InitialShowDelay="500"
+                    Click="TestNavigateToBreweryButton_Click" />
+
+            <Button x:Name="TestStartCelebrationButton"
+                    HorizontalAlignment="Left"
+                    Margin="0,8,0,0"
+                    Padding="10,4"
+                    Content="Start celebration"
+                    ToolTip="Runs the full auto celebration function (RunBreweryCelebrationAsync): navigates to the brewery and starts a celebration if one can be started."
+                    ToolTipService.InitialShowDelay="500"
+                    Click="TestStartCelebrationButton_Click" />
+
+            <Button x:Name="TestNpcTradeBarracksButton"
+                    HorizontalAlignment="Left"
+                    Margin="0,8,0,0"
+                    Padding="10,4"
+                    Content="Run NPC trade (Barracks)"
+                    ToolTip="Navigates to the Barracks, resolves its configured troop and forces the full NPC exchange click sequence for that unit (bypasses the threshold/gold gates so the flow can be tested). Costs 3 gold."
+                    ToolTipService.InitialShowDelay="500"
+                    Click="TestNpcTradeBarracksButton_Click" />
+        </StackPanel>
 
         <TextBlock Grid.Row="1"
                    Margin="0,10,0,0"

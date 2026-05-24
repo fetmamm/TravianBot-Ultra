@@ -27,17 +27,20 @@
                 CornerRadius="8"
                 Background="#FFFFFF"
                 Padding="8">
-            <ListBox x:Name="FunctionOptionsListBox"
-                     BorderThickness="0"
-                     Background="Transparent">
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <CheckBox Content="{Binding Label}"
-                                  IsChecked="{Binding IsVisible, Mode=TwoWay}"
-                                  Margin="0,4,0,4" />
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl x:Name="FunctionOptionsListBox"
+                              Background="Transparent">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <CheckBox Content="{Binding Label}"
+                                      IsChecked="{Binding IsVisible, Mode=TwoWay}"
+                                      IsEnabled="{Binding IsSelectable}"
+                                      Margin="0,4,0,4" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
         </Border>
 
         <Grid Grid.Row="2" Margin="0,12,0,0">

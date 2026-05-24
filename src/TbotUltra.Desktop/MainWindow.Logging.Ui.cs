@@ -7,12 +7,54 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Desktop.Services.Logging;
 
 namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
     private sealed record LogListAnchor(object? Item, bool FollowLiveTop);
+
+    private void InitializeLogFilterControls()
+    {
+        LogCategoryFilterComboBox.ItemsSource = LogClassifier.FilterOptions.Select(option => option.Label).ToList();
+        LogCategoryFilterComboBox.SelectedIndex = 0;
+    }
+
+    private bool TerminalEntryFilter(object item)
+    {
+        if (item is not TerminalEntryRow row)
+        {
+            return true;
+        }
+
+        if (_terminalCleanMode && row.IsVerbose)
+        {
+            return false;
+        }
+
+        return _terminalFilterCategory == LogCategory.All || row.Category == _terminalFilterCategory;
+    }
+
+    private IEnumerable<TerminalEntryRow> VisibleTerminalEntries()
+        => _terminalEntries.Where(TerminalEntryFilter);
+
+    private void LogCategoryFilterComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        var index = LogCategoryFilterComboBox.SelectedIndex;
+        _terminalFilterCategory = index >= 0 && index < LogClassifier.FilterOptions.Length
+            ? LogClassifier.FilterOptions[index].Category
+            : LogCategory.All;
+        _terminalView?.Refresh();
+        UpdateTerminalAlarmUi();
+    }
+
+    private void LogCleanModeToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        _terminalCleanMode = LogCleanModeToggle.IsChecked == true;
+        _terminalView?.Refresh();
+        UpdateTerminalAlarmUi();
+    }
 
     private void CloseTerminalAlarmPopupButton_Click(object sender, RoutedEventArgs e)
     {
@@ -53,8 +95,10 @@ public partial class MainWindow
         var list = alertsTabSelected ? AlarmListBox : TerminalListBox;
         var selectedLines = alertsTabSelected
             ? list.SelectedItems.Cast<AlarmEntryRow>().Select(item => item.Text).ToList()
-            : list.SelectedItems.Cast<string>().ToList();
-        var source = alertsTabSelected ? _alarmEntries.Select(item => item.Text).ToList() : _terminalEntries.ToList();
+            : list.SelectedItems.Cast<TerminalEntryRow>().Select(item => item.Text).ToList();
+        var source = alertsTabSelected
+            ? _alarmEntries.Select(item => item.Text).ToList()
+            : VisibleTerminalEntries().Select(item => item.Text).ToList();
         var linesToCopy = selectedLines.Count > 0 ? selectedLines : source;
         if (linesToCopy.Count == 0)
         {
@@ -392,14 +436,14 @@ public partial class MainWindow
             FontFamily = new FontFamily("Consolas"),
             FontSize = 13,
             SelectionMode = SelectionMode.Extended,
-            ItemsSource = _terminalEntries,
+            ItemsSource = _terminalView,
         };
         popupLogList.SetValue(ScrollViewer.HorizontalScrollBarVisibilityProperty, ScrollBarVisibility.Disabled);
         popupLogList.ItemTemplate = new DataTemplate
         {
             VisualTree = new FrameworkElementFactory(typeof(TextBlock)),
         };
-        popupLogList.ItemTemplate.VisualTree.SetBinding(TextBlock.TextProperty, new Binding("."));
+        popupLogList.ItemTemplate.VisualTree.SetBinding(TextBlock.TextProperty, new Binding(nameof(TerminalEntryRow.Text)));
         popupLogList.ItemTemplate.VisualTree.SetValue(TextBlock.TextWrappingProperty, TextWrapping.Wrap);
         var popupAlarmList = new ListBox
         {
@@ -462,10 +506,10 @@ public partial class MainWindow
         {
             var selected = popupTab.SelectedIndex == 1
                 ? popupAlarmList.SelectedItems.Cast<AlarmEntryRow>().Select(item => item.Text).ToList()
-                : popupLogList.SelectedItems.Cast<string>().ToList();
+                : popupLogList.SelectedItems.Cast<TerminalEntryRow>().Select(item => item.Text).ToList();
             var lines = selected.Count > 0
                 ? selected
-                : (popupTab.SelectedIndex == 1 ? _alarmEntries.Select(item => item.Text).ToList() : _terminalEntries.ToList());
+                : (popupTab.SelectedIndex == 1 ? _alarmEntries.Select(item => item.Text).ToList() : VisibleTerminalEntries().Select(item => item.Text).ToList());
             if (lines.Count == 0)
             {
                 return;

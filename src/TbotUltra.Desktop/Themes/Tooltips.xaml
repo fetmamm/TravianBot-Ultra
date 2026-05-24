@@ -1,0 +1,48 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        App-wide tooltip style: a clean, rounded card with padding, a soft shadow and
+        wrapped text constrained to a readable width, instead of the default single long line.
+        Applies implicitly to every ToolTip in the app.
+    -->
+    <Style TargetType="ToolTip">
+        <Setter Property="Background" Value="#111827" />
+        <Setter Property="Foreground" Value="#F9FAFB" />
+        <Setter Property="BorderBrush" Value="#374151" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="12,9" />
+        <Setter Property="MaxWidth" Value="340" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="HasDropShadow" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToolTip">
+                    <Border x:Name="Card"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="8"
+                            Padding="{TemplateBinding Padding}"
+                            MaxWidth="{TemplateBinding MaxWidth}"
+                            SnapsToDevicePixels="True">
+                        <Border.Effect>
+                            <DropShadowEffect Color="#0F172A" BlurRadius="12" ShadowDepth="2" Direction="270" Opacity="0.35" />
+                        </Border.Effect>
+                        <ContentPresenter SnapsToDevicePixels="True">
+                            <ContentPresenter.Resources>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="TextWrapping" Value="Wrap" />
+                                    <Setter Property="LineHeight" Value="18" />
+                                    <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
+                                    <Setter Property="Foreground" Value="#F9FAFB" />
+                                </Style>
+                            </ContentPresenter.Resources>
+                        </ContentPresenter>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

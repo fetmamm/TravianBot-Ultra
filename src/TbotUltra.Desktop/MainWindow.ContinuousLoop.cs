@@ -339,6 +339,29 @@ public partial class MainWindow
         return null;
     }
 
+    private async Task MaybeCheckInboxDuringContinuousLoopAsync()
+    {
+        if (!_inboxAutoEnabled)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (now - _lastContinuousInboxCheckUtc < TimeSpan.FromSeconds(ContinuousInboxCheckIntervalSeconds))
+        {
+            return;
+        }
+
+        _lastContinuousInboxCheckUtc = now;
+
+        // Read the unread badge from the current page (cheap, no navigation) and refresh the
+        // Messages/Reports indicators. force:true bypasses the busy guard in
+        // RefreshInboxIndicatorsAsync — that guard exists to avoid touching the browser while a
+        // task runs, but here the continuous loop owns the browser serially and calls this only
+        // between task executions, so the access is safe.
+        await RefreshInboxIndicatorsAsync(logErrors: false, force: true);
+    }
+
     private async Task RunContinuousLoopAsync(CancellationToken token)
     {
         while (!token.IsCancellationRequested)
@@ -359,6 +382,7 @@ public partial class MainWindow
                 await EnsureChromiumInstalledAsync();
                 await EnsureContinuousLoopConstructionStatusAsync(options, token);
                 await EnsureContinuousLoopRuntimeItemsAsync(options);
+                await MaybeCheckInboxDuringContinuousLoopAsync();
 
                 var next = SelectNextQueueItemForContinuousLoop();
                 if (next is not null)

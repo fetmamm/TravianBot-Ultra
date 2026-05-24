@@ -1,6 +1,6 @@
 {
-  "server_name": "SS-Travi MEGA 1000000x",
-  "base_url": "https://mga.ss-travi.com",
+  "server_name": "SS-Travi ELITE 50000x",
+  "base_url": "https://elt.ss-travi.com",
   "login_path": "/login.php",
   "village_overview_path": "/dorf1.php",
   "headless": false,
@@ -30,14 +30,16 @@
     "hero",
     "farming",
     "troop_training",
-    "brewery_celebration"
+    "brewery_celebration",
+    "npc_trade"
   ],
   "dashboard_visible_groups": [
     "construction",
     "troops",
+    "hero",
     "farming",
     "troop_training",
-    "brewery_celebration"
+    "npc_trade"
   ],
   "hero_stat_priority": "offence_bonus,defence_bonus,fighting_strength,resources",
   "queue_wait_threshold_mode": "5",
@@ -46,17 +48,17 @@
   "post_login_read_troop_training_queue": false,
   "post_login_analyze_hero": false,
   "troop_training_barracks_enabled": true,
-  "troop_training_barracks_troop_type": "Spearman",
+  "troop_training_barracks_troop_type": "Phalanx",
   "troop_training_barracks_max_queue_hours": "10",
   "troop_training_barracks_amount_mode": "maximum",
   "troop_training_barracks_keep_resources_percent": 10,
   "troop_training_stable_enabled": false,
-  "troop_training_stable_troop_type": "Paladin",
+  "troop_training_stable_troop_type": "Theutates Thunder",
   "troop_training_stable_max_queue_hours": "10",
   "troop_training_stable_amount_mode": "maximum",
   "troop_training_stable_keep_resources_percent": 10,
   "troop_training_workshop_enabled": false,
-  "troop_training_workshop_troop_type": "Catapult",
+  "troop_training_workshop_troop_type": "Ram",
   "troop_training_workshop_max_queue_hours": "no_limit",
   "troop_training_workshop_amount_mode": "maximum",
   "troop_training_workshop_keep_resources_percent": 10,
@@ -82,5 +84,12 @@
   "troop_training_workshop_check_iron": true,
   "troop_training_workshop_check_crop": false,
   "troop_training_fallback_cooldown_seconds": 30,
-  "brewery_auto_celebration_enabled": false
+  "brewery_auto_celebration_enabled": false,
+  "resource_build_strategy": "smart",
+  "npc_trade_enabled": false,
+  "npc_trade_threshold_percent": 90,
+  "npc_trade_analyze_wood": true,
+  "npc_trade_analyze_clay": true,
+  "npc_trade_analyze_iron": true,
+  "npc_trade_analyze_crop": true
 }
