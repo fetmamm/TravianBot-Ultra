@@ -96,6 +96,17 @@ public static class BotOptionPayloadKeys
     public const string NpcTradeAnalyzeIron = "npc_trade_analyze_iron";
     public const string NpcTradeAnalyzeCrop = "npc_trade_analyze_crop";
 
+    public const string ResourceTransferEnabled = "resource_transfer_enabled";
+    public const string ResourceTransferTargetVillageName = "resource_transfer_target_village_name";
+    public const string ResourceTransferSourceVillageNames = "resource_transfer_source_village_names";
+    public const string ResourceTransferSourceThresholdPercent = "resource_transfer_source_threshold_percent";
+    public const string ResourceTransferSourceKeepPercent = "resource_transfer_source_keep_percent";
+    public const string ResourceTransferTargetFillPercent = "resource_transfer_target_fill_percent";
+    public const string ResourceTransferSendWood = "resource_transfer_send_wood";
+    public const string ResourceTransferSendClay = "resource_transfer_send_clay";
+    public const string ResourceTransferSendIron = "resource_transfer_send_iron";
+    public const string ResourceTransferSendCrop = "resource_transfer_send_crop";
+
     public const string UpgradeSelectorProfile = "upgrade_selector_profile";
     public const string CaptchaAutoSolveEnabled = "captcha_auto_solve_enabled";
     public const string CaptchaSolverTimeoutSeconds = "captcha_solver_timeout_seconds";

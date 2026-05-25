@@ -31,7 +31,8 @@
     "farming",
     "troop_training",
     "brewery_celebration",
-    "npc_trade"
+    "npc_trade",
+    "resource_transfer"
   ],
   "dashboard_visible_groups": [
     "construction",
@@ -39,7 +40,8 @@
     "hero",
     "farming",
     "troop_training",
-    "npc_trade"
+    "npc_trade",
+    "resource_transfer"
   ],
   "hero_stat_priority": "offence_bonus,defence_bonus,fighting_strength,resources",
   "queue_wait_threshold_mode": "5",
@@ -62,7 +64,7 @@
   "troop_training_workshop_max_queue_hours": "no_limit",
   "troop_training_workshop_amount_mode": "maximum",
   "troop_training_workshop_keep_resources_percent": 10,
-  "troop_training_barracks_run_mode": "resource_percent",
+  "troop_training_barracks_run_mode": "min_troops",
   "troop_training_barracks_minimum_troops": 1,
   "troop_training_barracks_minimum_resources_percent": 10,
   "troop_training_stable_run_mode": "resource_percent",
@@ -86,11 +88,21 @@
   "troop_training_fallback_cooldown_seconds": 30,
   "brewery_auto_celebration_enabled": false,
   "resource_build_strategy": "smart",
-  "npc_trade_enabled": false,
+  "npc_trade_enabled": true,
   "npc_trade_threshold_percent": 90,
   "npc_trade_analyze_wood": true,
   "npc_trade_analyze_clay": true,
   "npc_trade_analyze_iron": true,
   "npc_trade_analyze_crop": true,
-  "npc_trade_construction_enabled": true
+  "npc_trade_construction_enabled": true,
+  "resource_transfer_enabled": false,
+  "resource_transfer_target_village_name": "fetto \u0060s village",
+  "resource_transfer_source_village_names": [],
+  "resource_transfer_source_threshold_percent": 85,
+  "resource_transfer_source_keep_percent": 70,
+  "resource_transfer_target_fill_percent": 90,
+  "resource_transfer_send_wood": true,
+  "resource_transfer_send_clay": true,
+  "resource_transfer_send_iron": true,
+  "resource_transfer_send_crop": true
 }

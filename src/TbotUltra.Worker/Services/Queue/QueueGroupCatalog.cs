@@ -14,6 +14,7 @@ public static class QueueGroupCatalog
             [QueueGroup.TroopTraining] = ("troop_training", "Build Troops", "Barracks, Stable, and Workshop."),
             [QueueGroup.BreweryCelebration] = ("brewery_celebration", "Auto Celebration", "Teutons brewery celebration."),
             [QueueGroup.NpcTrade] = ("npc_trade", "NPC Trade", "NPC resource exchange while building troops, buildings, or resource fields."),
+            [QueueGroup.ResourceTransfer] = ("resource_transfer", "Resource Transfer", "Send resources between own villages."),
         };
 
     public static IReadOnlyList<QueueGroup> AllGroups => Metadata.Keys.ToList();
@@ -52,6 +53,11 @@ public static class QueueGroupCatalog
         if (string.Equals(taskName, "run_brewery_celebration", StringComparison.OrdinalIgnoreCase))
         {
             return QueueGroup.BreweryCelebration;
+        }
+
+        if (string.Equals(taskName, "send_resources_between_villages", StringComparison.OrdinalIgnoreCase))
+        {
+            return QueueGroup.ResourceTransfer;
         }
 
         return QueueGroup.Construction;

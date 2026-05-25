@@ -82,6 +82,16 @@ public static class BotOptionsPayloadApplier
         var npcTradeAnalyzeClay = source.NpcTradeAnalyzeClay;
         var npcTradeAnalyzeIron = source.NpcTradeAnalyzeIron;
         var npcTradeAnalyzeCrop = source.NpcTradeAnalyzeCrop;
+        var resourceTransferEnabled = source.ResourceTransferEnabled;
+        var resourceTransferTargetVillageName = source.ResourceTransferTargetVillageName;
+        var resourceTransferSourceVillageNames = source.ResourceTransferSourceVillageNames;
+        var resourceTransferSourceThresholdPercent = source.ResourceTransferSourceThresholdPercent;
+        var resourceTransferSourceKeepPercent = source.ResourceTransferSourceKeepPercent;
+        var resourceTransferTargetFillPercent = source.ResourceTransferTargetFillPercent;
+        var resourceTransferSendWood = source.ResourceTransferSendWood;
+        var resourceTransferSendClay = source.ResourceTransferSendClay;
+        var resourceTransferSendIron = source.ResourceTransferSendIron;
+        var resourceTransferSendCrop = source.ResourceTransferSendCrop;
 
         if (payload is not null)
         {
@@ -601,6 +611,78 @@ public static class BotOptionsPayloadApplier
                     && bool.TryParse(value, out var npcCrop))
                 {
                     npcTradeAnalyzeCrop = npcCrop;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ResourceTransferEnabled, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var transferEnabled))
+                {
+                    resourceTransferEnabled = transferEnabled;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ResourceTransferTargetVillageName, StringComparison.OrdinalIgnoreCase))
+                {
+                    resourceTransferTargetVillageName = value;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ResourceTransferSourceVillageNames, StringComparison.OrdinalIgnoreCase))
+                {
+                    resourceTransferSourceVillageNames = value
+                        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                        .Where(item => !string.IsNullOrWhiteSpace(item))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ResourceTransferSourceThresholdPercent, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var transferSourceThreshold))
+                {
+                    resourceTransferSourceThresholdPercent = Math.Clamp(transferSourceThreshold, 1, 100);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ResourceTransferSourceKeepPercent, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var transferSourceKeep))
+                {
+                    resourceTransferSourceKeepPercent = Math.Clamp(transferSourceKeep, 0, 99);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ResourceTransferTargetFillPercent, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var transferTargetFill))
+                {
+                    resourceTransferTargetFillPercent = Math.Clamp(transferTargetFill, 1, 100);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ResourceTransferSendWood, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var transferWood))
+                {
+                    resourceTransferSendWood = transferWood;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ResourceTransferSendClay, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var transferClay))
+                {
+                    resourceTransferSendClay = transferClay;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ResourceTransferSendIron, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var transferIron))
+                {
+                    resourceTransferSendIron = transferIron;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ResourceTransferSendCrop, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var transferCrop))
+                {
+                    resourceTransferSendCrop = transferCrop;
                 }
             }
         }
@@ -672,6 +754,16 @@ public static class BotOptionsPayloadApplier
             NpcTradeAnalyzeClay = npcTradeAnalyzeClay,
             NpcTradeAnalyzeIron = npcTradeAnalyzeIron,
             NpcTradeAnalyzeCrop = npcTradeAnalyzeCrop,
+            ResourceTransferEnabled = resourceTransferEnabled,
+            ResourceTransferTargetVillageName = resourceTransferTargetVillageName,
+            ResourceTransferSourceVillageNames = resourceTransferSourceVillageNames,
+            ResourceTransferSourceThresholdPercent = resourceTransferSourceThresholdPercent,
+            ResourceTransferSourceKeepPercent = resourceTransferSourceKeepPercent,
+            ResourceTransferTargetFillPercent = resourceTransferTargetFillPercent,
+            ResourceTransferSendWood = resourceTransferSendWood,
+            ResourceTransferSendClay = resourceTransferSendClay,
+            ResourceTransferSendIron = resourceTransferSendIron,
+            ResourceTransferSendCrop = resourceTransferSendCrop,
             GithubReleasesUrl = source.GithubReleasesUrl,
             HumanLikeEnabled = source.HumanLikeEnabled,
             HumanLikeSpeed = source.HumanLikeSpeed,

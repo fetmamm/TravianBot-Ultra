@@ -82,7 +82,16 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
         Assert.True(TaskCatalog.IsAllowed("upgrade_building_to_max"));
         Assert.True(TaskCatalog.IsAllowed("demolish_building_to_level"));
         Assert.True(TaskCatalog.IsAllowed("hero_manage"));
+        Assert.True(TaskCatalog.IsAllowed("send_resources_between_villages"));
         Assert.False(TaskCatalog.IsAllowed("train_troops"));
+    }
+
+    [Fact]
+    public void QueueGroupCatalog_ResolvesResourceTransferTask()
+    {
+        Assert.Equal(QueueGroup.ResourceTransfer, QueueGroupCatalog.ResolveGroup("send_resources_between_villages"));
+        Assert.True(QueueGroupCatalog.TryParse("resource_transfer", out var group));
+        Assert.Equal(QueueGroup.ResourceTransfer, group);
     }
 
     [Fact]

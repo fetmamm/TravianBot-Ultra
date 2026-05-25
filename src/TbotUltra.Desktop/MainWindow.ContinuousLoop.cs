@@ -226,6 +226,31 @@ public partial class MainWindow
                 SetFarmingBlockedState(FarmingBlockedReasonNoGoldClub, "No goldclub");
             }
         }
+
+        if (enabledGroups.Contains(QueueGroup.ResourceTransfer) && !HasActiveTask("send_resources_between_villages"))
+        {
+            var selectedSources = options.ResourceTransferSourceVillageNames
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (CanRunResourceTransfer(options, out _))
+            {
+                var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    [BotOptionPayloadKeys.ResourceTransferEnabled] = "true",
+                    [BotOptionPayloadKeys.ResourceTransferTargetVillageName] = options.ResourceTransferTargetVillageName,
+                    [BotOptionPayloadKeys.ResourceTransferSourceVillageNames] = string.Join(",", selectedSources),
+                    [BotOptionPayloadKeys.ResourceTransferSourceThresholdPercent] = options.ResourceTransferSourceThresholdPercent.ToString(),
+                    [BotOptionPayloadKeys.ResourceTransferSourceKeepPercent] = options.ResourceTransferSourceKeepPercent.ToString(),
+                    [BotOptionPayloadKeys.ResourceTransferTargetFillPercent] = options.ResourceTransferTargetFillPercent.ToString(),
+                    [BotOptionPayloadKeys.ResourceTransferSendWood] = options.ResourceTransferSendWood ? "true" : "false",
+                    [BotOptionPayloadKeys.ResourceTransferSendClay] = options.ResourceTransferSendClay ? "true" : "false",
+                    [BotOptionPayloadKeys.ResourceTransferSendIron] = options.ResourceTransferSendIron ? "true" : "false",
+                    [BotOptionPayloadKeys.ResourceTransferSendCrop] = options.ResourceTransferSendCrop ? "true" : "false",
+                };
+                _botService.EnqueueRuntime("send_resources_between_villages", "Resource transfer", payload, priority: -50, maxRetries: 0);
+            }
+        }
     }
 
     private async Task EnsureContinuousLoopConstructionStatusAsync(BotOptions options, CancellationToken cancellationToken)

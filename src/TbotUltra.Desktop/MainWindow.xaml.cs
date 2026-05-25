@@ -41,6 +41,7 @@ public partial class MainWindow : Window
     private const int MaxSessionLogFiles = 5;
     private const int ContinuousLoopMaxSleepSliceSeconds = 1;
     private const int ContinuousInboxCheckIntervalSeconds = 15;
+    private const int NpcTradeGoldCost = 3;
     private const string RuntimeManualTaskPrefix = "desktop_runtime_manual";
 
     private sealed class ManualExecutionState
@@ -124,6 +125,8 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<AlarmEntryRow> _alarmEntries = [];
     private readonly ObservableCollection<LoopTaskOption> _automationLoopTasks = [];
     private ICollectionView? _automationLoopTasksView;
+    private readonly ObservableCollection<ResourceTransferVillageItem> _resourceTransferVillages = [];
+    private bool _suppressResourceTransferConfigWrite;
     private readonly ObservableCollection<FarmListStatusRow> _farmLists = [];
     private readonly ObservableCollection<BuildingSlotRow> _buildingRows = [];
     private readonly ObservableCollection<BuildingCatalogOption> _buildingCatalogOptions = [];
@@ -221,6 +224,7 @@ public partial class MainWindow : Window
     private int _captchaSessionSeenCount;
     private int _captchaSessionSolvedCount;
     private bool _captchaSessionActive;
+    private int _npcTradeSessionCount;
     private AppDialog? _captchaAutoSolvePopup;
     private DateTimeOffset _lastVerificationPopupAt = DateTimeOffset.MinValue;
     private DateTimeOffset _inlineWaitUntilUtc = DateTimeOffset.MinValue;
@@ -415,9 +419,12 @@ public partial class MainWindow : Window
         InitializeLogFilterControls();
         AlarmListBox.ItemsSource = _alarmEntries;
         UpdateCaptchaStatsUi();
+        UpdateNpcTradeStatsUi();
         _automationLoopTasksView = CollectionViewSource.GetDefaultView(_automationLoopTasks);
         _automationLoopTasksView.Filter = AutomationLoopTaskFilter;
         AutomationLoopListBox.ItemsSource = _automationLoopTasksView;
+        ResourceTransferTargetVillageComboBox.ItemsSource = _resourceTransferVillages;
+        ResourceTransferSourceVillagesItemsControl.ItemsSource = _resourceTransferVillages;
         FarmListsItemsControl.ItemsSource = _farmLists;
         _troopTrainingViewModel.Initialize();
         _troopTrainingViewModel.UpdateTroopOptions(ResolveStoredTroopTrainingTribe());
@@ -592,6 +599,7 @@ public partial class MainWindow : Window
         }
 
         _resourcesViewModel.LoadSettingsFromConfig(options);
+        ApplyResourceTransferConfigToUi(options);
 
         try
         {

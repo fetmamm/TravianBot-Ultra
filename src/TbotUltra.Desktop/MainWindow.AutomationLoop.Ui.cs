@@ -156,6 +156,7 @@ public partial class MainWindow
             ? (QueueGroup?)null
             : QueueGroupCatalog.ResolveGroup(runningTaskName);
 
+        var disabledInvalidResourceTransfer = false;
         foreach (var item in _automationLoopTasks)
         {
             if (!QueueGroupCatalog.TryParse(item.TaskName, out var group))
@@ -254,6 +255,20 @@ public partial class MainWindow
                 item.IsBlocked = true;
                 item.BlockedText = _breweryBlockedReasonText ?? "Blocked";
             }
+            else if (group == QueueGroup.ResourceTransfer && !CanRunResourceTransfer(LoadBotOptions(), out var resourceTransferReason))
+            {
+                if (item.IsEnabled && _resourceTransferVillages.Count > 0)
+                {
+                    item.IsEnabled = false;
+                    disabledInvalidResourceTransfer = true;
+                }
+
+                item.StateText = "Disabled";
+                item.DetailText = resourceTransferReason;
+                item.RemainingSeconds = null;
+                item.IsBlocked = true;
+                item.BlockedText = "Setup needed";
+            }
             else if (!item.IsEnabled)
             {
                 item.StateText = "Disabled";
@@ -288,6 +303,12 @@ public partial class MainWindow
                 item.DetailText = _troopTrainingViewModel.NpcTradeStatusText;
                 item.RemainingSeconds = null;
             }
+            else if (group == QueueGroup.ResourceTransfer)
+            {
+                item.StateText = "Ready";
+                item.DetailText = "Resource transfer configured.";
+                item.RemainingSeconds = null;
+            }
             else if (paused)
             {
                 item.StateText = "Paused";
@@ -300,6 +321,12 @@ public partial class MainWindow
                 item.DetailText = pendingCount > 0 ? $"{pendingCount} queued." : "No queued task.";
                 item.RemainingSeconds = null;
             }
+        }
+
+        if (disabledInvalidResourceTransfer)
+        {
+            UpdateAutomationLoopSummaryText();
+            PersistAutomationLoopTasksToConfig();
         }
 
         if (isRunning)

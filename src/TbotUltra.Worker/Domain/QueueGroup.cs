@@ -9,4 +9,5 @@ public enum QueueGroup
     TroopTraining = 4,
     BreweryCelebration = 5,
     NpcTrade = 6,
+    ResourceTransfer = 7,
 }

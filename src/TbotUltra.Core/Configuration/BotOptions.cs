@@ -209,6 +209,36 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.NpcTradeAnalyzeCrop)]
     public bool NpcTradeAnalyzeCrop { get; init; } = true;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.ResourceTransferEnabled)]
+    public bool ResourceTransferEnabled { get; init; }
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ResourceTransferTargetVillageName)]
+    public string ResourceTransferTargetVillageName { get; init; } = string.Empty;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ResourceTransferSourceVillageNames)]
+    public List<string> ResourceTransferSourceVillageNames { get; init; } = [];
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ResourceTransferSourceThresholdPercent)]
+    public int ResourceTransferSourceThresholdPercent { get; init; } = 85;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ResourceTransferSourceKeepPercent)]
+    public int ResourceTransferSourceKeepPercent { get; init; } = 70;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ResourceTransferTargetFillPercent)]
+    public int ResourceTransferTargetFillPercent { get; init; } = 90;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ResourceTransferSendWood)]
+    public bool ResourceTransferSendWood { get; init; } = true;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ResourceTransferSendClay)]
+    public bool ResourceTransferSendClay { get; init; } = true;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ResourceTransferSendIron)]
+    public bool ResourceTransferSendIron { get; init; } = true;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ResourceTransferSendCrop)]
+    public bool ResourceTransferSendCrop { get; init; } = true;
+
     [ConfigurationKeyName("github_releases_url")]
     public string GithubReleasesUrl { get; init; } = string.Empty;
 

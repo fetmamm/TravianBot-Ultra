@@ -225,6 +225,7 @@
                     </TextBlock>
                     <TextBlock x:Name="ServerResourcesTextBlock" Text="Gold: - | Silver: -" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right" />
                     <TextBlock x:Name="CaptchaStatsTextBlock" Text="Captchas solved: 0/0" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right" />
+                    <TextBlock x:Name="NpcTradeSessionStatsTextBlock" Text="NPC trade: 0" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right" />
                     <TextBlock x:Name="ClockTextBlock" Text="Time: -" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Left" />
                     <TextBlock x:Name="StatusTextBlock" Text="Ready." Visibility="Collapsed" />
                 </DockPanel>
@@ -643,6 +644,10 @@
                                                                                 <Setter Property="Background" Value="#E5E7EB" />
                                                                                 <Setter Property="BorderBrush" Value="#9CA3AF" />
                                                                             </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                                                                <Setter Property="Background" Value="#E5E7EB" />
+                                                                                <Setter Property="BorderBrush" Value="#9CA3AF" />
+                                                                            </DataTrigger>
                                                                             <DataTrigger Binding="{Binding HasTimer}" Value="True">
                                                                                 <Setter Property="Background" Value="#FEF3C7" />
                                                                                 <Setter Property="BorderBrush" Value="#F59E0B" />
@@ -658,6 +663,10 @@
                                                                             <Style.Triggers>
                                                                                 <DataTrigger Binding="{Binding IsBlocked}" Value="True">
                                                                                     <Setter Property="Text" Value="{Binding BlockedText}" />
+                                                                                    <Setter Property="Foreground" Value="#6B7280" />
+                                                                                </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                                                                    <Setter Property="Text" Value="Disabled" />
                                                                                     <Setter Property="Foreground" Value="#6B7280" />
                                                                                 </DataTrigger>
                                                                                 <DataTrigger Binding="{Binding HasTimer}" Value="True">
@@ -757,12 +766,44 @@
                                              IsChecked="{Binding IsBuildLowestFirst}"
                                              Click="ResourceBuildStrategyRadio_Click"
                                              ToolTip="When using 'Upgrade all', always upgrade the resource field with the lowest level first, so all fields rise evenly toward the target level." />
-                                <RadioButton Content="Smart (least in storage)"
+                                <RadioButton Content="Smart"
                                              GroupName="ResourceBuildStrategy"
                                              VerticalAlignment="Center"
                                              IsChecked="{Binding IsBuildSmart}"
                                              Click="ResourceBuildStrategyRadio_Click"
                                              ToolTip="When using 'Upgrade all', prioritize fields that produce the resource you currently have the least of in storage (wood/clay/iron/crop), re-evaluated each pass to balance your stockpile." />
+                                <Border Width="14"
+                                        Height="14"
+                                        Margin="6,0,0,0"
+                                        CornerRadius="7"
+                                        Background="#E5E7EB"
+                                        BorderBrush="#D1D5DB"
+                                        BorderThickness="1"
+                                        VerticalAlignment="Center"
+                                        ToolTipService.InitialShowDelay="0">
+                                    <Border.ToolTip>
+                                        <ToolTip MaxWidth="340">
+                                            <StackPanel Width="300">
+                                                <TextBlock Text="Build order"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="#F9FAFB"
+                                                           Margin="0,0,0,6" />
+                                                <TextBlock TextWrapping="Wrap"
+                                                           Text="Lowest level first upgrades the resource field with the lowest level so fields rise evenly." />
+                                                <TextBlock Margin="0,6,0,0"
+                                                           TextWrapping="Wrap"
+                                                           Text="Smart prioritizes the resource you currently have the least of in storage and re-evaluates after each pass." />
+                                            </StackPanel>
+                                        </ToolTip>
+                                    </Border.ToolTip>
+                                    <TextBlock Text="i"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               Foreground="#4B5563"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               TextAlignment="Center" />
+                                </Border>
                             </StackPanel>
                             <Border Background="#FFFFFF"
                                     BorderBrush="#D1D5DB"
@@ -1169,6 +1210,7 @@
                                                         Content="Analyze natars profile"
                                                         Width="170"
                                                         Margin="0,0,0,6"
+                                                        ToolTip="Reads the Natars profile and saves the available farm villages for farming."
                                                         Click="AnalyzeNatarsProfileButton_Click" />
                                                 <Button x:Name="ShowNatarsListButton"
                                                         Grid.Row="1"
@@ -1183,6 +1225,7 @@
                                                         Content="Start manual farming"
                                                         Width="170"
                                                         HorizontalAlignment="Center"
+                                                        ToolTip="Starts manual farming with the selected farming settings."
                                                         Click="StartManualFarmingButton_Click" />
 
                                                 <StackPanel Grid.Row="0"
@@ -1275,12 +1318,49 @@
                                                FontSize="12"
                                                TextWrapping="Wrap"
                                                Margin="0,0,0,12" />
+                                    <TextBlock x:Name="NpcTradeGoldSpentTextBlock"
+                                               Text="Gold spent: 0"
+                                               Foreground="#111827"
+                                               FontWeight="SemiBold"
+                                               Margin="0,0,0,12" />
                                     <TextBlock Text="Troops"
                                                FontWeight="SemiBold"
                                                Foreground="#111827"
                                                Margin="0,0,0,6" />
-                                    <CheckBox Content="Enable NPC trade while building troops"
-                                              IsChecked="{Binding NpcTradeEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <CheckBox Content="Enable NPC trade while building troops"
+                                                  VerticalAlignment="Center"
+                                                  IsChecked="{Binding NpcTradeEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <Border Width="14"
+                                                Height="14"
+                                                Margin="6,0,0,0"
+                                                CornerRadius="7"
+                                                Background="#E5E7EB"
+                                                BorderBrush="#D1D5DB"
+                                                BorderThickness="1"
+                                                VerticalAlignment="Center"
+                                                ToolTipService.InitialShowDelay="0">
+                                            <Border.ToolTip>
+                                                <ToolTip MaxWidth="340">
+                                                    <StackPanel Width="300">
+                                                        <TextBlock Text="NPC trade for troops"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="#F9FAFB"
+                                                                   Margin="0,0,0,6" />
+                                                        <TextBlock TextWrapping="Wrap"
+                                                                   Text="Allows NPC trade while training troops when a selected resource reaches the configured threshold. Each completed NPC trade costs 3 gold and still respects the gold limit." />
+                                                    </StackPanel>
+                                                </ToolTip>
+                                            </Border.ToolTip>
+                                            <TextBlock Text="i"
+                                                       FontSize="10"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#4B5563"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       TextAlignment="Center" />
+                                        </Border>
+                                    </StackPanel>
                                     <TextBlock Text="Trade when a selected resource is at/above"
                                                Foreground="#6B7280"
                                                FontSize="12"
@@ -1299,10 +1379,41 @@
                                         <ComboBoxItem Content="95%" Tag="95" />
                                         <ComboBoxItem Content="100%" Tag="100" />
                                     </ComboBox>
-                                    <TextBlock Text="Analyze resources"
-                                               Foreground="#6B7280"
-                                               FontSize="12"
-                                               Margin="0,12,0,4" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,12,0,4">
+                                        <TextBlock Text="Analyze resources"
+                                                   Foreground="#6B7280"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center" />
+                                        <Border Width="14"
+                                                Height="14"
+                                                Margin="6,0,0,0"
+                                                CornerRadius="7"
+                                                Background="#E5E7EB"
+                                                BorderBrush="#D1D5DB"
+                                                BorderThickness="1"
+                                                VerticalAlignment="Center"
+                                                ToolTipService.InitialShowDelay="0">
+                                            <Border.ToolTip>
+                                                <ToolTip MaxWidth="340">
+                                                    <StackPanel Width="300">
+                                                        <TextBlock Text="Analyze resources"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="#F9FAFB"
+                                                                   Margin="0,0,0,6" />
+                                                        <TextBlock TextWrapping="Wrap"
+                                                                   Text="Only selected resources can trigger NPC trade. The bot checks their storage percentage against the configured threshold." />
+                                                    </StackPanel>
+                                                </ToolTip>
+                                            </Border.ToolTip>
+                                            <TextBlock Text="i"
+                                                       FontSize="10"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#4B5563"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       TextAlignment="Center" />
+                                        </Border>
+                                    </StackPanel>
                                     <WrapPanel>
                                         <CheckBox Content="Wood"
                                                   Width="90"
@@ -1332,34 +1443,40 @@
                                                FontWeight="SemiBold"
                                                Foreground="#111827"
                                                Margin="0,0,0,6" />
-                                    <CheckBox Content="Enable NPC trade while upgrading buildings and resource fields"
-                                              IsChecked="{Binding NpcTradeConstructionEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-
-                                    <TextBlock Text="When enabled, NPC trade is used only after the page says there are not enough resources for a building or resource field upgrade."
-                                               Foreground="#6B7280"
-                                               FontSize="12"
-                                               TextWrapping="Wrap"
-                                               Margin="0,12,0,0" />
-                                </StackPanel>
-                            </Border>
-                        </StackPanel>
-
-                        <StackPanel Grid.Column="2">
-                            <Border VerticalAlignment="Top"
-                                    Background="#FFFFFF"
-                                    BorderBrush="#D1D5DB"
-                                    BorderThickness="1"
-                                    CornerRadius="8"
-                                    Padding="16">
-                                <StackPanel>
-                                    <TextBlock Text="Trade"
-                                               FontSize="22"
-                                               FontWeight="SemiBold"
-                                               Foreground="#111827"
-                                               Margin="0,0,0,8" />
-                                    <TextBlock Text="Trade settings will appear here."
-                                               Foreground="#6B7280"
-                                               TextWrapping="Wrap" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <CheckBox Content="Enable NPC trade while upgrading buildings and resource fields"
+                                                  VerticalAlignment="Center"
+                                                  IsChecked="{Binding NpcTradeConstructionEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <Border Width="14"
+                                                Height="14"
+                                                Margin="6,0,0,0"
+                                                CornerRadius="7"
+                                                Background="#E5E7EB"
+                                                BorderBrush="#D1D5DB"
+                                                BorderThickness="1"
+                                                VerticalAlignment="Center"
+                                                ToolTipService.InitialShowDelay="0">
+                                            <Border.ToolTip>
+                                                <ToolTip MaxWidth="340">
+                                                    <StackPanel Width="300">
+                                                        <TextBlock Text="NPC trade for upgrades"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="#F9FAFB"
+                                                                   Margin="0,0,0,6" />
+                                                        <TextBlock TextWrapping="Wrap"
+                                                                   Text="Allows NPC trade only when a building or resource field upgrade page says there are not enough resources. Each completed NPC trade costs 3 gold and still respects the gold limit." />
+                                                    </StackPanel>
+                                                </ToolTip>
+                                            </Border.ToolTip>
+                                            <TextBlock Text="i"
+                                                       FontSize="10"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#4B5563"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       TextAlignment="Center" />
+                                        </Border>
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
 
@@ -1394,7 +1511,7 @@
                                                     <StackPanel Width="300">
                                                         <TextBlock Text="Allow gold spending"
                                                                    FontWeight="SemiBold"
-                                                                   Foreground="#111827"
+                                                                   Foreground="#F9FAFB"
                                                                    Margin="0,0,0,6" />
                                                         <TextBlock TextWrapping="Wrap"
                                                                    Text="Gold-spending features (e.g. NPC trade) will not run if spending would take gold below this limit." />
@@ -1421,6 +1538,288 @@
                                             Width="140"
                                             HorizontalAlignment="Left"
                                             Value="{Binding GoldLimit, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                            </Border>
+
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2">
+                            <Border VerticalAlignment="Top"
+                                    Background="#FFFFFF"
+                                    BorderBrush="#D1D5DB"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="16">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                        <TextBlock Text="Resource Trading"
+                                                   FontSize="22"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#111827"
+                                                   VerticalAlignment="Center" />
+                                        <Border Width="14"
+                                                Height="14"
+                                                Margin="8,0,0,0"
+                                                CornerRadius="7"
+                                                Background="#E5E7EB"
+                                                BorderBrush="#D1D5DB"
+                                                BorderThickness="1"
+                                                VerticalAlignment="Center"
+                                                ToolTipService.InitialShowDelay="0">
+                                            <Border.ToolTip>
+                                                <ToolTip MaxWidth="380">
+                                                    <StackPanel Width="340">
+                                                        <TextBlock Text="Resource Trading"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="#F9FAFB"
+                                                                   Margin="0,0,0,6" />
+                                                        <TextBlock TextWrapping="Wrap"
+                                                                   Text="Target village: receives resources." />
+                                                        <TextBlock Margin="0,5,0,0"
+                                                                   TextWrapping="Wrap"
+                                                                   Text="Source villages: villages allowed to send resources. The target village cannot be selected as a source." />
+                                                        <TextBlock Margin="0,5,0,0"
+                                                                   TextWrapping="Wrap"
+                                                                   Text="Send from: source storage percent required before sending." />
+                                                        <TextBlock Margin="0,5,0,0"
+                                                                   TextWrapping="Wrap"
+                                                                   Text="Keep: source storage percent left behind." />
+                                                        <TextBlock Margin="0,5,0,0"
+                                                                   TextWrapping="Wrap"
+                                                                   Text="Fill target: maximum target storage percent to fill to." />
+                                                        <TextBlock Margin="0,5,0,0"
+                                                                   TextWrapping="Wrap"
+                                                                   Text="Resources: resource types allowed for transfer." />
+                                                    </StackPanel>
+                                                </ToolTip>
+                                            </Border.ToolTip>
+                                            <TextBlock Text="i"
+                                                       FontSize="10"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#4B5563"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       TextAlignment="Center" />
+                                        </Border>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                        <TextBlock Text="Target village"
+                                                   Foreground="#6B7280"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center" />
+                                        <Border Width="14"
+                                                Height="14"
+                                                Margin="6,0,0,0"
+                                                CornerRadius="7"
+                                                Background="#E5E7EB"
+                                                BorderBrush="#D1D5DB"
+                                                BorderThickness="1"
+                                                VerticalAlignment="Center"
+                                                ToolTipService.InitialShowDelay="0">
+                                            <Border.ToolTip>
+                                                <ToolTip MaxWidth="340">
+                                                    <StackPanel Width="300">
+                                                        <TextBlock Text="Target village"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="#F9FAFB"
+                                                                   Margin="0,0,0,6" />
+                                                        <TextBlock TextWrapping="Wrap"
+                                                                   Text="This village receives resources from the selected source villages. It is greyed out in the source list because a village cannot send resources to itself." />
+                                                    </StackPanel>
+                                                </ToolTip>
+                                            </Border.ToolTip>
+                                            <TextBlock Text="i"
+                                                       FontSize="10"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#4B5563"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       TextAlignment="Center" />
+                                        </Border>
+                                    </StackPanel>
+                                    <ComboBox x:Name="ResourceTransferTargetVillageComboBox"
+                                              DisplayMemberPath="DisplayName"
+                                              Height="28"
+                                              Margin="0,0,0,10"
+                                              SelectionChanged="ResourceTransferSetting_SelectionChanged" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                        <TextBlock Text="Source villages"
+                                                   Foreground="#6B7280"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center" />
+                                        <Border Width="14"
+                                                Height="14"
+                                                Margin="6,0,0,0"
+                                                CornerRadius="7"
+                                                Background="#E5E7EB"
+                                                BorderBrush="#D1D5DB"
+                                                BorderThickness="1"
+                                                VerticalAlignment="Center"
+                                                ToolTipService.InitialShowDelay="0">
+                                            <Border.ToolTip>
+                                                <ToolTip MaxWidth="340">
+                                                    <StackPanel Width="300">
+                                                        <TextBlock Text="Source villages"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="#F9FAFB"
+                                                                   Margin="0,0,0,6" />
+                                                        <TextBlock TextWrapping="Wrap"
+                                                                   Text="These villages can send resources to the selected target." />
+                                                        <TextBlock Margin="0,5,0,0"
+                                                                   TextWrapping="Wrap"
+                                                                   Text="The selected target is greyed out here because a village cannot send resources to itself." />
+                                                    </StackPanel>
+                                                </ToolTip>
+                                            </Border.ToolTip>
+                                            <TextBlock Text="i"
+                                                       FontSize="10"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#4B5563"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       TextAlignment="Center" />
+                                        </Border>
+                                    </StackPanel>
+                                    <Border BorderBrush="#E5E7EB"
+                                            BorderThickness="1"
+                                            CornerRadius="6"
+                                            Padding="8"
+                                            MaxHeight="150"
+                                            Margin="0,0,0,10">
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                            <ItemsControl x:Name="ResourceTransferSourceVillagesItemsControl">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Grid Margin="0,0,0,5">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <CheckBox Content="{Binding DisplayName}"
+                                                                      IsEnabled="{Binding CanSelectAsSource}"
+                                                                      IsChecked="{Binding IsSource, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                            <TextBlock Grid.Column="1"
+                                                                       Text="{Binding SourceStatusText}"
+                                                                       Foreground="#9CA3AF"
+                                                                       FontSize="11"
+                                                                       FontWeight="SemiBold"
+                                                                       Margin="8,0,0,0"
+                                                                       VerticalAlignment="Center" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                    </Border>
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                            <TextBlock Text="Send from"
+                                                       Foreground="#6B7280"
+                                                       FontSize="12"
+                                                       Margin="0,0,0,4" />
+                                            <ComboBox x:Name="ResourceTransferSourceThresholdComboBox"
+                                                      SelectedValuePath="Tag"
+                                                      SelectionChanged="ResourceTransferSetting_SelectionChanged">
+                                                <ComboBoxItem Content="50%" Tag="50" />
+                                                <ComboBoxItem Content="60%" Tag="60" />
+                                                <ComboBoxItem Content="70%" Tag="70" />
+                                                <ComboBoxItem Content="80%" Tag="80" />
+                                                <ComboBoxItem Content="85%" Tag="85" />
+                                                <ComboBoxItem Content="90%" Tag="90" />
+                                                <ComboBoxItem Content="95%" Tag="95" />
+                                            </ComboBox>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                                            <TextBlock Text="Keep"
+                                                       Foreground="#6B7280"
+                                                       FontSize="12"
+                                                       Margin="0,0,0,4" />
+                                            <ComboBox x:Name="ResourceTransferSourceKeepComboBox"
+                                                      SelectedValuePath="Tag"
+                                                      SelectionChanged="ResourceTransferSetting_SelectionChanged">
+                                                <ComboBoxItem Content="0%" Tag="0" />
+                                                <ComboBoxItem Content="25%" Tag="25" />
+                                                <ComboBoxItem Content="50%" Tag="50" />
+                                                <ComboBoxItem Content="60%" Tag="60" />
+                                                <ComboBoxItem Content="70%" Tag="70" />
+                                                <ComboBoxItem Content="80%" Tag="80" />
+                                            </ComboBox>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="Fill target"
+                                                       Foreground="#6B7280"
+                                                       FontSize="12"
+                                                       Margin="0,0,0,4" />
+                                            <ComboBox x:Name="ResourceTransferTargetFillComboBox"
+                                                      SelectedValuePath="Tag"
+                                                      SelectionChanged="ResourceTransferSetting_SelectionChanged">
+                                                <ComboBoxItem Content="70%" Tag="70" />
+                                                <ComboBoxItem Content="80%" Tag="80" />
+                                                <ComboBoxItem Content="85%" Tag="85" />
+                                                <ComboBoxItem Content="90%" Tag="90" />
+                                                <ComboBoxItem Content="95%" Tag="95" />
+                                                <ComboBoxItem Content="100%" Tag="100" />
+                                            </ComboBox>
+                                        </StackPanel>
+                                    </Grid>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                        <TextBlock Text="Resources"
+                                                   Foreground="#6B7280"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center" />
+                                        <Border Width="14"
+                                                Height="14"
+                                                Margin="6,0,0,0"
+                                                CornerRadius="7"
+                                                Background="#E5E7EB"
+                                                BorderBrush="#D1D5DB"
+                                                BorderThickness="1"
+                                                VerticalAlignment="Center"
+                                                ToolTipService.InitialShowDelay="0">
+                                            <Border.ToolTip>
+                                                <ToolTip MaxWidth="340">
+                                                    <StackPanel Width="300">
+                                                        <TextBlock Text="Resources"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="#F9FAFB"
+                                                                   Margin="0,0,0,6" />
+                                                        <TextBlock TextWrapping="Wrap"
+                                                                   Text="Only selected resource types can be sent. A resource is still skipped if the source has no surplus or the target is already full enough." />
+                                                    </StackPanel>
+                                                </ToolTip>
+                                            </Border.ToolTip>
+                                            <TextBlock Text="i"
+                                                       FontSize="10"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#4B5563"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       TextAlignment="Center" />
+                                        </Border>
+                                    </StackPanel>
+                                    <WrapPanel Margin="0,0,0,12">
+                                        <CheckBox x:Name="ResourceTransferWoodCheckBox" Content="Wood" Width="90" Checked="ResourceTransferSetting_Changed" Unchecked="ResourceTransferSetting_Changed" />
+                                        <CheckBox x:Name="ResourceTransferClayCheckBox" Content="Clay" Width="90" Checked="ResourceTransferSetting_Changed" Unchecked="ResourceTransferSetting_Changed" />
+                                        <CheckBox x:Name="ResourceTransferIronCheckBox" Content="Iron" Width="90" Checked="ResourceTransferSetting_Changed" Unchecked="ResourceTransferSetting_Changed" />
+                                        <CheckBox x:Name="ResourceTransferCropCheckBox" Content="Crop" Width="90" Checked="ResourceTransferSetting_Changed" Unchecked="ResourceTransferSetting_Changed" />
+                                    </WrapPanel>
+                                    <TextBlock x:Name="ResourceTransferStatusTextBlock"
+                                               Text="Requires at least 2 villages."
+                                               Foreground="#B45309"
+                                               FontSize="12"
+                                               Margin="0,0,0,8"
+                                               TextWrapping="Wrap" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button x:Name="ResourceTransferQueueNowButton"
+                                                Content="Queue now"
+                                                Padding="10,4"
+                                                Click="QueueResourceTransferNowButton_Click" />
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -1740,7 +2139,34 @@
                                     </ListBox>
                                 </Border>
                             </TabItem>
-                            <TabItem Header="Alarms">
+                            <TabItem x:Name="AlarmTabItem" Header="Alarms">
+                                <TabItem.Resources>
+                                    <ControlTemplate x:Key="ActiveAlarmTabTemplate" TargetType="TabItem">
+                                        <Border x:Name="AlarmTabBorder"
+                                                Background="#DC2626"
+                                                BorderBrush="#B91C1C"
+                                                BorderThickness="1"
+                                                CornerRadius="3,3,0,0"
+                                                Padding="8,3"
+                                                Margin="0,0,2,0">
+                                            <ContentPresenter ContentSource="Header"
+                                                              RecognizesAccessKey="True"
+                                                              HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center" />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="AlarmTabBorder" Property="BorderBrush" Value="#7F1D1D" />
+                                                <Setter TargetName="AlarmTabBorder" Property="BorderThickness" Value="2,2,2,0" />
+                                                <Setter TargetName="AlarmTabBorder" Property="Padding" Value="7,3,7,4" />
+                                                <Setter Property="Panel.ZIndex" Value="100" />
+                                            </Trigger>
+                                            <Trigger Property="IsEnabled" Value="False">
+                                                <Setter Property="Opacity" Value="0.56" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </TabItem.Resources>
                                 <Border Background="#110D0D" Padding="8">
                                     <ListBox x:Name="AlarmListBox"
                                              Background="#110D0D"

@@ -136,6 +136,7 @@
                         Width="136"
                         Height="28"
                         Margin="6,0,0,0"
+                        ToolTip="Queues upgrades for all buildings until each one reaches its maximum level."
                         Click="UpgradeAllBuildingsToMaxButton_Click" />
             </StackPanel>
 

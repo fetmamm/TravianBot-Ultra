@@ -45,6 +45,8 @@ public sealed class BotTaskRunner
             ["run_brewery_celebration"] = ExecuteRunBreweryCelebrationAsync,
             // Sends one of the selected farmlists that is ready right now.
             ["send_farmlists"] = ExecuteSendFarmlistsAsync,
+            // Sends surplus resources from selected own villages to one target village.
+            ["send_resources_between_villages"] = ExecuteSendResourcesBetweenVillagesAsync,
         };
 
     private readonly IAccountProvider _accountProvider;
@@ -1296,6 +1298,14 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
 
         context.Log($"Continuous farming becomes ready again in {nextWaitSeconds}s.");
         throw new InvalidOperationException($"Continuous farming cooldown active. queue_wait_seconds={Math.Max(1, nextWaitSeconds)}");
+    }
+
+    private static async Task ExecuteSendResourcesBetweenVillagesAsync(TaskExecutionContext context)
+    {
+        context.Log("send_resources_between_villages: starting.");
+        var result = await context.Client.SendResourcesBetweenOwnVillagesAsync(context.CancellationToken);
+        context.Log(result);
+        ThrowIfTaskBlocked("send_resources_between_villages", result);
     }
 
     private static async Task ExecuteHeroManageAsync(TaskExecutionContext context)

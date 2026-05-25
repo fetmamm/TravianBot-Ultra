@@ -54,7 +54,41 @@
                             <CheckBox Content="Auto assign attribute points" IsChecked="{Binding AutoAssignPoints}" />
                         </StackPanel>
                     </Grid>
-                    <TextBlock Text="Adventure pick order" Foreground="#374151" FontSize="12" Margin="0,8,0,4" />
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,4">
+                        <TextBlock Text="Adventure pick order"
+                                   Foreground="#374151"
+                                   FontSize="12"
+                                   VerticalAlignment="Center" />
+                        <Border Width="14"
+                                Height="14"
+                                Margin="6,0,0,0"
+                                CornerRadius="7"
+                                Background="#E5E7EB"
+                                BorderBrush="#D1D5DB"
+                                BorderThickness="1"
+                                VerticalAlignment="Center"
+                                ToolTipService.InitialShowDelay="0">
+                            <Border.ToolTip>
+                                <ToolTip MaxWidth="340">
+                                    <StackPanel Width="300">
+                                        <TextBlock Text="Adventure pick order"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#F9FAFB"
+                                                   Margin="0,0,0,6" />
+                                        <TextBlock TextWrapping="Wrap"
+                                                   Text="Shortest adventure first queues the nearest adventure. Top adventure first queues the first adventure shown in the Travian list." />
+                                    </StackPanel>
+                                </ToolTip>
+                            </Border.ToolTip>
+                            <TextBlock Text="i"
+                                       FontSize="10"
+                                       FontWeight="SemiBold"
+                                       Foreground="#4B5563"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       TextAlignment="Center" />
+                        </Border>
+                    </StackPanel>
                     <StackPanel Orientation="Horizontal">
                         <RadioButton Content="Shortest adventure first"
                                      GroupName="HeroAdventureOrder"
@@ -64,7 +98,41 @@
                                      GroupName="HeroAdventureOrder"
                                      IsChecked="{Binding IsAdventurePickTop}" />
                     </StackPanel>
-                    <TextBlock Text="Hide hero" Foreground="#374151" FontSize="12" Margin="0,12,0,4" />
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,4">
+                        <TextBlock Text="Hide hero"
+                                   Foreground="#374151"
+                                   FontSize="12"
+                                   VerticalAlignment="Center" />
+                        <Border Width="14"
+                                Height="14"
+                                Margin="6,0,0,0"
+                                CornerRadius="7"
+                                Background="#E5E7EB"
+                                BorderBrush="#D1D5DB"
+                                BorderThickness="1"
+                                VerticalAlignment="Center"
+                                ToolTipService.InitialShowDelay="0">
+                            <Border.ToolTip>
+                                <ToolTip MaxWidth="340">
+                                    <StackPanel Width="300">
+                                        <TextBlock Text="Hide hero"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#F9FAFB"
+                                                   Margin="0,0,0,6" />
+                                        <TextBlock TextWrapping="Wrap"
+                                                   Text="Controls whether the hero hides during an attack on the home village or stays and fights with the troops." />
+                                    </StackPanel>
+                                </ToolTip>
+                            </Border.ToolTip>
+                            <TextBlock Text="i"
+                                       FontSize="10"
+                                       FontWeight="SemiBold"
+                                       Foreground="#4B5563"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       TextAlignment="Center" />
+                        </Border>
+                    </StackPanel>
                     <StackPanel Orientation="Vertical">
                         <RadioButton Content="Hero will hide during an attack on their home village."
                                      GroupName="HeroHideMode"
@@ -96,12 +164,42 @@
                         Margin="0,0,6,0">
                     <StackPanel>
                         <DockPanel Margin="0,0,0,10">
-                            <TextBlock Text="Attribute priority"
-                                       DockPanel.Dock="Left"
-                                       FontSize="14"
-                                       FontWeight="SemiBold"
-                                       Foreground="#111827"
-                                       VerticalAlignment="Center" />
+                            <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                                <TextBlock Text="Attribute priority"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="#111827"
+                                           VerticalAlignment="Center" />
+                                <Border Width="14"
+                                        Height="14"
+                                        Margin="6,0,0,0"
+                                        CornerRadius="7"
+                                        Background="#E5E7EB"
+                                        BorderBrush="#D1D5DB"
+                                        BorderThickness="1"
+                                        VerticalAlignment="Center"
+                                        ToolTipService.InitialShowDelay="0">
+                                    <Border.ToolTip>
+                                        <ToolTip MaxWidth="340">
+                                            <StackPanel Width="300">
+                                                <TextBlock Text="Attribute priority"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="#F9FAFB"
+                                                           Margin="0,0,0,6" />
+                                                <TextBlock TextWrapping="Wrap"
+                                                           Text="When auto assign attribute points is enabled, points are assigned in this order. Drag attributes to change priority." />
+                                            </StackPanel>
+                                        </ToolTip>
+                                    </Border.ToolTip>
+                                    <TextBlock Text="i"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               Foreground="#4B5563"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               TextAlignment="Center" />
+                                </Border>
+                            </StackPanel>
                             <Button x:Name="RefreshHeroStatsButton"
                                     DockPanel.Dock="Right"
                                     Content="Refresh hero stats"

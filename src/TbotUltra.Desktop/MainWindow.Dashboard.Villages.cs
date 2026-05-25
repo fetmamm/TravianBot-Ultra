@@ -42,6 +42,7 @@ public partial class MainWindow
         var ensuredItems = EnsureVillageSelectionItems(items);
         ApplyVillagePickerItems(ensuredItems, preferredVillageName, fallbackVillageName);
         ApplyDashboardVillageListItems(ensuredItems);
+        ApplyResourceTransferVillageItems(ensuredItems);
     }
 
     private void UpdateDashboardVillageList(IReadOnlyList<Village> villages)

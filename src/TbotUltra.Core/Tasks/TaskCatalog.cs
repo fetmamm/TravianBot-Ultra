@@ -20,6 +20,7 @@ public static class TaskCatalog
         "build_troops",
         "run_brewery_celebration",
         "send_farmlists",
+        "send_resources_between_villages",
     ];
 
     private static readonly HashSet<string> AllowedSet = new(AllowedTaskNamesValue, StringComparer.OrdinalIgnoreCase);

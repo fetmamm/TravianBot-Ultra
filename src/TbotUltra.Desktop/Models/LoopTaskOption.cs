@@ -32,6 +32,9 @@ public sealed class LoopTaskOption : INotifyPropertyChanged
 
             _isEnabled = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(HasTimer));
+            OnPropertyChanged(nameof(IsReady));
+            OnPropertyChanged(nameof(BadgeText));
         }
     }
 
@@ -180,13 +183,13 @@ public sealed class LoopTaskOption : INotifyPropertyChanged
         }
     }
 
-    public bool HasTimer => !IsBlocked && RemainingSeconds is > 0;
+    public bool HasTimer => IsEnabled && !IsBlocked && RemainingSeconds is > 0;
 
-    public bool IsReady => !HasTimer && !IsBlocked;
+    public bool IsReady => IsEnabled && !HasTimer && !IsBlocked;
 
     public string ReadyText => "Ready";
 
-    public string BadgeText => IsBlocked ? BlockedText : ReadyText;
+    public string BadgeText => IsBlocked ? BlockedText : IsEnabled ? ReadyText : "Disabled";
 
     public string TimerText
     {

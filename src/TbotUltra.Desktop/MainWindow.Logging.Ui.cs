@@ -124,6 +124,7 @@ public partial class MainWindow
         var activeList = alarmTabSelected ? AlarmListBox : TerminalListBox;
         var hasSelection = activeList.SelectedItems.Count > 0;
         AcknowledgeAlarmButton.IsEnabled = hasAlarms;
+        SetAcknowledgeAlarmButtonHighlight(hasAlarms && alarmTabSelected);
         CopyCurrentTabButton.IsEnabled = alarmTabSelected ? hasAlarmEntries : _terminalEntries.Count > 0;
         CopyCurrentTabButton.ToolTip = alarmTabSelected ? "Copy alerts" : "Copy terminal";
         ClearCurrentLogButton.IsEnabled = alarmTabSelected ? hasAlarmEntries : _terminalEntries.Count > 0;
@@ -133,12 +134,20 @@ public partial class MainWindow
             LogsNavButton.Background = new SolidColorBrush(Color.FromRgb(220, 38, 38));
             LogsNavButton.Foreground = Brushes.White;
             LogsNavButton.ToolTip = $"Logs ({_unacknowledgedAlarmCount} alarms)";
+            AlarmTabItem.Foreground = Brushes.White;
+            AlarmTabItem.FontWeight = alarmTabSelected ? FontWeights.SemiBold : FontWeights.Normal;
+            AlarmTabItem.Template = (ControlTemplate)AlarmTabItem.Resources["ActiveAlarmTabTemplate"];
+            AlarmTabItem.ToolTip = $"Alarms ({_unacknowledgedAlarmCount})";
         }
         else
         {
             LogsNavButton.Background = new SolidColorBrush(Color.FromRgb(243, 244, 246));
             LogsNavButton.Foreground = new SolidColorBrush(Color.FromRgb(17, 24, 39));
             LogsNavButton.ToolTip = "Logs";
+            AlarmTabItem.ClearValue(Control.ForegroundProperty);
+            AlarmTabItem.ClearValue(Control.FontWeightProperty);
+            AlarmTabItem.ClearValue(Control.TemplateProperty);
+            AlarmTabItem.ClearValue(FrameworkElement.ToolTipProperty);
         }
 
         if (hasSelection)
@@ -149,6 +158,21 @@ public partial class MainWindow
         {
             CopyCurrentTabButton.Content = "Copy";
         }
+    }
+
+    private void SetAcknowledgeAlarmButtonHighlight(bool highlighted)
+    {
+        if (highlighted)
+        {
+            AcknowledgeAlarmButton.Background = new SolidColorBrush(Color.FromRgb(220, 38, 38));
+            AcknowledgeAlarmButton.Foreground = Brushes.White;
+            AcknowledgeAlarmButton.BorderBrush = new SolidColorBrush(Color.FromRgb(185, 28, 28));
+            return;
+        }
+
+        AcknowledgeAlarmButton.ClearValue(Control.BackgroundProperty);
+        AcknowledgeAlarmButton.ClearValue(Control.ForegroundProperty);
+        AcknowledgeAlarmButton.ClearValue(Control.BorderBrushProperty);
     }
 
     private void AcknowledgeAllAlarmEntries()

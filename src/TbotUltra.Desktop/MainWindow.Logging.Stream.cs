@@ -114,6 +114,12 @@ public partial class MainWindow
                         UpdateManualFarmingExecutionCounter();
                     }
 
+                    if (IsNpcTradeCompletedMessage(part))
+                    {
+                        _npcTradeSessionCount += 1;
+                        UpdateNpcTradeStatsUi();
+                    }
+
                     if (isAlarm)
                     {
                         var isAcknowledgedAlarm = IsAutoAcknowledgedAlarmMessage(part);
@@ -731,8 +737,21 @@ public partial class MainWindow
             || value.Contains(" sent normal attack to (");
     }
 
+    private static bool IsNpcTradeCompletedMessage(string message)
+    {
+        return !string.IsNullOrWhiteSpace(message)
+            && message.Contains("NPC trade: completed at", StringComparison.OrdinalIgnoreCase);
+    }
+
     private void UpdateCaptchaStatsUi()
     {
         CaptchaStatsTextBlock.Text = $"Captchas solved: {_captchaSessionSolvedCount}/{_captchaSessionSeenCount} |";
+    }
+
+    private void UpdateNpcTradeStatsUi()
+    {
+        var goldSpent = _npcTradeSessionCount * NpcTradeGoldCost;
+        NpcTradeSessionStatsTextBlock.Text = $"NPC trade: {_npcTradeSessionCount}";
+        NpcTradeGoldSpentTextBlock.Text = $"Gold spent: {goldSpent}";
     }
 }

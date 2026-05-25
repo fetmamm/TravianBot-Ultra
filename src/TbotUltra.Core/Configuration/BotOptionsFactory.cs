@@ -9,6 +9,7 @@ public static class BotOptionsFactory
         var tasks = configuration.GetSection("loop_tasks").Get<List<string>>() ?? ["status"];
         var continuousLoopGroups = configuration.GetSection("continuous_loop_groups").Get<List<string>>() ?? [];
         var continuousFarmListNames = configuration.GetSection(BotOptionPayloadKeys.ContinuousFarmListNames).Get<List<string>>() ?? [];
+        var resourceTransferSourceVillageNames = configuration.GetSection(BotOptionPayloadKeys.ResourceTransferSourceVillageNames).Get<List<string>>() ?? [];
         var continuousFarmDispatchDelayMinutes = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes, 1), 1, 5);
         var queueWaitThresholdMode = configuration[BotOptionPayloadKeys.QueueWaitThresholdMode] ?? "10";
 
@@ -78,6 +79,16 @@ public static class BotOptionsFactory
             NpcTradeAnalyzeClay = configuration.GetValue(BotOptionPayloadKeys.NpcTradeAnalyzeClay, true),
             NpcTradeAnalyzeIron = configuration.GetValue(BotOptionPayloadKeys.NpcTradeAnalyzeIron, true),
             NpcTradeAnalyzeCrop = configuration.GetValue(BotOptionPayloadKeys.NpcTradeAnalyzeCrop, true),
+            ResourceTransferEnabled = configuration.GetValue(BotOptionPayloadKeys.ResourceTransferEnabled, false),
+            ResourceTransferTargetVillageName = configuration[BotOptionPayloadKeys.ResourceTransferTargetVillageName] ?? string.Empty,
+            ResourceTransferSourceVillageNames = resourceTransferSourceVillageNames,
+            ResourceTransferSourceThresholdPercent = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.ResourceTransferSourceThresholdPercent, 85), 1, 100),
+            ResourceTransferSourceKeepPercent = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.ResourceTransferSourceKeepPercent, 70), 0, 99),
+            ResourceTransferTargetFillPercent = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.ResourceTransferTargetFillPercent, 90), 1, 100),
+            ResourceTransferSendWood = configuration.GetValue(BotOptionPayloadKeys.ResourceTransferSendWood, true),
+            ResourceTransferSendClay = configuration.GetValue(BotOptionPayloadKeys.ResourceTransferSendClay, true),
+            ResourceTransferSendIron = configuration.GetValue(BotOptionPayloadKeys.ResourceTransferSendIron, true),
+            ResourceTransferSendCrop = configuration.GetValue(BotOptionPayloadKeys.ResourceTransferSendCrop, true),
             GithubReleasesUrl = configuration["github_releases_url"] ?? string.Empty,
             HumanLikeEnabled = configuration.GetValue("human_like_enabled", false),
             HumanLikeSpeed = configuration["human_like_speed"] ?? "medium",
@@ -184,6 +195,16 @@ public static class BotOptionsFactory
             NpcTradeAnalyzeClay = source.NpcTradeAnalyzeClay,
             NpcTradeAnalyzeIron = source.NpcTradeAnalyzeIron,
             NpcTradeAnalyzeCrop = source.NpcTradeAnalyzeCrop,
+            ResourceTransferEnabled = source.ResourceTransferEnabled,
+            ResourceTransferTargetVillageName = source.ResourceTransferTargetVillageName,
+            ResourceTransferSourceVillageNames = source.ResourceTransferSourceVillageNames,
+            ResourceTransferSourceThresholdPercent = source.ResourceTransferSourceThresholdPercent,
+            ResourceTransferSourceKeepPercent = source.ResourceTransferSourceKeepPercent,
+            ResourceTransferTargetFillPercent = source.ResourceTransferTargetFillPercent,
+            ResourceTransferSendWood = source.ResourceTransferSendWood,
+            ResourceTransferSendClay = source.ResourceTransferSendClay,
+            ResourceTransferSendIron = source.ResourceTransferSendIron,
+            ResourceTransferSendCrop = source.ResourceTransferSendCrop,
             GithubReleasesUrl = source.GithubReleasesUrl,
             HumanLikeEnabled = source.HumanLikeEnabled,
             HumanLikeSpeed = source.HumanLikeSpeed,
