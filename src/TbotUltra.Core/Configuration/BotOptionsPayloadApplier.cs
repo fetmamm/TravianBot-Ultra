@@ -76,6 +76,7 @@ public static class BotOptionsPayloadApplier
         var troopTrainingFallbackCooldownSeconds = source.TroopTrainingFallbackCooldownSeconds;
         var breweryAutoCelebrationEnabled = source.BreweryAutoCelebrationEnabled;
         var npcTradeEnabled = source.NpcTradeEnabled;
+        var npcTradeConstructionEnabled = source.NpcTradeConstructionEnabled;
         var npcTradeThresholdPercent = source.NpcTradeThresholdPercent;
         var npcTradeAnalyzeWood = source.NpcTradeAnalyzeWood;
         var npcTradeAnalyzeClay = source.NpcTradeAnalyzeClay;
@@ -561,6 +562,13 @@ public static class BotOptionsPayloadApplier
                     continue;
                 }
 
+                if (key.Equals(BotOptionPayloadKeys.NpcTradeConstructionEnabled, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var npcConstructionEnabled))
+                {
+                    npcTradeConstructionEnabled = npcConstructionEnabled;
+                    continue;
+                }
+
                 if (key.Equals(BotOptionPayloadKeys.NpcTradeThresholdPercent, StringComparison.OrdinalIgnoreCase)
                     && int.TryParse(value, out var npcThreshold))
                 {
@@ -658,6 +666,7 @@ public static class BotOptionsPayloadApplier
             TroopTrainingFallbackCooldownSeconds = troopTrainingFallbackCooldownSeconds,
             BreweryAutoCelebrationEnabled = breweryAutoCelebrationEnabled,
             NpcTradeEnabled = npcTradeEnabled,
+            NpcTradeConstructionEnabled = npcTradeConstructionEnabled,
             NpcTradeThresholdPercent = npcTradeThresholdPercent,
             NpcTradeAnalyzeWood = npcTradeAnalyzeWood,
             NpcTradeAnalyzeClay = npcTradeAnalyzeClay,

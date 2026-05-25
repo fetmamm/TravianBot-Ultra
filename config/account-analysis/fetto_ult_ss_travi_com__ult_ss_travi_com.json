@@ -1,9 +1,10 @@
 {
   "schemaVersion": 1,
-  "analyzedAtUtc": "2026-05-10T13:48:21.8085447+00:00",
+  "analyzedAtUtc": "2026-05-24T19:05:06.953001+00:00",
   "accountName": "fetto_ult_ss_travi_com",
   "serverUrl": "https://ult.ss-travi.com",
   "tribe": "Egyptians",
   "goldClubEnabled": true,
-  "buildingCatalog": []
+  "buildingCatalog": [],
+  "autoCelebrationEnabled": false
 }

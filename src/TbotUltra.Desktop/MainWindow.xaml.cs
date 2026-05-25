@@ -123,6 +123,7 @@ public partial class MainWindow : Window
     private bool _terminalCleanMode;
     private readonly ObservableCollection<AlarmEntryRow> _alarmEntries = [];
     private readonly ObservableCollection<LoopTaskOption> _automationLoopTasks = [];
+    private ICollectionView? _automationLoopTasksView;
     private readonly ObservableCollection<FarmListStatusRow> _farmLists = [];
     private readonly ObservableCollection<BuildingSlotRow> _buildingRows = [];
     private readonly ObservableCollection<BuildingCatalogOption> _buildingCatalogOptions = [];
@@ -414,7 +415,9 @@ public partial class MainWindow : Window
         InitializeLogFilterControls();
         AlarmListBox.ItemsSource = _alarmEntries;
         UpdateCaptchaStatsUi();
-        AutomationLoopListBox.ItemsSource = _automationLoopTasks;
+        _automationLoopTasksView = CollectionViewSource.GetDefaultView(_automationLoopTasks);
+        _automationLoopTasksView.Filter = AutomationLoopTaskFilter;
+        AutomationLoopListBox.ItemsSource = _automationLoopTasksView;
         FarmListsItemsControl.ItemsSource = _farmLists;
         _troopTrainingViewModel.Initialize();
         _troopTrainingViewModel.UpdateTroopOptions(ResolveStoredTroopTrainingTribe());

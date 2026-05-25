@@ -46,6 +46,7 @@ public interface IDesktopBotService
     Task<BreweryCelebrationStatus> ReadBreweryCelebrationStatusAsync(BotOptions options, Action<string> log, IReadOnlyList<Building>? knownBuildings, CancellationToken cancellationToken);
     Task<string> RunBreweryCelebrationAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<string> RunNpcTradeForBuildingTestAsync(BotOptions options, Action<string> log, TroopTrainingBuildingType buildingType, CancellationToken cancellationToken);
+    Task<string> RunNpcTradeForCurrentBuildingPageTestAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<VillageStatus> ReadVillageStatusAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken);
     Task<VillageStatus> ReadVillageResourceStatusAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken, bool currentPageOnly = false);
     Task<VillageStatus> ReadCurrentPageResourceStatusQuickAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);

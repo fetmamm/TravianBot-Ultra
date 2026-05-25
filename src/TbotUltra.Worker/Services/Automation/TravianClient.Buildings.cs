@@ -169,6 +169,7 @@ public sealed partial class TravianClient
         var safetyCap = ComputeBuildingUpgradeSafetyCap(targetLevel);
         int? lastKnownLevel = null;
         var transientRetries = 0;
+        var constructionNpcTradeAttempted = false;
         for (var iteration = 0; iteration < safetyCap; iteration++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -241,6 +242,15 @@ public sealed partial class TravianClient
                 }
 
                 var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: false);
+                if (!constructionNpcTradeAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
+                {
+                    constructionNpcTradeAttempted = true;
+                    if (await TryNpcTradeForConstructionAsync($"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}", cancellationToken))
+                    {
+                        continue;
+                    }
+                }
+
                 if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources)
                 {
                     var snapshot = await ReadUpgradeResourceWaitSnapshotAsync(
@@ -690,6 +700,7 @@ public sealed partial class TravianClient
         var safetyCap = Math.Max(1, maxAttempts);
         var upgrades = 0;
         var transientRetries = 0;
+        var constructionNpcTradeAttempted = false;
 
         for (var iteration = 0; iteration < safetyCap; iteration++)
         {
@@ -764,6 +775,15 @@ public sealed partial class TravianClient
                 }
 
                 var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: false);
+                if (!constructionNpcTradeAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
+                {
+                    constructionNpcTradeAttempted = true;
+                    if (await TryNpcTradeForConstructionAsync($"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}", cancellationToken))
+                    {
+                        continue;
+                    }
+                }
+
                 if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources)
                 {
                     var snapshot = await ReadUpgradeResourceWaitSnapshotAsync(
@@ -842,6 +862,7 @@ public sealed partial class TravianClient
 
         var buildingName = string.IsNullOrWhiteSpace(name) ? $"gid {gid}" : name.Trim();
         const int safetyCap = 6;
+        var constructionNpcTradeAttempted = false;
 
         for (var attempt = 0; attempt < safetyCap; attempt++)
         {
@@ -884,6 +905,15 @@ public sealed partial class TravianClient
                 if (existingProgress.Started)
                 {
                     return $"Queued {buildingName} in slot {slotId}. Evidence: {existingProgress.Evidence}.";
+                }
+
+                if (!constructionNpcTradeAttempted)
+                {
+                    constructionNpcTradeAttempted = true;
+                    if (await TryNpcTradeForConstructionAsync($"Building slot {slotId} construct {buildingName}", cancellationToken))
+                    {
+                        continue;
+                    }
                 }
 
                 await CaptureFailureArtifactsAsync($"construct-slot-{slotId}-gid-{gid}-no-click", cancellationToken);
@@ -2239,34 +2269,50 @@ public sealed partial class TravianClient
                         const href = (element.getAttribute('href') || '').toLowerCase();
                         const form = element.closest('form');
                         const formAction = (form ? form.getAttribute('action') : '') || '';
-                        const disabled = !!(element.disabled || classes.includes('disabled') || element.getAttribute('aria-disabled') === 'true');
-                        const isGold = classes.includes('gold') || text.includes('gold') || text.includes('npc') || text.includes('instant');
+                        const control = element.closest('button, input[type="submit"], input[type="button"], a, div.addHoverClick');
+                        const controlText = control ? textOf(control).toLowerCase() : '';
+                        const controlClasses = control ? clean(control.className || '').toLowerCase() : '';
+                        const combined = `${text} ${classes} ${controlText} ${controlClasses} ${href} ${formAction}`;
+                        const displayText = text || controlText;
+                        const disabled = !!(
+                          element.disabled
+                          || classes.includes('disabled')
+                          || element.getAttribute('aria-disabled') === 'true'
+                          || (control && control.disabled)
+                          || controlClasses.includes('disabled')
+                          || (control && control.getAttribute('aria-disabled') === 'true')
+                        );
+                        const isGold = combined.includes('gold') || combined.includes('npc') || combined.includes('instant') || combined.includes('exchange') || combined.includes('sharing resources') || combined.includes('share resources');
                         const inUpgradeContainer = !!element.closest('.upgradeBuilding, .contract, .contractWrapper, .build_details, .buildingWrapper, #contract, form[action*="build.php"]');
                         const hasUpgradeSignals =
                           classes.includes('green')
+                          || controlClasses.includes('green')
                           || classes.includes('upgrade')
+                          || controlClasses.includes('upgrade')
                           || classes.includes('build')
+                          || controlClasses.includes('build')
                           || classes.includes('contract')
+                          || controlClasses.includes('contract')
                           || classes.includes('addhoverclick')
-                          || classes.includes('button-container')
+                          || controlClasses.includes('addhoverclick')
                           || href.includes('build.php')
                           || formAction.includes('build.php')
-                          || inUpgradeContainer
-                          || /upgrade\s+to\s+level/i.test(text);
+                          || (inUpgradeContainer && displayText.length > 0)
+                          || /upgrade\s+to\s+level/i.test(displayText);
 
-                        if (!hasUpgradeSignals || isGold) {
+                        if (!hasUpgradeSignals || isGold || displayText.length === 0) {
                           continue;
                         }
 
                         picked.push({
-                          text: text.slice(0, 120),
+                          text: displayText.slice(0, 120),
                           classes: classes.slice(0, 120),
                           disabled,
                           inUpgradeContainer
                         });
 
                         if (!disabled) {
-                          clickOrder.push({ candidateIndex, text, classes, inUpgradeContainer });
+                          clickOrder.push({ candidateIndex, text: displayText, classes: `${classes} ${controlClasses}`, inUpgradeContainer });
                         }
                       }
 

@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using TbotUltra.Core.Configuration;
+using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop;
 
@@ -16,6 +18,11 @@ public partial class MainWindow
     internal void OnInboxMarkReportsReadClicked()
     {
         MarkReportsReadCore();
+    }
+
+    internal void OnInboxAutoReadChanged()
+    {
+        _ = RefreshInboxIndicatorsAsync(logErrors: true, force: true);
     }
 
     private async void MarkMessagesReadCore()
@@ -119,6 +126,7 @@ public partial class MainWindow
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
             var status = await _botService.ReadInboxStatusAsync(options, _ => { }, CancellationToken.None);
             UpdateInboxButtons(status.UnreadMessages, status.UnreadReports);
+            await AutoReadInboxItemsAsync(options, status);
         }
         catch (Exception ex)
         {
@@ -137,6 +145,62 @@ public partial class MainWindow
     private async Task HandleInboxRefreshTickAsync()
     {
         await RefreshInboxIndicatorsAsync(logErrors: false);
+    }
+
+    private async Task AutoReadInboxItemsAsync(BotOptions options, InboxStatus status)
+    {
+        var (autoReadMessages, autoReadReports) = GetAutoReadInboxSelectionSnapshot();
+        if ((!autoReadMessages || status.UnreadMessages <= 0) && (!autoReadReports || status.UnreadReports <= 0))
+        {
+            return;
+        }
+
+        var selection = GetSelectedVillageSelectionSnapshot();
+        var changed = false;
+
+        if (autoReadMessages && status.UnreadMessages > 0)
+        {
+            try
+            {
+                await _botService.MarkMessagesAsReadAsync(options, AppendLog, selection.Name, selection.Url, CancellationToken.None);
+                changed = true;
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"Auto-read messages failed: {ex.Message}");
+            }
+        }
+
+        if (autoReadReports && status.UnreadReports > 0)
+        {
+            try
+            {
+                await _botService.MarkReportsAsReadAsync(options, AppendLog, selection.Name, selection.Url, CancellationToken.None);
+                changed = true;
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"Auto-read reports failed: {ex.Message}");
+            }
+        }
+
+        if (!changed)
+        {
+            return;
+        }
+
+        var refreshed = await _botService.ReadInboxStatusAsync(options, _ => { }, CancellationToken.None);
+        UpdateInboxButtons(refreshed.UnreadMessages, refreshed.UnreadReports);
+    }
+
+    private (bool AutoReadMessages, bool AutoReadReports) GetAutoReadInboxSelectionSnapshot()
+    {
+        if (Dispatcher.CheckAccess())
+        {
+            return (_inboxViewModel.AutoReadMessages, _inboxViewModel.AutoReadReports);
+        }
+
+        return Dispatcher.Invoke(() => (_inboxViewModel.AutoReadMessages, _inboxViewModel.AutoReadReports));
     }
 
     private void UpdateInboxButtons(int unreadMessages, int unreadReports)

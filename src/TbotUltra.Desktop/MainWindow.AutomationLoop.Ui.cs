@@ -74,16 +74,29 @@ public partial class MainWindow
 
     private void UpdateAutomationLoopOrders()
     {
-        for (var i = 0; i < _automationLoopTasks.Count; i++)
+        var visibleOrder = 1;
+        foreach (var item in _automationLoopTasks)
         {
-            _automationLoopTasks[i].Order = i + 1;
+            if (!item.IsVisible)
+            {
+                continue;
+            }
+
+            item.Order = visibleOrder++;
         }
     }
 
     private void RefreshAutomationLoopDashboardUi()
     {
+        UpdateAutomationLoopOrders();
+        _automationLoopTasksView?.Refresh();
         UpdateAutomationLoopSummaryText();
         UpdateAutomationLoopRunningIndicators();
+    }
+
+    private static bool AutomationLoopTaskFilter(object item)
+    {
+        return item is LoopTaskOption option && option.IsVisible;
     }
 
     private void UpdateAutomationLoopSummaryText()
@@ -263,7 +276,7 @@ public partial class MainWindow
                 item.DetailText = "Celebration can start.";
                 item.RemainingSeconds = null;
             }
-            else if (group == QueueGroup.NpcTrade && !_troopTrainingViewModel.NpcTradeEnabled)
+            else if (group == QueueGroup.NpcTrade && !_troopTrainingViewModel.IsAnyNpcTradeEnabled)
             {
                 item.StateText = "Disabled";
                 item.DetailText = "NPC trade is off.";

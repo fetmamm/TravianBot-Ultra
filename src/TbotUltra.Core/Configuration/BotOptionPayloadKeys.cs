@@ -89,6 +89,7 @@ public static class BotOptionPayloadKeys
     public const string TroopTrainingFallbackCooldownSeconds = "troop_training_fallback_cooldown_seconds";
     public const string BreweryAutoCelebrationEnabled = "brewery_auto_celebration_enabled";
     public const string NpcTradeEnabled = "npc_trade_enabled";
+    public const string NpcTradeConstructionEnabled = "npc_trade_construction_enabled";
     public const string NpcTradeThresholdPercent = "npc_trade_threshold_percent";
     public const string NpcTradeAnalyzeWood = "npc_trade_analyze_wood";
     public const string NpcTradeAnalyzeClay = "npc_trade_analyze_clay";

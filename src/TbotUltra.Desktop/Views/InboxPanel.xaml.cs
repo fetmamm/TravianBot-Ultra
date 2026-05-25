@@ -42,6 +42,11 @@ public partial class InboxPanel : UserControl
         Host?.OnInboxMarkReportsReadClicked();
     }
 
+    private void AutoReadCheckBox_Click(object sender, RoutedEventArgs e)
+    {
+        Host?.OnInboxAutoReadChanged();
+    }
+
     internal void SetActionsEnabled(bool enabled)
     {
         MarkMessagesReadButton.IsEnabled = enabled;

@@ -623,6 +623,28 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
         return result;
     }
 
+    public async Task<string> RunNpcTradeForCurrentBuildingPageTestAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = "NPC trade building test: no result.";
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                result = await client.RunNpcTradeForCurrentBuildingPageTestAsync(cancellationToken);
+            });
+
+        log(result);
+        return result;
+    }
+
     public async Task<string> RunBreweryCelebrationAsync(
         BotOptions options,
         Action<string> log,

@@ -42,11 +42,29 @@
                     <TextBlock Text="{Binding MessageUnreadText}"
                                Foreground="#374151"
                                Margin="0,0,0,10" />
+                    <CheckBox Content="Auto read messages"
+                              IsChecked="{Binding AutoReadMessages, Mode=TwoWay}"
+                              Click="AutoReadCheckBox_Click"
+                              ToolTipService.InitialShowDelay="500"
+                              Margin="0,0,0,10">
+                        <CheckBox.ToolTip>
+                            <ToolTip>
+                                <TextBlock Text="Automatically opens Messages when unread messages are found, selects all visible messages, marks them as read, then follows Forward and repeats until no unread messages remain." />
+                            </ToolTip>
+                        </CheckBox.ToolTip>
+                    </CheckBox>
                     <Button x:Name="MarkMessagesReadButton"
                             Width="120"
                             Margin="0"
                             Content="Mark as read"
-                            Click="MarkMessagesReadButton_Click" />
+                            Click="MarkMessagesReadButton_Click"
+                            ToolTipService.InitialShowDelay="500">
+                        <Button.ToolTip>
+                            <ToolTip>
+                                <TextBlock Text="Opens Messages, selects all visible messages, marks them as read, then follows Forward and repeats until no unread messages remain." />
+                            </ToolTip>
+                        </Button.ToolTip>
+                    </Button>
                 </StackPanel>
             </Border>
 
@@ -66,11 +84,29 @@
                     <TextBlock Text="{Binding ReportsUnreadText}"
                                Foreground="#374151"
                                Margin="0,0,0,10" />
+                    <CheckBox Content="Auto read reports"
+                              IsChecked="{Binding AutoReadReports, Mode=TwoWay}"
+                              Click="AutoReadCheckBox_Click"
+                              ToolTipService.InitialShowDelay="500"
+                              Margin="0,0,0,10">
+                        <CheckBox.ToolTip>
+                            <ToolTip>
+                                <TextBlock Text="Automatically opens Reports when unread reports are found, selects all visible reports, and marks them as read." />
+                            </ToolTip>
+                        </CheckBox.ToolTip>
+                    </CheckBox>
                     <Button x:Name="MarkReportsReadButton"
                             Width="120"
                             Margin="0"
                             Content="Mark as read"
-                            Click="MarkReportsReadButton_Click" />
+                            Click="MarkReportsReadButton_Click"
+                            ToolTipService.InitialShowDelay="500">
+                        <Button.ToolTip>
+                            <ToolTip>
+                                <TextBlock Text="Opens Reports, selects all visible reports, and marks them as read." />
+                            </ToolTip>
+                        </Button.ToolTip>
+                    </Button>
                 </StackPanel>
             </Border>
         </Grid>

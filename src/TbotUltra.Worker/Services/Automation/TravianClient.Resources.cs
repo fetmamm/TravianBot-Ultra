@@ -106,6 +106,7 @@ public sealed partial class TravianClient
         var transientRetries = 0;
         var safetyCap = ComputeResourceUpgradeSafetyCap(targetLevel);
         int? lastKnownLevel = null;
+        var constructionNpcTradeAttempted = false;
         for (var iteration = 0; iteration < safetyCap; iteration++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -164,6 +165,15 @@ public sealed partial class TravianClient
                 {
                     var resolvedMax = detectedMax ?? currentLevel.Value;
                     return $"Resource slot {slotId} appears maxed at level {resolvedMax}. No upgrade performed.";
+                }
+
+                if (!constructionNpcTradeAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
+                {
+                    constructionNpcTradeAttempted = true;
+                    if (await TryNpcTradeForConstructionAsync($"Resource slot {slotId} ({resourceName}) upgrade to level {effectiveTarget}", cancellationToken))
+                    {
+                        continue;
+                    }
                 }
 
                 if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources)
@@ -240,6 +250,7 @@ public sealed partial class TravianClient
         var knownLevelsBySlot = new Dictionary<int, int>();
         var transientRetries = 0;
         int? currentTransientSlot = null;
+        var constructionNpcTradeAttempted = false;
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -395,11 +406,20 @@ public sealed partial class TravianClient
                         goto NextLoopTick;
                     }
 
+                    var label = string.IsNullOrWhiteSpace(candidate.Name)
+                        ? $"Resource slot {slot} upgrade to level {effectiveTarget}"
+                        : $"Resource slot {slot} ({candidate.Name}) upgrade to level {effectiveTarget}";
+                    if (!constructionNpcTradeAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
+                    {
+                        constructionNpcTradeAttempted = true;
+                        if (await TryNpcTradeForConstructionAsync(label, cancellationToken))
+                        {
+                            goto NextLoopTick;
+                        }
+                    }
+
                     if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources)
                     {
-                        var label = string.IsNullOrWhiteSpace(candidate.Name)
-                            ? $"Resource slot {slot} upgrade to level {effectiveTarget}"
-                            : $"Resource slot {slot} ({candidate.Name}) upgrade to level {effectiveTarget}";
                         var snapshot = await ReadUpgradeResourceWaitSnapshotAsync(
                             label,
                             ClampResourceWaitSeconds(actionability.QueueWaitSeconds),

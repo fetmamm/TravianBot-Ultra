@@ -163,6 +163,11 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
         return _taskRunner.RunNpcTradeForBuildingTestAsync(options, log, buildingType, null, cancellationToken);
     }
 
+    public Task<string> RunNpcTradeForCurrentBuildingPageTestAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.RunNpcTradeForCurrentBuildingPageTestAsync(options, log, null, cancellationToken);
+    }
+
     public Task<VillageStatus> ReadVillageStatusAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken)
     {
         return _taskRunner.ReadVillageStatusAsync(

@@ -2,9 +2,9 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Test functions"
-        Height="370"
+        Height="410"
         Width="320"
-        MinHeight="370"
+        MinHeight="410"
         MinWidth="300"
         ShowInTaskbar="False">
     <Grid Margin="12">
@@ -48,6 +48,15 @@
                     ToolTip="Navigates to the Barracks, resolves its configured troop and forces the full NPC exchange click sequence for that unit (bypasses the threshold/gold gates so the flow can be tested). Costs 3 gold."
                     ToolTipService.InitialShowDelay="500"
                     Click="TestNpcTradeBarracksButton_Click" />
+
+            <Button x:Name="TestNpcTradeBuildingButton"
+                    HorizontalAlignment="Left"
+                    Margin="0,8,0,0"
+                    Padding="10,4"
+                    Content="Run NPC trade (building page)"
+                    ToolTip="Runs the building/resource-field NPC trade flow on the current page. Open a building page with missing resources first. Costs 3 gold if the trade is completed."
+                    ToolTipService.InitialShowDelay="500"
+                    Click="TestNpcTradeBuildingButton_Click" />
         </StackPanel>
 
         <TextBlock Grid.Row="1"

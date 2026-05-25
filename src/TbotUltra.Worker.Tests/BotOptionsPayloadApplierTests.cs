@@ -33,6 +33,7 @@ public sealed class BotOptionsPayloadApplierTests
             TroopTrainingBarracksMaxQueueHours = "10",
             TroopTrainingBarracksAmountMode = "maximum",
             TroopTrainingBarracksKeepResourcesPercent = 10,
+            NpcTradeConstructionEnabled = false,
         };
 
         var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -56,6 +57,7 @@ public sealed class BotOptionsPayloadApplierTests
             [BotOptionPayloadKeys.TroopTrainingBarracksMaxQueueHours] = "50",
             [BotOptionPayloadKeys.TroopTrainingBarracksAmountMode] = "keep_resources",
             [BotOptionPayloadKeys.TroopTrainingBarracksKeepResourcesPercent] = "25",
+            [BotOptionPayloadKeys.NpcTradeConstructionEnabled] = "true",
         };
 
         var result = BotOptionsPayloadApplier.Apply(source, payload);
@@ -79,5 +81,6 @@ public sealed class BotOptionsPayloadApplierTests
         Assert.Equal("50", result.TroopTrainingBarracksMaxQueueHours);
         Assert.Equal("keep_resources", result.TroopTrainingBarracksAmountMode);
         Assert.Equal(25, result.TroopTrainingBarracksKeepResourcesPercent);
+        Assert.True(result.NpcTradeConstructionEnabled);
     }
 }

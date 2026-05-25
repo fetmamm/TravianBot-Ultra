@@ -16,6 +16,8 @@ public sealed class InboxViewModel : BaseViewModel
 {
     private int _unreadMessages;
     private int _unreadReports;
+    private bool _autoReadMessages;
+    private bool _autoReadReports;
 
     /// <summary>Number of unread game messages last reported by the worker.</summary>
     public int UnreadMessages
@@ -60,4 +62,16 @@ public sealed class InboxViewModel : BaseViewModel
     /// via a Style.DataTrigger to swap to the red-on-white badge look.
     /// </summary>
     public bool HasUnreadMessages => _unreadMessages > 0;
+
+    public bool AutoReadMessages
+    {
+        get => _autoReadMessages;
+        set => SetProperty(ref _autoReadMessages, value);
+    }
+
+    public bool AutoReadReports
+    {
+        get => _autoReadReports;
+        set => SetProperty(ref _autoReadReports, value);
+    }
 }

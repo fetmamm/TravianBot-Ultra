@@ -22,7 +22,7 @@ public sealed partial class TravianClient
         await EnsureLoggedInAsync();
         await GotoAsync(Paths.Messages, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening messages.", cancellationToken);
-        return await TryMarkInboxItemsAsReadAsync(
+        return await TryMarkMessagesAsReadAcrossPagesAsync(
             markSelectors:
             [
                 "button",
@@ -37,7 +37,6 @@ public sealed partial class TravianClient
                 "a[href*='message' i]",
                 "#n6",
             ],
-            label: "messages",
             cancellationToken: cancellationToken);
     }
 
@@ -108,6 +107,41 @@ public sealed partial class TravianClient
         return result ?? new InboxUnreadCountsJs();
     }
 
+    private async Task<bool> TryMarkMessagesAsReadAcrossPagesAsync(
+        IReadOnlyList<string> markSelectors,
+        IReadOnlyList<string> unreadSelectorHints,
+        CancellationToken cancellationToken)
+    {
+        const int maxPages = 50;
+
+        var changed = false;
+        for (var pageIndex = 0; pageIndex < maxPages; pageIndex++)
+        {
+            var pageChanged = await TryMarkInboxItemsAsReadAsync(
+                markSelectors,
+                unreadSelectorHints,
+                label: "messages",
+                cancellationToken: cancellationToken);
+            changed |= pageChanged;
+
+            var remaining = await ReadUnreadInboxCountsAsync(cancellationToken);
+            if (remaining.UnreadMessages <= 0)
+            {
+                return changed;
+            }
+
+            if (!await TryNavigateToForwardInboxPageAsync(cancellationToken))
+            {
+                return changed;
+            }
+
+            await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening next messages page.", cancellationToken);
+        }
+
+        Notify("Stopped marking messages as read after reaching the page limit.");
+        return changed;
+    }
+
     private async Task<bool> TryMarkInboxItemsAsReadAsync(
         IReadOnlyList<string> markSelectors,
         IReadOnlyList<string> unreadSelectorHints,
@@ -122,11 +156,19 @@ public sealed partial class TravianClient
         var clicked = false;
         if (label.Equals("messages", StringComparison.OrdinalIgnoreCase))
         {
-            clicked = await TryMarkUnreadMessagesViaCheckboxesAsync();
+            clicked = await TryMarkCurrentInboxPageAsReadViaCheckAllAsync();
+            if (!clicked)
+            {
+                clicked = await TryMarkUnreadMessagesViaCheckboxesAsync();
+            }
         }
         else if (label.Equals("reports", StringComparison.OrdinalIgnoreCase))
         {
-            clicked = await TryMarkAllReportsAsReadAsync();
+            clicked = await TryMarkCurrentInboxPageAsReadViaCheckAllAsync();
+            if (!clicked)
+            {
+                clicked = await TryMarkAllReportsAsReadAsync();
+            }
         }
 
         foreach (var selector in markSelectors)
@@ -227,6 +269,86 @@ public sealed partial class TravianClient
             unreadSelectorHints);
 
         return hintUnreads == 0;
+    }
+
+    private async Task<bool> TryNavigateToForwardInboxPageAsync(CancellationToken cancellationToken)
+    {
+        var nextUrl = await _page.EvaluateAsync<string?>(
+            """
+            () => {
+              const clean = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+              const link = Array.from(document.querySelectorAll('.paginator a, a'))
+                .find((node) => clean(node.textContent).includes('forward'));
+              if (!link) return null;
+              const href = link.getAttribute('href');
+              if (!href) return null;
+              return new URL(href, window.location.href).toString();
+            }
+            """);
+
+        if (string.IsNullOrWhiteSpace(nextUrl)
+            || string.Equals(nextUrl, _page.Url, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        await GotoAsync(nextUrl, cancellationToken);
+        return true;
+    }
+
+    private async Task<bool> TryMarkCurrentInboxPageAsReadViaCheckAllAsync()
+    {
+        try
+        {
+            return await _page.EvaluateAsync<bool>(
+                """
+                () => {
+                  const clean = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                  const checkAll = document.querySelector("input#sAll[type='checkbox'], .footer .markAll input.check[type='checkbox'], .markAll input[type='checkbox']");
+                  if (checkAll && !checkAll.checked) {
+                    checkAll.click();
+                  }
+
+                  const checkboxes = Array.from(document.querySelectorAll("input[type='checkbox']"))
+                    .filter((box) => !box.disabled && box !== checkAll);
+                  for (const checkbox of checkboxes) {
+                    if (!checkbox.checked) {
+                      checkbox.checked = true;
+                      checkbox.dispatchEvent(new Event('input', { bubbles: true }));
+                      checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                  }
+
+                  if (!checkAll && checkboxes.length === 0) {
+                    return false;
+                  }
+
+                  const contentNode = Array.from(document.querySelectorAll('div.button-content'))
+                    .find((node) => clean(node.textContent).includes('mark as read') || clean(node.textContent).includes('als gelesen'));
+                  if (contentNode) {
+                    const clickable = contentNode.closest('.button-container, button, a, div.button, li, span');
+                    (clickable || contentNode).click();
+                    return true;
+                  }
+
+                  const fallbackNode = Array.from(document.querySelectorAll("button, a, input[type='submit'], div.button, span"))
+                    .find((node) => {
+                      const text = clean(`${node.textContent || ''} ${node.getAttribute('value') || ''} ${node.getAttribute('title') || ''} ${node.getAttribute('aria-label') || ''}`);
+                      return text.includes('mark as read') || text.includes('als gelesen');
+                    });
+                  if (!fallbackNode) {
+                    return false;
+                  }
+
+                  fallbackNode.click();
+                  return true;
+                }
+                """);
+        }
+        catch (PlaywrightException ex) when (IsExecutionContextDestroyed(ex))
+        {
+            return true;
+        }
     }
 
     private async Task<bool> TryMarkUnreadMessagesViaCheckboxesAsync()

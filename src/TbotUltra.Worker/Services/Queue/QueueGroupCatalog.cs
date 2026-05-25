@@ -13,7 +13,7 @@ public static class QueueGroupCatalog
             [QueueGroup.Farming] = ("farming", "Farming", "Selected farmlists."),
             [QueueGroup.TroopTraining] = ("troop_training", "Build Troops", "Barracks, Stable, and Workshop."),
             [QueueGroup.BreweryCelebration] = ("brewery_celebration", "Auto Celebration", "Teutons brewery celebration."),
-            [QueueGroup.NpcTrade] = ("npc_trade", "NPC Trade", "NPC resource exchange while building troops."),
+            [QueueGroup.NpcTrade] = ("npc_trade", "NPC Trade", "NPC resource exchange while building troops, buildings, or resource fields."),
         };
 
     public static IReadOnlyList<QueueGroup> AllGroups => Metadata.Keys.ToList();

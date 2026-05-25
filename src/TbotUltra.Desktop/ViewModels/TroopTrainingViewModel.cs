@@ -52,6 +52,7 @@ public sealed class TroopTrainingViewModel : BaseViewModel
     private int? _autoCelebrationRemainingSeconds;
     private string _autoCelebrationStatusText = "Teutons only.";
     private bool _npcTradeEnabled;
+    private bool _npcTradeConstructionEnabled;
     private int _npcTradeThresholdPercent = 90;
     private bool _npcTradeAnalyzeWood = true;
     private bool _npcTradeAnalyzeClay = true;
@@ -183,6 +184,7 @@ public sealed class TroopTrainingViewModel : BaseViewModel
                 return;
             }
 
+            OnPropertyChanged(nameof(IsAnyNpcTradeEnabled));
             OnPropertyChanged(nameof(NpcTradeStatusText));
             if (!_isConfigSuppressed)
             {
@@ -202,6 +204,25 @@ public sealed class TroopTrainingViewModel : BaseViewModel
                 return;
             }
 
+            if (!_isConfigSuppressed)
+            {
+                ConfigChanged?.Invoke();
+            }
+        }
+    }
+
+    public bool NpcTradeConstructionEnabled
+    {
+        get => _npcTradeConstructionEnabled;
+        set
+        {
+            if (!SetProperty(ref _npcTradeConstructionEnabled, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(IsAnyNpcTradeEnabled));
+            OnPropertyChanged(nameof(NpcTradeStatusText));
             if (!_isConfigSuppressed)
             {
                 ConfigChanged?.Invoke();
@@ -277,9 +298,15 @@ public sealed class TroopTrainingViewModel : BaseViewModel
         }
     }
 
-    public string NpcTradeStatusText => NpcTradeEnabled
-        ? "Trades while building troops."
-        : "NPC trade is off.";
+    public bool IsAnyNpcTradeEnabled => NpcTradeEnabled || NpcTradeConstructionEnabled;
+
+    public string NpcTradeStatusText => (NpcTradeEnabled, NpcTradeConstructionEnabled) switch
+    {
+        (true, true) => "Trades for troops, buildings, and resource fields.",
+        (true, false) => "Trades while building troops.",
+        (false, true) => "Trades while upgrading buildings and resource fields.",
+        _ => "NPC trade is off.",
+    };
 
     public bool AllowGoldSpending
     {
@@ -303,7 +330,7 @@ public sealed class TroopTrainingViewModel : BaseViewModel
         get => _goldLimit;
         set
         {
-            var normalized = Math.Clamp(value, 0, 200);
+            var normalized = Math.Clamp(value, 0, 1000);
             if (!SetProperty(ref _goldLimit, normalized))
             {
                 return;
@@ -394,6 +421,7 @@ public sealed class TroopTrainingViewModel : BaseViewModel
             CheckCrop = options.TroopTrainingBarracksCheckCrop;
             FallbackCooldownSeconds = options.TroopTrainingFallbackCooldownSeconds;
             NpcTradeEnabled = options.NpcTradeEnabled;
+            NpcTradeConstructionEnabled = options.NpcTradeConstructionEnabled;
             NpcTradeThresholdPercent = options.NpcTradeThresholdPercent;
             NpcTradeAnalyzeWood = options.NpcTradeAnalyzeWood;
             NpcTradeAnalyzeClay = options.NpcTradeAnalyzeClay;
@@ -468,6 +496,7 @@ public sealed class TroopTrainingViewModel : BaseViewModel
         config[BotOptionPayloadKeys.TroopTrainingFallbackCooldownSeconds] = FallbackCooldownSeconds;
         config[BotOptionPayloadKeys.BreweryAutoCelebrationEnabled] = AutoCelebrationEnabled;
         config[BotOptionPayloadKeys.NpcTradeEnabled] = NpcTradeEnabled;
+        config[BotOptionPayloadKeys.NpcTradeConstructionEnabled] = NpcTradeConstructionEnabled;
         config[BotOptionPayloadKeys.NpcTradeThresholdPercent] = NpcTradeThresholdPercent;
         config[BotOptionPayloadKeys.NpcTradeAnalyzeWood] = NpcTradeAnalyzeWood;
         config[BotOptionPayloadKeys.NpcTradeAnalyzeClay] = NpcTradeAnalyzeClay;

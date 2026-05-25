@@ -191,6 +191,9 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.NpcTradeEnabled)]
     public bool NpcTradeEnabled { get; init; }
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.NpcTradeConstructionEnabled)]
+    public bool NpcTradeConstructionEnabled { get; init; }
+
     [ConfigurationKeyName(BotOptionPayloadKeys.NpcTradeThresholdPercent)]
     public int NpcTradeThresholdPercent { get; init; } = 90;
 

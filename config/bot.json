@@ -1,6 +1,6 @@
 {
-  "server_name": "SS-Travi ELITE 50000x",
-  "base_url": "https://elt.ss-travi.com",
+  "server_name": "SS-Travi TOURNAMENT 8x",
+  "base_url": "https://ult.ss-travi.com",
   "login_path": "/login.php",
   "village_overview_path": "/dorf1.php",
   "headless": false,
@@ -16,7 +16,7 @@
   "github_releases_url": "",
   "human_like_enabled": false,
   "human_like_speed": "slow",
-  "allow_gold_spending": false,
+  "allow_gold_spending": true,
   "allow_silver_spending": false,
   "gold_limit": 100,
   "silver_limit": 100,
@@ -48,12 +48,12 @@
   "post_login_read_troop_training_queue": false,
   "post_login_analyze_hero": false,
   "troop_training_barracks_enabled": true,
-  "troop_training_barracks_troop_type": "Phalanx",
+  "troop_training_barracks_troop_type": "Slave Militia",
   "troop_training_barracks_max_queue_hours": "10",
   "troop_training_barracks_amount_mode": "maximum",
   "troop_training_barracks_keep_resources_percent": 10,
   "troop_training_stable_enabled": false,
-  "troop_training_stable_troop_type": "Theutates Thunder",
+  "troop_training_stable_troop_type": "Sopdu Explorer",
   "troop_training_stable_max_queue_hours": "10",
   "troop_training_stable_amount_mode": "maximum",
   "troop_training_stable_keep_resources_percent": 10,
@@ -91,5 +91,6 @@
   "npc_trade_analyze_wood": true,
   "npc_trade_analyze_clay": true,
   "npc_trade_analyze_iron": true,
-  "npc_trade_analyze_crop": true
+  "npc_trade_analyze_crop": true,
+  "npc_trade_construction_enabled": true
 }

@@ -73,12 +73,14 @@ public partial class MainWindow
         _resourceTestFunctionsWindow.NavigateToBreweryTestRequested += TestNavigateToBreweryButton_Click;
         _resourceTestFunctionsWindow.StartCelebrationTestRequested += TestStartCelebrationButton_Click;
         _resourceTestFunctionsWindow.NpcTradeBarracksTestRequested += TestNpcTradeBarracksButton_Click;
+        _resourceTestFunctionsWindow.NpcTradeBuildingTestRequested += TestNpcTradeBuildingButton_Click;
         _resourceTestFunctionsWindow.Closed += (_, _) =>
         {
             _resourceTestFunctionsWindow.ResourceProductionTestRequested -= TestResourceProductionButton_Click;
             _resourceTestFunctionsWindow.NavigateToBreweryTestRequested -= TestNavigateToBreweryButton_Click;
             _resourceTestFunctionsWindow.StartCelebrationTestRequested -= TestStartCelebrationButton_Click;
             _resourceTestFunctionsWindow.NpcTradeBarracksTestRequested -= TestNpcTradeBarracksButton_Click;
+            _resourceTestFunctionsWindow.NpcTradeBuildingTestRequested -= TestNpcTradeBuildingButton_Click;
             _resourceTestFunctionsWindow = null;
         };
 
@@ -235,6 +237,41 @@ public partial class MainWindow
         {
             StatusTextBlock.Text = "NPC trade test paused.";
             AppendLog("NPC trade test paused.");
+        }
+        catch (Exception ex)
+        {
+            FailOperation(operationId, operationSw, ex);
+        }
+        finally
+        {
+            ToggleResourceTabActionsBusy(false);
+            _operationCts?.Dispose();
+            _operationCts = null;
+        }
+    }
+
+    private async void TestNpcTradeBuildingButton_Click(object sender, RoutedEventArgs e)
+    {
+        var operationId = BeginOperation("TestNpcTradeBuilding");
+        var operationSw = Stopwatch.StartNew();
+        _operationCts = new CancellationTokenSource();
+        var operationToken = _operationCts.Token;
+        ToggleResourceTabActionsBusy(true);
+        try
+        {
+            var options = LoadBotOptions();
+            AppendLog($"[{operationId}] running NPC trade test on current building page.");
+            var result = await _botService.RunNpcTradeForCurrentBuildingPageTestAsync(
+                options,
+                AppendLog,
+                operationToken);
+            AppendLog($"[{operationId}] NPC trade building test result: {result}");
+            CompleteOperation(operationId, operationSw, result);
+        }
+        catch (OperationCanceledException)
+        {
+            StatusTextBlock.Text = "NPC trade building test paused.";
+            AppendLog("NPC trade building test paused.");
         }
         catch (Exception ex)
         {
