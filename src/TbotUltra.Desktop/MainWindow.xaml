@@ -1376,9 +1376,40 @@
                                                FontWeight="SemiBold"
                                                Foreground="#111827"
                                                Margin="0,0,0,12" />
-                                    <CheckBox Content="Allow gold spending"
-                                              Margin="0,0,0,12"
-                                              IsChecked="{Binding AllowGoldSpending, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                        <CheckBox Content="Allow gold spending"
+                                                  VerticalAlignment="Center"
+                                                  IsChecked="{Binding AllowGoldSpending, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <Border Width="14"
+                                                Height="14"
+                                                Margin="6,0,0,0"
+                                                CornerRadius="7"
+                                                Background="#E5E7EB"
+                                                BorderBrush="#D1D5DB"
+                                                BorderThickness="1"
+                                                VerticalAlignment="Center"
+                                                ToolTipService.InitialShowDelay="0">
+                                            <Border.ToolTip>
+                                                <ToolTip MaxWidth="340">
+                                                    <StackPanel Width="300">
+                                                        <TextBlock Text="Allow gold spending"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="#111827"
+                                                                   Margin="0,0,0,6" />
+                                                        <TextBlock TextWrapping="Wrap"
+                                                                   Text="Gold-spending features (e.g. NPC trade) will not run if spending would take gold below this limit." />
+                                                    </StackPanel>
+                                                </ToolTip>
+                                            </Border.ToolTip>
+                                            <TextBlock Text="i"
+                                                       FontSize="10"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#4B5563"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       TextAlignment="Center" />
+                                        </Border>
+                                    </StackPanel>
                                     <TextBlock Text="{Binding GoldLimitText}"
                                                Foreground="#111827"
                                                Margin="0,0,0,4" />
@@ -1390,11 +1421,6 @@
                                             Width="140"
                                             HorizontalAlignment="Left"
                                             Value="{Binding GoldLimit, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Text="Gold-spending features (e.g. NPC trade) will not run if spending would take gold below this limit."
-                                               Foreground="#6B7280"
-                                               FontSize="12"
-                                               TextWrapping="Wrap"
-                                               Margin="0,12,0,0" />
                                 </StackPanel>
                             </Border>
                         </StackPanel>
