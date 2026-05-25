@@ -262,22 +262,6 @@ public partial class MainWindow
             return false;
         }
 
-        static DataGridRow? FindDataGridRow(DependencyObject? source)
-        {
-            var current = source;
-            while (current is not null)
-            {
-                if (current is DataGridRow row)
-                {
-                    return row;
-                }
-
-                current = GetVisualParent(current);
-            }
-
-            return null;
-        }
-
         static DependencyObject? GetVisualParent(DependencyObject source)
         {
             try
@@ -298,56 +282,6 @@ public partial class MainWindow
         var isDraggingSelection = false;
         var dragAnchorIndex = -1;
         var selectionAnchorIndex = -1;
-
-        DataGridRow? FindDataGridRowAt(Point point)
-        {
-            var hit = VisualTreeHelper.HitTest(grid, point);
-            return FindDataGridRow(hit?.VisualHit);
-        }
-
-        int FindRowIndexAt(Point point)
-        {
-            var row = FindDataGridRowAt(point);
-            if (row is not null)
-            {
-                var rowIndex = row.GetIndex();
-                if (rowIndex >= 0)
-                {
-                    return rowIndex;
-                }
-            }
-
-            var realizedRows = rows
-                .Select((item, index) => new { Row = (DataGridRow?)grid.ItemContainerGenerator.ContainerFromItem(item), Index = index })
-                .Where(item => item.Row is not null)
-                .ToList();
-            foreach (var realized in realizedRows)
-            {
-                var boundsPoint = realized.Row!.TranslatePoint(new Point(0, 0), grid);
-                if (point.Y >= boundsPoint.Y && point.Y <= boundsPoint.Y + realized.Row.ActualHeight)
-                {
-                    return realized.Row.GetIndex() >= 0 ? realized.Row.GetIndex() : realized.Index;
-                }
-            }
-
-            var firstRealizedRow = rows
-                .Select((item, index) => new { Row = (DataGridRow?)grid.ItemContainerGenerator.ContainerFromItem(item), Index = index })
-                .FirstOrDefault(item => item.Row is not null);
-            if (firstRealizedRow?.Row is null)
-            {
-                return -1;
-            }
-
-            var firstPoint = firstRealizedRow.Row.TranslatePoint(new Point(0, 0), grid);
-            var rowHeight = firstRealizedRow.Row.ActualHeight;
-            if (rowHeight <= 0)
-            {
-                return -1;
-            }
-
-            var estimatedIndex = firstRealizedRow.Index + (int)Math.Floor((point.Y - firstPoint.Y) / rowHeight);
-            return Math.Clamp(estimatedIndex, 0, rows.Count - 1);
-        }
 
         void SelectRange(int anchorIndex, int currentIndex)
         {
@@ -387,14 +321,25 @@ public partial class MainWindow
             return clickedIndex;
         }
 
-        grid.PreviewMouseLeftButtonDown += (_, args) =>
+        void StopDragSelection()
+        {
+            isDraggingSelection = false;
+            dragAnchorIndex = -1;
+        }
+
+        void RowPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs args)
         {
             if (IsInsideCheckBox(args.OriginalSource as DependencyObject))
             {
                 return;
             }
 
-            var clickedIndex = FindRowIndexAt(args.GetPosition(grid));
+            if (sender is not DataGridRow row)
+            {
+                return;
+            }
+
+            var clickedIndex = row.GetIndex();
             if (clickedIndex < 0)
             {
                 return;
@@ -403,8 +348,7 @@ public partial class MainWindow
             var modifiers = Keyboard.Modifiers;
             if ((modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
             {
-                isDraggingSelection = false;
-                dragAnchorIndex = -1;
+                StopDragSelection();
                 SelectRange(GetFallbackSelectionAnchorIndex(clickedIndex), clickedIndex);
                 args.Handled = true;
                 return;
@@ -412,8 +356,7 @@ public partial class MainWindow
 
             if ((modifiers & ModifierKeys.Control) == ModifierKeys.Control)
             {
-                isDraggingSelection = false;
-                dragAnchorIndex = -1;
+                StopDragSelection();
                 selectionAnchorIndex = clickedIndex;
                 return;
             }
@@ -422,39 +365,40 @@ public partial class MainWindow
             dragAnchorIndex = clickedIndex;
             isDraggingSelection = true;
             grid.Focus();
-            grid.CaptureMouse();
             SelectRange(dragAnchorIndex, dragAnchorIndex);
             args.Handled = true;
-        };
+        }
 
-        grid.MouseMove += (_, args) =>
+        void RowMouseEnter(object sender, MouseEventArgs args)
         {
             if (!isDraggingSelection || args.LeftButton != MouseButtonState.Pressed)
             {
                 return;
             }
 
-            var currentIndex = FindRowIndexAt(args.GetPosition(grid));
-            if (currentIndex >= 0)
-            {
-                SelectRange(dragAnchorIndex, currentIndex);
-            }
-        };
-
-        grid.PreviewMouseLeftButtonUp += (_, _) =>
-        {
-            if (!isDraggingSelection)
+            if (sender is not DataGridRow row)
             {
                 return;
             }
 
-            isDraggingSelection = false;
-            dragAnchorIndex = -1;
-            if (grid.IsMouseCaptured)
+            var currentIndex = row.GetIndex();
+            if (currentIndex >= 0)
             {
-                grid.ReleaseMouseCapture();
+                SelectRange(dragAnchorIndex, currentIndex);
+                args.Handled = true;
             }
+        }
+
+        grid.PreviewMouseLeftButtonUp += (_, _) =>
+        {
+            StopDragSelection();
         };
+        grid.MouseLeave += (_, _) => StopDragSelection();
+
+        var rowStyle = new Style(typeof(DataGridRow));
+        rowStyle.Setters.Add(new EventSetter(UIElement.PreviewMouseLeftButtonDownEvent, new MouseButtonEventHandler(RowPreviewMouseLeftButtonDown)));
+        rowStyle.Setters.Add(new EventSetter(UIElement.MouseEnterEvent, new MouseEventHandler(RowMouseEnter)));
+        grid.RowStyle = rowStyle;
 
         foreach (var row in rows)
         {
