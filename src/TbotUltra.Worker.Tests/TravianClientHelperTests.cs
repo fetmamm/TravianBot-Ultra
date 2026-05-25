@@ -68,6 +68,20 @@ public sealed class TravianClientHelperTests
     }
 
     [Theory]
+    [InlineData(null, 30, 10, 0)]
+    [InlineData(30, 30, 10, 0)]
+    [InlineData(31, 30, 10, 0)]
+    [InlineData(20, 30, 10, 10)]
+    [InlineData(20, 30, 5, 5)]
+    [InlineData(0, 1, 10, 1)]
+    [InlineData(99, 150, 10, 1)]
+    [InlineData(20, 30, 0, 0)]
+    public void CalculateOintmentsToUse_UsesOnlyNeededAmount(int? hp, int minHp, int available, int expected)
+    {
+        Assert.Equal(expected, TravianClient.CalculateOintmentsToUse(hp, minHp, available));
+    }
+
+    [Theory]
     [InlineData(null, 1)]
     [InlineData(0, 1)]
     [InlineData(30, 31)]

@@ -48,6 +48,7 @@ public partial class MainWindow
             config[BotOptionPayloadKeys.HeroMinHpForAdventure] = _heroViewModel.MinHpForAdventure;
             config[BotOptionPayloadKeys.HeroAutoRevive] = _heroViewModel.AutoRevive;
             config[BotOptionPayloadKeys.HeroAutoAssignPoints] = _heroViewModel.AutoAssignPoints;
+            config[BotOptionPayloadKeys.HeroAutoUseOintments] = _heroViewModel.AutoUseOintments;
             config[BotOptionPayloadKeys.HeroStatPriority] = _heroViewModel.BuildPriorityPayload();
             config[BotOptionPayloadKeys.HeroAdventurePickOrder] = _heroViewModel.AdventurePickOrder;
             config[BotOptionPayloadKeys.HeroHideMode] = _heroViewModel.HideMode;
@@ -159,6 +160,7 @@ public partial class MainWindow
             [BotOptionPayloadKeys.HeroMinHpForAdventure] = minHp.ToString(),
             [BotOptionPayloadKeys.HeroAutoRevive] = _heroViewModel.AutoRevive ? "true" : "false",
             [BotOptionPayloadKeys.HeroAutoAssignPoints] = _heroViewModel.AutoAssignPoints ? "true" : "false",
+            [BotOptionPayloadKeys.HeroAutoUseOintments] = _heroViewModel.AutoUseOintments ? "true" : "false",
             [BotOptionPayloadKeys.HeroStatPriority] = _heroViewModel.BuildPriorityPayload(),
             [BotOptionPayloadKeys.HeroAdventurePickOrder] = _heroViewModel.AdventurePickOrder,
             [BotOptionPayloadKeys.HeroHideMode] = _heroViewModel.HideMode,

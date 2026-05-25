@@ -27,6 +27,7 @@ public sealed class BotOptionsPayloadApplierTests
             HeroMinHpForAdventure = 60,
             HeroAutoRevive = true,
             HeroAutoAssignPoints = true,
+            HeroAutoUseOintments = false,
             HeroStatPriority = "offense,resource,regeneration",
             UpgradeSelectorProfile = "auto",
             TroopTrainingBarracksEnabled = true,
@@ -54,6 +55,7 @@ public sealed class BotOptionsPayloadApplierTests
             [BotOptionPayloadKeys.HeroMinHpForAdventure] = "75",
             [BotOptionPayloadKeys.HeroAutoRevive] = "false",
             [BotOptionPayloadKeys.HeroAutoAssignPoints] = "false",
+            [BotOptionPayloadKeys.HeroAutoUseOintments] = "true",
             [BotOptionPayloadKeys.HeroStatPriority] = "resource,offense",
             [BotOptionPayloadKeys.UpgradeSelectorProfile] = "strict_green",
             [BotOptionPayloadKeys.TroopTrainingBarracksEnabled] = "false",
@@ -85,6 +87,7 @@ public sealed class BotOptionsPayloadApplierTests
         Assert.Equal(75, result.HeroMinHpForAdventure);
         Assert.False(result.HeroAutoRevive);
         Assert.False(result.HeroAutoAssignPoints);
+        Assert.True(result.HeroAutoUseOintments);
         Assert.Equal("resource,offense", result.HeroStatPriority);
         Assert.Equal("strict_green", result.UpgradeSelectorProfile);
         Assert.False(result.TroopTrainingBarracksEnabled);
@@ -120,6 +123,7 @@ public sealed class BotOptionsPayloadApplierTests
             [BotOptionPayloadKeys.ResourceTransferSourceKeepPercent] = "65",
             [BotOptionPayloadKeys.ResourceTransferTargetFillPercent] = "95",
             [BotOptionPayloadKeys.ResourceTransferSendIron] = "false",
+            [BotOptionPayloadKeys.HeroAutoUseOintments] = "true",
         };
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(values)
@@ -135,5 +139,6 @@ public sealed class BotOptionsPayloadApplierTests
         Assert.Equal(95, options.ResourceTransferTargetFillPercent);
         Assert.False(options.ResourceTransferSendIron);
         Assert.True(options.ResourceTransferSendWood);
+        Assert.True(options.HeroAutoUseOintments);
     }
 }

@@ -311,6 +311,9 @@ public sealed class BotOptions
     [ConfigurationKeyName("hero_auto_assign_points")]
     public bool HeroAutoAssignPoints { get; init; } = true;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.HeroAutoUseOintments)]
+    public bool HeroAutoUseOintments { get; init; }
+
     [ConfigurationKeyName("hero_stat_priority")]
     public string HeroStatPriority { get; init; } = "fighting_strength,offence_bonus,defence_bonus,resources";
 

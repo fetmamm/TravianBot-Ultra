@@ -24,6 +24,7 @@ public static class BotOptionsPayloadApplier
         var heroMinHpForAdventure = source.HeroMinHpForAdventure;
         var heroAutoRevive = source.HeroAutoRevive;
         var heroAutoAssignPoints = source.HeroAutoAssignPoints;
+        var heroAutoUseOintments = source.HeroAutoUseOintments;
         var heroStatPriority = source.HeroStatPriority;
         var heroAdventurePickOrder = source.HeroAdventurePickOrder;
         var heroHideMode = source.HeroHideMode;
@@ -221,6 +222,12 @@ public static class BotOptionsPayloadApplier
                 if (key.Equals(BotOptionPayloadKeys.HeroAutoAssignPoints, StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var autoAssignPoints))
                 {
                     heroAutoAssignPoints = autoAssignPoints;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.HeroAutoUseOintments, StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var autoUseOintments))
+                {
+                    heroAutoUseOintments = autoUseOintments;
                     continue;
                 }
 
@@ -788,6 +795,7 @@ public static class BotOptionsPayloadApplier
             HeroMinHpForAdventure = heroMinHpForAdventure,
             HeroAutoRevive = heroAutoRevive,
             HeroAutoAssignPoints = heroAutoAssignPoints,
+            HeroAutoUseOintments = heroAutoUseOintments,
             HeroStatPriority = heroStatPriority,
             HeroAdventurePickOrder = heroAdventurePickOrder,
             HeroHideMode = heroHideMode,

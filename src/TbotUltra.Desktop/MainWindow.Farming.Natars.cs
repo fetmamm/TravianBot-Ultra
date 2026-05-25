@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Input;
 using System.Windows.Media;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Worker.Services;
@@ -116,19 +117,24 @@ public partial class MainWindow
             CanUserDeleteRows = false,
             CanUserReorderColumns = false,
             CanUserResizeRows = false,
-            SelectionMode = DataGridSelectionMode.Single,
+            SelectionMode = DataGridSelectionMode.Extended,
             SelectionUnit = DataGridSelectionUnit.FullRow,
             Margin = new Thickness(0, 0, 0, 10),
             ItemsSource = rows,
         };
-        grid.Columns.Add(new DataGridCheckBoxColumn
+
+        var useCheckBoxFactory = new FrameworkElementFactory(typeof(CheckBox));
+        useCheckBoxFactory.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+        useCheckBoxFactory.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+        useCheckBoxFactory.SetBinding(CheckBox.IsCheckedProperty, new Binding(nameof(NatarListRow.IsChecked))
+        {
+            Mode = BindingMode.TwoWay,
+            UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
+        });
+        grid.Columns.Add(new DataGridTemplateColumn
         {
             Header = "Use",
-            Binding = new Binding(nameof(NatarListRow.IsChecked))
-            {
-                Mode = BindingMode.TwoWay,
-                UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
-            },
+            CellTemplate = new DataTemplate { VisualTree = useCheckBoxFactory },
             Width = new DataGridLength(60),
         });
         grid.Columns.Add(new DataGridTextColumn { Header = "#", Binding = new Binding(nameof(NatarListRow.Index)), Width = new DataGridLength(70) });
@@ -155,6 +161,18 @@ public partial class MainWindow
             Width = 90,
             Margin = new Thickness(0, 0, 8, 0),
         };
+        var markSelectedButton = new Button
+        {
+            Content = "Mark selected",
+            Width = 110,
+            Margin = new Thickness(0, 0, 8, 0),
+        };
+        var unmarkSelectedButton = new Button
+        {
+            Content = "Unmark selected",
+            Width = 120,
+            Margin = new Thickness(0, 0, 8, 0),
+        };
         var closeButton = new Button
         {
             Content = "Close",
@@ -168,6 +186,8 @@ public partial class MainWindow
             {
                 markAllButton,
                 unmarkAllButton,
+                markSelectedButton,
+                unmarkSelectedButton,
                 closeButton,
             },
         };
@@ -176,9 +196,9 @@ public partial class MainWindow
         {
             Title = "Natars list",
             Owner = this,
-            Width = 520,
+            Width = 660,
             Height = 620,
-            MinWidth = 420,
+            MinWidth = 560,
             MinHeight = 320,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Content = new DockPanel
@@ -207,6 +227,222 @@ public partial class MainWindow
         }
 
         var suppressSelectionSave = false;
+
+        void ApplyCheckedStateToRows(IEnumerable<NatarListRow> targetRows, bool isChecked)
+        {
+            var selectedRows = targetRows.Distinct().ToList();
+            if (selectedRows.Count <= 0)
+            {
+                return;
+            }
+
+            suppressSelectionSave = true;
+            foreach (var row in selectedRows)
+            {
+                row.IsChecked = isChecked;
+            }
+
+            suppressSelectionSave = false;
+            SaveSelection();
+        }
+
+        static bool IsInsideCheckBox(DependencyObject? source)
+        {
+            var current = source;
+            while (current is not null)
+            {
+                if (current is CheckBox)
+                {
+                    return true;
+                }
+
+                current = GetVisualParent(current);
+            }
+
+            return false;
+        }
+
+        static DataGridRow? FindDataGridRow(DependencyObject? source)
+        {
+            var current = source;
+            while (current is not null)
+            {
+                if (current is DataGridRow row)
+                {
+                    return row;
+                }
+
+                current = GetVisualParent(current);
+            }
+
+            return null;
+        }
+
+        static DependencyObject? GetVisualParent(DependencyObject source)
+        {
+            try
+            {
+                var parent = VisualTreeHelper.GetParent(source);
+                if (parent is not null)
+                {
+                    return parent;
+                }
+            }
+            catch (InvalidOperationException)
+            {
+            }
+
+            return source is FrameworkElement element ? element.Parent : null;
+        }
+
+        var isDraggingSelection = false;
+        var dragAnchorIndex = -1;
+        var selectionAnchorIndex = -1;
+
+        DataGridRow? FindDataGridRowAt(Point point)
+        {
+            var hit = VisualTreeHelper.HitTest(grid, point);
+            return FindDataGridRow(hit?.VisualHit);
+        }
+
+        int FindRowIndexAt(Point point)
+        {
+            var row = FindDataGridRowAt(point);
+            if (row?.Item is NatarListRow natarRow)
+            {
+                var rowIndex = rows.IndexOf(natarRow);
+                if (rowIndex >= 0)
+                {
+                    return rowIndex;
+                }
+            }
+
+            var firstRealizedRow = rows
+                .Select((item, index) => new { Row = (DataGridRow?)grid.ItemContainerGenerator.ContainerFromItem(item), Index = index })
+                .FirstOrDefault(item => item.Row is not null);
+            if (firstRealizedRow?.Row is null)
+            {
+                return -1;
+            }
+
+            var firstPoint = firstRealizedRow.Row.TranslatePoint(new Point(0, 0), grid);
+            var rowHeight = firstRealizedRow.Row.ActualHeight;
+            if (rowHeight <= 0)
+            {
+                return -1;
+            }
+
+            var estimatedIndex = firstRealizedRow.Index + (int)Math.Floor((point.Y - firstPoint.Y) / rowHeight);
+            return Math.Clamp(estimatedIndex, 0, rows.Count - 1);
+        }
+
+        void SelectRange(int anchorIndex, int currentIndex)
+        {
+            if (anchorIndex < 0 || currentIndex < 0)
+            {
+                return;
+            }
+
+            var start = Math.Min(anchorIndex, currentIndex);
+            var end = Math.Max(anchorIndex, currentIndex);
+            grid.SelectedItems.Clear();
+            for (var i = start; i <= end; i++)
+            {
+                grid.SelectedItems.Add(rows[i]);
+            }
+
+            grid.SelectedItem = rows[currentIndex];
+            grid.ScrollIntoView(rows[currentIndex]);
+        }
+
+        int GetFallbackSelectionAnchorIndex(int clickedIndex)
+        {
+            if (selectionAnchorIndex >= 0)
+            {
+                return selectionAnchorIndex;
+            }
+
+            if (grid.SelectedItems.Count > 0 && grid.SelectedItems[0] is NatarListRow selectedRow)
+            {
+                var selectedIndex = rows.IndexOf(selectedRow);
+                if (selectedIndex >= 0)
+                {
+                    return selectedIndex;
+                }
+            }
+
+            return clickedIndex;
+        }
+
+        grid.PreviewMouseLeftButtonDown += (_, args) =>
+        {
+            if (IsInsideCheckBox(args.OriginalSource as DependencyObject))
+            {
+                return;
+            }
+
+            var clickedIndex = FindRowIndexAt(args.GetPosition(grid));
+            if (clickedIndex < 0)
+            {
+                return;
+            }
+
+            var modifiers = Keyboard.Modifiers;
+            if ((modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
+            {
+                isDraggingSelection = false;
+                dragAnchorIndex = -1;
+                SelectRange(GetFallbackSelectionAnchorIndex(clickedIndex), clickedIndex);
+                args.Handled = true;
+                return;
+            }
+
+            if ((modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+            {
+                isDraggingSelection = false;
+                dragAnchorIndex = -1;
+                selectionAnchorIndex = clickedIndex;
+                return;
+            }
+
+            selectionAnchorIndex = clickedIndex;
+            dragAnchorIndex = clickedIndex;
+            isDraggingSelection = true;
+            grid.Focus();
+            grid.CaptureMouse();
+            SelectRange(dragAnchorIndex, dragAnchorIndex);
+            args.Handled = true;
+        };
+
+        grid.MouseMove += (_, args) =>
+        {
+            if (!isDraggingSelection || args.LeftButton != MouseButtonState.Pressed)
+            {
+                return;
+            }
+
+            var currentIndex = FindRowIndexAt(args.GetPosition(grid));
+            if (currentIndex >= 0)
+            {
+                SelectRange(dragAnchorIndex, currentIndex);
+            }
+        };
+
+        grid.PreviewMouseLeftButtonUp += (_, _) =>
+        {
+            if (!isDraggingSelection)
+            {
+                return;
+            }
+
+            isDraggingSelection = false;
+            dragAnchorIndex = -1;
+            if (grid.IsMouseCaptured)
+            {
+                grid.ReleaseMouseCapture();
+            }
+        };
+
         foreach (var row in rows)
         {
             row.PropertyChanged += (_, args) =>
@@ -223,25 +459,19 @@ public partial class MainWindow
 
         markAllButton.Click += (_, _) =>
         {
-            suppressSelectionSave = true;
-            foreach (var row in rows)
-            {
-                row.IsChecked = true;
-            }
-
-            suppressSelectionSave = false;
-            SaveSelection();
+            ApplyCheckedStateToRows(rows, true);
         };
         unmarkAllButton.Click += (_, _) =>
         {
-            suppressSelectionSave = true;
-            foreach (var row in rows)
-            {
-                row.IsChecked = false;
-            }
-
-            suppressSelectionSave = false;
-            SaveSelection();
+            ApplyCheckedStateToRows(rows, false);
+        };
+        markSelectedButton.Click += (_, _) =>
+        {
+            ApplyCheckedStateToRows(grid.SelectedItems.OfType<NatarListRow>(), true);
+        };
+        unmarkSelectedButton.Click += (_, _) =>
+        {
+            ApplyCheckedStateToRows(grid.SelectedItems.OfType<NatarListRow>(), false);
         };
         closeButton.Click += (_, _) => popup.Close();
         popup.ShowDialog();

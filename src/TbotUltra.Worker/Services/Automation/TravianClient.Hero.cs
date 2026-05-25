@@ -8,6 +8,8 @@ namespace TbotUltra.Worker.Services;
 public sealed partial class TravianClient
 {
     private const int HeroLowHpRetrySeconds = 60;
+    private HeroOintmentRetryKey? _lastHeroOintmentMissKey;
+    private bool? _lastHeroAutoUseOintmentsEnabled;
 
     public async Task<HeroAdventureDispatchResult> SendHeroOnAdventureAsync(CancellationToken cancellationToken = default)
     {
@@ -657,6 +659,7 @@ public sealed partial class TravianClient
         int minHpForAdventure,
         bool autoRevive,
         bool autoAssignPoints,
+        bool autoUseOintments,
         string statPriority,
         string adventurePickOrder = "shortest",
         string hideMode = "hide",
@@ -664,6 +667,7 @@ public sealed partial class TravianClient
     {
         Notify("ManageHeroAsync started");
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
+        UpdateHeroOintmentAutoUseState(autoUseOintments);
 
         var quick = await ReadHeroQuickStatusAsync(allowDorf1Fallback: true, forceDorf1Reload: false, cancellationToken);
         var status = quick.Status;
@@ -715,7 +719,49 @@ public sealed partial class TravianClient
             heroReturnWaitSeconds = status.SecondsUntilReturn;
         }
 
-        var canSendByHp = !status.IsDead && (hpPercent ?? 0) >= Math.Clamp(minHpForAdventure, 1, 100);
+        var minHpThreshold = Math.Clamp(minHpForAdventure, 1, 100);
+        if (hpPercent is >= 0 && hpPercent >= minHpThreshold)
+        {
+            ClearHeroOintmentMiss();
+        }
+
+        if (autoUseOintments
+            && adventureCount > 0
+            && inVillage
+            && !status.IsDead
+            && hpPercent is >= 0
+            && hpPercent < minHpThreshold)
+        {
+            var ointmentResult = await TryUseHeroOintmentsForAdventureAsync(
+                hpPercent.Value,
+                minHpThreshold,
+                adventureCount,
+                cancellationToken);
+
+            if (ointmentResult.SkippedBySuppression)
+            {
+                actions.Add("ointment_check_skipped_cached_miss");
+            }
+            else if (ointmentResult.UsedCount > 0)
+            {
+                actions.Add($"ointments_used={ointmentResult.UsedCount}");
+                quick = await ReadHeroQuickStatusAsync(allowDorf1Fallback: true, forceDorf1Reload: false, cancellationToken);
+                status = quick.Status;
+                inVillage = quick.IsInVillage;
+                hpPercent = status.HpPercent ?? quick.HeroHpFromSidebar;
+                var refreshedAdventureCount = ResolveAdventureCount(quick);
+                if (refreshedAdventureCount > 0)
+                {
+                    adventureCount = refreshedAdventureCount;
+                }
+            }
+            else if (ointmentResult.LookupAttempted)
+            {
+                actions.Add("ointments_unavailable");
+            }
+        }
+
+        var canSendByHp = !status.IsDead && (hpPercent ?? 0) >= minHpThreshold;
 
         if (adventureCount > 0 && canSendByHp && inVillage)
         {
@@ -1060,6 +1106,280 @@ public sealed partial class TravianClient
               return true;
             }
             """);
+    }
+
+    private void UpdateHeroOintmentAutoUseState(bool enabled)
+    {
+        if (_lastHeroAutoUseOintmentsEnabled != enabled)
+        {
+            _lastHeroOintmentMissKey = null;
+            _lastHeroAutoUseOintmentsEnabled = enabled;
+        }
+
+        if (!enabled)
+        {
+            _lastHeroOintmentMissKey = null;
+        }
+    }
+
+    private void ClearHeroOintmentMiss()
+    {
+        _lastHeroOintmentMissKey = null;
+    }
+
+    internal static int CalculateOintmentsToUse(int? currentHpPercent, int minHpForAdventure, int availableOintments)
+    {
+        if (currentHpPercent is null || availableOintments <= 0)
+        {
+            return 0;
+        }
+
+        var targetHp = Math.Clamp(minHpForAdventure, 1, 100);
+        var currentHp = Math.Clamp(currentHpPercent.Value, 0, 100);
+        if (currentHp >= targetHp)
+        {
+            return 0;
+        }
+
+        return Math.Min(targetHp - currentHp, availableOintments);
+    }
+
+    private async Task<HeroOintmentUseResult> TryUseHeroOintmentsForAdventureAsync(
+        int currentHpPercent,
+        int minHpForAdventure,
+        int adventureCount,
+        CancellationToken cancellationToken)
+    {
+        var retryKey = new HeroOintmentRetryKey(adventureCount, currentHpPercent, minHpForAdventure);
+        if (_lastHeroOintmentMissKey == retryKey)
+        {
+            Notify($"Hero ointment lookup skipped for unchanged state: hp={currentHpPercent}%, adventures={adventureCount}.");
+            return HeroOintmentUseResult.Suppressed;
+        }
+
+        await GotoAsync(Paths.HeroInventory, cancellationToken);
+        await WaitForNavigationSettledAsync(cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening hero inventory for ointments.", cancellationToken);
+
+        var info = await ReadHeroOintmentInventoryInfoAsync(cancellationToken);
+        if (!info.Found || info.Count <= 0)
+        {
+            _lastHeroOintmentMissKey = retryKey;
+            Notify("Hero ointments not found in inventory. Suppressing repeat inventory checks until hero state changes.");
+            return HeroOintmentUseResult.AttemptedWithoutUse;
+        }
+
+        var useCount = CalculateOintmentsToUse(currentHpPercent, minHpForAdventure, info.Count);
+        if (useCount <= 0)
+        {
+            ClearHeroOintmentMiss();
+            return HeroOintmentUseResult.AttemptedWithoutUse;
+        }
+
+        Notify($"Hero ointments found: {info.Count}. Trying to use {useCount}.");
+        var clicked = await ClickHeroOintmentItemAsync(info.ItemIndex, cancellationToken);
+        if (!clicked)
+        {
+            _lastHeroOintmentMissKey = retryKey;
+            Notify("Hero ointment item was detected but could not be clicked. Suppressing repeat checks for this state.");
+            return HeroOintmentUseResult.AttemptedWithoutUse;
+        }
+
+        await Task.Delay(500, cancellationToken);
+        var confirmed = await ConfirmHeroOintmentUseAsync(useCount, cancellationToken);
+        await WaitForNavigationSettledAsync(cancellationToken);
+        await Task.Delay(500, cancellationToken);
+
+        var refreshedHp = await ReadHeroHpFromSidebarAsync(cancellationToken);
+        if (confirmed || refreshedHp > currentHpPercent)
+        {
+            ClearHeroOintmentMiss();
+            var observedUsed = refreshedHp > currentHpPercent
+                ? Math.Min(useCount, refreshedHp.Value - currentHpPercent)
+                : useCount;
+            Notify($"Hero ointment use completed. HP before={currentHpPercent}%, after={refreshedHp?.ToString() ?? "?"}%.");
+            return new HeroOintmentUseResult(observedUsed, LookupAttempted: true, SkippedBySuppression: false);
+        }
+
+        _lastHeroOintmentMissKey = retryKey;
+        Notify("Hero ointment use could not be confirmed. Suppressing repeat checks for this state.");
+        return HeroOintmentUseResult.AttemptedWithoutUse;
+    }
+
+    private async Task<HeroOintmentInventoryInfo> ReadHeroOintmentInventoryInfoAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var rawJson = await _page.EvaluateAsync<string>(
+            """
+            () => {
+              const clean = (value) => (value || '').replace(/\s+/g, ' ').trim();
+              const isVisible = (node) => {
+                if (!node) return false;
+                const style = window.getComputedStyle(node);
+                if (style.display === 'none' || style.visibility === 'hidden') return false;
+                const rect = node.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+              };
+              const readText = (node) => {
+                const parts = [
+                  node.textContent,
+                  node.getAttribute('title'),
+                  node.getAttribute('aria-label'),
+                  node.getAttribute('data-title'),
+                  node.getAttribute('data-tooltip'),
+                  node.getAttribute('data-tip'),
+                  node.getAttribute('alt'),
+                  node.className
+                ];
+                for (const child of Array.from(node.querySelectorAll('img, [title], [aria-label], [data-title], [data-tooltip], [data-tip], [alt]'))) {
+                  parts.push(child.getAttribute('title'));
+                  parts.push(child.getAttribute('aria-label'));
+                  parts.push(child.getAttribute('data-title'));
+                  parts.push(child.getAttribute('data-tooltip'));
+                  parts.push(child.getAttribute('data-tip'));
+                  parts.push(child.getAttribute('alt'));
+                  parts.push(child.className);
+                }
+                return clean(parts.filter(Boolean).join(' '));
+              };
+              const matchesOintment = (text) => /(^|[^a-z])(ointment|ointments|salve|salves|salva|salvor|salbe|salben)([^a-z]|$)/i.test(text);
+              const parseCount = (node) => {
+                const countNode = node.querySelector('.amount, .itemAmount, .count, .number, [class*="amount" i], [class*="count" i]');
+                const countText = clean(countNode?.textContent || '');
+                let match = countText.match(/(\d+)/);
+                if (match) return Number(match[1]) || 0;
+                match = clean(node.textContent || '').match(/[x\u00d7]\s*(\d+)|(\d+)\s*[x\u00d7]/i);
+                if (match) return Number(match[1] || match[2]) || 1;
+                return 1;
+              };
+              const selectors = [
+                '#inventory .item',
+                '#items .item',
+                '.inventory .item',
+                '.heroInventory .item',
+                '.hero_inventory .item',
+                '[class*="inventory" i] [class*="item" i]',
+                '[data-title], [data-tooltip], [data-tip], img[title], img[alt]'
+              ];
+              const nodes = Array.from(new Set(selectors.flatMap(selector => Array.from(document.querySelectorAll(selector)))));
+              const candidates = nodes
+                .filter(isVisible)
+                .map((node) => ({ node, text: readText(node) }))
+                .filter(item => matchesOintment(item.text));
+              if (candidates.length === 0) {
+                return JSON.stringify({ found: false, count: 0, itemIndex: -1 });
+              }
+              const picked = candidates[0];
+              return JSON.stringify({
+                found: true,
+                count: parseCount(picked.node),
+                itemIndex: candidates.indexOf(picked)
+              });
+            }
+            """);
+
+        return JsonSerializer.Deserialize<HeroOintmentInventoryInfo>(rawJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+            ?? new HeroOintmentInventoryInfo();
+    }
+
+    private async Task<bool> ClickHeroOintmentItemAsync(int ointmentIndex, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return await _page.EvaluateAsync<bool>(
+            """
+            (ointmentIndex) => {
+              const clean = (value) => (value || '').replace(/\s+/g, ' ').trim();
+              const isVisible = (node) => {
+                if (!node) return false;
+                const style = window.getComputedStyle(node);
+                if (style.display === 'none' || style.visibility === 'hidden') return false;
+                const rect = node.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+              };
+              const readText = (node) => {
+                const parts = [
+                  node.textContent,
+                  node.getAttribute('title'),
+                  node.getAttribute('aria-label'),
+                  node.getAttribute('data-title'),
+                  node.getAttribute('data-tooltip'),
+                  node.getAttribute('data-tip'),
+                  node.getAttribute('alt'),
+                  node.className
+                ];
+                for (const child of Array.from(node.querySelectorAll('img, [title], [aria-label], [data-title], [data-tooltip], [data-tip], [alt]'))) {
+                  parts.push(child.getAttribute('title'));
+                  parts.push(child.getAttribute('aria-label'));
+                  parts.push(child.getAttribute('data-title'));
+                  parts.push(child.getAttribute('data-tooltip'));
+                  parts.push(child.getAttribute('data-tip'));
+                  parts.push(child.getAttribute('alt'));
+                  parts.push(child.className);
+                }
+                return clean(parts.filter(Boolean).join(' '));
+              };
+              const matchesOintment = (text) => /(^|[^a-z])(ointment|ointments|salve|salves|salva|salvor|salbe|salben)([^a-z]|$)/i.test(text);
+              const selectors = [
+                '#inventory .item',
+                '#items .item',
+                '.inventory .item',
+                '.heroInventory .item',
+                '.hero_inventory .item',
+                '[class*="inventory" i] [class*="item" i]',
+                '[data-title], [data-tooltip], [data-tip], img[title], img[alt]'
+              ];
+              const nodes = Array.from(new Set(selectors.flatMap(selector => Array.from(document.querySelectorAll(selector)))));
+              const candidates = nodes
+                .filter(isVisible)
+                .filter(node => matchesOintment(readText(node)));
+              const item = candidates[ointmentIndex];
+              if (!item) return false;
+              const target = item.querySelector('button:not([disabled]), a, [role="button"], img') || item;
+              target.click();
+              return true;
+            }
+            """,
+            ointmentIndex);
+    }
+
+    private async Task<bool> ConfirmHeroOintmentUseAsync(int useCount, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return await _page.EvaluateAsync<bool>(
+            """
+            (useCount) => {
+              const clean = (value) => (value || '').replace(/\s+/g, ' ').trim();
+              const isVisible = (node) => {
+                if (!node) return false;
+                const style = window.getComputedStyle(node);
+                if (style.display === 'none' || style.visibility === 'hidden') return false;
+                const rect = node.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+              };
+              const dialog = Array.from(document.querySelectorAll('.dialog, .modal, .popup, .overlay, [role="dialog"]'))
+                .filter(isVisible)
+                .reverse()
+                .find(node => /ointment|ointments|salve|salves|salva|salvor|salbe|salben/i.test(clean(node.textContent || '')));
+              if (!dialog) return false;
+              const input = Array.from(dialog.querySelectorAll('input[type="number"], input[type="text"]'))
+                .find(node => isVisible(node) && !node.disabled && !node.readOnly);
+              if (input) {
+                input.value = String(Math.max(1, useCount));
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+              const buttons = Array.from(dialog.querySelectorAll('button, input[type="submit"], input[type="button"], a, div.addHoverClick'))
+                .filter(node => isVisible(node) && !node.disabled && !(node.className || '').toString().toLowerCase().includes('disabled'));
+              const button = buttons.find(node => {
+                const text = clean((node.value || '') + ' ' + (node.textContent || '') + ' ' + (node.getAttribute('title') || '')).toLowerCase();
+                return /\b(use|apply|confirm|ok|yes|anwenden|benutzen)\b/.test(text);
+              }) || buttons[0];
+              if (!button) return false;
+              button.click();
+              return true;
+            }
+            """,
+            useCount);
     }
 
     private async Task<bool> HasHeroLevelUpIndicatorAsync(CancellationToken cancellationToken)
@@ -1817,6 +2137,29 @@ public sealed partial class TravianClient
         bool IsInVillage,
         int? HeroHpFromSidebar,
         bool HasUnassignedPointsSignal);
+
+    private sealed record HeroOintmentRetryKey(int AdventureCount, int HpPercent, int MinHpForAdventure);
+
+    private sealed record HeroOintmentUseResult(
+        int UsedCount,
+        bool LookupAttempted,
+        bool SkippedBySuppression)
+    {
+        public static HeroOintmentUseResult Suppressed { get; } = new(0, LookupAttempted: false, SkippedBySuppression: true);
+        public static HeroOintmentUseResult AttemptedWithoutUse { get; } = new(0, LookupAttempted: true, SkippedBySuppression: false);
+    }
+
+    private sealed class HeroOintmentInventoryInfo
+    {
+        [JsonPropertyName("found")]
+        public bool Found { get; init; }
+
+        [JsonPropertyName("count")]
+        public int Count { get; init; }
+
+        [JsonPropertyName("itemIndex")]
+        public int ItemIndex { get; init; } = -1;
+    }
 
     private sealed class HeroSidebarStatusJs
     {

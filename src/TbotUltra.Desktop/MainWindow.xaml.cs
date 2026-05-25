@@ -3064,6 +3064,7 @@ public partial class MainWindow : Window
             nameof(HeroViewModel.MinHpForAdventure)
             or nameof(HeroViewModel.AutoRevive)
             or nameof(HeroViewModel.AutoAssignPoints)
+            or nameof(HeroViewModel.AutoUseOintments)
             or nameof(HeroViewModel.IsAdventurePickTop)
             or nameof(HeroViewModel.IsAdventurePickShortest)
             or nameof(HeroViewModel.IsHideModeFight)

@@ -1361,6 +1361,7 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             context.Options.HeroMinHpForAdventure,
             context.Options.HeroAutoRevive,
             context.Options.HeroAutoAssignPoints,
+            context.Options.HeroAutoUseOintments,
             context.Options.HeroStatPriority,
             context.Options.HeroAdventurePickOrder,
             context.Options.HeroHideMode,

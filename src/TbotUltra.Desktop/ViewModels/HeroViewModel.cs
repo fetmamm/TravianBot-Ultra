@@ -38,6 +38,7 @@ public sealed class HeroViewModel : BaseViewModel
     private int _minHpForAdventure = 60;
     private bool _autoRevive = true;
     private bool _autoAssignPoints = true;
+    private bool _autoUseOintments;
     private bool _isAdventurePickTop;
     private bool _isAdventurePickShortest = true;
     private bool _isHideModeFight = true;
@@ -110,6 +111,13 @@ public sealed class HeroViewModel : BaseViewModel
     {
         get => _autoAssignPoints;
         set => SetProperty(ref _autoAssignPoints, value);
+    }
+
+    /// <summary>True to use hero ointments before adventures when HP is below the configured threshold.</summary>
+    public bool AutoUseOintments
+    {
+        get => _autoUseOintments;
+        set => SetProperty(ref _autoUseOintments, value);
     }
 
     /// <summary>
@@ -199,6 +207,7 @@ public sealed class HeroViewModel : BaseViewModel
         MinHpForAdventure = options.HeroMinHpForAdventure;
         AutoRevive = options.HeroAutoRevive;
         AutoAssignPoints = options.HeroAutoAssignPoints;
+        AutoUseOintments = options.HeroAutoUseOintments;
         var topFirst = string.Equals(options.HeroAdventurePickOrder, "top", StringComparison.OrdinalIgnoreCase);
         if (topFirst)
         {
