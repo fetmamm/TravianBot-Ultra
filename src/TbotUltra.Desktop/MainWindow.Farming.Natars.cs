@@ -308,12 +308,25 @@ public partial class MainWindow
         int FindRowIndexAt(Point point)
         {
             var row = FindDataGridRowAt(point);
-            if (row?.Item is NatarListRow natarRow)
+            if (row is not null)
             {
-                var rowIndex = rows.IndexOf(natarRow);
+                var rowIndex = row.GetIndex();
                 if (rowIndex >= 0)
                 {
                     return rowIndex;
+                }
+            }
+
+            var realizedRows = rows
+                .Select((item, index) => new { Row = (DataGridRow?)grid.ItemContainerGenerator.ContainerFromItem(item), Index = index })
+                .Where(item => item.Row is not null)
+                .ToList();
+            foreach (var realized in realizedRows)
+            {
+                var boundsPoint = realized.Row!.TranslatePoint(new Point(0, 0), grid);
+                if (point.Y >= boundsPoint.Y && point.Y <= boundsPoint.Y + realized.Row.ActualHeight)
+                {
+                    return realized.Row.GetIndex() >= 0 ? realized.Row.GetIndex() : realized.Index;
                 }
             }
 
