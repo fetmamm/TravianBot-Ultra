@@ -50,7 +50,7 @@ public sealed partial class TravianClient
                 if (ex is PlaywrightException pwx && IsTransientExecutionContextError(pwx) && attempt < attempts)
                 {
                     await TryDismissContinuePromptAsync();
-                    Notify($"{label} hit transient navigation context error on attempt {attempt}/{attempts}. Retrying...");
+                    Notify($"{label} hit transient navigation context on attempt {attempt}/{attempts}. Retrying...");
                     await Task.Delay(250 * attempt, cancellationToken);
                     continue;
                 }
@@ -96,7 +96,7 @@ public sealed partial class TravianClient
             }
             catch (Exception ex) when (IsTransientExecutionContextException(ex) && attempt < attempts)
             {
-                Notify($"{label} hit transient navigation context error on attempt {attempt}/{attempts}. Retrying...");
+                Notify($"{label} hit transient navigation context on attempt {attempt}/{attempts}. Retrying...");
                 await Task.Delay(250 * attempt, cancellationToken);
             }
         }

@@ -455,6 +455,53 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
         return status ?? throw new InvalidOperationException("Could not read village resource status.");
     }
 
+    public async Task<IReadOnlyList<VillageStatus>> ReadAllVillageResourceStatusesAsync(
+        BotOptions options,
+        Action<string> log,
+        string? returnVillageName = null,
+        string? returnVillageUrl = null,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<VillageStatus> statuses = [];
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                log($"Scanning resource status for all villages on server {options.ServerName}.");
+                await client.LoginAsync(cancellationToken);
+                try
+                {
+                    statuses = await client.ReadAllVillageResourceStatusesAsync(cancellationToken);
+                    log($"All-village resource scan read {statuses.Count} village(s).");
+                }
+                finally
+                {
+                    var targetName = string.IsNullOrWhiteSpace(returnVillageName) ? options.TargetVillageName : returnVillageName;
+                    var targetUrl = string.IsNullOrWhiteSpace(returnVillageUrl) ? options.TargetVillageUrl : returnVillageUrl;
+                    if (!string.IsNullOrWhiteSpace(targetName) || !string.IsNullOrWhiteSpace(targetUrl))
+                    {
+                        try
+                        {
+                            await client.SwitchToVillageAsync(targetName ?? string.Empty, targetUrl, CancellationToken.None, skipFeatureRefresh: true);
+                            var label = !string.IsNullOrWhiteSpace(targetName) ? targetName : targetUrl;
+                            log($"Returned to selected village: {label}");
+                        }
+                        catch (Exception ex)
+                        {
+                            log($"Could not return to selected village after scan: {ex.Message}");
+                        }
+                    }
+                }
+            });
+
+        return statuses;
+    }
+
     public async Task<VillageStatus> ReadCurrentPageResourceStatusQuickAsync(
         BotOptions options,
         Action<string> log,

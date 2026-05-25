@@ -281,9 +281,9 @@ public sealed partial class TravianClient
             if (!progress.Advanced && !progress.QueuedOrInProgress)
             {
                 var waitMs = ComputePostActionWaitMs(durationSeconds);
-                Notify($"Slot {slotId}: upgrade click did not confirm immediately ({progress.Evidence}). Waiting {waitMs}ms before retry.");
-                await Task.Delay(waitMs, cancellationToken);
-                continue;
+                var waitSeconds = Math.Max(1, (int)Math.Ceiling(waitMs / 1000d));
+                Notify($"Slot {slotId}: upgrade click did not confirm immediately ({progress.Evidence}). Deferring {waitSeconds}s before retry.");
+                return $"Slot {slotId}: upgrade click did not confirm immediately ({progress.Evidence}). queue_wait_seconds={waitSeconds}";
             }
 
             if (progress.Advanced)
@@ -814,9 +814,9 @@ public sealed partial class TravianClient
             if (!progress.Advanced && !progress.QueuedOrInProgress)
             {
                 var waitMs = ComputePostActionWaitMs(durationSeconds);
-                Notify($"Slot {slotId}: upgrade-to-max click did not confirm immediately ({progress.Evidence}). Waiting {waitMs}ms before retry.");
-                await Task.Delay(waitMs, cancellationToken);
-                continue;
+                var waitSeconds = Math.Max(1, (int)Math.Ceiling(waitMs / 1000d));
+                Notify($"Slot {slotId}: upgrade-to-max click did not confirm immediately ({progress.Evidence}). Deferring {waitSeconds}s before retry.");
+                return $"Slot {slotId}: upgrade-to-max click did not confirm immediately ({progress.Evidence}). queue_wait_seconds={waitSeconds}";
             }
 
             if (progress.Advanced)
@@ -907,13 +907,23 @@ public sealed partial class TravianClient
                     return $"Queued {buildingName} in slot {slotId}. Evidence: {existingProgress.Evidence}.";
                 }
 
-                if (!constructionNpcTradeAttempted)
+                if (await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
                 {
-                    constructionNpcTradeAttempted = true;
-                    if (await TryNpcTradeForConstructionAsync($"Building slot {slotId} construct {buildingName}", cancellationToken))
+                    var snapshot = await ReadUpgradeResourceWaitSnapshotAsync(
+                        $"Building slot {slotId} construct {buildingName}",
+                        60,
+                        cancellationToken);
+
+                    if (!constructionNpcTradeAttempted)
                     {
-                        continue;
+                        constructionNpcTradeAttempted = true;
+                        if (await TryNpcTradeForConstructionAsync($"Building slot {slotId} construct {buildingName}", cancellationToken))
+                        {
+                            continue;
+                        }
                     }
+
+                    return BuildUpgradeResourceBlockedResultMessage(snapshot);
                 }
 
                 await CaptureFailureArtifactsAsync($"construct-slot-{slotId}-gid-{gid}-no-click", cancellationToken);
@@ -924,9 +934,9 @@ public sealed partial class TravianClient
             if (!progress.Advanced && !progress.QueuedOrInProgress)
             {
                 var waitMs = ComputePostActionWaitMs(durationSeconds);
-                Notify($"Slot {slotId}: construct click did not confirm immediately ({progress.Evidence}). Waiting {waitMs}ms before retry.");
-                await Task.Delay(waitMs, cancellationToken);
-                continue;
+                var waitSeconds = Math.Max(1, (int)Math.Ceiling(waitMs / 1000d));
+                Notify($"Slot {slotId}: construct click did not confirm immediately ({progress.Evidence}). Deferring {waitSeconds}s before retry.");
+                return $"Slot {slotId}: construct click did not confirm immediately ({progress.Evidence}). queue_wait_seconds={waitSeconds}";
             }
 
             return $"Queued {buildingName} in slot {slotId}. Evidence: {progress.Evidence}.";
@@ -1070,12 +1080,7 @@ public sealed partial class TravianClient
                 matches.push({ index: candidates.indexOf(el), rank, text: rawText.slice(0, 60), gidContext: { wrapper: wrapperMatchesGid, onclick: onclickMentionsGid } });
               }
               matches.sort((a, b) => b.rank - a.rank);
-              let clicked = false;
-              if (matches.length > 0) {
-                candidates[matches[0].index].click();
-                clicked = true;
-              }
-              return JSON.stringify({ clicked, matches: matches.slice(0, 5), seen: seen.slice(0, 20) });
+              return JSON.stringify({ clicked: false, clickIndex: matches.length > 0 ? matches[0].index : null, matches: matches.slice(0, 5), seen: seen.slice(0, 20) });
             }
             """,
             new { gid });
@@ -1084,12 +1089,23 @@ public sealed partial class TravianClient
         try
         {
             using var doc = JsonDocument.Parse(rawJson ?? "{}");
-            return doc.RootElement.TryGetProperty("clicked", out var clickedProp)
-                && clickedProp.GetBoolean();
+            if (!doc.RootElement.TryGetProperty("clickIndex", out var clickIndexProp)
+                || clickIndexProp.ValueKind != JsonValueKind.Number
+                || !clickIndexProp.TryGetInt32(out var clickIndex))
+            {
+                return false;
+            }
+
+            var clickTarget = _page.Locator("button, input[type='submit'], input[type='button'], a, div.addHoverClick, div.button-container").Nth(clickIndex);
+            await clickTarget.ClickAsync(new LocatorClickOptions
+            {
+                Timeout = _config.TimeoutMs,
+            });
+            return true;
         }
         catch (Exception ex)
         {
-            Notify($"Could not parse construct click result for gid {gid}: {ex.Message}");
+            Notify($"Could not click construct candidate for gid {gid}: {ex.Message}");
             return false;
         }
     }
@@ -2014,7 +2030,7 @@ public sealed partial class TravianClient
             .Select(a => a.TimeLeftSeconds!.Value)
             .DefaultIfEmpty(status.ShortestWaitSeconds ?? 0)
             .Min();
-        var wait = Math.Max(relevantWait, 1);
+        var wait = Math.Max(relevantWait, 5);
         var label = kind == ConstructionKind.Resource ? "Resource slot" : "Slot";
         return $"{label} {slotId}: build queue full ({status.ResourceSlotsUsed}/{status.ResourceSlotsMax} resource, {status.BuildingSlotsUsed}/{status.BuildingSlotsMax} building, plus={plusActive}). Deferring upgrade. Upgrades performed: {upgrades}. queue_wait_seconds={wait}";
     }

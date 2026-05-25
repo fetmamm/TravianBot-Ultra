@@ -66,11 +66,32 @@ public partial class MainWindow : Window
         public ulong AvailExtendedVirtual;
     }
 
-    private sealed record NatarListRow(
-        int Index,
-        string VillageName,
-        int X,
-        int Y);
+    private sealed class NatarListRow : INotifyPropertyChanged
+    {
+        private bool _isChecked;
+
+        public int Index { get; init; }
+        public string VillageName { get; init; } = string.Empty;
+        public int X { get; init; }
+        public int Y { get; init; }
+
+        public bool IsChecked
+        {
+            get => _isChecked;
+            set
+            {
+                if (_isChecked == value)
+                {
+                    return;
+                }
+
+                _isChecked = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsChecked)));
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+    }
 
     private sealed record UiSyncVillagePayload(
         string? Name,
@@ -121,7 +142,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<TerminalEntryRow> _terminalEntries = [];
     private ICollectionView? _terminalView;
     private LogCategory _terminalFilterCategory = LogCategory.All;
-    private bool _terminalCleanMode;
+    private bool _terminalCleanMode = true;
     private readonly ObservableCollection<AlarmEntryRow> _alarmEntries = [];
     private readonly ObservableCollection<LoopTaskOption> _automationLoopTasks = [];
     private ICollectionView? _automationLoopTasksView;
@@ -152,6 +173,7 @@ public partial class MainWindow : Window
     private bool _resourceSnapshotRefreshRunning;
     private bool _resourceProductionRefreshRunning;
     private bool _resourceProductionRefreshPending;
+    private bool _resourceTransferScanRunning;
     private bool _deferredConstructionRefreshRunning;
     private bool _deferredTroopTrainingRefreshRunning;
     private VillageStatus? _pendingDeferredTroopTrainingRefreshStatus;
@@ -369,6 +391,7 @@ public partial class MainWindow : Window
                 TickFarmListCountdowns();
                 _troopTrainingViewModel.TickCountdowns();
                 _resourcesViewModel.TickLiveForecasts();
+                TickResourceTransferVillageForecasts();
                 UpdateExecutionStateIndicator();
                 UpdateManualFarmingRunningState();
             }
@@ -1559,6 +1582,9 @@ public partial class MainWindow : Window
     private static bool IsResourceAwareQueueTask(string taskName)
     {
         return string.Equals(taskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(taskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(taskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(taskName, "construct_building", StringComparison.OrdinalIgnoreCase)
             || string.Equals(taskName, "build_troops", StringComparison.OrdinalIgnoreCase);
     }
 
@@ -1608,7 +1634,13 @@ public partial class MainWindow : Window
             try
             {
                 await Task.Delay(halfDelay);
-                var status = await _botService.ReadVillageResourceStatusAsync(itemOptions, AppendLog, null, null, CancellationToken.None);
+                var status = await _botService.ReadVillageResourceStatusAsync(
+                    itemOptions,
+                    AppendLog,
+                    null,
+                    null,
+                    CancellationToken.None,
+                    currentPageOnly: true);
                 await Dispatcher.InvokeAsync(() =>
                 {
                     ApplyResourceStatusToUi(status);
@@ -1737,6 +1769,7 @@ public partial class MainWindow : Window
             SetEnabled(QueueRefreshButton, defaultEnabled);
             SetEnabled(ResetProgramButton, true);
             SetEnabled(StorageRefreshButton, defaultEnabled && !_resourceSnapshotRefreshRunning);
+            UpdateResourceTransferStatus();
             SetEnabled(LoadResourcesButton, defaultEnabled);
             SetEnabled(ResourceTargetLevelComboBox, defaultEnabled);
             SetEnabled(UpgradeAllResourcesButton, defaultEnabled);
@@ -3168,6 +3201,7 @@ public partial class MainWindow : Window
     private void ApplyVillageStatusToUi(VillageStatus status)
     {
         status = MergeResourceStatusForUi(status);
+        ApplyResourceTransferVillageResourceStatus(status);
         UpdateActiveVillageResourceMaxLevel(status);
         _resourcesViewModel.ApplyStorageForecasts(status);
         VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";

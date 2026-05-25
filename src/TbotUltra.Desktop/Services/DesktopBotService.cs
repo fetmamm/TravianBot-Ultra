@@ -191,6 +191,17 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
             cancellationToken: cancellationToken);
     }
 
+    public Task<IReadOnlyList<VillageStatus>> ReadAllVillageResourceStatusesAsync(BotOptions options, Action<string> log, string? returnVillageName, string? returnVillageUrl, CancellationToken cancellationToken)
+    {
+        return _taskRunner.ReadAllVillageResourceStatusesAsync(
+            options,
+            log,
+            returnVillageName: returnVillageName,
+            returnVillageUrl: returnVillageUrl,
+            accountName: null,
+            cancellationToken: cancellationToken);
+    }
+
     public Task<VillageStatus> ReadCurrentPageResourceStatusQuickAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.ReadCurrentPageResourceStatusQuickAsync(options, log, null, cancellationToken);

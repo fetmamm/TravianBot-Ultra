@@ -168,9 +168,9 @@ public sealed partial class TravianClient
         }
 
         var enabled = enabledResources.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var threshold = Math.Clamp(sourceThresholdPercent, 1, 100);
+        var threshold = Math.Clamp(sourceThresholdPercent, 0, 100);
         var keep = Math.Clamp(sourceKeepPercent, 0, 99);
-        var fill = Math.Clamp(targetFillPercent, 1, 100);
+        var fill = Math.Clamp(targetFillPercent, 0, 100);
         var amounts = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var key in ResourceTransferKeys)

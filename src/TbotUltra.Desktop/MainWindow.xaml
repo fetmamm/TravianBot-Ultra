@@ -168,8 +168,39 @@
 						        <ToggleButton x:Name="ContinuousRunToggleButton"
                                               Style="{StaticResource ContinuousRunToggleStyle}"
                                               IsChecked="True"
-                                              ToolTip="When enabled, Start/Pause/Stop controls continuous running."
                                               Unchecked="ContinuousRunToggleButton_Unchecked" />
+                                <Border Width="14"
+                                        Height="14"
+                                        Margin="8,0,0,0"
+                                        CornerRadius="7"
+                                        Background="#E5E7EB"
+                                        BorderBrush="#D1D5DB"
+                                        BorderThickness="1"
+                                        VerticalAlignment="Center"
+                                        ToolTipService.InitialShowDelay="0">
+                                    <Border.ToolTip>
+                                        <ToolTip MaxWidth="360">
+                                            <StackPanel Width="320">
+                                                <TextBlock Text="Continuous run"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="#F9FAFB"
+                                                           Margin="0,0,0,6" />
+                                                <TextBlock TextWrapping="Wrap"
+                                                           Text="On: Start bot runs the enabled Automation Loop groups continuously. It waits between passes, keeps deferred tasks alive, and can be paused or stopped." />
+                                                <TextBlock Margin="0,8,0,0"
+                                                           TextWrapping="Wrap"
+                                                           Text="Off: Start bot only runs the current queue once. New queued tasks can auto-run, but the bot does not keep cycling through the Automation Loop groups." />
+                                            </StackPanel>
+                                        </ToolTip>
+                                    </Border.ToolTip>
+                                    <TextBlock Text="i"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               Foreground="#4B5563"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               TextAlignment="Center" />
+                                </Border>
                             </StackPanel>
 
 						    <Grid Margin="0,0,0,6">
@@ -379,7 +410,41 @@
                                     </Grid.RowDefinitions>
 
                                     <DockPanel Grid.Row="0" Margin="0,0,0,8">
-                                        <TextBlock DockPanel.Dock="Left" Text="Automation Loop" FontSize="20" FontWeight="SemiBold" Foreground="#111827" />
+                                        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                                            <TextBlock Text="Automation Loop" FontSize="20" FontWeight="SemiBold" Foreground="#111827" />
+                                            <Border Width="14"
+                                                    Height="14"
+                                                    Margin="8,0,0,0"
+                                                    CornerRadius="7"
+                                                    Background="#E5E7EB"
+                                                    BorderBrush="#D1D5DB"
+                                                    BorderThickness="1"
+                                                    VerticalAlignment="Center"
+                                                    ToolTipService.InitialShowDelay="0">
+                                                <Border.ToolTip>
+                                                    <ToolTip MaxWidth="360">
+                                                        <StackPanel Width="320">
+                                                            <TextBlock Text="Automation Loop"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="#F9FAFB"
+                                                                       Margin="0,0,0,6" />
+                                                            <TextBlock TextWrapping="Wrap"
+                                                                       Text="Runs the enabled task groups in the order shown. The loop checks the queue, runs ready tasks, and waits between passes while still reacting quickly to stop or pause." />
+                                                            <TextBlock Margin="0,6,0,0"
+                                                                       TextWrapping="Wrap"
+                                                                       Text="Drag items to change order. Use each switch to enable or disable a task group." />
+                                                        </StackPanel>
+                                                    </ToolTip>
+                                                </Border.ToolTip>
+                                                <TextBlock Text="i"
+                                                           FontSize="10"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="#4B5563"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           TextAlignment="Center" />
+                                            </Border>
+                                        </StackPanel>
                                         <Button x:Name="DashboardFunctionListButton"
                                                 DockPanel.Dock="Right"
                                                 Height="30"
@@ -1557,50 +1622,6 @@
                                                    FontWeight="SemiBold"
                                                    Foreground="#111827"
                                                    VerticalAlignment="Center" />
-                                        <Border Width="14"
-                                                Height="14"
-                                                Margin="8,0,0,0"
-                                                CornerRadius="7"
-                                                Background="#E5E7EB"
-                                                BorderBrush="#D1D5DB"
-                                                BorderThickness="1"
-                                                VerticalAlignment="Center"
-                                                ToolTipService.InitialShowDelay="0">
-                                            <Border.ToolTip>
-                                                <ToolTip MaxWidth="380">
-                                                    <StackPanel Width="340">
-                                                        <TextBlock Text="Resource Trading"
-                                                                   FontWeight="SemiBold"
-                                                                   Foreground="#F9FAFB"
-                                                                   Margin="0,0,0,6" />
-                                                        <TextBlock TextWrapping="Wrap"
-                                                                   Text="Target village: receives resources." />
-                                                        <TextBlock Margin="0,5,0,0"
-                                                                   TextWrapping="Wrap"
-                                                                   Text="Source villages: villages allowed to send resources. The target village cannot be selected as a source." />
-                                                        <TextBlock Margin="0,5,0,0"
-                                                                   TextWrapping="Wrap"
-                                                                   Text="Send from: source storage percent required before sending." />
-                                                        <TextBlock Margin="0,5,0,0"
-                                                                   TextWrapping="Wrap"
-                                                                   Text="Keep: source storage percent left behind." />
-                                                        <TextBlock Margin="0,5,0,0"
-                                                                   TextWrapping="Wrap"
-                                                                   Text="Fill target: maximum target storage percent to fill to." />
-                                                        <TextBlock Margin="0,5,0,0"
-                                                                   TextWrapping="Wrap"
-                                                                   Text="Resources: resource types allowed for transfer." />
-                                                    </StackPanel>
-                                                </ToolTip>
-                                            </Border.ToolTip>
-                                            <TextBlock Text="i"
-                                                       FontSize="10"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="#4B5563"
-                                                       HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center"
-                                                       TextAlignment="Center" />
-                                        </Border>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                                         <TextBlock Text="Target village"
@@ -1694,11 +1715,26 @@
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="*" />
                                                                 <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="Auto" />
                                                             </Grid.ColumnDefinitions>
-                                                            <CheckBox Content="{Binding DisplayName}"
+                                                            <CheckBox Grid.Column="0"
                                                                       IsEnabled="{Binding CanSelectAsSource}"
-                                                                      IsChecked="{Binding IsSource, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                                            <TextBlock Grid.Column="1"
+                                                                      IsChecked="{Binding IsSource, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                                <TextBlock Text="{Binding DisplayName}" />
+                                                            </CheckBox>
+                                                            <StackPanel Grid.Column="1"
+                                                                        Orientation="Horizontal"
+                                                                Margin="8,0,0,0"
+                                                                VerticalAlignment="Center">
+                                                                <TextBlock Foreground="{Binding WoodPercentBrush}" FontSize="11" FontWeight="Bold" Text="{Binding WoodPercentText}" />
+                                                                <TextBlock Foreground="#9CA3AF" FontSize="11" Margin="5,0" Text="|" />
+                                                                <TextBlock Foreground="{Binding ClayPercentBrush}" FontSize="11" FontWeight="Bold" Text="{Binding ClayPercentText}" />
+                                                                <TextBlock Foreground="#9CA3AF" FontSize="11" Margin="5,0" Text="|" />
+                                                                <TextBlock Foreground="{Binding IronPercentBrush}" FontSize="11" FontWeight="Bold" Text="{Binding IronPercentText}" />
+                                                                <TextBlock Foreground="#9CA3AF" FontSize="11" Margin="5,0" Text="|" />
+                                                                <TextBlock Foreground="{Binding CropPercentBrush}" FontSize="11" FontWeight="Bold" Text="{Binding CropPercentText}" />
+                                                            </StackPanel>
+                                                            <TextBlock Grid.Column="2"
                                                                        Text="{Binding SourceStatusText}"
                                                                        Foreground="#9CA3AF"
                                                                        FontSize="11"
@@ -1718,51 +1754,158 @@
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                                            <TextBlock Text="Send from"
-                                                       Foreground="#6B7280"
-                                                       FontSize="12"
-                                                       Margin="0,0,0,4" />
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                                <TextBlock Text="Send from"
+                                                           Foreground="#6B7280"
+                                                           FontSize="12"
+                                                           VerticalAlignment="Center" />
+                                                <Border Width="14"
+                                                        Height="14"
+                                                        Margin="6,0,0,0"
+                                                        CornerRadius="7"
+                                                        Background="#E5E7EB"
+                                                        BorderBrush="#D1D5DB"
+                                                        BorderThickness="1"
+                                                        VerticalAlignment="Center"
+                                                        ToolTipService.InitialShowDelay="0">
+                                                    <Border.ToolTip>
+                                                        <ToolTip MaxWidth="320">
+                                                            <StackPanel Width="280">
+                                                                <TextBlock Text="Send from"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="#F9FAFB"
+                                                                           Margin="0,0,0,6" />
+                                                                <TextBlock TextWrapping="Wrap"
+                                                                           Text="Source storage percent required before this resource can be sent." />
+                                                            </StackPanel>
+                                                        </ToolTip>
+                                                    </Border.ToolTip>
+                                                    <TextBlock Text="i"
+                                                               FontSize="10"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="#4B5563"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"
+                                                               TextAlignment="Center" />
+                                                </Border>
+                                            </StackPanel>
                                             <ComboBox x:Name="ResourceTransferSourceThresholdComboBox"
                                                       SelectedValuePath="Tag"
                                                       SelectionChanged="ResourceTransferSetting_SelectionChanged">
+                                                <ComboBoxItem Content="0%" Tag="0" />
+                                                <ComboBoxItem Content="5%" Tag="5" />
+                                                <ComboBoxItem Content="10%" Tag="10" />
+                                                <ComboBoxItem Content="20%" Tag="20" />
+                                                <ComboBoxItem Content="30%" Tag="30" />
+                                                <ComboBoxItem Content="40%" Tag="40" />
                                                 <ComboBoxItem Content="50%" Tag="50" />
                                                 <ComboBoxItem Content="60%" Tag="60" />
                                                 <ComboBoxItem Content="70%" Tag="70" />
                                                 <ComboBoxItem Content="80%" Tag="80" />
-                                                <ComboBoxItem Content="85%" Tag="85" />
                                                 <ComboBoxItem Content="90%" Tag="90" />
-                                                <ComboBoxItem Content="95%" Tag="95" />
                                             </ComboBox>
                                         </StackPanel>
                                         <StackPanel Grid.Column="1" Margin="0,0,8,0">
-                                            <TextBlock Text="Keep"
-                                                       Foreground="#6B7280"
-                                                       FontSize="12"
-                                                       Margin="0,0,0,4" />
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                                <TextBlock Text="Keep"
+                                                           Foreground="#6B7280"
+                                                           FontSize="12"
+                                                           VerticalAlignment="Center" />
+                                                <Border Width="14"
+                                                        Height="14"
+                                                        Margin="6,0,0,0"
+                                                        CornerRadius="7"
+                                                        Background="#E5E7EB"
+                                                        BorderBrush="#D1D5DB"
+                                                        BorderThickness="1"
+                                                        VerticalAlignment="Center"
+                                                        ToolTipService.InitialShowDelay="0">
+                                                    <Border.ToolTip>
+                                                        <ToolTip MaxWidth="320">
+                                                            <StackPanel Width="280">
+                                                                <TextBlock Text="Keep"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="#F9FAFB"
+                                                                           Margin="0,0,0,6" />
+                                                                <TextBlock TextWrapping="Wrap"
+                                                                           Text="Source storage percent left behind after sending." />
+                                                            </StackPanel>
+                                                        </ToolTip>
+                                                    </Border.ToolTip>
+                                                    <TextBlock Text="i"
+                                                               FontSize="10"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="#4B5563"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"
+                                                               TextAlignment="Center" />
+                                                </Border>
+                                            </StackPanel>
                                             <ComboBox x:Name="ResourceTransferSourceKeepComboBox"
                                                       SelectedValuePath="Tag"
                                                       SelectionChanged="ResourceTransferSetting_SelectionChanged">
                                                 <ComboBoxItem Content="0%" Tag="0" />
-                                                <ComboBoxItem Content="25%" Tag="25" />
+                                                <ComboBoxItem Content="5%" Tag="5" />
+                                                <ComboBoxItem Content="10%" Tag="10" />
+                                                <ComboBoxItem Content="20%" Tag="20" />
+                                                <ComboBoxItem Content="30%" Tag="30" />
+                                                <ComboBoxItem Content="40%" Tag="40" />
                                                 <ComboBoxItem Content="50%" Tag="50" />
                                                 <ComboBoxItem Content="60%" Tag="60" />
                                                 <ComboBoxItem Content="70%" Tag="70" />
                                                 <ComboBoxItem Content="80%" Tag="80" />
+                                                <ComboBoxItem Content="90%" Tag="90" />
                                             </ComboBox>
                                         </StackPanel>
                                         <StackPanel Grid.Column="2">
-                                            <TextBlock Text="Fill target"
-                                                       Foreground="#6B7280"
-                                                       FontSize="12"
-                                                       Margin="0,0,0,4" />
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                                <TextBlock Text="Fill target"
+                                                           Foreground="#6B7280"
+                                                           FontSize="12"
+                                                           VerticalAlignment="Center" />
+                                                <Border Width="14"
+                                                        Height="14"
+                                                        Margin="6,0,0,0"
+                                                        CornerRadius="7"
+                                                        Background="#E5E7EB"
+                                                        BorderBrush="#D1D5DB"
+                                                        BorderThickness="1"
+                                                        VerticalAlignment="Center"
+                                                        ToolTipService.InitialShowDelay="0">
+                                                    <Border.ToolTip>
+                                                        <ToolTip MaxWidth="320">
+                                                            <StackPanel Width="280">
+                                                                <TextBlock Text="Fill target"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="#F9FAFB"
+                                                                           Margin="0,0,0,6" />
+                                                                <TextBlock TextWrapping="Wrap"
+                                                                           Text="Maximum target storage percent to fill to." />
+                                                            </StackPanel>
+                                                        </ToolTip>
+                                                    </Border.ToolTip>
+                                                    <TextBlock Text="i"
+                                                               FontSize="10"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="#4B5563"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"
+                                                               TextAlignment="Center" />
+                                                </Border>
+                                            </StackPanel>
                                             <ComboBox x:Name="ResourceTransferTargetFillComboBox"
                                                       SelectedValuePath="Tag"
                                                       SelectionChanged="ResourceTransferSetting_SelectionChanged">
+                                                <ComboBoxItem Content="0%" Tag="0" />
+                                                <ComboBoxItem Content="10%" Tag="10" />
+                                                <ComboBoxItem Content="20%" Tag="20" />
+                                                <ComboBoxItem Content="30%" Tag="30" />
+                                                <ComboBoxItem Content="40%" Tag="40" />
+                                                <ComboBoxItem Content="50%" Tag="50" />
+                                                <ComboBoxItem Content="60%" Tag="60" />
                                                 <ComboBoxItem Content="70%" Tag="70" />
                                                 <ComboBoxItem Content="80%" Tag="80" />
-                                                <ComboBoxItem Content="85%" Tag="85" />
                                                 <ComboBoxItem Content="90%" Tag="90" />
-                                                <ComboBoxItem Content="95%" Tag="95" />
                                                 <ComboBoxItem Content="100%" Tag="100" />
                                             </ComboBox>
                                         </StackPanel>
@@ -1819,6 +1962,11 @@
                                                 Content="Queue now"
                                                 Padding="10,4"
                                                 Click="QueueResourceTransferNowButton_Click" />
+                                        <Button x:Name="ResourceTransferScanVillagesButton"
+                                                Content="Scan villages"
+                                                Padding="10,4"
+                                                Margin="8,0,0,0"
+                                                Click="ResourceTransferScanVillagesButton_Click" />
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
@@ -2119,6 +2267,38 @@
                                       Checked="LogCleanModeToggle_Changed"
                                       Unchecked="LogCleanModeToggle_Changed"
                                       ToolTip="Hide high-volume noise lines (full log is still kept in the session file)." />
+                            <Border Width="14"
+                                    Height="14"
+                                    Margin="8,0,0,0"
+                                    CornerRadius="7"
+                                    Background="#E5E7EB"
+                                    BorderBrush="#D1D5DB"
+                                    BorderThickness="1"
+                                    VerticalAlignment="Center"
+                                    ToolTipService.InitialShowDelay="0">
+                                <Border.ToolTip>
+                                    <ToolTip MaxWidth="360">
+                                        <StackPanel Width="320">
+                                            <TextBlock Text="Clean log"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#F9FAFB"
+                                                       Margin="0,0,0,6" />
+                                            <TextBlock TextWrapping="Wrap"
+                                                       Text="Hides high-volume technical lines from the visible log, such as routine login checks, UI sync, resource-production updates, and repeated internal scans." />
+                                            <TextBlock Margin="0,8,0,0"
+                                                       TextWrapping="Wrap"
+                                                       Text="Important queue events, waits, actions, hero status, errors, and alarms are still shown. The full raw session log is still saved to file." />
+                                        </StackPanel>
+                                    </ToolTip>
+                                </Border.ToolTip>
+                                <TextBlock Text="i"
+                                           FontSize="10"
+                                           FontWeight="SemiBold"
+                                           Foreground="#4B5563"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           TextAlignment="Center" />
+                            </Border>
                         </StackPanel>
                         <TabControl x:Name="TerminalAlarmTabControl" Grid.Row="1" Margin="0,0,0,8">
                             <TabItem Header="Log">

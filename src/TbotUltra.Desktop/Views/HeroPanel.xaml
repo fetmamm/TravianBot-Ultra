@@ -360,11 +360,11 @@
                                     Foreground="White"
                                     BorderBrush="#030826" />
                         </StackPanel>
-                        <!-- Hidden bound element kept so AdventureStatusText still drives a
-                             notify-property-changed receiver while the visible status line is
-                             rendered next to the Start bot button instead. -->
-                        <TextBlock Visibility="Collapsed"
-                                   Text="{Binding AdventureStatusText}" />
+                        <TextBlock Text="{Binding AdventureStatusText}"
+                                   Foreground="#6B7280"
+                                   FontSize="12"
+                                   TextWrapping="Wrap"
+                                   Margin="0,8,0,0" />
                     </StackPanel>
                 </Border>
             </Grid>

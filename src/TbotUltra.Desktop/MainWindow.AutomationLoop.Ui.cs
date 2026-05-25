@@ -457,7 +457,7 @@ public partial class MainWindow
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-            foreach (var groupKey in QueueGroupCatalog.AllGroups.Select(QueueGroupCatalog.GetKey))
+            foreach (var groupKey in GetDefaultContinuousLoopGroupOrder())
             {
                 if (!configuredOrder.Contains(groupKey, StringComparer.OrdinalIgnoreCase))
                 {
@@ -469,10 +469,18 @@ public partial class MainWindow
         }
         catch
         {
-            return QueueGroupCatalog.AllGroups
-                .Select(QueueGroupCatalog.GetKey)
-                .ToList();
+            return GetDefaultContinuousLoopGroupOrder();
         }
+    }
+
+    private static List<string> GetDefaultContinuousLoopGroupOrder()
+    {
+        var heroKey = QueueGroupCatalog.GetKey(QueueGroup.Hero);
+        return new[] { heroKey }
+            .Concat(QueueGroupCatalog.AllGroups
+                .Select(QueueGroupCatalog.GetKey)
+                .Where(key => !string.Equals(key, heroKey, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
     }
 
     private static string NormalizeLegacyLoopTaskName(string? taskName)

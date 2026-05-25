@@ -155,6 +155,7 @@ public partial class MainWindow
             if (adventureCount is > 0)
             {
                 _botService.EnqueueRuntime("hero_manage", "Hero adventure", null, priority: -50, maxRetries: 0);
+                AppendLog($"Hero group: queued hero_manage because adventures available={adventureCount.Value}.");
             }
         }
 
@@ -270,7 +271,6 @@ public partial class MainWindow
                 ApplyVillageStatusToUi(status);
                 PopulateBuildingsTab(status);
             });
-            await RefreshResourceSnapshotForUiAsync(options, cancellationToken);
             _continuousLoopConstructionStatusNeedsSync = false;
         }
         catch (OperationCanceledException)
@@ -444,7 +444,11 @@ public partial class MainWindow
                             try
                             {
                                 var snapshot = await _botService.ReadHeroAttributesAsync(options, AppendLog, token);
-                                await Dispatcher.InvokeAsync(() => _heroViewModel.ApplyAttributeSnapshot(snapshot));
+                                await Dispatcher.InvokeAsync(() =>
+                                {
+                                    _heroViewModel.ApplyAttributeSnapshot(snapshot);
+                                    _heroViewModel.AdventureStatusText = "Hero adventure check completed.";
+                                });
                             }
                             catch (Exception ex)
                             {
@@ -496,9 +500,17 @@ public partial class MainWindow
                                 await Dispatcher.InvokeAsync(() => ApplyConstructionInlineWait(queueWaitDelay));
                             }
 
+                            if (IsHeroLowHpCooldown(next, ex))
+                            {
+                                await ApplyHeroLowHpCooldownUiAsync(queueWaitDelay);
+                            }
+
                             var deferred = _botService.MarkQueueItemDeferred(next.Id, queueWaitDelay);
                             if (deferred)
                             {
+                                var constructionSuffix = IsConstructionQueueTask(next.TaskName)
+                                    ? " | construction wait timer updated; continuing with next enabled group; no Hero refresh was triggered by this defer"
+                                    : string.Empty;
                                 if (TryExtractDeferredUpgradePayload(ex.Message, next.Payload, out var updatedPayload))
                                 {
                                     _botService.UpdateDeferredQueueItem(next.Id, updatedPayload);
@@ -506,7 +518,7 @@ public partial class MainWindow
                                 }
                                 ScheduleDeferredBuildingsMidWaitRefresh(next, queueWaitDelay);
                                 ScheduleDeferredResourcesMidWaitRefresh(next, queueWaitDelay);
-                                AppendLog($"[LOOP {tickId}] DEFER {tickSw.Elapsed.TotalSeconds:F1}s task={next.TaskName} | next try in {queueWaitDelay.TotalSeconds:F0}s");
+                                AppendLog($"[LOOP {tickId}] DEFER {tickSw.Elapsed.TotalSeconds:F1}s task={next.TaskName} | next try in {queueWaitDelay.TotalSeconds:F0}s{constructionSuffix}");
                             }
                             else
                             {
@@ -532,8 +544,7 @@ public partial class MainWindow
                 else
                 {
                     var waitDelay = ResolveContinuousLoopWaitDelay(loopDelaySeconds);
-                    AppendLog($"[LOOP {tickId}] WAIT {waitDelay.TotalSeconds:F0}s");
-                    await Task.Delay(waitDelay, token);
+                    await WaitForNextContinuousLoopPassAsync(tickId, waitDelay, token);
                 }
             }
             catch (OperationCanceledException)
@@ -564,7 +575,7 @@ public partial class MainWindow
                 .FirstOrDefault();
             if (nextDeferred is null)
             {
-                return TimeSpan.FromSeconds(Math.Min(fallbackSeconds, ContinuousLoopMaxSleepSliceSeconds));
+                return TimeSpan.FromSeconds(Math.Max(5, fallbackSeconds));
             }
 
             var delay = nextDeferred.NextAttemptAt - now;
@@ -573,13 +584,70 @@ public partial class MainWindow
                 return TimeSpan.FromSeconds(1);
             }
 
-            var maxSlice = TimeSpan.FromSeconds(ContinuousLoopMaxSleepSliceSeconds);
-            return delay <= maxSlice ? delay : maxSlice;
+            return delay <= TimeSpan.FromSeconds(fallbackSeconds)
+                ? delay
+                : TimeSpan.FromSeconds(Math.Max(5, fallbackSeconds));
         }
         catch
         {
-            return TimeSpan.FromSeconds(Math.Min(fallbackSeconds, ContinuousLoopMaxSleepSliceSeconds));
+            return TimeSpan.FromSeconds(Math.Max(5, fallbackSeconds));
         }
+    }
+
+    private async Task WaitForNextContinuousLoopPassAsync(long tickId, TimeSpan waitDelay, CancellationToken token)
+    {
+        var totalSeconds = Math.Max(1, (int)Math.Ceiling(waitDelay.TotalSeconds));
+        AppendLog($"[LOOP {tickId}] WAIT {totalSeconds}s");
+
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(totalSeconds);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            token.ThrowIfCancellationRequested();
+            if (_loopController.LoopStopRequested)
+            {
+                AppendLog($"[LOOP {tickId}] WAIT canceled by stop.");
+                return;
+            }
+
+            try
+            {
+                if (SelectNextQueueItemForContinuousLoop() is not null)
+                {
+                    AppendLog($"[LOOP {tickId}] WAIT ended early: queue item ready.");
+                    return;
+                }
+            }
+            catch
+            {
+                // If checking readiness fails, keep the wait responsive and let the next pass log the real error.
+            }
+
+            var remaining = deadline - DateTimeOffset.UtcNow;
+            if (remaining <= TimeSpan.Zero)
+            {
+                return;
+            }
+
+            var slice = remaining < TimeSpan.FromSeconds(ContinuousLoopMaxSleepSliceSeconds)
+                ? remaining
+                : TimeSpan.FromSeconds(ContinuousLoopMaxSleepSliceSeconds);
+            await Task.Delay(slice, token);
+        }
+    }
+
+    private static bool IsHeroLowHpCooldown(QueueItem item, Exception ex)
+    {
+        return string.Equals(item.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase)
+               && ex.Message.Contains("adventure_skipped_hp_too_low", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task ApplyHeroLowHpCooldownUiAsync(TimeSpan cooldown)
+    {
+        var seconds = Math.Max(1, (int)Math.Ceiling(cooldown.TotalSeconds));
+        await Dispatcher.InvokeAsync(() =>
+        {
+            _heroViewModel.AdventureStatusText = $"Hero HP too low. Next adventure check in {seconds}s.";
+        });
     }
 
     private async Task ExecuteQueuedItemsNowAsync(CancellationToken cancellationToken)
@@ -686,7 +754,11 @@ public partial class MainWindow
                     try
                     {
                         var snapshot = await _botService.ReadHeroAttributesAsync(options, AppendLog, cancellationToken);
-                        await Dispatcher.InvokeAsync(() => _heroViewModel.ApplyAttributeSnapshot(snapshot));
+                        await Dispatcher.InvokeAsync(() =>
+                        {
+                            _heroViewModel.ApplyAttributeSnapshot(snapshot);
+                            _heroViewModel.AdventureStatusText = "Hero adventure check completed.";
+                        });
                     }
                     catch (Exception refreshEx)
                     {
@@ -745,9 +817,17 @@ public partial class MainWindow
                         await Dispatcher.InvokeAsync(() => ApplyConstructionInlineWait(queueWaitDelay));
                     }
 
+                    if (IsHeroLowHpCooldown(next, ex))
+                    {
+                        await ApplyHeroLowHpCooldownUiAsync(queueWaitDelay);
+                    }
+
                     var deferred = _botService.MarkQueueItemDeferred(next.Id, queueWaitDelay);
                     if (deferred)
                     {
+                        var constructionSuffix = IsConstructionQueueTask(next.TaskName)
+                            ? " | construction wait timer updated; continuing with other ready tasks; no Hero refresh was triggered by this defer"
+                            : string.Empty;
                         if (TryExtractDeferredUpgradePayload(ex.Message, next.Payload, out var updatedPayload))
                         {
                             _botService.UpdateDeferredQueueItem(next.Id, updatedPayload);
@@ -755,7 +835,7 @@ public partial class MainWindow
                         }
                         ScheduleDeferredBuildingsMidWaitRefresh(next, queueWaitDelay);
                         ScheduleDeferredResourcesMidWaitRefresh(next, queueWaitDelay);
-                        AppendLog($"[AUTOQ {runId}] DEFER {tickSw.Elapsed.TotalSeconds:F1}s task={next.TaskName} | next try in {queueWaitDelay.TotalSeconds:F0}s");
+                        AppendLog($"[AUTOQ {runId}] DEFER {tickSw.Elapsed.TotalSeconds:F1}s task={next.TaskName} | next try in {queueWaitDelay.TotalSeconds:F0}s{constructionSuffix}");
                     }
                     else
                     {

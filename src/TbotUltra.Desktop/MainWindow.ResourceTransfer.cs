@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Text.Json.Nodes;
 using System.Windows;
@@ -28,6 +29,10 @@ public partial class MainWindow
             var options = LoadBotOptions();
             var targetName = options.ResourceTransferTargetVillageName;
             var selectedSources = options.ResourceTransferSourceVillageNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var previousItems = _resourceTransferVillages
+                .Where(item => !string.IsNullOrWhiteSpace(item.Name))
+                .GroupBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
             foreach (var existing in _resourceTransferVillages)
             {
                 existing.PropertyChanged -= ResourceTransferVillage_PropertyChanged;
@@ -43,6 +48,10 @@ public partial class MainWindow
                     CoordY = village.CoordY,
                     IsSource = selectedSources.Contains(village.Name),
                 };
+                if (previousItems.TryGetValue(village.Name, out var previous))
+                {
+                    item.ApplyResourceStatusFrom(previous);
+                }
                 item.PropertyChanged += ResourceTransferVillage_PropertyChanged;
                 _resourceTransferVillages.Add(item);
             }
@@ -173,8 +182,8 @@ public partial class MainWindow
             [BotOptionPayloadKeys.ResourceTransferEnabled] = "true",
             [BotOptionPayloadKeys.ResourceTransferTargetVillageName] = target?.Name ?? string.Empty,
             [BotOptionPayloadKeys.ResourceTransferSourceVillageNames] = string.Join(",", sourceNames),
-            [BotOptionPayloadKeys.ResourceTransferSourceThresholdPercent] = ReadComboPercent(ResourceTransferSourceThresholdComboBox, 85).ToString(),
-            [BotOptionPayloadKeys.ResourceTransferSourceKeepPercent] = ReadComboPercent(ResourceTransferSourceKeepComboBox, 70).ToString(),
+            [BotOptionPayloadKeys.ResourceTransferSourceThresholdPercent] = ReadComboPercent(ResourceTransferSourceThresholdComboBox, 50).ToString(),
+            [BotOptionPayloadKeys.ResourceTransferSourceKeepPercent] = ReadComboPercent(ResourceTransferSourceKeepComboBox, 5).ToString(),
             [BotOptionPayloadKeys.ResourceTransferTargetFillPercent] = ReadComboPercent(ResourceTransferTargetFillComboBox, 90).ToString(),
             [BotOptionPayloadKeys.ResourceTransferSendWood] = ResourceTransferWoodCheckBox.IsChecked == true ? "true" : "false",
             [BotOptionPayloadKeys.ResourceTransferSendClay] = ResourceTransferClayCheckBox.IsChecked == true ? "true" : "false",
@@ -198,8 +207,8 @@ public partial class MainWindow
                 .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Select(name => JsonValue.Create(name)!)
                 .ToArray());
-        config[BotOptionPayloadKeys.ResourceTransferSourceThresholdPercent] = ReadComboPercent(ResourceTransferSourceThresholdComboBox, 85);
-        config[BotOptionPayloadKeys.ResourceTransferSourceKeepPercent] = ReadComboPercent(ResourceTransferSourceKeepComboBox, 70);
+        config[BotOptionPayloadKeys.ResourceTransferSourceThresholdPercent] = ReadComboPercent(ResourceTransferSourceThresholdComboBox, 50);
+        config[BotOptionPayloadKeys.ResourceTransferSourceKeepPercent] = ReadComboPercent(ResourceTransferSourceKeepComboBox, 5);
         config[BotOptionPayloadKeys.ResourceTransferTargetFillPercent] = ReadComboPercent(ResourceTransferTargetFillComboBox, 90);
         config[BotOptionPayloadKeys.ResourceTransferSendWood] = ResourceTransferWoodCheckBox.IsChecked == true;
         config[BotOptionPayloadKeys.ResourceTransferSendClay] = ResourceTransferClayCheckBox.IsChecked == true;
@@ -267,7 +276,8 @@ public partial class MainWindow
         var canRun = CanRunResourceTransfer(out var reason);
         ResourceTransferStatusTextBlock.Text = canRun ? "Ready." : reason;
         ResourceTransferStatusTextBlock.Foreground = canRun ? Brushes.SeaGreen : Brushes.DarkOrange;
-        ResourceTransferQueueNowButton.IsEnabled = canRun;
+        ResourceTransferQueueNowButton.IsEnabled = canRun && !_uiBusy && !_resourceTransferScanRunning;
+        ResourceTransferScanVillagesButton.IsEnabled = !_uiBusy && !_resourceTransferScanRunning && _resourceTransferVillages.Count > 0;
 
         if (!canRun && _resourceTransferVillages.Count > 0)
         {
@@ -310,6 +320,84 @@ public partial class MainWindow
         RefreshQueueUi();
         TriggerQueueAutoRunFromEnqueue();
         AppendLog("Resource transfer queued.");
+    }
+
+    private async void ResourceTransferScanVillagesButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_resourceTransferScanRunning || _uiBusy)
+        {
+            return;
+        }
+
+        var selectedVillageName = GetSelectedVillageName();
+        var selectedVillageUrl = GetSelectedVillageUrl();
+        var operationId = BeginOperation("Scan Resource Villages");
+        var operationSw = Stopwatch.StartNew();
+        _resourceTransferScanRunning = true;
+        _operationCts = _loopController.CreateCts("operation");
+        var operationToken = _operationCts.Token;
+        ToggleUiBusy(true);
+        UpdateResourceTransferStatus();
+        try
+        {
+            await EnsureChromiumInstalledAsync();
+            var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            AppendLog("Resource transfer village scan started.");
+            var statuses = await _botService.ReadAllVillageResourceStatusesAsync(
+                options,
+                AppendLog,
+                selectedVillageName,
+                selectedVillageUrl,
+                operationToken);
+            ApplyResourceTransferVillageResourceStatuses(statuses);
+            CompleteOperation(operationId, operationSw, $"Resource transfer village scan completed: {statuses.Count} village(s).");
+        }
+        catch (OperationCanceledException)
+        {
+            StatusTextBlock.Text = "Resource transfer village scan paused.";
+            AppendLog("Resource transfer village scan paused.");
+        }
+        catch (Exception ex)
+        {
+            FailOperation(operationId, operationSw, ex);
+        }
+        finally
+        {
+            _resourceTransferScanRunning = false;
+            ToggleUiBusy(false);
+            UpdateResourceTransferStatus();
+            _operationCts?.Dispose();
+            _operationCts = null;
+        }
+    }
+
+    private void ApplyResourceTransferVillageResourceStatuses(IEnumerable<VillageStatus> statuses)
+    {
+        foreach (var status in statuses)
+        {
+            ApplyResourceTransferVillageResourceStatus(status);
+        }
+    }
+
+    private void ApplyResourceTransferVillageResourceStatus(VillageStatus status)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.Invoke(() => ApplyResourceTransferVillageResourceStatus(status));
+            return;
+        }
+
+        var item = _resourceTransferVillages.FirstOrDefault(village =>
+            string.Equals(village.Name, status.ActiveVillage, StringComparison.OrdinalIgnoreCase));
+        item?.ApplyResourceStatus(status);
+    }
+
+    private void TickResourceTransferVillageForecasts()
+    {
+        foreach (var village in _resourceTransferVillages)
+        {
+            village.TickResourceForecasts();
+        }
     }
 
     private bool CanRunResourceTransfer(out string reason)

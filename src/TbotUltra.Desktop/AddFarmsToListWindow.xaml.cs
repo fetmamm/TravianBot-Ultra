@@ -94,6 +94,11 @@ public partial class AddFarmsToListWindow : Window
         RefreshUiState();
     }
 
+    private void CheckedModeRadioButton_Checked(object sender, RoutedEventArgs e)
+    {
+        RefreshUiState();
+    }
+
     private void CustomModeRadioButton_Checked(object sender, RoutedEventArgs e)
     {
         RefreshUiState();
@@ -134,12 +139,12 @@ public partial class AddFarmsToListWindow : Window
             return;
         }
 
-        InfoTextBlock.Text = $"Natars scanned: {_natarFarmCount}. Requested: {Math.Max(0, requested)}. Slots free: {selected.AvailableSlots}.";
+        InfoTextBlock.Text = $"Natars checked: {_natarFarmCount}. Requested: {Math.Max(0, requested)}. Slots free: {selected.AvailableSlots}.";
     }
 
     private int ResolveRequestedFarmCount(FarmListSelectionOption selected)
     {
-        if (AllModeRadioButton.IsChecked == true)
+        if (AllModeRadioButton.IsChecked == true || CheckedModeRadioButton.IsChecked == true)
         {
             return _natarFarmCount;
         }

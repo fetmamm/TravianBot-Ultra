@@ -8,6 +8,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
 using TbotUltra.Core.Configuration;
+using TbotUltra.Worker.Services;
 
 namespace TbotUltra.Desktop;
 
@@ -97,17 +98,20 @@ public partial class MainWindow
         }
 
         var rows = snapshot.Coordinates
-            .Select((item, index) => new NatarListRow(
-                index + 1,
-                string.IsNullOrWhiteSpace(item.VillageName) ? "-" : item.VillageName,
-                item.X,
-                item.Y))
+            .Select((item, index) => new NatarListRow
+            {
+                Index = index + 1,
+                VillageName = string.IsNullOrWhiteSpace(item.VillageName) ? "-" : item.VillageName,
+                X = item.X,
+                Y = item.Y,
+                IsChecked = item.Enabled,
+            })
             .ToList();
 
         var grid = new DataGrid
         {
             AutoGenerateColumns = false,
-            IsReadOnly = true,
+            IsReadOnly = false,
             CanUserAddRows = false,
             CanUserDeleteRows = false,
             CanUserReorderColumns = false,
@@ -117,6 +121,16 @@ public partial class MainWindow
             Margin = new Thickness(0, 0, 0, 10),
             ItemsSource = rows,
         };
+        grid.Columns.Add(new DataGridCheckBoxColumn
+        {
+            Header = "Use",
+            Binding = new Binding(nameof(NatarListRow.IsChecked))
+            {
+                Mode = BindingMode.TwoWay,
+                UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
+            },
+            Width = new DataGridLength(60),
+        });
         grid.Columns.Add(new DataGridTextColumn { Header = "#", Binding = new Binding(nameof(NatarListRow.Index)), Width = new DataGridLength(70) });
         grid.Columns.Add(new DataGridTextColumn { Header = "Village", Binding = new Binding(nameof(NatarListRow.VillageName)), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
         grid.Columns.Add(new DataGridTextColumn { Header = "X", Binding = new Binding(nameof(NatarListRow.X)), Width = new DataGridLength(90) });
@@ -124,16 +138,38 @@ public partial class MainWindow
 
         var summaryText = new TextBlock
         {
-            Text = $"Entries: {rows.Count:N0} | Mode: {(string.Equals(snapshot.SelectionMode, "all_villages", StringComparison.OrdinalIgnoreCase) ? "All villages" : "Farm villages")}",
+            Text = BuildNatarsListSummaryText(rows, snapshot.SelectionMode),
             Foreground = new SolidColorBrush(Color.FromRgb(75, 85, 99)),
             Margin = new Thickness(0, 0, 0, 10),
         };
 
+        var markAllButton = new Button
+        {
+            Content = "Mark all",
+            Width = 90,
+            Margin = new Thickness(0, 0, 8, 0),
+        };
+        var unmarkAllButton = new Button
+        {
+            Content = "Unmark all",
+            Width = 90,
+            Margin = new Thickness(0, 0, 8, 0),
+        };
         var closeButton = new Button
         {
             Content = "Close",
             Width = 90,
+        };
+        var buttonRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right,
+            Children =
+            {
+                markAllButton,
+                unmarkAllButton,
+                closeButton,
+            },
         };
 
         var popup = new Window
@@ -150,18 +186,73 @@ public partial class MainWindow
                 Margin = new Thickness(12),
                 Children =
                 {
-                    closeButton,
+                    buttonRow,
                     summaryText,
                     grid,
                 },
             },
         };
 
-        DockPanel.SetDock(closeButton, Dock.Bottom);
+        DockPanel.SetDock(buttonRow, Dock.Bottom);
         DockPanel.SetDock(summaryText, Dock.Top);
 
+        void SaveSelection()
+        {
+            var enabledKeys = rows
+                .Where(row => row.IsChecked)
+                .Select(row => NatarFarmCacheStore.BuildCoordinateKey(row.X, row.Y))
+                .ToHashSet(StringComparer.Ordinal);
+            _natarFarmCacheStore.SaveSelection(snapshot.AccountName, snapshot.ServerUrl, snapshot.SelectionMode, enabledKeys);
+            summaryText.Text = BuildNatarsListSummaryText(rows, snapshot.SelectionMode);
+        }
+
+        var suppressSelectionSave = false;
+        foreach (var row in rows)
+        {
+            row.PropertyChanged += (_, args) =>
+            {
+                if (string.Equals(args.PropertyName, nameof(NatarListRow.IsChecked), StringComparison.Ordinal))
+                {
+                    if (!suppressSelectionSave)
+                    {
+                        SaveSelection();
+                    }
+                }
+            };
+        }
+
+        markAllButton.Click += (_, _) =>
+        {
+            suppressSelectionSave = true;
+            foreach (var row in rows)
+            {
+                row.IsChecked = true;
+            }
+
+            suppressSelectionSave = false;
+            SaveSelection();
+        };
+        unmarkAllButton.Click += (_, _) =>
+        {
+            suppressSelectionSave = true;
+            foreach (var row in rows)
+            {
+                row.IsChecked = false;
+            }
+
+            suppressSelectionSave = false;
+            SaveSelection();
+        };
         closeButton.Click += (_, _) => popup.Close();
         popup.ShowDialog();
+    }
+
+    private static string BuildNatarsListSummaryText(IReadOnlyCollection<NatarListRow> rows, string selectionMode)
+    {
+        var modeText = string.Equals(selectionMode, "all_villages", StringComparison.OrdinalIgnoreCase)
+            ? "All villages"
+            : "Farm villages";
+        return $"Entries: {rows.Count:N0} | Checked: {rows.Count(row => row.IsChecked):N0} | Mode: {modeText}";
     }
 
     private string ResolveCurrentTribeForFarming()

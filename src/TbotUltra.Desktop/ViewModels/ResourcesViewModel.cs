@@ -307,7 +307,7 @@ public sealed class ResourcesViewModel : BaseViewModel
             return "-";
         }
 
-        return $"{Math.Round(Math.Clamp(percent.Value, 0, 100), MidpointRounding.AwayFromZero).ToString("0", CultureInfo.InvariantCulture)}%";
+        return $"{Math.Floor(Math.Clamp(percent.Value, 0, 100)).ToString("0", CultureInfo.InvariantCulture)}%";
     }
 
     private static string FormatCurrentMaxText(long? current, long? capacity)

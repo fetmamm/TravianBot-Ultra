@@ -285,7 +285,7 @@ public partial class MainWindow
         }
     }
 
-    private async void UpgradeAllResourcesButton_Click(object sender, RoutedEventArgs e)
+    private void UpgradeAllResourcesButton_Click(object sender, RoutedEventArgs e)
     {
         var operationId = BeginOperation("UpgradeAllResources");
         if (ResourceTargetLevelComboBox.SelectedItem is not int targetLevel)
@@ -294,56 +294,26 @@ public partial class MainWindow
             return;
         }
 
-        _operationCts = new CancellationTokenSource();
-        var operationToken = _operationCts.Token;
-        ToggleResourceTabActionsBusy(true);
         try
         {
-            await QueueUpgradeAllResourcesAsync(operationId, operationToken, targetLevel);
-        }
-        catch (OperationCanceledException)
-        {
-            ClearPendingResourceLevelsFromUi();
-            StatusTextBlock.Text = "Upgrade all resources paused.";
-            AppendLog("Upgrade all resources paused.");
+            QueueUpgradeAllResources(operationId, targetLevel);
         }
         catch (Exception ex)
         {
             AppendLog($"[{operationId}] FAIL 0.0s | {FormatExceptionForLog(ex)}");
-        }
-        finally
-        {
-            ToggleResourceTabActionsBusy(false);
-            _operationCts?.Dispose();
-            _operationCts = null;
         }
     }
 
-    private async void UpgradeAllResourcesToMaxButton_Click(object sender, RoutedEventArgs e)
+    private void UpgradeAllResourcesToMaxButton_Click(object sender, RoutedEventArgs e)
     {
         var operationId = BeginOperation("UpgradeAllResourcesToMax");
-        _operationCts = new CancellationTokenSource();
-        var operationToken = _operationCts.Token;
-        ToggleResourceTabActionsBusy(true);
         try
         {
-            await QueueUpgradeAllResourcesAsync(operationId, operationToken, null);
-        }
-        catch (OperationCanceledException)
-        {
-            ClearPendingResourceLevelsFromUi();
-            StatusTextBlock.Text = "Upgrade all resources paused.";
-            AppendLog("Upgrade all resources paused.");
+            QueueUpgradeAllResources(operationId, ResolveSelectedVillageResourceMaxLevel());
         }
         catch (Exception ex)
         {
             AppendLog($"[{operationId}] FAIL 0.0s | {FormatExceptionForLog(ex)}");
-        }
-        finally
-        {
-            ToggleResourceTabActionsBusy(false);
-            _operationCts?.Dispose();
-            _operationCts = null;
         }
     }
 
@@ -366,30 +336,9 @@ public partial class MainWindow
         }
     }
 
-    private async Task QueueUpgradeAllResourcesAsync(string operationId, CancellationToken operationToken, int? targetLevel)
+    private void QueueUpgradeAllResources(string operationId, int targetLevel)
     {
-        await EnsureChromiumInstalledAsync();
-        var options = LoadBotOptions();
-        var status = await ReadVillageStatusWithRetryAsync(options, operationToken, resourceOnly: true, forceCurrentVillage: true);
-        var resourceMaxLevel = ResolveResourceMaxLevelFromStatus(status);
-        var requestedTargetLevel = targetLevel.HasValue
-            ? Math.Min(targetLevel.Value, resourceMaxLevel)
-            : resourceMaxLevel;
-        _resourcePendingTargetBySlot.Clear();
-        var rows = ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: false);
-
-        var orderedUpgrades = rows
-            .Where(row => (row.Level ?? 0) < requestedTargetLevel)
-            .OrderBy(row => row.Level ?? 0)
-            .ThenBy(row => row.SlotId)
-            .ToList();
-
-        if (orderedUpgrades.Count == 0)
-        {
-            AppendLog($"[{operationId}] OK 0.0s | All resource fields are already at or above level {requestedTargetLevel}.");
-            return;
-        }
-
+        var requestedTargetLevel = Math.Clamp(targetLevel, 1, ResolveSelectedVillageResourceMaxLevel());
         var buildStrategy = _resourcesViewModel.BuildStrategy;
         var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -404,6 +353,16 @@ public partial class MainWindow
             ? "the field of the resource with the least in storage first"
             : "the lowest resource field first";
         AppendLog($"[{operationId}] OK 0.0s | Queued upgrade-all toward level {requestedTargetLevel}. The worker will upgrade {strategyText}.");
+    }
+
+    private int ResolveSelectedVillageResourceMaxLevel()
+    {
+        if (VillageComboBox.SelectedItem is VillageSelectionItem selectedVillage)
+        {
+            return selectedVillage.IsCapital ? ResourceFieldMaxLevel : NonCapitalResourceMaxLevel;
+        }
+
+        return Math.Clamp(_activeVillageResourceMaxLevel, NonCapitalResourceMaxLevel, ResourceFieldMaxLevel);
     }
 
     private void ResourceBuildStrategyRadio_Click(object sender, RoutedEventArgs e)

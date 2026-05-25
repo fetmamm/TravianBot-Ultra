@@ -34,6 +34,17 @@ public partial class MainWindow
 
     internal void OnUpgradeAllBuildingsToMaxClicked()
     {
+        var confirm = AppDialog.Show(
+            this,
+            "This will queue a building snapshot refresh and then queue upgrade-to-max tasks for every building slot. Each task will validate the slot when it runs and skip empty or already maxed buildings. Continue?",
+            "Upgrade all buildings to max",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (confirm != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
         // Always refresh snapshot first so we work from current levels.
         _buildingLastQueuedTargetBySlot.Clear();
         _buildingLastQueuedConstructBySlot.Clear();
@@ -84,10 +95,12 @@ public partial class MainWindow
             return;
         }
 
-        var actionsWindow = new BuildingSlotActionsWindow(row)
+        var canDemolish = CanDemolishBuildings(out var demolishRequirementText);
+        var actionsWindow = new BuildingSlotActionsWindow(row, canDemolish, demolishRequirementText)
         {
             Owner = this,
         };
+        actionsWindow.UpgradeOneLevelRequested += (_, _) => QueueSingleBuildingUpgradeFromSlot(row.SlotId);
         if (actionsWindow.ShowDialog() != true)
         {
             return;
@@ -105,9 +118,55 @@ public partial class MainWindow
                 TryQueueBuildingUpgradeToMax(row.SlotId);
                 break;
             case BuildingSlotAction.Demolish:
-                TryQueueBuildingDemolish(row, 0);
+                ShowDemolishTargetForSlot(row);
                 break;
         }
+    }
+
+    private void ShowDemolishTargetForSlot(BuildingSlotRow row)
+    {
+        if (!CanDemolishBuildings(out var requirementText))
+        {
+            BuildingsInfoTextBlock.Text = requirementText;
+            return;
+        }
+
+        var liveRow = _buildingRows.FirstOrDefault(item => item.SlotId == row.SlotId) ?? row;
+        if (!liveRow.IsOccupied)
+        {
+            BuildingsInfoTextBlock.Text = $"Slot {liveRow.SlotId} is empty.";
+            return;
+        }
+
+        var targetWindow = new BuildingDemolishTargetWindow(liveRow)
+        {
+            Owner = this,
+        };
+        if (targetWindow.ShowDialog() != true)
+        {
+            return;
+        }
+
+        TryQueueBuildingDemolish(liveRow, targetWindow.SelectedTargetLevel);
+    }
+
+    private bool CanDemolishBuildings(out string requirementText)
+    {
+        var mainBuildingLevel = _buildingRows
+            .Where(item => item.Gid == 15 || string.Equals(item.Name, "Main Building", StringComparison.OrdinalIgnoreCase))
+            .Select(item => item.Level)
+            .FirstOrDefault();
+
+        if (mainBuildingLevel is >= 10)
+        {
+            requirementText = string.Empty;
+            return true;
+        }
+
+        requirementText = mainBuildingLevel is int level
+            ? $"Requires Main Building level 10 (Level: {level})"
+            : "Requires Main Building level 10.";
+        return false;
     }
 
     private void ShowUpgradeTargetForSlot(BuildingSlotRow row)
@@ -247,6 +306,11 @@ public partial class MainWindow
             return;
         }
 
+        if (TryQueueFixedSpecialSlotConstruct(slotId))
+        {
+            return;
+        }
+
         var options = GetClassifiedConstructOptionsForSlot(slotId);
         if (options.Count == 0)
         {
@@ -323,6 +387,47 @@ public partial class MainWindow
             }
             BuildingsInfoTextBlock.Text = $"Queued construct + upgrade to level {clamped} for {selected.Name} in slot {slotId}.";
         }
+    }
+
+    private bool TryQueueFixedSpecialSlotConstruct(int slotId)
+    {
+        if (_lastBuildingStatus is null)
+        {
+            return false;
+        }
+
+        BuildingCatalogOption? option = null;
+        if (slotId == 39)
+        {
+            option = BuildConstructOption(16, "Rally Point", "army_buildings");
+        }
+        else if (slotId == 40 && BuildingCatalogService.WallForTribe(_lastBuildingStatus.Tribe) is { } wall)
+        {
+            option = BuildConstructOption(wall.Gid, wall.Name, "infrastructure");
+        }
+
+        if (option is null)
+        {
+            return false;
+        }
+
+        return TryQueueConstructBuilding(slotId, option);
+    }
+
+    private static BuildingCatalogOption BuildConstructOption(int gid, string name, string category)
+    {
+        var requirements = BuildingCatalogService.RequirementsFor(gid);
+        return new BuildingCatalogOption
+        {
+            Gid = gid,
+            Name = name,
+            Category = category,
+            MaxLevel = BuildingCatalogService.MaxLevelFor(gid),
+            RequirementEntries = requirements,
+            Requirements = requirements.Count == 0
+                ? "-"
+                : string.Join(", ", requirements.Select(req => $"{req.Name} {req.Level}+")),
+        };
     }
 
     private IReadOnlyList<BuildingCatalogOption> GetConstructableOptionsForSlot(int slotId)

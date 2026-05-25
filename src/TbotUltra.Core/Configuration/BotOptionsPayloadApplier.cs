@@ -640,7 +640,7 @@ public static class BotOptionsPayloadApplier
                 if (key.Equals(BotOptionPayloadKeys.ResourceTransferSourceThresholdPercent, StringComparison.OrdinalIgnoreCase)
                     && int.TryParse(value, out var transferSourceThreshold))
                 {
-                    resourceTransferSourceThresholdPercent = Math.Clamp(transferSourceThreshold, 1, 100);
+                    resourceTransferSourceThresholdPercent = Math.Clamp(transferSourceThreshold, 0, 100);
                     continue;
                 }
 
@@ -654,7 +654,7 @@ public static class BotOptionsPayloadApplier
                 if (key.Equals(BotOptionPayloadKeys.ResourceTransferTargetFillPercent, StringComparison.OrdinalIgnoreCase)
                     && int.TryParse(value, out var transferTargetFill))
                 {
-                    resourceTransferTargetFillPercent = Math.Clamp(transferTargetFill, 1, 100);
+                    resourceTransferTargetFillPercent = Math.Clamp(transferTargetFill, 0, 100);
                     continue;
                 }
 

@@ -24,6 +24,29 @@ public sealed partial class TravianClient
         return await ReadCurrentVillageResourceStatusAsync(cancellationToken, allowNavigationToResourcePage);
     }
 
+    public async Task<IReadOnlyList<VillageStatus>> ReadAllVillageResourceStatusesAsync(CancellationToken cancellationToken = default)
+    {
+        Notify("[ReadAllVillageResourceStatusesAsync] started");
+        await EnsureLoggedInAsync();
+
+        var villages = await ReadVillagesAsync(cancellationToken);
+        if (villages.Count == 0)
+        {
+            return [await ReadVillageResourceStatusAsync(cancellationToken)];
+        }
+
+        var statuses = new List<VillageStatus>(villages.Count);
+        foreach (var village in villages)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await SwitchToVillageAsync(village.Name, village.Url, cancellationToken, skipFeatureRefresh: true);
+            statuses.Add(await ReadVillageResourceStatusAsync(cancellationToken));
+        }
+
+        Notify($"[ReadAllVillageResourceStatusesAsync] finished count={statuses.Count}");
+        return statuses;
+    }
+
     public async Task NavigateToResourceFieldsAsync(CancellationToken cancellationToken = default)
     {
         Notify("[NavigateToResourceFieldsAsync] started");
@@ -225,7 +248,7 @@ public sealed partial class TravianClient
             catch (Exception ex) when (IsTransientExecutionContextException(ex) && transientRetries < 6)
             {
                 transientRetries += 1;
-                Notify($"UpgradeResourceToLevelAsync transient navigation context error at slot {slotId} ({transientRetries}/6). Retrying...");
+                Notify($"UpgradeResourceToLevelAsync hit transient navigation context at slot {slotId} ({transientRetries}/6). Retrying...");
                 await Task.Delay(250 * transientRetries, cancellationToken);
             }
         }
@@ -257,9 +280,9 @@ public sealed partial class TravianClient
 
             try
             {
-                await GotoAsync(Paths.Resources, cancellationToken);
-                await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading resource fields.", cancellationToken);
-                await EnsureLoggedInAsync();
+                await EnsureResourceFieldsPageAsync(
+                    cancellationToken,
+                    "Manual verification appeared while reading resource fields.");
                 var resourceFields = await ReadResourceFieldsAsync(cancellationToken);
                 NotifyResourceLevelIncreases(knownLevelsBySlot, resourceFields);
                 knownLevelsBySlot = BuildResourceLevelMap(resourceFields);
@@ -385,8 +408,8 @@ public sealed partial class TravianClient
                         if (!progress.Advanced && !progress.QueuedOrInProgress)
                         {
                             var upgradeWaitSeconds = ComputeResourceUpgradeWaitSeconds(rawUpgradeSeconds);
-                            Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} click did not confirm immediately ({progress.Evidence}). Waiting {upgradeWaitSeconds}s before retry.");
-                            await Task.Delay(TimeSpan.FromSeconds(Math.Max(1, upgradeWaitSeconds)), cancellationToken);
+                            Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} click did not confirm immediately ({progress.Evidence}). Deferring {upgradeWaitSeconds}s before retry.");
+                            return $"Resource slot {slot}: upgrade click did not confirm immediately ({progress.Evidence}). queue_wait_seconds={Math.Max(1, upgradeWaitSeconds)}";
                         }
                         transientRetries = 0;
                         goto NextLoopTick;
@@ -467,11 +490,11 @@ public sealed partial class TravianClient
                 transientRetries += 1;
                 if (currentTransientSlot is int slotId)
                 {
-                    Notify($"Upgrade-all hit transient navigation context error at slot {slotId} ({transientRetries}/8). Retrying...");
+                    Notify($"Upgrade-all hit transient navigation context at slot {slotId} ({transientRetries}/8). Retrying...");
                 }
                 else
                 {
-                    Notify($"Upgrade-all hit transient navigation context error ({transientRetries}/8). Retrying...");
+                    Notify($"Upgrade-all hit transient navigation context ({transientRetries}/8). Retrying...");
                 }
                 await Task.Delay(300 * transientRetries, cancellationToken);
             }
@@ -730,7 +753,7 @@ public sealed partial class TravianClient
                 }
                 catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
                 {
-                    Notify($"Resource snapshot reload hit transient navigation context error: {ex.Message}");
+                    Notify($"Resource snapshot reload hit transient navigation context: {ex.Message}");
                 }
                 catch (TimeoutException)
                 {
@@ -887,7 +910,7 @@ public sealed partial class TravianClient
                 }
                 catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
                 {
-                    Notify($"Resource widget reload hit transient navigation context error: {ex.Message}");
+                    Notify($"Resource widget reload hit transient navigation context: {ex.Message}");
                 }
                 catch (TimeoutException)
                 {
@@ -1075,7 +1098,7 @@ public sealed partial class TravianClient
                 }
                 catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
                 {
-                    Notify($"Production read reload hit transient navigation context error: {ex.Message}");
+                    Notify($"Production read reload hit transient navigation context: {ex.Message}");
                 }
                 catch (TimeoutException)
                 {
@@ -1439,11 +1462,28 @@ public sealed partial class TravianClient
 
     private async Task NavigateToResourceFieldsAfterUpgradeClickAsync(CancellationToken cancellationToken)
     {
+        await EnsureResourceFieldsPageAsync(
+            cancellationToken,
+            "Manual verification appeared while returning to resource fields after upgrade click.");
+    }
+
+    private async Task EnsureResourceFieldsPageAsync(CancellationToken cancellationToken, string manualVerificationMessage)
+    {
+        if (!IsCurrentUrlForPath(Paths.Resources))
+        {
+            for (var i = 0; i < 8 && !IsCurrentUrlForPath(Paths.Resources); i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await Task.Delay(125, cancellationToken);
+            }
+        }
+
         if (!IsCurrentUrlForPath(Paths.Resources))
         {
             await GotoAsync(Paths.Resources, cancellationToken);
         }
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while returning to resource fields after upgrade click.", cancellationToken);
+
+        await PauseForManualStepIfVisibleAsync(manualVerificationMessage, cancellationToken);
         await EnsureLoggedInAsync();
     }
 
@@ -1500,12 +1540,9 @@ public sealed partial class TravianClient
 
     private async Task<ResourceProgressSnapshot> ReadResourceProgressSnapshotAsync(CancellationToken cancellationToken)
     {
-        if (!IsCurrentUrlForPath(Paths.Resources))
-        {
-            await GotoAsync(Paths.Resources, cancellationToken);
-            await EnsureLoggedInAsync();
-        }
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading resource progress.", cancellationToken);
+        await EnsureResourceFieldsPageAsync(
+            cancellationToken,
+            "Manual verification appeared while reading resource progress.");
         var fields = await ReadResourceFieldsAsync(cancellationToken);
         var queue = await ReadBuildQueueAsync(cancellationToken);
         return new ResourceProgressSnapshot(fields, queue);

@@ -3295,22 +3295,15 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
     {
         var selectionMode = ResolveNatarVillageSelectionMode();
         var cacheKey = $"{ServerUrl}::{AccountName}::{selectionMode}";
+        HashSet<string>? persistedEnabledKeys = null;
         if (!forceRefresh)
         {
-            lock (NatarCacheSync)
-            {
-                if (CachedNatarCoordinatesByAccount.TryGetValue(cacheKey, out var existing) && existing.Count > 0)
-                {
-                    Notify($"Using cached Natar farms list ({existing.Count}).");
-                    return [.. existing];
-                }
-            }
-
             if (_natarFarmCacheStore.TryLoad(AccountName, out var persisted, ServerUrl, selectionMode)
                 && persisted is not null
                 && persisted.Coordinates.Count > 0)
             {
                 var restored = persisted.Coordinates
+                    .Where(item => item.Enabled)
                     .Select(item => new NatarCoordinateJs { X = item.X, Y = item.Y, VillageName = item.VillageName })
                     .ToList();
                 lock (NatarCacheSync)
@@ -3321,6 +3314,24 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 Notify($"Using persisted Natar farms list ({restored.Count}).");
                 return restored;
             }
+
+            lock (NatarCacheSync)
+            {
+                if (CachedNatarCoordinatesByAccount.TryGetValue(cacheKey, out var existing) && existing.Count > 0)
+                {
+                    Notify($"Using cached Natar farms list ({existing.Count}).");
+                    return [.. existing];
+                }
+            }
+        }
+        else if (_natarFarmCacheStore.TryLoad(AccountName, out var persisted, ServerUrl, selectionMode)
+            && persisted is not null
+            && persisted.Coordinates.Count > 0)
+        {
+            persistedEnabledKeys = persisted.Coordinates
+                .Where(item => item.Enabled)
+                .Select(item => NatarFarmCacheStore.BuildCoordinateKey(item.X, item.Y))
+                .ToHashSet(StringComparer.Ordinal);
         }
 
         await GotoAsync(Paths.PlayerProfileNatars, cancellationToken);
@@ -3370,7 +3381,12 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 SelectionMode: selectionMode,
                 Coordinates: cached
                     .Where(item => item.X.HasValue && item.Y.HasValue)
-                    .Select(item => new NatarFarmCoordinate(item.X!.Value, item.Y!.Value, item.VillageName))
+                    .Select(item =>
+                    {
+                        var key = NatarFarmCacheStore.BuildCoordinateKey(item.X!.Value, item.Y!.Value);
+                        var enabled = persistedEnabledKeys is null || persistedEnabledKeys.Contains(key);
+                        return new NatarFarmCoordinate(item.X!.Value, item.Y!.Value, item.VillageName, enabled);
+                    })
                     .ToList()));
 
             Notify(changed

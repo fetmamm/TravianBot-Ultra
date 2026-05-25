@@ -108,15 +108,32 @@ public sealed class NatarFarmCacheStore
         return true;
     }
 
+    public void SaveSelection(string accountName, string? serverUrl, string? selectionMode, IReadOnlySet<string> enabledCoordinateKeys)
+    {
+        if (!TryLoad(accountName, out var snapshot, serverUrl, selectionMode) || snapshot is null)
+        {
+            return;
+        }
+
+        var updated = snapshot with
+        {
+            Coordinates = snapshot.Coordinates
+                .Select(item => item with { Enabled = enabledCoordinateKeys.Contains(BuildCoordinateKey(item.X, item.Y)) })
+                .ToList(),
+        };
+        Save(updated);
+    }
+
     private static NatarFarmCacheSnapshot NormalizeSnapshot(NatarFarmCacheSnapshot snapshot)
     {
         var normalizedCoordinates = snapshot.Coordinates
             .Where(item => item is not null)
-            .GroupBy(item => $"{item.X}|{item.Y}", StringComparer.Ordinal)
+            .GroupBy(item => BuildCoordinateKey(item.X, item.Y), StringComparer.Ordinal)
             .Select(group =>
             {
                 var firstWithName = group.FirstOrDefault(coord => !string.IsNullOrWhiteSpace(coord.VillageName));
-                return firstWithName ?? group.First();
+                var selected = firstWithName ?? group.First();
+                return selected with { Enabled = group.Any(coord => coord.Enabled) };
             })
             .OrderBy(item => item.X)
             .ThenBy(item => item.Y)
@@ -140,7 +157,7 @@ public sealed class NatarFarmCacheStore
 
         for (var index = 0; index < left.Count; index++)
         {
-            if (left[index].X != right[index].X || left[index].Y != right[index].Y)
+            if (left[index].X != right[index].X || left[index].Y != right[index].Y || left[index].Enabled != right[index].Enabled)
             {
                 return false;
             }
@@ -148,6 +165,8 @@ public sealed class NatarFarmCacheStore
 
         return true;
     }
+
+    public static string BuildCoordinateKey(int x, int y) => $"{x}|{y}";
 
     private static string NormalizeAccountName(string value)
     {
@@ -204,4 +223,5 @@ public sealed record NatarFarmCacheSnapshot(
 public sealed record NatarFarmCoordinate(
     [property: JsonPropertyName("x")] int X,
     [property: JsonPropertyName("y")] int Y,
-    [property: JsonPropertyName("villageName")] string? VillageName = null);
+    [property: JsonPropertyName("villageName")] string? VillageName = null,
+    [property: JsonPropertyName("enabled")] bool Enabled = true);

@@ -79,7 +79,7 @@
       "isCapital": true,
       "coordX": null,
       "coordY": null,
-      "updatedAtUtc": "2026-05-25T14:23:09.741693+00:00"
+      "updatedAtUtc": "2026-05-25T16:14:27.5909266+00:00"
     },
     {
       "accountName": "fet_mga_ss_travi_com",
@@ -116,6 +116,15 @@
       "coordX": null,
       "coordY": null,
       "updatedAtUtc": "2026-05-04T14:27:10.9470584+00:00"
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "serverUrl": "https://pro.ss-travi.com",
+      "villageName": "slav \u0060s village",
+      "isCapital": true,
+      "coordX": null,
+      "coordY": null,
+      "updatedAtUtc": "2026-05-25T19:48:24.0522766+00:00"
     },
     {
       "accountName": "slangen",

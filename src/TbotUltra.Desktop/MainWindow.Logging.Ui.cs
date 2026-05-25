@@ -19,6 +19,7 @@ public partial class MainWindow
     {
         LogCategoryFilterComboBox.ItemsSource = LogClassifier.FilterOptions.Select(option => option.Label).ToList();
         LogCategoryFilterComboBox.SelectedIndex = 0;
+        LogCleanModeToggle.IsChecked = _terminalCleanMode;
     }
 
     private bool TerminalEntryFilter(object item)
@@ -53,7 +54,10 @@ public partial class MainWindow
     {
         _terminalCleanMode = LogCleanModeToggle.IsChecked == true;
         _terminalView?.Refresh();
-        UpdateTerminalAlarmUi();
+        if (TerminalAlarmTabControl is not null)
+        {
+            UpdateTerminalAlarmUi();
+        }
     }
 
     private void CloseTerminalAlarmPopupButton_Click(object sender, RoutedEventArgs e)

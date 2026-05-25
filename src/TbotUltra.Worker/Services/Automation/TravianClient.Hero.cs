@@ -7,6 +7,8 @@ namespace TbotUltra.Worker.Services;
 
 public sealed partial class TravianClient
 {
+    private const int HeroLowHpRetrySeconds = 60;
+
     public async Task<HeroAdventureDispatchResult> SendHeroOnAdventureAsync(CancellationToken cancellationToken = default)
     {
         Notify("SendHeroOnAdventureAsync started");
@@ -754,6 +756,11 @@ public sealed partial class TravianClient
         if (heroReturnWaitSeconds is > 0)
         {
             return $"{summary}. Actions: {string.Join(", ", actions)}. queue_wait_seconds={heroReturnWaitSeconds.Value}";
+        }
+
+        if (actions.Any(action => action.StartsWith("adventure_skipped_hp_too_low", StringComparison.OrdinalIgnoreCase)))
+        {
+            return $"{summary}. Actions: {string.Join(", ", actions)}. queue_wait_seconds={HeroLowHpRetrySeconds}";
         }
 
         return $"{summary}. Actions: {string.Join(", ", actions)}.";

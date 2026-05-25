@@ -219,10 +219,10 @@ public sealed class BotOptions
     public List<string> ResourceTransferSourceVillageNames { get; init; } = [];
 
     [ConfigurationKeyName(BotOptionPayloadKeys.ResourceTransferSourceThresholdPercent)]
-    public int ResourceTransferSourceThresholdPercent { get; init; } = 85;
+    public int ResourceTransferSourceThresholdPercent { get; init; } = 50;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.ResourceTransferSourceKeepPercent)]
-    public int ResourceTransferSourceKeepPercent { get; init; } = 70;
+    public int ResourceTransferSourceKeepPercent { get; init; } = 5;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.ResourceTransferTargetFillPercent)]
     public int ResourceTransferTargetFillPercent { get; init; } = 90;

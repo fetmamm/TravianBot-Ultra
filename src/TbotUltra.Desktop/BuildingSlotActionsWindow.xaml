@@ -39,16 +39,40 @@
                     Height="28"
                     Margin="0,0,0,6"
                     Click="UpgradeButton_Click" />
+            <Button x:Name="UpgradeOneLevelButton"
+                    Content="Upgrade one level"
+                    Height="28"
+                    Margin="0,0,0,6"
+                    Click="UpgradeOneLevelButton_Click" />
             <Button x:Name="UpgradeToMaxButton"
                     Content="Upgrade to max"
                     Height="28"
                     Margin="0,0,0,6"
-                    Click="UpgradeToMaxButton_Click" />
+                    Click="UpgradeToMaxButton_Click">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Background" Value="#FCD34D" />
+                        <Setter Property="Foreground" Value="#1F2937" />
+                        <Setter Property="BorderBrush" Value="#F59E0B" />
+                        <Style.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#6B7280" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
             <Button x:Name="DemolishButton"
                     Content="Demolish"
                     Height="28"
-                    Margin="0,0,0,6"
+                    Margin="0,0,0,3"
                     Click="DemolishButton_Click" />
+            <TextBlock x:Name="DemolishRequirementTextBlock"
+                       Foreground="#C2410C"
+                       FontSize="11"
+                       TextWrapping="Wrap"
+                       Margin="2,0,0,6"
+                       Visibility="Collapsed" />
         </StackPanel>
 
         <StackPanel Grid.Row="3"

@@ -152,6 +152,7 @@ public partial class MainWindow
     {
         status = MergeResourceStatusForUi(status);
         AppendLog($"[resource-ui] village='{status.ActiveVillage}' | {BuildResourceLogSummary(status)}");
+        ApplyResourceTransferVillageResourceStatus(status);
         ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: true);
         TriggerDeferredConstructionWaitRefresh(status, "resource_status_refresh");
         TriggerDeferredTroopTrainingWaitRefresh(status, "resource_status_refresh");
