@@ -69,6 +69,7 @@ public partial class MainWindow : Window
     private sealed class NatarListRow : INotifyPropertyChanged
     {
         private bool _isChecked;
+        private bool _isUiSelected;
 
         public int Index { get; init; }
         public string VillageName { get; init; } = string.Empty;
@@ -87,6 +88,21 @@ public partial class MainWindow : Window
 
                 _isChecked = value;
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsChecked)));
+            }
+        }
+
+        public bool IsUiSelected
+        {
+            get => _isUiSelected;
+            set
+            {
+                if (_isUiSelected == value)
+                {
+                    return;
+                }
+
+                _isUiSelected = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsUiSelected)));
             }
         }
 

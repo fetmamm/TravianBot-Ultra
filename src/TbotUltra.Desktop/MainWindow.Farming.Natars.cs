@@ -282,6 +282,62 @@ public partial class MainWindow
         var isDraggingSelection = false;
         var dragAnchorIndex = -1;
         var selectionAnchorIndex = -1;
+        var dragSelectionTimer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(30),
+        };
+
+        int FindNearestVisibleRowIndex(Point point)
+        {
+            var realizedRows = rows
+                .Select((item, index) => new
+                {
+                    Row = (DataGridRow?)grid.ItemContainerGenerator.ContainerFromItem(item),
+                    Index = index,
+                })
+                .Where(item => item.Row is not null)
+                .Select(item =>
+                {
+                    var topLeft = item.Row!.TranslatePoint(new Point(0, 0), grid);
+                    var index = item.Row.GetIndex();
+                    return new
+                    {
+                        Index = index >= 0 ? index : item.Index,
+                        Top = topLeft.Y,
+                        Bottom = topLeft.Y + item.Row.ActualHeight,
+                    };
+                })
+                .OrderBy(item => item.Top)
+                .ToList();
+
+            if (realizedRows.Count <= 0)
+            {
+                return -1;
+            }
+
+            foreach (var row in realizedRows)
+            {
+                if (point.Y >= row.Top && point.Y <= row.Bottom)
+                {
+                    return row.Index;
+                }
+            }
+
+            if (point.Y < realizedRows[0].Top)
+            {
+                return realizedRows[0].Index;
+            }
+
+            return realizedRows[^1].Index;
+        }
+
+        void ClearUiSelection()
+        {
+            foreach (var row in rows)
+            {
+                row.IsUiSelected = false;
+            }
+        }
 
         void SelectRange(int anchorIndex, int currentIndex)
         {
@@ -292,14 +348,11 @@ public partial class MainWindow
 
             var start = Math.Min(anchorIndex, currentIndex);
             var end = Math.Max(anchorIndex, currentIndex);
-            grid.SelectedItems.Clear();
+            ClearUiSelection();
             for (var i = start; i <= end; i++)
             {
-                grid.SelectedItems.Add(rows[i]);
+                rows[i].IsUiSelected = true;
             }
-
-            grid.SelectedItem = rows[currentIndex];
-            grid.ScrollIntoView(rows[currentIndex]);
         }
 
         int GetFallbackSelectionAnchorIndex(int clickedIndex)
@@ -309,7 +362,8 @@ public partial class MainWindow
                 return selectionAnchorIndex;
             }
 
-            if (grid.SelectedItems.Count > 0 && grid.SelectedItems[0] is NatarListRow selectedRow)
+            var selectedRow = rows.FirstOrDefault(row => row.IsUiSelected);
+            if (selectedRow is not null)
             {
                 var selectedIndex = rows.IndexOf(selectedRow);
                 if (selectedIndex >= 0)
@@ -325,7 +379,29 @@ public partial class MainWindow
         {
             isDraggingSelection = false;
             dragAnchorIndex = -1;
+            dragSelectionTimer.Stop();
+            if (grid.IsMouseCaptured)
+            {
+                grid.ReleaseMouseCapture();
+            }
         }
+
+        void UpdateDragSelectionFromMouse()
+        {
+            if (!isDraggingSelection || Mouse.LeftButton != MouseButtonState.Pressed)
+            {
+                StopDragSelection();
+                return;
+            }
+
+            var currentIndex = FindNearestVisibleRowIndex(Mouse.GetPosition(grid));
+            if (currentIndex >= 0)
+            {
+                SelectRange(dragAnchorIndex, currentIndex);
+            }
+        }
+
+        dragSelectionTimer.Tick += (_, _) => UpdateDragSelectionFromMouse();
 
         void RowPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs args)
         {
@@ -357,7 +433,9 @@ public partial class MainWindow
             if ((modifiers & ModifierKeys.Control) == ModifierKeys.Control)
             {
                 StopDragSelection();
+                rows[clickedIndex].IsUiSelected = !rows[clickedIndex].IsUiSelected;
                 selectionAnchorIndex = clickedIndex;
+                args.Handled = true;
                 return;
             }
 
@@ -365,7 +443,9 @@ public partial class MainWindow
             dragAnchorIndex = clickedIndex;
             isDraggingSelection = true;
             grid.Focus();
+            grid.CaptureMouse();
             SelectRange(dragAnchorIndex, dragAnchorIndex);
+            dragSelectionTimer.Start();
             args.Handled = true;
         }
 
@@ -389,15 +469,41 @@ public partial class MainWindow
             }
         }
 
-        grid.PreviewMouseLeftButtonUp += (_, _) =>
+        grid.PreviewMouseMove += (_, args) =>
         {
-            StopDragSelection();
+            if (!isDraggingSelection || args.LeftButton != MouseButtonState.Pressed)
+            {
+                return;
+            }
+
+            UpdateDragSelectionFromMouse();
+            args.Handled = true;
         };
-        grid.MouseLeave += (_, _) => StopDragSelection();
+
+        grid.PreviewMouseLeftButtonUp += (_, args) =>
+        {
+            var wasDragging = isDraggingSelection;
+            StopDragSelection();
+            if (wasDragging)
+            {
+                args.Handled = true;
+            }
+        };
+        popup.Closed += (_, _) => StopDragSelection();
 
         var rowStyle = new Style(typeof(DataGridRow));
         rowStyle.Setters.Add(new EventSetter(UIElement.PreviewMouseLeftButtonDownEvent, new MouseButtonEventHandler(RowPreviewMouseLeftButtonDown)));
         rowStyle.Setters.Add(new EventSetter(UIElement.MouseEnterEvent, new MouseEventHandler(RowMouseEnter)));
+        rowStyle.Triggers.Add(new DataTrigger
+        {
+            Binding = new Binding(nameof(NatarListRow.IsUiSelected)),
+            Value = true,
+            Setters =
+            {
+                new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromRgb(219, 234, 254))),
+                new Setter(Control.BorderBrushProperty, new SolidColorBrush(Color.FromRgb(96, 165, 250))),
+            },
+        });
         grid.RowStyle = rowStyle;
 
         foreach (var row in rows)
@@ -424,11 +530,11 @@ public partial class MainWindow
         };
         markSelectedButton.Click += (_, _) =>
         {
-            ApplyCheckedStateToRows(grid.SelectedItems.OfType<NatarListRow>(), true);
+            ApplyCheckedStateToRows(rows.Where(row => row.IsUiSelected), true);
         };
         unmarkSelectedButton.Click += (_, _) =>
         {
-            ApplyCheckedStateToRows(grid.SelectedItems.OfType<NatarListRow>(), false);
+            ApplyCheckedStateToRows(rows.Where(row => row.IsUiSelected), false);
         };
         closeButton.Click += (_, _) => popup.Close();
         popup.ShowDialog();
