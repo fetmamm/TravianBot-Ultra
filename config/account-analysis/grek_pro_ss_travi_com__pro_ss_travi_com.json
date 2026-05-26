@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "analyzedAtUtc": "2026-05-26T19:47:33.923632+00:00",
+  "analyzedAtUtc": "2026-05-26T20:12:59.5598127+00:00",
   "accountName": "grek_pro_ss_travi_com",
   "serverUrl": "https://pro.ss-travi.com",
   "tribe": "Teutons",
@@ -8,6 +8,7 @@
   "buildingCatalog": [],
   "autoCelebrationEnabled": true,
   "automationLoopEnabledGroups": [
+    "construction",
     "hero"
   ],
   "automationLoopVisibleGroups": [

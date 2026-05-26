@@ -1682,7 +1682,7 @@ public sealed partial class TravianClient
             .Select(item => new Building(
                 item.SlotId,
                 item.BuildingName,
-                item.Level,
+                item.LevelKnown || !item.HasOccupancyEvidence ? item.Level : null,
                 ResolveUrl(Paths.BuildBySlot(item.SlotId)),
                 ParseGidFromBuildingCode(item.BuildingCode)))
             .ToList();
@@ -1690,79 +1690,414 @@ public sealed partial class TravianClient
 
     private async Task<Dictionary<int, BuildingInfo>> ReadBuildingInfosAsync(CancellationToken cancellationToken)
     {
-        var buildings = new Dictionary<int, BuildingInfo>();
-        var slots = _page.Locator("div.buildingSlot");
-        var count = await slots.CountAsync();
-
-        for (var index = 0; index < count; index++)
+        var firstScan = await ScanBuildingOverviewAsync(cancellationToken);
+        if (!ShouldRetryBuildingOverviewScan(firstScan))
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            return firstScan.Buildings;
+        }
 
-            var slot = slots.Nth(index);
+        Notify($"Building overview scan looked incomplete ({DescribeBuildingOverviewScan(firstScan)}). Reloading once.");
+
+        if (IsCurrentUrlForPath(Paths.Buildings))
+        {
+            await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+        }
+        else
+        {
+            await GotoAsync(Paths.Buildings, cancellationToken);
+        }
+
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while retrying the building overview scan.", cancellationToken);
+        await EnsureLoggedInAsync();
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while waiting for the building overview retry.", cancellationToken);
+
+        var secondScan = await ScanBuildingOverviewAsync(cancellationToken);
+        return ChoosePreferredBuildingOverviewScan(firstScan, secondScan).Buildings;
+    }
+
+    private async Task<BuildingOverviewScanResult> ScanBuildingOverviewAsync(CancellationToken cancellationToken)
+    {
+        await WaitForBuildingOverviewReadyAsync(cancellationToken);
+        var slots = await ReadBuildingOverviewSlotSnapshotsAsync(cancellationToken);
+        return ParseBuildingOverviewScan(slots);
+    }
+
+    private async Task WaitForBuildingOverviewReadyAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        try
+        {
+            await _page.WaitForFunctionAsync(
+                """
+                () => {
+                  const slots = Array.from(document.querySelectorAll('div.buildingSlot'));
+                  if (slots.length >= 18) {
+                    return true;
+                  }
+
+                  return slots.some(slot => {
+                    const className = String(slot.className || '');
+                    return /\baid\d+\b/i.test(className) || /\ba\d+\b/i.test(className);
+                  });
+                }
+                """,
+                null,
+                new PageWaitForFunctionOptions { Timeout = 1500 });
+        }
+        catch (TimeoutException)
+        {
+            // Continue with the best available DOM snapshot.
+        }
+        catch (Exception ex) when (!IsTransientExecutionContextException(ex))
+        {
+            Notify($"Building overview ready wait skipped: {ex.Message}");
+        }
+    }
+
+    private async Task<IReadOnlyList<BuildingOverviewSlotSnapshot>> ReadBuildingOverviewSlotSnapshotsAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var rawJson = await _page.EvaluateAsync<string>(
+            """
+            () => {
+              const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+              const slots = Array.from(document.querySelectorAll('div.buildingSlot'));
+              return JSON.stringify(slots.map((slot, index) => {
+                const label = slot.querySelector('.labelLayer, .level, .label');
+                const namedElement = slot.querySelector('.name, .title, .desc, .buildingName, .hover, [title], [aria-label], img[alt]');
+                const link = slot.querySelector('a[href], area[href]');
+                const image = slot.querySelector('img[alt]');
+                const text = clean(slot.textContent || '');
+                const className = String(slot.className || '');
+                const occupiedEvidence =
+                  /\bg\d+\b/i.test(className)
+                  || /underconst|underconstruction|built|occupied/i.test(className)
+                  || Boolean(link)
+                  || /\blevel\s*\d+\b/i.test(text);
+
+                return {
+                  index,
+                  className,
+                  outerHtml: slot.outerHTML || '',
+                  levelText: clean(label ? label.textContent : ''),
+                  nameText: clean(namedElement ? namedElement.textContent : ''),
+                  titleText: clean(slot.getAttribute('title') || (namedElement ? namedElement.getAttribute('title') : '') || (link ? link.getAttribute('title') : '') || ''),
+                  altText: clean(image ? image.getAttribute('alt') : ''),
+                  text,
+                  occupiedEvidence
+                };
+              }));
+            }
+            """);
+
+        return JsonSerializer.Deserialize<List<BuildingOverviewSlotSnapshot>>(
+            rawJson ?? "[]",
+            BuildingOverviewSnapshotJsonOptions) ?? [];
+    }
+
+    private static BuildingOverviewScanResult ParseBuildingOverviewScan(IReadOnlyList<BuildingOverviewSlotSnapshot> slotSnapshots)
+    {
+        var buildings = new Dictionary<int, BuildingInfo>();
+
+        foreach (var slotSnapshot in slotSnapshots)
+        {
             try
             {
-                var classText = await slot.GetAttributeAsync("class") ?? string.Empty;
-                var classes = classText
-                    .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-                var slotId = TryExtractSlotId(classes);
-                if (slotId is null || slotId < 19 || slotId > 40)
+                var info = CreateBuildingInfo(slotSnapshot);
+                if (info is null)
                 {
                     continue;
                 }
 
-                var buildingCode = TryExtractBuildingCode(classes);
-                var level = await TryReadBuildingLevelAsync(slot);
-                var gid = ParseGidFromBuildingCode(buildingCode);
-
-                if (slotId.Value == 40 && gid is 31 or 32 or 33 or 42 or 43 && level == 0)
-                {
-                    level = 1;
-                }
-
-                if (string.IsNullOrEmpty(buildingCode) && level > 0 && slotId.Value == 39)
-                {
-                    buildingCode = "g16";
-                }
-
-                var buildingName = ResolveBuildingName(buildingCode);
-
-                buildings[slotId.Value] = new BuildingInfo
-                {
-                    SlotId = slotId.Value,
-                    BuildingCode = buildingCode ?? string.Empty,
-                    BuildingName = buildingName,
-                    Level = level,
-                };
+                buildings[info.SlotId] = info;
             }
-            catch (Exception ex)
+            catch
             {
-                Notify($"Skipping building slot index {index} while reading overview: {ex.Message}");
-                // Keep scanning remaining slots even if one slot is malformed or transiently missing content.
+                // Ignore malformed individual slots and keep parsing the rest of the overview.
             }
         }
 
-        return buildings;
+        var occupiedSlots = buildings.Values
+            .Where(item => item.HasOccupancyEvidence)
+            .ToList();
+        var missingBuildingCodeCount = occupiedSlots.Count(item => ParseGidFromBuildingCode(item.BuildingCode) is null);
+        var unknownLevelCount = occupiedSlots.Count(item => !item.LevelKnown);
+        var hasMainBuilding = ContainsBuilding(buildings.Values, 15, "Main Building");
+        var hasRallyPoint = ContainsBuilding(buildings.Values, 16, "Rally Point");
+
+        var confidence = BuildingOverviewScanConfidence.High;
+        if (buildings.Count < 18
+            || !hasMainBuilding
+            || missingBuildingCodeCount >= 3
+            || unknownLevelCount >= 3)
+        {
+            confidence = BuildingOverviewScanConfidence.Low;
+        }
+        else if (buildings.Count < 22
+            || missingBuildingCodeCount > 0
+            || unknownLevelCount > 0
+            || !hasRallyPoint)
+        {
+            confidence = BuildingOverviewScanConfidence.Medium;
+        }
+
+        return new BuildingOverviewScanResult
+        {
+            Buildings = buildings,
+            Confidence = confidence,
+            MissingBuildingCodeCount = missingBuildingCodeCount,
+            UnknownLevelCount = unknownLevelCount,
+            MissingMainBuilding = !hasMainBuilding,
+            MissingRallyPoint = !hasRallyPoint,
+        };
     }
 
-    private async Task<int> TryReadBuildingLevelAsync(ILocator slot)
+    private static BuildingInfo? CreateBuildingInfo(BuildingOverviewSlotSnapshot slotSnapshot)
     {
-        try
+        var classes = (slotSnapshot.ClassName ?? string.Empty)
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        var slotId = TryExtractSlotId(classes)
+            ?? TryExtractSlotIdFromText(slotSnapshot.OuterHtml);
+        if (slotId is null || slotId < 19 || slotId > 40)
         {
-            var label = slot.Locator(".labelLayer").First;
-            if (await label.CountAsync() == 0)
+            return null;
+        }
+
+        var buildingCode = TryExtractBuildingCode(classes)
+            ?? TryExtractBuildingCodeFromText(slotSnapshot.OuterHtml);
+        var level = TryParseOverviewLevel(slotSnapshot.LevelText, slotSnapshot.Text);
+        var levelKnown = level.HasValue;
+        var nameCandidate = SelectBuildingNameCandidate(slotSnapshot.NameText, slotSnapshot.TitleText, slotSnapshot.AltText);
+        var hasOccupancyEvidence = slotSnapshot.OccupiedEvidence
+            || !string.IsNullOrWhiteSpace(buildingCode)
+            || !string.IsNullOrWhiteSpace(nameCandidate);
+
+        buildingCode ??= TryResolveBuildingCodeFromName(nameCandidate);
+
+        var gid = ParseGidFromBuildingCode(buildingCode);
+        var normalizedLevel = level ?? 0;
+
+        if (slotId.Value == 40 && gid is 31 or 32 or 33 or 42 or 43 && normalizedLevel == 0)
+        {
+            normalizedLevel = 1;
+            levelKnown = true;
+        }
+
+        if (string.IsNullOrEmpty(buildingCode) && normalizedLevel > 0 && slotId.Value == 39)
+        {
+            buildingCode = "g16";
+        }
+
+        var buildingName = ResolveBuildingDisplayName(
+            buildingCode,
+            nameCandidate,
+            hasOccupancyEvidence);
+
+        return new BuildingInfo
+        {
+            SlotId = slotId.Value,
+            BuildingCode = buildingCode ?? string.Empty,
+            BuildingName = buildingName,
+            Level = normalizedLevel,
+            LevelKnown = levelKnown,
+            HasOccupancyEvidence = hasOccupancyEvidence,
+        };
+    }
+
+    private static BuildingOverviewScanResult ChoosePreferredBuildingOverviewScan(
+        BuildingOverviewScanResult firstScan,
+        BuildingOverviewScanResult secondScan)
+    {
+        return GetBuildingOverviewScanScore(secondScan) >= GetBuildingOverviewScanScore(firstScan)
+            ? secondScan
+            : firstScan;
+    }
+
+    private static int GetBuildingOverviewScanScore(BuildingOverviewScanResult scan)
+    {
+        var baseScore = scan.Confidence switch
+        {
+            BuildingOverviewScanConfidence.High => 300,
+            BuildingOverviewScanConfidence.Medium => 200,
+            _ => 100,
+        };
+
+        return baseScore
+            + (scan.Buildings.Count * 5)
+            - (scan.MissingBuildingCodeCount * 20)
+            - (scan.UnknownLevelCount * 20)
+            - (scan.MissingMainBuilding ? 60 : 0)
+            - (scan.MissingRallyPoint ? 20 : 0);
+    }
+
+    private static bool ShouldRetryBuildingOverviewScan(BuildingOverviewScanResult scan)
+    {
+        if (scan.Confidence == BuildingOverviewScanConfidence.Low)
+        {
+            return true;
+        }
+
+        return scan.MissingRallyPoint
+            && (scan.Buildings.Count < 22
+                || scan.MissingBuildingCodeCount > 0
+                || scan.UnknownLevelCount > 0);
+    }
+
+    private static string DescribeBuildingOverviewScan(BuildingOverviewScanResult scan)
+    {
+        return $"slots={scan.Buildings.Count}, missing_gid={scan.MissingBuildingCodeCount}, unknown_level={scan.UnknownLevelCount}, main={(scan.MissingMainBuilding ? "missing" : "ok")}, rally={(scan.MissingRallyPoint ? "missing" : "ok")}";
+    }
+
+    private static bool ContainsBuilding(IEnumerable<BuildingInfo> buildings, int gid, string name)
+    {
+        return buildings.Any(item =>
+            ParseGidFromBuildingCode(item.BuildingCode) == gid
+            || SameBuildingName(item.BuildingName, name));
+    }
+
+    private static int? TryParseOverviewLevel(string? levelText, string? fallbackText)
+    {
+        if (TryParsePositiveInt(levelText, out var parsedLevel))
+        {
+            return parsedLevel;
+        }
+
+        var fallbackMatch = OverviewLevelRegex.Match(fallbackText ?? string.Empty);
+        if (fallbackMatch.Success
+            && int.TryParse(fallbackMatch.Groups["level"].Value, out parsedLevel))
+        {
+            return parsedLevel;
+        }
+
+        return null;
+    }
+
+    private static bool TryParsePositiveInt(string? text, out int value)
+    {
+        value = 0;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        return int.TryParse(text.Trim(), out value) && value >= 0;
+    }
+
+    private static int? TryExtractSlotIdFromText(string? text)
+    {
+        return TryExtractIntFromRegex(AidClassRegex, text, "id")
+            ?? TryExtractIntFromRegex(FallbackSlotClassRegex, text, "id")
+            ?? TryExtractIntFromRegex(BuildingSlotQueryRegex, text, "id")
+            ?? TryExtractIntFromRegex(BuildingSlotDataRegex, text, "id");
+    }
+
+    private static string? TryExtractBuildingCodeFromText(string? text)
+    {
+        var gid = TryExtractIntFromRegex(BuildingCodeClassRegex, text, "gid")
+            ?? TryExtractIntFromRegex(BuildingGidQueryRegex, text, "gid")
+            ?? TryExtractIntFromRegex(BuildingGidDataRegex, text, "gid");
+        return gid is > 0 ? $"g{gid.Value}" : null;
+    }
+
+    private static int? TryExtractIntFromRegex(Regex regex, string? text, string groupName)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        var match = regex.Match(text);
+        if (!match.Success)
+        {
+            return null;
+        }
+
+        return int.TryParse(match.Groups[groupName].Value, out var value)
+            ? value
+            : null;
+    }
+
+    private static string? TryResolveBuildingCodeFromName(params string?[] candidates)
+    {
+        foreach (var candidate in candidates)
+        {
+            var normalized = NormalizeBuildingName(candidate ?? string.Empty);
+            if (string.IsNullOrWhiteSpace(normalized))
             {
-                return 0;
+                continue;
             }
 
-            var rawLevel = (await label.TextContentAsync() ?? string.Empty).Trim();
-            return int.TryParse(rawLevel, out var level) ? level : 0;
+            if (NormalizedBuildingCodesByName.Value.TryGetValue(normalized, out var buildingCode))
+            {
+                return buildingCode;
+            }
         }
-        catch (Exception ex)
+
+        return null;
+    }
+
+    private static string ResolveBuildingDisplayName(string? buildingCode, string? nameCandidate, bool hasOccupancyEvidence)
+    {
+        if (!string.IsNullOrWhiteSpace(buildingCode)
+            && !string.Equals(buildingCode, "g0", StringComparison.OrdinalIgnoreCase))
         {
-            Notify($"Could not read building level from overview slot: {ex.Message}");
-            return 0;
+            return ResolveBuildingName(buildingCode);
         }
+
+        if (!string.IsNullOrWhiteSpace(nameCandidate))
+        {
+            return nameCandidate!;
+        }
+
+        return hasOccupancyEvidence ? "Unknown" : "Empty";
+    }
+
+    private static string? SelectBuildingNameCandidate(params string?[] candidates)
+    {
+        foreach (var candidate in candidates)
+        {
+            var sanitized = SanitizeBuildingNameCandidate(candidate);
+            if (!string.IsNullOrWhiteSpace(sanitized))
+            {
+                return sanitized;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? SanitizeBuildingNameCandidate(string? candidate)
+    {
+        if (string.IsNullOrWhiteSpace(candidate))
+        {
+            return null;
+        }
+
+        var cleaned = string.Join(" ", candidate.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)).Trim();
+        if (string.IsNullOrWhiteSpace(cleaned))
+        {
+            return null;
+        }
+
+        if (int.TryParse(cleaned, out _))
+        {
+            return null;
+        }
+
+        var lowered = cleaned.ToLowerInvariant();
+        if (lowered.Contains("building site", StringComparison.Ordinal)
+            || lowered.Contains("empty site", StringComparison.Ordinal)
+            || lowered.Contains("construct", StringComparison.Ordinal)
+            || lowered.Contains("free site", StringComparison.Ordinal)
+            || lowered.Contains("click to build", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        return cleaned;
     }
 
     private static int? TryExtractSlotId(IEnumerable<string> classes)
@@ -3013,12 +3348,88 @@ public sealed partial class TravianClient
         ["g44"] = "Command Center",
     };
 
+    private static readonly Lazy<IReadOnlyDictionary<string, string>> NormalizedBuildingCodesByName = new(() =>
+    {
+        var duplicates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var mappings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var entry in TravianBuildings)
+        {
+            var normalized = NormalizeBuildingName(entry.Value);
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                continue;
+            }
+
+            if (mappings.TryGetValue(normalized, out var existingCode)
+                && !string.Equals(existingCode, entry.Key, StringComparison.OrdinalIgnoreCase))
+            {
+                duplicates.Add(normalized);
+                continue;
+            }
+
+            mappings[normalized] = entry.Key;
+        }
+
+        foreach (var duplicate in duplicates)
+        {
+            mappings.Remove(duplicate);
+        }
+
+        return mappings;
+    });
+
+    private static readonly Regex AidClassRegex = new(@"\baid(?<id>\d{1,2})\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex FallbackSlotClassRegex = new(@"\ba(?<id>\d{1,2})\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex BuildingSlotQueryRegex = new(@"[?&](?:id|a)=(?<id>\d{1,2})(?:\D|$)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex BuildingSlotDataRegex = new(@"data-(?:aid|slot|slot-id|building-slot-id|id)\s*=\s*[""']?(?<id>\d{1,2})(?:[""'\s>]|$)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex BuildingCodeClassRegex = new(@"\bg(?<gid>\d{1,2})\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex BuildingGidQueryRegex = new(@"[?&]gid=(?<gid>\d{1,2})(?:\D|$)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex BuildingGidDataRegex = new(@"data-(?:gid|building-gid|type)\s*=\s*[""']?(?<gid>\d{1,2})(?:[""'\s>]|$)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex OverviewLevelRegex = new(@"\blevel\s*(?<level>\d{1,2})\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly JsonSerializerOptions BuildingOverviewSnapshotJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+    };
+
+    private enum BuildingOverviewScanConfidence
+    {
+        Low,
+        Medium,
+        High,
+    }
+
+    private sealed class BuildingOverviewSlotSnapshot
+    {
+        public int Index { get; set; }
+        public string ClassName { get; set; } = string.Empty;
+        public string OuterHtml { get; set; } = string.Empty;
+        public string LevelText { get; set; } = string.Empty;
+        public string NameText { get; set; } = string.Empty;
+        public string TitleText { get; set; } = string.Empty;
+        public string AltText { get; set; } = string.Empty;
+        public string Text { get; set; } = string.Empty;
+        public bool OccupiedEvidence { get; set; }
+    }
+
+    private sealed class BuildingOverviewScanResult
+    {
+        public Dictionary<int, BuildingInfo> Buildings { get; init; } = new();
+        public BuildingOverviewScanConfidence Confidence { get; init; }
+        public int MissingBuildingCodeCount { get; init; }
+        public int UnknownLevelCount { get; init; }
+        public bool MissingMainBuilding { get; init; }
+        public bool MissingRallyPoint { get; init; }
+    }
+
     private sealed class BuildingInfo
     {
         public int SlotId { get; set; }
         public string BuildingCode { get; set; } = string.Empty;
         public string BuildingName { get; set; } = "Empty";
         public int Level { get; set; }
+        public bool LevelKnown { get; set; }
+        public bool HasOccupancyEvidence { get; set; }
     }
 
 }

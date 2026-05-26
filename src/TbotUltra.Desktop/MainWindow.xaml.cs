@@ -2071,8 +2071,9 @@ public partial class MainWindow : Window
             }
         }
 
+        var buildingScanIssue = resourceOnly ? null : DescribeBuildingScanIssue(status.Buildings);
         var requiresRetry = status.ResourceFields.Count < 18
-            || (!resourceOnly && status.Buildings.Count == 0);
+            || (!resourceOnly && buildingScanIssue is not null);
         if (!requiresRetry)
         {
             return status;
@@ -2083,13 +2084,71 @@ public partial class MainWindow : Window
             AppendLog($"Resource scan returned {status.ResourceFields.Count} fields. Retrying once...");
         }
 
-        if (!resourceOnly && status.Buildings.Count == 0)
+        if (!resourceOnly && buildingScanIssue is not null)
         {
-            AppendLog("Building scan returned 0 slots. Retrying once...");
+            AppendLog($"Building scan looked incomplete ({buildingScanIssue}). Retrying once...");
         }
 
         await Task.Delay(350, cancellationToken);
         return await ReadVillageStatusAsync(options, cancellationToken, resourceOnly, forceCurrentVillage, currentPageOnly);
+    }
+
+    private static string? DescribeBuildingScanIssue(IReadOnlyList<Building> buildings)
+    {
+        if (buildings.Count == 0)
+        {
+            return "0 slots";
+        }
+
+        if (buildings.Count < 20)
+        {
+            return $"{buildings.Count} slots";
+        }
+
+        var hasMainBuilding = buildings.Any(item =>
+            item.Gid == 15
+            || string.Equals(item.Name, "Main Building", StringComparison.OrdinalIgnoreCase));
+        if (!hasMainBuilding)
+        {
+            return "main building missing";
+        }
+
+        var hasRallyPoint = buildings.Any(item =>
+            item.Gid == 16
+            || string.Equals(item.Name, "Rally Point", StringComparison.OrdinalIgnoreCase));
+        var suspiciousOccupiedCount = buildings.Count(item =>
+            IsLikelyOccupiedBuilding(item)
+            && (((item.Gid ?? 0) <= 0) || item.Level is null));
+
+        if (!hasRallyPoint && (buildings.Count < 22 || suspiciousOccupiedCount > 0))
+        {
+            return "rally point missing";
+        }
+
+        if (suspiciousOccupiedCount >= 2)
+        {
+            return $"{suspiciousOccupiedCount} occupied slots with unknown level/gid";
+        }
+
+        return null;
+    }
+
+    private static bool IsLikelyOccupiedBuilding(Building building)
+    {
+        if ((building.Gid ?? 0) > 0 || (building.Level ?? 0) > 0)
+        {
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(building.Name))
+        {
+            return false;
+        }
+
+        return !string.Equals(building.Name, "Empty", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(building.Name, "Unknown", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(building.Name, "g0", StringComparison.OrdinalIgnoreCase)
+            && !building.Name.StartsWith("Slot ", StringComparison.OrdinalIgnoreCase);
     }
 
     private Task<VillageStatus> ReadVillageStatusAsync(BotOptions options, CancellationToken cancellationToken, bool resourceOnly, bool forceCurrentVillage = false, bool currentPageOnly = false)
@@ -2820,12 +2879,13 @@ public partial class MainWindow : Window
         try
         {
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
-            var status = await ReadVillageStatusWithRetryAsync(options, CancellationToken.None, resourceOnly: false);
+            var status = await _botService.ReadBuildingsStatusAsync(options, AppendLog, CancellationToken.None);
+            var uiStatus = MergeBuildingStatusForUi(status);
             await Dispatcher.InvokeAsync(() =>
             {
-                _lastBuildingStatus = status;
-                ApplyVillageStatusToUi(status);
-                PopulateBuildingsTab(status);
+                _lastBuildingStatus = uiStatus;
+                ApplyTroopsAvailabilityFromVillageStatus(uiStatus);
+                PopulateBuildingsTab(uiStatus);
             });
 
             return !HasSmithyInVillageStatus(status);
@@ -2835,6 +2895,27 @@ public partial class MainWindow : Window
             AppendLog($"Smithy verification after blocked read failed: {ex.Message}");
             return null;
         }
+    }
+
+    private VillageStatus MergeBuildingStatusForUi(VillageStatus status)
+    {
+        if (_lastBuildingStatus is null)
+        {
+            return status;
+        }
+
+        return _lastBuildingStatus with
+        {
+            ActiveVillage = status.ActiveVillage,
+            Villages = status.Villages.Count > 0 ? status.Villages : _lastBuildingStatus.Villages,
+            Buildings = status.Buildings,
+            Tribe = string.IsNullOrWhiteSpace(status.Tribe) || string.Equals(status.Tribe, "Unknown", StringComparison.OrdinalIgnoreCase)
+                ? _lastBuildingStatus.Tribe
+                : status.Tribe,
+            VillageCount = status.VillageCount > 0 ? status.VillageCount : _lastBuildingStatus.VillageCount,
+            IsCapital = status.IsCapital ?? _lastBuildingStatus.IsCapital,
+            ServerTimeUtc = status.ServerTimeUtc ?? _lastBuildingStatus.ServerTimeUtc,
+        };
     }
 
     private void RaiseAlarmIfQueueItemPermanentlyFailed(QueueItem queueItem, string errorMessage)

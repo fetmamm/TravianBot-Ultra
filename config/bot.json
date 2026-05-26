@@ -22,6 +22,7 @@
   "silver_limit": 100,
   "natar_village_selection": "farm_villages",
   "continuous_loop_groups": [
+    "construction",
     "hero"
   ],
   "continuous_loop_group_order": [
