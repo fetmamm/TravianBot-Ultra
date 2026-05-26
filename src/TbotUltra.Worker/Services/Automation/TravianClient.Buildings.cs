@@ -1223,6 +1223,115 @@ public sealed partial class TravianClient
         return $"Smithy: hit safety cap of {safetyCap} iterations after {totalUpgradeClicks} click(s).";
     }
 
+    public async Task<SmithyUpgradeStatus> ReadSmithyUpgradeStatusAsync(
+        IReadOnlyList<Building>? knownBuildings = null,
+        CancellationToken cancellationToken = default)
+    {
+        Notify("ReadSmithyUpgradeStatusAsync started");
+
+        var smithySlotId = ResolveKnownSmithySlotId(knownBuildings) ?? await TryResolveSmithySlotIdAsync(cancellationToken);
+        if (!smithySlotId.HasValue)
+        {
+            return new SmithyUpgradeStatus(
+                SmithyExists: false,
+                SmithySlotId: null,
+                ActiveUpgradeCount: 0,
+                RemainingSeconds: null,
+                ActiveUpgradeRemainingSeconds: [],
+                RemainingText: "N/A",
+                StatusText: "Smithy not found.");
+        }
+
+        await GotoAsync(Paths.BuildBySlot(smithySlotId.Value), cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading the Smithy queue.", cancellationToken);
+        await EnsureLoggedInAsync();
+
+        var activeTimers = (await ReadSmithyResearchDurationsSecondsAsync(cancellationToken))
+            .Where(value => value > 0)
+            .OrderBy(value => value)
+            .ToList();
+        var remainingSeconds = activeTimers.Count > 0 ? activeTimers[0] : (int?)null;
+
+        return new SmithyUpgradeStatus(
+            SmithyExists: true,
+            SmithySlotId: smithySlotId.Value,
+            ActiveUpgradeCount: activeTimers.Count,
+            RemainingSeconds: remainingSeconds,
+            ActiveUpgradeRemainingSeconds: activeTimers,
+            RemainingText: remainingSeconds is > 0 ? FormatDuration(remainingSeconds.Value) : "Ready",
+            StatusText: activeTimers.Count > 0
+                ? $"Smithy upgrade{(activeTimers.Count == 1 ? string.Empty : "s")} active."
+                : "Ready.");
+    }
+
+    public async Task<string> ReadSmithyQueueFromCurrentPageTestAsync(CancellationToken cancellationToken = default)
+    {
+        LogFunctionStarted();
+        await EnsureLoggedInAsync();
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared before the Smithy queue test.", cancellationToken);
+
+        if (!await IsCurrentPageSmithyAsync(cancellationToken))
+        {
+            return "Smithy queue test: current page does not look like the Smithy page.";
+        }
+
+        var activeTimers = (await ReadSmithyResearchDurationsSecondsAsync(cancellationToken))
+            .Where(value => value > 0)
+            .OrderBy(value => value)
+            .ToList();
+        if (activeTimers.Count <= 0)
+        {
+            return "Smithy queue test: ready. No active Smithy upgrade found on the current page.";
+        }
+
+        var timersText = string.Join(", ", activeTimers.Select(FormatDuration));
+        return $"Smithy queue test: active={activeTimers.Count}, next={FormatDuration(activeTimers[0])}, timers=[{timersText}]";
+    }
+
+    private static int? ResolveKnownSmithySlotId(IReadOnlyList<Building>? knownBuildings)
+    {
+        return knownBuildings?
+            .FirstOrDefault(item =>
+                item.SlotId is > 0
+                && (item.Gid == 12 || string.Equals(item.Name, "Smithy", StringComparison.OrdinalIgnoreCase)))
+            ?.SlotId;
+    }
+
+    private async Task<bool> IsCurrentPageSmithyAsync(CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+        try
+        {
+            return await _page.EvaluateAsync<bool>(
+                """
+                () => {
+                  const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                  const headingNodes = Array.from(document.querySelectorAll('h1, h2, h3, .titleInHeader, .build_details .title, .researches .title'));
+                  for (const node of headingNodes) {
+                    const text = clean(node.textContent);
+                    if (text.includes('smithy') || text.includes('blacksmith')) {
+                      return true;
+                    }
+                  }
+
+                  if (document.querySelector('.build_details.researches .research')) {
+                    return true;
+                  }
+
+                  const bodyText = clean(document.body && document.body.innerText);
+                  return bodyText.includes('improve the blacksmith')
+                    || bodyText.includes('improve the smithy')
+                    || bodyText.includes('fully researched')
+                    || bodyText.includes('fully developed');
+                }
+                """);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private async Task<int?> TryResolveSmithySlotIdAsync(CancellationToken cancellationToken)
     {
         const int attempts = 3;
@@ -1348,7 +1457,21 @@ public sealed partial class TravianClient
     {
         try
         {
-            return await _page.EvaluateAsync<int?>(
+            var values = await ReadSmithyResearchDurationsSecondsAsync(cancellationToken);
+            return values.Count > 0 ? values.Min() : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private async Task<IReadOnlyList<int>> ReadSmithyResearchDurationsSecondsAsync(CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+        try
+        {
+            var values = await _page.EvaluateAsync<int[]>(
                 """
                 () => {
                   const parseSeconds = (value) => {
@@ -1373,7 +1496,10 @@ public sealed partial class TravianClient
                     .map(el => parseSeconds(el.getAttribute('value')) ?? parseSeconds(el.textContent))
                     .filter(value => value !== null);
                   if (progressValues.length > 0) {
-                    return Math.min(...progressValues);
+                    return progressValues
+                      .map(value => Number(value))
+                      .filter(value => Number.isFinite(value) && value > 0)
+                      .sort((a, b) => a - b);
                   }
 
                   const scoped = Array.from(document.querySelectorAll(
@@ -1383,16 +1509,24 @@ public sealed partial class TravianClient
                     .map(el => parseSeconds(el.getAttribute?.('value')) ?? parseSeconds(el.textContent))
                     .filter(value => value !== null);
                   if (values.length > 0) {
-                    return Math.min(...values);
+                    return values
+                      .map(value => Number(value))
+                      .filter(value => Number.isFinite(value) && value > 0)
+                      .sort((a, b) => a - b);
                   }
 
-                  return null;
+                  return [];
                 }
                 """);
+
+            return values
+                .Where(value => value > 0)
+                .OrderBy(value => value)
+                .ToList();
         }
         catch
         {
-            return null;
+            return [];
         }
     }
 

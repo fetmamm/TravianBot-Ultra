@@ -9,6 +9,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
+using TbotUltra.Core.Accounts;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Worker.Domain;
@@ -20,24 +21,22 @@ public partial class MainWindow
 {
     private void LoadAutomationLoopTasks(BotOptions options)
     {
-        var configured = (options.ContinuousLoopGroups ?? [])
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .Select(name => name.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        if (configured.Count <= 0)
+        var storedPreferences = LoadStoredAutomationLoopPreferencesForActiveAccount();
+        var hasStoredEnabledGroups = storedPreferences.EnabledGroups is not null;
+        var configured = hasStoredEnabledGroups
+            ? storedPreferences.EnabledGroups!
+            : NormalizeAutomationLoopGroupNames(options.ContinuousLoopGroups);
+        if (!hasStoredEnabledGroups && configured.Count <= 0)
         {
-            configured = (options.LoopTasks ?? [])
+            configured = NormalizeAutomationLoopGroupNames((options.LoopTasks ?? [])
                 .Select(NormalizeLegacyLoopTaskName)
-                .Where(name => !string.IsNullOrWhiteSpace(name))
                 .Select(QueueGroupCatalog.ResolveGroup)
-                .Select(QueueGroupCatalog.GetKey)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
+                .Select(QueueGroupCatalog.GetKey));
         }
 
         var orderedNames = LoadConfiguredContinuousLoopGroupOrder();
-        var visibleGroups = LoadConfiguredDashboardVisibleGroups();
+        var visibleGroups = storedPreferences.VisibleGroups
+            ?? LoadConfiguredDashboardVisibleGroups();
 
         _suppressAutomationLoopConfigWrite = true;
         try
@@ -72,6 +71,71 @@ public partial class MainWindow
         }
     }
 
+    private (List<string>? EnabledGroups, List<string>? VisibleGroups) LoadStoredAutomationLoopPreferencesForActiveAccount()
+    {
+        try
+        {
+            var accountName = _accountStore.ActiveAccountName();
+            if (string.IsNullOrWhiteSpace(accountName)
+                || !_accountAnalysisStore.TryLoad(accountName, out var analysis, GetActiveAccountServerUrl())
+                || analysis is null)
+            {
+                return (null, null);
+            }
+
+            return (
+                analysis.AutomationLoopEnabledGroups is null ? null : NormalizeAutomationLoopGroupNames(analysis.AutomationLoopEnabledGroups),
+                analysis.AutomationLoopVisibleGroups is null ? null : NormalizeAutomationLoopGroupNames(analysis.AutomationLoopVisibleGroups));
+        }
+        catch
+        {
+            return (null, null);
+        }
+    }
+
+    private void PersistAutomationLoopPreferencesForActiveAccount(
+        IReadOnlyList<string> enabledGroupNames,
+        IReadOnlyList<string> visibleGroupNames)
+    {
+        try
+        {
+            var accountName = _accountStore.ActiveAccountName();
+            if (string.IsNullOrWhiteSpace(accountName))
+            {
+                return;
+            }
+
+            var serverUrl = GetActiveAccountServerUrl();
+            _accountAnalysisStore.TryLoad(accountName, out var existing, serverUrl);
+            var snapshot = new AccountAnalysisSnapshot(
+                SchemaVersion: AccountAnalysisConstants.CurrentSchemaVersion,
+                AnalyzedAtUtc: DateTimeOffset.UtcNow,
+                AccountName: string.IsNullOrWhiteSpace(existing?.AccountName) ? accountName : existing.AccountName,
+                ServerUrl: string.IsNullOrWhiteSpace(existing?.ServerUrl) ? serverUrl ?? string.Empty : existing.ServerUrl,
+                Tribe: string.IsNullOrWhiteSpace(existing?.Tribe) ? ResolveStoredTroopTrainingTribe() : existing.Tribe,
+                GoldClubEnabled: existing?.GoldClubEnabled ?? false,
+                BuildingCatalog: existing?.BuildingCatalog ?? [],
+                AutoCelebrationEnabled: existing?.AutoCelebrationEnabled,
+                AutomationLoopEnabledGroups: enabledGroupNames.ToList(),
+                AutomationLoopVisibleGroups: visibleGroupNames.ToList());
+            _accountAnalysisStore.Save(snapshot);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Could not save automation loop preferences: {ex.Message}");
+        }
+    }
+
+    private static List<string> NormalizeAutomationLoopGroupNames(IEnumerable<string>? names)
+    {
+        return (names ?? [])
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name.Trim())
+            .Where(name => QueueGroupCatalog.TryParse(name, out _))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
     private void UpdateAutomationLoopOrders()
     {
         var visibleOrder = 1;
@@ -92,6 +156,30 @@ public partial class MainWindow
         _automationLoopTasksView?.Refresh();
         UpdateAutomationLoopSummaryText();
         UpdateAutomationLoopRunningIndicators();
+    }
+
+    private void TickAutomationLoopCountdowns()
+    {
+        var changed = false;
+        var reachedZero = false;
+        foreach (var item in _automationLoopTasks)
+        {
+            if (!item.TickOneSecond())
+            {
+                continue;
+            }
+
+            changed = true;
+            if (item.RemainingSeconds == 0)
+            {
+                reachedZero = true;
+            }
+        }
+
+        if (changed && reachedZero)
+        {
+            UpdateAutomationLoopRunningIndicators();
+        }
     }
 
     private static bool AutomationLoopTaskFilter(object item)
@@ -157,6 +245,7 @@ public partial class MainWindow
             : QueueGroupCatalog.ResolveGroup(runningTaskName);
 
         var disabledInvalidResourceTransfer = false;
+        var disabledInvalidReinforcements = false;
         foreach (var item in _automationLoopTasks)
         {
             if (!QueueGroupCatalog.TryParse(item.TaskName, out var group))
@@ -180,18 +269,22 @@ public partial class MainWindow
             var constructionWaitSeconds = group == QueueGroup.Construction
                 ? ResolveConstructionGroupRemainingSeconds()
                 : (int?)null;
+            var smithyUpgradeWaitSeconds = group == QueueGroup.Troops
+                ? ResolveSmithyUpgradeGroupRemainingSeconds()
+                : (int?)null;
             var troopTrainingWaitSeconds = group == QueueGroup.TroopTraining
                 ? _troopTrainingViewModel.ResolveGroupRemainingSeconds()
                 : (int?)null;
             var breweryCelebrationWaitSeconds = group == QueueGroup.BreweryCelebration
                 ? _troopTrainingViewModel.ResolveBreweryCelebrationGroupRemainingSeconds()
                 : (int?)null;
+            var hasLiveSmithyWait = group == QueueGroup.Troops && smithyUpgradeWaitSeconds is > 0;
 
             item.QueuedCount = pendingCount;
             item.IsRunning = runningGroup.HasValue && runningGroup.Value == group;
             item.IsBlocked = false;
             item.BlockedText = "Blocked";
-            if (runningItem is not null || item.IsRunning)
+            if ((runningItem is not null || item.IsRunning) && !hasLiveSmithyWait)
             {
                 item.StateText = "Running";
                 item.DetailText = runningItem is not null
@@ -199,13 +292,23 @@ public partial class MainWindow
                     : "Coordinator active.";
                 item.RemainingSeconds = null;
             }
-            else if (deferred is not null || constructionWaitSeconds is > 0 || troopTrainingWaitSeconds is > 0 || breweryCelebrationWaitSeconds is > 0)
+            else if (deferred is not null || constructionWaitSeconds is > 0 || troopTrainingWaitSeconds is > 0 || breweryCelebrationWaitSeconds is > 0 || hasLiveSmithyWait)
             {
-                item.StateText = "Waiting";
+                item.StateText = hasLiveSmithyWait && (runningItem is not null || item.IsRunning)
+                    ? "Running"
+                    : "Waiting";
                 if (deferred is not null)
                 {
                     item.DetailText = $"Next try {FormatQueueServerTime(deferred.NextAttemptAt)}";
                     item.RemainingSeconds = Math.Max(0, (int)Math.Ceiling((deferred.NextAttemptAt - DateTimeOffset.UtcNow).TotalSeconds));
+                }
+                else if (hasLiveSmithyWait)
+                {
+                    var smithyUpgradeCount = ResolveSmithyUpgradeActiveCount();
+                    item.DetailText = smithyUpgradeCount > 1
+                        ? $"Smithy upgrades active ({smithyUpgradeCount})."
+                        : "Smithy upgrade active.";
+                    item.RemainingSeconds = smithyUpgradeWaitSeconds;
                 }
                 else if (troopTrainingWaitSeconds is > 0)
                 {
@@ -269,6 +372,20 @@ public partial class MainWindow
                 item.IsBlocked = true;
                 item.BlockedText = "Setup needed";
             }
+            else if (group == QueueGroup.Reinforcements && !CanRunReinforcements(LoadBotOptions(), out var reinforcementsReason))
+            {
+                if (item.IsEnabled && _reinforcementVillages.Count > 0)
+                {
+                    item.IsEnabled = false;
+                    disabledInvalidReinforcements = true;
+                }
+
+                item.StateText = "Disabled";
+                item.DetailText = reinforcementsReason;
+                item.RemainingSeconds = null;
+                item.IsBlocked = true;
+                item.BlockedText = "Setup needed";
+            }
             else if (!item.IsEnabled)
             {
                 item.StateText = "Disabled";
@@ -309,6 +426,12 @@ public partial class MainWindow
                 item.DetailText = "Resource transfer configured.";
                 item.RemainingSeconds = null;
             }
+            else if (group == QueueGroup.Reinforcements)
+            {
+                item.StateText = "Ready";
+                item.DetailText = "Reinforcements configured.";
+                item.RemainingSeconds = null;
+            }
             else if (paused)
             {
                 item.StateText = "Paused";
@@ -323,7 +446,7 @@ public partial class MainWindow
             }
         }
 
-        if (disabledInvalidResourceTransfer)
+        if (disabledInvalidResourceTransfer || disabledInvalidReinforcements)
         {
             UpdateAutomationLoopSummaryText();
             PersistAutomationLoopTasksToConfig();
@@ -370,7 +493,9 @@ public partial class MainWindow
         try
         {
             var enabledGroupNames = _automationLoopTasks
-                .Where(item => item.IsEnabled)
+                .Where(item => item.IsEnabled || (
+                    string.Equals(item.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Hero), StringComparison.OrdinalIgnoreCase)
+                    && ShouldKeepHeroAdventurePolling()))
                 .Select(item => item.TaskName)
                 .Where(name => !string.IsNullOrWhiteSpace(name))
                 .ToList();
@@ -383,6 +508,8 @@ public partial class MainWindow
                 .Select(item => item.TaskName)
                 .Where(name => !string.IsNullOrWhiteSpace(name))
                 .ToList();
+
+            PersistAutomationLoopPreferencesForActiveAccount(enabledGroupNames, visibleGroupNames);
 
             var config = _botConfigStore.Load();
             config["continuous_loop_groups"] = new JsonArray(enabledGroupNames.Select(name => JsonValue.Create(name)!).ToArray());
@@ -413,6 +540,13 @@ public partial class MainWindow
         try
         {
             var config = _botConfigStore.Load();
+            if (!config.ContainsKey(DashboardVisibleGroupsConfigKey))
+            {
+                return QueueGroupCatalog.AllGroups
+                    .Select(QueueGroupCatalog.GetKey)
+                    .ToList();
+            }
+
             var configuredVisible = (config[DashboardVisibleGroupsConfigKey] as JsonArray ?? new JsonArray())
                 .Select(node => node?.ToString())
                 .Where(name => !string.IsNullOrWhiteSpace(name))
@@ -420,19 +554,7 @@ public partial class MainWindow
                 .Where(name => QueueGroupCatalog.TryParse(name, out _))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
-
-            if (configuredVisible.Count > 0)
-            {
-                foreach (var groupKey in QueueGroupCatalog.AllGroups.Select(QueueGroupCatalog.GetKey))
-                {
-                    if (!configuredVisible.Contains(groupKey, StringComparer.OrdinalIgnoreCase))
-                    {
-                        configuredVisible.Add(groupKey);
-                    }
-                }
-
-                return configuredVisible;
-            }
+            return configuredVisible;
         }
         catch
         {

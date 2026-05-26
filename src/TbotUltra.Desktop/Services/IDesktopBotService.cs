@@ -35,6 +35,10 @@ public interface IDesktopBotService
     Task<int> EnsureNatarFarmCacheAndReturnToFarmListAsync(BotOptions options, Action<string> log, bool forceRefresh, CancellationToken cancellationToken);
     Task<FarmAddBatchResult> AddFarmsFromNatarsAsync(BotOptions options, string farmListName, string troopType, int troopCount, int requestedCount, Action<string> log, CancellationToken cancellationToken);
     Task<ManualFarmRunResult> StartManualFarmingFromNatarsAsync(BotOptions options, string troopType, int troopCount, int troopVariancePercent, bool raidAttack, Action<string> log, CancellationToken cancellationToken);
+    Task<IReadOnlyDictionary<string, long>> ReadAvailableTroopsForCatapultWavesAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
+    Task<IReadOnlyDictionary<string, long>> ReadAvailableTroopsForCatapultWavesAsync(BotOptions options, Action<string> log, bool forceRefresh, CancellationToken cancellationToken);
+    Task<CatapultWaveSetupInfo> ReadCatapultWaveSetupInfoAsync(BotOptions options, Action<string> log, bool forceRefresh, CancellationToken cancellationToken);
+    Task<CatapultWaveRunResult> StartCatapultWavesAsync(BotOptions options, CatapultWaveRequest request, Action<string> log, CancellationToken cancellationToken);
     Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepBrowserOpenAfterLogin, CancellationToken cancellationToken);
     Task<PostLoginSnapshot> LoadPostLoginSnapshotAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task ExecuteLogoutAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
@@ -44,9 +48,12 @@ public interface IDesktopBotService
     Task<VillageStatus> ReadBuildingsStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<IReadOnlyList<TroopTrainingQueueStatus>> ReadTroopTrainingQueuesAsync(BotOptions options, Action<string> log, IReadOnlyList<Building>? knownBuildings, CancellationToken cancellationToken);
     Task<BreweryCelebrationStatus> ReadBreweryCelebrationStatusAsync(BotOptions options, Action<string> log, IReadOnlyList<Building>? knownBuildings, CancellationToken cancellationToken);
+    Task<SmithyUpgradeStatus> ReadSmithyUpgradeStatusAsync(BotOptions options, Action<string> log, IReadOnlyList<Building>? knownBuildings, CancellationToken cancellationToken);
     Task<string> RunBreweryCelebrationAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<string> RunNpcTradeForBuildingTestAsync(BotOptions options, Action<string> log, TroopTrainingBuildingType buildingType, CancellationToken cancellationToken);
     Task<string> RunNpcTradeForCurrentBuildingPageTestAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
+    Task<string> ReadSmithyQueueFromCurrentPageTestAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
+    Task<string> RunReinforcementsTestAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<VillageStatus> ReadVillageStatusAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken);
     Task<VillageStatus> ReadVillageResourceStatusAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken, bool currentPageOnly = false);
     Task<IReadOnlyList<VillageStatus>> ReadAllVillageResourceStatusesAsync(BotOptions options, Action<string> log, string? returnVillageName, string? returnVillageUrl, CancellationToken cancellationToken);

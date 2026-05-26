@@ -164,6 +164,10 @@ public partial class MainWindow : Window
     private ICollectionView? _automationLoopTasksView;
     private readonly ObservableCollection<ResourceTransferVillageItem> _resourceTransferVillages = [];
     private bool _suppressResourceTransferConfigWrite;
+    private readonly ObservableCollection<ReinforcementVillageItem> _reinforcementVillages = [];
+    private readonly ObservableCollection<ReinforcementTroopRuleItem> _reinforcementTroopRules = [];
+    private List<ReinforcementTroopRule> _configuredReinforcementTroopRules = [];
+    private bool _suppressReinforcementConfigWrite;
     private readonly ObservableCollection<FarmListStatusRow> _farmLists = [];
     private readonly ObservableCollection<BuildingSlotRow> _buildingRows = [];
     private readonly ObservableCollection<BuildingCatalogOption> _buildingCatalogOptions = [];
@@ -256,6 +260,9 @@ public partial class MainWindow : Window
     private int _activeVillageResourceMaxLevel = NonCapitalResourceMaxLevel;
     private int _buildQueueRemainingSeconds = -1;
     private int _buildQueueActiveCount;
+    private List<int> _smithyUpgradeRemainingSeconds = [];
+    private bool _smithyUpgradeStatusRefreshRunning;
+    private IReadOnlyList<Building>? _pendingSmithyUpgradeStatusBuildings;
     private bool _buildQueueReachedZeroPendingCompletion;
     private int _unacknowledgedAlarmCount;
     private bool _manualVerificationAlarmActive;
@@ -405,9 +412,12 @@ public partial class MainWindow : Window
                 UpdateClockText();
                 HandleBrowserClosedSignal();
                 TickFarmListCountdowns();
+                TickAutomationLoopCountdowns();
                 _troopTrainingViewModel.TickCountdowns();
+                TickSmithyUpgradeCountdown();
                 _resourcesViewModel.TickLiveForecasts();
                 TickResourceTransferVillageForecasts();
+                UpdateReinforcementStatus();
                 UpdateExecutionStateIndicator();
                 UpdateManualFarmingRunningState();
             }
@@ -464,6 +474,8 @@ public partial class MainWindow : Window
         AutomationLoopListBox.ItemsSource = _automationLoopTasksView;
         ResourceTransferTargetVillageComboBox.ItemsSource = _resourceTransferVillages;
         ResourceTransferSourceVillagesItemsControl.ItemsSource = _resourceTransferVillages;
+        ReinforcementTargetVillageComboBox.ItemsSource = _reinforcementVillages;
+        ReinforcementSourceVillagesItemsControl.ItemsSource = _reinforcementVillages;
         FarmListsItemsControl.ItemsSource = _farmLists;
         _troopTrainingViewModel.Initialize();
         _troopTrainingViewModel.UpdateTroopOptions(ResolveStoredTroopTrainingTribe());
@@ -639,6 +651,7 @@ public partial class MainWindow : Window
 
         _resourcesViewModel.LoadSettingsFromConfig(options);
         ApplyResourceTransferConfigToUi(options);
+        ApplyReinforcementConfigToUi(options);
 
         try
         {

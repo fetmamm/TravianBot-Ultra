@@ -2889,7 +2889,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
         if (!await IsSendTroopsPageAsync(cancellationToken))
         {
-            throw new InvalidOperationException("Rally Point does not appear to be constructed yet. Build Rally Point before starting manual farming.");
+            throw new InvalidOperationException("Rally Point does not appear to be constructed yet. Build Rally Point before sending troops.");
         }
     }
 
@@ -3780,6 +3780,15 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                   const input = document.querySelector(`input[name="${fieldToken}"], input[id$="${fieldToken}"], input[name$="[${fieldToken}]"]`);
                   if (!input) return null;
 
+                  const scopeText = input.closest('td, tr, div')?.textContent || '';
+                  const scopeMatch = scopeText.match(/\(([\d\s.,]+)\)/);
+                  if (scopeMatch) {
+                    const parsed = Number.parseInt(scopeMatch[1].replace(/[^\d]/g, ''), 10);
+                    if (Number.isFinite(parsed)) return parsed;
+                  }
+
+                  if (input.disabled || input.getAttribute('disabled') !== null) return 0;
+
                   const maxValue = input.getAttribute('max') || '';
                   const maxParsed = Number.parseInt((maxValue || '').replace(/[^\d]/g, ''), 10);
                   if (Number.isFinite(maxParsed) && maxParsed > 0) return maxParsed;
@@ -3789,7 +3798,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 """,
                 fieldToken);
 
-            return result > 0 ? result : null;
+            return result;
         }
         catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
         {
@@ -3843,6 +3852,12 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 continue;
             }
 
+            var isDisabled = await locator.EvaluateAsync<bool>("node => !!node.disabled || !!node.readOnly || node.getAttribute('disabled') !== null");
+            if (isDisabled)
+            {
+                continue;
+            }
+
             await RetryAsync($"fill troop input {selector}", async () =>
             {
                 await locator.FillAsync(troopCountToSend.ToString(CultureInfo.InvariantCulture), new LocatorFillOptions { Timeout = _config.TimeoutMs });
@@ -3856,6 +3871,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
               const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
               const inputs = Array.from(document.querySelectorAll('input[type="text"], input[type="number"], input:not([type])'));
               const candidate = inputs.find(node => {
+                if (node.disabled || node.readOnly || node.getAttribute('disabled') !== null) return false;
                 const text = normalize(`${node.closest('tr, td, div, label, li, .troop_details, .details')?.textContent || ''} ${node.getAttribute('title') || ''} ${node.getAttribute('aria-label') || ''}`);
                 return text.includes(normalize(args.troopType));
               });
@@ -3886,7 +3902,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                     const value = (node.getAttribute('value') || '').trim();
                     const label = normalize(node.parentElement?.textContent || node.closest('label')?.textContent || '');
                     if (raidAttack) return value === '4' || label.includes('raid');
-                    return label.includes('normal attack') || (value === '3') || (label.includes('attack') && !label.includes('raid') && !label.includes('reinforcement'));
+                    return value === '3' || label.includes('normal attack');
                   });
                   if (!radio) return false;
                   radio.checked = true;

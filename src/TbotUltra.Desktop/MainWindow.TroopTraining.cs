@@ -94,7 +94,9 @@ public partial class MainWindow
                 Tribe: string.IsNullOrWhiteSpace(existing?.Tribe) ? ResolveStoredTroopTrainingTribe() : existing.Tribe,
                 GoldClubEnabled: existing?.GoldClubEnabled ?? false,
                 BuildingCatalog: existing?.BuildingCatalog ?? [],
-                AutoCelebrationEnabled: enabled);
+                AutoCelebrationEnabled: enabled,
+                AutomationLoopEnabledGroups: existing?.AutomationLoopEnabledGroups,
+                AutomationLoopVisibleGroups: existing?.AutomationLoopVisibleGroups);
             _accountAnalysisStore.Save(snapshot);
         }
         catch (Exception ex)
@@ -107,6 +109,7 @@ public partial class MainWindow
     {
         var troopOptionsChanged = _troopTrainingViewModel.UpdateTroopOptions(tribe);
         var celebrationChanged = _troopTrainingViewModel.UpdateAutoCelebrationAvailability(tribe);
+        RefreshReinforcementTroopRules(tribe);
         if (troopOptionsChanged || celebrationChanged)
         {
             PersistTroopTrainingConfig();
@@ -202,6 +205,81 @@ public partial class MainWindow
             _troopTrainingViewModel.AutoCelebrationEnabled
                 ? "Reading celebration status..."
                 : "Disabled.");
+    }
+
+    private void ApplySmithyUpgradeStatus(SmithyUpgradeStatus status)
+    {
+        _smithyUpgradeRemainingSeconds = (status.ActiveUpgradeRemainingSeconds ?? [])
+            .Where(value => value > 0)
+            .OrderBy(value => value)
+            .ToList();
+        UpdateAutomationLoopRunningIndicators();
+    }
+
+    private int? ResolveSmithyUpgradeGroupRemainingSeconds()
+    {
+        return _smithyUpgradeRemainingSeconds.Count > 0
+            ? _smithyUpgradeRemainingSeconds[0]
+            : null;
+    }
+
+    private int ResolveSmithyUpgradeActiveCount()
+    {
+        return _smithyUpgradeRemainingSeconds.Count;
+    }
+
+    private void TickSmithyUpgradeCountdown()
+    {
+        if (_smithyUpgradeRemainingSeconds.Count <= 0)
+        {
+            return;
+        }
+
+        for (var index = 0; index < _smithyUpgradeRemainingSeconds.Count; index++)
+        {
+            _smithyUpgradeRemainingSeconds[index] = Math.Max(0, _smithyUpgradeRemainingSeconds[index] - 1);
+        }
+
+        _smithyUpgradeRemainingSeconds = _smithyUpgradeRemainingSeconds
+            .Where(value => value > 0)
+            .OrderBy(value => value)
+            .ToList();
+        UpdateAutomationLoopRunningIndicators();
+    }
+
+    private void TriggerSmithyUpgradeStatusRefresh(IReadOnlyList<Building>? knownBuildings, string source)
+    {
+        _ = source;
+        if (_smithyUpgradeStatusRefreshRunning)
+        {
+            _pendingSmithyUpgradeStatusBuildings = knownBuildings?.ToList();
+            return;
+        }
+
+        _smithyUpgradeStatusRefreshRunning = true;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var options = ApplySelectedVillageToOptions(LoadBotOptions());
+                var smithyStatus = await _botService.ReadSmithyUpgradeStatusAsync(options, AppendLog, knownBuildings, CancellationToken.None);
+                await Dispatcher.InvokeAsync(() => ApplySmithyUpgradeStatus(smithyStatus));
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"Could not refresh Smithy upgrade status: {ex.Message}");
+            }
+            finally
+            {
+                _smithyUpgradeStatusRefreshRunning = false;
+                if (_pendingSmithyUpgradeStatusBuildings is not null)
+                {
+                    var pendingBuildings = _pendingSmithyUpgradeStatusBuildings;
+                    _pendingSmithyUpgradeStatusBuildings = null;
+                    TriggerSmithyUpgradeStatusRefresh(pendingBuildings, "pending_refresh");
+                }
+            }
+        });
     }
 
     private async Task RefreshBreweryCelebrationStatusAsync(BotOptions options, VillageStatus? status, CancellationToken cancellationToken)
@@ -338,6 +416,7 @@ public partial class MainWindow
         }
 
         var queueStatuses = await _botService.ReadTroopTrainingQueuesAsync(options, AppendLog, effectiveBuildings, cancellationToken);
+        var smithyStatus = await _botService.ReadSmithyUpgradeStatusAsync(options, AppendLog, effectiveBuildings, cancellationToken);
         await Dispatcher.InvokeAsync(() =>
         {
             var effectiveStatus = _lastBuildingStatus is null
@@ -360,6 +439,7 @@ public partial class MainWindow
                     TroopTrainingQueues: queueStatuses), queueStatuses);
             }
 
+            ApplySmithyUpgradeStatus(smithyStatus);
             UpdateAutomationLoopRunningIndicators();
         });
     }

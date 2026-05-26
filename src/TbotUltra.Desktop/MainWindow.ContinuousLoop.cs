@@ -133,7 +133,8 @@ public partial class MainWindow
     private async Task EnsureContinuousLoopRuntimeItemsAsync(BotOptions options)
     {
         var enabledGroups = GetContinuousLoopEnabledGroupsInOrder();
-        if (enabledGroups.Count <= 0)
+        var heroPollingEnabled = enabledGroups.Contains(QueueGroup.Hero) || ShouldKeepHeroAdventurePolling();
+        if (enabledGroups.Count <= 0 && !heroPollingEnabled)
         {
             return;
         }
@@ -148,7 +149,7 @@ public partial class MainWindow
                 string.Equals(item.TaskName, taskName, StringComparison.OrdinalIgnoreCase));
         }
 
-        if (enabledGroups.Contains(QueueGroup.Hero) && !IsHeroGroupBlocked() && !HasActiveTask("hero_manage"))
+        if (heroPollingEnabled && !HasActiveTask("hero_manage"))
         {
             var adventureCount = await _botService.RefreshAdventureCountAsync(options, AppendLog, CancellationToken.None);
             await Dispatcher.InvokeAsync(() => ApplyHeroAdventureAvailability(adventureCount));
@@ -250,6 +251,25 @@ public partial class MainWindow
                     [BotOptionPayloadKeys.ResourceTransferSendCrop] = options.ResourceTransferSendCrop ? "true" : "false",
                 };
                 _botService.EnqueueRuntime("send_resources_between_villages", "Resource transfer", payload, priority: -50, maxRetries: 0);
+            }
+        }
+
+        if (enabledGroups.Contains(QueueGroup.Reinforcements) && !HasActiveTask("send_reinforcements_between_villages"))
+        {
+            var selectedSources = options.ReinforcementsSourceVillageNames
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (CanRunReinforcements(options, out _))
+            {
+                var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    [BotOptionPayloadKeys.ReinforcementsEnabled] = "true",
+                    [BotOptionPayloadKeys.ReinforcementsTargetVillageName] = options.ReinforcementsTargetVillageName,
+                    [BotOptionPayloadKeys.ReinforcementsSourceVillageNames] = string.Join(",", selectedSources),
+                    [BotOptionPayloadKeys.ReinforcementsTroopRules] = System.Text.Json.JsonSerializer.Serialize(BuildReinforcementRulesForRun()),
+                };
+                _botService.EnqueueRuntime("send_reinforcements_between_villages", "Reinforcements", payload, priority: -50, maxRetries: 0);
             }
         }
     }
@@ -446,8 +466,7 @@ public partial class MainWindow
                                 var snapshot = await _botService.ReadHeroAttributesAsync(options, AppendLog, token);
                                 await Dispatcher.InvokeAsync(() =>
                                 {
-                                    _heroViewModel.ApplyAttributeSnapshot(snapshot);
-                                    _heroViewModel.AdventureStatusText = "Hero adventure check completed.";
+                                    ApplyHeroSnapshotToUi(snapshot, "Hero adventure check completed.");
                                 });
                             }
                             catch (Exception ex)
@@ -756,8 +775,7 @@ public partial class MainWindow
                         var snapshot = await _botService.ReadHeroAttributesAsync(options, AppendLog, cancellationToken);
                         await Dispatcher.InvokeAsync(() =>
                         {
-                            _heroViewModel.ApplyAttributeSnapshot(snapshot);
-                            _heroViewModel.AdventureStatusText = "Hero adventure check completed.";
+                            ApplyHeroSnapshotToUi(snapshot, "Hero adventure check completed.");
                         });
                     }
                     catch (Exception refreshEx)

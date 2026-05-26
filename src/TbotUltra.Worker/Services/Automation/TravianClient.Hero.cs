@@ -192,6 +192,21 @@ public sealed partial class TravianClient
         return Math.Max(0, quick.Status.AdventuresAvailable);
     }
 
+    private static int? TryResolveAdventureCount(HeroQuickStatus quick)
+    {
+        if (quick.Sidebar.AdventureFound)
+        {
+            return Math.Max(0, quick.Sidebar.AdventureCount);
+        }
+
+        if (quick.Status.Exists)
+        {
+            return Math.Max(0, quick.Status.AdventuresAvailable);
+        }
+
+        return null;
+    }
+
     private static bool IsHeroStatusTextDead(string? statusText)
     {
         var text = (statusText ?? string.Empty).ToLowerInvariant();
@@ -956,18 +971,29 @@ public sealed partial class TravianClient
             allowDorf1Fallback: false,
             forceDorf1Reload: false,
             cancellationToken);
+        var adventureCount = TryResolveAdventureCount(quick);
         var cachedSnapshot = TryGetCachedHeroAttributeSnapshot();
         if (cachedSnapshot is not null && !quick.HasUnassignedPointsSignal)
         {
             Notify("Hero attribute snapshot served from cache.");
-            return cachedSnapshot;
+            return cachedSnapshot with { AdventureCount = adventureCount };
         }
 
         await EnsureHeroInventoryAttributesTabAsync(cancellationToken);
+        if (adventureCount is null)
+        {
+            var sidebar = await ReadHeroSidebarStatusAsync(cancellationToken);
+            if (sidebar.AdventureFound)
+            {
+                adventureCount = Math.Max(0, sidebar.AdventureCount);
+            }
+        }
+
         var snapshot = await ReadHeroInventorySnapshotAsync(cancellationToken);
+        snapshot = snapshot with { AdventureCount = adventureCount };
         SaveCachedHeroAttributeSnapshot(snapshot);
         Notify(
-            $"Hero inventory snapshot: free points={snapshot.FreePoints}, fighting strength={snapshot.FightingStrength}, offence bonus={snapshot.OffenceBonus}, defence bonus={snapshot.DefenceBonus}, resources={snapshot.Resources}.");
+            $"Hero inventory snapshot: free points={snapshot.FreePoints}, fighting strength={snapshot.FightingStrength}, offence bonus={snapshot.OffenceBonus}, defence bonus={snapshot.DefenceBonus}, resources={snapshot.Resources}, adventures={(snapshot.AdventureCount?.ToString() ?? "?")}.");
         return snapshot;
     }
 

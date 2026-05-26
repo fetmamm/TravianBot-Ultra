@@ -72,7 +72,7 @@ public static class LogClassifier
             return LogCategory.Buildings;
         }
 
-        if (Contains(value, "troop", "smithy", "build_troops", "barracks", "stable", "workshop", "celebration", "brewery"))
+        if (Contains(value, "troop", "smithy", "build_troops", "barracks", "stable", "workshop", "celebration", "brewery", "reinforcement"))
         {
             return LogCategory.Troops;
         }

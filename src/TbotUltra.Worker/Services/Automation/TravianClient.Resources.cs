@@ -360,6 +360,8 @@ public sealed partial class TravianClient
                 var attemptedAny = false;
                 var blockReasons = new List<string>();
                 UpgradeResourceWaitSnapshot? firstResourceBlockSnapshot = null;
+                var queuedTowardTargetCount = 0;
+                int? shortestQueuedTargetWaitSeconds = null;
 
                 foreach (var candidate in candidateRows)
                 {
@@ -385,6 +387,18 @@ public sealed partial class TravianClient
                     if (level >= effectiveTarget)
                     {
                         Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} level={level} already meets effective target {effectiveTarget}. Skipping.");
+                        continue;
+                    }
+
+                    var highestKnownLevel = await ReadHighestKnownQueuedResourceLevelAsync(resourceName, level, cancellationToken);
+                    if (highestKnownLevel >= effectiveTarget)
+                    {
+                        var queuedWaitSeconds = await ReadQueuedResourceWaitSecondsAsync(resourceName, null, cancellationToken);
+                        queuedTowardTargetCount += 1;
+                        shortestQueuedTargetWaitSeconds = shortestQueuedTargetWaitSeconds is int existingWait
+                            ? Math.Min(existingWait, queuedWaitSeconds)
+                            : queuedWaitSeconds;
+                        Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} already queued toward effective target {effectiveTarget} (highest known queued level {highestKnownLevel}).");
                         continue;
                     }
 
@@ -459,6 +473,12 @@ public sealed partial class TravianClient
 
                 if (!attemptedAny)
                 {
+                    if (queuedTowardTargetCount > 0 && firstResourceBlockSnapshot is null)
+                    {
+                        var queuedWaitSeconds = Math.Max(1, shortestQueuedTargetWaitSeconds ?? 1);
+                        return $"Resource fields already queued toward target level {targetLevel}. Waiting for queued upgrades to finish. queue_wait_seconds={queuedWaitSeconds}";
+                    }
+
                     if (blockReasons.Count == 0)
                     {
                         return $"All resource fields are at or above target level {targetLevel}. Upgrades made: {upgrades}.";

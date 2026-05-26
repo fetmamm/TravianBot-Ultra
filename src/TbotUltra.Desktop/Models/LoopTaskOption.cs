@@ -207,6 +207,17 @@ public sealed class LoopTaskOption : INotifyPropertyChanged
         }
     }
 
+    public bool TickOneSecond()
+    {
+        if (!HasTimer || RemainingSeconds is null)
+        {
+            return false;
+        }
+
+        RemainingSeconds = RemainingSeconds.Value - 1;
+        return true;
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

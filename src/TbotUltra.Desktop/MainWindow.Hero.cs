@@ -88,6 +88,20 @@ public partial class MainWindow
         }
     }
 
+    private void ApplyHeroSnapshotToUi(HeroAttributeSnapshot snapshot, string? adventureStatusText = null)
+    {
+        _heroViewModel.ApplyAttributeSnapshot(snapshot);
+        if (snapshot.AdventureCount is not null)
+        {
+            ApplyHeroAdventureAvailability(snapshot.AdventureCount.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(adventureStatusText))
+        {
+            _heroViewModel.AdventureStatusText = adventureStatusText;
+        }
+    }
+
     /// <summary>
     /// Operation-bracketed refresh of hero attributes. Called by the panel's
     /// Refresh-hero-stats button (the panel toggles its own IsEnabled around
@@ -115,7 +129,7 @@ public partial class MainWindow
     {
         var options = ApplySelectedVillageToOptions(LoadBotOptions());
         var snapshot = await _botService.ReadHeroAttributesAsync(options, AppendLog, cancellationToken);
-        _heroViewModel.ApplyAttributeSnapshot(snapshot);
+        ApplyHeroSnapshotToUi(snapshot);
         return snapshot;
     }
 

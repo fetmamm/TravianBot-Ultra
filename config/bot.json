@@ -22,29 +22,26 @@
   "silver_limit": 100,
   "natar_village_selection": "farm_villages",
   "continuous_loop_groups": [
-    "hero",
-    "construction",
-    "npc_trade"
+    "hero"
   ],
   "continuous_loop_group_order": [
-    "hero",
     "construction",
     "troops",
+    "hero",
     "farming",
     "troop_training",
     "brewery_celebration",
     "npc_trade",
-    "resource_transfer"
+    "resource_transfer",
+    "reinforcements"
   ],
   "dashboard_visible_groups": [
-    "hero",
     "construction",
     "troops",
+    "hero",
     "farming",
     "troop_training",
-    "brewery_celebration",
-    "npc_trade",
-    "resource_transfer"
+    "brewery_celebration"
   ],
   "hero_stat_priority": "fighting_strength,offence_bonus,defence_bonus,resources",
   "queue_wait_threshold_mode": "5",
@@ -108,6 +105,251 @@
   "resource_transfer_send_clay": true,
   "resource_transfer_send_iron": true,
   "resource_transfer_send_crop": true,
+  "reinforcements_enabled": false,
+  "reinforcements_target_village_name": "slav \u0060s village",
+  "reinforcements_source_village_names": [],
+  "reinforcements_troop_rules": [
+    {
+      "accountName": "",
+      "sourceVillageName": "",
+      "troopType": "Clubswinger",
+      "amountMode": "fixed",
+      "amount": 1,
+      "isEnabled": false
+    },
+    {
+      "accountName": "",
+      "sourceVillageName": "",
+      "troopType": "Spearman",
+      "amountMode": "fixed",
+      "amount": 1,
+      "isEnabled": false
+    },
+    {
+      "accountName": "",
+      "sourceVillageName": "",
+      "troopType": "Axeman",
+      "amountMode": "fixed",
+      "amount": 1,
+      "isEnabled": false
+    },
+    {
+      "accountName": "",
+      "sourceVillageName": "",
+      "troopType": "Scout",
+      "amountMode": "fixed",
+      "amount": 1,
+      "isEnabled": false
+    },
+    {
+      "accountName": "",
+      "sourceVillageName": "",
+      "troopType": "Paladin",
+      "amountMode": "fixed",
+      "amount": 1,
+      "isEnabled": false
+    },
+    {
+      "accountName": "",
+      "sourceVillageName": "",
+      "troopType": "Teutonic Knight",
+      "amountMode": "fixed",
+      "amount": 1,
+      "isEnabled": false
+    },
+    {
+      "accountName": "",
+      "sourceVillageName": "",
+      "troopType": "Ram",
+      "amountMode": "fixed",
+      "amount": 1,
+      "isEnabled": false
+    },
+    {
+      "accountName": "",
+      "sourceVillageName": "",
+      "troopType": "Catapult",
+      "amountMode": "fixed",
+      "amount": 1,
+      "isEnabled": false
+    },
+    {
+      "accountName": "",
+      "sourceVillageName": "",
+      "troopType": "Chief",
+      "amountMode": "fixed",
+      "amount": 1,
+      "isEnabled": false
+    },
+    {
+      "accountName": "",
+      "sourceVillageName": "",
+      "troopType": "Settler",
+      "amountMode": "fixed",
+      "amount": 1,
+      "isEnabled": false
+    },
+    {
+      "accountName": "",
+      "sourceVillageName": "slav \u0060s village",
+      "troopType": "Clubswinger",
+      "amountMode": "fixed",
+      "amount": 10,
+      "isEnabled": true
+    },
+    {
+      "accountName": "",
+      "sourceVillageName": "slav \u0060s village",
+      "troopType": "Spearman",
+      "amountMode": "fixed",
+      "amount": 1,
+      "isEnabled": false
+    },
+    {
+      "accountName": "",
+      "sourceVillageName": "slav \u0060s village",
+      "troopType": "Axeman",
+      "amountMode": "fixed",
+      "amount": 1,
+      "isEnabled": false
+    },
+    {
+      "accountName": "",
+      "sourceVillageName": "slav \u0060s village",
+      "troopType": "Scout",
+      "amountMode": "fixed",
+      "amount": 1,
+      "isEnabled": false
+    },
+    {
+      "accountName": "",
+      "sourceVillageName": "slav \u0060s village",
+      "troopType": "Paladin",
+      "amountMode": "fixed",
+      "amount": 1,
+      "isEnabled": false
+    },
+    {
+      "accountName": "",
+      "sourceVillageName": "slav \u0060s village",
+      "troopType": "Teutonic Knight",
+      "amountMode": "fixed",
+      "amount": 1,
+      "isEnabled": false
+    },
+    {
+      "accountName": "",
+      "sourceVillageName": "slav \u0060s village",
+      "troopType": "Ram",
+      "amountMode": "fixed",
+      "amount": 1,
+      "isEnabled": false
+    },
+    {
+      "accountName": "",
+      "sourceVillageName": "slav \u0060s village",
+      "troopType": "Catapult",
+      "amountMode": "fixed",
+      "amount": 1,
+      "isEnabled": false
+    },
+    {
+      "accountName": "",
+      "sourceVillageName": "slav \u0060s village",
+      "troopType": "Chief",
+      "amountMode": "fixed",
+      "amount": 1,
+      "isEnabled": false
+    },
+    {
+      "accountName": "",
+      "sourceVillageName": "slav \u0060s village",
+      "troopType": "Settler",
+      "amountMode": "fixed",
+      "amount": 1,
+      "isEnabled": false
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "slav \u0060s village",
+      "troopType": "Clubswinger",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "slav \u0060s village",
+      "troopType": "Spearman",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "slav \u0060s village",
+      "troopType": "Axeman",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "slav \u0060s village",
+      "troopType": "Scout",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "slav \u0060s village",
+      "troopType": "Paladin",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "slav \u0060s village",
+      "troopType": "Teutonic Knight",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "slav \u0060s village",
+      "troopType": "Ram",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "slav \u0060s village",
+      "troopType": "Catapult",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "slav \u0060s village",
+      "troopType": "Chief",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "slav \u0060s village",
+      "troopType": "Settler",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    }
+  ],
   "hero_min_hp_for_adventure": 30,
   "hero_auto_revive": true,
   "hero_auto_assign_points": true,

@@ -346,11 +346,6 @@ public partial class MainWindow
         {
             return;
         }
-
-        if (!string.Equals(_troopsBlockedReasonKey, TroopsBlockedReasonSmithyMissing, StringComparison.OrdinalIgnoreCase))
-        {
-            SetTroopsBlockedState(TroopsBlockedReasonSmithyMissing, "Smithy missing");
-        }
     }
 
     private int? ResolveConstructionGroupRemainingSeconds()
@@ -400,6 +395,17 @@ public partial class MainWindow
     private bool IsHeroGroupBlocked()
     {
         return !string.IsNullOrWhiteSpace(_heroBlockedReasonKey);
+    }
+
+    private bool ShouldKeepHeroAdventurePolling()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            return Dispatcher.Invoke(ShouldKeepHeroAdventurePolling);
+        }
+
+        return _heroBlockedPreviouslyEnabled
+            && string.Equals(_heroBlockedReasonKey, HeroBlockedReasonNoAdventures, StringComparison.OrdinalIgnoreCase);
     }
 
     private bool IsBreweryGroupBlocked()

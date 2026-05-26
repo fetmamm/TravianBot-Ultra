@@ -39,6 +39,9 @@ public sealed class BotOptionsPayloadApplierTests
             ResourceTransferEnabled = false,
             ResourceTransferTargetVillageName = "Old target",
             ResourceTransferSourceVillageNames = ["Old source"],
+            ReinforcementsEnabled = false,
+            ReinforcementsTargetVillageName = "Old reinforcement target",
+            ReinforcementsSourceVillageNames = ["Old reinforcement source"],
         };
 
         var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -71,6 +74,10 @@ public sealed class BotOptionsPayloadApplierTests
             [BotOptionPayloadKeys.ResourceTransferSourceKeepPercent] = "65",
             [BotOptionPayloadKeys.ResourceTransferTargetFillPercent] = "95",
             [BotOptionPayloadKeys.ResourceTransferSendCrop] = "false",
+            [BotOptionPayloadKeys.ReinforcementsEnabled] = "true",
+            [BotOptionPayloadKeys.ReinforcementsTargetVillageName] = "Reinforcement target",
+            [BotOptionPayloadKeys.ReinforcementsSourceVillageNames] = "S1,S2,S1",
+            [BotOptionPayloadKeys.ReinforcementsTroopRules] = """[{"troopType":"Spearman","amountMode":"all_available","amount":1,"isEnabled":true},{"troopType":"Paladin","amountMode":"fixed","amount":25,"isEnabled":true}]""",
         };
 
         var result = BotOptionsPayloadApplier.Apply(source, payload);
@@ -104,6 +111,14 @@ public sealed class BotOptionsPayloadApplierTests
         Assert.Equal(95, result.ResourceTransferTargetFillPercent);
         Assert.True(result.ResourceTransferSendWood);
         Assert.False(result.ResourceTransferSendCrop);
+        Assert.True(result.ReinforcementsEnabled);
+        Assert.Equal("Reinforcement target", result.ReinforcementsTargetVillageName);
+        Assert.Equal(["S1", "S2"], result.ReinforcementsSourceVillageNames);
+        Assert.Equal(2, result.ReinforcementsTroopRules.Count);
+        Assert.Equal("Spearman", result.ReinforcementsTroopRules[0].TroopType);
+        Assert.Equal("all_available", result.ReinforcementsTroopRules[0].AmountMode);
+        Assert.Equal("Paladin", result.ReinforcementsTroopRules[1].TroopType);
+        Assert.Equal(25, result.ReinforcementsTroopRules[1].Amount);
     }
 
     [Fact]
@@ -140,5 +155,71 @@ public sealed class BotOptionsPayloadApplierTests
         Assert.False(options.ResourceTransferSendIron);
         Assert.True(options.ResourceTransferSendWood);
         Assert.True(options.HeroAutoUseOintments);
+    }
+
+    [Fact]
+    public void FromConfiguration_LoadsReinforcementSettings()
+    {
+        var values = new Dictionary<string, string?>
+        {
+            ["server_name"] = "srv",
+            ["base_url"] = "https://example.com",
+            ["login_path"] = "/login.php",
+            ["village_overview_path"] = "/dorf1.php",
+            [BotOptionPayloadKeys.ReinforcementsEnabled] = "true",
+            [BotOptionPayloadKeys.ReinforcementsTargetVillageName] = "Target",
+            [$"{BotOptionPayloadKeys.ReinforcementsSourceVillageNames}:0"] = "A",
+            [$"{BotOptionPayloadKeys.ReinforcementsSourceVillageNames}:1"] = "B",
+            [$"{BotOptionPayloadKeys.ReinforcementsTroopRules}:0:troopType"] = "Spearman",
+            [$"{BotOptionPayloadKeys.ReinforcementsTroopRules}:0:amountMode"] = "all_available",
+            [$"{BotOptionPayloadKeys.ReinforcementsTroopRules}:0:amount"] = "1",
+            [$"{BotOptionPayloadKeys.ReinforcementsTroopRules}:0:isEnabled"] = "true",
+        };
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(values)
+            .Build();
+
+        var options = BotOptionsFactory.FromConfiguration(configuration);
+
+        Assert.True(options.ReinforcementsEnabled);
+        Assert.Equal("Target", options.ReinforcementsTargetVillageName);
+        Assert.Equal(["A", "B"], options.ReinforcementsSourceVillageNames);
+        var rule = Assert.Single(options.ReinforcementsTroopRules);
+        Assert.Equal("Spearman", rule.TroopType);
+        Assert.Equal("all_available", rule.AmountMode);
+        Assert.True(rule.IsEnabled);
+    }
+
+    [Fact]
+    public void FromConfiguration_KeepsVillageSpecificReinforcementRules()
+    {
+        var values = new Dictionary<string, string?>
+        {
+            ["server_name"] = "srv",
+            ["base_url"] = "https://example.com",
+            ["login_path"] = "/login.php",
+            ["village_overview_path"] = "/dorf1.php",
+            [$"{BotOptionPayloadKeys.ReinforcementsTroopRules}:0:sourceVillageName"] = "",
+            [$"{BotOptionPayloadKeys.ReinforcementsTroopRules}:0:troopType"] = "Clubswinger",
+            [$"{BotOptionPayloadKeys.ReinforcementsTroopRules}:0:amountMode"] = "fixed",
+            [$"{BotOptionPayloadKeys.ReinforcementsTroopRules}:0:amount"] = "1",
+            [$"{BotOptionPayloadKeys.ReinforcementsTroopRules}:0:isEnabled"] = "false",
+            [$"{BotOptionPayloadKeys.ReinforcementsTroopRules}:1:sourceVillageName"] = "Source",
+            [$"{BotOptionPayloadKeys.ReinforcementsTroopRules}:1:troopType"] = "Clubswinger",
+            [$"{BotOptionPayloadKeys.ReinforcementsTroopRules}:1:amountMode"] = "fixed",
+            [$"{BotOptionPayloadKeys.ReinforcementsTroopRules}:1:amount"] = "10",
+            [$"{BotOptionPayloadKeys.ReinforcementsTroopRules}:1:isEnabled"] = "true",
+        };
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(values)
+            .Build();
+
+        var options = BotOptionsFactory.FromConfiguration(configuration);
+
+        Assert.Equal(2, options.ReinforcementsTroopRules.Count);
+        var sourceRule = Assert.Single(options.ReinforcementsTroopRules, rule => rule.SourceVillageName == "Source");
+        Assert.Equal("Clubswinger", sourceRule.TroopType);
+        Assert.Equal(10, sourceRule.Amount);
+        Assert.True(sourceRule.IsEnabled);
     }
 }

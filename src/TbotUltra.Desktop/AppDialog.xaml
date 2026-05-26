@@ -40,12 +40,14 @@
                            Foreground="#1F2937" />
             </Border>
 
-            <TextBlock Grid.Column="2"
-                       x:Name="MessageTextBlock"
-                       TextWrapping="Wrap"
-                       Foreground="#111827"
-                       FontSize="14"
-                       VerticalAlignment="Top" />
+            <ContentControl Grid.Column="2"
+                            x:Name="MessageContentControl"
+                            VerticalAlignment="Top">
+                <TextBlock x:Name="MessageTextBlock"
+                           TextWrapping="Wrap"
+                           Foreground="#111827"
+                           FontSize="14" />
+            </ContentControl>
         </Grid>
 
         <StackPanel Grid.Row="1"

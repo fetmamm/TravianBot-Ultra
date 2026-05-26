@@ -43,6 +43,7 @@ public partial class MainWindow
         ApplyVillagePickerItems(ensuredItems, preferredVillageName, fallbackVillageName);
         ApplyDashboardVillageListItems(ensuredItems);
         ApplyResourceTransferVillageItems(ensuredItems);
+        ApplyReinforcementVillageItems(ensuredItems);
     }
 
     private void UpdateDashboardVillageList(IReadOnlyList<Village> villages)

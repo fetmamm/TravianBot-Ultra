@@ -83,6 +83,7 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
         Assert.True(TaskCatalog.IsAllowed("demolish_building_to_level"));
         Assert.True(TaskCatalog.IsAllowed("hero_manage"));
         Assert.True(TaskCatalog.IsAllowed("send_resources_between_villages"));
+        Assert.True(TaskCatalog.IsAllowed("send_reinforcements_between_villages"));
         Assert.False(TaskCatalog.IsAllowed("train_troops"));
     }
 
@@ -92,6 +93,14 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
         Assert.Equal(QueueGroup.ResourceTransfer, QueueGroupCatalog.ResolveGroup("send_resources_between_villages"));
         Assert.True(QueueGroupCatalog.TryParse("resource_transfer", out var group));
         Assert.Equal(QueueGroup.ResourceTransfer, group);
+    }
+
+    [Fact]
+    public void QueueGroupCatalog_ResolvesReinforcementsTask()
+    {
+        Assert.Equal(QueueGroup.Reinforcements, QueueGroupCatalog.ResolveGroup("send_reinforcements_between_villages"));
+        Assert.True(QueueGroupCatalog.TryParse("reinforcements", out var group));
+        Assert.Equal(QueueGroup.Reinforcements, group);
     }
 
     [Fact]

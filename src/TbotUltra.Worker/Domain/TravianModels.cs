@@ -26,7 +26,9 @@ public sealed record AccountAnalysisSnapshot(
     string Tribe,
     bool GoldClubEnabled,
     IReadOnlyList<TribeBuildingCatalogEntry> BuildingCatalog,
-    bool? AutoCelebrationEnabled = null);
+    bool? AutoCelebrationEnabled = null,
+    IReadOnlyList<string>? AutomationLoopEnabledGroups = null,
+    IReadOnlyList<string>? AutomationLoopVisibleGroups = null);
 
 public sealed record TribeBuildingCatalogEntry(
     int Gid,
@@ -106,7 +108,8 @@ public sealed record HeroAttributeSnapshot(
     int FightingStrength = 0,
     int OffenceBonus = 0,
     int DefenceBonus = 0,
-    int Resources = 0);
+    int Resources = 0,
+    int? AdventureCount = null);
 
 public sealed record HeroAdventureDispatchResult(
     bool IsInHomeVillage,
@@ -134,6 +137,15 @@ public sealed record BreweryCelebrationStatus(
     int? BrewerySlotId,
     bool CelebrationRunning,
     int? RemainingSeconds,
+    string RemainingText,
+    string StatusText);
+
+public sealed record SmithyUpgradeStatus(
+    bool SmithyExists,
+    int? SmithySlotId,
+    int ActiveUpgradeCount,
+    int? RemainingSeconds,
+    IReadOnlyList<int> ActiveUpgradeRemainingSeconds,
     string RemainingText,
     string StatusText);
 
@@ -201,3 +213,25 @@ public sealed record ManualFarmRunResult(
     string TroopType,
     int TroopCount,
     string AttackMode);
+
+public sealed record CatapultWaveRequest(
+    int X,
+    int Y,
+    int WaveCount,
+    bool RaidAttack,
+    IReadOnlyDictionary<string, int> FirstAttackTroops,
+    IReadOnlyDictionary<string, int> WaveTroops,
+    string? Target1,
+    string? Target2);
+
+public sealed record CatapultWaveSetupInfo(
+    IReadOnlyDictionary<string, long> AvailableTroops,
+    int? RallyPointLevel);
+
+public sealed record CatapultWaveRunResult(
+    int TotalAttacks,
+    int PreparedCount,
+    int SentCount,
+    int FailedCount,
+    int X,
+    int Y);

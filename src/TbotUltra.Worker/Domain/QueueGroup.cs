@@ -10,4 +10,5 @@ public enum QueueGroup
     BreweryCelebration = 5,
     NpcTrade = 6,
     ResourceTransfer = 7,
+    Reinforcements = 8,
 }

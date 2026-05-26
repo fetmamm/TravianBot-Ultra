@@ -188,10 +188,7 @@ public partial class MainWindow
 
             if (lastRawMessage is not null)
             {
-                StatusTextBlock.Text = lastRawMessage;
-                StatusMiniLogTextBlock.Text = string.IsNullOrWhiteSpace(lastPrimaryPart)
-                    ? lastRawMessage
-                    : lastPrimaryPart;
+                UpdateStatusFromVisibleLog(lastRawMessage, lastPrimaryPart);
             }
 
             UpdateTerminalAlarmUi();
@@ -214,6 +211,41 @@ public partial class MainWindow
                 _logFlushQueued = _pendingLogMessages.Count > 0;
             }
         }
+    }
+
+    private void UpdateStatusFromVisibleLog(string? fallbackRawMessage = null, string? fallbackPrimaryPart = null)
+    {
+        var latestVisible = VisibleTerminalEntries().FirstOrDefault();
+        if (latestVisible is not null)
+        {
+            StatusTextBlock.Text = latestVisible.Text;
+            StatusMiniLogTextBlock.Text = ExtractLogMessageBody(latestVisible.Text);
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(fallbackRawMessage))
+        {
+            StatusTextBlock.Text = fallbackRawMessage;
+            StatusMiniLogTextBlock.Text = string.IsNullOrWhiteSpace(fallbackPrimaryPart)
+                ? fallbackRawMessage
+                : fallbackPrimaryPart;
+        }
+    }
+
+    private static string ExtractLogMessageBody(string line)
+    {
+        if (string.IsNullOrWhiteSpace(line))
+        {
+            return string.Empty;
+        }
+
+        var separatorIndex = line.IndexOf("] ", StringComparison.Ordinal);
+        if (separatorIndex < 0 || separatorIndex + 2 >= line.Length)
+        {
+            return line;
+        }
+
+        return line[(separatorIndex + 2)..];
     }
 
     private void InitializeSessionLogFile()

@@ -47,6 +47,7 @@ public partial class MainWindow
             ? LogClassifier.FilterOptions[index].Category
             : LogCategory.All;
         _terminalView?.Refresh();
+        UpdateStatusFromVisibleLog();
         UpdateTerminalAlarmUi();
     }
 
@@ -54,6 +55,7 @@ public partial class MainWindow
     {
         _terminalCleanMode = LogCleanModeToggle.IsChecked == true;
         _terminalView?.Refresh();
+        UpdateStatusFromVisibleLog();
         if (TerminalAlarmTabControl is not null)
         {
             UpdateTerminalAlarmUi();
@@ -90,6 +92,7 @@ public partial class MainWindow
             _terminalEntries.Clear();
         }
 
+        UpdateStatusFromVisibleLog("Ready.", "Ready.");
         UpdateTerminalAlarmUi();
     }
 

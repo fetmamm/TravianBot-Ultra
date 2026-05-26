@@ -47,6 +47,8 @@ public sealed class BotTaskRunner
             ["send_farmlists"] = ExecuteSendFarmlistsAsync,
             // Sends surplus resources from selected own villages to one target village.
             ["send_resources_between_villages"] = ExecuteSendResourcesBetweenVillagesAsync,
+            // Sends selected troops from selected own villages to one target village as reinforcements.
+            ["send_reinforcements_between_villages"] = ExecuteSendReinforcementsBetweenVillagesAsync,
         };
 
     private readonly IAccountProvider _accountProvider;
@@ -240,7 +242,9 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             Tribe: string.IsNullOrWhiteSpace(tribe) ? "Unknown" : tribe,
             GoldClubEnabled: effectiveGoldClubEnabled,
             BuildingCatalog: existing?.BuildingCatalog ?? [],
-            AutoCelebrationEnabled: existing?.AutoCelebrationEnabled);
+            AutoCelebrationEnabled: existing?.AutoCelebrationEnabled,
+            AutomationLoopEnabledGroups: existing?.AutomationLoopEnabledGroups,
+            AutomationLoopVisibleGroups: existing?.AutomationLoopVisibleGroups);
 
         _accountAnalysisStore.Save(completed);
         log($"Gold Club status saved for '{completed.AccountName}': {(completed.GoldClubEnabled ? "Yes" : "No")}.");
@@ -390,6 +394,89 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             });
 
         return result ?? throw new InvalidOperationException("Could not start manual farming from Natars profile.");
+    }
+
+    public async Task<IReadOnlyDictionary<string, long>> ReadAvailableTroopsForCatapultWavesAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        return await ReadAvailableTroopsForCatapultWavesAsync(
+            options,
+            log,
+            forceRefresh: false,
+            accountName,
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyDictionary<string, long>> ReadAvailableTroopsForCatapultWavesAsync(
+        BotOptions options,
+        Action<string> log,
+        bool forceRefresh,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyDictionary<string, long> result = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                result = await client.ReadAvailableTroopsForCatapultWavesAsync(forceRefresh, cancellationToken);
+            });
+
+        return result;
+    }
+
+    public async Task<CatapultWaveSetupInfo> ReadCatapultWaveSetupInfoAsync(
+        BotOptions options,
+        Action<string> log,
+        bool forceRefresh,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        CatapultWaveSetupInfo? result = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                result = await client.ReadCatapultWaveSetupInfoAsync(forceRefresh, cancellationToken);
+            });
+
+        return result ?? new CatapultWaveSetupInfo(new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase), null);
+    }
+
+    public async Task<CatapultWaveRunResult> StartCatapultWavesAsync(
+        BotOptions options,
+        CatapultWaveRequest request,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        CatapultWaveRunResult? result = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                result = await client.StartCatapultWavesAsync(request, cancellationToken);
+            });
+
+        return result ?? throw new InvalidOperationException("Could not start catapult waves.");
     }
 
     public async Task<VillageStatus> ReadVillageStatusAsync(
@@ -647,6 +734,30 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
         return status ?? new BreweryCelebrationStatus(false, null, false, null, false, null, "N/A", "Status unavailable.");
     }
 
+    public async Task<SmithyUpgradeStatus> ReadSmithyUpgradeStatusAsync(
+        BotOptions options,
+        Action<string> log,
+        IReadOnlyList<Building>? knownBuildings = null,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        SmithyUpgradeStatus? status = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: true,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken, skipFeatureRefresh: true);
+                status = await client.ReadSmithyUpgradeStatusAsync(knownBuildings, cancellationToken);
+            });
+
+        return status ?? new SmithyUpgradeStatus(false, null, 0, null, [], "N/A", "Status unavailable.");
+    }
+
     public async Task<string> RunNpcTradeForBuildingTestAsync(
         BotOptions options,
         Action<string> log,
@@ -688,6 +799,51 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             async client =>
             {
                 result = await client.RunNpcTradeForCurrentBuildingPageTestAsync(cancellationToken);
+            });
+
+        log(result);
+        return result;
+    }
+
+    public async Task<string> ReadSmithyQueueFromCurrentPageTestAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = "Smithy queue test: no result.";
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                result = await client.ReadSmithyQueueFromCurrentPageTestAsync(cancellationToken);
+            });
+
+        log(result);
+        return result;
+    }
+
+    public async Task<string> RunReinforcementsTestAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = "Reinforcements test: no result.";
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: true,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                result = await client.TestSendReinforcementsBetweenOwnVillagesAsync(cancellationToken);
             });
 
         log(result);
@@ -833,7 +989,7 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             {
                 snapshot = await client.ReadHeroAttributeSnapshotAsync(cancellationToken);
                 log(
-                    $"Hero attributes: free points={snapshot.FreePoints}, fighting strength={snapshot.FightingStrength}, offence bonus={snapshot.OffenceBonus}, defence bonus={snapshot.DefenceBonus}, resources={snapshot.Resources}.");
+                    $"Hero attributes: free points={snapshot.FreePoints}, fighting strength={snapshot.FightingStrength}, offence bonus={snapshot.OffenceBonus}, defence bonus={snapshot.DefenceBonus}, resources={snapshot.Resources}, adventures={(snapshot.AdventureCount?.ToString() ?? "?")}.");
             });
 
         return snapshot ?? throw new InvalidOperationException("Could not read hero attributes.");
@@ -1353,6 +1509,14 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
         var result = await context.Client.SendResourcesBetweenOwnVillagesAsync(context.CancellationToken);
         context.Log(result);
         ThrowIfTaskBlocked("send_resources_between_villages", result);
+    }
+
+    private static async Task ExecuteSendReinforcementsBetweenVillagesAsync(TaskExecutionContext context)
+    {
+        context.Log("send_reinforcements_between_villages: starting.");
+        var result = await context.Client.SendReinforcementsBetweenOwnVillagesAsync(context.CancellationToken);
+        context.Log(result);
+        ThrowIfTaskBlocked("send_reinforcements_between_villages", result);
     }
 
     private static async Task ExecuteHeroManageAsync(TaskExecutionContext context)

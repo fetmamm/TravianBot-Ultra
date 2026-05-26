@@ -239,6 +239,18 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.ResourceTransferSendCrop)]
     public bool ResourceTransferSendCrop { get; init; } = true;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.ReinforcementsEnabled)]
+    public bool ReinforcementsEnabled { get; init; }
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ReinforcementsTargetVillageName)]
+    public string ReinforcementsTargetVillageName { get; init; } = string.Empty;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ReinforcementsSourceVillageNames)]
+    public List<string> ReinforcementsSourceVillageNames { get; init; } = [];
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ReinforcementsTroopRules)]
+    public List<ReinforcementTroopRule> ReinforcementsTroopRules { get; init; } = [];
+
     [ConfigurationKeyName("github_releases_url")]
     public string GithubReleasesUrl { get; init; } = string.Empty;
 

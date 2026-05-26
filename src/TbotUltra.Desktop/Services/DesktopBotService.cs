@@ -96,6 +96,26 @@ public sealed class DesktopBotService : IDesktopBotService
         return _taskRunner.StartManualFarmingFromNatarsAsync(options, troopType, troopCount, troopVariancePercent, raidAttack, log, null, cancellationToken);
     }
 
+    public Task<IReadOnlyDictionary<string, long>> ReadAvailableTroopsForCatapultWavesAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.ReadAvailableTroopsForCatapultWavesAsync(options, log, null, cancellationToken);
+    }
+
+    public Task<IReadOnlyDictionary<string, long>> ReadAvailableTroopsForCatapultWavesAsync(BotOptions options, Action<string> log, bool forceRefresh, CancellationToken cancellationToken)
+    {
+        return _taskRunner.ReadAvailableTroopsForCatapultWavesAsync(options, log, forceRefresh, null, cancellationToken);
+    }
+
+    public Task<CatapultWaveSetupInfo> ReadCatapultWaveSetupInfoAsync(BotOptions options, Action<string> log, bool forceRefresh, CancellationToken cancellationToken)
+    {
+        return _taskRunner.ReadCatapultWaveSetupInfoAsync(options, log, forceRefresh, null, cancellationToken);
+    }
+
+    public Task<CatapultWaveRunResult> StartCatapultWavesAsync(BotOptions options, CatapultWaveRequest request, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.StartCatapultWavesAsync(options, request, log, null, cancellationToken);
+    }
+
 public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepBrowserOpenAfterLogin, CancellationToken cancellationToken)
     {
         return _taskRunner.ExecuteLoginAsync(options, log, null, cancellationToken, keepBrowserOpenAfterLogin);
@@ -153,6 +173,11 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
         return _taskRunner.ReadBreweryCelebrationStatusAsync(options, log, knownBuildings, null, cancellationToken);
     }
 
+    public Task<SmithyUpgradeStatus> ReadSmithyUpgradeStatusAsync(BotOptions options, Action<string> log, IReadOnlyList<Building>? knownBuildings, CancellationToken cancellationToken)
+    {
+        return _taskRunner.ReadSmithyUpgradeStatusAsync(options, log, knownBuildings, null, cancellationToken);
+    }
+
     public Task<string> RunBreweryCelebrationAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.RunBreweryCelebrationAsync(options, log, null, cancellationToken);
@@ -166,6 +191,16 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
     public Task<string> RunNpcTradeForCurrentBuildingPageTestAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.RunNpcTradeForCurrentBuildingPageTestAsync(options, log, null, cancellationToken);
+    }
+
+    public Task<string> ReadSmithyQueueFromCurrentPageTestAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.ReadSmithyQueueFromCurrentPageTestAsync(options, log, null, cancellationToken);
+    }
+
+    public Task<string> RunReinforcementsTestAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.RunReinforcementsTestAsync(options, log, null, cancellationToken);
     }
 
     public Task<VillageStatus> ReadVillageStatusAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken)

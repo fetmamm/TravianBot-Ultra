@@ -1,10 +1,21 @@
 {
   "schemaVersion": 1,
-  "analyzedAtUtc": "2026-05-25T19:05:55.576408+00:00",
+  "analyzedAtUtc": "2026-05-26T19:47:33.923632+00:00",
   "accountName": "grek_pro_ss_travi_com",
   "serverUrl": "https://pro.ss-travi.com",
   "tribe": "Teutons",
-  "goldClubEnabled": false,
+  "goldClubEnabled": true,
   "buildingCatalog": [],
-  "autoCelebrationEnabled": true
+  "autoCelebrationEnabled": true,
+  "automationLoopEnabledGroups": [
+    "hero"
+  ],
+  "automationLoopVisibleGroups": [
+    "construction",
+    "troops",
+    "hero",
+    "farming",
+    "troop_training",
+    "brewery_celebration"
+  ]
 }

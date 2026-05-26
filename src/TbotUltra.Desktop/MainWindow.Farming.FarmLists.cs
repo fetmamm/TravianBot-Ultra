@@ -382,6 +382,7 @@ public partial class MainWindow
         SetEnabled(AnalyzeNatarsProfileButton, !_farmingOperationBusy && _farmingFeaturesAvailable);
         SetEnabled(ShowNatarsListButton, !_farmingOperationBusy && _farmingFeaturesAvailable && _natarsProfileAnalyzed);
         SetEnabled(StartManualFarmingButton, _farmingFeaturesAvailable);
+        SetEnabled(StartCatapultWavesButton, !_farmingOperationBusy && _farmingFeaturesAvailable);
         UpdateManualFarmingRunningState();
     }
 

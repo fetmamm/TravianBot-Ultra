@@ -54,6 +54,31 @@ public sealed class AccountAnalysisStoreTests : IDisposable
     }
 
     [Fact]
+    public void Save_ThenLoad_PreservesAutomationLoopPreferences()
+    {
+        var snapshot = new AccountAnalysisSnapshot(
+            SchemaVersion: 1,
+            AnalyzedAtUtc: DateTimeOffset.UtcNow,
+            AccountName: "main",
+            ServerUrl: "https://example.com",
+            Tribe: "Romans",
+            GoldClubEnabled: true,
+            BuildingCatalog: [],
+            AutoCelebrationEnabled: true,
+            AutomationLoopEnabledGroups: ["hero", "farming"],
+            AutomationLoopVisibleGroups: ["hero"]);
+
+        _store.Save(snapshot);
+
+        var loaded = _store.TryLoad("main", out var result, "https://example.com");
+        Assert.True(loaded);
+        Assert.NotNull(result);
+        Assert.Equal(["hero", "farming"], result!.AutomationLoopEnabledGroups);
+        Assert.Equal(["hero"], result.AutomationLoopVisibleGroups);
+        Assert.True(result.AutoCelebrationEnabled);
+    }
+
+    [Fact]
     public void TryLoad_ReturnsFalse_OnCorruptJson()
     {
         var path = _store.GetFilePath("broken");

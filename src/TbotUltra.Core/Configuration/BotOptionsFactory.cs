@@ -10,6 +10,9 @@ public static class BotOptionsFactory
         var continuousLoopGroups = configuration.GetSection("continuous_loop_groups").Get<List<string>>() ?? [];
         var continuousFarmListNames = configuration.GetSection(BotOptionPayloadKeys.ContinuousFarmListNames).Get<List<string>>() ?? [];
         var resourceTransferSourceVillageNames = configuration.GetSection(BotOptionPayloadKeys.ResourceTransferSourceVillageNames).Get<List<string>>() ?? [];
+        var reinforcementSourceVillageNames = configuration.GetSection(BotOptionPayloadKeys.ReinforcementsSourceVillageNames).Get<List<string>>() ?? [];
+        var reinforcementTroopRules = NormalizeReinforcementTroopRules(
+            configuration.GetSection(BotOptionPayloadKeys.ReinforcementsTroopRules).Get<List<ReinforcementTroopRule>>() ?? []);
         var continuousFarmDispatchDelayMinutes = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes, 1), 1, 5);
         var queueWaitThresholdMode = configuration[BotOptionPayloadKeys.QueueWaitThresholdMode] ?? "10";
 
@@ -89,6 +92,10 @@ public static class BotOptionsFactory
             ResourceTransferSendClay = configuration.GetValue(BotOptionPayloadKeys.ResourceTransferSendClay, true),
             ResourceTransferSendIron = configuration.GetValue(BotOptionPayloadKeys.ResourceTransferSendIron, true),
             ResourceTransferSendCrop = configuration.GetValue(BotOptionPayloadKeys.ResourceTransferSendCrop, true),
+            ReinforcementsEnabled = configuration.GetValue(BotOptionPayloadKeys.ReinforcementsEnabled, false),
+            ReinforcementsTargetVillageName = configuration[BotOptionPayloadKeys.ReinforcementsTargetVillageName] ?? string.Empty,
+            ReinforcementsSourceVillageNames = reinforcementSourceVillageNames,
+            ReinforcementsTroopRules = reinforcementTroopRules,
             GithubReleasesUrl = configuration["github_releases_url"] ?? string.Empty,
             HumanLikeEnabled = configuration.GetValue("human_like_enabled", false),
             HumanLikeSpeed = configuration["human_like_speed"] ?? "medium",
@@ -206,6 +213,10 @@ public static class BotOptionsFactory
             ResourceTransferSendClay = source.ResourceTransferSendClay,
             ResourceTransferSendIron = source.ResourceTransferSendIron,
             ResourceTransferSendCrop = source.ResourceTransferSendCrop,
+            ReinforcementsEnabled = source.ReinforcementsEnabled,
+            ReinforcementsTargetVillageName = source.ReinforcementsTargetVillageName,
+            ReinforcementsSourceVillageNames = source.ReinforcementsSourceVillageNames,
+            ReinforcementsTroopRules = source.ReinforcementsTroopRules,
             GithubReleasesUrl = source.GithubReleasesUrl,
             HumanLikeEnabled = source.HumanLikeEnabled,
             HumanLikeSpeed = source.HumanLikeSpeed,
@@ -249,5 +260,15 @@ public static class BotOptionsFactory
             10 or 30 or 60 or 120 or 300 or 600 => value,
             _ => 30,
         };
+    }
+
+    private static List<ReinforcementTroopRule> NormalizeReinforcementTroopRules(IEnumerable<ReinforcementTroopRule> rules)
+    {
+        return rules
+            .Where(rule => rule is not null && !string.IsNullOrWhiteSpace(rule.TroopType))
+            .Select(rule => rule.Normalize())
+            .GroupBy(rule => $"{rule.AccountName}\u001f{rule.SourceVillageName}\u001f{rule.TroopType}", StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToList();
     }
 }

@@ -39,6 +39,19 @@ public partial class AppDialog : Window
         BuildButtons();
     }
 
+    private AppDialog(
+        Window? owner,
+        object content,
+        string title,
+        MessageBoxButton buttons,
+        MessageBoxImage icon,
+        MessageBoxResult defaultResult,
+        MessageBoxResult? cancelResult = null)
+        : this(owner, string.Empty, title, buttons, icon, defaultResult, cancelResult)
+    {
+        MessageContentControl.Content = content;
+    }
+
     public static MessageBoxResult Show(
         string message,
         string title,
@@ -111,6 +124,19 @@ public partial class AppDialog : Window
             defaultResult,
             cancelResult,
             buttons);
+        _ = dialog.ShowDialog();
+        return dialog._result;
+    }
+
+    public static MessageBoxResult ShowContent(
+        Window? owner,
+        object content,
+        string title,
+        MessageBoxButton buttons,
+        MessageBoxImage icon,
+        MessageBoxResult defaultResult)
+    {
+        var dialog = new AppDialog(owner, content, title, buttons, icon, defaultResult);
         _ = dialog.ShowDialog();
         return dialog._result;
     }

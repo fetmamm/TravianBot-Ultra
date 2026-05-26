@@ -108,6 +108,11 @@ public static class BotOptionPayloadKeys
     public const string ResourceTransferSendIron = "resource_transfer_send_iron";
     public const string ResourceTransferSendCrop = "resource_transfer_send_crop";
 
+    public const string ReinforcementsEnabled = "reinforcements_enabled";
+    public const string ReinforcementsTargetVillageName = "reinforcements_target_village_name";
+    public const string ReinforcementsSourceVillageNames = "reinforcements_source_village_names";
+    public const string ReinforcementsTroopRules = "reinforcements_troop_rules";
+
     public const string UpgradeSelectorProfile = "upgrade_selector_profile";
     public const string CaptchaAutoSolveEnabled = "captcha_auto_solve_enabled";
     public const string CaptchaSolverTimeoutSeconds = "captcha_solver_timeout_seconds";

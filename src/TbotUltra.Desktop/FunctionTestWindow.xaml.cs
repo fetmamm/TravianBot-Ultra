@@ -9,6 +9,8 @@ public partial class FunctionTestWindow : Window
     public event RoutedEventHandler? StartCelebrationTestRequested;
     public event RoutedEventHandler? NpcTradeBarracksTestRequested;
     public event RoutedEventHandler? NpcTradeBuildingTestRequested;
+    public event RoutedEventHandler? ReadSmithyQueueTestRequested;
+    public event RoutedEventHandler? ReinforcementsTestRequested;
 
     public FunctionTestWindow()
     {
@@ -38,5 +40,15 @@ public partial class FunctionTestWindow : Window
     private void TestNpcTradeBuildingButton_Click(object sender, RoutedEventArgs e)
     {
         NpcTradeBuildingTestRequested?.Invoke(sender, e);
+    }
+
+    private void TestReadSmithyQueueButton_Click(object sender, RoutedEventArgs e)
+    {
+        ReadSmithyQueueTestRequested?.Invoke(sender, e);
+    }
+
+    private void TestReinforcementsButton_Click(object sender, RoutedEventArgs e)
+    {
+        ReinforcementsTestRequested?.Invoke(sender, e);
     }
 }

@@ -93,6 +93,10 @@ public static class BotOptionsPayloadApplier
         var resourceTransferSendClay = source.ResourceTransferSendClay;
         var resourceTransferSendIron = source.ResourceTransferSendIron;
         var resourceTransferSendCrop = source.ResourceTransferSendCrop;
+        var reinforcementsEnabled = source.ReinforcementsEnabled;
+        var reinforcementsTargetVillageName = source.ReinforcementsTargetVillageName;
+        var reinforcementsSourceVillageNames = source.ReinforcementsSourceVillageNames;
+        var reinforcementsTroopRules = source.ReinforcementsTroopRules;
 
         if (payload is not null)
         {
@@ -690,6 +694,35 @@ public static class BotOptionsPayloadApplier
                     && bool.TryParse(value, out var transferCrop))
                 {
                     resourceTransferSendCrop = transferCrop;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ReinforcementsEnabled, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var reinforcementsEnabledValue))
+                {
+                    reinforcementsEnabled = reinforcementsEnabledValue;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ReinforcementsTargetVillageName, StringComparison.OrdinalIgnoreCase))
+                {
+                    reinforcementsTargetVillageName = value;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ReinforcementsSourceVillageNames, StringComparison.OrdinalIgnoreCase))
+                {
+                    reinforcementsSourceVillageNames = value
+                        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                        .Where(item => !string.IsNullOrWhiteSpace(item))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ReinforcementsTroopRules, StringComparison.OrdinalIgnoreCase))
+                {
+                    reinforcementsTroopRules = ParseReinforcementTroopRules(value);
                 }
             }
         }
@@ -771,6 +804,10 @@ public static class BotOptionsPayloadApplier
             ResourceTransferSendClay = resourceTransferSendClay,
             ResourceTransferSendIron = resourceTransferSendIron,
             ResourceTransferSendCrop = resourceTransferSendCrop,
+            ReinforcementsEnabled = reinforcementsEnabled,
+            ReinforcementsTargetVillageName = reinforcementsTargetVillageName,
+            ReinforcementsSourceVillageNames = reinforcementsSourceVillageNames,
+            ReinforcementsTroopRules = reinforcementsTroopRules,
             GithubReleasesUrl = source.GithubReleasesUrl,
             HumanLikeEnabled = source.HumanLikeEnabled,
             HumanLikeSpeed = source.HumanLikeSpeed,
@@ -803,5 +840,25 @@ public static class BotOptionsPayloadApplier
             UpgradeSelectorProfile = upgradeSelectorProfile,
             NatarVillageSelection = natarVillageSelection,
         };
+    }
+
+    private static List<ReinforcementTroopRule> ParseReinforcementTroopRules(string value)
+    {
+        try
+        {
+            var rules = System.Text.Json.JsonSerializer.Deserialize<List<ReinforcementTroopRule>>(
+                value,
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? [];
+            return rules
+                .Where(rule => rule is not null && !string.IsNullOrWhiteSpace(rule.TroopType))
+                .Select(rule => rule.Normalize())
+                .GroupBy(rule => $"{rule.AccountName}\u001f{rule.SourceVillageName}\u001f{rule.TroopType}", StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToList();
+        }
+        catch
+        {
+            return [];
+        }
     }
 }

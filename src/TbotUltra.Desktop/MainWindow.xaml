@@ -127,6 +127,7 @@
                     <Button x:Name="HeroNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Hero / Adventures" Tag="hero" Click="SidebarNavButton_Click" />
                     <Button x:Name="FarmingNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Farming" Tag="farming" Click="SidebarNavButton_Click" />
                     <Button x:Name="TroopsNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Troops" Tag="troops" Click="SidebarNavButton_Click" />
+                    <Button x:Name="ReinforcementsNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Send Troops" Tag="reinforcements" Click="SidebarNavButton_Click" />
                     <Button x:Name="NpcTradeNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="NPC / Trade" Tag="npc_trade" Click="SidebarNavButton_Click" />
                     <Button x:Name="QueueNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Queue" Tag="queue" Click="SidebarNavButton_Click" />
                     <Button x:Name="LogsNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Logs" Tag="logs" Click="SidebarNavButton_Click" />
@@ -1354,6 +1355,254 @@
                     <!-- All troops UI lives in Views/TroopsPanel.xaml; the TabItem keeps the
                          DataContext binding so the panel inherits the TroopTrainingViewModel. -->
                     <views:TroopsPanel />
+                </TabItem>
+
+                <TabItem x:Name="ReinforcementsTabItem" Header="Send Troops">
+                    <Grid Background="#F3F4F6">
+                        <Border VerticalAlignment="Stretch"
+                                HorizontalAlignment="Stretch"
+                                Background="#FFFFFF"
+                                BorderBrush="#D1D5DB"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="16">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="1.1*" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="1.4*" />
+                                </Grid.ColumnDefinitions>
+
+                                <Grid Grid.Column="0">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                        <TextBlock Text="Reinforcements"
+                                                   FontSize="22"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#111827" />
+                                        <Border Width="14"
+                                                Height="14"
+                                                Margin="8,3,0,0"
+                                                CornerRadius="7"
+                                                Background="#E5E7EB"
+                                                BorderBrush="#D1D5DB"
+                                                BorderThickness="1"
+                                                VerticalAlignment="Top"
+                                                ToolTipService.InitialShowDelay="0">
+                                            <Border.ToolTip>
+                                                <ToolTip MaxWidth="360">
+                                                    <StackPanel Width="320">
+                                                        <TextBlock Text="Reinforcements"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="#F9FAFB"
+                                                                   Margin="0,0,0,6" />
+                                                        <TextBlock TextWrapping="Wrap"
+                                                                   Text="Sends selected troops from chosen source villages to the selected target village as reinforcements." />
+                                                        <TextBlock Margin="0,6,0,0"
+                                                                   TextWrapping="Wrap"
+                                                                   Text="Use the Troops button on each source village when different villages should send different troop types or amounts." />
+                                                    </StackPanel>
+                                                </ToolTip>
+                                            </Border.ToolTip>
+                                            <TextBlock Text="i"
+                                                       FontSize="10"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#4B5563"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       TextAlignment="Center" />
+                                        </Border>
+                                    </StackPanel>
+                                    <TextBlock Grid.Row="1"
+                                               Text="Target village"
+                                               Foreground="#6B7280"
+                                               FontSize="12"
+                                               Margin="0,0,0,4" />
+                                    <ComboBox Grid.Row="2"
+                                              x:Name="ReinforcementTargetVillageComboBox"
+                                              Height="30"
+                                              DisplayMemberPath="DisplayName"
+                                              SelectionChanged="ReinforcementSetting_SelectionChanged" />
+
+                                    <Grid Grid.Row="3" Margin="0,12,0,0">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid Grid.Row="0" Margin="0,0,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Source villages"
+                                                   Foreground="#6B7280"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center" />
+                                        <Button x:Name="ReinforcementMarkAllTroopsButton"
+                                                Grid.Column="1"
+                                                Content="Mark all"
+                                                Padding="8,2"
+                                                Click="MarkAllReinforcementTroopsButton_Click" />
+                                        </Grid>
+                                    <Border Grid.Row="1"
+                                            BorderBrush="#E5E7EB"
+                                            BorderThickness="1"
+                                            CornerRadius="6"
+                                            Padding="8"
+                                            MinHeight="160">
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                            <ItemsControl x:Name="ReinforcementSourceVillagesItemsControl">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Grid Margin="0,0,0,6">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <CheckBox Grid.Column="0"
+                                                                      IsChecked="{Binding IsSource, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                      IsEnabled="{Binding CanSelectAsSource}"
+                                                                      VerticalAlignment="Center" />
+                                                            <StackPanel Grid.Column="1"
+                                                                        Margin="8,0,8,0"
+                                                                        VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding DisplayName}"
+                                                                           Foreground="#111827" />
+                                                                <TextBlock Text="{Binding TroopSummaryText}"
+                                                                           Foreground="#6B7280"
+                                                                           FontSize="11"
+                                                                           TextTrimming="CharacterEllipsis" />
+                                                            </StackPanel>
+                                                            <Button Grid.Column="2"
+                                                                    Content="Troops"
+                                                                    Padding="8,2"
+                                                                    Tag="{Binding}"
+                                                                    Click="ChooseReinforcementVillageTroopsButton_Click" />
+                                                            <TextBlock Grid.Column="3"
+                                                                       Text="{Binding SourceStatusText}"
+                                                                       Foreground="#9CA3AF"
+                                                                       FontSize="11"
+                                                                       FontWeight="SemiBold"
+                                                                       Margin="8,0,0,0"
+                                                                       VerticalAlignment="Center" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                    </Border>
+                                    </Grid>
+                                    <TextBlock Grid.Row="4"
+                                               x:Name="ReinforcementTroopsSummaryTextBlock"
+                                               Text="No troops selected."
+                                               Foreground="#6B7280"
+                                               FontSize="12"
+                                               Margin="0,10,0,0"
+                                               TextWrapping="Wrap" />
+                                </Grid>
+
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Setup"
+                                               FontSize="22"
+                                               FontWeight="SemiBold"
+                                               Foreground="#111827"
+                                               Margin="0,0,0,12" />
+                                    <TextBlock x:Name="ReinforcementTroopsDetailTextBlock"
+                                               Text="Login to load troop types, then choose what to send."
+                                               Foreground="#4B5563"
+                                               FontSize="12"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,12" />
+                                    <TextBlock x:Name="ReinforcementStatusTextBlock"
+                                               Text="Requires at least 2 villages."
+                                               Foreground="#B45309"
+                                               FontSize="12"
+                                               Margin="0,12,0,8"
+                                               TextWrapping="Wrap" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button x:Name="ReinforcementQueueNowButton"
+                                                Content="Queue now"
+                                                Padding="10,4"
+                                                Click="QueueReinforcementsNowButton_Click" />
+                                        <Button x:Name="ReinforcementRefreshVillagesButton"
+                                                Content="Refresh villages"
+                                                Padding="10,4"
+                                                Margin="8,0,0,0"
+                                                Click="ReinforcementRefreshVillagesButton_Click" />
+                                    </StackPanel>
+
+                                    <Border Background="#F9FAFB"
+                                            BorderBrush="#D1D5DB"
+                                            BorderThickness="1"
+                                            CornerRadius="8"
+                                            Padding="12"
+                                            Margin="0,18,0,0">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                <TextBlock Text="Catapult waves"
+                                                           FontSize="22"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="#111827" />
+                                                <Border Width="14"
+                                                        Height="14"
+                                                        CornerRadius="7"
+                                                        Background="#E5E7EB"
+                                                        BorderBrush="#D1D5DB"
+                                                        BorderThickness="1"
+                                                        Margin="8,5,0,0"
+                                                        VerticalAlignment="Center"
+                                                        ToolTipService.InitialShowDelay="0">
+                                                    <Border.ToolTip>
+                                                        <ToolTip MaxWidth="360">
+                                                            <StackPanel Width="320">
+                                                                <TextBlock Text="Catapult waves"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="#F9FAFB"
+                                                                           Margin="0,0,0,6" />
+                                                                <TextBlock TextWrapping="Wrap"
+                                                                           Text="Reads available troops from Rally Point, prepares one first attack and multiple attack waves. Catapult targets use Random automatically when catapults are included." />
+                                                            </StackPanel>
+                                                        </ToolTip>
+                                                    </Border.ToolTip>
+                                                    <TextBlock Text="i"
+                                                               FontSize="10"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="#4B5563"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"
+                                                               TextAlignment="Center" />
+                                                </Border>
+                                            </StackPanel>
+                                            <Button x:Name="StartCatapultWavesButton"
+                                                    Content="Start catapult waves"
+                                                    Width="180"
+                                                    HorizontalAlignment="Left"
+                                                    Background="#030826"
+                                                    Foreground="White"
+                                                    BorderBrush="#030826"
+                                                    Click="StartCatapultWavesButton_Click" />
+                                            <TextBlock x:Name="CatapultWavesStatusTextBlock"
+                                                       Text="No catapult waves running."
+                                                       Foreground="#4B5563"
+                                                       Margin="0,10,0,0"
+                                                       TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </Grid>
                 </TabItem>
 
                 <TabItem x:Name="NpcTradeTabItem" Header="NPC / Trade"
