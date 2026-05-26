@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using TbotUltra.Core.Accounts;
 
 namespace TbotUltra.Desktop.Services;
 
@@ -12,46 +13,81 @@ public sealed class ManualFarmingPreferenceStore
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
-    private readonly string _filePath;
+    private readonly string _projectRoot;
 
     public ManualFarmingPreferenceStore(string projectRoot)
     {
-        _filePath = Path.Combine(projectRoot, "config", "cache", "manual-farming-preferences.json");
+        _projectRoot = projectRoot;
     }
 
     public ManualFarmingPreference Load(string accountName)
     {
-        var all = LoadAll();
-        var key = NormalizeAccountName(accountName);
-        return all.TryGetValue(key, out var preference) && preference is not null
-            ? Normalize(preference)
-            : new ManualFarmingPreference();
+        var filePath = AccountStoragePaths.ManualFarmingPreferencePath(_projectRoot, accountName);
+        if (TryLoadFromFile(filePath, out var preference))
+        {
+            return Normalize(preference);
+        }
+
+        var all = LoadLegacyAll();
+        var key = AccountStoragePaths.NormalizeAccountKey(accountName);
+        if (all.TryGetValue(key, out preference) && preference is not null)
+        {
+            Save(accountName, preference);
+            return Normalize(preference);
+        }
+
+        return new ManualFarmingPreference();
     }
 
     public void Save(string accountName, ManualFarmingPreference preference)
     {
-        var all = LoadAll();
-        all[NormalizeAccountName(accountName)] = Normalize(preference);
-
-        var directory = Path.GetDirectoryName(_filePath);
+        var filePath = AccountStoragePaths.ManualFarmingPreferencePath(_projectRoot, accountName);
+        var directory = Path.GetDirectoryName(filePath);
         if (!string.IsNullOrWhiteSpace(directory))
         {
             Directory.CreateDirectory(directory);
         }
 
-        File.WriteAllText(_filePath, JsonSerializer.Serialize(all, JsonOptions));
+        File.WriteAllText(filePath, JsonSerializer.Serialize(Normalize(preference), JsonOptions));
+        RemoveFromLegacy(accountName);
     }
 
-    private Dictionary<string, ManualFarmingPreference> LoadAll()
+    private static bool TryLoadFromFile(string filePath, out ManualFarmingPreference preference)
     {
-        if (!File.Exists(_filePath))
+        preference = new ManualFarmingPreference();
+        if (!File.Exists(filePath))
+        {
+            return false;
+        }
+
+        try
+        {
+            var raw = File.ReadAllText(filePath);
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return false;
+            }
+
+            preference = JsonSerializer.Deserialize<ManualFarmingPreference>(raw, JsonOptions) ?? new ManualFarmingPreference();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private Dictionary<string, ManualFarmingPreference> LoadLegacyAll()
+    {
+        var legacyPath = AccountStoragePaths.LegacyManualFarmingPreferencePath(_projectRoot);
+        if (!File.Exists(legacyPath))
         {
             return new Dictionary<string, ManualFarmingPreference>(StringComparer.OrdinalIgnoreCase);
         }
 
         try
         {
-            var raw = File.ReadAllText(_filePath);
+            var raw = File.ReadAllText(legacyPath);
             if (string.IsNullOrWhiteSpace(raw))
             {
                 return new Dictionary<string, ManualFarmingPreference>(StringComparer.OrdinalIgnoreCase);
@@ -66,6 +102,28 @@ public sealed class ManualFarmingPreferenceStore
         {
             return new Dictionary<string, ManualFarmingPreference>(StringComparer.OrdinalIgnoreCase);
         }
+    }
+
+    private void RemoveFromLegacy(string accountName)
+    {
+        var legacyPath = AccountStoragePaths.LegacyManualFarmingPreferencePath(_projectRoot);
+        var all = LoadLegacyAll();
+        if (!all.Remove(AccountStoragePaths.NormalizeAccountKey(accountName)))
+        {
+            return;
+        }
+
+        if (all.Count == 0)
+        {
+            if (File.Exists(legacyPath))
+            {
+                File.Delete(legacyPath);
+            }
+
+            return;
+        }
+
+        File.WriteAllText(legacyPath, JsonSerializer.Serialize(all, JsonOptions));
     }
 
     private static ManualFarmingPreference Normalize(ManualFarmingPreference preference)
@@ -86,19 +144,6 @@ public sealed class ManualFarmingPreferenceStore
         };
     }
 
-    private static string NormalizeAccountName(string? accountName)
-    {
-        if (string.IsNullOrWhiteSpace(accountName))
-        {
-            return "main";
-        }
-
-        var chars = accountName.Trim()
-            .Select(ch => char.IsLetterOrDigit(ch) ? char.ToLowerInvariant(ch) : '_')
-            .ToArray();
-        var normalized = string.Join("_", new string(chars).Split('_', StringSplitOptions.RemoveEmptyEntries));
-        return normalized.Length == 0 ? "main" : normalized;
-    }
 }
 
 public sealed record ManualFarmingPreference(

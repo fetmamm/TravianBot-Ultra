@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using TbotUltra.Core.Accounts;
 
 namespace TbotUltra.Worker.Services;
 
@@ -199,6 +200,7 @@ public sealed partial class TravianClient
         _capitalCacheByKey.Clear();
         if (!File.Exists(_capitalCachePath))
         {
+            MigrateLegacyCapitalCacheUnderLock();
             return;
         }
 
@@ -233,6 +235,58 @@ public sealed partial class TravianClient
         }
     }
 
+    private void MigrateLegacyCapitalCacheUnderLock()
+    {
+        var legacyPath = AccountStoragePaths.LegacyCapitalStatePath(_projectRoot);
+        if (!File.Exists(legacyPath))
+        {
+            return;
+        }
+
+        try
+        {
+            var document = LoadCapitalCacheDocument(legacyPath);
+            if (document?.Entries is null)
+            {
+                return;
+            }
+
+            var migrated = document.Entries
+                .Where(entry => IsCapitalCacheEntryForAccount(entry, _account.Name))
+                .ToList();
+            if (migrated.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var entry in migrated)
+            {
+                if (string.IsNullOrWhiteSpace(entry.VillageName))
+                {
+                    continue;
+                }
+
+                var key = BuildCapitalCacheKey(entry.AccountName, entry.ServerUrl, entry.VillageName);
+                _capitalCacheByKey[key] = entry;
+            }
+
+            PersistCapitalCacheUnderLock();
+            RemoveMigratedAccountEntriesFromLegacyCapitalCache(legacyPath);
+        }
+        catch (Exception ex)
+        {
+            Notify($"Could not migrate legacy capital cache: {ex.Message}");
+        }
+    }
+
+    private static CapitalCacheDocument? LoadCapitalCacheDocument(string path)
+    {
+        var raw = File.ReadAllText(path);
+        return string.IsNullOrWhiteSpace(raw)
+            ? null
+            : JsonSerializer.Deserialize<CapitalCacheDocument>(raw, CapitalCacheJsonOptions);
+    }
+
     private void PersistCapitalCacheUnderLock()
     {
         try
@@ -253,11 +307,63 @@ public sealed partial class TravianClient
                     .ToList(),
             };
             File.WriteAllText(_capitalCachePath, JsonSerializer.Serialize(document, CapitalCacheJsonOptions));
+            RemoveMigratedAccountEntriesFromLegacyCapitalCache(AccountStoragePaths.LegacyCapitalStatePath(_projectRoot));
         }
         catch (Exception ex)
         {
             Notify($"Could not save capital cache: {ex.Message}");
         }
+    }
+
+    private void RemoveMigratedAccountEntriesFromLegacyCapitalCache(string legacyPath)
+    {
+        if (!File.Exists(legacyPath))
+        {
+            return;
+        }
+
+        try
+        {
+            var document = LoadCapitalCacheDocument(legacyPath);
+            if (document?.Entries is null)
+            {
+                return;
+            }
+
+            var remaining = document.Entries
+                .Where(entry => !IsCapitalCacheEntryForAccount(entry, _account.Name))
+                .ToList();
+            if (remaining.Count == document.Entries.Count)
+            {
+                return;
+            }
+
+            if (remaining.Count == 0)
+            {
+                File.Delete(legacyPath);
+                return;
+            }
+
+            document = new CapitalCacheDocument { Entries = remaining };
+            File.WriteAllText(legacyPath, JsonSerializer.Serialize(document, CapitalCacheJsonOptions));
+        }
+        catch (Exception ex)
+        {
+            Notify($"Could not prune legacy capital cache: {ex.Message}");
+        }
+    }
+
+    private static bool IsCapitalCacheEntryForAccount(CapitalCacheEntry entry, string accountName)
+    {
+        if (string.IsNullOrWhiteSpace(entry.AccountName))
+        {
+            return false;
+        }
+
+        return string.Equals(
+            AccountStoragePaths.NormalizeAccountKey(entry.AccountName),
+            AccountStoragePaths.NormalizeAccountKey(accountName),
+            StringComparison.Ordinal);
     }
 
     private string BuildCapitalCacheKey(string villageName)

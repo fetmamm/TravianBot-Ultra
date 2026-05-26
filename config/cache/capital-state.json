@@ -73,15 +73,6 @@
       "updatedAtUtc": "2026-05-05T19:01:14.4689409+00:00"
     },
     {
-      "accountName": "fetto_ult_ss_travi_com",
-      "serverUrl": "https://ult.ss-travi.com",
-      "villageName": "fetto \u0060s village",
-      "isCapital": true,
-      "coordX": null,
-      "coordY": null,
-      "updatedAtUtc": "2026-05-25T16:14:27.5909266+00:00"
-    },
-    {
       "accountName": "fet_mga_ss_travi_com",
       "serverUrl": "https://mga.ss-travi.com",
       "villageName": "Cap",
@@ -116,15 +107,6 @@
       "coordX": null,
       "coordY": null,
       "updatedAtUtc": "2026-05-04T14:27:10.9470584+00:00"
-    },
-    {
-      "accountName": "grek_pro_ss_travi_com",
-      "serverUrl": "https://pro.ss-travi.com",
-      "villageName": "slav \u0060s village",
-      "isCapital": true,
-      "coordX": null,
-      "coordY": null,
-      "updatedAtUtc": "2026-05-26T20:11:57.28948+00:00"
     },
     {
       "accountName": "slangen",

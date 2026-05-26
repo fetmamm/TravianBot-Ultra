@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using TbotUltra.Core.Accounts;
 
 namespace TbotUltra.Worker.Services;
 
@@ -11,6 +12,7 @@ public sealed class NatarFarmCacheStore
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
     };
 
     private readonly string _rootPath;
@@ -22,10 +24,7 @@ public sealed class NatarFarmCacheStore
 
     public string GetFilePath(string accountName, string? serverUrl = null, string? selectionMode = null)
     {
-        var normalizedAccount = NormalizeAccountName(accountName);
-        var normalizedServer = NormalizeServerKey(serverUrl);
-        var normalizedSelection = NormalizeSelectionMode(selectionMode);
-        return Path.Combine(_rootPath, "config", "cache", "natar-farms", $"{normalizedAccount}__{normalizedServer}__{normalizedSelection}.json");
+        return AccountStoragePaths.NatarFarmCachePath(_rootPath, accountName, serverUrl, selectionMode);
     }
 
     public bool IsAnalyzed(string accountName, string? serverUrl = null, string? selectionMode = null)
@@ -40,6 +39,25 @@ public sealed class NatarFarmCacheStore
     {
         snapshot = null;
         var filePath = GetFilePath(accountName, serverUrl, selectionMode);
+        if (TryLoadFromPath(filePath, accountName, serverUrl, selectionMode, out snapshot))
+        {
+            return true;
+        }
+
+        var legacyPath = AccountStoragePaths.LegacyNatarFarmCachePath(_rootPath, accountName, serverUrl, selectionMode);
+        if (TryLoadFromPath(legacyPath, accountName, serverUrl, selectionMode, out snapshot))
+        {
+            WriteSnapshot(snapshot!);
+            DeleteFileIfExists(legacyPath);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryLoadFromPath(string filePath, string accountName, string? serverUrl, string? selectionMode, out NatarFarmCacheSnapshot? snapshot)
+    {
+        snapshot = null;
         if (!File.Exists(filePath))
         {
             return false;
@@ -59,19 +77,19 @@ public sealed class NatarFarmCacheStore
                 return false;
             }
 
-            if (!string.Equals(NormalizeAccountName(accountName), NormalizeAccountName(snapshot.AccountName), StringComparison.Ordinal))
+            if (!string.Equals(AccountStoragePaths.NormalizeAccountKey(accountName), AccountStoragePaths.NormalizeAccountKey(snapshot.AccountName), StringComparison.Ordinal))
             {
                 snapshot = null;
                 return false;
             }
 
-            if (!string.Equals(NormalizeServerKey(serverUrl), NormalizeServerKey(snapshot.ServerUrl), StringComparison.Ordinal))
+            if (!string.Equals(AccountStoragePaths.NormalizeServerKey(serverUrl), AccountStoragePaths.NormalizeServerKey(snapshot.ServerUrl), StringComparison.Ordinal))
             {
                 snapshot = null;
                 return false;
             }
 
-            if (!string.Equals(NormalizeSelectionMode(selectionMode), NormalizeSelectionMode(snapshot.SelectionMode), StringComparison.Ordinal))
+            if (!string.Equals(AccountStoragePaths.NormalizeSelectionMode(selectionMode), AccountStoragePaths.NormalizeSelectionMode(snapshot.SelectionMode), StringComparison.Ordinal))
             {
                 snapshot = null;
                 return false;
@@ -96,6 +114,14 @@ public sealed class NatarFarmCacheStore
             return false;
         }
 
+        WriteSnapshot(normalized);
+        DeleteFileIfExists(AccountStoragePaths.LegacyNatarFarmCachePath(_rootPath, normalized.AccountName, normalized.ServerUrl, normalized.SelectionMode));
+        return true;
+    }
+
+    private void WriteSnapshot(NatarFarmCacheSnapshot snapshot)
+    {
+        var normalized = NormalizeSnapshot(snapshot);
         var filePath = GetFilePath(normalized.AccountName, normalized.ServerUrl, normalized.SelectionMode);
         var directory = Path.GetDirectoryName(filePath);
         if (string.IsNullOrWhiteSpace(directory))
@@ -105,7 +131,6 @@ public sealed class NatarFarmCacheStore
 
         Directory.CreateDirectory(directory);
         File.WriteAllText(filePath, JsonSerializer.Serialize(normalized, JsonOptions));
-        return true;
     }
 
     public void SaveSelection(string accountName, string? serverUrl, string? selectionMode, IReadOnlySet<string> enabledCoordinateKeys)
@@ -143,7 +168,7 @@ public sealed class NatarFarmCacheStore
         {
             AccountName = snapshot.AccountName?.Trim() ?? string.Empty,
             ServerUrl = snapshot.ServerUrl?.Trim().TrimEnd('/') ?? string.Empty,
-            SelectionMode = NormalizeSelectionMode(snapshot.SelectionMode),
+            SelectionMode = AccountStoragePaths.NormalizeSelectionMode(snapshot.SelectionMode),
             Coordinates = normalizedCoordinates,
         };
     }
@@ -168,47 +193,12 @@ public sealed class NatarFarmCacheStore
 
     public static string BuildCoordinateKey(int x, int y) => $"{x}|{y}";
 
-    private static string NormalizeAccountName(string value)
+    private static void DeleteFileIfExists(string filePath)
     {
-        if (string.IsNullOrWhiteSpace(value))
+        if (File.Exists(filePath))
         {
-            return "main";
+            File.Delete(filePath);
         }
-
-        var chars = value.Trim()
-            .Select(ch => char.IsLetterOrDigit(ch) ? char.ToLowerInvariant(ch) : '_')
-            .ToArray();
-        var joined = string.Join("_", new string(chars).Split('_', StringSplitOptions.RemoveEmptyEntries));
-        return joined.Length == 0 ? "main" : joined;
-    }
-
-    private static string NormalizeServerKey(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return "default_server";
-        }
-
-        var trimmed = value.Trim().TrimEnd('/');
-        if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var uri))
-        {
-            return "default_server";
-        }
-
-        var hostPart = string.IsNullOrWhiteSpace(uri.Host) ? "default_server" : uri.Host.ToLowerInvariant();
-        var portPart = uri.IsDefaultPort ? string.Empty : $"_{uri.Port}";
-        var chars = $"{hostPart}{portPart}"
-            .Select(ch => char.IsLetterOrDigit(ch) ? ch : '_')
-            .ToArray();
-        var joined = string.Join("_", new string(chars).Split('_', StringSplitOptions.RemoveEmptyEntries));
-        return joined.Length == 0 ? "default_server" : joined;
-    }
-
-    private static string NormalizeSelectionMode(string? value)
-    {
-        return string.Equals(value?.Trim(), "all_villages", StringComparison.OrdinalIgnoreCase)
-            ? "all_villages"
-            : "farm_villages";
     }
 }
 

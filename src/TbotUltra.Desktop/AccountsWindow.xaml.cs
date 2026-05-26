@@ -9,6 +9,7 @@ namespace TbotUltra.Desktop;
 public partial class AccountsWindow : Window
 {
     private readonly EnvAccountStore _store;
+    private readonly AccountDeletionService _deletionService;
     private readonly ServerCatalogStore _serverCatalogStore;
     private readonly string _defaultServerName;
     private readonly string _defaultServerUrl;
@@ -30,6 +31,7 @@ public partial class AccountsWindow : Window
 
     public AccountsWindow(
         EnvAccountStore store,
+        AccountDeletionService deletionService,
         ServerCatalogStore serverCatalogStore,
         string defaultServerName,
         string defaultServerUrl,
@@ -38,6 +40,7 @@ public partial class AccountsWindow : Window
     {
         InitializeComponent();
         _store = store;
+        _deletionService = deletionService;
         _serverCatalogStore = serverCatalogStore;
         _defaultServerName = defaultServerName;
         _defaultServerUrl = defaultServerUrl;
@@ -236,7 +239,7 @@ public partial class AccountsWindow : Window
             // Deleting an account should not trigger an extra unsaved-changes prompt
             // when the selection is reloaded after removal.
             _selectedAccountName = string.Empty;
-            _store.DeleteAccount(selected.Name);
+            _deletionService.DeleteAccount(selected.Name);
             Reload();
             InfoTextBlock.Text = $"Deleted account '{selected.Username}'.";
         }

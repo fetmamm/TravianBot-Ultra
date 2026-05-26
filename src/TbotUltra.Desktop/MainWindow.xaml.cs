@@ -16,6 +16,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using TbotUltra.Core.Accounts;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Travian;
 using TbotUltra.Desktop.Models;
@@ -145,6 +146,7 @@ public partial class MainWindow : Window
     private readonly AccountAnalysisStore _accountAnalysisStore;
     private readonly NatarFarmCacheStore _natarFarmCacheStore;
     private readonly ManualFarmingPreferenceStore _manualFarmingPreferenceStore;
+    private readonly AccountDeletionService _accountDeletionService;
     private readonly ServerDiscoveryService _serverDiscoveryService;
     private readonly ServerCatalogStore _serverCatalogStore;
     private readonly IDesktopBotService _botService;
@@ -396,6 +398,7 @@ public partial class MainWindow : Window
         _captchaAutoSolver = captchaAutoSolver;
         var taskRunner = new BotTaskRunner(_accountProvider, projectContext, captchaAutoSolver);
         var queueStore = new JsonQueueStore(_queuePath);
+        _accountDeletionService = new AccountDeletionService(_projectRoot, _accountStore, _botConfigStore, queueStore);
         var queueScheduler = new PriorityFifoQueueScheduler();
         var queueExecutor = new QueueExecutor(taskRunner);
         _botService = new DesktopBotService(taskRunner, queueStore, queueScheduler, queueExecutor);
@@ -1107,11 +1110,18 @@ public partial class MainWindow : Window
             await _botService.ExecuteLogoutAsync(options, AppendLog, operationToken);
 
             var account = _accountProvider.LoadAccount();
-            var statePath = Path.Combine(_projectRoot, "playwright", ".auth", $"{account.Name}.json");
+            var statePath = AccountStoragePaths.BrowserStatePath(_projectRoot, account.Name);
             if (File.Exists(statePath))
             {
                 File.Delete(statePath);
                 AppendLog($"Removed saved browser session for account '{account.Name}'.");
+            }
+
+            var legacyStatePath = AccountStoragePaths.LegacyBrowserStatePath(_projectRoot, account.Name);
+            if (File.Exists(legacyStatePath))
+            {
+                File.Delete(legacyStatePath);
+                AppendLog($"Removed legacy saved browser session for account '{account.Name}'.");
             }
 
             StatusTextBlock.Text = "Logged out.";
@@ -1148,7 +1158,7 @@ public partial class MainWindow : Window
         var options = ApplySelectedVillageToOptions(LoadBotOptions());
         var defaultServers = await FetchDefaultServerOptionsAsync(options);
         var servers = FetchEffectiveServerOptions(defaultServers);
-        var window = new AccountsWindow(_accountStore, _serverCatalogStore, options.ServerName, options.BaseUrl, servers, defaultServers)
+        var window = new AccountsWindow(_accountStore, _accountDeletionService, _serverCatalogStore, options.ServerName, options.BaseUrl, servers, defaultServers)
         {
             Owner = this,
         };

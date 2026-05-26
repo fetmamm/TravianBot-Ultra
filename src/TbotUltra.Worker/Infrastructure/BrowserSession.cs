@@ -1,4 +1,5 @@
 using Microsoft.Playwright;
+using TbotUltra.Core.Accounts;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Worker.Configuration;
 
@@ -31,7 +32,7 @@ public sealed class BrowserSession : IAsyncDisposable
     }
 
     public string StorageStatePath =>
-        Path.Combine(_projectRoot, "playwright", ".auth", $"{_account.Name}.json");
+        AccountStoragePaths.BrowserStatePath(_projectRoot, _account.Name);
 
     public string PlaywrightBrowsersPath =>
         Path.Combine(_projectRoot, LocalPlaywrightBrowsersDirectoryName);
@@ -96,6 +97,8 @@ public sealed class BrowserSession : IAsyncDisposable
             ViewportSize = new ViewportSize { Width = 1366, Height = 900 },
         };
 
+        MigrateLegacyStorageStateIfNeeded();
+
         if (File.Exists(StorageStatePath))
         {
             contextOptions.StorageStatePath = StorageStatePath;
@@ -117,6 +120,8 @@ public sealed class BrowserSession : IAsyncDisposable
         {
             Path = StorageStatePath,
         });
+
+        DeleteLegacyStorageStateIfPresent();
     }
 
     public async ValueTask DisposeAsync()
@@ -157,6 +162,33 @@ public sealed class BrowserSession : IAsyncDisposable
         catch
         {
             return false;
+        }
+    }
+
+    private void MigrateLegacyStorageStateIfNeeded()
+    {
+        var legacyPath = AccountStoragePaths.LegacyBrowserStatePath(_projectRoot, _account.Name);
+        if (File.Exists(StorageStatePath) || !File.Exists(legacyPath))
+        {
+            return;
+        }
+
+        var targetDirectory = Path.GetDirectoryName(StorageStatePath);
+        if (string.IsNullOrWhiteSpace(targetDirectory))
+        {
+            throw new InvalidOperationException("Storage state path is invalid.");
+        }
+
+        Directory.CreateDirectory(targetDirectory);
+        File.Copy(legacyPath, StorageStatePath, overwrite: false);
+    }
+
+    private void DeleteLegacyStorageStateIfPresent()
+    {
+        var legacyPath = AccountStoragePaths.LegacyBrowserStatePath(_projectRoot, _account.Name);
+        if (File.Exists(legacyPath))
+        {
+            File.Delete(legacyPath);
         }
     }
 }

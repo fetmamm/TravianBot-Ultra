@@ -1,4 +1,5 @@
 using TbotUltra.Worker.Domain;
+using TbotUltra.Core.Accounts;
 using TbotUltra.Worker.Services;
 using Xunit;
 
@@ -89,6 +90,30 @@ public sealed class AccountAnalysisStoreTests : IDisposable
         Assert.False(loaded);
         Assert.Null(analysis);
         Assert.False(_store.IsAnalyzed("broken", "https://example.com"));
+    }
+
+    [Fact]
+    public void TryLoad_MigratesLegacyFile_ToPerAccountPath()
+    {
+        var snapshot = new AccountAnalysisSnapshot(
+            SchemaVersion: 1,
+            AnalyzedAtUtc: DateTimeOffset.UtcNow,
+            AccountName: "legacy",
+            ServerUrl: "https://example.com",
+            Tribe: "Teutons",
+            GoldClubEnabled: true,
+            BuildingCatalog: []);
+        var legacyPath = AccountStoragePaths.LegacyAnalysisPath(_root, "legacy", "https://example.com");
+        Directory.CreateDirectory(Path.GetDirectoryName(legacyPath)!);
+        File.WriteAllText(legacyPath, System.Text.Json.JsonSerializer.Serialize(snapshot));
+
+        var loaded = _store.TryLoad("legacy", out var result, "https://example.com");
+
+        Assert.True(loaded);
+        Assert.NotNull(result);
+        Assert.Equal("Teutons", result!.Tribe);
+        Assert.True(File.Exists(AccountStoragePaths.AnalysisPath(_root, "legacy", "https://example.com")));
+        Assert.False(File.Exists(legacyPath));
     }
 
     public void Dispose()

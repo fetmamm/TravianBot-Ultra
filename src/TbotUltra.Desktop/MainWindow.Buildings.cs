@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Accounts;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Worker;
 using TbotUltra.Worker.Domain;
@@ -866,8 +867,7 @@ public partial class MainWindow
     private string GetBuildingsSnapshotPathForActiveAccount()
     {
         var account = _accountStore.ActiveAccountName();
-        var safeAccount = string.IsNullOrWhiteSpace(account) ? "main" : account.Trim().ToLowerInvariant();
-        return Path.Combine(_projectRoot, "temp_build_out", "buildings-snapshots", $"{safeAccount}.json");
+        return AccountStoragePaths.BuildingsSnapshotPath(_projectRoot, account);
     }
 
     private async Task LoadBuildingsSnapshotIntoUiAsync(CancellationToken cancellationToken)

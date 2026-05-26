@@ -1,4 +1,5 @@
 using Microsoft.Playwright;
+using TbotUltra.Core.Accounts;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Travian;
 using TbotUltra.Worker.Domain;
@@ -115,7 +116,7 @@ public sealed partial class TravianClient
         _projectRoot = string.IsNullOrWhiteSpace(projectRoot)
             ? Directory.GetCurrentDirectory()
             : projectRoot;
-        _capitalCachePath = Path.Combine(_projectRoot, "config", "cache", "capital-state.json");
+        _capitalCachePath = AccountStoragePaths.CapitalStatePath(_projectRoot, _account.Name);
         _natarFarmCacheStore = new NatarFarmCacheStore(_projectRoot);
         _captchaAutoSolver = captchaAutoSolver;
         _statusCallback = statusCallback;
