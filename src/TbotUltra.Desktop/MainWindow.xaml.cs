@@ -159,6 +159,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _troopTrainingDeferredRefreshDebounceTimer;
     private readonly ObservableCollection<TerminalEntryRow> _terminalEntries = [];
     private ICollectionView? _terminalView;
+    private ICollectionView? _alarmView;
     private LogCategory _terminalFilterCategory = LogCategory.All;
     private bool _terminalCleanMode = true;
     private readonly ObservableCollection<AlarmEntryRow> _alarmEntries = [];
@@ -180,7 +181,7 @@ public partial class MainWindow : Window
     private FunctionTestWindow? _resourceTestFunctionsWindow;
     private readonly Dictionary<int, DateTimeOffset> _buildingClickCooldownBySlot = new();
     private readonly Dictionary<int, (int Target, DateTimeOffset At)> _buildingLastQueuedTargetBySlot = new();
-    private readonly Dictionary<int, (string Name, DateTimeOffset At)> _buildingLastQueuedConstructBySlot = new();
+    private readonly Dictionary<int, (string Name, int Gid, DateTimeOffset At)> _buildingLastQueuedConstructBySlot = new();
     private readonly HashSet<int> _buildingDemolishingSlots = new();
     private static readonly IReadOnlyDictionary<int, (double Left, double Top)> BuildingSlotLayoutById = CreateBuildingSlotLayout();
 
@@ -363,6 +364,7 @@ public partial class MainWindow : Window
                 Requirements = string.Empty,
                 PendingTargetLevel = null,
                 PendingConstructName = string.Empty,
+                PendingConstructGid = null,
                 IsDemolishing = false,
                 MapLeft = layout.Left,
                 MapTop = layout.Top,
@@ -475,7 +477,9 @@ public partial class MainWindow : Window
         _terminalView.Filter = TerminalEntryFilter;
         TerminalListBox.ItemsSource = _terminalView;
         InitializeLogFilterControls();
-        AlarmListBox.ItemsSource = _alarmEntries;
+        _alarmView = CollectionViewSource.GetDefaultView(_alarmEntries);
+        _alarmView.Filter = AlarmEntryFilter;
+        AlarmListBox.ItemsSource = _alarmView;
         UpdateCaptchaStatsUi();
         UpdateNpcTradeStatsUi();
         _automationLoopTasksView = CollectionViewSource.GetDefaultView(_automationLoopTasks);

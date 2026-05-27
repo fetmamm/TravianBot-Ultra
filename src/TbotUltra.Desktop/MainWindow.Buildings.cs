@@ -171,7 +171,7 @@ public partial class MainWindow
     private void ShowUpgradeTargetForSlot(BuildingSlotRow row)
     {
         var liveRow = _buildingRows.FirstOrDefault(item => item.SlotId == row.SlotId) ?? row;
-        if (!liveRow.IsOccupied)
+        if (!liveRow.CanQueueUpgrade)
         {
             BuildingsInfoTextBlock.Text = $"Slot {liveRow.SlotId} is empty. Choose a building to construct.";
             return;
@@ -185,17 +185,11 @@ public partial class MainWindow
         }
 
         _buildingClickCooldownBySlot[liveRow.SlotId] = now;
-        if (liveRow.HasPendingUpgrade)
-        {
-            BuildingsInfoTextBlock.Text = $"{liveRow.Name} already has a queued upgrade.";
-            return;
-        }
-
-        var currentLevel = liveRow.Level ?? 0;
-        var maxLevel = liveRow.Gid is int gid ? BuildingCatalogService.MaxLevelFor(gid) : 40;
+        var currentLevel = liveRow.UpgradeBaseLevel;
+        var maxLevel = liveRow.UpgradeGid is int gid ? BuildingCatalogService.MaxLevelFor(gid) : 40;
         if (currentLevel >= maxLevel)
         {
-            BuildingsInfoTextBlock.Text = $"{liveRow.Name} in slot {liveRow.SlotId} is already max level ({maxLevel}).";
+            BuildingsInfoTextBlock.Text = $"{liveRow.UpgradeName} in slot {liveRow.SlotId} is already max level ({maxLevel}).";
             return;
         }
 
@@ -214,16 +208,14 @@ public partial class MainWindow
     private void QueueSingleBuildingUpgradeFromSlot(int slotId)
     {
         var row = _buildingRows.FirstOrDefault(item => item.SlotId == slotId);
-        if (row is null || !row.IsOccupied)
+        if (row is null || !row.CanQueueUpgrade)
         {
             BuildingsInfoTextBlock.Text = $"Slot {slotId} is empty. Choose a building to construct.";
             return;
         }
 
-        var currentLevel = row.Level ?? 0;
-        var maxLevel = row.Gid is int gid ? BuildingCatalogService.MaxLevelFor(gid) : 40;
-        var pendingLevel = row.PendingTargetLevel ?? currentLevel;
-        var baseLevel = Math.Max(currentLevel, pendingLevel);
+        var maxLevel = row.UpgradeGid is int gid ? BuildingCatalogService.MaxLevelFor(gid) : 40;
+        var baseLevel = row.UpgradeBaseLevel;
         var targetLevel = Math.Clamp(baseLevel + 1, 1, maxLevel);
         _ = TryQueueBuildingUpgradeToLevel(slotId, targetLevel);
     }
@@ -241,17 +233,17 @@ public partial class MainWindow
         }
 
         var row = _buildingRows.FirstOrDefault(item => item.SlotId == slotId);
-        if (row is null || !row.IsOccupied)
+        if (row is null || !row.CanQueueUpgrade)
         {
             BuildingsInfoTextBlock.Text = $"Slot {slotId} is empty.";
             return false;
         }
 
-        var currentLevel = row.Level ?? 0;
-        var maxLevel = row.Gid is int gid ? BuildingCatalogService.MaxLevelFor(gid) : 40;
+        var currentLevel = row.UpgradeBaseLevel;
+        var maxLevel = row.UpgradeGid is int gid ? BuildingCatalogService.MaxLevelFor(gid) : 40;
         if (currentLevel >= maxLevel)
         {
-            BuildingsInfoTextBlock.Text = $"{row.Name} in slot {slotId} is already max level ({maxLevel}).";
+            BuildingsInfoTextBlock.Text = $"{row.UpgradeName} in slot {slotId} is already max level ({maxLevel}).";
             return false;
         }
 
@@ -264,7 +256,7 @@ public partial class MainWindow
             return false;
         }
 
-        var payload = new BuildingUpgradePayload(slotId, targetLevel, row.Name).ToDictionary();
+        var payload = new BuildingUpgradePayload(slotId, targetLevel, row.UpgradeName).ToDictionary();
         var item = EnqueueBuildingUpgradeTaskCoalesced(
             "upgrade_building_to_level",
             payload,
@@ -275,7 +267,7 @@ public partial class MainWindow
             out var removedCount);
         if (!enqueued)
         {
-            BuildingsInfoTextBlock.Text = $"{row.Name} already has a queued upgrade to level {effectiveTargetLevel ?? targetLevel} or higher.";
+            BuildingsInfoTextBlock.Text = $"{row.UpgradeName} already has a queued upgrade to level {effectiveTargetLevel ?? targetLevel} or higher.";
             return false;
         }
 
@@ -286,7 +278,7 @@ public partial class MainWindow
         TriggerQueueAutoRunFromEnqueue();
         UpgradeSlotTextBox.Text = slotId.ToString();
         UpgradeTargetLevelTextBox.Text = targetLevel.ToString();
-        BuildingsInfoTextBlock.Text = $"Queued {row.Name} in slot {slotId} to level {targetLevel}.";
+        BuildingsInfoTextBlock.Text = $"Queued {row.UpgradeName} in slot {slotId} to level {targetLevel}.";
         var removedSuffix = removedCount > 0 ? $" (replaced {removedCount} pending item(s))" : string.Empty;
         AppendLog($"Queued single building upgrade: slot {slotId} -> level {targetLevel}{removedSuffix}.");
         return true;
@@ -665,6 +657,17 @@ public partial class MainWindow
             || (slotId == 40 && WallGids.Contains(selectedGid));
     }
 
+    private static bool IsUnbuiltFixedSpecialBuilding(int slotId, Building building)
+    {
+        if ((building.Level ?? 0) > 0 || building.Gid is not int gid)
+        {
+            return false;
+        }
+
+        return (slotId == 39 && IsRallyPointGid(gid))
+            || (slotId == 40 && WallGids.Contains(gid));
+    }
+
     private bool TryQueueConstructBuilding(int slotId, BuildingCatalogOption selectedBuilding)
     {
         if (!CanQueueConstructBuilding(slotId, selectedBuilding, out var reason))
@@ -694,8 +697,8 @@ public partial class MainWindow
             return false;
         }
 
-        _buildingLastQueuedConstructBySlot[slotId] = (selectedBuilding.Name, now);
-        SetPendingBuildingConstruct(slotId, selectedBuilding.Name);
+        _buildingLastQueuedConstructBySlot[slotId] = (selectedBuilding.Name, selectedBuilding.Gid, now);
+        SetPendingBuildingConstruct(slotId, selectedBuilding.Name, selectedBuilding.Gid);
         RequestQueueUiRefresh(selectId: item?.Id);
         TriggerQueueAutoRunFromEnqueue();
         ConstructSlotTextBox.Text = slotId.ToString();
@@ -744,14 +747,14 @@ public partial class MainWindow
     private bool TryQueueBuildingUpgradeToMax(int slotId)
     {
         var row = _buildingRows.FirstOrDefault(item => item.SlotId == slotId);
-        if (row is null || !row.IsOccupied)
+        if (row is null || !row.CanQueueUpgrade)
         {
             BuildingsInfoTextBlock.Text = $"Slot {slotId} is empty.";
             return false;
         }
 
-        var maxLevel = row.Gid is int gid ? BuildingCatalogService.MaxLevelFor(gid) : 40;
-        var payload = new BuildingUpgradePayload(slotId, maxLevel, row.Name).ToDictionary();
+        var maxLevel = row.UpgradeGid is int gid ? BuildingCatalogService.MaxLevelFor(gid) : 40;
+        var payload = new BuildingUpgradePayload(slotId, maxLevel, row.UpgradeName).ToDictionary();
         var item = EnqueueBuildingUpgradeTaskCoalesced(
             "upgrade_building_to_max",
             payload,
@@ -762,11 +765,11 @@ public partial class MainWindow
             out var removedCount);
         if (!enqueued)
         {
-            BuildingsInfoTextBlock.Text = $"{row.Name} already has a queued max upgrade.";
+            BuildingsInfoTextBlock.Text = $"{row.UpgradeName} already has a queued max upgrade.";
             return false;
         }
 
-        SetPendingBuildingUpgrade(slotId, effectiveTargetLevel ?? (row.Gid is int effectiveGid ? BuildingCatalogService.MaxLevelFor(effectiveGid) : 40));
+        SetPendingBuildingUpgrade(slotId, effectiveTargetLevel ?? maxLevel);
         RequestQueueUiRefresh(selectId: item?.Id);
         TriggerQueueAutoRunFromEnqueue();
         UpgradeSlotTextBox.Text = slotId.ToString();
@@ -899,23 +902,14 @@ public partial class MainWindow
         _buildingRows.Clear();
         _demolishableBuildings.Clear();
         var queueItems = GetActiveQueueItems();
-        var projectedStatus = BuildProjectedBuildingStatus(status, queueItems);
         var queuedConstructsBySlot = GetQueuedBuildingConstructsBySlot(queueItems);
+        var queuedConstructGidsBySlot = GetQueuedBuildingConstructGidsBySlot(queueItems);
         var queuedTargetsBySlot = GetQueuedBuildingTargetsBySlot(queueItems);
 
         var categoryByGid = BuildingCatalogService.GetCatalogForTribe(status.Tribe)
             .ToDictionary(item => item.Gid, item => item, EqualityComparer<int>.Default);
 
         var buildingBySlot = status.Buildings
-            .Where(item => item.SlotId is not null)
-            .GroupBy(item => item.SlotId!.Value)
-            .ToDictionary(
-                group => group.Key,
-                group => group
-                    .OrderByDescending(item => item.Level ?? 0)
-                    .First());
-
-        var projectedBuildingBySlot = projectedStatus.Buildings
             .Where(item => item.SlotId is not null)
             .GroupBy(item => item.SlotId!.Value)
             .ToDictionary(
@@ -935,8 +929,10 @@ public partial class MainWindow
                 && !string.Equals(building.Name, "Empty", StringComparison.OrdinalIgnoreCase)
                 && !string.Equals(building.Name, "g0", StringComparison.OrdinalIgnoreCase)
                 && !building.Name.StartsWith("Slot ", StringComparison.OrdinalIgnoreCase);
+            var isUnbuiltFixedSpecial = building is not null && IsUnbuiltFixedSpecialBuilding(slotId, building);
             var occupied = building is not null
                 && !isKnownEmpty
+                && !isUnbuiltFixedSpecial
                 && ((building.Level ?? 0) > 0
                     || (building.Gid ?? 0) > 0
                     || hasIdentifiedBuildingName);
@@ -961,6 +957,11 @@ public partial class MainWindow
                 : _buildingLastQueuedConstructBySlot.TryGetValue(slotId, out var lastConstruct)
                     ? lastConstruct.Name
                     : string.Empty;
+            var pendingConstructGid = queuedConstructGidsBySlot.TryGetValue(slotId, out var queuedConstructGid)
+                ? queuedConstructGid
+                : _buildingLastQueuedConstructBySlot.TryGetValue(slotId, out var lastConstructGid)
+                    ? lastConstructGid.Gid
+                    : (int?)null;
 
             if (!BuildingSlotLayoutById.TryGetValue(slotId, out var layout))
             {
@@ -977,17 +978,6 @@ public partial class MainWindow
 
                 pendingConstruct = string.Empty;
             }
-            else
-            {
-                pendingTarget = null;
-                if (projectedBuildingBySlot.TryGetValue(slotId, out var projected)
-                    && (projected.Gid ?? 0) > 0
-                    && string.IsNullOrWhiteSpace(pendingConstruct))
-                {
-                    pendingConstruct = projected.Name;
-                }
-            }
-
             string slotName;
             int? slotLevel;
             int? slotGid;
@@ -1030,6 +1020,7 @@ public partial class MainWindow
                 Requirements = requirements,
                 PendingTargetLevel = pendingTarget,
                 PendingConstructName = pendingConstruct,
+                PendingConstructGid = pendingConstructGid,
                 IsDemolishing = _buildingDemolishingSlots.Contains(slotId),
                 MapLeft = layout.Left,
                 MapTop = layout.Top,

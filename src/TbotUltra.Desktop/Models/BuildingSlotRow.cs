@@ -13,6 +13,7 @@ public sealed class BuildingSlotRow
     public string Requirements { get; init; } = string.Empty;
     public int? PendingTargetLevel { get; init; }
     public string PendingConstructName { get; init; } = string.Empty;
+    public int? PendingConstructGid { get; init; }
     public bool IsDemolishing { get; init; }
     public double MapLeft { get; init; }
     public double MapTop { get; init; }
@@ -27,6 +28,12 @@ public sealed class BuildingSlotRow
     public bool IsReservedForConstruction => HasPendingConstruct;
     public bool HasPendingUpgrade => PendingTargetLevel is int pending && pending > (Level ?? 0);
     public bool HasPendingConstruct => !IsOccupied && !string.IsNullOrWhiteSpace(PendingConstructName);
+    public bool CanQueueUpgrade => IsOccupied || HasPendingConstruct;
+    public string UpgradeName => IsOccupied ? Name : PendingConstructName;
+    public int UpgradeBaseLevel => HasPendingConstruct
+        ? Math.Max(1, Math.Max(Level ?? 0, PendingTargetLevel ?? 0))
+        : Math.Max(Level ?? 0, PendingTargetLevel ?? 0);
+    public int? UpgradeGid => IsOccupied ? Gid : PendingConstructGid;
     public string SlotLabel => $"Slot {SlotId}";
     public string NameLabel => IsOccupied
         ? Name
@@ -51,8 +58,7 @@ public sealed class BuildingSlotRow
             ? "This slot is already reserved by a queued construction."
             : "Click to choose and queue a building.";
 
-    public bool IsMaxLevel => IsOccupied
-        && Level is int lvl
-        && Gid is int gid
-        && lvl >= BuildingCatalogService.MaxLevelFor(gid);
+    public bool IsMaxLevel => CanQueueUpgrade
+        && UpgradeGid is int gid
+        && UpgradeBaseLevel >= BuildingCatalogService.MaxLevelFor(gid);
 }

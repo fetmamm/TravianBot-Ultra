@@ -11,9 +11,9 @@ public partial class BuildingUpgradeTargetWindow : Window
     {
         InitializeComponent();
 
-        var currentLevel = slot.Level ?? 0;
-        TitleTextBlock.Text = $"Upgrade {slot.Name}";
-        SubtitleTextBlock.Text = $"{slot.SlotLabel}, level {slot.LevelLabel}. Max level: {maxLevel}.";
+        var currentLevel = slot.UpgradeBaseLevel;
+        TitleTextBlock.Text = $"Upgrade {slot.UpgradeName}";
+        SubtitleTextBlock.Text = $"{slot.SlotLabel}, level {currentLevel}. Max level: {maxLevel}.";
 
         for (var level = currentLevel + 1; level <= maxLevel; level++)
         {

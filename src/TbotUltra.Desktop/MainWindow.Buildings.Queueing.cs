@@ -71,6 +71,21 @@ public partial class MainWindow
         return true;
     }
 
+    private static bool IsBuildingConstructForSlot(QueueItem item, out int slotId)
+    {
+        slotId = 0;
+        return string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase)
+            && TryReadBuildingConstructPayload(item.Payload, out slotId, out _, out _);
+    }
+
+    private static bool IsBuildingUpgradeForSlot(QueueItem item, out int slotId)
+    {
+        slotId = 0;
+        return (string.Equals(item.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(item.TaskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase))
+            && TryReadBuildingUpgradePayload(item.Payload, out slotId, out _);
+    }
+
     private void ForgetBuildingQueueCachesForItem(QueueItem item)
     {
         if (TryReadBuildingUpgradePayload(item.Payload, out var upgradeSlotId, out _))
@@ -306,6 +321,27 @@ public partial class MainWindow
         return result;
     }
 
+    private IReadOnlyDictionary<int, int> GetQueuedBuildingConstructGidsBySlot(IReadOnlyList<QueueItem>? queueItems = null)
+    {
+        var result = new Dictionary<int, int>();
+        foreach (var item in queueItems ?? GetActiveQueueItems())
+        {
+            if (!string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (!TryReadBuildingConstructPayload(item.Payload, out var slotId, out var gid, out _))
+            {
+                continue;
+            }
+
+            result[slotId] = gid;
+        }
+
+        return result;
+    }
+
     private IReadOnlyDictionary<int, int> GetQueuedBuildingTargetsBySlot(IReadOnlyList<QueueItem>? queueItems = null)
     {
         var result = new Dictionary<int, int>();
@@ -390,6 +426,7 @@ public partial class MainWindow
             Requirements = row.Requirements,
             PendingTargetLevel = targetLevel,
             PendingConstructName = row.PendingConstructName,
+            PendingConstructGid = row.PendingConstructGid,
             IsDemolishing = row.IsDemolishing,
             MapLeft = row.MapLeft,
             MapTop = row.MapTop,
@@ -398,7 +435,7 @@ public partial class MainWindow
         };
     }
 
-    private void SetPendingBuildingConstruct(int slotId, string buildingName)
+    private void SetPendingBuildingConstruct(int slotId, string buildingName, int gid)
     {
         var index = -1;
         for (var i = 0; i < _buildingRows.Count; i++)
@@ -426,6 +463,7 @@ public partial class MainWindow
             Requirements = row.Requirements,
             PendingTargetLevel = row.PendingTargetLevel,
             PendingConstructName = buildingName,
+            PendingConstructGid = gid,
             IsDemolishing = row.IsDemolishing,
             MapLeft = row.MapLeft,
             MapTop = row.MapTop,
@@ -476,6 +514,7 @@ public partial class MainWindow
             Requirements = row.Requirements,
             PendingTargetLevel = row.PendingTargetLevel,
             PendingConstructName = row.PendingConstructName,
+            PendingConstructGid = row.PendingConstructGid,
             IsDemolishing = demolishing,
             MapLeft = row.MapLeft,
             MapTop = row.MapTop,

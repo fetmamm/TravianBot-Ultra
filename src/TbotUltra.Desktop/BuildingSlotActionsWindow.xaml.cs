@@ -23,9 +23,9 @@ public partial class BuildingSlotActionsWindow : Window
             : "Empty slot";
 
         BuildBuildingButton.IsEnabled = !slot.IsOccupied && !slot.HasPendingConstruct;
-        UpgradeButton.IsEnabled = slot.IsOccupied && !slot.IsMaxLevel;
-        UpgradeOneLevelButton.IsEnabled = slot.IsOccupied && !slot.IsMaxLevel;
-        UpgradeToMaxButton.IsEnabled = slot.IsOccupied && !slot.IsMaxLevel;
+        UpgradeButton.IsEnabled = slot.CanQueueUpgrade && !slot.IsMaxLevel;
+        UpgradeOneLevelButton.IsEnabled = slot.CanQueueUpgrade && !slot.IsMaxLevel;
+        UpgradeToMaxButton.IsEnabled = slot.CanQueueUpgrade && !slot.IsMaxLevel;
         DemolishButton.IsEnabled = slot.IsOccupied && canDemolish;
         DemolishRequirementTextBlock.Text = demolishRequirementText;
         DemolishRequirementTextBlock.Visibility = canDemolish || string.IsNullOrWhiteSpace(demolishRequirementText)

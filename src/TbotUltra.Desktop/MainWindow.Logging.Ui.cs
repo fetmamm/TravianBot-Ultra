@@ -37,6 +37,16 @@ public partial class MainWindow
         return _terminalFilterCategory == LogCategory.All || row.Category == _terminalFilterCategory;
     }
 
+    private bool AlarmEntryFilter(object item)
+    {
+        if (item is not AlarmEntryRow row)
+        {
+            return true;
+        }
+
+        return !_terminalCleanMode || !IsCleanModeHiddenAlarmMessage(row.Text);
+    }
+
     private IEnumerable<TerminalEntryRow> VisibleTerminalEntries()
         => _terminalEntries.Where(TerminalEntryFilter);
 
@@ -55,6 +65,7 @@ public partial class MainWindow
     {
         _terminalCleanMode = LogCleanModeToggle.IsChecked == true;
         _terminalView?.Refresh();
+        _alarmView?.Refresh();
         UpdateStatusFromVisibleLog();
         if (TerminalAlarmTabControl is not null)
         {
@@ -483,7 +494,7 @@ public partial class MainWindow
             FontFamily = new FontFamily("Consolas"),
             FontSize = 13,
             SelectionMode = SelectionMode.Extended,
-            ItemsSource = _alarmEntries,
+            ItemsSource = _alarmView,
         };
         _logsPopupLogList = popupLogList;
         _logsPopupAlarmList = popupAlarmList;

@@ -82,6 +82,12 @@ public partial class MainWindow
             return;
         }
 
+        if (WouldMoveBuildingUpgradeBeforeConstruct(selected.Id))
+        {
+            AppendLog("Building upgrades must stay after their construction item.");
+            return;
+        }
+
         if (_botService.MoveQueueItemUp(selected.Id))
         {
             RefreshQueueUi(selectId: selected.Id);
@@ -99,6 +105,12 @@ public partial class MainWindow
             return;
         }
 
+        if (WouldMoveBuildingConstructAfterUpgrade(selected.Id))
+        {
+            AppendLog("Building construction must stay before its queued upgrades.");
+            return;
+        }
+
         if (_botService.MoveQueueItemDown(selected.Id))
         {
             RefreshQueueUi(selectId: selected.Id);
@@ -106,6 +118,42 @@ public partial class MainWindow
         }
 
         AppendLog("Move down is only available within the same priority group.");
+    }
+
+    private bool WouldMoveBuildingUpgradeBeforeConstruct(Guid selectedId)
+    {
+        var ordered = _botService.GetQueueItemsForDisplay().ToList();
+        var index = ordered.FindIndex(item => item.Id == selectedId);
+        if (index <= 0)
+        {
+            return false;
+        }
+
+        var current = ordered[index];
+        var previous = ordered[index - 1];
+        return current.Group == previous.Group
+            && current.Priority == previous.Priority
+            && IsBuildingUpgradeForSlot(current, out var upgradeSlotId)
+            && IsBuildingConstructForSlot(previous, out var constructSlotId)
+            && upgradeSlotId == constructSlotId;
+    }
+
+    private bool WouldMoveBuildingConstructAfterUpgrade(Guid selectedId)
+    {
+        var ordered = _botService.GetQueueItemsForDisplay().ToList();
+        var index = ordered.FindIndex(item => item.Id == selectedId);
+        if (index < 0 || index >= ordered.Count - 1)
+        {
+            return false;
+        }
+
+        var current = ordered[index];
+        var next = ordered[index + 1];
+        return current.Group == next.Group
+            && current.Priority == next.Priority
+            && IsBuildingConstructForSlot(current, out var constructSlotId)
+            && IsBuildingUpgradeForSlot(next, out var upgradeSlotId)
+            && constructSlotId == upgradeSlotId;
     }
 
     private void QueueRetryButton_Click(object sender, RoutedEventArgs e)

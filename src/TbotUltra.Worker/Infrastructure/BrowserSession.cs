@@ -9,6 +9,7 @@ public sealed class BrowserSession : IAsyncDisposable
 {
     private const string LocalPlaywrightBrowsersDirectoryName = "ms-playwright";
     private static readonly SemaphoreSlim WarmupGate = new(1, 1);
+    private static readonly SemaphoreSlim StorageStateGate = new(1, 1);
     private static bool _warmupCompleted;
     private readonly BotOptions _config;
     private readonly AccountOptions _account;
@@ -116,12 +117,82 @@ public sealed class BrowserSession : IAsyncDisposable
             return;
         }
 
-        await _context.StorageStateAsync(new BrowserContextStorageStateOptions
+        var directory = Path.GetDirectoryName(StorageStatePath);
+        if (string.IsNullOrWhiteSpace(directory))
         {
-            Path = StorageStatePath,
-        });
+            throw new InvalidOperationException("Storage state path is invalid.");
+        }
+
+        Directory.CreateDirectory(directory);
+        var tempPath = Path.Combine(directory, $"{Path.GetFileName(StorageStatePath)}.{Guid.NewGuid():N}.tmp");
+
+        await StorageStateGate.WaitAsync();
+        try
+        {
+            await _context.StorageStateAsync(new BrowserContextStorageStateOptions
+            {
+                Path = tempPath,
+            });
+
+            await ReplaceStorageStateWithRetryAsync(tempPath, StorageStatePath);
+        }
+        finally
+        {
+            StorageStateGate.Release();
+            TryDeleteFile(tempPath);
+        }
 
         DeleteLegacyStorageStateIfPresent();
+    }
+
+    private static async Task ReplaceStorageStateWithRetryAsync(string sourcePath, string targetPath)
+    {
+        Exception? lastError = null;
+        for (var attempt = 1; attempt <= 5; attempt++)
+        {
+            try
+            {
+                File.Copy(sourcePath, targetPath, overwrite: true);
+                return;
+            }
+            catch (IOException ex) when (IsTransientStorageStateWriteError(ex) && attempt < 5)
+            {
+                lastError = ex;
+                await Task.Delay(150 * attempt);
+            }
+            catch (UnauthorizedAccessException ex) when (attempt < 5)
+            {
+                lastError = ex;
+                await Task.Delay(150 * attempt);
+            }
+        }
+
+        throw new IOException($"Could not replace browser state after retries: {lastError?.Message}", lastError);
+    }
+
+    private static bool IsTransientStorageStateWriteError(IOException ex)
+    {
+        var message = ex.Message ?? string.Empty;
+        return message.Contains("user-mapped section", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("being used by another process", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("cannot access the file", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("begärda åtgärden", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("användarmappat", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch
+        {
+            // Best effort cleanup only.
+        }
     }
 
     public async ValueTask DisposeAsync()

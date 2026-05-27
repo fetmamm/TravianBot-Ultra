@@ -847,6 +847,12 @@ public partial class MainWindow
                 && value.Contains("execution context was destroyed"));
     }
 
+    private static bool IsCleanModeHiddenAlarmMessage(string message)
+    {
+        return !string.IsNullOrWhiteSpace(message)
+            && message.Contains("UI sync snapshot failed:", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static bool IsManualFarmingExecutionMessage(string message)
     {
         if (string.IsNullOrWhiteSpace(message))
