@@ -106,6 +106,19 @@ public partial class AppDialog : Window
         return dialog;
     }
 
+    public static AppDialog ShowModelessContent(
+        Window? owner,
+        object content,
+        string title,
+        MessageBoxButton buttons,
+        MessageBoxImage icon,
+        MessageBoxResult defaultResult)
+    {
+        var dialog = new AppDialog(owner, content, title, buttons, icon, defaultResult);
+        dialog.Show();
+        return dialog;
+    }
+
     public static MessageBoxResult ShowCustom(
         Window? owner,
         string message,

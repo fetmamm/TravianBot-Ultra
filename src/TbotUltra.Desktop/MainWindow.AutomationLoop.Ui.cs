@@ -721,6 +721,15 @@ public partial class MainWindow
             ClearBreweryBlockedState();
         }
 
+        if (option.IsEnabled
+            && ContinuousRunToggleButton?.IsChecked == true
+            && _loopTask is not null
+            && !_loopTask.IsCompleted)
+        {
+            Interlocked.Exchange(ref _continuousLoopWakeRequested, 1);
+            AppendLog($"{option.Title} group enabled. Continuous loop will check it now.");
+        }
+
         RefreshAutomationLoopDashboardUi();
         PersistAutomationLoopTasksToConfig();
     }

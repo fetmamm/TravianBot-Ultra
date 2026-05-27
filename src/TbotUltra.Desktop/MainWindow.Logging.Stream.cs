@@ -144,7 +144,7 @@ public partial class MainWindow
 
                     if (IsCaptchaAutoSolveAttemptMessage(part))
                     {
-                        ShowCaptchaAutoSolvePopup();
+                        ShowCaptchaAutoSolvePopup(part);
                     }
 
                     if (IsManualVerificationAlarmMessage(part))
@@ -572,20 +572,60 @@ public partial class MainWindow
         }
     }
 
-    private void ShowCaptchaAutoSolvePopup()
+    private void ShowCaptchaAutoSolvePopup(string attemptMessage)
     {
+        var (attempt, attempts) = ParseCaptchaAutoSolveAttempt(attemptMessage);
+        var timeoutSeconds = Math.Max(60, LoadBotOptions().CaptchaSolverTimeoutSeconds);
+        var maxSeconds = timeoutSeconds * Math.Max(1, attempts);
+
         if (_captchaAutoSolvePopup is { IsVisible: true })
         {
+            _captchaAutoSolveMaxSeconds = Math.Max(_captchaAutoSolveMaxSeconds, maxSeconds);
+            UpdateCaptchaAutoSolveAttemptText(attempt, attempts);
+            UpdateCaptchaAutoSolveElapsedText();
             return;
         }
 
-        _captchaAutoSolvePopup = AppDialog.ShowModeless(
+        _captchaAutoSolveStartedAt = DateTimeOffset.UtcNow;
+        _captchaAutoSolveMaxSeconds = maxSeconds;
+        _captchaAutoSolveAttemptTextBlock = new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 8, 0, 0),
+            Foreground = System.Windows.Media.Brushes.Gray,
+        };
+        _captchaAutoSolveElapsedTextBlock = new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 4, 0, 0),
+            Foreground = System.Windows.Media.Brushes.Gray,
+        };
+
+        var content = new StackPanel();
+        content.Children.Add(new TextBlock
+        {
+            Text = "Captcha detected. Tbot Ultra is trying to solve it automatically.",
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = System.Windows.Media.Brushes.Black,
+        });
+        content.Children.Add(_captchaAutoSolveAttemptTextBlock);
+        content.Children.Add(_captchaAutoSolveElapsedTextBlock);
+
+        UpdateCaptchaAutoSolveAttemptText(attempt, attempts);
+        UpdateCaptchaAutoSolveElapsedText();
+
+        _captchaAutoSolvePopup = AppDialog.ShowModelessContent(
             this,
-            "Captcha detected. Tbot Ultra is trying to solve it automatically. This can take up to about one minute.",
+            content,
             "Solving captcha",
             MessageBoxButton.OK,
-            MessageBoxImage.Information);
-        _captchaAutoSolvePopup.Closed += (_, _) => _captchaAutoSolvePopup = null;
+            MessageBoxImage.Information,
+            MessageBoxResult.OK);
+        _captchaAutoSolvePopup.Closed += (_, _) => ResetCaptchaAutoSolvePopupState();
+
+        _captchaAutoSolveElapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _captchaAutoSolveElapsedTimer.Tick += (_, _) => UpdateCaptchaAutoSolveElapsedText();
+        _captchaAutoSolveElapsedTimer.Start();
     }
 
     private void CloseCaptchaAutoSolvePopup()
@@ -598,6 +638,56 @@ public partial class MainWindow
         var popup = _captchaAutoSolvePopup;
         _captchaAutoSolvePopup = null;
         popup.Close();
+    }
+
+    private void ResetCaptchaAutoSolvePopupState()
+    {
+        _captchaAutoSolveElapsedTimer?.Stop();
+        _captchaAutoSolveElapsedTimer = null;
+        _captchaAutoSolvePopup = null;
+        _captchaAutoSolveAttemptTextBlock = null;
+        _captchaAutoSolveElapsedTextBlock = null;
+        _captchaAutoSolveStartedAt = DateTimeOffset.MinValue;
+        _captchaAutoSolveMaxSeconds = 60;
+    }
+
+    private void UpdateCaptchaAutoSolveAttemptText(int attempt, int attempts)
+    {
+        if (_captchaAutoSolveAttemptTextBlock is null)
+        {
+            return;
+        }
+
+        _captchaAutoSolveAttemptTextBlock.Text = $"Attempt: {attempt}/{attempts}";
+    }
+
+    private void UpdateCaptchaAutoSolveElapsedText()
+    {
+        if (_captchaAutoSolveElapsedTextBlock is null || _captchaAutoSolveStartedAt == DateTimeOffset.MinValue)
+        {
+            return;
+        }
+
+        var elapsedSeconds = (int)Math.Floor((DateTimeOffset.UtcNow - _captchaAutoSolveStartedAt).TotalSeconds);
+        elapsedSeconds = Math.Clamp(elapsedSeconds, 0, Math.Max(1, _captchaAutoSolveMaxSeconds));
+        _captchaAutoSolveElapsedTextBlock.Text = $"Elapsed time: {FormatCountdown(elapsedSeconds)} / {FormatCountdown(_captchaAutoSolveMaxSeconds)}";
+    }
+
+    private static (int Attempt, int Attempts) ParseCaptchaAutoSolveAttempt(string message)
+    {
+        var match = Regex.Match(message ?? string.Empty, @"attempt\s+(?<attempt>\d+)\s*/\s*(?<attempts>\d+)", RegexOptions.IgnoreCase);
+        if (!match.Success)
+        {
+            return (1, 1);
+        }
+
+        var attempt = int.TryParse(match.Groups["attempt"].Value, out var parsedAttempt)
+            ? Math.Max(1, parsedAttempt)
+            : 1;
+        var attempts = int.TryParse(match.Groups["attempts"].Value, out var parsedAttempts)
+            ? Math.Max(1, parsedAttempts)
+            : attempt;
+        return (Math.Min(attempt, attempts), attempts);
     }
 
     private static void TrimToMaxEntries<T>(ObservableCollection<T> entries, int max)

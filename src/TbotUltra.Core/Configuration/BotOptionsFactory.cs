@@ -27,7 +27,7 @@ public static class BotOptionsFactory
             ManualLoginTimeoutSeconds = configuration.GetValue("manual_login_timeout_seconds", 180),
             CaptchaAutoSolveEnabled = configuration.GetValue(BotOptionPayloadKeys.CaptchaAutoSolveEnabled, false),
             CaptchaSolverTimeoutSeconds = configuration.GetValue(BotOptionPayloadKeys.CaptchaSolverTimeoutSeconds, 60),
-            CaptchaSolverMaxAttempts = configuration.GetValue(BotOptionPayloadKeys.CaptchaSolverMaxAttempts, 1),
+            CaptchaSolverMaxAttempts = configuration.GetValue(BotOptionPayloadKeys.CaptchaSolverMaxAttempts, 3),
             LoopIntervalSeconds = configuration.GetValue("loop_interval_seconds", 60),
             LoopTasks = tasks,
             ContinuousLoopGroups = continuousLoopGroups,

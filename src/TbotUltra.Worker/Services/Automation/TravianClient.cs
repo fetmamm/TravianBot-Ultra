@@ -199,11 +199,8 @@ public sealed partial class TravianClient
                     "Captcha/manual verification appeared while running headless.");
             }
 
-            if (_interactive)
-            {
-                Console.WriteLine("Complete login manually in browser, then press Enter here.");
-                Console.ReadLine();
-            }
+            Notify("Captcha auto-solve did not clear login captcha. Solve it in the browser window. The bot is paused.");
+            await WaitForManualVerificationToClearAsync(cancellationToken);
         }
         else
         {
@@ -1577,9 +1574,25 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
     {
         var deadline = DateTime.UtcNow.AddSeconds(Math.Max(10, _config.ManualLoginTimeoutSeconds));
         var manualMessageShown = false;
-        while (DateTime.UtcNow < deadline)
+        while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (DateTime.UtcNow >= deadline)
+            {
+                if (!_interactive || !_browserVisible)
+                {
+                    throw new InvalidOperationException("Login was not confirmed before timeout.");
+                }
+
+                if (!manualMessageShown)
+                {
+                    Notify("Login is not confirmed yet. Finish login/captcha in the browser if needed.");
+                    manualMessageShown = true;
+                }
+
+                deadline = DateTime.UtcNow.AddSeconds(10);
+            }
+
             try
             {
                 await TryDismissContinuePromptAsync(cancellationToken);
@@ -1618,17 +1631,6 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 await Task.Delay(220, cancellationToken);
             }
         }
-
-        if (!_interactive)
-        {
-            throw new InvalidOperationException("Login was not confirmed before timeout.");
-        }
-
-        Notify("Login is not confirmed yet. Finish login/captcha in the browser if needed.");
-        Console.WriteLine("Press Enter after the village overview is visible...");
-        Console.ReadLine();
-        await EnsureLoggedInAsync();
-        return true;
     }
 
     private async Task PauseForManualStepIfVisibleAsync(string message, CancellationToken cancellationToken)
@@ -1652,14 +1654,12 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 "Captcha/manual verification appeared while running headless.");
         }
 
-        if (_interactive)
-        {
-            Console.WriteLine("Press Enter after the manual step is solved...");
-            Console.ReadLine();
-        }
+        await WaitForManualVerificationToClearAsync(cancellationToken);
+    }
 
-        var deadline = DateTime.UtcNow.AddSeconds(Math.Max(10, _config.ManualLoginTimeoutSeconds));
-        while (DateTime.UtcNow < deadline)
+    private async Task WaitForManualVerificationToClearAsync(CancellationToken cancellationToken)
+    {
+        while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (!await CaptchaOrManualStepVisibleAsync())
@@ -1670,9 +1670,6 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
             await Task.Delay(500, cancellationToken);
         }
-
-        throw new InvalidOperationException(
-            "Manual verification was still visible after timeout. Solve it and run again.");
     }
 
     private async Task<string?> CaptureManualVerificationScreenshotAsync(string label, CancellationToken cancellationToken, bool force = false)

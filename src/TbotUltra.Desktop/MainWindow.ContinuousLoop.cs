@@ -505,6 +505,12 @@ public partial class MainWindow
                 return;
             }
 
+            if (Interlocked.Exchange(ref _continuousLoopWakeRequested, 0) == 1)
+            {
+                AppendLog($"[LOOP {tickId}] WAIT ended early: enabled groups changed.");
+                return;
+            }
+
             try
             {
                 if (SelectNextQueueItemForContinuousLoop() is not null)

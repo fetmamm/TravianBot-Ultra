@@ -50,6 +50,17 @@ public sealed class BuildingCatalogServiceTests
         Assert.Contains(greatStable, item => item.Name == "Stable" && item.Level == 20);
     }
 
+    [Theory]
+    [InlineData(31)]
+    [InlineData(32)]
+    [InlineData(33)]
+    [InlineData(42)]
+    [InlineData(43)]
+    public void RequirementsFor_Walls_ReturnsNoRequirements(int gid)
+    {
+        Assert.Empty(BuildingCatalogService.RequirementsFor(gid));
+    }
+
     [Fact]
     public void CategoryIndexFor_UsesCorrectCategoriesForSpecialCases()
     {

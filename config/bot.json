@@ -8,7 +8,7 @@
   "manual_login_timeout_seconds": 180,
   "captcha_auto_solve_enabled": true,
   "captcha_solver_timeout_seconds": 60,
-  "captcha_solver_max_attempts": 2,
+  "captcha_solver_max_attempts": 3,
   "loop_interval_seconds": 60,
   "loop_tasks": [
     "hero_manage"
@@ -21,12 +21,7 @@
   "gold_limit": 300,
   "silver_limit": 100,
   "natar_village_selection": "farm_villages",
-  "continuous_loop_groups": [
-    "construction",
-    "hero",
-    "farming",
-    "troop_training"
-  ],
+  "continuous_loop_groups": [],
   "continuous_loop_group_order": [
     "construction",
     "troops",
@@ -100,8 +95,10 @@
   "npc_trade_analyze_crop": true,
   "npc_trade_construction_enabled": true,
   "resource_transfer_enabled": false,
-  "resource_transfer_target_village_name": "slav \u0060s village",
-  "resource_transfer_source_village_names": [],
+  "resource_transfer_target_village_name": "slav",
+  "resource_transfer_source_village_names": [
+    "village2"
+  ],
   "resource_transfer_source_threshold_percent": 50,
   "resource_transfer_source_keep_percent": 5,
   "resource_transfer_target_fill_percent": 90,
@@ -110,8 +107,10 @@
   "resource_transfer_send_iron": true,
   "resource_transfer_send_crop": true,
   "reinforcements_enabled": false,
-  "reinforcements_target_village_name": "slav \u0060s village",
-  "reinforcements_source_village_names": [],
+  "reinforcements_target_village_name": "slav",
+  "reinforcements_source_village_names": [
+    "village2"
+  ],
   "reinforcements_troop_rules": [
     {
       "accountName": "",
@@ -348,6 +347,166 @@
     {
       "accountName": "grek_pro_ss_travi_com",
       "sourceVillageName": "slav \u0060s village",
+      "troopType": "Settler",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "slav",
+      "troopType": "Clubswinger",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "slav",
+      "troopType": "Spearman",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "slav",
+      "troopType": "Axeman",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "slav",
+      "troopType": "Scout",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "slav",
+      "troopType": "Paladin",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "slav",
+      "troopType": "Teutonic Knight",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "slav",
+      "troopType": "Ram",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "slav",
+      "troopType": "Catapult",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "slav",
+      "troopType": "Chief",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "slav",
+      "troopType": "Settler",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "village2",
+      "troopType": "Clubswinger",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "village2",
+      "troopType": "Spearman",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "village2",
+      "troopType": "Axeman",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "village2",
+      "troopType": "Scout",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "village2",
+      "troopType": "Paladin",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "village2",
+      "troopType": "Teutonic Knight",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "village2",
+      "troopType": "Ram",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "village2",
+      "troopType": "Catapult",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "village2",
+      "troopType": "Chief",
+      "amountMode": "all_available",
+      "amount": 1,
+      "isEnabled": true
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "sourceVillageName": "village2",
       "troopType": "Settler",
       "amountMode": "all_available",
       "amount": 1,

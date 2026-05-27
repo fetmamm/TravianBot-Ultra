@@ -41,7 +41,7 @@ public sealed class BotOptions
 
     [ConfigurationKeyName(BotOptionPayloadKeys.CaptchaSolverMaxAttempts)]
     [Range(1, int.MaxValue)]
-    public int CaptchaSolverMaxAttempts { get; init; } = 1;
+    public int CaptchaSolverMaxAttempts { get; init; } = 3;
 
     [ConfigurationKeyName("loop_interval_seconds")]
     [Range(1, int.MaxValue)]

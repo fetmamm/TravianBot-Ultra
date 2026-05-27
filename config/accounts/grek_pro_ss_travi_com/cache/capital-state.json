@@ -3,11 +3,29 @@
     {
       "accountName": "grek_pro_ss_travi_com",
       "serverUrl": "https://pro.ss-travi.com",
+      "villageName": "slav",
+      "isCapital": true,
+      "coordX": null,
+      "coordY": null,
+      "updatedAtUtc": "2026-05-27T13:14:56.6328222+00:00"
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "serverUrl": "https://pro.ss-travi.com",
       "villageName": "slav \u0060s village",
       "isCapital": true,
       "coordX": null,
       "coordY": null,
-      "updatedAtUtc": "2026-05-27T07:33:07.5731597+00:00"
+      "updatedAtUtc": "2026-05-27T12:33:22.298392+00:00"
+    },
+    {
+      "accountName": "grek_pro_ss_travi_com",
+      "serverUrl": "https://pro.ss-travi.com",
+      "villageName": "village2",
+      "isCapital": false,
+      "coordX": null,
+      "coordY": null,
+      "updatedAtUtc": "2026-05-27T13:14:56.6353125+00:00"
     }
   ]
 }

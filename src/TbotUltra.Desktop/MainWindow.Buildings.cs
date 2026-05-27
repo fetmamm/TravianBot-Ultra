@@ -300,11 +300,6 @@ public partial class MainWindow
             return;
         }
 
-        if (TryQueueFixedSpecialSlotConstruct(slotId))
-        {
-            return;
-        }
-
         var options = GetClassifiedConstructOptionsForSlot(slotId);
         if (options.Count == 0)
         {
@@ -371,47 +366,6 @@ public partial class MainWindow
             }
             BuildingsInfoTextBlock.Text = $"Queued construct + upgrade to level {clamped} for {selected.Name} in slot {slotId}.";
         }
-    }
-
-    private bool TryQueueFixedSpecialSlotConstruct(int slotId)
-    {
-        if (_lastBuildingStatus is null)
-        {
-            return false;
-        }
-
-        BuildingCatalogOption? option = null;
-        if (slotId == 39)
-        {
-            option = BuildConstructOption(16, "Rally Point", "army_buildings");
-        }
-        else if (slotId == 40 && BuildingCatalogService.WallForTribe(_lastBuildingStatus.Tribe) is { } wall)
-        {
-            option = BuildConstructOption(wall.Gid, wall.Name, "infrastructure");
-        }
-
-        if (option is null)
-        {
-            return false;
-        }
-
-        return TryQueueConstructBuilding(slotId, option);
-    }
-
-    private static BuildingCatalogOption BuildConstructOption(int gid, string name, string category)
-    {
-        var requirements = BuildingCatalogService.RequirementsFor(gid);
-        return new BuildingCatalogOption
-        {
-            Gid = gid,
-            Name = name,
-            Category = category,
-            MaxLevel = BuildingCatalogService.MaxLevelFor(gid),
-            RequirementEntries = requirements,
-            Requirements = requirements.Count == 0
-                ? "-"
-                : string.Join(", ", requirements.Select(req => $"{req.Name} {req.Level}+")),
-        };
     }
 
     private IReadOnlyList<BuildingCatalogOption> GetConstructableOptionsForSlot(int slotId)
@@ -618,7 +572,9 @@ public partial class MainWindow
         }
 
         var projectedStatus = BuildProjectedBuildingStatus(_lastBuildingStatus);
-        var occupied = projectedStatus.Buildings.FirstOrDefault(item => item.SlotId == slotId && ((item.Level ?? 0) > 0 || (item.Gid ?? 0) > 0));
+        var occupied = projectedStatus.Buildings.FirstOrDefault(item => item.SlotId == slotId
+            && ((item.Level ?? 0) > 0
+                || ((item.Gid ?? 0) > 0 && !IsUnbuiltFixedSpecialSlot(slotId, item, selectedBuilding.Gid))));
         if (occupied is not null)
         {
             reason = (occupied.Level ?? 0) > 0
@@ -628,7 +584,7 @@ public partial class MainWindow
         }
 
         var existingSameGidLevels = projectedStatus.Buildings
-            .Where(item => item.Gid == selectedBuilding.Gid && ((item.Level ?? 0) > 0 || (item.Gid ?? 0) > 0))
+            .Where(item => item.Gid == selectedBuilding.Gid && (item.Level ?? 0) > 0)
             .Select(item => item.Level ?? 0)
             .ToList();
         var duplicateAllowed = selectedBuilding.Gid is 23 or 38 or 39;
@@ -696,6 +652,17 @@ public partial class MainWindow
         }
 
         return true;
+    }
+
+    private static bool IsUnbuiltFixedSpecialSlot(int slotId, Building building, int selectedGid)
+    {
+        if ((building.Level ?? 0) > 0 || building.Gid != selectedGid)
+        {
+            return false;
+        }
+
+        return (slotId == 39 && IsRallyPointGid(selectedGid))
+            || (slotId == 40 && WallGids.Contains(selectedGid));
     }
 
     private bool TryQueueConstructBuilding(int slotId, BuildingCatalogOption selectedBuilding)

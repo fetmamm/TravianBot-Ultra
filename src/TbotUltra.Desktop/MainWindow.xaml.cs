@@ -273,6 +273,11 @@ public partial class MainWindow : Window
     private bool _captchaSessionActive;
     private int _npcTradeSessionCount;
     private AppDialog? _captchaAutoSolvePopup;
+    private DispatcherTimer? _captchaAutoSolveElapsedTimer;
+    private DateTimeOffset _captchaAutoSolveStartedAt;
+    private int _captchaAutoSolveMaxSeconds = 60;
+    private TextBlock? _captchaAutoSolveAttemptTextBlock;
+    private TextBlock? _captchaAutoSolveElapsedTextBlock;
     private DateTimeOffset _lastVerificationPopupAt = DateTimeOffset.MinValue;
     private DateTimeOffset _inlineWaitUntilUtc = DateTimeOffset.MinValue;
     private DateTimeOffset _constructionInlineWaitUntilUtc = DateTimeOffset.MinValue;
@@ -317,6 +322,7 @@ public partial class MainWindow : Window
     private bool _continuousLoopConstructionStatusNeedsSync = true;
     private bool _restartContinuousLoopAfterStop;
     private bool _startContinuousLoopAfterQueueStop;
+    private int _continuousLoopWakeRequested;
 
     public ObservableCollection<BuildingSlotRow> BuildingSlots => _buildingRows;
 
