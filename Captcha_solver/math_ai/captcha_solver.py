@@ -32,7 +32,8 @@ class SolverConfig:
     min_symbol_width_ratio: float = 0.02
     max_symbol_width_ratio: float = 0.42
     min_symbol_area: int = 18
-    question_gap_ratio: float = 1.9
+    question_gap_ratio: float = 0.8
+    min_candidate_confidence: float = 80.0
     output_review_dir: str = "review_dataset"
 
 
@@ -229,6 +230,50 @@ def remove_nested_boxes(boxes: list[tuple[int, int, int, int]]) -> list[tuple[in
     return filtered
 
 
+def split_wide_symbol_boxes(
+    boxes: list[tuple[int, int, int, int]],
+    threshold_image: np.ndarray,
+) -> list[tuple[int, int, int, int]]:
+    if len(boxes) < 2:
+        return boxes
+
+    widths = [box[2] for box in boxes]
+    base_width = float(np.median(widths))
+    if base_width <= 0:
+        return boxes
+
+    split_boxes: list[tuple[int, int, int, int]] = []
+
+    for x, y, w, h in boxes:
+        should_split = (
+            w >= max(14, int(base_width * 1.6))
+            and w <= int(base_width * 2.8)
+            and h >= 8
+        )
+
+        if not should_split:
+            split_boxes.append((x, y, w, h))
+            continue
+
+        crop = threshold_image[y:y + h, x:x + w]
+        projection = np.count_nonzero(crop, axis=0)
+        left = max(3, int(w * 0.35))
+        right = min(w - 3, int(w * 0.65))
+
+        if left < right:
+            split_at = left + int(np.argmin(projection[left:right]))
+        else:
+            split_at = w // 2
+
+        if split_at < 4 or w - split_at < 4:
+            split_at = w // 2
+
+        split_boxes.append((x, y, split_at, h))
+        split_boxes.append((x + split_at, y, w - split_at, h))
+
+    return sorted(split_boxes, key=lambda item: item[0])
+
+
 def try_parse_expression(expression: str) -> ParsedExpression:
     if not expression:
         return ParsedExpression("", "", 0, 0.0, False)
@@ -240,6 +285,12 @@ def try_parse_expression(expression: str) -> ParsedExpression:
     left, right = expression.split(operator, 1)
 
     if not left.isdigit() or not right.isdigit():
+        return ParsedExpression(expression, "", 0, 0.0, False)
+
+    if (len(left) > 1 and left.startswith("0")) or (len(right) > 1 and right.startswith("0")):
+        return ParsedExpression(expression, "", 0, 0.0, False)
+
+    if int(left) > 20 or int(right) > 10:
         return ParsedExpression(expression, "", 0, 0.0, False)
 
     try:
@@ -278,11 +329,38 @@ class CaptchaSolver:
             normalized=normalized,
         )
 
+    def find_panel_regions(self, gray: np.ndarray) -> list[tuple[int, int, int, int]]:
+        mask = cv2.inRange(gray, 225, 245)
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=1)
+
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        image_area = gray.shape[0] * gray.shape[1]
+        boxes: list[tuple[int, int, int, int]] = []
+
+        for contour in contours:
+            x, y, w, h = cv2.boundingRect(contour)
+            area_ratio = (w * h) / max(image_area, 1)
+            aspect_ratio = w / max(h, 1)
+
+            if y < gray.shape[0] * 0.16:
+                continue
+            if area_ratio < 0.008 or area_ratio > 0.06:
+                continue
+            if aspect_ratio < 2.4 or aspect_ratio > 6.5:
+                continue
+            if w < 80 or h < 25:
+                continue
+
+            boxes.append(expand_box((x, y, w, h), gray.shape, pad_x=4, pad_y=4))
+
+        return boxes
+
     def find_expression_regions(self, image: np.ndarray) -> list[tuple[int, int, int, int]]:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         variants = build_threshold_variants(gray)
         image_area = gray.shape[0] * gray.shape[1]
-        all_boxes: list[tuple[int, int, int, int]] = []
+        all_boxes: list[tuple[int, int, int, int]] = self.find_panel_regions(gray)
 
         for variant in variants.values():
             kernel_width = max(15, gray.shape[1] // 12)
@@ -420,6 +498,7 @@ class CaptchaSolver:
                 continue
 
             boxes = sorted(remove_nested_boxes(boxes), key=lambda item: item[0])
+            boxes = split_wide_symbol_boxes(boxes, threshold_image)
 
             if len(boxes) > self.config.max_boxes_per_region:
                 continue
@@ -465,7 +544,7 @@ class CaptchaSolver:
                 break
 
             if second_number_started and next_gap is not None:
-                if next_gap > max(12.0, median_width * self.config.question_gap_ratio):
+                if next_gap > max(6.0, median_width * self.config.question_gap_ratio):
                     break
 
         parsed = try_parse_expression(expression)
@@ -484,6 +563,8 @@ class CaptchaSolver:
     ) -> tuple[float, str]:
         if not parsed.valid:
             return -1.0, "invalid expression"
+        if parsed.average_confidence < self.config.min_candidate_confidence:
+            return -1.0, "low confidence"
 
         score = parsed.average_confidence
         reason = "valid expression"
@@ -500,6 +581,8 @@ class CaptchaSolver:
         aspect_ratio = w / max(h, 1)
         if 2.0 <= aspect_ratio <= 8.5:
             score += 5.0
+        if x <= 2 or y <= 2:
+            score -= 15.0
 
         return score, reason
 
