@@ -4,6 +4,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Tasks;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
@@ -37,6 +38,18 @@ public partial class MainWindow
         }
 
         if (string.Equals(item.TaskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase)
+            && ResourceUpgradePayload.TryFromDictionary(payload, out var resourcePayload, ResourceFieldMaxLevel)
+            && resourcePayload is not null)
+        {
+            var name = !string.IsNullOrWhiteSpace(resourcePayload.Name)
+                ? resourcePayload.Name
+                : ResolveResourceName(resourcePayload.SlotId);
+            return !string.IsNullOrWhiteSpace(name)
+                ? $"Upgrade {name} slot {resourcePayload.SlotId} to level {resourcePayload.TargetLevel}"
+                : $"Upgrade resource slot {resourcePayload.SlotId} to level {resourcePayload.TargetLevel}";
+        }
+
+        if (string.Equals(item.TaskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase)
             && targetLevel.HasValue)
         {
             var name = !string.IsNullOrWhiteSpace(resourceName)
@@ -49,12 +62,34 @@ public partial class MainWindow
                     : $"Upgrade resource slot {slotId ?? 0} to level {targetLevel.Value}";
         }
 
+        if (string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase)
+            && BuildingConstructPayload.TryFromDictionary(payload, out var constructPayload)
+            && constructPayload is not null)
+        {
+            var slotSuffix = $" (slot {constructPayload.SlotId})";
+            return !string.IsNullOrWhiteSpace(constructPayload.Name)
+                ? $"Construct {constructPayload.Name} to level 1{slotSuffix}"
+                : $"Construct building{slotSuffix}";
+        }
+
         if (string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase))
         {
             var slotSuffix = slotId.HasValue ? $" (slot {slotId.Value})" : string.Empty;
             return !string.IsNullOrWhiteSpace(buildingName)
                 ? $"Construct {buildingName} to level 1{slotSuffix}"
                 : $"Construct building{slotSuffix}";
+        }
+
+        if (string.Equals(item.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+            && BuildingUpgradePayload.TryFromDictionary(payload, out var buildingPayload)
+            && buildingPayload is { TargetLevel: not null })
+        {
+            var name = !string.IsNullOrWhiteSpace(buildingPayload.Name)
+                ? buildingPayload.Name
+                : ResolveBuildingName(buildingPayload.SlotId);
+            return !string.IsNullOrWhiteSpace(name)
+                ? $"Upgrade {name} to level {buildingPayload.TargetLevel.Value}{BuildSlotSuffix(buildingPayload.SlotId)}"
+                : $"Upgrade building slot {buildingPayload.SlotId} to level {buildingPayload.TargetLevel.Value}";
         }
 
         if (string.Equals(item.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
@@ -66,6 +101,18 @@ public partial class MainWindow
             return !string.IsNullOrWhiteSpace(name)
                 ? $"Upgrade {name} to level {targetLevel.Value}{BuildSlotSuffix(slotId)}"
                 : $"Upgrade building slot {slotId ?? 0} to level {targetLevel.Value}";
+        }
+
+        if (string.Equals(item.TaskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase)
+            && BuildingUpgradePayload.TryFromDictionary(payload, out var buildingMaxPayload)
+            && buildingMaxPayload is not null)
+        {
+            var name = !string.IsNullOrWhiteSpace(buildingMaxPayload.Name)
+                ? buildingMaxPayload.Name
+                : ResolveBuildingName(buildingMaxPayload.SlotId);
+            return !string.IsNullOrWhiteSpace(name)
+                ? $"Upgrade {name} to max level{BuildSlotSuffix(buildingMaxPayload.SlotId)}"
+                : $"Upgrade building slot {buildingMaxPayload.SlotId} to max level";
         }
 
         if (string.Equals(item.TaskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase))

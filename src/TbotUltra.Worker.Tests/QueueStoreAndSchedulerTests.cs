@@ -1,3 +1,7 @@
+using CoreTaskCatalog = TbotUltra.Core.Tasks.TaskCatalog;
+using System.Text.Json;
+using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Tasks;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
 using Xunit;
@@ -78,13 +82,353 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
     [Fact]
     public void TaskCatalog_AllowsKnownTasks_AndRejectsUnknown()
     {
-        Assert.True(TaskCatalog.IsAllowed("status"));
-        Assert.True(TaskCatalog.IsAllowed("upgrade_building_to_max"));
-        Assert.True(TaskCatalog.IsAllowed("demolish_building_to_level"));
-        Assert.True(TaskCatalog.IsAllowed("hero_manage"));
-        Assert.True(TaskCatalog.IsAllowed("send_resources_between_villages"));
-        Assert.True(TaskCatalog.IsAllowed("send_reinforcements_between_villages"));
-        Assert.False(TaskCatalog.IsAllowed("train_troops"));
+        Assert.True(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("status"));
+        Assert.True(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("upgrade_building_to_max"));
+        Assert.True(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("demolish_building_to_level"));
+        Assert.True(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("hero_manage"));
+        Assert.True(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("send_resources_between_villages"));
+        Assert.True(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("send_reinforcements_between_villages"));
+        Assert.False(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("train_troops"));
+    }
+
+    [Fact]
+    public void TaskCatalog_Descriptors_PreserveAllowedTaskOrder()
+    {
+        Assert.Equal(
+            [
+                "status",
+                "scan_all_villages",
+                "account_snapshot",
+                "upgrade_resource_to_level",
+                "upgrade_all_resources_to_level",
+                "upgrade_building_to_level",
+                "upgrade_building_to_max",
+                "construct_building",
+                "load_buildings_snapshot",
+                "demolish_building_to_level",
+                "hero_manage",
+                "hero_set_hide_mode",
+                "upgrade_troops_at_smithy",
+                "build_troops",
+                "run_brewery_celebration",
+                "send_farmlists",
+                "send_resources_between_villages",
+                "send_reinforcements_between_villages",
+            ],
+            CoreTaskCatalog.AllowedTaskNames);
+    }
+
+    [Theory]
+    [InlineData("upgrade_resource_to_level", TaskGroup.Construction, TaskPayloadKind.ResourceUpgrade)]
+    [InlineData("upgrade_building_to_level", TaskGroup.Construction, TaskPayloadKind.BuildingUpgrade)]
+    [InlineData("upgrade_building_to_max", TaskGroup.Construction, TaskPayloadKind.BuildingUpgrade)]
+    [InlineData("construct_building", TaskGroup.Construction, TaskPayloadKind.BuildingConstruct)]
+    [InlineData("hero_manage", TaskGroup.Hero, TaskPayloadKind.Hero)]
+    [InlineData("send_farmlists", TaskGroup.Farming, TaskPayloadKind.Farming)]
+    [InlineData("build_troops", TaskGroup.TroopTraining, TaskPayloadKind.TroopTraining)]
+    [InlineData("run_brewery_celebration", TaskGroup.BreweryCelebration, TaskPayloadKind.Brewery)]
+    [InlineData("send_resources_between_villages", TaskGroup.ResourceTransfer, TaskPayloadKind.ResourceTransfer)]
+    public void TaskCatalog_Descriptors_ExposeGroupAndPayloadKind(string taskName, TaskGroup group, TaskPayloadKind payloadKind)
+    {
+        Assert.True(CoreTaskCatalog.TryGetDescriptor(taskName, out var descriptor));
+        Assert.Equal(group, descriptor.Group);
+        Assert.Equal(payloadKind, descriptor.PayloadKind);
+    }
+
+    [Theory]
+    [InlineData("status", QueueGroup.Construction)]
+    [InlineData("upgrade_resource_to_level", QueueGroup.Construction)]
+    [InlineData("construct_building", QueueGroup.Construction)]
+    [InlineData("hero_manage", QueueGroup.Hero)]
+    [InlineData("hero_set_hide_mode", QueueGroup.Hero)]
+    [InlineData("upgrade_troops_at_smithy", QueueGroup.Troops)]
+    [InlineData("build_troops", QueueGroup.TroopTraining)]
+    [InlineData("run_brewery_celebration", QueueGroup.BreweryCelebration)]
+    [InlineData("send_farmlists", QueueGroup.Farming)]
+    [InlineData("send_resources_between_villages", QueueGroup.ResourceTransfer)]
+    [InlineData("send_reinforcements_between_villages", QueueGroup.Reinforcements)]
+    public void QueueGroupCatalog_ResolvesKnownTasks_FromDescriptors(string taskName, QueueGroup expected)
+    {
+        Assert.Equal(expected, QueueGroupCatalog.ResolveGroup(taskName));
+    }
+
+    [Fact]
+    public void ResourceUpgradePayload_ParsesAndSerializesDictionary()
+    {
+        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.ResourceUpgradeSlotId] = "4",
+            [BotOptionPayloadKeys.ResourceUpgradeTargetLevel] = "50",
+            [BotOptionPayloadKeys.ResourceUpgradeName] = "Clay pit",
+        };
+
+        Assert.True(ResourceUpgradePayload.TryFromDictionary(payload, out var parsed, maxLevel: 20));
+        Assert.NotNull(parsed);
+        Assert.Equal(4, parsed!.SlotId);
+        Assert.Equal(20, parsed.TargetLevel);
+        Assert.Equal("Clay pit", parsed.Name);
+        var serialized = parsed.ToDictionary();
+        Assert.Equal(3, serialized.Count);
+        Assert.Equal("4", serialized[BotOptionPayloadKeys.ResourceUpgradeSlotId]);
+        Assert.Equal("20", serialized[BotOptionPayloadKeys.ResourceUpgradeTargetLevel]);
+        Assert.Equal("Clay pit", serialized[BotOptionPayloadKeys.ResourceUpgradeName]);
+    }
+
+    [Theory]
+    [InlineData("", "10")]
+    [InlineData("19", "10")]
+    [InlineData("4", "0")]
+    [InlineData("4", "bad")]
+    public void ResourceUpgradePayload_RejectsInvalidPayload(string slotId, string targetLevel)
+    {
+        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.ResourceUpgradeSlotId] = slotId,
+            [BotOptionPayloadKeys.ResourceUpgradeTargetLevel] = targetLevel,
+        };
+
+        Assert.False(ResourceUpgradePayload.TryFromDictionary(payload, out _));
+    }
+
+    [Fact]
+    public void BuildingPayloads_ParseAndSerializeDictionary()
+    {
+        var upgrade = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.BuildingUpgradeSlotId] = "20",
+            [BotOptionPayloadKeys.BuildingUpgradeTargetLevel] = "10",
+            [BotOptionPayloadKeys.BuildingUpgradeName] = "Main Building",
+        };
+        var construct = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.BuildingConstructSlotId] = "21",
+            [BotOptionPayloadKeys.BuildingConstructGid] = "19",
+            [BotOptionPayloadKeys.BuildingConstructName] = "Barracks",
+        };
+
+        Assert.True(BuildingUpgradePayload.TryFromDictionary(upgrade, out var parsedUpgrade));
+        Assert.Equal(20, parsedUpgrade!.SlotId);
+        Assert.Equal(10, parsedUpgrade.TargetLevel);
+        Assert.Equal("Main Building", parsedUpgrade.Name);
+        var serializedUpgrade = parsedUpgrade.ToDictionary();
+        Assert.Equal(3, serializedUpgrade.Count);
+        Assert.Equal("20", serializedUpgrade[BotOptionPayloadKeys.BuildingUpgradeSlotId]);
+        Assert.Equal("10", serializedUpgrade[BotOptionPayloadKeys.BuildingUpgradeTargetLevel]);
+        Assert.Equal("Main Building", serializedUpgrade[BotOptionPayloadKeys.BuildingUpgradeName]);
+
+        Assert.True(BuildingConstructPayload.TryFromDictionary(construct, out var parsedConstruct));
+        Assert.Equal(21, parsedConstruct!.SlotId);
+        Assert.Equal(19, parsedConstruct.Gid);
+        Assert.Equal("Barracks", parsedConstruct.Name);
+        var serializedConstruct = parsedConstruct.ToDictionary();
+        Assert.Equal(3, serializedConstruct.Count);
+        Assert.Equal("21", serializedConstruct[BotOptionPayloadKeys.BuildingConstructSlotId]);
+        Assert.Equal("19", serializedConstruct[BotOptionPayloadKeys.BuildingConstructGid]);
+        Assert.Equal("Barracks", serializedConstruct[BotOptionPayloadKeys.BuildingConstructName]);
+    }
+
+    [Fact]
+    public void BuildingPayloads_RejectInvalidPayload()
+    {
+        Assert.False(BuildingUpgradePayload.TryFromDictionary(
+            new Dictionary<string, string> { [BotOptionPayloadKeys.BuildingUpgradeSlotId] = "0" },
+            out _));
+        Assert.False(BuildingConstructPayload.TryFromDictionary(
+            new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.BuildingConstructSlotId] = "21",
+                [BotOptionPayloadKeys.BuildingConstructGid] = "0",
+            },
+            out _));
+    }
+
+    [Fact]
+    public void HeroPayload_ParsesAndSerializesDictionary()
+    {
+        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.HeroMinHpForAdventure] = "60",
+            [BotOptionPayloadKeys.HeroAutoRevive] = "true",
+            [BotOptionPayloadKeys.HeroAutoAssignPoints] = "false",
+            [BotOptionPayloadKeys.HeroAutoUseOintments] = "true",
+            [BotOptionPayloadKeys.HeroStatPriority] = "resources,fighting_strength",
+            [BotOptionPayloadKeys.HeroAdventurePickOrder] = "top",
+            [BotOptionPayloadKeys.HeroHideMode] = "fight",
+        };
+
+        Assert.True(HeroPayload.TryFromDictionary(payload, out var parsed));
+        Assert.NotNull(parsed);
+        Assert.Equal(60, parsed!.MinHpForAdventure);
+        Assert.True(parsed.AutoRevive);
+        Assert.False(parsed.AutoAssignPoints);
+        Assert.True(parsed.AutoUseOintments);
+        Assert.Equal("top", parsed.AdventurePickOrder);
+        var serialized = parsed.ToDictionary();
+        Assert.Equal(7, serialized.Count);
+        Assert.Equal("60", serialized[BotOptionPayloadKeys.HeroMinHpForAdventure]);
+        Assert.Equal("true", serialized[BotOptionPayloadKeys.HeroAutoRevive]);
+        Assert.Equal("false", serialized[BotOptionPayloadKeys.HeroAutoAssignPoints]);
+        Assert.Equal("fight", serialized[BotOptionPayloadKeys.HeroHideMode]);
+    }
+
+    [Theory]
+    [InlineData("0", "true")]
+    [InlineData("101", "true")]
+    [InlineData("60", "maybe")]
+    public void HeroPayload_RejectsInvalidPayload(string minHp, string autoRevive)
+    {
+        Assert.False(HeroPayload.TryFromDictionary(
+            new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.HeroMinHpForAdventure] = minHp,
+                [BotOptionPayloadKeys.HeroAutoRevive] = autoRevive,
+            },
+            out _));
+    }
+
+    [Fact]
+    public void ResourceTransferPayload_ParsesAndSerializesDictionary()
+    {
+        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.ResourceTransferEnabled] = "true",
+            [BotOptionPayloadKeys.ResourceTransferTargetVillageName] = "Capital",
+            [BotOptionPayloadKeys.ResourceTransferSourceVillageNames] = "A,B,A",
+            [BotOptionPayloadKeys.ResourceTransferSourceThresholdPercent] = "120",
+            [BotOptionPayloadKeys.ResourceTransferSourceKeepPercent] = "5",
+            [BotOptionPayloadKeys.ResourceTransferTargetFillPercent] = "90",
+            [BotOptionPayloadKeys.ResourceTransferSendWood] = "true",
+            [BotOptionPayloadKeys.ResourceTransferSendClay] = "false",
+            [BotOptionPayloadKeys.ResourceTransferSendIron] = "true",
+            [BotOptionPayloadKeys.ResourceTransferSendCrop] = "false",
+        };
+
+        Assert.True(ResourceTransferPayload.TryFromDictionary(payload, out var parsed));
+        Assert.NotNull(parsed);
+        Assert.Equal("Capital", parsed!.TargetVillageName);
+        Assert.Equal(["A", "B"], parsed.SourceVillageNames);
+        Assert.Equal(100, parsed.SourceThresholdPercent);
+        var serialized = parsed.ToDictionary();
+        Assert.Equal(10, serialized.Count);
+        Assert.Equal("A,B", serialized[BotOptionPayloadKeys.ResourceTransferSourceVillageNames]);
+        Assert.Equal("false", serialized[BotOptionPayloadKeys.ResourceTransferSendClay]);
+    }
+
+    [Fact]
+    public void ReinforcementsPayload_ParsesAndSerializesDictionary()
+    {
+        var rules = new[]
+        {
+            new ReinforcementTroopRule
+            {
+                AccountName = "acc",
+                SourceVillageName = "A",
+                TroopType = "Phalanx",
+                AmountMode = "all_available",
+                Amount = 1,
+                IsEnabled = true,
+            },
+        };
+        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.ReinforcementsEnabled] = "true",
+            [BotOptionPayloadKeys.ReinforcementsTargetVillageName] = "Capital",
+            [BotOptionPayloadKeys.ReinforcementsSourceVillageNames] = "A,B",
+            [BotOptionPayloadKeys.ReinforcementsTroopRules] = JsonSerializer.Serialize(rules),
+        };
+
+        Assert.True(ReinforcementsPayload.TryFromDictionary(payload, out var parsed));
+        Assert.NotNull(parsed);
+        Assert.Equal("Capital", parsed!.TargetVillageName);
+        Assert.Equal(["A", "B"], parsed.SourceVillageNames);
+        Assert.Single(parsed.TroopRules);
+        var serialized = parsed.ToDictionary();
+        Assert.Equal(4, serialized.Count);
+        Assert.Equal("A,B", serialized[BotOptionPayloadKeys.ReinforcementsSourceVillageNames]);
+        var serializedRules = JsonSerializer.Deserialize<List<ReinforcementTroopRule>>(serialized[BotOptionPayloadKeys.ReinforcementsTroopRules]);
+        Assert.Single(serializedRules!);
+        Assert.Equal("Phalanx", serializedRules![0].TroopType);
+    }
+
+    [Fact]
+    public void FarmingPayload_ParsesAndSerializesDictionary()
+    {
+        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.ContinuousFarmListNames] = "List A,List B,List A",
+            [BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes] = "9",
+        };
+
+        Assert.True(FarmingPayload.TryFromDictionary(payload, out var parsed));
+        Assert.NotNull(parsed);
+        Assert.Equal(["List A", "List B"], parsed!.FarmListNames);
+        Assert.Equal(5, parsed.DispatchDelayMinutes);
+        var serialized = parsed.ToDictionary();
+        Assert.Equal(2, serialized.Count);
+        Assert.Equal("List A,List B", serialized[BotOptionPayloadKeys.ContinuousFarmListNames]);
+        Assert.Equal("5", serialized[BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes]);
+    }
+
+    [Fact]
+    public void BreweryPayload_ParsesAndSerializesDictionary()
+    {
+        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.BreweryAutoCelebrationEnabled] = "false",
+        };
+
+        Assert.True(BreweryPayload.TryFromDictionary(payload, out var parsed));
+        Assert.NotNull(parsed);
+        Assert.False(parsed!.AutoCelebrationEnabled);
+        var serialized = parsed.ToDictionary();
+        Assert.Single(serialized);
+        Assert.Equal("false", serialized[BotOptionPayloadKeys.BreweryAutoCelebrationEnabled]);
+    }
+
+    [Fact]
+    public void TroopTrainingPayload_ParsesAndSerializesDictionary()
+    {
+        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.TroopTrainingBarracksEnabled] = "true",
+            [BotOptionPayloadKeys.TroopTrainingBarracksTroopType] = "Clubswinger",
+            [BotOptionPayloadKeys.TroopTrainingBarracksMaxQueueHours] = "2",
+            [BotOptionPayloadKeys.TroopTrainingBarracksAmountMode] = "fixed",
+            [BotOptionPayloadKeys.TroopTrainingBarracksKeepResourcesPercent] = "120",
+            [BotOptionPayloadKeys.TroopTrainingBarracksRunMode] = "continuous",
+            [BotOptionPayloadKeys.TroopTrainingBarracksMinimumTroops] = "10",
+            [BotOptionPayloadKeys.TroopTrainingBarracksMinimumResourcesPercent] = "20",
+            [BotOptionPayloadKeys.TroopTrainingBarracksCheckWood] = "true",
+            [BotOptionPayloadKeys.TroopTrainingBarracksCheckClay] = "true",
+            [BotOptionPayloadKeys.TroopTrainingBarracksCheckIron] = "false",
+            [BotOptionPayloadKeys.TroopTrainingBarracksCheckCrop] = "true",
+            [BotOptionPayloadKeys.TroopTrainingFallbackCooldownSeconds] = "60",
+        };
+
+        Assert.True(TroopTrainingPayload.TryFromDictionary(payload, out var parsed));
+        Assert.NotNull(parsed);
+        Assert.True(parsed!.Barracks.Enabled);
+        Assert.Equal("Clubswinger", parsed.Barracks.TroopType);
+        Assert.Equal(100, parsed.Barracks.KeepResourcesPercent);
+        Assert.False(parsed.Barracks.CheckIron);
+        Assert.Equal(60, parsed.FallbackCooldownSeconds);
+        var serialized = parsed.ToDictionary();
+        Assert.Equal(37, serialized.Count);
+        Assert.Equal("true", serialized[BotOptionPayloadKeys.TroopTrainingBarracksEnabled]);
+        Assert.Equal("Clubswinger", serialized[BotOptionPayloadKeys.TroopTrainingBarracksTroopType]);
+        Assert.Equal("100", serialized[BotOptionPayloadKeys.TroopTrainingBarracksKeepResourcesPercent]);
+        Assert.Equal("60", serialized[BotOptionPayloadKeys.TroopTrainingFallbackCooldownSeconds]);
+    }
+
+    [Fact]
+    public void TroopTrainingPayload_RejectsInvalidPayload()
+    {
+        Assert.False(TroopTrainingPayload.TryFromDictionary(
+            new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.TroopTrainingBarracksEnabled] = "maybe",
+            },
+            out _));
     }
 
     [Fact]
@@ -141,11 +485,17 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
     [Fact]
     public void BotTaskRunner_RegistersHandlers_ForEveryAllowedTask()
     {
-        var allowed = TaskCatalog.AllowedTaskNames;
+        var allowed = TbotUltra.Worker.Services.TaskCatalog.AllowedTaskNames;
         var registered = BotTaskRunner.RegisteredTaskNames;
+
         foreach (var task in allowed)
         {
             Assert.Contains(task, registered, StringComparer.OrdinalIgnoreCase);
+        }
+
+        foreach (var task in registered)
+        {
+            Assert.Contains(task, allowed, StringComparer.OrdinalIgnoreCase);
         }
     }
 

@@ -7,6 +7,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Tasks;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
@@ -177,19 +178,17 @@ public partial class MainWindow
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            [BotOptionPayloadKeys.ResourceTransferEnabled] = "true",
-            [BotOptionPayloadKeys.ResourceTransferTargetVillageName] = target?.Name ?? string.Empty,
-            [BotOptionPayloadKeys.ResourceTransferSourceVillageNames] = string.Join(",", sourceNames),
-            [BotOptionPayloadKeys.ResourceTransferSourceThresholdPercent] = ReadComboPercent(ResourceTransferSourceThresholdComboBox, 50).ToString(),
-            [BotOptionPayloadKeys.ResourceTransferSourceKeepPercent] = ReadComboPercent(ResourceTransferSourceKeepComboBox, 5).ToString(),
-            [BotOptionPayloadKeys.ResourceTransferTargetFillPercent] = ReadComboPercent(ResourceTransferTargetFillComboBox, 90).ToString(),
-            [BotOptionPayloadKeys.ResourceTransferSendWood] = ResourceTransferWoodCheckBox.IsChecked == true ? "true" : "false",
-            [BotOptionPayloadKeys.ResourceTransferSendClay] = ResourceTransferClayCheckBox.IsChecked == true ? "true" : "false",
-            [BotOptionPayloadKeys.ResourceTransferSendIron] = ResourceTransferIronCheckBox.IsChecked == true ? "true" : "false",
-            [BotOptionPayloadKeys.ResourceTransferSendCrop] = ResourceTransferCropCheckBox.IsChecked == true ? "true" : "false",
-        };
+        return new ResourceTransferPayload(
+            Enabled: true,
+            TargetVillageName: target?.Name ?? string.Empty,
+            SourceVillageNames: sourceNames,
+            SourceThresholdPercent: ReadComboPercent(ResourceTransferSourceThresholdComboBox, 50),
+            SourceKeepPercent: ReadComboPercent(ResourceTransferSourceKeepComboBox, 5),
+            TargetFillPercent: ReadComboPercent(ResourceTransferTargetFillComboBox, 90),
+            SendWood: ResourceTransferWoodCheckBox.IsChecked == true,
+            SendClay: ResourceTransferClayCheckBox.IsChecked == true,
+            SendIron: ResourceTransferIronCheckBox.IsChecked == true,
+            SendCrop: ResourceTransferCropCheckBox.IsChecked == true).ToDictionary();
     }
 
     private void PersistResourceTransferSettings()

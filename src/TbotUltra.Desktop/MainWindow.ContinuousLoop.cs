@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Tasks;
 using TbotUltra.Worker;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
@@ -215,11 +216,7 @@ public partial class MainWindow
 
                 if (selectedFarmLists.Count > 0)
                 {
-                    var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                    {
-                        [BotOptionPayloadKeys.ContinuousFarmListNames] = string.Join(",", selectedFarmLists),
-                        [BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes] = options.ContinuousFarmDispatchDelayMinutes.ToString(),
-                    };
+                    var payload = new FarmingPayload(selectedFarmLists, options.ContinuousFarmDispatchDelayMinutes).ToDictionary();
                     _botService.EnqueueRuntime("send_farmlists", "Send selected farmlists", payload, priority: -50, maxRetries: 0);
                 }
             }
@@ -237,19 +234,17 @@ public partial class MainWindow
                 .ToList();
             if (CanRunResourceTransfer(options, out _))
             {
-                var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    [BotOptionPayloadKeys.ResourceTransferEnabled] = "true",
-                    [BotOptionPayloadKeys.ResourceTransferTargetVillageName] = options.ResourceTransferTargetVillageName,
-                    [BotOptionPayloadKeys.ResourceTransferSourceVillageNames] = string.Join(",", selectedSources),
-                    [BotOptionPayloadKeys.ResourceTransferSourceThresholdPercent] = options.ResourceTransferSourceThresholdPercent.ToString(),
-                    [BotOptionPayloadKeys.ResourceTransferSourceKeepPercent] = options.ResourceTransferSourceKeepPercent.ToString(),
-                    [BotOptionPayloadKeys.ResourceTransferTargetFillPercent] = options.ResourceTransferTargetFillPercent.ToString(),
-                    [BotOptionPayloadKeys.ResourceTransferSendWood] = options.ResourceTransferSendWood ? "true" : "false",
-                    [BotOptionPayloadKeys.ResourceTransferSendClay] = options.ResourceTransferSendClay ? "true" : "false",
-                    [BotOptionPayloadKeys.ResourceTransferSendIron] = options.ResourceTransferSendIron ? "true" : "false",
-                    [BotOptionPayloadKeys.ResourceTransferSendCrop] = options.ResourceTransferSendCrop ? "true" : "false",
-                };
+                var payload = new ResourceTransferPayload(
+                    Enabled: true,
+                    TargetVillageName: options.ResourceTransferTargetVillageName,
+                    SourceVillageNames: selectedSources,
+                    SourceThresholdPercent: options.ResourceTransferSourceThresholdPercent,
+                    SourceKeepPercent: options.ResourceTransferSourceKeepPercent,
+                    TargetFillPercent: options.ResourceTransferTargetFillPercent,
+                    SendWood: options.ResourceTransferSendWood,
+                    SendClay: options.ResourceTransferSendClay,
+                    SendIron: options.ResourceTransferSendIron,
+                    SendCrop: options.ResourceTransferSendCrop).ToDictionary();
                 _botService.EnqueueRuntime("send_resources_between_villages", "Resource transfer", payload, priority: -50, maxRetries: 0);
             }
         }
@@ -262,13 +257,11 @@ public partial class MainWindow
                 .ToList();
             if (CanRunReinforcements(options, out _))
             {
-                var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    [BotOptionPayloadKeys.ReinforcementsEnabled] = "true",
-                    [BotOptionPayloadKeys.ReinforcementsTargetVillageName] = options.ReinforcementsTargetVillageName,
-                    [BotOptionPayloadKeys.ReinforcementsSourceVillageNames] = string.Join(",", selectedSources),
-                    [BotOptionPayloadKeys.ReinforcementsTroopRules] = System.Text.Json.JsonSerializer.Serialize(BuildReinforcementRulesForRun()),
-                };
+                var payload = new ReinforcementsPayload(
+                    Enabled: true,
+                    TargetVillageName: options.ReinforcementsTargetVillageName,
+                    SourceVillageNames: selectedSources,
+                    TroopRules: BuildReinforcementRulesForRun()).ToDictionary();
                 _botService.EnqueueRuntime("send_reinforcements_between_villages", "Reinforcements", payload, priority: -50, maxRetries: 0);
             }
         }

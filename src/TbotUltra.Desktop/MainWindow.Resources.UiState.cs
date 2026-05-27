@@ -7,6 +7,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Tasks;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Worker;
 using TbotUltra.Worker.Domain;
@@ -19,24 +20,14 @@ public partial class MainWindow
     {
         slotId = 0;
         targetLevel = 0;
-        if (!payload.TryGetValue(BotOptionPayloadKeys.ResourceUpgradeSlotId, out var slotRaw)
-            || !int.TryParse(slotRaw, out slotId))
+        if (!ResourceUpgradePayload.TryFromDictionary(payload, out var parsed, ResourceFieldMaxLevel)
+            || parsed is null)
         {
             return false;
         }
 
-        if (!payload.TryGetValue(BotOptionPayloadKeys.ResourceUpgradeTargetLevel, out var targetRaw)
-            || !int.TryParse(targetRaw, out targetLevel))
-        {
-            return false;
-        }
-
-        if (slotId < 1 || slotId > 18 || targetLevel <= 0)
-        {
-            return false;
-        }
-
-        targetLevel = Math.Clamp(targetLevel, 1, ResourceFieldMaxLevel);
+        slotId = parsed.SlotId;
+        targetLevel = parsed.TargetLevel;
         return true;
     }
 
@@ -172,19 +163,7 @@ public partial class MainWindow
                 continue;
             }
 
-            if (!item.Payload.TryGetValue(BotOptionPayloadKeys.ResourceUpgradeSlotId, out var slotRaw)
-                || !int.TryParse(slotRaw, out var slotId))
-            {
-                continue;
-            }
-
-            if (!item.Payload.TryGetValue(BotOptionPayloadKeys.ResourceUpgradeTargetLevel, out var targetRaw)
-                || !int.TryParse(targetRaw, out var targetLevel))
-            {
-                continue;
-            }
-
-            if (targetLevel <= 0)
+            if (!TryReadResourceUpgradePayload(item.Payload, out var slotId, out var targetLevel))
             {
                 continue;
             }
@@ -416,12 +395,7 @@ public partial class MainWindow
             return;
         }
 
-        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            [BotOptionPayloadKeys.ResourceUpgradeSlotId] = row.SlotId.ToString(),
-            [BotOptionPayloadKeys.ResourceUpgradeTargetLevel] = target.ToString(),
-            [BotOptionPayloadKeys.ResourceUpgradeName] = rowName,
-        };
+        var payload = new ResourceUpgradePayload(row.SlotId, target, rowName).ToDictionary();
 
         EnqueueQuickTask("upgrade_resource_to_level", $"Upgrade {rowName} to level {target}", payload);
         _resourceLastQueuedTargetBySlot[row.SlotId] = (target, now);

@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Tasks;
 using TbotUltra.Worker;
 using TbotUltra.Worker.Domain;
 
@@ -148,10 +149,7 @@ public partial class MainWindow
         }
 
         var mode = _heroViewModel.HideMode;
-        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            [BotOptionPayloadKeys.HeroHideMode] = mode,
-        };
+        var payload = new HeroPayload(HideMode: mode).ToDictionary();
         EnqueueQuickTask("hero_set_hide_mode", $"Set hero hide mode to '{mode}'", payload);
     }
 
@@ -169,16 +167,14 @@ public partial class MainWindow
             return;
         }
 
-        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            [BotOptionPayloadKeys.HeroMinHpForAdventure] = minHp.ToString(),
-            [BotOptionPayloadKeys.HeroAutoRevive] = _heroViewModel.AutoRevive ? "true" : "false",
-            [BotOptionPayloadKeys.HeroAutoAssignPoints] = _heroViewModel.AutoAssignPoints ? "true" : "false",
-            [BotOptionPayloadKeys.HeroAutoUseOintments] = _heroViewModel.AutoUseOintments ? "true" : "false",
-            [BotOptionPayloadKeys.HeroStatPriority] = _heroViewModel.BuildPriorityPayload(),
-            [BotOptionPayloadKeys.HeroAdventurePickOrder] = _heroViewModel.AdventurePickOrder,
-            [BotOptionPayloadKeys.HeroHideMode] = _heroViewModel.HideMode,
-        };
+        var payload = new HeroPayload(
+            MinHpForAdventure: minHp,
+            AutoRevive: _heroViewModel.AutoRevive,
+            AutoAssignPoints: _heroViewModel.AutoAssignPoints,
+            AutoUseOintments: _heroViewModel.AutoUseOintments,
+            StatPriority: _heroViewModel.BuildPriorityPayload(),
+            AdventurePickOrder: _heroViewModel.AdventurePickOrder,
+            HideMode: _heroViewModel.HideMode).ToDictionary();
 
         var continuous = _heroViewModel.ContinuousAdventures;
         var copies = 1;

@@ -1,3 +1,4 @@
+using TbotUltra.Core.Tasks;
 using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Worker.Services;
@@ -28,45 +29,38 @@ public static class QueueGroupCatalog
         }
 
         if (taskName.StartsWith("desktop_runtime_manual:farm", StringComparison.OrdinalIgnoreCase)
-            || taskName.StartsWith("desktop_runtime_manual:analyze_farmlists", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(taskName, "send_farmlists", StringComparison.OrdinalIgnoreCase))
+            || taskName.StartsWith("desktop_runtime_manual:analyze_farmlists", StringComparison.OrdinalIgnoreCase))
         {
             return QueueGroup.Farming;
         }
 
-        if (taskName.StartsWith("desktop_runtime_manual:hero", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(taskName, "hero_manage", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(taskName, "hero_set_hide_mode", StringComparison.OrdinalIgnoreCase))
+        if (taskName.StartsWith("desktop_runtime_manual:hero", StringComparison.OrdinalIgnoreCase))
         {
             return QueueGroup.Hero;
         }
 
-        if (string.Equals(taskName, "upgrade_troops_at_smithy", StringComparison.OrdinalIgnoreCase))
+        if (TbotUltra.Core.Tasks.TaskCatalog.TryGetDescriptor(taskName, out var descriptor))
         {
-            return QueueGroup.Troops;
-        }
-
-        if (string.Equals(taskName, "build_troops", StringComparison.OrdinalIgnoreCase))
-        {
-            return QueueGroup.TroopTraining;
-        }
-
-        if (string.Equals(taskName, "run_brewery_celebration", StringComparison.OrdinalIgnoreCase))
-        {
-            return QueueGroup.BreweryCelebration;
-        }
-
-        if (string.Equals(taskName, "send_resources_between_villages", StringComparison.OrdinalIgnoreCase))
-        {
-            return QueueGroup.ResourceTransfer;
-        }
-
-        if (string.Equals(taskName, "send_reinforcements_between_villages", StringComparison.OrdinalIgnoreCase))
-        {
-            return QueueGroup.Reinforcements;
+            return ToQueueGroup(descriptor.Group);
         }
 
         return QueueGroup.Construction;
+    }
+
+    private static QueueGroup ToQueueGroup(TaskGroup group)
+    {
+        return group switch
+        {
+            TaskGroup.Troops => QueueGroup.Troops,
+            TaskGroup.Hero => QueueGroup.Hero,
+            TaskGroup.Farming => QueueGroup.Farming,
+            TaskGroup.TroopTraining => QueueGroup.TroopTraining,
+            TaskGroup.BreweryCelebration => QueueGroup.BreweryCelebration,
+            TaskGroup.NpcTrade => QueueGroup.NpcTrade,
+            TaskGroup.ResourceTransfer => QueueGroup.ResourceTransfer,
+            TaskGroup.Reinforcements => QueueGroup.Reinforcements,
+            _ => QueueGroup.Construction,
+        };
     }
 
     public static string GetKey(QueueGroup group) => Metadata[group].Key;

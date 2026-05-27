@@ -9,6 +9,7 @@ using System.Windows;
 using System.Windows.Controls;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Accounts;
+using TbotUltra.Core.Tasks;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Worker;
 using TbotUltra.Worker.Domain;
@@ -58,10 +59,7 @@ public partial class MainWindow
         var queued = 0;
         foreach (var slotId in Enumerable.Range(19, 22))
         {
-            var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                [BotOptionPayloadKeys.BuildingUpgradeSlotId] = slotId.ToString(),
-            };
+            var payload = new BuildingUpgradePayload(slotId).ToDictionary();
             EnqueueQuickTask(
                 "upgrade_building_to_max",
                 $"Upgrade slot {slotId} to max",
@@ -266,12 +264,7 @@ public partial class MainWindow
             return false;
         }
 
-        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            [BotOptionPayloadKeys.BuildingUpgradeSlotId] = slotId.ToString(),
-            [BotOptionPayloadKeys.BuildingUpgradeTargetLevel] = targetLevel.ToString(),
-            [BotOptionPayloadKeys.BuildingUpgradeName] = row.Name,
-        };
+        var payload = new BuildingUpgradePayload(slotId, targetLevel, row.Name).ToDictionary();
         var item = EnqueueBuildingUpgradeTaskCoalesced(
             "upgrade_building_to_level",
             payload,
@@ -341,12 +334,7 @@ public partial class MainWindow
             // Slot is still empty at this moment (construct hasn't run yet), so we queue
             // upgrade-to-max directly instead of going through TryQueueBuildingUpgradeToMax
             // which gates on IsOccupied.
-            var maxPayload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                [BotOptionPayloadKeys.BuildingUpgradeSlotId] = slotId.ToString(),
-                [BotOptionPayloadKeys.BuildingUpgradeTargetLevel] = selected.MaxLevel.ToString(),
-                [BotOptionPayloadKeys.BuildingUpgradeName] = selected.Name,
-            };
+            var maxPayload = new BuildingUpgradePayload(slotId, selected.MaxLevel, selected.Name).ToDictionary();
             var queuedMax = EnqueueBuildingUpgradeTaskCoalesced(
                 "upgrade_building_to_max",
                 maxPayload,
@@ -366,12 +354,7 @@ public partial class MainWindow
         else if (targetLevel > 1)
         {
             var clamped = Math.Clamp(targetLevel, 1, selected.MaxLevel);
-            var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                [BotOptionPayloadKeys.BuildingUpgradeSlotId] = slotId.ToString(),
-                [BotOptionPayloadKeys.BuildingUpgradeTargetLevel] = clamped.ToString(),
-                [BotOptionPayloadKeys.BuildingUpgradeName] = selected.Name,
-            };
+            var payload = new BuildingUpgradePayload(slotId, clamped, selected.Name).ToDictionary();
             var queuedUpgrade = EnqueueBuildingUpgradeTaskCoalesced(
                 "upgrade_building_to_level",
                 payload,
@@ -731,12 +714,7 @@ public partial class MainWindow
             return false;
         }
 
-        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            [BotOptionPayloadKeys.BuildingConstructSlotId] = slotId.ToString(),
-            [BotOptionPayloadKeys.BuildingConstructGid] = selectedBuilding.Gid.ToString(),
-            [BotOptionPayloadKeys.BuildingConstructName] = selectedBuilding.Name,
-        };
+        var payload = new BuildingConstructPayload(slotId, selectedBuilding.Gid, selectedBuilding.Name).ToDictionary();
         var item = EnqueueBuildingConstructTaskCoalesced(
             payload,
             slotId,
@@ -805,17 +783,13 @@ public partial class MainWindow
             return false;
         }
 
-        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            [BotOptionPayloadKeys.BuildingUpgradeSlotId] = slotId.ToString(),
-            [BotOptionPayloadKeys.BuildingUpgradeTargetLevel] = row.Gid is int gid ? BuildingCatalogService.MaxLevelFor(gid).ToString() : "40",
-            [BotOptionPayloadKeys.BuildingUpgradeName] = row.Name,
-        };
+        var maxLevel = row.Gid is int gid ? BuildingCatalogService.MaxLevelFor(gid) : 40;
+        var payload = new BuildingUpgradePayload(slotId, maxLevel, row.Name).ToDictionary();
         var item = EnqueueBuildingUpgradeTaskCoalesced(
             "upgrade_building_to_max",
             payload,
             slotId,
-            row.Gid is int existingGid ? BuildingCatalogService.MaxLevelFor(existingGid) : 40,
+            maxLevel,
             out var effectiveTargetLevel,
             out var enqueued,
             out var removedCount);

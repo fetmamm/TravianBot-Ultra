@@ -23,7 +23,6 @@
   "natar_village_selection": "farm_villages",
   "continuous_loop_groups": [
     "construction",
-    "troops",
     "hero"
   ],
   "continuous_loop_group_order": [

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Tasks;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
@@ -39,23 +40,15 @@ public partial class MainWindow
         gid = 0;
         buildingName = string.Empty;
 
-        if (!payload.TryGetValue(BotOptionPayloadKeys.BuildingConstructSlotId, out var slotRaw)
-            || !int.TryParse(slotRaw, out slotId))
+        if (!BuildingConstructPayload.TryFromDictionary(payload, out var parsed)
+            || parsed is null)
         {
             return false;
         }
 
-        if (!payload.TryGetValue(BotOptionPayloadKeys.BuildingConstructGid, out var gidRaw)
-            || !int.TryParse(gidRaw, out gid))
-        {
-            return false;
-        }
-
-        if (payload.TryGetValue(BotOptionPayloadKeys.BuildingConstructName, out var nameRaw))
-        {
-            buildingName = nameRaw?.Trim() ?? string.Empty;
-        }
-
+        slotId = parsed.SlotId;
+        gid = parsed.Gid;
+        buildingName = parsed.Name ?? string.Empty;
         return true;
     }
 
@@ -67,31 +60,25 @@ public partial class MainWindow
         slotId = 0;
         targetLevel = null;
 
-        if (!payload.TryGetValue(BotOptionPayloadKeys.BuildingUpgradeSlotId, out var slotRaw)
-            || !int.TryParse(slotRaw, out slotId))
+        if (!BuildingUpgradePayload.TryFromDictionary(payload, out var parsed)
+            || parsed is null)
         {
             return false;
         }
 
-        if (payload.TryGetValue(BotOptionPayloadKeys.BuildingUpgradeTargetLevel, out var targetRaw)
-            && int.TryParse(targetRaw, out var parsedTargetLevel))
-        {
-            targetLevel = parsedTargetLevel;
-        }
-
+        slotId = parsed.SlotId;
+        targetLevel = parsed.TargetLevel;
         return true;
     }
 
     private void ForgetBuildingQueueCachesForItem(QueueItem item)
     {
-        if (item.Payload.TryGetValue(BotOptionPayloadKeys.BuildingUpgradeSlotId, out var upgradeSlotRaw)
-            && int.TryParse(upgradeSlotRaw, out var upgradeSlotId))
+        if (TryReadBuildingUpgradePayload(item.Payload, out var upgradeSlotId, out _))
         {
             _buildingLastQueuedTargetBySlot.Remove(upgradeSlotId);
         }
 
-        if (item.Payload.TryGetValue(BotOptionPayloadKeys.BuildingConstructSlotId, out var constructSlotRaw)
-            && int.TryParse(constructSlotRaw, out var constructSlotId))
+        if (TryReadBuildingConstructPayload(item.Payload, out var constructSlotId, out _, out _))
         {
             _buildingLastQueuedConstructBySlot.Remove(constructSlotId);
         }
@@ -265,14 +252,9 @@ public partial class MainWindow
         foreach (var item in queueItems ?? GetActiveQueueItems())
         {
             if (string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase)
-                && item.Payload.TryGetValue(BotOptionPayloadKeys.BuildingConstructSlotId, out var constructSlotRaw)
-                && int.TryParse(constructSlotRaw, out var constructSlotId)
-                && item.Payload.TryGetValue(BotOptionPayloadKeys.BuildingConstructGid, out var constructGidRaw)
-                && int.TryParse(constructGidRaw, out var constructGid))
+                && TryReadBuildingConstructPayload(item.Payload, out var constructSlotId, out var constructGid, out var constructName))
             {
-                var constructName = item.Payload.TryGetValue(BotOptionPayloadKeys.BuildingConstructName, out var queuedConstructName)
-                    ? queuedConstructName
-                    : $"gid {constructGid}";
+                constructName = string.IsNullOrWhiteSpace(constructName) ? $"gid {constructGid}" : constructName;
                 var projected = new Building(constructSlotId, constructName, 0, null, constructGid);
                 bySlot[constructSlotId] = projected;
                 continue;
@@ -280,17 +262,15 @@ public partial class MainWindow
 
             if ((string.Equals(item.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(item.TaskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase))
-                && item.Payload.TryGetValue(BotOptionPayloadKeys.BuildingUpgradeSlotId, out var upgradeSlotRaw)
-                && int.TryParse(upgradeSlotRaw, out var upgradeSlotId)
+                && TryReadBuildingUpgradePayload(item.Payload, out var upgradeSlotId, out var queuedTargetLevel)
                 && bySlot.TryGetValue(upgradeSlotId, out var currentProjected))
             {
                 var currentLevel = currentProjected.Level ?? 0;
                 var targetLevel = currentLevel;
                 if (string.Equals(item.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
-                    && item.Payload.TryGetValue(BotOptionPayloadKeys.BuildingUpgradeTargetLevel, out var upgradeTargetRaw)
-                    && int.TryParse(upgradeTargetRaw, out var parsedTargetLevel))
+                    && queuedTargetLevel.HasValue)
                 {
-                    targetLevel = Math.Max(currentLevel, parsedTargetLevel);
+                    targetLevel = Math.Max(currentLevel, queuedTargetLevel.Value);
                 }
                 else if (currentProjected.Gid is int currentGid)
                 {
@@ -314,17 +294,13 @@ public partial class MainWindow
                 continue;
             }
 
-            if (!item.Payload.TryGetValue(BotOptionPayloadKeys.BuildingConstructSlotId, out var slotRaw)
-                || !int.TryParse(slotRaw, out var slotId))
+            if (!TryReadBuildingConstructPayload(item.Payload, out var slotId, out _, out var name)
+                || string.IsNullOrWhiteSpace(name))
             {
                 continue;
             }
 
-            if (item.Payload.TryGetValue(BotOptionPayloadKeys.BuildingConstructName, out var name)
-                && !string.IsNullOrWhiteSpace(name))
-            {
-                result[slotId] = name;
-            }
+            result[slotId] = name;
         }
 
         return result;
@@ -341,17 +317,13 @@ public partial class MainWindow
                 continue;
             }
 
-            if (!item.Payload.TryGetValue(BotOptionPayloadKeys.BuildingUpgradeSlotId, out var slotRaw)
-                || !int.TryParse(slotRaw, out var slotId))
+            if (!TryReadBuildingUpgradePayload(item.Payload, out var slotId, out var targetLevel)
+                || !targetLevel.HasValue)
             {
                 continue;
             }
 
-            if (item.Payload.TryGetValue(BotOptionPayloadKeys.BuildingUpgradeTargetLevel, out var targetRaw)
-                && int.TryParse(targetRaw, out var targetLevel))
-            {
-                result[slotId] = targetLevel;
-            }
+            result[slotId] = targetLevel.Value;
         }
 
         return result;

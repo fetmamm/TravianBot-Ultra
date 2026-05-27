@@ -9,6 +9,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Tasks;
 using TbotUltra.Core.Travian;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Worker.Domain;
@@ -207,13 +208,11 @@ public partial class MainWindow
             .ToList();
         var rules = BuildReinforcementRulesForRun();
 
-        return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            [BotOptionPayloadKeys.ReinforcementsEnabled] = "true",
-            [BotOptionPayloadKeys.ReinforcementsTargetVillageName] = target?.Name ?? string.Empty,
-            [BotOptionPayloadKeys.ReinforcementsSourceVillageNames] = string.Join(",", sourceNames),
-            [BotOptionPayloadKeys.ReinforcementsTroopRules] = JsonSerializer.Serialize(rules),
-        };
+        return new ReinforcementsPayload(
+            Enabled: true,
+            TargetVillageName: target?.Name ?? string.Empty,
+            SourceVillageNames: sourceNames,
+            TroopRules: rules).ToDictionary();
     }
 
     private void PersistReinforcementSettings()
