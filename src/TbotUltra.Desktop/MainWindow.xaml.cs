@@ -966,10 +966,6 @@ public partial class MainWindow : Window
 
             RequestQueueUiRefresh(selectId: item?.Id);
             TriggerQueueAutoRunFromEnqueue();
-
-            // Ensure the state badge flips to "function running" (blue) the moment a task is
-            // queued so the UI reflects the activity even before the auto-runner has scheduled it.
-            SetActiveFunctionExecution(string.IsNullOrWhiteSpace(description) ? taskName : description);
         }
         catch (Exception ex)
         {

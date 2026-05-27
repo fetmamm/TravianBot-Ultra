@@ -330,6 +330,11 @@ public partial class MainWindow
             return false;
         }
 
+        if (_autoQueueRunning || (_loopTask is not null && !_loopTask.IsCompleted))
+        {
+            return false;
+        }
+
         if (!string.IsNullOrWhiteSpace(_activeFunctionDisplayName))
         {
             return false;
