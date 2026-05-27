@@ -1,0 +1,216 @@
+using System;
+using System.Diagnostics;
+using System.Threading;
+using System.Threading.Tasks;
+using TbotUltra.Core.Configuration;
+using TbotUltra.Worker.Domain;
+
+namespace TbotUltra.Desktop;
+
+public partial class MainWindow
+{
+    private enum QueueExecutionMode
+    {
+        ContinuousLoop,
+        AutoQueue,
+    }
+
+    private async Task<bool> ExecuteSingleQueueItemAsync(
+        QueueItem item,
+        BotOptions options,
+        string logPrefix,
+        QueueExecutionMode mode,
+        CancellationToken cancellationToken)
+    {
+        var tickSw = Stopwatch.StartNew();
+        var terminalCountBefore = await Dispatcher.InvokeAsync(() => _terminalEntries.Count);
+        _botService.MarkQueueItemRunning(item.Id);
+        RefreshQueueUiOnUiThread(item.Id);
+        SetActiveAutomationTask(item.TaskName);
+        SetActiveFunctionExecution(string.IsNullOrWhiteSpace(item.DisplayName) ? item.TaskName : item.DisplayName);
+
+        try
+        {
+            await _botService.ExecuteQueueItemAsync(options, item, AppendLog, cancellationToken);
+            await HandleQueueItemSucceededAsync(item, options, terminalCountBefore, cancellationToken);
+            if (mode == QueueExecutionMode.ContinuousLoop
+                && string.Equals(item.TaskName, "load_buildings_snapshot", StringComparison.OrdinalIgnoreCase))
+            {
+                await LoadBuildingsSnapshotIntoUiAsync(cancellationToken);
+            }
+
+            AppendLog(FormatQueueSuccessLog(logPrefix, tickSw, item, mode));
+            if (mode == QueueExecutionMode.ContinuousLoop)
+            {
+                _ = Dispatcher.BeginInvoke(() => LastScanInfoTextBlock.Text = $"Last scan: {GetServerNow():HH:mm:ss}");
+            }
+
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            _botService.MarkQueueItemDeferred(item.Id, TimeSpan.Zero);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            return await HandleQueueItemFailureAsync(item, ex, logPrefix, tickSw, mode);
+        }
+        finally
+        {
+            SetActiveAutomationTask(null);
+            SetActiveFunctionExecution(null);
+            RefreshQueueUiOnUiThread(item.Id);
+            if (mode == QueueExecutionMode.AutoQueue && IsBuildingMutationTask(item.TaskName))
+            {
+                try
+                {
+                    await LoadBuildingsSnapshotIntoUiAsync(cancellationToken);
+                }
+                catch
+                {
+                    // Ignore snapshot reload errors in finally; the UI keeps the previous state.
+                }
+            }
+        }
+    }
+
+    private async Task HandleQueueItemSucceededAsync(
+        QueueItem item,
+        BotOptions options,
+        int terminalCountBefore,
+        CancellationToken cancellationToken)
+    {
+        _botService.MarkQueueItemSucceeded(item.Id);
+        if (IsResourceUpgradeTask(item.TaskName))
+        {
+            var fastUpdated = await TryApplyFastResourceLevelUpdateAsync(item.TaskName, terminalCountBefore);
+            if (!fastUpdated)
+            {
+                await LoadResourcesAfterUpgradeAsync(cancellationToken, resourceOnly: true);
+            }
+        }
+
+        if (NeedsConstructionStatusRefresh(item.TaskName))
+        {
+            await RefreshConstructionStatusAsync(cancellationToken);
+        }
+        else if (string.Equals(item.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var snapshot = await _botService.ReadHeroAttributesAsync(options, AppendLog, cancellationToken);
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    ApplyHeroSnapshotToUi(snapshot, "Hero adventure check completed.");
+                });
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"Hero stats refresh after run failed: {ex.Message}");
+            }
+        }
+        else if (string.Equals(item.TaskName, "build_troops", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                await RefreshTroopTrainingUiAfterBuildAsync(options, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"Troop/resource refresh after run failed: {ex.Message}");
+            }
+        }
+        else if (string.Equals(item.TaskName, "run_brewery_celebration", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                await RefreshBreweryCelebrationStatusAsync(options, _lastBuildingStatus, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"Brewery celebration refresh after run failed: {ex.Message}");
+            }
+        }
+    }
+
+    private async Task<bool> HandleQueueItemFailureAsync(
+        QueueItem item,
+        Exception ex,
+        string logPrefix,
+        Stopwatch timer,
+        QueueExecutionMode mode)
+    {
+        if (await TryHandleTroopsBlockedExecutionAsync(item, ex, logPrefix))
+        {
+            return true;
+        }
+
+        if (mode == QueueExecutionMode.AutoQueue
+            && ex is InvalidOperationException ioe
+            && ioe.Message.Contains("different thread owns it", StringComparison.OrdinalIgnoreCase))
+        {
+            _botService.MarkQueueItemExecutionFailed(item.Id);
+            _loopController.RequestQueueStop();
+            AppendLog($"{logPrefix} FAIL {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | UI thread access error detected. Auto-queue paused to prevent spam.");
+            return false;
+        }
+
+        if (TryExtractQueueWaitDelay(ex.Message, out var queueWaitDelay))
+        {
+            if (IsConstructionQueueTask(item.TaskName))
+            {
+                await Dispatcher.InvokeAsync(() => ApplyConstructionInlineWait(queueWaitDelay));
+            }
+
+            if (IsHeroLowHpCooldown(item, ex))
+            {
+                await ApplyHeroLowHpCooldownUiAsync(queueWaitDelay);
+            }
+
+            var deferred = _botService.MarkQueueItemDeferred(item.Id, queueWaitDelay);
+            if (deferred)
+            {
+                var constructionSuffix = IsConstructionQueueTask(item.TaskName)
+                    ? FormatQueueDeferredConstructionSuffix(mode)
+                    : string.Empty;
+                if (TryExtractDeferredUpgradePayload(ex.Message, item.Payload, out var updatedPayload))
+                {
+                    _botService.UpdateDeferredQueueItem(item.Id, updatedPayload);
+                    item.Payload = updatedPayload;
+                }
+
+                ScheduleDeferredBuildingsMidWaitRefresh(item, queueWaitDelay);
+                ScheduleDeferredResourcesMidWaitRefresh(item, queueWaitDelay);
+                AppendLog($"{logPrefix} DEFER {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | next try in {queueWaitDelay.TotalSeconds:F0}s{constructionSuffix}");
+                return true;
+            }
+        }
+
+        _botService.MarkQueueItemExecutionFailed(item.Id);
+        AppendLog(FormatQueueFailureLog(logPrefix, timer, item, ex, mode));
+        RaiseAlarmIfQueueItemPermanentlyFailed(item, ex.Message);
+        return true;
+    }
+
+    private static string FormatQueueSuccessLog(string logPrefix, Stopwatch timer, QueueItem item, QueueExecutionMode mode)
+    {
+        return mode == QueueExecutionMode.ContinuousLoop
+            ? $"{logPrefix} OK {timer.Elapsed.TotalSeconds:F1}s | queue:{item.TaskName}"
+            : $"{logPrefix} OK {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName}";
+    }
+
+    private static string FormatQueueFailureLog(string logPrefix, Stopwatch timer, QueueItem item, Exception ex, QueueExecutionMode mode)
+    {
+        return mode == QueueExecutionMode.ContinuousLoop
+            ? $"{logPrefix} FAIL {timer.Elapsed.TotalSeconds:F1}s | {FormatExceptionForLog(ex)}"
+            : $"{logPrefix} FAIL {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | {FormatExceptionForLog(ex)}";
+    }
+
+    private static string FormatQueueDeferredConstructionSuffix(QueueExecutionMode mode)
+    {
+        return mode == QueueExecutionMode.ContinuousLoop
+            ? " | construction wait timer updated; continuing with next enabled group; no Hero refresh was triggered by this defer"
+            : " | construction wait timer updated; continuing with other ready tasks; no Hero refresh was triggered by this defer";
+    }
+}

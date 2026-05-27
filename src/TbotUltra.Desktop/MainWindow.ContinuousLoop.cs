@@ -432,132 +432,16 @@ public partial class MainWindow
                 var next = SelectNextQueueItemForContinuousLoop();
                 if (next is not null)
                 {
-                    var terminalCountBefore = await Dispatcher.InvokeAsync(() => _terminalEntries.Count);
                     AppendLog($"[LOOP {tickId}] PICK group={next.Group}, task={next.TaskName}, retries={next.Retries}/{next.MaxRetries}");
-                    SetActiveAutomationTask(next.TaskName);
-                    SetActiveFunctionExecution(string.IsNullOrWhiteSpace(next.DisplayName) ? next.TaskName : next.DisplayName);
-                    _botService.MarkQueueItemRunning(next.Id);
-                    RefreshQueueUiOnUiThread(next.Id);
-
-                    try
+                    var shouldContinue = await ExecuteSingleQueueItemAsync(
+                        next,
+                        options,
+                        $"[LOOP {tickId}]",
+                        QueueExecutionMode.ContinuousLoop,
+                        token);
+                    if (!shouldContinue)
                     {
-                        await _botService.ExecuteQueueItemAsync(options, next, AppendLog, token);
-                        _botService.MarkQueueItemSucceeded(next.Id);
-                        if (IsResourceUpgradeTask(next.TaskName))
-                        {
-                            var fastUpdated = await TryApplyFastResourceLevelUpdateAsync(next.TaskName, terminalCountBefore);
-                            if (!fastUpdated)
-                            {
-                                await LoadResourcesAfterUpgradeAsync(token, resourceOnly: true);
-                            }
-                        }
-                        if (NeedsConstructionStatusRefresh(next.TaskName))
-                        {
-                            await RefreshConstructionStatusAsync(token);
-                        }
-                        else if (string.Equals(next.TaskName, "load_buildings_snapshot", StringComparison.OrdinalIgnoreCase))
-                        {
-                            await LoadBuildingsSnapshotIntoUiAsync(token);
-                        }
-                        else if (string.Equals(next.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase))
-                        {
-                            try
-                            {
-                                var snapshot = await _botService.ReadHeroAttributesAsync(options, AppendLog, token);
-                                await Dispatcher.InvokeAsync(() =>
-                                {
-                                    ApplyHeroSnapshotToUi(snapshot, "Hero adventure check completed.");
-                                });
-                            }
-                            catch (Exception ex)
-                            {
-                                AppendLog($"Hero stats refresh after run failed: {ex.Message}");
-                            }
-                        }
-                        else if (string.Equals(next.TaskName, "build_troops", StringComparison.OrdinalIgnoreCase))
-                        {
-                            try
-                            {
-                                await RefreshTroopTrainingUiAfterBuildAsync(options, token);
-                            }
-                            catch (Exception ex)
-                            {
-                                AppendLog($"Troop/resource refresh after run failed: {ex.Message}");
-                            }
-                        }
-                        else if (string.Equals(next.TaskName, "run_brewery_celebration", StringComparison.OrdinalIgnoreCase))
-                        {
-                            try
-                            {
-                                await RefreshBreweryCelebrationStatusAsync(options, _lastBuildingStatus, token);
-                            }
-                            catch (Exception ex)
-                            {
-                                AppendLog($"Brewery celebration refresh after run failed: {ex.Message}");
-                            }
-                        }
-
-                        AppendLog($"[LOOP {tickId}] OK {tickSw.Elapsed.TotalSeconds:F1}s | queue:{next.TaskName}");
-                        _ = Dispatcher.BeginInvoke(() => LastScanInfoTextBlock.Text = $"Last scan: {GetServerNow():HH:mm:ss}");
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        _botService.MarkQueueItemDeferred(next.Id, TimeSpan.Zero);
                         break;
-                    }
-                    catch (Exception ex)
-                    {
-                        if (await TryHandleTroopsBlockedExecutionAsync(next, ex, $"[LOOP {tickId}]"))
-                        {
-                            continue;
-                        }
-
-                        if (TryExtractQueueWaitDelay(ex.Message, out var queueWaitDelay))
-                        {
-                            if (IsConstructionQueueTask(next.TaskName))
-                            {
-                                await Dispatcher.InvokeAsync(() => ApplyConstructionInlineWait(queueWaitDelay));
-                            }
-
-                            if (IsHeroLowHpCooldown(next, ex))
-                            {
-                                await ApplyHeroLowHpCooldownUiAsync(queueWaitDelay);
-                            }
-
-                            var deferred = _botService.MarkQueueItemDeferred(next.Id, queueWaitDelay);
-                            if (deferred)
-                            {
-                                var constructionSuffix = IsConstructionQueueTask(next.TaskName)
-                                    ? " | construction wait timer updated; continuing with next enabled group; no Hero refresh was triggered by this defer"
-                                    : string.Empty;
-                                if (TryExtractDeferredUpgradePayload(ex.Message, next.Payload, out var updatedPayload))
-                                {
-                                    _botService.UpdateDeferredQueueItem(next.Id, updatedPayload);
-                                    next.Payload = updatedPayload;
-                                }
-                                ScheduleDeferredBuildingsMidWaitRefresh(next, queueWaitDelay);
-                                ScheduleDeferredResourcesMidWaitRefresh(next, queueWaitDelay);
-                                AppendLog($"[LOOP {tickId}] DEFER {tickSw.Elapsed.TotalSeconds:F1}s task={next.TaskName} | next try in {queueWaitDelay.TotalSeconds:F0}s{constructionSuffix}");
-                            }
-                            else
-                            {
-                                _botService.MarkQueueItemExecutionFailed(next.Id);
-                                AppendLog($"[LOOP {tickId}] FAIL {tickSw.Elapsed.TotalSeconds:F1}s | {FormatExceptionForLog(ex)}");
-                                RaiseAlarmIfQueueItemPermanentlyFailed(next, ex.Message);
-                            }
-                        }
-                        else
-                        {
-                            _botService.MarkQueueItemExecutionFailed(next.Id);
-                            AppendLog($"[LOOP {tickId}] FAIL {tickSw.Elapsed.TotalSeconds:F1}s | {FormatExceptionForLog(ex)}");
-                            RaiseAlarmIfQueueItemPermanentlyFailed(next, ex.Message);
-                        }
-                    }
-                    finally
-                    {
-                        SetActiveAutomationTask(null);
-                        SetActiveFunctionExecution(null);
-                        RefreshQueueUiOnUiThread(next.Id);
                     }
                 }
                 else
@@ -740,151 +624,18 @@ public partial class MainWindow
                 continue;
             }
 
-            var tickSw = Stopwatch.StartNew();
-            try
+            await EnsureChromiumInstalledAsync();
+            var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            AppendLog($"[AUTOQ {runId}] RUN task={next.TaskName}, id={next.Id}");
+            var shouldContinue = await ExecuteSingleQueueItemAsync(
+                next,
+                options,
+                $"[AUTOQ {runId}]",
+                QueueExecutionMode.AutoQueue,
+                cancellationToken);
+            if (!shouldContinue)
             {
-                var terminalCountBefore = await Dispatcher.InvokeAsync(() => _terminalEntries.Count);
-                _botService.MarkQueueItemRunning(next.Id);
-                RefreshQueueUiOnUiThread(next.Id);
-                await EnsureChromiumInstalledAsync();
-                var options = ApplySelectedVillageToOptions(LoadBotOptions());
-                AppendLog($"[AUTOQ {runId}] RUN task={next.TaskName}, id={next.Id}");
-                SetActiveAutomationTask(next.TaskName);
-                SetActiveFunctionExecution(string.IsNullOrWhiteSpace(next.DisplayName) ? next.TaskName : next.DisplayName);
-                await _botService.ExecuteQueueItemAsync(options, next, AppendLog, cancellationToken);
-                _botService.MarkQueueItemSucceeded(next.Id);
-                if (IsResourceUpgradeTask(next.TaskName))
-                {
-                    var fastUpdated = await TryApplyFastResourceLevelUpdateAsync(next.TaskName, terminalCountBefore);
-                    if (!fastUpdated)
-                    {
-                        await LoadResourcesAfterUpgradeAsync(cancellationToken, resourceOnly: true);
-                    }
-                }
-                if (NeedsConstructionStatusRefresh(next.TaskName))
-                {
-                    await RefreshConstructionStatusAsync(cancellationToken);
-                }
-                else if (string.Equals(next.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase))
-                {
-                    // Same post-run refresh the loop runner does — read the authoritative attributes-tab
-                    // snapshot off the UI thread and marshal the UI write back via the dispatcher,
-                    // so the Hero / Adventures card mirrors what Travian shows after the run.
-                    try
-                    {
-                        var snapshot = await _botService.ReadHeroAttributesAsync(options, AppendLog, cancellationToken);
-                        await Dispatcher.InvokeAsync(() =>
-                        {
-                            ApplyHeroSnapshotToUi(snapshot, "Hero adventure check completed.");
-                        });
-                    }
-                    catch (Exception refreshEx)
-                    {
-                        AppendLog($"Hero stats refresh after run failed: {refreshEx.Message}");
-                    }
-                }
-                else if (string.Equals(next.TaskName, "build_troops", StringComparison.OrdinalIgnoreCase))
-                {
-                    try
-                    {
-                        await RefreshTroopTrainingUiAfterBuildAsync(options, cancellationToken);
-                    }
-                    catch (Exception refreshEx)
-                    {
-                        AppendLog($"Troop/resource refresh after run failed: {refreshEx.Message}");
-                    }
-                }
-                else if (string.Equals(next.TaskName, "run_brewery_celebration", StringComparison.OrdinalIgnoreCase))
-                {
-                    try
-                    {
-                        await RefreshBreweryCelebrationStatusAsync(options, _lastBuildingStatus, cancellationToken);
-                    }
-                    catch (Exception refreshEx)
-                    {
-                        AppendLog($"Brewery celebration refresh after run failed: {refreshEx.Message}");
-                    }
-                }
-                AppendLog($"[AUTOQ {runId}] OK {tickSw.Elapsed.TotalSeconds:F1}s task={next.TaskName}");
-            }
-            catch (OperationCanceledException)
-            {
-                _botService.MarkQueueItemDeferred(next.Id, TimeSpan.Zero);
                 return;
-            }
-            catch (Exception ex)
-            {
-                if (await TryHandleTroopsBlockedExecutionAsync(next, ex, $"[AUTOQ {runId}]"))
-                {
-                    continue;
-                }
-
-                if (ex is InvalidOperationException ioe
-                    && ioe.Message.Contains("different thread owns it", StringComparison.OrdinalIgnoreCase))
-                {
-                    _botService.MarkQueueItemExecutionFailed(next.Id);
-                    _loopController.RequestQueueStop();
-                    AppendLog($"[AUTOQ {runId}] FAIL {tickSw.Elapsed.TotalSeconds:F1}s task={next.TaskName} | UI thread access error detected. Auto-queue paused to prevent spam.");
-                    return;
-                }
-
-                if (TryExtractQueueWaitDelay(ex.Message, out var queueWaitDelay))
-                {
-                    if (IsConstructionQueueTask(next.TaskName))
-                    {
-                        await Dispatcher.InvokeAsync(() => ApplyConstructionInlineWait(queueWaitDelay));
-                    }
-
-                    if (IsHeroLowHpCooldown(next, ex))
-                    {
-                        await ApplyHeroLowHpCooldownUiAsync(queueWaitDelay);
-                    }
-
-                    var deferred = _botService.MarkQueueItemDeferred(next.Id, queueWaitDelay);
-                    if (deferred)
-                    {
-                        var constructionSuffix = IsConstructionQueueTask(next.TaskName)
-                            ? " | construction wait timer updated; continuing with other ready tasks; no Hero refresh was triggered by this defer"
-                            : string.Empty;
-                        if (TryExtractDeferredUpgradePayload(ex.Message, next.Payload, out var updatedPayload))
-                        {
-                            _botService.UpdateDeferredQueueItem(next.Id, updatedPayload);
-                            next.Payload = updatedPayload;
-                        }
-                        ScheduleDeferredBuildingsMidWaitRefresh(next, queueWaitDelay);
-                        ScheduleDeferredResourcesMidWaitRefresh(next, queueWaitDelay);
-                        AppendLog($"[AUTOQ {runId}] DEFER {tickSw.Elapsed.TotalSeconds:F1}s task={next.TaskName} | next try in {queueWaitDelay.TotalSeconds:F0}s{constructionSuffix}");
-                    }
-                    else
-                    {
-                        _botService.MarkQueueItemExecutionFailed(next.Id);
-                        AppendLog($"[AUTOQ {runId}] FAIL {tickSw.Elapsed.TotalSeconds:F1}s task={next.TaskName} | {FormatExceptionForLog(ex)}");
-                        RaiseAlarmIfQueueItemPermanentlyFailed(next, ex.Message);
-                    }
-                }
-                else
-                {
-                    _botService.MarkQueueItemExecutionFailed(next.Id);
-                    AppendLog($"[AUTOQ {runId}] FAIL {tickSw.Elapsed.TotalSeconds:F1}s task={next.TaskName} | {FormatExceptionForLog(ex)}");
-                    RaiseAlarmIfQueueItemPermanentlyFailed(next, ex.Message);
-                }
-            }
-            finally
-            {
-                SetActiveAutomationTask(null);
-                SetActiveFunctionExecution(null);
-                RefreshQueueUiOnUiThread(next.Id);
-                if (IsBuildingMutationTask(next.TaskName))
-                {
-                    try
-                    {
-                        await LoadBuildingsSnapshotIntoUiAsync(cancellationToken);
-                    }
-                    catch
-                    {
-                        // Ignore snapshot reload errors in finally — the UI keeps the previous state.
-                    }
-                }
             }
         }
     }
