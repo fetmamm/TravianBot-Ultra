@@ -58,6 +58,27 @@ public sealed class Worker : BackgroundService
                             stoppingToken);
                         _queueStore.MarkSucceeded(next.Id);
                     }
+                    catch (TaskWaitException wait)
+                    {
+                        // Transient block (e.g. waiting for resources, build queue full). Defer
+                        // without bumping Retries — the task should NOT eventually be marked Failed
+                        // just because a slow resource accumulation took many ticks.
+                        var delay = ClampDeferDelay(wait.DelaySeconds);
+                        _queueStore.MarkDeferred(next.Id, delay);
+                        _logger.LogInformation(
+                            "Queue item deferred. Task={Task}, Delay={DelaySeconds}s, Reason={Reason}",
+                            next.TaskName,
+                            (int)delay.TotalSeconds,
+                            wait.Message);
+                    }
+                    catch (TaskBlockedPermanentlyException permanent)
+                    {
+                        _queueStore.MarkExecutionFailed(next.Id);
+                        _logger.LogWarning(
+                            "Queue item permanently blocked, marking failed. Task={Task}, Reason={Reason}",
+                            next.TaskName,
+                            permanent.Message);
+                    }
                     catch (Exception ex)
                     {
                         _queueStore.MarkExecutionFailed(next.Id);
@@ -90,5 +111,18 @@ public sealed class Worker : BackgroundService
 
             await Task.Delay(TimeSpan.FromSeconds(_botOptions.LoopIntervalSeconds), stoppingToken);
         }
+    }
+
+    // Cap defer delays: too short and we burn ticks on the same blocked task; too long and a
+    // misparse strands the task for hours. 60s lower bound matches the typical loop interval.
+    private static readonly TimeSpan MinDeferDelay = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan MaxDeferDelay = TimeSpan.FromMinutes(30);
+
+    private static TimeSpan ClampDeferDelay(int seconds)
+    {
+        var requested = TimeSpan.FromSeconds(Math.Max(1, seconds));
+        if (requested < MinDeferDelay) return MinDeferDelay;
+        if (requested > MaxDeferDelay) return MaxDeferDelay;
+        return requested;
     }
 }

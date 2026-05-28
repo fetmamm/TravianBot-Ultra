@@ -103,7 +103,7 @@ public static class BotOptionsFactory
             TargetVillageUrl = configuration[BotOptionPayloadKeys.TargetVillageUrl] ?? string.Empty,
             AllowGoldSpending = configuration.GetValue("allow_gold_spending", false),
             AllowSilverSpending = configuration.GetValue("allow_silver_spending", false),
-            GoldLimit = configuration.GetValue("gold_limit", 100),
+            GoldLimit = configuration.GetValue("gold_limit", 800),
             SilverLimit = configuration.GetValue("silver_limit", 100),
             ResourceUpgradeSlotId = configuration.GetValue<int?>(BotOptionPayloadKeys.ResourceUpgradeSlotId),
             ResourceUpgradeTargetLevel = configuration.GetValue<int?>(BotOptionPayloadKeys.ResourceUpgradeTargetLevel),

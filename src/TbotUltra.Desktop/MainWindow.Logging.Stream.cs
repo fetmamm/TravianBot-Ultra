@@ -7,6 +7,8 @@ using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
+using System.Windows.Media;
 using System.Windows.Threading;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services.Logging;
@@ -897,14 +899,91 @@ public partial class MainWindow
     private void UpdateCaptchaStatsUi()
     {
         CaptchaStatsTextBlock.Text = $"Captchas solved: {_captchaSessionSolvedCount}/{_captchaSessionSeenCount} |";
+        var solved = _captchaSessionSolvedCount;
+        var seen = _captchaSessionSeenCount;
+        if (solved > 0 && solved == seen)
+        {
+            CaptchaStatsTextBlock.Foreground = GreenHighlightBrush;
+        }
+        else if (solved < seen)
+        {
+            CaptchaStatsTextBlock.Foreground = YellowHighlightBrush;
+        }
+        else
+        {
+            CaptchaStatsTextBlock.Foreground = NeutralStatsBrush;
+        }
     }
 
     private void UpdateNpcTradeStatsUi()
     {
         var goldSpent = _npcTradeSessionCount * NpcTradeGoldCost;
-        NpcTradeSessionStatsTextBlock.Text = $"Gold spent: {goldSpent}";
-        NpcTradeGoldSpentTextBlock.Text = $"Gold spent: {goldSpent}";
+        SetGoldHighlightedValueText(NpcTradeSessionStatsTextBlock, "Gold spent: ", goldSpent, neutralLabelBrush: NeutralStatsBrush);
+        // The detail-panel TextBlock has its own dark base color (#111827) — preserve that for the
+        // label and only swap the value color when it's worth highlighting.
+        SetGoldHighlightedValueText(NpcTradeGoldSpentTextBlock, "Gold spent: ", goldSpent, neutralLabelBrush: null);
         NpcTradeTroopsTextBlock.Text = $"NPC Troops: {_npcTradeTroopSessionCount}";
         NpcTradeBuildingsTextBlock.Text = $"NPC Buildings: {_npcTradeBuildingSessionCount}";
+    }
+
+    // Travian-ish metallic gold. Reused for gold counts and non-zero gold-spent values.
+    private static readonly SolidColorBrush GoldHighlightBrush = MakeFrozen(Color.FromRgb(0xD4, 0xAF, 0x37));
+    private static readonly SolidColorBrush GreenHighlightBrush = MakeFrozen(Color.FromRgb(0x16, 0xA3, 0x4A));
+    private static readonly SolidColorBrush YellowHighlightBrush = MakeFrozen(Color.FromRgb(0xEA, 0xB3, 0x08));
+    private static readonly SolidColorBrush NeutralStatsBrush = MakeFrozen(Color.FromRgb(0x4B, 0x55, 0x63));
+
+    private static SolidColorBrush MakeFrozen(Color color)
+    {
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        return brush;
+    }
+
+    /// <summary>
+    /// Renders a "label + value" TextBlock where the value turns gold when greater than zero.
+    /// Pass <paramref name="neutralLabelBrush"/>=null to keep the TextBlock's own Foreground for
+    /// the label (used by panel TextBlocks that already have a non-default base color).
+    /// </summary>
+    private static void SetGoldHighlightedValueText(TextBlock target, string label, int value, SolidColorBrush? neutralLabelBrush)
+    {
+        target.Inlines.Clear();
+        var labelRun = new Run(label);
+        if (neutralLabelBrush is not null)
+        {
+            labelRun.Foreground = neutralLabelBrush;
+        }
+        target.Inlines.Add(labelRun);
+
+        var valueRun = new Run(value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        if (value > 0)
+        {
+            valueRun.Foreground = GoldHighlightBrush;
+        }
+        else if (neutralLabelBrush is not null)
+        {
+            valueRun.Foreground = neutralLabelBrush;
+        }
+        target.Inlines.Add(valueRun);
+    }
+
+    /// <summary>
+    /// Renders "Gold: {goldText} | Silver: {silverText}" with the gold number in gold color when
+    /// it's a meaningful positive value.
+    /// </summary>
+    internal static void SetGoldSilverStatusText(TextBlock target, string goldText, string silverText)
+    {
+        target.Inlines.Clear();
+        target.Inlines.Add(new Run("Gold: ") { Foreground = NeutralStatsBrush });
+
+        var goldValueRun = new Run(goldText);
+        var goldIsMeaningful = goldText is not ("-" or "0") && !string.IsNullOrWhiteSpace(goldText);
+        goldValueRun.Foreground = goldIsMeaningful ? GoldHighlightBrush : NeutralStatsBrush;
+        if (goldIsMeaningful)
+        {
+            goldValueRun.FontWeight = FontWeights.SemiBold;
+        }
+        target.Inlines.Add(goldValueRun);
+
+        target.Inlines.Add(new Run($" | Silver: {silverText}") { Foreground = NeutralStatsBrush });
     }
 }

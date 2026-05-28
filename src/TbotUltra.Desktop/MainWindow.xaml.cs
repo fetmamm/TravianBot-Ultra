@@ -833,7 +833,7 @@ public partial class MainWindow : Window
 
             var goldText = payload.Gold?.ToString() ?? "-";
             var silverText = payload.Silver?.ToString() ?? "-";
-            ServerResourcesTextBlock.Text = $"Gold: {goldText} | Silver: {silverText}";
+            SetGoldSilverStatusText(ServerResourcesTextBlock, goldText, silverText);
 
             if (payload.Villages is { Count: > 0 })
             {
@@ -3351,7 +3351,7 @@ public partial class MainWindow : Window
         var capitalText = status.IsCapital == true ? "Yes" : status.IsCapital == false ? "No" : "Unknown";
         var goldText = status.Gold?.ToString() ?? "-";
         var silverText = status.Silver?.ToString() ?? "-";
-        ServerResourcesTextBlock.Text = $"Gold: {goldText} | Silver: {silverText}";
+        SetGoldSilverStatusText(ServerResourcesTextBlock, goldText, silverText);
 
         _buildQueueActiveCount = status.ActiveBuildCount;
         _buildQueueRemainingSeconds = status.BuildQueueRemainingSeconds ?? -1;

@@ -1541,6 +1541,20 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             return;
         }
 
+        // Permanent blocks: the request can never succeed in its current form. Mark Failed
+        // immediately rather than letting the worker burn the retry budget on it.
+        if (IsPermanentlyBlockedTaskResult(result))
+        {
+            throw new TaskBlockedPermanentlyException($"Task '{taskName}' blocked permanently: {result}");
+        }
+
+        // Transient blocks with an explicit wait hint → defer without consuming retries.
+        if (TryExtractQueueWaitSeconds(result, out var waitSeconds))
+        {
+            throw new TaskWaitException(waitSeconds, $"Task '{taskName}' waiting: {result}");
+        }
+
+        // Blocked but no wait hint — fall back to old behavior (counts toward MaxRetries).
         throw new InvalidOperationException($"Task '{taskName}' could not execute successfully: {result}");
     }
 
@@ -1553,13 +1567,13 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
 
         if (result.Contains("Smithy not found in this village", StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException($"Task 'upgrade_troops_at_smithy' blocked permanently: troops_blocked=smithy_missing | {result}");
+            throw new TaskBlockedPermanentlyException($"Task 'upgrade_troops_at_smithy' blocked permanently: troops_blocked=smithy_missing | {result}");
         }
 
         if (result.Contains("Smithy:", StringComparison.OrdinalIgnoreCase)
             && result.Contains("All done", StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException($"Task 'upgrade_troops_at_smithy' blocked permanently: troops_blocked=all_done | {result}");
+            throw new TaskBlockedPermanentlyException($"Task 'upgrade_troops_at_smithy' blocked permanently: troops_blocked=all_done | {result}");
         }
     }
 
@@ -1580,6 +1594,46 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             || value.Contains("is not listed by the server")
             || value.Contains("cannot be built in slot")
             || value.Contains("reports max level reached");
+    }
+
+    private static bool IsPermanentlyBlockedTaskResult(string result)
+    {
+        var value = result.ToLowerInvariant();
+        return
+            value.Contains("reports max level reached")
+            || value.Contains("is not listed by the server")
+            || value.Contains("cannot be built in slot");
+    }
+
+    private static bool TryExtractQueueWaitSeconds(string result, out int seconds)
+    {
+        seconds = 0;
+        const string token = "queue_wait_seconds=";
+        var index = result.IndexOf(token, StringComparison.OrdinalIgnoreCase);
+        if (index < 0)
+        {
+            return false;
+        }
+
+        var start = index + token.Length;
+        var end = start;
+        while (end < result.Length && (char.IsDigit(result[end]) || result[end] == '-'))
+        {
+            end++;
+        }
+
+        if (end == start)
+        {
+            return false;
+        }
+
+        if (!int.TryParse(result.AsSpan(start, end - start), out var parsed))
+        {
+            return false;
+        }
+
+        seconds = parsed;
+        return true;
     }
 
     private static int ResolveQueueWaitDelaySeconds(BotOptions options, int waitSeconds)

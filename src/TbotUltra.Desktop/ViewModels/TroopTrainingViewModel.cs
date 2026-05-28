@@ -59,10 +59,10 @@ public sealed class TroopTrainingViewModel : BaseViewModel
     private bool _npcTradeAnalyzeClay = true;
     private bool _npcTradeAnalyzeIron = true;
     private bool _npcTradeAnalyzeCrop = true;
-    private bool _npcTradeBuildTimeLimitEnabled;
-    private int _npcTradeBuildTimeLimitSeconds = 60;
+    private bool _npcTradeBuildTimeLimitEnabled = true;
+    private int _npcTradeBuildTimeLimitSeconds = 300;
     private bool _allowGoldSpending;
-    private int _goldLimit = 100;
+    private int _goldLimit = 800;
 
     /// <summary>The three building rules shown as rows on the panel.</summary>
     public ObservableCollection<TroopTrainingBuildingOption> Buildings { get; } = [];

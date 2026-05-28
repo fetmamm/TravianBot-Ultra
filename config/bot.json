@@ -45,7 +45,7 @@
     "npc_trade"
   ],
   "hero_stat_priority": "fighting_strength,offence_bonus,defence_bonus,resources",
-  "queue_wait_threshold_mode": "5",
+  "queue_wait_threshold_mode": "smart",
   "continuous_farm_dispatch_delay_minutes": 4,
   "post_login_analyze_farmlists": false,
   "post_login_read_troop_training_queue": false,

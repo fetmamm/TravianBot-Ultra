@@ -210,10 +210,10 @@ public sealed class BotOptions
     public bool NpcTradeAnalyzeCrop { get; init; } = true;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.NpcTradeBuildTimeLimitEnabled)]
-    public bool NpcTradeBuildTimeLimitEnabled { get; init; }
+    public bool NpcTradeBuildTimeLimitEnabled { get; init; } = true;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.NpcTradeBuildTimeLimitSeconds)]
-    public int NpcTradeBuildTimeLimitSeconds { get; init; } = 60;
+    public int NpcTradeBuildTimeLimitSeconds { get; init; } = 300;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.ResourceTransferEnabled)]
     public bool ResourceTransferEnabled { get; init; }
@@ -279,7 +279,7 @@ public sealed class BotOptions
     public bool AllowSilverSpending { get; init; }
 
     [ConfigurationKeyName("gold_limit")]
-    public int GoldLimit { get; init; } = 100;
+    public int GoldLimit { get; init; } = 800;
 
     [ConfigurationKeyName("silver_limit")]
     public int SilverLimit { get; init; } = 100;
