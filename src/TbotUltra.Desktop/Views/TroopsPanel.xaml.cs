@@ -60,4 +60,22 @@ public partial class TroopsPanel : UserControl
             RefreshTroopQueuesButton.IsEnabled = true;
         }
     }
+
+    private async void CheckCelebrationButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (Host is not { } host)
+        {
+            return;
+        }
+
+        CheckCelebrationButton.IsEnabled = false;
+        try
+        {
+            await host.OnCheckCelebrationClickedAsync();
+        }
+        finally
+        {
+            CheckCelebrationButton.IsEnabled = true;
+        }
+    }
 }

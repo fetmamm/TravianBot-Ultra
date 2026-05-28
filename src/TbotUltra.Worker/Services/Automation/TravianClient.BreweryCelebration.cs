@@ -38,7 +38,13 @@ public sealed partial class TravianClient
 
         var buildings = knownBuildings ?? (await ReadBuildingsStatusAsync(cancellationToken)).Buildings;
         var brewery = ResolveBreweryBuilding(buildings);
-        if (brewery is null || brewery.SlotId is not > 0)
+        int? brewerySlotId = brewery?.SlotId;
+        if (brewerySlotId is not > 0)
+        {
+            brewerySlotId = await TryProbeBrewerySlotOnDorf2Async(cancellationToken);
+        }
+
+        if (brewerySlotId is not > 0)
         {
             return new BreweryCelebrationStatus(
                 true,
@@ -57,28 +63,127 @@ public sealed partial class TravianClient
                 true,
                 false,
                 true,
-                brewery.SlotId,
+                brewerySlotId,
                 false,
                 null,
                 "N/A",
                 "Capital village required.");
         }
 
-        await GotoAsync(Paths.BuildBySlot(brewery.SlotId.Value), cancellationToken);
+        await GotoAsync(Paths.BuildBySlot(brewerySlotId.Value), cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading brewery celebration status.", cancellationToken);
         await EnsureLoggedInAsync();
 
         var pageStatus = await ReadBreweryCelebrationStatusFromCurrentPageAsync(cancellationToken);
-        var remainingSeconds = ParseDurationToSeconds(pageStatus.RemainingText);
+        var remainingSeconds = pageStatus.RemainingSeconds ?? ParseDurationToSeconds(pageStatus.RemainingText);
         return new BreweryCelebrationStatus(
             true,
             isCapital,
             true,
-            brewery.SlotId,
+            brewerySlotId,
             pageStatus.CelebrationRunning,
             remainingSeconds,
             remainingSeconds is > 0 ? FormatDuration(remainingSeconds.Value) : (pageStatus.CanStart ? "Ready" : "N/A"),
             pageStatus.StatusText);
+    }
+
+    private async Task<int?> TryProbeBrewerySlotOnDorf2Async(CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (!IsCurrentUrlForPath(Paths.Buildings))
+            {
+                await GotoAsync(Paths.Buildings, cancellationToken);
+                await PauseForManualStepIfVisibleAsync("Manual verification appeared while probing brewery slot on dorf2.", cancellationToken);
+                await EnsureLoggedInAsync();
+            }
+
+            var payload = await _page.EvaluateAsync<JsonElement>(
+                """
+                () => {
+                  const slotFromText = (text) => {
+                    if (!text) return null;
+                    const m1 = String(text).match(/[?&](?:id|a)=(\d{1,2})\b/i);
+                    if (m1) return parseInt(m1[1], 10);
+                    const m2 = String(text).match(/\baid(\d{1,2})\b/i);
+                    if (m2) return parseInt(m2[1], 10);
+                    const m3 = String(text).match(/\ba(\d{1,2})\b/i);
+                    if (m3) return parseInt(m3[1], 10);
+                    return null;
+                  };
+
+                  const collectFromElement = (el) => {
+                    if (!el) return null;
+                    const candidates = [
+                      el.getAttribute && el.getAttribute('data-aid'),
+                      el.getAttribute && el.getAttribute('data-slot'),
+                      el.getAttribute && el.getAttribute('href'),
+                      el.className || '',
+                      el.outerHTML || ''
+                    ];
+                    for (const c of candidates) {
+                      const slot = slotFromText(c);
+                      if (slot && slot >= 19 && slot <= 40) return slot;
+                    }
+                    let parent = el.parentElement;
+                    for (let i = 0; parent && i < 4; i++, parent = parent.parentElement) {
+                      const slot = slotFromText((parent.className || '') + ' ' + (parent.getAttribute && parent.getAttribute('href') || ''));
+                      if (slot && slot >= 19 && slot <= 40) return slot;
+                    }
+                    return null;
+                  };
+
+                  const selectors = [
+                    'div.buildingSlot.g35',
+                    'div.buildingSlot[class*=" g35"]',
+                    'div.buildingSlot[class^="g35"]',
+                    '[data-gid="35"]',
+                    'area.g35',
+                    'area[class*=" g35"]',
+                    'area[class^="g35"]',
+                    'a[href*="gid=35"]',
+                    'img[alt="Brewery" i]',
+                    '[title="Brewery" i]'
+                  ];
+
+                  for (const sel of selectors) {
+                    const nodes = document.querySelectorAll(sel);
+                    for (const node of nodes) {
+                      const slot = collectFromElement(node);
+                      if (slot) return { slotId: slot, source: sel };
+                    }
+                  }
+
+                  const slots = Array.from(document.querySelectorAll('div.buildingSlot'));
+                  for (const slot of slots) {
+                    const img = slot.querySelector('img[alt], [title]');
+                    const alt = img ? (img.getAttribute('alt') || img.getAttribute('title') || '') : '';
+                    if (/brewery/i.test(alt)) {
+                      const id = collectFromElement(slot);
+                      if (id) return { slotId: id, source: 'alt-brewery' };
+                    }
+                  }
+
+                  return { slotId: null, source: null };
+                }
+                """);
+
+            if (payload.TryGetProperty("slotId", out var slotIdNode)
+                && slotIdNode.ValueKind == JsonValueKind.Number
+                && slotIdNode.TryGetInt32(out var slot)
+                && slot is >= 19 and <= 40)
+            {
+                var source = payload.TryGetProperty("source", out var sourceNode) ? sourceNode.GetString() : null;
+                Notify($"Brewery fallback probe found slot {slot} via {source ?? "unknown"}.");
+                return slot;
+            }
+        }
+        catch (Exception ex) when (!IsTransientExecutionContextException(ex))
+        {
+            Notify($"Brewery fallback probe failed: {ex.Message}");
+        }
+
+        return null;
     }
 
     public async Task<string> RunBreweryCelebrationAsync(CancellationToken cancellationToken = default)
@@ -113,12 +218,28 @@ public sealed partial class TravianClient
             return $"{startAttempt.Message} queue_wait_seconds={BreweryCelebrationRetrySeconds}";
         }
 
-        await Task.Delay(500, cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared after starting brewery celebration.", cancellationToken);
+        var startHref = ResolveUrl(startAttempt.Href);
+        if (!string.IsNullOrWhiteSpace(startHref))
+        {
+            await GotoAsync(startHref, cancellationToken);
+            await PauseForManualStepIfVisibleAsync("Manual verification appeared after starting brewery celebration.", cancellationToken);
+            await EnsureLoggedInAsync();
+        }
+
+        await GotoAsync(Paths.BuildBySlot(status.BrewerySlotId.Value), cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared after navigating back to brewery.", cancellationToken);
         await EnsureLoggedInAsync();
 
         var startedStatus = await ReadBreweryCelebrationStatusFromCurrentPageAsync(cancellationToken);
-        var remainingSeconds = ParseDurationToSeconds(startedStatus.RemainingText) ?? BreweryCelebrationRetrySeconds;
+        var remainingSeconds = startedStatus.RemainingSeconds
+            ?? ParseDurationToSeconds(startedStatus.RemainingText)
+            ?? BreweryCelebrationRetrySeconds;
+
+        if (!startedStatus.CelebrationRunning)
+        {
+            return $"Brewery celebration: start did not register, retrying. queue_wait_seconds={BreweryCelebrationRetrySeconds}";
+        }
+
         return $"Brewery celebration started. queue_wait_seconds={Math.Max(1, remainingSeconds)}";
     }
 
@@ -139,13 +260,16 @@ public sealed partial class TravianClient
               const runningTimer =
                 document.querySelector('.under_progress .timer, table.under_progress .timer, .under_progress span.timer');
               const runningText = normalize(runningTimer ? runningTimer.textContent : '');
+              const runningValueRaw = runningTimer ? runningTimer.getAttribute('value') : null;
+              const runningValue = runningValueRaw ? parseInt(runningValueRaw, 10) : null;
               const inProgressLabel = Array.from(document.querySelectorAll('.build_details .act .none, .under_progress, .build_details .act'))
                 .map(node => normalize(node.textContent || ''))
                 .find(text => /celebration is in progress/i.test(text) || /underway/i.test(text)) || '';
+              const startLink = document.querySelector('.build_details td.act a.research, .build_details td.act a[href*="pivo"]');
               const startButton = document.querySelector('.build_details td.act button');
-              const canStart = !!startButton && !startButton.disabled;
+              const canStart = (!!startLink) || (!!startButton && !startButton.disabled);
               const actText = normalize(document.querySelector('.build_details td.act')?.textContent || '');
-              const celebrationRunning = runningText.length > 0 || /celebration is in progress/i.test(inProgressLabel);
+              const celebrationRunning = !!runningTimer || /celebration is in progress/i.test(inProgressLabel);
               const statusText = celebrationRunning
                 ? 'Celebration running.'
                 : canStart
@@ -155,6 +279,7 @@ public sealed partial class TravianClient
               return {
                 celebrationRunning,
                 remainingText: runningText,
+                remainingSeconds: Number.isFinite(runningValue) && runningValue > 0 ? runningValue : null,
                 canStart,
                 statusText
               };
@@ -166,6 +291,14 @@ public sealed partial class TravianClient
         var remainingText = payload.TryGetProperty("remainingText", out var remainingTextNode)
             ? remainingTextNode.GetString() ?? string.Empty
             : string.Empty;
+        int? remainingSeconds = null;
+        if (payload.TryGetProperty("remainingSeconds", out var remainingSecondsNode)
+            && remainingSecondsNode.ValueKind == JsonValueKind.Number
+            && remainingSecondsNode.TryGetInt32(out var parsedSeconds)
+            && parsedSeconds > 0)
+        {
+            remainingSeconds = parsedSeconds;
+        }
         var canStart = payload.TryGetProperty("canStart", out var canStartNode)
             && canStartNode.ValueKind == JsonValueKind.True;
         var statusText = payload.TryGetProperty("statusText", out var statusTextNode)
@@ -175,6 +308,7 @@ public sealed partial class TravianClient
         return new BreweryCelebrationPageStatus(
             celebrationRunning,
             remainingText,
+            remainingSeconds,
             canStart,
             string.IsNullOrWhiteSpace(statusText) ? "Celebration unavailable." : statusText);
     }
@@ -182,31 +316,42 @@ public sealed partial class TravianClient
     private async Task<BreweryCelebrationStartAttempt> TryStartBreweryCelebrationFromCurrentPageAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var started = await _page.EvaluateAsync<bool>(
+        var payload = await _page.EvaluateAsync<JsonElement>(
             """
             () => {
-              const button = document.querySelector('.build_details td.act button');
-              if (!button || button.disabled) {
-                return false;
+              const link = document.querySelector('.build_details td.act a.research, .build_details td.act a[href*="pivo"]');
+              if (link) {
+                return { kind: 'link', href: link.getAttribute('href') || '' };
               }
-
-              button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-              return true;
+              const button = document.querySelector('.build_details td.act button');
+              if (button && !button.disabled) {
+                button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                return { kind: 'button', href: '' };
+              }
+              return { kind: 'none', href: '' };
             }
             """);
 
-        return started
-            ? new BreweryCelebrationStartAttempt(true, "Brewery celebration started.")
-            : new BreweryCelebrationStartAttempt(false, "Brewery celebration: no start button available.");
+        var kind = payload.TryGetProperty("kind", out var kindNode) ? kindNode.GetString() ?? "none" : "none";
+        var href = payload.TryGetProperty("href", out var hrefNode) ? hrefNode.GetString() ?? string.Empty : string.Empty;
+
+        return kind switch
+        {
+            "link" => new BreweryCelebrationStartAttempt(true, "Brewery celebration started.", href),
+            "button" => new BreweryCelebrationStartAttempt(true, "Brewery celebration started.", string.Empty),
+            _ => new BreweryCelebrationStartAttempt(false, "Brewery celebration: no start button available.", string.Empty),
+        };
     }
 
     private sealed record BreweryCelebrationPageStatus(
         bool CelebrationRunning,
         string RemainingText,
+        int? RemainingSeconds,
         bool CanStart,
         string StatusText);
 
     private sealed record BreweryCelebrationStartAttempt(
         bool Started,
-        string Message);
+        string Message,
+        string Href);
 }

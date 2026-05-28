@@ -101,20 +101,21 @@
                                            TextAlignment="Center" />
                             </Border>
                         </StackPanel>
-                        <Grid>
+                        <Grid Margin="0,0,0,6">
                             <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <CheckBox Grid.Column="0"
-                                      Content="Auto celebration (Teutons only)"
-                                      VerticalAlignment="Center"
-                                      IsChecked="{Binding AutoCelebrationEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      IsEnabled="{Binding IsAutoCelebrationCheckboxEnabled}" />
-                            <Border Grid.Column="1"
-                                    Margin="12,0,0,0"
-                                    Width="72"
-                                    Padding="8,4"
+                            <TextBlock Grid.Column="0"
+                                       Text="Celebration status:"
+                                       Foreground="#374151"
+                                       FontSize="12"
+                                       VerticalAlignment="Center" />
+                            <Border Grid.Column="2"
+                                    Margin="8,0,0,0"
+                                    MinWidth="84"
+                                    Padding="10,4"
                                     CornerRadius="8"
                                     Background="{Binding AutoCelebrationBadgeBackground}"
                                     BorderBrush="{Binding AutoCelebrationBadgeBorderBrush}"
@@ -126,10 +127,42 @@
                                            TextAlignment="Center" />
                             </Border>
                         </Grid>
-                        <TextBlock Text="{Binding AutoCelebrationStatusText}"
-                                   Foreground="#6B7280"
-                                   TextWrapping="Wrap"
-                                   Margin="0,8,0,0" />
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="Brewery found:"
+                                       Foreground="#374151"
+                                       FontSize="12"
+                                       VerticalAlignment="Center" />
+                            <Border Grid.Column="2"
+                                    Margin="8,0,0,0"
+                                    MinWidth="84"
+                                    Padding="10,4"
+                                    CornerRadius="8"
+                                    Background="{Binding BreweryFoundBadgeBackground}"
+                                    BorderBrush="{Binding BreweryFoundBadgeBorderBrush}"
+                                    BorderThickness="1">
+                                <TextBlock Text="{Binding BreweryFoundIndicatorText}"
+                                           Foreground="{Binding BreweryFoundBadgeForeground}"
+                                           FontWeight="SemiBold"
+                                           HorizontalAlignment="Center"
+                                           TextAlignment="Center" />
+                            </Border>
+                        </Grid>
+                        <CheckBox Content="Auto celebration (Teutons only)"
+                                  VerticalAlignment="Center"
+                                  Margin="0,0,0,8"
+                                  IsChecked="{Binding AutoCelebrationEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  IsEnabled="{Binding IsAutoCelebrationCheckboxEnabled}" />
+                        <Button x:Name="CheckCelebrationButton"
+                                Content="Check celebration"
+                                Width="150"
+                                HorizontalAlignment="Left"
+                                Click="CheckCelebrationButton_Click" />
                     </StackPanel>
                 </Border>
 

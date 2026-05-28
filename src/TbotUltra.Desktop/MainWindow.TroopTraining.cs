@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -134,7 +135,7 @@ public partial class MainWindow
         }
     }
 
-    private static bool TryResolveBrewerySlotId(VillageStatus status, out int slotId)
+    private static bool TryResolveBrewerySlotIdFromStatus(VillageStatus status, out int slotId)
     {
         slotId = status.Buildings
             .FirstOrDefault(item =>
@@ -142,6 +143,94 @@ public partial class MainWindow
                 && (item.Gid == 35 || string.Equals(item.Name, "Brewery", StringComparison.OrdinalIgnoreCase)))
             ?.SlotId ?? 0;
         return slotId > 0;
+    }
+
+    /// <summary>
+    /// Returns the brewery slot id for the village in <paramref name="status"/>, preferring
+    /// the live scan but falling back to the per-village cache when the scan came back
+    /// without gid=35. Partial dorf2 scans (and reads taken from non-dorf2 pages) often
+    /// miss buildings even when they exist — without the cache fallback every such read
+    /// would flip the celebration card to "Brewery missing".
+    /// </summary>
+    /// <remarks>
+    /// Cache invalidation policy: only a high-confidence full dorf2 read can declare
+    /// the brewery actually gone. Lower-confidence reads keep the cached slot id. So
+    /// when the user demolishes the brewery, the next successful dorf2 scan will
+    /// invalidate the cache; transient partial scans (or status snapshots taken from
+    /// dorf1 / build pages) will not.
+    /// </remarks>
+    private bool TryResolveBrewerySlotId(VillageStatus status, out int slotId)
+    {
+        var villageKey = status.ActiveVillage;
+        var hasVillageKey = !string.IsNullOrWhiteSpace(villageKey);
+
+        if (TryResolveBrewerySlotIdFromStatus(status, out slotId))
+        {
+            if (hasVillageKey)
+            {
+                _knownBrewerySlotByVillage[villageKey!] = slotId;
+            }
+            return true;
+        }
+
+        // Brewery not present in this status. Only invalidate the cache if we trust
+        // the absence — i.e. the scan looks like a complete dorf2 read.
+        if (IsHighConfidenceBuildingsScan(status))
+        {
+            if (hasVillageKey && _knownBrewerySlotByVillage.Remove(villageKey!))
+            {
+                AppendLog("Brewery celebration: cache cleared — high-confidence dorf2 scan reports brewery absent.");
+            }
+            slotId = 0;
+            return false;
+        }
+
+        // Low/partial scan — trust the cache.
+        if (hasVillageKey
+            && _knownBrewerySlotByVillage.TryGetValue(villageKey!, out var cachedSlot)
+            && cachedSlot > 0)
+        {
+            slotId = cachedSlot;
+            return true;
+        }
+
+        slotId = 0;
+        return false;
+    }
+
+    /// <summary>
+    /// Heuristic for "this status came from a full dorf2 buildings scan". Requires
+    /// most slots to have a known gid plus the Main Building to be present, which
+    /// effectively excludes partial scans (where hydration races leave most slots
+    /// without gid classes) and status snapshots that don't include real building
+    /// data at all (Buildings empty / very few entries).
+    /// </summary>
+    private static bool IsHighConfidenceBuildingsScan(VillageStatus status)
+    {
+        var buildings = status.Buildings;
+        if (buildings.Count < 18)
+        {
+            return false;
+        }
+
+        var withGid = 0;
+        var hasMainBuilding = false;
+        foreach (var building in buildings)
+        {
+            if (building.Gid is > 0)
+            {
+                withGid += 1;
+                if (building.Gid == 15)
+                {
+                    hasMainBuilding = true;
+                }
+            }
+        }
+
+        // Require Main Building visible plus the bulk of slots resolved. With 22 slots
+        // typical, 18 with-gid keeps headroom for one or two stubborn img-hydration
+        // misses while still excluding the partial-scan case (where ~7 of 22 carry gids).
+        return hasMainBuilding && withGid >= 18;
     }
 
     private void ApplyLocalBreweryCelebrationStatus(VillageStatus status)
@@ -164,15 +253,7 @@ public partial class MainWindow
         if (status.IsCapital == false)
         {
             ClearBreweryBlockedState();
-            _troopTrainingViewModel.ApplyBreweryCelebrationStatus(new BreweryCelebrationStatus(
-                true,
-                false,
-                TryResolveBrewerySlotId(status, out var nonCapitalBrewerySlot) && nonCapitalBrewerySlot > 0,
-                nonCapitalBrewerySlot > 0 ? nonCapitalBrewerySlot : null,
-                false,
-                null,
-                "N/A",
-                "Capital village required."));
+            _troopTrainingViewModel.MarkBreweryNonCapital();
             return;
         }
 
@@ -201,9 +282,20 @@ public partial class MainWindow
             AppendLog("Brewery celebration group re-enabled: Brewery detected after building refresh.");
         }
 
-        _troopTrainingViewModel.ResetBreweryCelebrationStatus(
+        // Brewery confirmed (either by scan or by per-village cache hit). Sync the
+        // troops-tab Y/N indicator so it doesn't lag behind the dashboard knowledge.
+        _troopTrainingViewModel.MarkBreweryExists(true);
+
+        // Don't wipe the running countdown here — local refreshes fire every ~16s while
+        // idle and would otherwise erase a running celebration's RemainingSeconds before
+        // the next remote read can repopulate it. We just update the status text; the
+        // 1Hz TickCountdowns keeps the cached seconds in sync until a remote read
+        // confirms or refreshes the value.
+        _troopTrainingViewModel.UpdateBreweryStatusTextOnly(
             _troopTrainingViewModel.AutoCelebrationEnabled
-                ? "Reading celebration status..."
+                ? (_troopTrainingViewModel.AutoCelebrationRemainingSeconds is > 0
+                    ? "Celebration running."
+                    : "Brewery ready.")
                 : "Disabled.");
     }
 
@@ -214,6 +306,40 @@ public partial class MainWindow
             .OrderBy(value => value)
             .ToList();
         UpdateAutomationLoopRunningIndicators();
+    }
+
+    /// <summary>
+    /// Pushes a freshly observed smithy wait (from the log stream when the worker emits
+    /// queue_wait_seconds for an inline-wait iteration) into the dashboard timer collection.
+    /// Replaces the head value so the countdown stays in sync with the worker's reload cycle.
+    /// </summary>
+    private void PushSmithyUpgradeRemainingSeconds(int seconds)
+    {
+        if (seconds <= 0)
+        {
+            return;
+        }
+
+        if (_smithyUpgradeRemainingSeconds.Count == 0)
+        {
+            _smithyUpgradeRemainingSeconds.Add(seconds);
+        }
+        else
+        {
+            _smithyUpgradeRemainingSeconds[0] = seconds;
+        }
+
+        UpdateAutomationLoopRunningIndicators();
+    }
+
+    private static bool IsSmithyUpgradeWaitMessage(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        return message.IndexOf("Smithy:", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private int? ResolveSmithyUpgradeGroupRemainingSeconds()
@@ -294,9 +420,12 @@ public partial class MainWindow
         ApplyLocalBreweryCelebrationStatus(status);
         UpdateAutomationLoopRunningIndicators();
 
-        if (!IsTeutonsTribe(status.Tribe)
-            || status.IsCapital == false
-            || !TryResolveBrewerySlotId(status, out _))
+        // Bail only when we can be certain a remote read is pointless.
+        // Crucially, do NOT skip just because the local buildings scan missed gid=35 —
+        // the remote read has a dedicated DOM fallback probe that catches breweries the
+        // dorf2 scan misses (e.g. async-hydrated V3 layouts). Skipping here keeps the
+        // "Brewery missing" blocked state stuck even though the building exists.
+        if (!IsTeutonsTribe(status.Tribe) || status.IsCapital == false)
         {
             return;
         }
@@ -306,6 +435,22 @@ public partial class MainWindow
             var celebrationStatus = await _botService.ReadBreweryCelebrationStatusAsync(options, AppendLog, status.Buildings, cancellationToken);
             await Dispatcher.InvokeAsync(() =>
             {
+                // Seed the per-village brewery cache from authoritative remote reads so
+                // later partial dorf2 scans don't regress to "Brewery missing".
+                if (celebrationStatus.BreweryExists
+                    && celebrationStatus.BrewerySlotId is > 0
+                    && !string.IsNullOrWhiteSpace(status.ActiveVillage))
+                {
+                    _knownBrewerySlotByVillage[status.ActiveVillage] = celebrationStatus.BrewerySlotId.Value;
+                }
+
+                if (celebrationStatus.BreweryExists
+                    && string.Equals(_breweryBlockedReasonKey, BreweryBlockedReasonMissing, StringComparison.OrdinalIgnoreCase))
+                {
+                    ClearBreweryBlockedState();
+                    AppendLog("Brewery celebration group re-enabled: Brewery detected via remote probe.");
+                }
+
                 _troopTrainingViewModel.ApplyBreweryCelebrationStatus(celebrationStatus);
                 UpdateAutomationLoopRunningIndicators();
             });
@@ -317,6 +462,38 @@ public partial class MainWindow
                 _troopTrainingViewModel.ResetBreweryCelebrationStatus($"Could not read celebration status: {ex.Message}");
                 UpdateAutomationLoopRunningIndicators();
             });
+        }
+    }
+
+    /// <summary>
+    /// Manual "Check celebration" button on the troops tab. Navigates to the brewery,
+    /// reads the live celebration status, and updates the UI (timer + Brewery-found
+    /// indicator). Bypasses the queue so it works even when no continuous loop is
+    /// running.
+    /// </summary>
+    internal async Task OnCheckCelebrationClickedAsync()
+    {
+        if (!_isLoggedIn)
+        {
+            _troopTrainingViewModel.InfoText = "Log in first to check celebration status.";
+            return;
+        }
+
+        var operationId = BeginOperation("Check celebration");
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            await EnsureChromiumInstalledAsync();
+            var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            AppendLog($"[{operationId}] Manual celebration check requested.");
+            await RefreshBreweryCelebrationStatusAsync(options, _lastBuildingStatus, CancellationToken.None);
+            _troopTrainingViewModel.InfoText = "Celebration status refreshed.";
+            CompleteOperation(operationId, sw, "Celebration check completed.");
+        }
+        catch (Exception ex)
+        {
+            _troopTrainingViewModel.InfoText = $"Celebration check failed: {ex.Message}";
+            FailOperation(operationId, sw, ex);
         }
     }
 

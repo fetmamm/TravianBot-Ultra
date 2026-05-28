@@ -51,6 +51,7 @@ public sealed class TroopTrainingViewModel : BaseViewModel
     private bool _autoCelebrationCanStart;
     private int? _autoCelebrationRemainingSeconds;
     private string _autoCelebrationStatusText = "Teutons only.";
+    private bool _breweryExists;
     private bool _npcTradeEnabled;
     private bool _npcTradeConstructionEnabled;
     private int _npcTradeThresholdPercent = 90;
@@ -58,6 +59,8 @@ public sealed class TroopTrainingViewModel : BaseViewModel
     private bool _npcTradeAnalyzeClay = true;
     private bool _npcTradeAnalyzeIron = true;
     private bool _npcTradeAnalyzeCrop = true;
+    private bool _npcTradeBuildTimeLimitEnabled;
+    private int _npcTradeBuildTimeLimitSeconds = 60;
     private bool _allowGoldSpending;
     private int _goldLimit = 100;
 
@@ -298,6 +301,46 @@ public sealed class TroopTrainingViewModel : BaseViewModel
         }
     }
 
+    public bool NpcTradeBuildTimeLimitEnabled
+    {
+        get => _npcTradeBuildTimeLimitEnabled;
+        set
+        {
+            if (!SetProperty(ref _npcTradeBuildTimeLimitEnabled, value))
+            {
+                return;
+            }
+
+            if (!_isConfigSuppressed)
+            {
+                ConfigChanged?.Invoke();
+            }
+        }
+    }
+
+    public int NpcTradeBuildTimeLimitSeconds
+    {
+        get => _npcTradeBuildTimeLimitSeconds;
+        set
+        {
+            var normalized = value switch
+            {
+                30 or 60 or 300 or 1200 or 3600 => value,
+                _ => 60,
+            };
+
+            if (!SetProperty(ref _npcTradeBuildTimeLimitSeconds, normalized))
+            {
+                return;
+            }
+
+            if (!_isConfigSuppressed)
+            {
+                ConfigChanged?.Invoke();
+            }
+        }
+    }
+
     public bool IsAnyNpcTradeEnabled => NpcTradeEnabled || NpcTradeConstructionEnabled;
 
     public string NpcTradeStatusText => (NpcTradeEnabled, NpcTradeConstructionEnabled) switch
@@ -427,6 +470,8 @@ public sealed class TroopTrainingViewModel : BaseViewModel
             NpcTradeAnalyzeClay = options.NpcTradeAnalyzeClay;
             NpcTradeAnalyzeIron = options.NpcTradeAnalyzeIron;
             NpcTradeAnalyzeCrop = options.NpcTradeAnalyzeCrop;
+            NpcTradeBuildTimeLimitEnabled = options.NpcTradeBuildTimeLimitEnabled;
+            NpcTradeBuildTimeLimitSeconds = options.NpcTradeBuildTimeLimitSeconds;
             AllowGoldSpending = options.AllowGoldSpending;
             GoldLimit = options.GoldLimit;
             _autoCelebrationExplicitlyConfigured = hasExplicitAutoCelebrationSetting;
@@ -502,6 +547,8 @@ public sealed class TroopTrainingViewModel : BaseViewModel
         config[BotOptionPayloadKeys.NpcTradeAnalyzeClay] = NpcTradeAnalyzeClay;
         config[BotOptionPayloadKeys.NpcTradeAnalyzeIron] = NpcTradeAnalyzeIron;
         config[BotOptionPayloadKeys.NpcTradeAnalyzeCrop] = NpcTradeAnalyzeCrop;
+        config[BotOptionPayloadKeys.NpcTradeBuildTimeLimitEnabled] = NpcTradeBuildTimeLimitEnabled;
+        config[BotOptionPayloadKeys.NpcTradeBuildTimeLimitSeconds] = NpcTradeBuildTimeLimitSeconds;
         config["allow_gold_spending"] = AllowGoldSpending;
         config["gold_limit"] = GoldLimit;
     }
@@ -673,12 +720,46 @@ public sealed class TroopTrainingViewModel : BaseViewModel
         AutoCelebrationStatusText = string.IsNullOrWhiteSpace(status.StatusText)
             ? "Status unavailable."
             : status.StatusText;
+        BreweryExists = status.BreweryExists;
+    }
+
+    /// <summary>
+    /// Sets the brewery-found indicator from outside the authoritative status pipeline
+    /// (e.g. the MainWindow per-village slot cache learns about a brewery via the
+    /// dorf2 scan path or a remote probe). Keeps the troops-tab indicator in sync
+    /// with the dashboard's actual knowledge.
+    /// </summary>
+    public void MarkBreweryExists(bool exists)
+    {
+        BreweryExists = exists;
     }
 
     public void ResetBreweryCelebrationStatus(string statusText = "Status not loaded.")
     {
         AutoCelebrationCanStart = false;
         AutoCelebrationRemainingSeconds = null;
+        AutoCelebrationStatusText = statusText;
+    }
+
+    /// <summary>
+    /// Updates the celebration status text without wiping the cached remaining-seconds
+    /// timer or CanStart flag. Used by periodic local refreshes that re-confirm the
+    /// brewery exists but don't have a fresh authoritative reading to publish — we don't
+    /// want a 16s status-refresh to clear a running celebration's countdown.
+    /// </summary>
+    public void UpdateBreweryStatusTextOnly(string statusText)
+    {
+        AutoCelebrationStatusText = statusText;
+    }
+
+    /// <summary>
+    /// Marks the active village as non-capital without wiping the running celebration timer.
+    /// The brewery is account-wide (capital only), so any in-progress celebration keeps
+    /// ticking even while the user views a different village.
+    /// </summary>
+    public void MarkBreweryNonCapital(string statusText = "Capital village required.")
+    {
+        AutoCelebrationCanStart = false;
         AutoCelebrationStatusText = statusText;
     }
 
@@ -751,14 +832,21 @@ public sealed class TroopTrainingViewModel : BaseViewModel
         get => _autoCelebrationEnabled;
         set
         {
-            var normalized = IsAutoCelebrationAvailableForCurrentTribe && value;
-            if (!SetProperty(ref _autoCelebrationEnabled, normalized))
+            // Don't normalize against IsAutoCelebrationAvailableForCurrentTribe here —
+            // during startup the tribe state is applied AFTER the config is loaded, so
+            // forcing the value to false when availability isn't yet known would silently
+            // unset a previously-checked checkbox. Consumers (ContinuousLoop,
+            // ResolveBreweryCelebrationGroupRemainingSeconds) already gate on tribe
+            // availability before acting on AutoCelebrationEnabled, and the non-Teutons
+            // branch of UpdateAutoCelebrationAvailability still flips this to false when
+            // the tribe actually changes.
+            if (!SetProperty(ref _autoCelebrationEnabled, value))
             {
                 return;
             }
 
             _autoCelebrationExplicitlyConfigured = true;
-            if (!normalized)
+            if (!value)
             {
                 AutoCelebrationCanStart = false;
                 if (IsAutoCelebrationAvailableForCurrentTribe)
@@ -789,6 +877,10 @@ public sealed class TroopTrainingViewModel : BaseViewModel
             OnPropertyChanged(nameof(AutoCelebrationBadgeBackground));
             OnPropertyChanged(nameof(AutoCelebrationBadgeBorderBrush));
             OnPropertyChanged(nameof(AutoCelebrationBadgeForeground));
+            OnPropertyChanged(nameof(BreweryFoundIndicatorText));
+            OnPropertyChanged(nameof(BreweryFoundBadgeBackground));
+            OnPropertyChanged(nameof(BreweryFoundBadgeBorderBrush));
+            OnPropertyChanged(nameof(BreweryFoundBadgeForeground));
         }
     }
 
@@ -826,8 +918,71 @@ public sealed class TroopTrainingViewModel : BaseViewModel
             OnPropertyChanged(nameof(AutoCelebrationBadgeBackground));
             OnPropertyChanged(nameof(AutoCelebrationBadgeBorderBrush));
             OnPropertyChanged(nameof(AutoCelebrationBadgeForeground));
+            // A running celebration implies the brewery exists, so the Y/N indicator
+            // should reflect that too even if no explicit BreweryExists update arrived.
+            OnPropertyChanged(nameof(BreweryFoundIndicatorText));
+            OnPropertyChanged(nameof(BreweryFoundBadgeBackground));
+            OnPropertyChanged(nameof(BreweryFoundBadgeBorderBrush));
+            OnPropertyChanged(nameof(BreweryFoundBadgeForeground));
         }
     }
+
+    public bool BreweryExists
+    {
+        get => _breweryExists;
+        private set
+        {
+            if (!SetProperty(ref _breweryExists, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(BreweryFoundIndicatorText));
+            OnPropertyChanged(nameof(BreweryFoundBadgeBackground));
+            OnPropertyChanged(nameof(BreweryFoundBadgeBorderBrush));
+            OnPropertyChanged(nameof(BreweryFoundBadgeForeground));
+        }
+    }
+
+    /// <summary>"Y" if the brewery has been confirmed (cache hit, scan, or a running
+    /// celebration), "N" otherwise. Shown next to "Brewery found:" on the troops tab.</summary>
+    public string BreweryFoundIndicatorText
+    {
+        get
+        {
+            if (!IsAutoCelebrationAvailableForCurrentTribe)
+            {
+                return "N/A";
+            }
+
+            // A running celebration is itself proof the brewery exists, regardless of
+            // whether the most recent dorf2 scan happened to surface gid=35.
+            if (BreweryExists || AutoCelebrationRemainingSeconds is > 0)
+            {
+                return "Y";
+            }
+
+            return "N";
+        }
+    }
+
+    public string BreweryFoundBadgeBackground => !IsAutoCelebrationAvailableForCurrentTribe
+        ? "#E5E7EB"
+        : (BreweryExists || AutoCelebrationRemainingSeconds is > 0)
+            ? "#DCFCE7"
+            : "#FEE2E2";
+
+    public string BreweryFoundBadgeBorderBrush => !IsAutoCelebrationAvailableForCurrentTribe
+        ? "#9CA3AF"
+        : (BreweryExists || AutoCelebrationRemainingSeconds is > 0)
+            ? "#22C55E"
+            : "#EF4444";
+
+    public string BreweryFoundBadgeForeground => !IsAutoCelebrationAvailableForCurrentTribe
+        ? "#4B5563"
+        : (BreweryExists || AutoCelebrationRemainingSeconds is > 0)
+            ? "#15803D"
+            : "#B91C1C";
 
     public string AutoCelebrationStatusText
     {
@@ -847,8 +1002,9 @@ public sealed class TroopTrainingViewModel : BaseViewModel
             if (AutoCelebrationRemainingSeconds is > 0)
             {
                 var time = TimeSpan.FromSeconds(AutoCelebrationRemainingSeconds.Value);
-                var totalHours = (int)Math.Floor(time.TotalHours);
-                return $"{totalHours:00}:{time.Minutes:00}";
+                return time.TotalHours >= 1
+                    ? $"{(int)time.TotalHours:00}:{time.Minutes:00}:{time.Seconds:00}"
+                    : $"{time.Minutes:00}:{time.Seconds:00}";
             }
 
             return AutoCelebrationCanStart ? "Ready" : "N/A";

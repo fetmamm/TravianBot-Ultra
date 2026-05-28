@@ -721,17 +721,54 @@ public partial class MainWindow
             ClearBreweryBlockedState();
         }
 
-        if (option.IsEnabled
+        var continuousLoopWillHandle = option.IsEnabled
             && ContinuousRunToggleButton?.IsChecked == true
             && _loopTask is not null
-            && !_loopTask.IsCompleted)
+            && !_loopTask.IsCompleted;
+
+        if (continuousLoopWillHandle)
         {
             Interlocked.Exchange(ref _continuousLoopWakeRequested, 1);
             AppendLog($"{option.Title} group enabled. Continuous loop will check it now.");
         }
+        else if (option.IsEnabled
+            && string.Equals(option.TaskName, QueueGroupCatalog.GetKey(QueueGroup.BreweryCelebration), StringComparison.OrdinalIgnoreCase))
+        {
+            // Group toggled on while the continuous loop isn't running. The cached
+            // AutoCelebrationRemainingSeconds keeps ticking across toggle off/on (the
+            // 1Hz clock timer ticks it regardless of group state), so we don't lose the
+            // countdown. But we still want a fresh authoritative read from the server
+            // to verify the cached value — the running celebration may have ended while
+            // the group was off.
+            TriggerBreweryCelebrationVerificationRefresh();
+        }
 
         RefreshAutomationLoopDashboardUi();
         PersistAutomationLoopTasksToConfig();
+    }
+
+    private void TriggerBreweryCelebrationVerificationRefresh()
+    {
+        if (!_isLoggedIn || !_browserSessionLikelyOpen)
+        {
+            // No browser yet — nothing to read. The post-login flow already triggers a
+            // refresh when the user signs in, so silently skipping here is correct.
+            return;
+        }
+
+        AppendLog("Brewery celebration: group re-enabled, verifying status against server.");
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var options = ApplySelectedVillageToOptions(LoadBotOptions());
+                await RefreshBreweryCelebrationStatusAsync(options, _lastBuildingStatus, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"Brewery celebration verification refresh failed: {ex.Message}");
+            }
+        });
     }
 
     private void AutomationLoopListBox_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)

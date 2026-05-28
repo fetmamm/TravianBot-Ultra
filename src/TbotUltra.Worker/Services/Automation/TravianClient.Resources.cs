@@ -1258,6 +1258,7 @@ public sealed partial class TravianClient
     private async Task<IReadOnlyList<ResourceField>> ReadResourceFieldsAsync(CancellationToken cancellationToken)
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading resource fields.", cancellationToken);
+        await WaitForResourceFieldsHydratedAsync(cancellationToken);
         string rawFieldsJson = string.Empty;
         await RetryAsync("read resource fields snapshot", async () =>
         {
@@ -1444,6 +1445,52 @@ public sealed partial class TravianClient
             : JsonSerializer.Deserialize<List<ResourceFieldJs>>(rawFieldsJson) ?? new List<ResourceFieldJs>();
 
         rawFields ??= [];
+
+        // If the dorf1 scan picked up zero field links, try one targeted reload-and-retry
+        // before falling back to placeholders. Travian sometimes leaves the image-map
+        // <area> elements out of the initial DOM when navigating between dorf1/dorf2,
+        // so the first scan on a non-fresh page can come up empty even though the page
+        // is on the right URL.
+        if (rawFields.Count == 0 && IsCurrentUrlForPath(Paths.Resources))
+        {
+            Notify("Resource field scan returned 0 link elements. Reloading dorf1 once and retrying.");
+            try
+            {
+                await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+                await WaitForResourceFieldsHydratedAsync(cancellationToken);
+
+                await RetryAsync("read resource fields snapshot (retry)", async () =>
+                {
+                    rawFieldsJson = await _page.EvaluateAsync<string>(
+                        @"() => {
+                          const links = Array.from(document.querySelectorAll('area[href*=""build.php?id=""], a[href*=""build.php?id=""]'));
+                          const out = [];
+                          const seen = new Set();
+                          for (const link of links) {
+                            const href = link.getAttribute('href') || '';
+                            const m = href.match(/[?&]id=(\d+)/);
+                            if (!m) continue;
+                            const slotId = parseInt(m[1], 10);
+                            if (slotId < 1 || slotId > 18 || seen.has(slotId)) continue;
+                            seen.add(slotId);
+                            out.push({ slotId, fieldType: 'unknown', name: '', level: null, href });
+                          }
+                          return JSON.stringify(out);
+                        }");
+                }, cancellationToken: cancellationToken);
+
+                rawFields = string.IsNullOrWhiteSpace(rawFieldsJson)
+                    ? new List<ResourceFieldJs>()
+                    : JsonSerializer.Deserialize<List<ResourceFieldJs>>(rawFieldsJson) ?? new List<ResourceFieldJs>();
+                rawFields ??= [];
+                Notify($"Resource field retry scan picked up {rawFields.Count} link element(s).");
+            }
+            catch (Exception ex) when (IsTransientExecutionContextException(ex))
+            {
+                Notify($"Resource field reload hit transient navigation context ({ex.Message}). Continuing with placeholders.");
+            }
+        }
+
         var fieldTypeNames = new Dictionary<string, string>
         {
             ["wood"] = "Woodcutter",
@@ -1478,6 +1525,56 @@ public sealed partial class TravianClient
         }
 
         return fields.OrderBy(f => f.SlotId ?? 999).ToList();
+    }
+
+    /// <summary>
+    /// Waits up to ~3s for dorf1's resource field link elements to appear in the DOM.
+    /// The buildings overview scan added a similar hydration wait to fix partial reads
+    /// on V3 layouts; dorf1 has the same lazy-mount behaviour when the page is reused
+    /// across status refreshes (Travian sometimes drops the <area> map briefly during
+    /// background ajax refreshes). Without this wait the very next refresh after a
+    /// fresh navigation returns 0 fields even though the page is on dorf1.
+    /// </summary>
+    private async Task WaitForResourceFieldsHydratedAsync(CancellationToken cancellationToken)
+    {
+        if (!IsCurrentUrlForPath(Paths.Resources))
+        {
+            return;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        try
+        {
+            await _page.WaitForFunctionAsync(
+                """
+                () => {
+                  const links = document.querySelectorAll('area[href*="build.php?id="], a[href*="build.php?id="]');
+                  let count = 0;
+                  const seen = new Set();
+                  for (const link of links) {
+                    const href = link.getAttribute('href') || '';
+                    const m = href.match(/[?&]id=(\d+)/);
+                    if (!m) continue;
+                    const slotId = parseInt(m[1], 10);
+                    if (slotId < 1 || slotId > 18 || seen.has(slotId)) continue;
+                    seen.add(slotId);
+                    count++;
+                  }
+                  return count >= 18;
+                }
+                """,
+                null,
+                new PageWaitForFunctionOptions { Timeout = 3000 });
+        }
+        catch (TimeoutException)
+        {
+            // Continue; the retry-with-reload path inside ReadResourceFieldsAsync still
+            // recovers if the JS scan comes back empty.
+        }
+        catch (Exception ex) when (!IsTransientExecutionContextException(ex))
+        {
+            Notify($"Resource field hydration wait skipped: {ex.Message}");
+        }
     }
 
     private async Task NavigateToResourceFieldsAfterUpgradeClickAsync(CancellationToken cancellationToken)

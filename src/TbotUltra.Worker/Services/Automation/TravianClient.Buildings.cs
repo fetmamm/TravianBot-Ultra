@@ -1146,9 +1146,17 @@ public sealed partial class TravianClient
             }
             await Task.Delay(400, cancellationToken);
 
+            // Each Playwright call below is wrapped in RetryAsync so transient navigation
+            // races (ERR_ABORTED / "frame was detached") that fire when Travian reloads or
+            // the bot navigates mid-evaluation don't escalate into ALARMs. Up to 3 retries
+            // with a short backoff, matching the policy used by other Buildings methods.
+
             // Check for "Improve the blacksmith" — smithy itself needs upgrade before more troops can be improved.
-            var needsSmithyUpgrade = await _page.EvaluateAsync<bool>(
-                "() => /improve\\s+the\\s+(blacksmith|smithy)/i.test(document.body.innerText || '')");
+            var needsSmithyUpgrade = await RetryAsync(
+                "Smithy: detect 'improve the blacksmith'",
+                () => _page.EvaluateAsync<bool>(
+                    "() => /improve\\s+the\\s+(blacksmith|smithy)/i.test(document.body.innerText || '')"),
+                cancellationToken: cancellationToken);
             if (needsSmithyUpgrade)
             {
                 Notify($"Smithy capacity exhausted (\"Improve the blacksmith\" detected). Upgrading slot {smithySlotId.Value} to max.");
@@ -1160,7 +1168,10 @@ public sealed partial class TravianClient
             }
 
             // Try to click an Upgrade button for any troop.
-            var clickResult = await ClickFirstSmithyUpgradeButtonAsync(cancellationToken);
+            var clickResult = await RetryAsync(
+                "Smithy: click first upgrade button",
+                () => ClickFirstSmithyUpgradeButtonAsync(cancellationToken),
+                cancellationToken: cancellationToken);
             if (clickResult.Clicked)
             {
                 totalUpgradeClicks += 1;
@@ -1172,7 +1183,11 @@ public sealed partial class TravianClient
                 continue;
             }
 
-            if (await IsSmithyFullyDevelopedAsync(cancellationToken))
+            var smithyFullyDeveloped = await RetryAsync(
+                "Smithy: check fully developed",
+                () => IsSmithyFullyDevelopedAsync(cancellationToken),
+                cancellationToken: cancellationToken);
+            if (smithyFullyDeveloped)
             {
                 Notify($"Smithy: fully developed detected. Total clicks: {totalUpgradeClicks}.");
                 await GotoAsync(Paths.Buildings, cancellationToken);
@@ -1180,7 +1195,10 @@ public sealed partial class TravianClient
             }
 
             // No clickable upgrade button. Inspect research-in-progress duration.
-            var durationSeconds = await ReadSmithyResearchDurationSecondsAsync(cancellationToken);
+            var durationSeconds = await RetryAsync(
+                "Smithy: read research duration",
+                () => ReadSmithyResearchDurationSecondsAsync(cancellationToken),
+                cancellationToken: cancellationToken);
             if (durationSeconds is int dur)
             {
                 if (dur <= 0)
@@ -1191,7 +1209,7 @@ public sealed partial class TravianClient
                         return $"Smithy: research timer stuck at 00:00:00 after 3 reloads. Manual review needed. Upgrades clicked: {totalUpgradeClicks}.";
                     }
                     Notify($"Smithy: timer at 00:00:00, reloading (attempt {consecutiveZeroDurationReloads}/3).");
-                    await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+                    await TryReloadSmithyAsync(cancellationToken);
                     continue;
                 }
                 consecutiveZeroDurationReloads = 0;
@@ -1202,9 +1220,12 @@ public sealed partial class TravianClient
                     return $"Smithy: research in progress. queue_wait_seconds={waitSec}";
                 }
 
-                Notify($"Smithy: research in progress, waiting {waitSec}s.");
+                // Emit queue_wait_seconds even on the inline path so the desktop dashboard's
+                // log stream can mirror the countdown to its smithy timer. The task itself
+                // does not defer (waitSec is below the queue wait threshold).
+                Notify($"Smithy: research in progress, waiting {waitSec}s. queue_wait_seconds={waitSec}");
                 await Task.Delay(TimeSpan.FromSeconds(waitSec), cancellationToken);
-                await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+                await TryReloadSmithyAsync(cancellationToken);
                 continue;
             }
 
@@ -1217,10 +1238,25 @@ public sealed partial class TravianClient
                 return $"Smithy: upgraded {totalUpgradeClicks} troop(s). All done.";
             }
             Notify($"Smithy: no buttons visible, reload {consecutiveEmptyReloads}/3.");
-            await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+            await TryReloadSmithyAsync(cancellationToken);
         }
 
         return $"Smithy: hit safety cap of {safetyCap} iterations after {totalUpgradeClicks} click(s).";
+    }
+
+    private async Task TryReloadSmithyAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+        }
+        catch (Exception ex) when (IsTransientExecutionContextException(ex))
+        {
+            // Transient navigation race during reload. The next iteration's IsCurrentUrlForPath
+            // check + GotoAsync will recover by re-navigating to the smithy page.
+            Notify($"Smithy: reload hit transient navigation context ({ex.Message}). Continuing.");
+            await Task.Delay(300, cancellationToken);
+        }
     }
 
     public async Task<SmithyUpgradeStatus> ReadSmithyUpgradeStatusAsync(
@@ -1732,18 +1768,28 @@ public sealed partial class TravianClient
                 """
                 () => {
                   const slots = Array.from(document.querySelectorAll('div.buildingSlot'));
-                  if (slots.length >= 18) {
-                    return true;
+                  if (slots.length < 18) {
+                    return false;
                   }
 
-                  return slots.some(slot => {
-                    const className = String(slot.className || '');
-                    return /\baid\d+\b/i.test(className) || /\ba\d+\b/i.test(className);
-                  });
+                  // Wait until building images have populated their gid classes.
+                  // V3 layouts add `g<gid>` to the slot/img after async hydration; if we read
+                  // too early, occupied slots look empty (missing_gid spam in logs).
+                  const slotsWithGid = slots.filter(slot => {
+                    const slotClass = String(slot.className || '');
+                    if (/\bg\d{1,2}\b/i.test(slotClass)) return true;
+                    const img = slot.querySelector('img.building, img[class*=" g"], img[class^="g"]');
+                    return img && /\bg\d{1,2}\b/i.test(String(img.className || ''));
+                  }).length;
+
+                  // Typical T4 villages have 18+ slots with at least ~10 occupied buildings
+                  // by the time the player builds anything; require a reasonable share to
+                  // confirm the page has hydrated.
+                  return slotsWithGid >= Math.min(slots.length, 12);
                 }
                 """,
                 null,
-                new PageWaitForFunctionOptions { Timeout = 1500 });
+                new PageWaitForFunctionOptions { Timeout = 4000 });
         }
         catch (TimeoutException)
         {
@@ -1769,10 +1815,15 @@ public sealed partial class TravianClient
                 const namedElement = slot.querySelector('.name, .title, .desc, .buildingName, .hover, [title], [aria-label], img[alt]');
                 const link = slot.querySelector('a[href], area[href]');
                 const image = slot.querySelector('img[alt]');
+                const buildingImg = slot.querySelector('img.building, img[class*=" g"], img[class^="g"]');
+                const buildingImgClass = buildingImg ? String(buildingImg.className || '') : '';
                 const text = clean(slot.textContent || '');
-                const className = String(slot.className || '');
+                const slotOwnClass = String(slot.className || '');
+                // V3 layouts sometimes leave the gid class only on the inner <img>.
+                // Merge both so the C# parser sees `g<gid>` regardless of which element carries it.
+                const className = (slotOwnClass + ' ' + buildingImgClass).trim();
                 const occupiedEvidence =
-                  /\bg\d+\b/i.test(className)
+                  /\bg\d{1,2}\b/i.test(className)
                   || /underconst|underconstruction|built|occupied/i.test(className)
                   || Boolean(link)
                   || /\blevel\s*\d+\b/i.test(text);

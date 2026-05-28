@@ -273,6 +273,8 @@ public partial class MainWindow : Window
     private int _captchaSessionSolvedCount;
     private bool _captchaSessionActive;
     private int _npcTradeSessionCount;
+    private int _npcTradeTroopSessionCount;
+    private int _npcTradeBuildingSessionCount;
     private AppDialog? _captchaAutoSolvePopup;
     private DispatcherTimer? _captchaAutoSolveElapsedTimer;
     private DateTimeOffset _captchaAutoSolveStartedAt;
@@ -297,6 +299,12 @@ public partial class MainWindow : Window
     private string? _breweryBlockedReasonKey;
     private string? _breweryBlockedReasonText;
     private bool _breweryBlockedPreviouslyEnabled;
+    // Per-village brewery slot cache. Once we have positively identified a brewery
+    // (via local scan or remote probe), we remember the slot id and treat subsequent
+    // partial dorf2 scans as "still there" instead of flushing to "Brewery missing".
+    // The buildings tab already keeps its own snapshot, but the celebration card was
+    // reading status.Buildings directly — so a partial scan caused the badge to flip.
+    private readonly Dictionary<string, int> _knownBrewerySlotByVillage = new(StringComparer.Ordinal);
     private string? _pendingManualOperationId;
     private readonly Dictionary<string, string> _operationNamesById = new(StringComparer.OrdinalIgnoreCase);
     private ManualExecutionState? _activeManualExecution;
@@ -2448,6 +2456,11 @@ public partial class MainWindow : Window
                 granaryCapacity.Value,
                 fallbackCooldownSeconds);
             var remainingSeconds = Math.Max(0, (int)Math.Ceiling((item.NextAttemptAt - DateTimeOffset.UtcNow).TotalSeconds));
+            if (string.Equals(evaluation.WaitReason, "skip_refresh", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             if (evaluation.Ready)
             {
                 if (remainingSeconds <= 1)
@@ -2547,7 +2560,7 @@ public partial class MainWindow : Window
             .ToList();
         if (enabledRequests.Count == 0)
         {
-            return new DeferredTroopTrainingEvaluation(false, fallbackCooldownSeconds, "fallback_cooldown");
+            return new DeferredTroopTrainingEvaluation(false, fallbackCooldownSeconds, "skip_refresh");
         }
 
         var shortestWait = int.MaxValue;

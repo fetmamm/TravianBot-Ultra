@@ -106,6 +106,14 @@ public partial class MainWindow
                         {
                             _inlineWaitUntilUtc = waitUntilUtc;
                         }
+
+                        // Mirror smithy-side waits into the dashboard timer collection so the
+                        // group card shows a countdown even when the wait is below the queue
+                        // threshold and the task does not formally defer.
+                        if (IsSmithyUpgradeWaitMessage(part))
+                        {
+                            PushSmithyUpgradeRemainingSeconds((int)Math.Ceiling(queueWaitDelay.TotalSeconds));
+                        }
                     }
 
                     if (IsManualFarmingExecutionMessage(part))
@@ -117,6 +125,15 @@ public partial class MainWindow
                     if (IsNpcTradeCompletedMessage(part))
                     {
                         _npcTradeSessionCount += 1;
+                        if (IsNpcTradeTroopCompletedMessage(part))
+                        {
+                            _npcTradeTroopSessionCount += 1;
+                        }
+                        else
+                        {
+                            _npcTradeBuildingSessionCount += 1;
+                        }
+
                         UpdateNpcTradeStatsUi();
                     }
 
@@ -871,6 +888,12 @@ public partial class MainWindow
             && message.Contains("NPC trade: completed at", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool IsNpcTradeTroopCompletedMessage(string message)
+    {
+        return !string.IsNullOrWhiteSpace(message)
+            && message.Contains(" for unit t", StringComparison.OrdinalIgnoreCase);
+    }
+
     private void UpdateCaptchaStatsUi()
     {
         CaptchaStatsTextBlock.Text = $"Captchas solved: {_captchaSessionSolvedCount}/{_captchaSessionSeenCount} |";
@@ -879,7 +902,9 @@ public partial class MainWindow
     private void UpdateNpcTradeStatsUi()
     {
         var goldSpent = _npcTradeSessionCount * NpcTradeGoldCost;
-        NpcTradeSessionStatsTextBlock.Text = $"NPC trade: {_npcTradeSessionCount}";
+        NpcTradeSessionStatsTextBlock.Text = $"Gold spent: {goldSpent}";
         NpcTradeGoldSpentTextBlock.Text = $"Gold spent: {goldSpent}";
+        NpcTradeTroopsTextBlock.Text = $"NPC Troops: {_npcTradeTroopSessionCount}";
+        NpcTradeBuildingsTextBlock.Text = $"NPC Buildings: {_npcTradeBuildingSessionCount}";
     }
 }
