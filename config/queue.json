@@ -1,1 +1,50 @@
-[]
+[
+  {
+    "id": "12c6f85a-8c78-46d3-85c6-42a4c68a0c3f",
+    "taskName": "desktop_runtime_manual:login",
+    "displayName": "Login",
+    "group": "Construction",
+    "payload": {},
+    "priority": 0,
+    "status": "Succeeded",
+    "retries": 0,
+    "maxRetries": 0,
+    "isRuntimeOnly": true,
+    "nextAttemptAt": "2026-05-28T19:13:23.1048364+00:00",
+    "createdAt": "2026-05-28T19:13:23.0909726+00:00",
+    "updatedAt": "2026-05-28T19:13:37.5861506+00:00"
+  },
+  {
+    "id": "361bfc54-9df5-4044-a8cf-f4d163387050",
+    "taskName": "upgrade_all_resources_to_level",
+    "displayName": null,
+    "group": "Construction",
+    "payload": {
+      "resource_upgrade_target_level": "40",
+      "resource_build_strategy": "lowest_first"
+    },
+    "priority": 0,
+    "status": "Running",
+    "retries": 0,
+    "maxRetries": 3,
+    "isRuntimeOnly": false,
+    "nextAttemptAt": "2026-05-28T19:15:51.2114254+00:00",
+    "createdAt": "2026-05-28T19:13:39.8730986+00:00",
+    "updatedAt": "2026-05-28T19:15:51.2114255+00:00"
+  },
+  {
+    "id": "7de19643-3159-4492-804d-24e276158d68",
+    "taskName": "build_troops",
+    "displayName": "Build troops",
+    "group": "TroopTraining",
+    "payload": {},
+    "priority": -50,
+    "status": "Pending",
+    "retries": 0,
+    "maxRetries": 0,
+    "isRuntimeOnly": true,
+    "nextAttemptAt": "2026-05-29T03:29:04.7072518+00:00",
+    "createdAt": "2026-05-28T19:13:44.1709652+00:00",
+    "updatedAt": "2026-05-28T19:13:55.7072545+00:00"
+  }
+]
