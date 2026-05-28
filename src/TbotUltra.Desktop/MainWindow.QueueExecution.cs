@@ -29,10 +29,20 @@ public partial class MainWindow
         SetActiveAutomationTask(item.TaskName);
         SetActiveFunctionExecution(string.IsNullOrWhiteSpace(item.DisplayName) ? item.TaskName : item.DisplayName);
 
+        // Tracks whether HandleQueueItemSucceededAsync ran a fresh dorf1+dorf2 read for this
+        // building mutation. If so, the finally-block snapshot reload (cheap, but reads stale
+        // disk cache) is redundant — the live UI already has the freshest data.
+        var freshBuildingsRefreshDone = false;
+
         try
         {
             await _botService.ExecuteQueueItemAsync(options, item, AppendLog, cancellationToken);
             await HandleQueueItemSucceededAsync(item, options, terminalCountBefore, cancellationToken);
+            if (NeedsConstructionStatusRefresh(item.TaskName))
+            {
+                freshBuildingsRefreshDone = true;
+            }
+
             if (mode == QueueExecutionMode.ContinuousLoop
                 && string.Equals(item.TaskName, "load_buildings_snapshot", StringComparison.OrdinalIgnoreCase))
             {
@@ -61,10 +71,14 @@ public partial class MainWindow
             SetActiveAutomationTask(null);
             SetActiveFunctionExecution(null);
             RefreshQueueUiOnUiThread(item.Id);
-            if (mode == QueueExecutionMode.AutoQueue && IsBuildingMutationTask(item.TaskName))
+            if (mode == QueueExecutionMode.AutoQueue
+                && IsBuildingMutationTask(item.TaskName)
+                && !freshBuildingsRefreshDone)
             {
                 try
                 {
+                    // Failure path or no fresh refresh: roll the UI back to the last-known
+                    // disk snapshot so the buildings tab doesn't show pre-task state forever.
                     await LoadBuildingsSnapshotIntoUiAsync(cancellationToken);
                 }
                 catch

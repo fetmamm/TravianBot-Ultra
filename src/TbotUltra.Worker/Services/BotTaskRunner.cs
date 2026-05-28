@@ -1280,7 +1280,9 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             context.Options.BuildingUpgradeTargetLevel.Value,
             context.CancellationToken);
         context.Log(result);
-        await RefreshBuildingsSnapshotAfterTaskAsync(context);
+        // Desktop's HandleQueueItemSucceededAsync triggers RefreshConstructionStatusAsync
+        // (fresh dorf1+dorf2 read) immediately after this task returns. A worker-side snapshot
+        // read here would be discarded by that fresh read — skip it.
         ThrowIfTaskBlocked("upgrade_building_to_level", result);
     }
 
@@ -1297,7 +1299,6 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             context.Options.BuildingUpgradeMaxAttempts,
             context.CancellationToken);
         context.Log(result);
-        await RefreshBuildingsSnapshotAfterTaskAsync(context);
         ThrowIfTaskBlocked("upgrade_building_to_max", result);
     }
 
@@ -1319,7 +1320,6 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             buildingName,
             context.CancellationToken);
         context.Log(result);
-        await RefreshBuildingsSnapshotAfterTaskAsync(context);
         ThrowIfTaskBlocked("construct_building", result);
     }
 
@@ -1417,7 +1417,6 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             context.Options.TargetLevel.Value,
             context.CancellationToken);
         context.Log(result);
-        await RefreshBuildingsSnapshotAfterTaskAsync(context);
     }
 
     private static async Task ExecuteHeroSetHideModeAsync(TaskExecutionContext context)

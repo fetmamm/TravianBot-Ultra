@@ -3018,10 +3018,12 @@ public sealed partial class TravianClient
         string queueFingerprintBefore,
         CancellationToken cancellationToken)
     {
-        for (var i = 0; i < 4; i++)
+        // Tight poll: most clicks register within ~250ms. Two iterations covers slow pages
+        // without burning a second on the happy path. Each iteration runs two cheap reads.
+        for (var i = 0; i < 2; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await Task.Delay(400, cancellationToken);
+            await Task.Delay(250, cancellationToken);
             var queueItems = await ReadBuildQueueAsync(cancellationToken);
             var queueFingerprintAfter = BuildQueueFingerprint(queueItems);
             if (!string.Equals(queueFingerprintBefore, queueFingerprintAfter, StringComparison.Ordinal))
