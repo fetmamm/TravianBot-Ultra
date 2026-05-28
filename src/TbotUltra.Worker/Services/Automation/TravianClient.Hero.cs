@@ -1443,6 +1443,9 @@ public sealed partial class TravianClient
     {
         Notify("[allocate-v2] TryAllocateHeroPointsAsync entered");
         await EnsureHeroInventoryAttributesTabAsync(cancellationToken);
+        // The plus buttons live inside the collapsible panel; expand it so Travian's click
+        // handler accepts the input. Read-only flows skip this on purpose (it's a slow toggle).
+        await ExpandAttributesPanelIfClosedAsync(cancellationToken);
 
         // Diagnostic: dump what Travian's DOM exposes for free points so we can see why a "4/4" page reads 0.
         var diag = await _page.EvaluateAsync<string>(
@@ -1603,19 +1606,15 @@ public sealed partial class TravianClient
             await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening hero attributes tab.", cancellationToken);
         }
 
-        await ExpandAttributesPanelIfClosedAsync(cancellationToken);
-
-        // Hard-confirm: the attributes table must actually be in the DOM before any read/click.
-        // Travian's tab swap is XHR-driven and Travian also remembers the last-used tab. If the
-        // table is missing after the click, force a full reload of /hero_inventory.php which
-        // server-renders the Attributes tab from scratch.
+        // The attributes table is in DOM regardless of whether the collapsible panel is expanded —
+        // we don't expand here. Callers that need to CLICK (e.g. assign points) must call
+        // ExpandAttributesPanelIfClosedAsync themselves; pure reads don't.
         var tableReady = await WaitForAttributesTableAsync(cancellationToken, timeoutMs: 4000);
         if (!tableReady)
         {
             Notify($"Hero attributes table missing after tab click — reloading {Paths.HeroInventory}.");
             await GotoAsync(Paths.HeroInventory, cancellationToken);
             await WaitForNavigationSettledAsync(cancellationToken);
-            await ExpandAttributesPanelIfClosedAsync(cancellationToken);
             tableReady = await WaitForAttributesTableAsync(cancellationToken, timeoutMs: 6000);
             if (!tableReady)
             {
@@ -1711,12 +1710,9 @@ public sealed partial class TravianClient
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        // Defensive: if we landed here without going through EnsureHeroInventoryAttributesTabAsync,
-        // make sure the collapsible panel is open before reading.
-        await ExpandAttributesPanelIfClosedAsync(cancellationToken);
-
-        // Travian's Attributes tab is XHR-swapped and the panel can be collapsed on first load.
-        // Block until #attributesOfHero with a populated #availablePoints is in the DOM.
+        // The reader uses querySelector + textContent, which work on collapsed elements too —
+        // we deliberately do NOT expand the panel here. Expansion is a multi-second click+animation
+        // wait and only matters for writes (clicking +/- point buttons), not reads.
         var ready = await WaitForAttributesTableAsync(cancellationToken, timeoutMs: 5000);
         if (!ready)
         {
