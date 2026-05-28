@@ -13,5 +13,53 @@
     "nextAttemptAt": "2026-05-28T18:50:41.3588905+00:00",
     "createdAt": "2026-05-28T18:50:41.3432697+00:00",
     "updatedAt": "2026-05-28T18:50:54.3671626+00:00"
+  },
+  {
+    "id": "701da72d-76e0-4d91-b58b-48709bb1b903",
+    "taskName": "upgrade_all_resources_to_level",
+    "displayName": null,
+    "group": "Construction",
+    "payload": {
+      "resource_upgrade_target_level": "40",
+      "resource_build_strategy": "lowest_first"
+    },
+    "priority": 0,
+    "status": "Running",
+    "retries": 0,
+    "maxRetries": 3,
+    "isRuntimeOnly": false,
+    "nextAttemptAt": "2026-05-28T18:57:19.1932411+00:00",
+    "createdAt": "2026-05-28T18:51:47.8664753+00:00",
+    "updatedAt": "2026-05-28T18:57:19.1932412+00:00"
+  },
+  {
+    "id": "d63949da-f8da-4639-9277-3cb2fa79de49",
+    "taskName": "hero_manage",
+    "displayName": "Hero adventure",
+    "group": "Hero",
+    "payload": {},
+    "priority": -50,
+    "status": "Succeeded",
+    "retries": 0,
+    "maxRetries": 0,
+    "isRuntimeOnly": true,
+    "nextAttemptAt": "2026-05-28T18:55:09.6171383+00:00",
+    "createdAt": "2026-05-28T18:51:54.6289842+00:00",
+    "updatedAt": "2026-05-28T18:55:10.7652282+00:00"
+  },
+  {
+    "id": "e03a79b5-7277-47f9-bbc4-2e0879c82e00",
+    "taskName": "upgrade_troops_at_smithy",
+    "displayName": "Troop upgrades",
+    "group": "Troops",
+    "payload": {},
+    "priority": -50,
+    "status": "Succeeded",
+    "retries": 0,
+    "maxRetries": 0,
+    "isRuntimeOnly": true,
+    "nextAttemptAt": "2026-05-28T18:52:03.2765146+00:00",
+    "createdAt": "2026-05-28T18:51:54.6368484+00:00",
+    "updatedAt": "2026-05-28T18:53:26.5766715+00:00"
   }
 ]

@@ -17,3 +17,4 @@ temp_build_out/
 /.claude
 config/queue.json
 /config/accounts
+config/queue.json

@@ -18,12 +18,11 @@
   "human_like_speed": "slow",
   "allow_gold_spending": true,
   "allow_silver_spending": false,
-  "gold_limit": 300,
+  "gold_limit": 800,
   "silver_limit": 100,
   "natar_village_selection": "farm_villages",
   "continuous_loop_groups": [
     "construction",
-    "troops",
     "hero"
   ],
   "continuous_loop_group_order": [
@@ -100,7 +99,7 @@
   "resource_transfer_enabled": false,
   "resource_transfer_target_village_name": "granary",
   "resource_transfer_source_village_names": [],
-  "resource_transfer_source_threshold_percent": 50,
+  "resource_transfer_source_threshold_percent": 60,
   "resource_transfer_source_keep_percent": 5,
   "resource_transfer_target_fill_percent": 90,
   "resource_transfer_send_wood": true,
@@ -520,6 +519,6 @@
   "hero_continuous_adventures": false,
   "post_login_analyze_brewery": false,
   "hero_auto_use_ointments": false,
-  "npc_trade_build_time_limit_enabled": false,
-  "npc_trade_build_time_limit_seconds": 60
+  "npc_trade_build_time_limit_enabled": true,
+  "npc_trade_build_time_limit_seconds": 300
 }
