@@ -1,22 +1,13 @@
 {
   "entries": [
     {
-      "accountName": "drake_elt_ss_travi_com",
-      "serverUrl": "https://elt.ss-travi.com",
-      "villageName": "drake \u0060s village",
-      "isCapital": true,
-      "coordX": null,
-      "coordY": null,
-      "updatedAtUtc": "2026-05-23T08:16:20.3372667+00:00"
-    },
-    {
       "accountName": "fet",
       "serverUrl": "https://5000000.travgame.com",
       "villageName": "Aldeia do Fet",
       "isCapital": true,
       "coordX": null,
       "coordY": null,
-      "updatedAtUtc": "2026-04-26T21:09:25.4953259+00:00"
+      "updatedAtUtc": "2026-04-26T21:09:25.4953259\u002B00:00"
     },
     {
       "accountName": "fet",
@@ -25,7 +16,7 @@
       "isCapital": true,
       "coordX": null,
       "coordY": null,
-      "updatedAtUtc": "2026-05-02T20:27:41.0077686+00:00"
+      "updatedAtUtc": "2026-05-02T20:27:41.0077686\u002B00:00"
     },
     {
       "accountName": "fet",
@@ -34,7 +25,7 @@
       "isCapital": true,
       "coordX": null,
       "coordY": null,
-      "updatedAtUtc": "2026-04-29T21:17:40.7838852+00:00"
+      "updatedAtUtc": "2026-04-29T21:17:40.7838852\u002B00:00"
     },
     {
       "accountName": "fet",
@@ -43,7 +34,7 @@
       "isCapital": false,
       "coordX": null,
       "coordY": null,
-      "updatedAtUtc": "2026-05-02T20:27:41.0098853+00:00"
+      "updatedAtUtc": "2026-05-02T20:27:41.0098853\u002B00:00"
     },
     {
       "accountName": "fet",
@@ -52,7 +43,7 @@
       "isCapital": false,
       "coordX": null,
       "coordY": null,
-      "updatedAtUtc": "2026-05-02T20:27:41.0101712+00:00"
+      "updatedAtUtc": "2026-05-02T20:27:41.0101712\u002B00:00"
     },
     {
       "accountName": "fet",
@@ -61,7 +52,7 @@
       "isCapital": true,
       "coordX": null,
       "coordY": null,
-      "updatedAtUtc": "2026-05-04T08:08:11.1637964+00:00"
+      "updatedAtUtc": "2026-05-04T08:08:11.1637964\u002B00:00"
     },
     {
       "accountName": "fet",
@@ -70,7 +61,7 @@
       "isCapital": true,
       "coordX": null,
       "coordY": null,
-      "updatedAtUtc": "2026-05-05T19:01:14.4689409+00:00"
+      "updatedAtUtc": "2026-05-05T19:01:14.4689409\u002B00:00"
     },
     {
       "accountName": "fet_mga_ss_travi_com",
@@ -79,7 +70,7 @@
       "isCapital": false,
       "coordX": null,
       "coordY": null,
-      "updatedAtUtc": "2026-05-12T18:43:47.7267075+00:00"
+      "updatedAtUtc": "2026-05-12T18:43:47.7267075\u002B00:00"
     },
     {
       "accountName": "fet_mga_ss_travi_com",
@@ -88,7 +79,7 @@
       "isCapital": true,
       "coordX": null,
       "coordY": null,
-      "updatedAtUtc": "2026-05-13T21:40:15.5775349+00:00"
+      "updatedAtUtc": "2026-05-13T21:40:15.5775349\u002B00:00"
     },
     {
       "accountName": "fet_mga_ss_travi_com",
@@ -97,7 +88,7 @@
       "isCapital": true,
       "coordX": null,
       "coordY": null,
-      "updatedAtUtc": "2026-05-11T07:19:01.5147412+00:00"
+      "updatedAtUtc": "2026-05-11T07:19:01.5147412\u002B00:00"
     },
     {
       "accountName": "fet_ts50_x5_europe_travian_com",
@@ -106,7 +97,7 @@
       "isCapital": false,
       "coordX": null,
       "coordY": null,
-      "updatedAtUtc": "2026-05-04T14:27:10.9470584+00:00"
+      "updatedAtUtc": "2026-05-04T14:27:10.9470584\u002B00:00"
     },
     {
       "accountName": "slangen",
@@ -115,7 +106,7 @@
       "isCapital": true,
       "coordX": 42,
       "coordY": 52,
-      "updatedAtUtc": "2026-04-26T21:09:57.5892586+00:00"
+      "updatedAtUtc": "2026-04-26T21:09:57.5892586\u002B00:00"
     },
     {
       "accountName": "slangen",
@@ -124,7 +115,7 @@
       "isCapital": false,
       "coordX": null,
       "coordY": null,
-      "updatedAtUtc": "2026-04-26T13:04:18.2142121+00:00"
+      "updatedAtUtc": "2026-04-26T13:04:18.2142121\u002B00:00"
     },
     {
       "accountName": "slangen",
@@ -133,7 +124,7 @@
       "isCapital": false,
       "coordX": -27,
       "coordY": 16,
-      "updatedAtUtc": "2026-04-26T21:09:57.5899444+00:00"
+      "updatedAtUtc": "2026-04-26T21:09:57.5899444\u002B00:00"
     },
     {
       "accountName": "slangen_pro_ss_travi_com",
@@ -142,7 +133,7 @@
       "isCapital": true,
       "coordX": null,
       "coordY": null,
-      "updatedAtUtc": "2026-05-10T12:49:47.0620989+00:00"
+      "updatedAtUtc": "2026-05-10T12:49:47.0620989\u002B00:00"
     }
   ]
 }

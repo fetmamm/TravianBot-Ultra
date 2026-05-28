@@ -197,6 +197,16 @@ public sealed partial class TravianClient
                 && candidate.QueueRemainingSeconds > limitSeconds)
             {
                 Notify($"Build troops: skipped {candidate.Request.BuildingName} because queue {FormatDuration(candidate.QueueRemainingSeconds)} exceeds limit {FormatDuration(limitSeconds)}.");
+                var queueLimitWaitSeconds = Math.Max(1, candidate.QueueRemainingSeconds - limitSeconds);
+                var queueLimitOutcome = new TroopTrainingAttemptOutcome(
+                    false,
+                    $"Build troops: {candidate.Request.BuildingName} queue exceeds limit. queue_wait_seconds={queueLimitWaitSeconds}",
+                    queueLimitWaitSeconds);
+                if (shortestWaitOutcome is null || queueLimitWaitSeconds < shortestWaitOutcome.WaitSeconds)
+                {
+                    shortestWaitOutcome = queueLimitOutcome;
+                }
+
                 continue;
             }
 

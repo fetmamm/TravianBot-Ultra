@@ -96,10 +96,12 @@ public sealed record ResourceStorageForecast(
 public sealed record HeroStatus(
     bool Exists = false,
     bool IsDead = false,
+    string State = "Unknown",
     int? HpPercent = null,
     int AdventuresAvailable = 0,
     int? SecondsUntilAdventureReady = null,
     int? SecondsUntilReturn = null,
+    int? ReviveRemainingSeconds = null,
     int UnassignedPoints = 0);
 
 public sealed record HeroAttributeSnapshot(
@@ -109,7 +111,9 @@ public sealed record HeroAttributeSnapshot(
     int OffenceBonus = 0,
     int DefenceBonus = 0,
     int Resources = 0,
-    int? AdventureCount = null);
+    int? AdventureCount = null,
+    string HeroState = "Unknown",
+    int? ReviveRemainingSeconds = null);
 
 public sealed record HeroAdventureDispatchResult(
     bool IsInHomeVillage,

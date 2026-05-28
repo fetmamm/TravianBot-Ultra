@@ -115,6 +115,11 @@ public static class LogClassifier
 
         return Contains(
             value,
+            "starting tick",
+            "building snapshot refreshed",
+            "[tryreadactivevillagenamesafeasync] attempting to read active village name from page",
+            "target village applied:",
+            "building overview scan looked incomplete",
             "] started",
             " scanned ",
             "evaluating slot=",

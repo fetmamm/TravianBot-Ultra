@@ -111,6 +111,17 @@ public sealed partial class TravianClient
             return false;
         }
 
+        if (_config.NpcTradeBuildTimeLimitEnabled && !bypassEnabledSetting)
+        {
+            var limitSeconds = NormalizeNpcTradeBuildTimeLimitSeconds(_config.NpcTradeBuildTimeLimitSeconds);
+            var resourceWaitSeconds = await ReadConstructionResourceWaitSecondsAsync(cancellationToken);
+            if (resourceWaitSeconds is int waitSeconds && waitSeconds > 0 && waitSeconds <= limitSeconds)
+            {
+                Notify($"NPC trade: skip at {label}. Resources will be available in {waitSeconds}s, within build time limit {limitSeconds}s.");
+                return false;
+            }
+        }
+
         var currency = await ReadCurrencyAsync(cancellationToken);
         return await TryNpcTradeForCurrentPageAsync(label, currency.Gold, cancellationToken, bypassGoldGates);
     }
@@ -321,6 +332,109 @@ public sealed partial class TravianClient
 
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while checking resource block state.", cancellationToken);
         return blocked;
+    }
+
+    private async Task<int?> ReadConstructionResourceWaitSecondsAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var seconds = await _page.EvaluateAsync<int?>(
+            """
+            () => {
+              const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+
+              const parseDurationSeconds = (raw) => {
+                const text = clean(raw);
+                if (!text) return null;
+
+                const full = text.match(/(\d{1,3})\s*:\s*(\d{1,2})\s*:\s*(\d{1,2})/);
+                if (full) return Number(full[1]) * 3600 + Number(full[2]) * 60 + Number(full[3]);
+
+                const short = text.match(/(^|[^\d])(\d{1,3})\s*:\s*(\d{1,2})([^\d]|$)/);
+                if (short) return Number(short[2]) * 60 + Number(short[3]);
+
+                const sec = text.match(/(\d{1,6})\s*s(?:ec|econd)?s?\b/i);
+                if (sec) return Number(sec[1]);
+
+                const min = text.match(/(\d{1,4})\s*m(?:in|inute)?s?\b/i);
+                if (min) return Number(min[1]) * 60;
+
+                const hour = text.match(/(\d{1,3})\s*h(?:our)?s?\b/i);
+                if (hour) return Number(hour[1]) * 3600;
+
+                return null;
+              };
+
+              const readServerNow = () => {
+                const candidates = ['#servertime .timeStandard', '#servertime', '.serverTime', '#stockBarTimer'];
+                for (const selector of candidates) {
+                  const element = document.querySelector(selector);
+                  const match = clean(element?.textContent || '').match(/(\d{1,2}):(\d{2}):(\d{2})/);
+                  if (match) {
+                    const now = new Date();
+                    now.setHours(Number(match[1]), Number(match[2]), Number(match[3]), 0);
+                    return now;
+                  }
+                }
+
+                return new Date();
+              };
+
+              const parseClockTimeToSeconds = (raw) => {
+                const text = clean(raw);
+                if (!text) return null;
+                const tomorrow = /(tomorrow|morgen|imorgon|i\s*morgon|demain|domani|manana|jutro)/i.test(text);
+                const today = /(today|heute|idag|i\s*dag|aujourd|oggi|hoy|dzisiaj)/i.test(text);
+                if (!today && !tomorrow) return null;
+
+                const match = text.match(/(\d{1,2}):(\d{2}):(\d{2})/);
+                if (!match) return null;
+
+                const now = readServerNow();
+                const target = new Date(now.getTime());
+                target.setHours(Number(match[1]), Number(match[2]), Number(match[3]), 0);
+                if (tomorrow) target.setDate(target.getDate() + 1);
+
+                let diff = Math.round((target.getTime() - now.getTime()) / 1000);
+                if (today && diff < 0) diff += 86400;
+                return diff > 0 ? diff : null;
+              };
+
+              const sources = [];
+              for (const node of document.querySelectorAll('span.none, div.none, .none, .contract, .contractWrapper, .build_details, .errorMessage, .error')) {
+                const text = clean(node.textContent || '');
+                if (/resources\s*will\s*be\s*available|not\s*enough|insufficient|missing\s*resources/i.test(text)) {
+                  sources.push(text);
+                }
+              }
+
+              const bodyText = clean(document.body?.innerText || document.body?.textContent || '');
+              if (sources.length === 0 && /resources\s*will\s*be\s*available/i.test(bodyText)) {
+                sources.push(bodyText);
+              }
+
+              for (const source of sources) {
+                const clockSeconds = parseClockTimeToSeconds(source);
+                if (clockSeconds && clockSeconds > 0) return Math.trunc(clockSeconds);
+
+                const durationSeconds = parseDurationSeconds(source);
+                if (durationSeconds && durationSeconds > 0) return Math.trunc(durationSeconds);
+              }
+
+              return null;
+            }
+            """);
+
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading resource availability time.", cancellationToken);
+        return seconds;
+    }
+
+    private static int NormalizeNpcTradeBuildTimeLimitSeconds(int seconds)
+    {
+        return seconds switch
+        {
+            30 or 60 or 300 or 1200 or 3600 => seconds,
+            _ => 60,
+        };
     }
 
     /// <summary>

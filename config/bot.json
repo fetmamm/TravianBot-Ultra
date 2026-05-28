@@ -1,6 +1,6 @@
 {
-  "server_name": "SS-Travi PRO 1024x",
-  "base_url": "https://pro.ss-travi.com",
+  "server_name": "SS-Travi MEGA 1000000x",
+  "base_url": "https://mga.ss-travi.com",
   "login_path": "/login.php",
   "village_overview_path": "/dorf1.php",
   "headless": false,
@@ -23,8 +23,7 @@
   "natar_village_selection": "farm_villages",
   "continuous_loop_groups": [
     "construction",
-    "hero",
-    "farming"
+    "brewery_celebration"
   ],
   "continuous_loop_group_order": [
     "construction",
@@ -67,9 +66,9 @@
   "troop_training_workshop_max_queue_hours": "no_limit",
   "troop_training_workshop_amount_mode": "maximum",
   "troop_training_workshop_keep_resources_percent": 10,
-  "troop_training_barracks_run_mode": "min_troops",
+  "troop_training_barracks_run_mode": "resource_percent",
   "troop_training_barracks_minimum_troops": 15000,
-  "troop_training_barracks_minimum_resources_percent": 10,
+  "troop_training_barracks_minimum_resources_percent": 80,
   "troop_training_stable_run_mode": "resource_percent",
   "troop_training_stable_minimum_troops": 1,
   "troop_training_stable_minimum_resources_percent": 30,
@@ -90,7 +89,7 @@
   "troop_training_workshop_check_crop": false,
   "troop_training_fallback_cooldown_seconds": 60,
   "brewery_auto_celebration_enabled": true,
-  "resource_build_strategy": "smart",
+  "resource_build_strategy": "lowest_first",
   "npc_trade_enabled": true,
   "npc_trade_threshold_percent": 90,
   "npc_trade_analyze_wood": true,
@@ -99,10 +98,8 @@
   "npc_trade_analyze_crop": true,
   "npc_trade_construction_enabled": true,
   "resource_transfer_enabled": false,
-  "resource_transfer_target_village_name": "slav",
-  "resource_transfer_source_village_names": [
-    "village2"
-  ],
+  "resource_transfer_target_village_name": "slangen \u0060s village",
+  "resource_transfer_source_village_names": [],
   "resource_transfer_source_threshold_percent": 50,
   "resource_transfer_source_keep_percent": 5,
   "resource_transfer_target_fill_percent": 90,
@@ -111,10 +108,8 @@
   "resource_transfer_send_iron": true,
   "resource_transfer_send_crop": true,
   "reinforcements_enabled": false,
-  "reinforcements_target_village_name": "slav",
-  "reinforcements_source_village_names": [
-    "village2"
-  ],
+  "reinforcements_target_village_name": "slangen \u0060s village",
+  "reinforcements_source_village_names": [],
   "reinforcements_troop_rules": [
     {
       "accountName": "",
@@ -524,5 +519,7 @@
   "hero_hide_mode": "fight",
   "hero_continuous_adventures": false,
   "post_login_analyze_brewery": false,
-  "hero_auto_use_ointments": false
+  "hero_auto_use_ointments": false,
+  "npc_trade_build_time_limit_enabled": false,
+  "npc_trade_build_time_limit_seconds": 60
 }

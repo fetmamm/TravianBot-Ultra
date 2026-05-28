@@ -1,16 +1,15 @@
 {
   "schemaVersion": 1,
-  "analyzedAtUtc": "2026-05-27T16:54:15.5734242+00:00",
-  "accountName": "grek_pro_ss_travi_com",
-  "serverUrl": "https://pro.ss-travi.com",
-  "tribe": "Teutons",
+  "analyzedAtUtc": "2026-05-27T20:31:33.5136343+00:00",
+  "accountName": "slav_mga_ss_travi_com",
+  "serverUrl": "https://mga.ss-travi.com",
+  "tribe": "Egyptians",
   "goldClubEnabled": true,
   "buildingCatalog": [],
-  "autoCelebrationEnabled": true,
+  "autoCelebrationEnabled": false,
   "automationLoopEnabledGroups": [
     "construction",
     "hero",
-    "farming",
     "troop_training"
   ],
   "automationLoopVisibleGroups": [
@@ -19,7 +18,6 @@
     "hero",
     "farming",
     "troop_training",
-    "brewery_celebration",
     "npc_trade"
   ]
 }

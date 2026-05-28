@@ -1038,7 +1038,18 @@ public sealed partial class TravianClient
               };
 
               const text = (document.body?.innerText || '').toLowerCase();
+              const statusMessage = document.querySelector('.heroStatusMessage');
+              const statusText = (statusMessage?.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+              const reviving = /being\s+revived|remaining\s+time|reviv/i.test(statusText)
+                && !!statusMessage?.querySelector('.timer, [counting="down"], .heroStatus101Regenerate');
               const dead = /\bdead\b|\btot\b|\bdeceased\b|\bdöd\b/.test(text);
+
+              const effectiveDead = !reviving && (dead || /hero\s+is\s+dead/i.test(statusText));
+              const reviveTimerNode = statusMessage?.querySelector('.timer[value], [counting="down"][value], .timer');
+              const reviveTimer = reviveTimerNode?.getAttribute('value')
+                ? Number(reviveTimerNode.getAttribute('value'))
+                : parseTimer(reviveTimerNode?.textContent || '');
+              const state = reviving ? 'Reviving' : effectiveDead ? 'Dead' : 'Alive';
 
               const hp =
                 parseNumber(document.querySelector('#health')?.textContent || '')
@@ -1079,11 +1090,13 @@ public sealed partial class TravianClient
               const exists = !!document.querySelector('#heroImage, #heroStatus, [class*="hero" i]');
               return JSON.stringify({
                 exists,
-                isDead: dead,
+                isDead: effectiveDead,
+                state,
                 hpPercent: hp,
                 adventuresAvailable: adventures || 0,
                 secondsUntilAdventureReady: adventureTimer,
                 secondsUntilReturn: returnTimer,
+                reviveRemainingSeconds: Number.isFinite(reviveTimer) ? Math.max(0, Math.trunc(reviveTimer)) : null,
                 unassignedPoints: points || 0
               });
             }
@@ -1103,10 +1116,12 @@ public sealed partial class TravianClient
         return new HeroStatus(
             Exists: parsed.Exists,
             IsDead: parsed.IsDead,
+            State: string.IsNullOrWhiteSpace(parsed.State) ? "Unknown" : parsed.State,
             HpPercent: parsed.HpPercent,
             AdventuresAvailable: parsed.AdventuresAvailable ?? 0,
             SecondsUntilAdventureReady: parsed.SecondsUntilAdventureReady,
             SecondsUntilReturn: parsed.SecondsUntilReturn,
+            ReviveRemainingSeconds: parsed.ReviveRemainingSeconds,
             UnassignedPoints: parsed.UnassignedPoints ?? 0);
     }
 
@@ -1778,6 +1793,25 @@ public sealed partial class TravianClient
                       const td = row.querySelector('td.points');
                       return td ? readDigit(td) : 0;
                     };
+                    const parseTimer = (value) => {
+                      const text = (value || '').replace(/\s+/g, ' ').trim();
+                      if (!text) return null;
+                      const parts = text.split(':').map(v => Number(v));
+                      if (parts.some(v => !Number.isFinite(v))) return null;
+                      if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+                      if (parts.length === 2) return parts[0] * 60 + parts[1];
+                      return null;
+                    };
+                    const statusMessage = document.querySelector('.heroStatusMessage');
+                    const statusText = (statusMessage?.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                    const reviving = /being\s+revived|remaining\s+time|reviv/i.test(statusText)
+                      && !!statusMessage?.querySelector('.timer, [counting="down"], .heroStatus101Regenerate');
+                    const dead = !reviving && /hero\s+is\s+dead|\bdead\b|\btot\b|\bdeceased\b/i.test(statusText);
+                    const reviveTimerNode = statusMessage?.querySelector('.timer[value], [counting="down"][value], .timer')
+                      || document.querySelector('.lineWrapper .inlineIcon.duration .value, .lineWrapper .duration .value');
+                    const reviveTimer = reviveTimerNode?.getAttribute?.('value')
+                      ? Number(reviveTimerNode.getAttribute('value'))
+                      : parseTimer(reviveTimerNode?.textContent || '');
 
                     return JSON.stringify({
                       ok: true,
@@ -1786,7 +1820,9 @@ public sealed partial class TravianClient
                       fightingStrength: rowPoints('attributepower'),
                       offenceBonus: rowPoints('attributeoffBonus'),
                       defenceBonus: rowPoints('attributedefBonus'),
-                      resources: rowPoints('attributeproductionPoints')
+                      resources: rowPoints('attributeproductionPoints'),
+                      heroState: reviving ? 'Reviving' : dead ? 'Dead' : 'Alive',
+                      reviveRemainingSeconds: Number.isFinite(reviveTimer) ? Math.max(0, Math.trunc(reviveTimer)) : null
                     });
                   } catch (e) {
                     return JSON.stringify({ ok: false, error: String(e && e.message || e) });
@@ -2207,6 +2243,9 @@ public sealed partial class TravianClient
         [JsonPropertyName("isDead")]
         public bool IsDead { get; init; }
 
+        [JsonPropertyName("state")]
+        public string? State { get; init; }
+
         [JsonPropertyName("hpPercent")]
         public int? HpPercent { get; init; }
 
@@ -2218,6 +2257,9 @@ public sealed partial class TravianClient
 
         [JsonPropertyName("secondsUntilReturn")]
         public int? SecondsUntilReturn { get; init; }
+
+        [JsonPropertyName("reviveRemainingSeconds")]
+        public int? ReviveRemainingSeconds { get; init; }
 
         [JsonPropertyName("unassignedPoints")]
         public int? UnassignedPoints { get; init; }

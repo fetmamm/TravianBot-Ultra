@@ -209,6 +209,12 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.NpcTradeAnalyzeCrop)]
     public bool NpcTradeAnalyzeCrop { get; init; } = true;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.NpcTradeBuildTimeLimitEnabled)]
+    public bool NpcTradeBuildTimeLimitEnabled { get; init; }
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.NpcTradeBuildTimeLimitSeconds)]
+    public int NpcTradeBuildTimeLimitSeconds { get; init; } = 60;
+
     [ConfigurationKeyName(BotOptionPayloadKeys.ResourceTransferEnabled)]
     public bool ResourceTransferEnabled { get; init; }
 

@@ -83,6 +83,8 @@ public static class BotOptionsPayloadApplier
         var npcTradeAnalyzeClay = source.NpcTradeAnalyzeClay;
         var npcTradeAnalyzeIron = source.NpcTradeAnalyzeIron;
         var npcTradeAnalyzeCrop = source.NpcTradeAnalyzeCrop;
+        var npcTradeBuildTimeLimitEnabled = source.NpcTradeBuildTimeLimitEnabled;
+        var npcTradeBuildTimeLimitSeconds = source.NpcTradeBuildTimeLimitSeconds;
         var resourceTransferEnabled = source.ResourceTransferEnabled;
         var resourceTransferTargetVillageName = source.ResourceTransferTargetVillageName;
         var resourceTransferSourceVillageNames = source.ResourceTransferSourceVillageNames;
@@ -625,6 +627,24 @@ public static class BotOptionsPayloadApplier
                     continue;
                 }
 
+                if (key.Equals(BotOptionPayloadKeys.NpcTradeBuildTimeLimitEnabled, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var npcBuildTimeLimitEnabled))
+                {
+                    npcTradeBuildTimeLimitEnabled = npcBuildTimeLimitEnabled;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.NpcTradeBuildTimeLimitSeconds, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var npcBuildTimeLimitSeconds))
+                {
+                    npcTradeBuildTimeLimitSeconds = npcBuildTimeLimitSeconds switch
+                    {
+                        30 or 60 or 300 or 1200 or 3600 => npcBuildTimeLimitSeconds,
+                        _ => 60,
+                    };
+                    continue;
+                }
+
                 if (key.Equals(BotOptionPayloadKeys.ResourceTransferEnabled, StringComparison.OrdinalIgnoreCase)
                     && bool.TryParse(value, out var transferEnabled))
                 {
@@ -794,6 +814,8 @@ public static class BotOptionsPayloadApplier
             NpcTradeAnalyzeClay = npcTradeAnalyzeClay,
             NpcTradeAnalyzeIron = npcTradeAnalyzeIron,
             NpcTradeAnalyzeCrop = npcTradeAnalyzeCrop,
+            NpcTradeBuildTimeLimitEnabled = npcTradeBuildTimeLimitEnabled,
+            NpcTradeBuildTimeLimitSeconds = npcTradeBuildTimeLimitSeconds,
             ResourceTransferEnabled = resourceTransferEnabled,
             ResourceTransferTargetVillageName = resourceTransferTargetVillageName,
             ResourceTransferSourceVillageNames = resourceTransferSourceVillageNames,

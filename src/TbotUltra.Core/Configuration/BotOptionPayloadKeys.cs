@@ -96,6 +96,8 @@ public static class BotOptionPayloadKeys
     public const string NpcTradeAnalyzeClay = "npc_trade_analyze_clay";
     public const string NpcTradeAnalyzeIron = "npc_trade_analyze_iron";
     public const string NpcTradeAnalyzeCrop = "npc_trade_analyze_crop";
+    public const string NpcTradeBuildTimeLimitEnabled = "npc_trade_build_time_limit_enabled";
+    public const string NpcTradeBuildTimeLimitSeconds = "npc_trade_build_time_limit_seconds";
 
     public const string ResourceTransferEnabled = "resource_transfer_enabled";
     public const string ResourceTransferTargetVillageName = "resource_transfer_target_village_name";

@@ -793,6 +793,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
     public async Task<IReadOnlyList<VillageStatus>> ReadAllVillageStatusesAsync(CancellationToken cancellationToken = default)
     {
         Notify("ReadAllVillageStatusesAsync started");
+        var returnVillageName = await TryReadActiveVillageNameSafeAsync(cancellationToken);
         await GotoAsync(_config.VillageOverviewPath, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the village overview.", cancellationToken);
         await EnsureLoggedInAsync();
@@ -804,25 +805,44 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         }
 
         var statuses = new List<VillageStatus>();
-        foreach (var village in villages)
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            if (!string.IsNullOrWhiteSpace(village.Url))
+            foreach (var village in villages)
             {
-                await GotoAsync(village.Url, cancellationToken);
-            }
-            else
-            {
-                await GotoAsync(_config.VillageOverviewPath, cancellationToken);
-            }
+                cancellationToken.ThrowIfCancellationRequested();
 
-            await PauseForManualStepIfVisibleAsync(
-                $"Manual verification appeared while switching to village '{village.Name}'.",
-                cancellationToken);
-            await EnsureLoggedInAsync();
-            await ApplyActionDelayAsync(cancellationToken);
-            statuses.Add(await ReadCurrentVillageStatusAsync(cancellationToken));
+                if (!string.IsNullOrWhiteSpace(village.Url))
+                {
+                    await GotoAsync(village.Url, cancellationToken);
+                }
+                else
+                {
+                    await GotoAsync(_config.VillageOverviewPath, cancellationToken);
+                }
+
+                await PauseForManualStepIfVisibleAsync(
+                    $"Manual verification appeared while switching to village '{village.Name}'.",
+                    cancellationToken);
+                await EnsureLoggedInAsync();
+                await ApplyActionDelayAsync(cancellationToken);
+                statuses.Add(await ReadCurrentVillageStatusAsync(cancellationToken));
+            }
+        }
+        finally
+        {
+            if (!string.IsNullOrWhiteSpace(returnVillageName))
+            {
+                try
+                {
+                    await SwitchToVillageAsync(returnVillageName, cancellationToken: CancellationToken.None, skipFeatureRefresh: true);
+                    await GotoAsync(Paths.Resources, CancellationToken.None);
+                    Notify($"ReadAllVillageStatusesAsync returned to original village '{returnVillageName}' on dorf1.");
+                }
+                catch (Exception ex)
+                {
+                    Notify($"ReadAllVillageStatusesAsync could not return to original village '{returnVillageName}': {ex.Message}");
+                }
+            }
         }
 
         return statuses;

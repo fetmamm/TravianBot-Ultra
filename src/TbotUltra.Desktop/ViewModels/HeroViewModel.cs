@@ -34,6 +34,7 @@ public sealed class HeroViewModel : BaseViewModel
     private string _attributesStatusText = "Hero stats not loaded.";
     private string _adventureCountText = "?";
     private string _adventureStatusText = "Adventures not loaded.";
+    private string _heroStatusText = "Hero status: Unknown";
 
     private int _minHpForAdventure = 60;
     private bool _autoRevive = true;
@@ -87,6 +88,12 @@ public sealed class HeroViewModel : BaseViewModel
     {
         get => _adventureStatusText;
         set => SetProperty(ref _adventureStatusText, value);
+    }
+
+    public string HeroStatusText
+    {
+        get => _heroStatusText;
+        set => SetProperty(ref _heroStatusText, string.IsNullOrWhiteSpace(value) ? "Hero status: Unknown" : value);
     }
 
     /// <summary>
@@ -302,6 +309,27 @@ public sealed class HeroViewModel : BaseViewModel
         }
 
         AttributesStatusText = $"Free points: {snapshot.FreePoints}";
+        HeroStatusText = FormatHeroStatus(snapshot.HeroState, snapshot.ReviveRemainingSeconds);
+    }
+
+    private static string FormatHeroStatus(string? state, int? reviveRemainingSeconds)
+    {
+        var normalized = string.IsNullOrWhiteSpace(state) ? "Unknown" : state.Trim();
+        if (string.Equals(normalized, "Reviving", StringComparison.OrdinalIgnoreCase)
+            && reviveRemainingSeconds is int seconds
+            && seconds >= 0)
+        {
+            return $"Hero status: Reviving ({FormatDuration(seconds)})";
+        }
+
+        return $"Hero status: {normalized}";
+    }
+
+    private static string FormatDuration(int totalSeconds)
+    {
+        var time = TimeSpan.FromSeconds(Math.Max(0, totalSeconds));
+        var hours = (int)Math.Floor(time.TotalHours);
+        return $"{hours:00}:{time.Minutes:00}:{time.Seconds:00}";
     }
 
     /// <summary>

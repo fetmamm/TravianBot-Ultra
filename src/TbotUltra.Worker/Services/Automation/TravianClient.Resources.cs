@@ -1259,6 +1259,136 @@ public sealed partial class TravianClient
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading resource fields.", cancellationToken);
         await WaitForResourceFieldsHydratedAsync(cancellationToken);
+
+        // Primary scan: read the image map (#rx) area links and the #village_map level
+        // overlays directly. Modern Travian (2026) uses hrefs like dorf1.php?<cyrillic-a>=<slot>
+        // instead of the legacy build.php?id=<slot>; the legacy selectors miss everything.
+        string primaryJson = string.Empty;
+        try
+        {
+            primaryJson = await _page.EvaluateAsync<string>(
+                """
+                () => {
+                  // The slot parameter key uses Cyrillic 'а' (U+0430) on modern Travian, not
+                  // Latin 'a'. Match both so older servers keep working.
+                  const slotKeyPattern = /[?&][aа]=(\d{1,2})(?:[^0-9]|$)/i;
+                  const fieldTypes = { 1: 'wood', 2: 'clay', 3: 'iron', 4: 'crop' };
+                  const fieldNames = {
+                    wood: 'Woodcutter',
+                    clay: 'Clay pit',
+                    iron: 'Iron mine',
+                    crop: 'Cropland'
+                  };
+
+                  // 1) Collect slot anchors from the image map.
+                  const areas = Array.from(document.querySelectorAll('map#rx area, map[name="rx"] area'));
+                  const slots = [];
+                  for (const area of areas) {
+                    const href = area.getAttribute('href') || '';
+                    const m = href.match(slotKeyPattern);
+                    if (!m) continue;
+                    const slotId = parseInt(m[1], 10);
+                    if (slotId < 1 || slotId > 18) continue;
+                    // <area coords="cx,cy,r"> for circles. Use the centre as the slot anchor.
+                    const coords = (area.getAttribute('coords') || '').split(',').map(s => parseFloat(s.trim()));
+                    const cx = coords[0];
+                    const cy = coords[1];
+                    const radius = coords[2] || 28;
+                    slots.push({ slotId, cx, cy, radius, href });
+                  }
+
+                  // 2) Collect level overlays from #village_map. Each has gid<N> and level<N>
+                  //    classes plus a left/top inline style anchoring it on the village map.
+                  const overlays = Array.from(document.querySelectorAll('#village_map .level'));
+                  const overlayInfo = overlays.map(el => {
+                    const cls = el.className || '';
+                    const gidMatch = cls.match(/\bgid(\d+)\b/i);
+                    const levelMatch = cls.match(/\blevel(\d+)\b/i);
+                    const labelText = ((el.querySelector('.labelLayer') || {}).textContent || '').trim();
+                    const labelLevel = /^\d+$/.test(labelText) ? parseInt(labelText, 10) : null;
+                    const style = el.getAttribute('style') || '';
+                    const leftMatch = style.match(/left\s*:\s*(-?\d+(?:\.\d+)?)px/i);
+                    const topMatch = style.match(/top\s*:\s*(-?\d+(?:\.\d+)?)px/i);
+                    const w = el.offsetWidth || 30;
+                    const h = el.offsetHeight || 18;
+                    const left = leftMatch ? parseFloat(leftMatch[1]) : NaN;
+                    const top = topMatch ? parseFloat(topMatch[1]) : NaN;
+                    return {
+                      gid: gidMatch ? parseInt(gidMatch[1], 10) : null,
+                      level: labelLevel ?? (levelMatch ? parseInt(levelMatch[1], 10) : null),
+                      // Use centre of the overlay box for spatial matching against area centres.
+                      cx: isFinite(left) ? left + w / 2 : NaN,
+                      cy: isFinite(top) ? top + h / 2 : NaN
+                    };
+                  }).filter(o => isFinite(o.cx) && isFinite(o.cy));
+
+                  // 3) For each slot anchor pick the closest overlay (within a tolerance).
+                  const used = new Set();
+                  const out = [];
+                  for (const slot of slots) {
+                    let bestIdx = -1;
+                    let bestDist = Infinity;
+                    for (let i = 0; i < overlayInfo.length; i++) {
+                      if (used.has(i)) continue;
+                      const ov = overlayInfo[i];
+                      const dx = ov.cx - slot.cx;
+                      const dy = ov.cy - slot.cy;
+                      const dist = Math.sqrt(dx * dx + dy * dy);
+                      if (dist < bestDist) {
+                        bestDist = dist;
+                        bestIdx = i;
+                      }
+                    }
+                    // Tolerance: overlays are anchored near the field icon, well inside the
+                    // area circle radius (~28px). Allow 60px to be safe across skins.
+                    const overlay = (bestIdx >= 0 && bestDist <= 60) ? overlayInfo[bestIdx] : null;
+                    if (overlay) used.add(bestIdx);
+
+                    const fieldType = overlay && fieldTypes[overlay.gid] ? fieldTypes[overlay.gid] : 'unknown';
+                    const name = fieldNames[fieldType] || 'Unknown field';
+                    out.push({
+                      slotId: slot.slotId,
+                      fieldType,
+                      name,
+                      level: overlay ? overlay.level : null,
+                      href: slot.href
+                    });
+                  }
+
+                  // Diagnostic for empty results so we can keep up with Travian markup drift.
+                  if (out.length === 0) {
+                    try {
+                      window.__resourceFieldScanDiag = {
+                        url: location.pathname + location.search,
+                        areaCount: areas.length,
+                        slotsParsed: slots.length,
+                        overlayCount: overlays.length,
+                        sampleArea: areas.length > 0 ? (areas[0].getAttribute('href') || '') : '',
+                        sampleOverlay: overlays.length > 0 ? (overlays[0].className || '') : ''
+                      };
+                    } catch (_) {}
+                  }
+
+                  return JSON.stringify(out);
+                }
+                """);
+        }
+        catch (Exception ex) when (IsTransientExecutionContextException(ex))
+        {
+            Notify($"Resource field primary scan hit transient navigation context ({ex.Message}). Falling back to legacy scan.");
+        }
+
+        // If the primary map-based scan succeeded, return immediately.
+        if (!string.IsNullOrWhiteSpace(primaryJson))
+        {
+            var primary = JsonSerializer.Deserialize<List<ResourceFieldJs>>(primaryJson) ?? new List<ResourceFieldJs>();
+            if (primary.Count > 0)
+            {
+                return BuildResourceFieldsFromJs(primary);
+            }
+        }
+
+        // Legacy scan kept as a safety net for older skins / pre-map Travian variants.
         string rawFieldsJson = string.Empty;
         await RetryAsync("read resource fields snapshot", async () =>
         {
@@ -1411,16 +1541,30 @@ public sealed partial class TravianClient
                 '#resourceFieldContainer a[href*="build.php?id="]',
                 '#rx a[href*="build.php?id="]',
                 '.resourceField a[href*="build.php?id="]',
-                'a[href*="build.php?id="]'
+                'a[href*="build.php?id="]',
+                // Modern Travian skins drop the <area>/<a> map and bind clicks via JS,
+                // leaving only the resource-level overlays + onclick handlers. Pick them
+                // up via the `aid<N>` class on overlay/container divs.
+                '#village_map [class*="aid"]',
+                '#resourceFieldContainer [class*="aid"]',
+                '#rx [class*="aid"]',
+                '#village_map [class*="gid"]',
+                '#resourceFieldContainer [class*="gid"]',
+                '#rx [class*="gid"]',
+                '[onclick*="build.php?id="]',
+                '[data-href*="build.php?id="]'
               ];
 
               const seen = new Set();
               const fields = [];
               for (const selector of selectors) {
                 for (const element of document.querySelectorAll(selector)) {
-                  const href = element.getAttribute('href');
+                  const href = element.getAttribute('href')
+                    || element.getAttribute('data-href')
+                    || element.getAttribute('onclick')
+                    || '';
                   const slotId = parseSlotId(element, href);
-                  if (slotId === null || slotId > 18) continue;
+                  if (slotId === null || slotId < 1 || slotId > 18) continue;
                   const key = String(slotId);
                   if (seen.has(key)) continue;
                   seen.add(key);
@@ -1430,9 +1574,32 @@ public sealed partial class TravianClient
                     fieldType,
                     name: parseName(fieldType, element),
                     level: parseLevel(element, slotId),
-                    href
+                    href: href || `build.php?id=${slotId}`
                   });
                 }
+                // Stop once we have all 18 fields to keep selector order priority.
+                if (fields.length >= 18) break;
+              }
+
+              // Always log diagnostic info to the page console so playwright can pipe it
+              // back when scans come up empty. Helps catch Travian markup changes early.
+              if (fields.length === 0) {
+                try {
+                  const diag = {
+                    url: location.pathname + location.search,
+                    areaWithBuild: document.querySelectorAll('area[href*="build.php"]').length,
+                    anchorWithBuild: document.querySelectorAll('a[href*="build.php"]').length,
+                    villageMapAids: document.querySelectorAll('#village_map [class*="aid"]').length,
+                    villageMapGids: document.querySelectorAll('#village_map [class*="gid"]').length,
+                    resourceFieldContainer: !!document.querySelector('#resourceFieldContainer'),
+                    rx: !!document.querySelector('#rx'),
+                    villageMap: !!document.querySelector('#village_map'),
+                    levelOverlays: document.querySelectorAll('#village_map .level').length,
+                    onclickWithBuild: document.querySelectorAll('[onclick*="build.php"]').length
+                  };
+                  // Stash the diagnostic on window so the C# follow-up read can grab it.
+                  window.__resourceFieldScanDiag = diag;
+                } catch (_) {}
               }
 
               return JSON.stringify(fields);
@@ -1446,13 +1613,29 @@ public sealed partial class TravianClient
 
         rawFields ??= [];
 
-        // If the dorf1 scan picked up zero field links, try one targeted reload-and-retry
-        // before falling back to placeholders. Travian sometimes leaves the image-map
-        // <area> elements out of the initial DOM when navigating between dorf1/dorf2,
-        // so the first scan on a non-fresh page can come up empty even though the page
-        // is on the right URL.
+        // If the dorf1 scan picked up zero field links, try a broader probe before
+        // falling back to placeholders. Travian sometimes leaves the image-map <area>
+        // elements out of the initial DOM when navigating between dorf1/dorf2, and on
+        // some skins they're replaced entirely by onclick/data-attribute bindings on
+        // overlay divs (aid<N>/gid<N> classes).
         if (rawFields.Count == 0 && IsCurrentUrlForPath(Paths.Resources))
         {
+            // Read the diagnostic stashed by the main scan so we can see exactly which
+            // markup variant is present (or absent) on this page.
+            try
+            {
+                var diag = await _page.EvaluateAsync<string>(
+                    "() => JSON.stringify(window.__resourceFieldScanDiag || null)");
+                if (!string.IsNullOrWhiteSpace(diag) && !string.Equals(diag, "null", StringComparison.Ordinal))
+                {
+                    Notify($"Resource field scan diagnostic: {diag}");
+                }
+            }
+            catch
+            {
+                // Diagnostic read is best-effort.
+            }
+
             Notify("Resource field scan returned 0 link elements. Reloading dorf1 once and retrying.");
             try
             {
@@ -1462,21 +1645,71 @@ public sealed partial class TravianClient
                 await RetryAsync("read resource fields snapshot (retry)", async () =>
                 {
                     rawFieldsJson = await _page.EvaluateAsync<string>(
-                        @"() => {
-                          const links = Array.from(document.querySelectorAll('area[href*=""build.php?id=""], a[href*=""build.php?id=""]'));
+                        """
+                        () => {
+                          const parseSlotIdFromText = (value) => {
+                            if (!value) return null;
+                            const idMatch = String(value).match(/[?&]id=(\d+)/i);
+                            if (idMatch) return Number(idMatch[1]);
+                            const aidMatch = String(value).match(/(?:^|[^a-z])aid[_:=\s-]?(\d{1,2})/i);
+                            if (aidMatch) return Number(aidMatch[1]);
+                            const slotMatch = String(value).match(/(?:^|[^a-z])slot[_:=\s-]?(\d{1,2})/i);
+                            if (slotMatch) return Number(slotMatch[1]);
+                            return null;
+                          };
+                          const collectSlot = (element) => {
+                            if (!element) return null;
+                            const candidates = [
+                              element.getAttribute && element.getAttribute('href'),
+                              element.getAttribute && element.getAttribute('data-href'),
+                              element.getAttribute && element.getAttribute('onclick'),
+                              element.getAttribute && element.getAttribute('data-aid'),
+                              element.getAttribute && element.getAttribute('data-slot'),
+                              element.className || '',
+                              element.id || ''
+                            ];
+                            for (const c of candidates) {
+                              const s = parseSlotIdFromText(c);
+                              if (s !== null && s >= 1 && s <= 18) return s;
+                            }
+                            let parent = element.parentElement;
+                            for (let i = 0; parent && i < 3; i++, parent = parent.parentElement) {
+                              const s = parseSlotIdFromText((parent.className || '') + ' ' + (parent.getAttribute && parent.getAttribute('href') || ''));
+                              if (s !== null && s >= 1 && s <= 18) return s;
+                            }
+                            return null;
+                          };
+
+                          const selectors = [
+                            'area[href*="build.php?id="]',
+                            'a[href*="build.php?id="]',
+                            '#village_map [class*="aid"]',
+                            '#village_map [class*="gid"]',
+                            '#resourceFieldContainer [class*="aid"]',
+                            '#resourceFieldContainer [class*="gid"]',
+                            '#rx [class*="aid"]',
+                            '#rx [class*="gid"]',
+                            '[onclick*="build.php?id="]',
+                            '[data-href*="build.php?id="]'
+                          ];
+
                           const out = [];
                           const seen = new Set();
-                          for (const link of links) {
-                            const href = link.getAttribute('href') || '';
-                            const m = href.match(/[?&]id=(\d+)/);
-                            if (!m) continue;
-                            const slotId = parseInt(m[1], 10);
-                            if (slotId < 1 || slotId > 18 || seen.has(slotId)) continue;
-                            seen.add(slotId);
-                            out.push({ slotId, fieldType: 'unknown', name: '', level: null, href });
+                          for (const sel of selectors) {
+                            for (const el of document.querySelectorAll(sel)) {
+                              const slotId = collectSlot(el);
+                              if (slotId === null || seen.has(slotId)) continue;
+                              seen.add(slotId);
+                              const href = el.getAttribute('href')
+                                || el.getAttribute('data-href')
+                                || `build.php?id=${slotId}`;
+                              out.push({ slotId, fieldType: 'unknown', name: '', level: null, href });
+                            }
+                            if (out.length >= 18) break;
                           }
                           return JSON.stringify(out);
-                        }");
+                        }
+                        """);
                 }, cancellationToken: cancellationToken);
 
                 rawFields = string.IsNullOrWhiteSpace(rawFieldsJson)
@@ -1491,6 +1724,16 @@ public sealed partial class TravianClient
             }
         }
 
+        return BuildResourceFieldsFromJs(rawFields);
+    }
+
+    /// <summary>
+    /// Common projection used by both the modern (map+overlay) scan and the legacy fallback
+    /// scan. Maps raw JS field rows into <see cref="ResourceField"/>s and tops up the result
+    /// with placeholder rows so SlotId 1..18 are always present.
+    /// </summary>
+    private List<ResourceField> BuildResourceFieldsFromJs(List<ResourceFieldJs> rawFields)
+    {
         var fieldTypeNames = new Dictionary<string, string>
         {
             ["wood"] = "Woodcutter",
@@ -1548,12 +1791,15 @@ public sealed partial class TravianClient
             await _page.WaitForFunctionAsync(
                 """
                 () => {
-                  const links = document.querySelectorAll('area[href*="build.php?id="], a[href*="build.php?id="]');
+                  // Modern Travian uses dorf1.php?<a>=<slot> where <a> is Cyrillic 'а'.
+                  // Legacy skins still use build.php?id=<slot>. Accept either.
+                  const links = document.querySelectorAll('map#rx area, map[name="rx"] area, area[href*="build.php?id="], a[href*="build.php?id="]');
                   let count = 0;
                   const seen = new Set();
                   for (const link of links) {
                     const href = link.getAttribute('href') || '';
-                    const m = href.match(/[?&]id=(\d+)/);
+                    const m = href.match(/[?&][aа]=(\d{1,2})(?:[^0-9]|$)/i)
+                          || href.match(/[?&]id=(\d+)/);
                     if (!m) continue;
                     const slotId = parseInt(m[1], 10);
                     if (slotId < 1 || slotId > 18 || seen.has(slotId)) continue;
