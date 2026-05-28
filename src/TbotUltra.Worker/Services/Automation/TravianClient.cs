@@ -221,14 +221,29 @@ public sealed partial class TravianClient
     public async Task RefreshAccountFeatureSignalsAsync(CancellationToken cancellationToken = default)
     {
         LogFunctionStarted();
+
+        // Plus / Gold Club / Tribe rarely change. Re-querying them on every tight worker tick
+        // (e.g. upgrade_building_to_max retries every ~4s) wasted ~300ms each. Skip the network
+        // round-trips when all three signals are already cached AND the cache is < 60s old.
+        if (_cachedTravianPlusActive.HasValue
+            && _cachedGoldClubEnabled.HasValue
+            && _sessionTribe is not null
+            && DateTimeOffset.UtcNow - _cachedTribePlusAt < TimeSpan.FromSeconds(60))
+        {
+            Notify($"[plus] active={_cachedTravianPlusActive.Value} (cached)");
+            Notify($"[goldclub] active={_cachedGoldClubEnabled.Value} (cached)");
+            Notify($"[tribe] {_sessionTribe} (cached)");
+            return;
+        }
+
         try
         {
             var plus = await IsTravianPlusActiveAsync(cancellationToken);
             if (_cachedTravianPlusActive != plus)
             {
                 _cachedTravianPlusActive = plus;
-                _cachedTribePlusAt = DateTimeOffset.UtcNow;
             }
+            _cachedTribePlusAt = DateTimeOffset.UtcNow;
             Notify($"[plus] active={plus}");
         }
         catch (Exception ex)

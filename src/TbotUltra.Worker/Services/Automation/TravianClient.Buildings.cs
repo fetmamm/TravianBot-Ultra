@@ -1986,15 +1986,22 @@ public sealed partial class TravianClient
 
     private static bool ShouldRetryBuildingOverviewScan(BuildingOverviewScanResult scan)
     {
-        if (scan.Confidence == BuildingOverviewScanConfidence.Low)
+        // Only retry when the scan is *useless* (no buildings parsed, or Main Building missing).
+        // Downstream callers like UpgradeBuildingToMaxAsync only need ONE specific slot — they
+        // don't care if 19 other occupied slots failed to hydrate gids. The previous rule
+        // re-loaded dorf2 every iteration on fast/young villages where many slots legitimately
+        // lacked gids in the first scan, wasting ~1.5s per upgrade attempt.
+        if (scan.Buildings.Count < 18)
         {
             return true;
         }
 
-        return scan.MissingRallyPoint
-            && (scan.Buildings.Count < 22
-                || scan.MissingBuildingCodeCount > 0
-                || scan.UnknownLevelCount > 0);
+        if (scan.MissingMainBuilding)
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private static string DescribeBuildingOverviewScan(BuildingOverviewScanResult scan)
