@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using TbotUltra.Core.Configuration;
+using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
 
 namespace TbotUltra.Worker;
@@ -85,6 +86,14 @@ public sealed class Worker : BackgroundService
                         _logger.LogError(ex, "Queue item failed. Task={Task}", next.TaskName);
                     }
                 }
+                else if (HasPendingQueueWork(items))
+                {
+                    // Queue has work, just not ready yet (deferred). Don't run LoopTasks in the
+                    // gap — the user's intent for a queued upgrade with insufficient resources is
+                    // "wait for that", not "go off and do hero adventures while we wait".
+                    _logger.LogDebug(
+                        "Worker idle tick: queue has deferred work, skipping fallback LoopTasks.");
+                }
                 else
                 {
                     var tasks = _botOptions.LoopTasks is { Count: > 0 } configuredTasks
@@ -124,5 +133,18 @@ public sealed class Worker : BackgroundService
         if (requested < MinDeferDelay) return MinDeferDelay;
         if (requested > MaxDeferDelay) return MaxDeferDelay;
         return requested;
+    }
+
+    private static bool HasPendingQueueWork(IReadOnlyList<QueueItem> items)
+    {
+        foreach (var item in items)
+        {
+            if (!item.IsRuntimeOnly && item.Status == QueueStatus.Pending)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
