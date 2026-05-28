@@ -1662,92 +1662,49 @@ public sealed partial class TravianClient
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        // openCloseSwitchBar is a TOGGLE — clicking it when the panel is already open collapses it.
-        // Determine "currently expanded" by inspecting the actual computed style of the content
-        // wrapper Travian shows/hides (`.heroPropertiesContent`), the layout box of the table,
-        // AND `checkVisibility` when supported. Only click if every signal says "hidden".
-        var clicked = await _page.EvaluateAsync<bool>(
-            """
-            () => {
-              const table = document.querySelector('#attributesOfHero');
-              const contentEl = table ? table.closest('.heroPropertiesContent') : null;
-
-              const computedHidden = (el) => {
-                if (!el) return true;
-                const cs = window.getComputedStyle(el);
-                if (cs.display === 'none' || cs.visibility === 'hidden') return true;
-                return false;
-              };
-              const layoutHidden = (el) => {
-                if (!el) return true;
-                const r = el.getBoundingClientRect();
-                return r.width === 0 && r.height === 0;
-              };
-              const apiVisible = (el) => {
-                if (!el || typeof el.checkVisibility !== 'function') return null;
-                return el.checkVisibility();
-              };
-
-              // Treat as expanded if ANY check says it is visible.
-              const tableApi = apiVisible(table);
-              const contentApi = apiVisible(contentEl);
-              const expanded =
-                (tableApi === true) || (contentApi === true)
-                || (!computedHidden(contentEl) && !layoutHidden(table))
-                || (!computedHidden(table) && !layoutHidden(table));
-              if (expanded) return false; // already open — DO NOT toggle.
-
-              const closedSwitch =
-                document.querySelector('img.openedClosedSwitch.switchClosed')
-                || document.querySelector('.openedClosedSwitch.switchClosed');
-              if (closedSwitch) {
-                const clickable =
-                  closedSwitch.closest('.openCloseSwitchBar')
-                  || closedSwitch.closest('a, button, [role="button"], td, div, span')
-                  || closedSwitch;
-                clickable.click();
-                return true;
-              }
-
-              const bar = Array.from(document.querySelectorAll('.openCloseSwitchBar'))
-                .find(b => /attribute|attribut/i.test((b.querySelector('.title')?.textContent || '')));
-              if (!bar) return false;
-              bar.click();
-              return true;
-            }
-            """);
-
-        if (!clicked)
+        // The single source of truth for "panel is collapsed" is the `switchClosed` class on
+        // `img.openedClosedSwitch`. Travian's toggle script swaps that class on click, so layout
+        // and computed-style checks can race the XHR / animation and produce false negatives.
+        // We try up to twice — if the first click accidentally closed an already-open panel
+        // (rare, but possible if the class hadn't been updated yet), the second click re-opens it.
+        for (var attempt = 0; attempt < 2; attempt++)
         {
-            return;
-        }
-
-        // Wait for the table to actually become visible after the toggle animation. Catch BOTH
-        // PlaywrightException and System.TimeoutException — Microsoft.Playwright surfaces wait
-        // timeouts as the latter and we don't want a missed animation to fail the whole task.
-        try
-        {
-            await _page.WaitForFunctionAsync(
+            var clicked = await _page.EvaluateAsync<bool>(
                 """
                 () => {
-                  const t = document.querySelector('#attributesOfHero');
-                  if (!t) return false;
-                  if (t.offsetParent !== null) return true;
-                  const r = t.getBoundingClientRect();
-                  return r.width > 0 && r.height > 0;
+                  const sw = document.querySelector('.hero_inventory #attributes img.openedClosedSwitch')
+                          || document.querySelector('img.openedClosedSwitch');
+                  if (!sw || !sw.classList.contains('switchClosed')) return false;
+                  const bar = sw.closest('.openCloseSwitchBar') || sw;
+                  bar.click();
+                  return true;
                 }
-                """,
-                null,
-                new PageWaitForFunctionOptions { Timeout = 3000 });
+                """);
+
+            if (!clicked)
+            {
+                return;
+            }
+
+            try
+            {
+                await _page.WaitForFunctionAsync(
+                    """
+                    () => {
+                      const sw = document.querySelector('.hero_inventory #attributes img.openedClosedSwitch')
+                              || document.querySelector('img.openedClosedSwitch');
+                      return !!sw && !sw.classList.contains('switchClosed');
+                    }
+                    """,
+                    null,
+                    new PageWaitForFunctionOptions { Timeout = 3000 });
+                return;
+            }
+            catch (PlaywrightException) { }
+            catch (TimeoutException) { }
         }
-        catch (PlaywrightException)
-        {
-            Notify("Hero attributes panel did not visibly expand within 3s (Playwright) — proceeding anyway.");
-        }
-        catch (TimeoutException)
-        {
-            Notify("Hero attributes panel did not visibly expand within 3s (timeout) — proceeding anyway.");
-        }
+
+        Notify("Hero attributes panel did not visibly expand after 2 toggle attempts — proceeding anyway.");
     }
 
     private async Task<HeroAttributeSnapshot> ReadHeroInventorySnapshotAsync(CancellationToken cancellationToken)
