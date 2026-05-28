@@ -1269,9 +1269,13 @@ public sealed partial class TravianClient
             primaryJson = await _page.EvaluateAsync<string>(
                 """
                 () => {
-                  // The slot parameter key uses Cyrillic 'а' (U+0430) on modern Travian, not
-                  // Latin 'a'. Match both so older servers keep working.
-                  const slotKeyPattern = /[?&][aа]=(\d{1,2})(?:[^0-9]|$)/i;
+                  // Slot parameter key varies across Travian skins/servers:
+                  //   - Modern obfuscated: dorf1.php?а=N (Cyrillic 'а', U+0430)
+                  //   - Latin variant:     dorf1.php?a=N
+                  //   - Legacy:            build.php?id=N
+                  // Match all three so the scan works regardless of which markup the
+                  // server emits today.
+                  const slotKeyPattern = /[?&](?:id|a|а)=(\d{1,2})(?:[^0-9]|$)/i;
                   const fieldTypes = { 1: 'wood', 2: 'clay', 3: 'iron', 4: 'crop' };
                   const fieldNames = {
                     wood: 'Woodcutter',
@@ -1280,7 +1284,8 @@ public sealed partial class TravianClient
                     crop: 'Cropland'
                   };
 
-                  // 1) Collect slot anchors from the image map.
+                  // 1) Collect slot anchors from the image map, preserving HTML order
+                  //    (Travian emits areas in slot-id 1..18 order).
                   const areas = Array.from(document.querySelectorAll('map#rx area, map[name="rx"] area'));
                   const slots = [];
                   for (const area of areas) {
@@ -1289,16 +1294,20 @@ public sealed partial class TravianClient
                     if (!m) continue;
                     const slotId = parseInt(m[1], 10);
                     if (slotId < 1 || slotId > 18) continue;
-                    // <area coords="cx,cy,r"> for circles. Use the centre as the slot anchor.
                     const coords = (area.getAttribute('coords') || '').split(',').map(s => parseFloat(s.trim()));
-                    const cx = coords[0];
-                    const cy = coords[1];
-                    const radius = coords[2] || 28;
-                    slots.push({ slotId, cx, cy, radius, href });
+                    slots.push({
+                      slotId,
+                      cx: coords[0],
+                      cy: coords[1],
+                      href
+                    });
                   }
 
                   // 2) Collect level overlays from #village_map. Each has gid<N> and level<N>
-                  //    classes plus a left/top inline style anchoring it on the village map.
+                  //    classes plus a left/top inline style. Travian emits overlays in the
+                  //    same order as areas — slot 1 first, slot 18 last — so we can pair
+                  //    them by index without trusting the offset positions (which are
+                  //    sometimes 0 before CSS finishes applying).
                   const overlays = Array.from(document.querySelectorAll('#village_map .level'));
                   const overlayInfo = overlays.map(el => {
                     const cls = el.className || '';
@@ -1309,50 +1318,65 @@ public sealed partial class TravianClient
                     const style = el.getAttribute('style') || '';
                     const leftMatch = style.match(/left\s*:\s*(-?\d+(?:\.\d+)?)px/i);
                     const topMatch = style.match(/top\s*:\s*(-?\d+(?:\.\d+)?)px/i);
-                    const w = el.offsetWidth || 30;
-                    const h = el.offsetHeight || 18;
-                    const left = leftMatch ? parseFloat(leftMatch[1]) : NaN;
-                    const top = topMatch ? parseFloat(topMatch[1]) : NaN;
                     return {
                       gid: gidMatch ? parseInt(gidMatch[1], 10) : null,
                       level: labelLevel ?? (levelMatch ? parseInt(levelMatch[1], 10) : null),
-                      // Use centre of the overlay box for spatial matching against area centres.
-                      cx: isFinite(left) ? left + w / 2 : NaN,
-                      cy: isFinite(top) ? top + h / 2 : NaN
+                      left: leftMatch ? parseFloat(leftMatch[1]) : NaN,
+                      top: topMatch ? parseFloat(topMatch[1]) : NaN
                     };
-                  }).filter(o => isFinite(o.cx) && isFinite(o.cy));
+                  });
 
-                  // 3) For each slot anchor pick the closest overlay (within a tolerance).
-                  const used = new Set();
+                  // 3a) Preferred path: zip by index when both lists have the same length.
+                  //     This is the common case (always 18+18) and avoids spatial mismatches
+                  //     caused by offsetWidth==0 during initial render.
                   const out = [];
-                  for (const slot of slots) {
-                    let bestIdx = -1;
-                    let bestDist = Infinity;
-                    for (let i = 0; i < overlayInfo.length; i++) {
-                      if (used.has(i)) continue;
-                      const ov = overlayInfo[i];
-                      const dx = ov.cx - slot.cx;
-                      const dy = ov.cy - slot.cy;
-                      const dist = Math.sqrt(dx * dx + dy * dy);
-                      if (dist < bestDist) {
-                        bestDist = dist;
-                        bestIdx = i;
-                      }
+                  if (slots.length === overlays.length && slots.length > 0) {
+                    for (let i = 0; i < slots.length; i++) {
+                      const slot = slots[i];
+                      const overlay = overlayInfo[i];
+                      const fieldType = overlay && fieldTypes[overlay.gid] ? fieldTypes[overlay.gid] : 'unknown';
+                      out.push({
+                        slotId: slot.slotId,
+                        fieldType,
+                        name: fieldNames[fieldType] || 'Unknown field',
+                        level: overlay ? overlay.level : null,
+                        href: slot.href
+                      });
                     }
-                    // Tolerance: overlays are anchored near the field icon, well inside the
-                    // area circle radius (~28px). Allow 60px to be safe across skins.
-                    const overlay = (bestIdx >= 0 && bestDist <= 60) ? overlayInfo[bestIdx] : null;
-                    if (overlay) used.add(bestIdx);
+                  } else {
+                    // 3b) Fallback: spatial matching when counts disagree. Pair each slot
+                    //     to its nearest overlay using inline-style left/top, with a tolerance
+                    //     generous enough to absorb the icon→label offset (~40-60px).
+                    const used = new Set();
+                    for (const slot of slots) {
+                      let bestIdx = -1;
+                      let bestDist = Infinity;
+                      for (let i = 0; i < overlayInfo.length; i++) {
+                        if (used.has(i)) continue;
+                        const ov = overlayInfo[i];
+                        if (!isFinite(ov.left) || !isFinite(ov.top)) continue;
+                        // Overlays are placed top-left, ~40px right and ~10px above the icon
+                        // centre. Compare overlay top-left to area centre directly.
+                        const dx = ov.left - slot.cx;
+                        const dy = ov.top - slot.cy;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist < bestDist) {
+                          bestDist = dist;
+                          bestIdx = i;
+                        }
+                      }
+                      const overlay = (bestIdx >= 0 && bestDist <= 120) ? overlayInfo[bestIdx] : null;
+                      if (overlay) used.add(bestIdx);
 
-                    const fieldType = overlay && fieldTypes[overlay.gid] ? fieldTypes[overlay.gid] : 'unknown';
-                    const name = fieldNames[fieldType] || 'Unknown field';
-                    out.push({
-                      slotId: slot.slotId,
-                      fieldType,
-                      name,
-                      level: overlay ? overlay.level : null,
-                      href: slot.href
-                    });
+                      const fieldType = overlay && fieldTypes[overlay.gid] ? fieldTypes[overlay.gid] : 'unknown';
+                      out.push({
+                        slotId: slot.slotId,
+                        fieldType,
+                        name: fieldNames[fieldType] || 'Unknown field',
+                        level: overlay ? overlay.level : null,
+                        href: slot.href
+                      });
+                    }
                   }
 
                   // Diagnostic for empty results so we can keep up with Travian markup drift.
@@ -1791,15 +1815,14 @@ public sealed partial class TravianClient
             await _page.WaitForFunctionAsync(
                 """
                 () => {
-                  // Modern Travian uses dorf1.php?<a>=<slot> where <a> is Cyrillic 'а'.
-                  // Legacy skins still use build.php?id=<slot>. Accept either.
-                  const links = document.querySelectorAll('map#rx area, map[name="rx"] area, area[href*="build.php?id="], a[href*="build.php?id="]');
+                  // Accept all three slot-link variants Travian uses: build.php?id=N (legacy),
+                  // dorf1.php?a=N (latin), dorf1.php?а=N (Cyrillic 'а').
+                  const links = document.querySelectorAll('map#rx area, map[name="rx"] area, area[href*="build.php?id="], a[href*="build.php?id="], area[href*="dorf1.php"], a[href*="dorf1.php"]');
                   let count = 0;
                   const seen = new Set();
                   for (const link of links) {
                     const href = link.getAttribute('href') || '';
-                    const m = href.match(/[?&][aа]=(\d{1,2})(?:[^0-9]|$)/i)
-                          || href.match(/[?&]id=(\d+)/);
+                    const m = href.match(/[?&](?:id|a|а)=(\d{1,2})(?:[^0-9]|$)/i);
                     if (!m) continue;
                     const slotId = parseInt(m[1], 10);
                     if (slotId < 1 || slotId > 18 || seen.has(slotId)) continue;

@@ -466,6 +466,49 @@ public partial class MainWindow
     }
 
     /// <summary>
+    /// Pulls the brewery celebration timer out of a run_brewery_celebration queue defer
+    /// message and pushes it onto the troops-tab badge so it tracks the dashboard.
+    /// Recognised defer messages:
+    ///   - "Brewery celebration running. queue_wait_seconds=N"   → N is the celebration timer
+    ///   - "Brewery celebration started. queue_wait_seconds=N"   → N is the celebration timer
+    /// Other defer reasons (Teutons only, capital required, retry-after-no-button etc.)
+    /// carry a queue retry interval, not the brewery timer, so we ignore them here.
+    /// </summary>
+    private void ApplyBreweryCelebrationDeferSignal(string? message, TimeSpan queueWaitDelay)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return;
+        }
+
+        var seconds = (int)Math.Ceiling(queueWaitDelay.TotalSeconds);
+        if (seconds <= 0)
+        {
+            return;
+        }
+
+        var lower = message.ToLowerInvariant();
+        string? statusText = null;
+        if (lower.Contains("brewery celebration running"))
+        {
+            statusText = "Celebration running.";
+        }
+        else if (lower.Contains("brewery celebration started"))
+        {
+            statusText = "Celebration started.";
+        }
+        else
+        {
+            return;
+        }
+
+        Dispatcher.Invoke(() =>
+        {
+            _troopTrainingViewModel.PushBreweryCelebrationRemainingSeconds(seconds, statusText);
+        });
+    }
+
+    /// <summary>
     /// Manual "Check celebration" button on the troops tab. Navigates to the brewery,
     /// reads the live celebration status, and updates the UI (timer + Brewery-found
     /// indicator). Bypasses the queue so it works even when no continuous loop is

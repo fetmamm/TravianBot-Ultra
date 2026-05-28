@@ -168,6 +168,16 @@ public partial class MainWindow
                 await ApplyHeroLowHpCooldownUiAsync(queueWaitDelay);
             }
 
+            // Mirror the brewery defer signal onto the Troops-tab celebration card so
+            // its badge tracks the dashboard countdown. The continuous-loop brewery
+            // task always defers (queue_wait_seconds is its happy-path return), so the
+            // success-side RefreshBreweryCelebrationStatusAsync never fires; without
+            // this push the troops badge stayed N/A while the dashboard timer ticked.
+            if (string.Equals(item.TaskName, "run_brewery_celebration", StringComparison.OrdinalIgnoreCase))
+            {
+                ApplyBreweryCelebrationDeferSignal(ex.Message, queueWaitDelay);
+            }
+
             var deferred = _botService.MarkQueueItemDeferred(item.Id, queueWaitDelay);
             if (deferred)
             {

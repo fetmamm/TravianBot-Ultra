@@ -764,6 +764,29 @@ public sealed class TroopTrainingViewModel : BaseViewModel
     }
 
     /// <summary>
+    /// Pushes a freshly-observed brewery celebration timer (parsed from the queue defer
+    /// signal of run_brewery_celebration) into the troops-tab badge so it stays in sync
+    /// with the dashboard countdown. The continuous-loop task always defers when the
+    /// celebration is running, so without this push the dashboard had a timer but the
+    /// troops badge stayed N/A.
+    /// </summary>
+    public void PushBreweryCelebrationRemainingSeconds(int seconds, string statusText)
+    {
+        if (seconds <= 0)
+        {
+            return;
+        }
+
+        AutoCelebrationCanStart = false;
+        AutoCelebrationRemainingSeconds = seconds;
+        BreweryExists = true;
+        if (!string.IsNullOrWhiteSpace(statusText))
+        {
+            AutoCelebrationStatusText = statusText;
+        }
+    }
+
+    /// <summary>
     /// Returns the smallest positive remaining-seconds across all enabled
     /// rows, or <c>null</c> if any enabled row has no current queue (which
     /// means the group is ready to run again).
