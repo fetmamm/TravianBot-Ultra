@@ -15,3 +15,5 @@ temp_build_out/
 **/obj/
 .claude/worktrees/kind-cori-d469bc/
 /.claude
+config/queue.json
+/config/accounts
