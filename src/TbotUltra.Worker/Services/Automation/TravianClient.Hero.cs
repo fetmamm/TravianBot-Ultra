@@ -1607,8 +1607,8 @@ public sealed partial class TravianClient
         }
 
         // The attributes table is in DOM regardless of whether the collapsible panel is expanded —
-        // we don't expand here. Callers that need to CLICK (e.g. assign points) must call
-        // ExpandAttributesPanelIfClosedAsync themselves; pure reads don't.
+        // we don't block on expansion here. Callers that need to CLICK (e.g. assign points) must
+        // call ExpandAttributesPanelIfClosedAsync themselves; pure reads don't.
         var tableReady = await WaitForAttributesTableAsync(cancellationToken, timeoutMs: 4000);
         if (!tableReady)
         {
@@ -1621,6 +1621,29 @@ public sealed partial class TravianClient
                 Notify($"Hero attributes table still missing after reload. url='{_page.Url}'.");
             }
         }
+
+        // Fire-and-forget: open the panel so the user lands on a visually-expanded panel if they
+        // look at the browser. We do NOT wait for confirmation — the read path doesn't need it.
+        await TryClickExpandPanelFireAndForgetAsync();
+    }
+
+    private async Task TryClickExpandPanelFireAndForgetAsync()
+    {
+        try
+        {
+            await _page.EvaluateAsync(
+                """
+                () => {
+                  const sw = document.querySelector('.hero_inventory #attributes img.openedClosedSwitch')
+                          || document.querySelector('img.openedClosedSwitch');
+                  if (!sw || !sw.classList.contains('switchClosed')) return;
+                  const bar = sw.closest('.openCloseSwitchBar') || sw;
+                  bar.click();
+                }
+                """);
+        }
+        catch (PlaywrightException) { }
+        catch (TimeoutException) { }
     }
 
     private async Task<bool> WaitForAttributesTableAsync(CancellationToken cancellationToken, int timeoutMs)

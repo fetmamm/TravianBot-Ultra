@@ -1,17 +1,1 @@
-[
-  {
-    "id": "fb4b2b26-5e99-4045-9fb1-5a8ee2e3fdd6",
-    "taskName": "desktop_runtime_manual:login",
-    "displayName": "Login",
-    "group": "Construction",
-    "payload": {},
-    "priority": 0,
-    "status": "Succeeded",
-    "retries": 0,
-    "maxRetries": 0,
-    "isRuntimeOnly": true,
-    "nextAttemptAt": "2026-05-28T18:43:33.8530135+00:00",
-    "createdAt": "2026-05-28T18:43:33.8391647+00:00",
-    "updatedAt": "2026-05-28T18:43:43.7545683+00:00"
-  }
-]
+[]
