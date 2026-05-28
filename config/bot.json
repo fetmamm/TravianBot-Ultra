@@ -23,7 +23,8 @@
   "natar_village_selection": "farm_villages",
   "continuous_loop_groups": [
     "construction",
-    "hero"
+    "hero",
+    "troop_training"
   ],
   "continuous_loop_group_order": [
     "construction",
@@ -67,7 +68,7 @@
   "troop_training_workshop_keep_resources_percent": 10,
   "troop_training_barracks_run_mode": "resource_percent",
   "troop_training_barracks_minimum_troops": 15000,
-  "troop_training_barracks_minimum_resources_percent": 80,
+  "troop_training_barracks_minimum_resources_percent": 90,
   "troop_training_stable_run_mode": "resource_percent",
   "troop_training_stable_minimum_troops": 1,
   "troop_training_stable_minimum_resources_percent": 30,

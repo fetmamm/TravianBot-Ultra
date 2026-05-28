@@ -2550,7 +2550,10 @@ public sealed partial class TravianClient
             .Select(a => a.TimeLeftSeconds!.Value)
             .DefaultIfEmpty(status.ShortestWaitSeconds ?? 0)
             .Min();
-        var wait = Math.Max(relevantWait, 5);
+        // When the page gave us an actual timer, trust it (+1s race buffer so we don't poll
+        // before the slot frees). The 5s floor only matters when we had no live timer at all —
+        // without it we'd thrash polling if relevantWait==0.
+        var wait = relevantWait > 0 ? relevantWait + 1 : 5;
         var label = kind == ConstructionKind.Resource ? "Resource slot" : "Slot";
         return $"{label} {slotId}: build queue full ({status.ResourceSlotsUsed}/{status.ResourceSlotsMax} resource, {status.BuildingSlotsUsed}/{status.BuildingSlotsMax} building, plus={plusActive}). Deferring upgrade. Upgrades performed: {upgrades}. queue_wait_seconds={wait}";
     }
