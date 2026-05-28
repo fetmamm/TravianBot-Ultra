@@ -13,6 +13,7 @@ public enum LogCategory
     Hero,
     Farming,
     Troops,
+    Brewery,
     Inbox,
     Login,
     Errors,
@@ -37,6 +38,7 @@ public static class LogClassifier
         (LogCategory.Hero, "Hero"),
         (LogCategory.Farming, "Farming"),
         (LogCategory.Troops, "Troops"),
+        (LogCategory.Brewery, "Brewery"),
         (LogCategory.Inbox, "Inbox"),
         (LogCategory.Login, "Login"),
         (LogCategory.Errors, "Errors"),
@@ -72,7 +74,12 @@ public static class LogClassifier
             return LogCategory.Buildings;
         }
 
-        if (Contains(value, "troop", "smithy", "build_troops", "barracks", "stable", "workshop", "celebration", "brewery", "reinforcement"))
+        if (Contains(value, "brewery"))
+        {
+            return LogCategory.Brewery;
+        }
+
+        if (Contains(value, "troop", "smithy", "build_troops", "barracks", "stable", "workshop", "celebration", "reinforcement"))
         {
             return LogCategory.Troops;
         }
@@ -82,7 +89,7 @@ public static class LogClassifier
             return LogCategory.Hero;
         }
 
-        if (Contains(value, "farm", "raid"))
+        if (Contains(value, "farm", "raid", "natar"))
         {
             return LogCategory.Farming;
         }
