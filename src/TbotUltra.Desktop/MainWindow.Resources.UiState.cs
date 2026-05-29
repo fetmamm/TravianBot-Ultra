@@ -117,13 +117,13 @@ public partial class MainWindow
     private void UpdateResourcesInfoText(VillageStatus status, int rowCount)
     {
         var capitalText = status.IsCapital == true ? "Yes" : status.IsCapital == false ? "No" : "Unknown";
-        ResourcesInfoTextBlock.Text = $"Loaded {rowCount} resource fields. Capital: {capitalText}. {BuildResourceForecastSummary(status)}";
+        _resourcesViewModel.InfoText = $"Loaded {rowCount} resource fields. Capital: {capitalText}. {BuildResourceForecastSummary(status)}";
     }
 
     private void SetResourceRows(IReadOnlyList<ResourceFieldRow> rows)
     {
-        ResourcesDataGrid.ItemsSource = rows.ToList();
-        RepopulateResourceGroups(rows);
+        _resourcesViewModel.SetAllFields(rows);
+        UpdateCroplandLayout();
     }
 
     private IReadOnlyDictionary<int, int> GetQueuedResourceTargetsBySlot()
@@ -172,7 +172,8 @@ public partial class MainWindow
 
     private void SyncPendingResourceTargetsInUi()
     {
-        if (ResourcesDataGrid.ItemsSource is not IEnumerable<ResourceFieldRow> sourceRows)
+        var sourceRows = _resourcesViewModel.AllFields;
+        if (sourceRows.Count == 0)
         {
             return;
         }
@@ -214,7 +215,8 @@ public partial class MainWindow
     private void ClearPendingResourceLevelsFromUi()
     {
         _resourcesViewModel.ClearPendingTargets();
-        if (ResourcesDataGrid.ItemsSource is not IEnumerable<ResourceFieldRow> sourceRows)
+        var sourceRows = _resourcesViewModel.AllFields;
+        if (sourceRows.Count == 0)
         {
             return;
         }
@@ -245,7 +247,8 @@ public partial class MainWindow
 
         _resourcesViewModel.RememberPendingTarget(slotId, normalizedTarget);
 
-        if (ResourcesDataGrid.ItemsSource is not IEnumerable<ResourceFieldRow> sourceRows)
+        var sourceRows = _resourcesViewModel.AllFields;
+        if (sourceRows.Count == 0)
         {
             return;
         }
@@ -276,7 +279,8 @@ public partial class MainWindow
     private void MarkResourceAsMax(int slotId)
     {
         _resourcesViewModel.ForgetPendingTarget(slotId);
-        if (ResourcesDataGrid.ItemsSource is not IEnumerable<ResourceFieldRow> sourceRows)
+        var sourceRows = _resourcesViewModel.AllFields;
+        if (sourceRows.Count == 0)
         {
             return;
         }
@@ -296,12 +300,6 @@ public partial class MainWindow
                 : row)
             .ToList();
         SetResourceRows(updated);
-    }
-
-    private void RepopulateResourceGroups(IEnumerable<ResourceFieldRow> rows)
-    {
-        _resourcesViewModel.RebuildFieldGroups(rows);
-        UpdateCroplandLayout();
     }
 
     private void UpdateCroplandLayout()
@@ -331,8 +329,8 @@ public partial class MainWindow
             return;
         }
 
-        var liveRow = (ResourcesDataGrid.ItemsSource as IEnumerable<ResourceFieldRow>)
-            ?.FirstOrDefault(item => item.SlotId == row.SlotId) ?? row;
+        var liveRow = _resourcesViewModel.AllFields
+            .FirstOrDefault(item => item.SlotId == row.SlotId) ?? row;
         var currentLevel = liveRow.Level ?? 0;
         var rowName = string.IsNullOrWhiteSpace(liveRow.Name) ? row.Name : liveRow.Name;
 
@@ -364,7 +362,7 @@ public partial class MainWindow
         EnqueueQuickTask("upgrade_resource_to_level", $"Upgrade {rowName} to level {target}", payload);
         _resourceLastQueuedTargetBySlot[row.SlotId] = (target, now);
         SetPendingResourceLevel(row.SlotId, target);
-        ResourcesInfoTextBlock.Text = $"Queued {rowName} to level {target}.";
+        _resourcesViewModel.InfoText = $"Queued {rowName} to level {target}.";
         AppendLog($"Queued single resource upgrade: slot {row.SlotId} -> level {target}.");
     }
 
@@ -432,7 +430,8 @@ public partial class MainWindow
 
         return await Dispatcher.InvokeAsync(() =>
         {
-            if (ResourcesDataGrid.ItemsSource is not IEnumerable<ResourceFieldRow> sourceRows)
+            var sourceRows = _resourcesViewModel.AllFields;
+            if (sourceRows.Count == 0)
             {
                 return false;
             }
@@ -471,7 +470,7 @@ public partial class MainWindow
             }
 
             SetResourceRows(updatedRows);
-            ResourcesInfoTextBlock.Text = $"Resource UI fast-updated for {updates.Count} slot(s).";
+            _resourcesViewModel.InfoText = $"Resource UI fast-updated for {updates.Count} slot(s).";
             if (maxedSlots.Count > 0)
             {
                 AppDialog.Show(this, "Max level reached", "Resources", MessageBoxButton.OK, MessageBoxImage.Information);

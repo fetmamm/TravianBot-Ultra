@@ -1042,8 +1042,7 @@
                             </Grid>
                             </ScrollViewer>
                         </Border>
-                        <DataGrid x:Name="ResourcesDataGrid" Visibility="Collapsed" />
-                        <TextBlock x:Name="ResourcesInfoTextBlock" Visibility="Collapsed" Text="Resources not loaded yet." />
+                        <TextBlock Visibility="Collapsed" Text="{Binding InfoText}" />
                     </Grid>
                 </TabItem>
 

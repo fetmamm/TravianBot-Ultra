@@ -466,7 +466,8 @@ public partial class MainWindow
 
         var slotId = int.Parse(levelUp.Groups["slot"].Value);
         var nextLevel = int.Parse(levelUp.Groups["to"].Value);
-        if (ResourcesDataGrid.ItemsSource is not IEnumerable<ResourceFieldRow> sourceRows)
+        var sourceRows = _resourcesViewModel.AllFields;
+        if (sourceRows.Count == 0)
         {
             return;
         }
@@ -506,7 +507,7 @@ public partial class MainWindow
         }
 
         SetResourceRows(updatedRows);
-        ResourcesInfoTextBlock.Text = $"Resource slot {slotId} updated to level {nextLevel}.";
+        _resourcesViewModel.InfoText = $"Resource slot {slotId} updated to level {nextLevel}.";
     }
 
     private void TryApplyInlineResourceProductionUpdateFromLog(string message)

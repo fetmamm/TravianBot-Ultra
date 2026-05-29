@@ -163,8 +163,8 @@ public partial class MainWindow
 
     private string? ResolveResourceName(int slotId)
     {
-        return (ResourcesDataGrid.ItemsSource as IEnumerable<ResourceFieldRow>)
-            ?.FirstOrDefault(row => row.SlotId == slotId)
+        return _resourcesViewModel.AllFields
+            .FirstOrDefault(row => row.SlotId == slotId)
             ?.Name;
     }
 

@@ -142,8 +142,9 @@ public partial class MainWindow
         TriggerDeferredConstructionWaitRefresh(updatedStatus, "resource_production_refresh");
         TriggerDeferredTroopTrainingWaitRefresh(updatedStatus, "resource_production_refresh");
 
-        var rowCount = (ResourcesDataGrid.ItemsSource as IEnumerable<ResourceFieldRow>)?.Count()
-            ?? updatedStatus.ResourceFields.Count;
+        var rowCount = _resourcesViewModel.AllFields.Count > 0
+            ? _resourcesViewModel.AllFields.Count
+            : updatedStatus.ResourceFields.Count;
         UpdateResourcesInfoText(updatedStatus, rowCount);
         AppendLog($"[resource-production] UI summary updated: {BuildResourceForecastSummary(updatedStatus)}");
     }

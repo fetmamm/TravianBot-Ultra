@@ -31,6 +31,7 @@ public sealed class ResourcesViewModel : BaseViewModel
     private DateTimeOffset? _baseForecastCapturedAtUtc;
     private DateTimeOffset _lastLiveForecastUiUpdateUtc = DateTimeOffset.MinValue;
     private readonly Dictionary<int, int> _pendingTargetBySlot = new();
+    private List<ResourceFieldRow> _allFields = [];
 
     /// <summary>Resource fields grouped into the Wood column on the Resources tab.</summary>
     public ObservableCollection<ResourceFieldRow> WoodFields { get; } = [];
@@ -54,6 +55,19 @@ public sealed class ResourcesViewModel : BaseViewModel
     ];
 
     public bool UseDenseCroplandLayout => CroplandFields.Count > 6;
+
+    private string _infoText = "Resources not loaded yet.";
+
+    /// <summary>
+    /// Status line describing the last resources action (load summary, queued
+    /// upgrade, fast level update). Code-behind pushes values here; the
+    /// Resources tab binds a TextBlock to it.
+    /// </summary>
+    public string InfoText
+    {
+        get => _infoText;
+        set => SetProperty(ref _infoText, value);
+    }
 
     private bool _isBuildLowestFirst = true;
     private bool _isBuildSmart;
@@ -107,7 +121,24 @@ public sealed class ResourcesViewModel : BaseViewModel
         }
     }
 
-    public void RebuildFieldGroups(IEnumerable<ResourceFieldRow> rows)
+    /// <summary>
+    /// The canonical flat list of resource-field rows for the active village.
+    /// Previously held on a hidden DataGrid in the visual tree; now owned here.
+    /// The grouped Wood / Clay / Iron / Cropland columns are derived from it.
+    /// </summary>
+    public IReadOnlyList<ResourceFieldRow> AllFields => _allFields;
+
+    /// <summary>
+    /// Replaces the canonical row list and rebuilds the grouped column
+    /// collections from it.
+    /// </summary>
+    public void SetAllFields(IEnumerable<ResourceFieldRow> rows)
+    {
+        _allFields = rows.ToList();
+        RebuildFieldGroups(_allFields);
+    }
+
+    private void RebuildFieldGroups(IEnumerable<ResourceFieldRow> rows)
     {
         WoodFields.Clear();
         ClayFields.Clear();
