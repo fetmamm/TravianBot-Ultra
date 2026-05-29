@@ -178,13 +178,11 @@ public partial class MainWindow
         }
 
         var now = DateTimeOffset.UtcNow;
-        if (_buildingClickCooldownBySlot.TryGetValue(liveRow.SlotId, out var lastClickAt)
-            && (now - lastClickAt).TotalMilliseconds < 120)
+        if (!TryBeginSlotClick(_buildingClickCooldownBySlot, liveRow.SlotId, now))
         {
             return;
         }
 
-        _buildingClickCooldownBySlot[liveRow.SlotId] = now;
         var currentLevel = liveRow.UpgradeBaseLevel;
         var maxLevel = liveRow.UpgradeGid is int gid ? BuildingCatalogService.MaxLevelFor(gid) : 40;
         if (currentLevel >= maxLevel)

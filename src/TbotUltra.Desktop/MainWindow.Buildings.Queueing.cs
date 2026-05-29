@@ -21,13 +21,8 @@ public partial class MainWindow
     private IReadOnlyList<QueueItem> GetActiveQueueItems()
     {
         return _botService.GetQueueItemsForDisplay()
-            .Where(item => item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused)
+            .Where(item => IsActiveQueueStatus(item.Status))
             .ToList();
-    }
-
-    private static bool IsActiveBuildingQueueStatus(QueueStatus status)
-    {
-        return status is QueueStatus.Pending or QueueStatus.Paused or QueueStatus.Running;
     }
 
     private static bool TryReadBuildingConstructPayload(
@@ -122,7 +117,7 @@ public partial class MainWindow
         out int removedCount)
     {
         var relatedItems = _botService.GetQueueItemsForDisplay()
-            .Where(item => IsActiveBuildingQueueStatus(item.Status))
+            .Where(item => IsActiveQueueStatus(item.Status))
             .Where(item =>
             {
                 if (string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase)
@@ -154,15 +149,7 @@ public partial class MainWindow
             return matchingConstruct;
         }
 
-        removedCount = 0;
-        foreach (var related in relatedItems.Where(item => item.Status is QueueStatus.Pending or QueueStatus.Paused))
-        {
-            if (_botService.RemoveQueueItem(related.Id))
-            {
-                ForgetBuildingQueueCachesForItem(related);
-                removedCount += 1;
-            }
-        }
+        removedCount = RemoveCoalescedQueueItems(relatedItems, ForgetBuildingQueueCachesForItem);
 
         ApplySelectedVillageToPayload(payload);
         var created = _botService.Enqueue("construct_building", payload, priority: 0, maxRetries: 3);
@@ -183,7 +170,7 @@ public partial class MainWindow
             .Where(item =>
                 (string.Equals(item.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(item.TaskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase))
-                && IsActiveBuildingQueueStatus(item.Status))
+                && IsActiveQueueStatus(item.Status))
             .Select(item =>
             {
                 var parsed = TryReadBuildingUpgradePayload(item.Payload, out var parsedSlotId, out var parsedTargetLevel);
@@ -233,15 +220,7 @@ public partial class MainWindow
             }
         }
 
-        removedCount = 0;
-        foreach (var related in relatedItems.Where(item => item.Item.Status is QueueStatus.Pending or QueueStatus.Paused))
-        {
-            if (_botService.RemoveQueueItem(related.Item.Id))
-            {
-                ForgetBuildingQueueCachesForItem(related.Item);
-                removedCount += 1;
-            }
-        }
+        removedCount = RemoveCoalescedQueueItems(relatedItems.Select(item => item.Item), ForgetBuildingQueueCachesForItem);
 
         if (effectiveTargetLevel.HasValue)
         {

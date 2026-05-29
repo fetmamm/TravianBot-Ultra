@@ -31,11 +31,6 @@ public partial class MainWindow
         return true;
     }
 
-    private static bool IsActiveResourceQueueStatus(QueueStatus status)
-    {
-        return status is QueueStatus.Pending or QueueStatus.Paused or QueueStatus.Running;
-    }
-
     private QueueItem? EnqueueResourceUpgradeTaskCoalesced(
         Dictionary<string, string> payload,
         int slotId,
@@ -46,7 +41,7 @@ public partial class MainWindow
     {
         var relatedItems = _botService.GetQueueItemsForDisplay()
             .Where(item => string.Equals(item.TaskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase))
-            .Where(item => IsActiveResourceQueueStatus(item.Status))
+            .Where(item => IsActiveQueueStatus(item.Status))
             .Select(item =>
             {
                 var parsed = TryReadResourceUpgradePayload(item.Payload, out var parsedSlotId, out var parsedTargetLevel);
@@ -77,14 +72,7 @@ public partial class MainWindow
                 .FirstOrDefault();
         }
 
-        removedCount = 0;
-        foreach (var related in relatedItems.Where(item => item.Item.Status is QueueStatus.Pending or QueueStatus.Paused))
-        {
-            if (_botService.RemoveQueueItem(related.Item.Id))
-            {
-                removedCount += 1;
-            }
-        }
+        removedCount = RemoveCoalescedQueueItems(relatedItems.Select(item => item.Item));
 
         payload[BotOptionPayloadKeys.ResourceUpgradeTargetLevel] = effectiveTargetLevel.ToString();
         var created = _botService.Enqueue("upgrade_resource_to_level", payload, priority: 0, maxRetries: 3);
@@ -370,13 +358,10 @@ public partial class MainWindow
         var rowName = string.IsNullOrWhiteSpace(liveRow.Name) ? row.Name : liveRow.Name;
 
         var now = DateTimeOffset.UtcNow;
-        if (_resourceClickCooldownBySlot.TryGetValue(row.SlotId, out var lastClickAt)
-            && (now - lastClickAt).TotalMilliseconds < 120)
+        if (!TryBeginSlotClick(_resourceClickCooldownBySlot, row.SlotId, now))
         {
             return;
         }
-
-        _resourceClickCooldownBySlot[row.SlotId] = now;
 
         if (liveRow.IsMaxLevel || currentLevel >= _activeVillageResourceMaxLevel)
         {
