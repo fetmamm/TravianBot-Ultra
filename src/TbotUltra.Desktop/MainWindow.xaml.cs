@@ -172,7 +172,9 @@ public partial class MainWindow : Window
     private List<ReinforcementTroopRule> _configuredReinforcementTroopRules = [];
     private bool _suppressReinforcementConfigWrite;
     private readonly ObservableCollection<FarmListStatusRow> _farmLists = [];
-    private readonly ObservableCollection<BuildingSlotRow> _buildingRows = [];
+    // Building slots now live on BuildingsViewModel; this delegates so existing
+    // code-behind that mutates _buildingRows in place keeps working unchanged.
+    private ObservableCollection<BuildingSlotRow> _buildingRows => _buildingsViewModel.BuildingSlots;
     private readonly ObservableCollection<BuildingCatalogOption> _buildingCatalogOptions = [];
     private readonly ObservableCollection<BuildingSlotRow> _demolishableBuildings = [];
     private readonly Dictionary<int, DateTimeOffset> _resourceClickCooldownBySlot = new();
@@ -216,6 +218,7 @@ public partial class MainWindow : Window
     private readonly InboxViewModel _inboxViewModel = App.Services.GetRequiredService<InboxViewModel>();
     private readonly TroopTrainingViewModel _troopTrainingViewModel = App.Services.GetRequiredService<TroopTrainingViewModel>();
     private readonly ResourcesViewModel _resourcesViewModel = App.Services.GetRequiredService<ResourcesViewModel>();
+    private readonly BuildingsViewModel _buildingsViewModel = App.Services.GetRequiredService<BuildingsViewModel>();
 
     /// <summary>
     /// Public accessor so XAML can bind to the hero view model via
@@ -333,7 +336,11 @@ public partial class MainWindow : Window
     private bool _startContinuousLoopAfterQueueStop;
     private int _continuousLoopWakeRequested;
 
-    public ObservableCollection<BuildingSlotRow> BuildingSlots => _buildingRows;
+    /// <summary>
+    /// Public accessor so the Buildings panel can bind to the buildings view
+    /// model via {Binding BuildingsVm..., ElementName=RootWindow}.
+    /// </summary>
+    public BuildingsViewModel BuildingsVm => _buildingsViewModel;
 
     private static bool IsPinnedBuildingTopSlot(int slotId)
     {

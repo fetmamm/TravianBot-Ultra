@@ -44,6 +44,7 @@ public partial class App : Application
         services.AddSingleton<InboxViewModel>();
         services.AddSingleton<TroopTrainingViewModel>();
         services.AddSingleton<ResourcesViewModel>();
+        services.AddSingleton<BuildingsViewModel>();
 
         // Orchestration. LoopController owns the queue-auto-run gate and the
         // is-closing flag; subsequent commits will fold the continuous-loop

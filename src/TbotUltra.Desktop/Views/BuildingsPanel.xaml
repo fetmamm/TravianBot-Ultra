@@ -8,10 +8,10 @@
              d:DesignWidth="760">
     <UserControl.Resources>
         <CollectionViewSource x:Key="BuildingTopSlotsView"
-                              Source="{Binding BuildingSlots, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Source="{Binding BuildingsVm.BuildingSlots, RelativeSource={RelativeSource AncestorType=Window}}"
                               Filter="BuildingTopSlotsView_Filter" />
         <CollectionViewSource x:Key="BuildingRemainingSlotsView"
-                              Source="{Binding BuildingSlots, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Source="{Binding BuildingsVm.BuildingSlots, RelativeSource={RelativeSource AncestorType=Window}}"
                               Filter="BuildingRemainingSlotsView_Filter" />
 
         <DataTemplate x:Key="BuildingSlotButtonTemplate">
