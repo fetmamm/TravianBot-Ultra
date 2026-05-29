@@ -422,6 +422,16 @@ public partial class MainWindow : Window
         {
             _botService.ClearQueue();
         }
+        else
+        {
+            // Queue persists across restarts: recover items left in Running by a previous session
+            // that crashed mid-execution, so they don't stay stuck forever.
+            var recovered = _botService.ResetOrphanedRunningQueueItems();
+            if (recovered > 0)
+            {
+                AppendLog($"Recovered {recovered} queue item(s) stuck in Running from a previous session; reset to Pending.");
+            }
+        }
 
         _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _clockTimer.Tick += (_, _) =>

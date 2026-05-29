@@ -80,6 +80,34 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
     }
 
     [Fact]
+    public void ResetOrphanedRunningItems_RestoresRunningToPending()
+    {
+        var store = new JsonQueueStore(_queuePath);
+        var scheduler = new PriorityFifoQueueScheduler();
+        var running = store.Add("status", null, priority: 1, maxRetries: 3);
+        var pending = store.Add("scan_all_villages", null, priority: 1, maxRetries: 3);
+        Assert.True(store.MarkRunning(running.Id));
+
+        var resetCount = store.ResetOrphanedRunningItems();
+
+        Assert.Equal(1, resetCount);
+        var recovered = store.GetAll().Single(entry => entry.Id == running.Id);
+        Assert.Equal(QueueStatus.Pending, recovered.Status);
+        var untouched = store.GetAll().Single(entry => entry.Id == pending.Id);
+        Assert.Equal(QueueStatus.Pending, untouched.Status);
+        Assert.NotNull(scheduler.SelectNext(store.GetAll()));
+    }
+
+    [Fact]
+    public void ResetOrphanedRunningItems_NoRunning_ReturnsZero()
+    {
+        var store = new JsonQueueStore(_queuePath);
+        store.Add("status", null, priority: 1, maxRetries: 3);
+
+        Assert.Equal(0, store.ResetOrphanedRunningItems());
+    }
+
+    [Fact]
     public void TaskCatalog_AllowsKnownTasks_AndRejectsUnknown()
     {
         Assert.True(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("status"));

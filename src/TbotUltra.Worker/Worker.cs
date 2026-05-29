@@ -34,6 +34,13 @@ public sealed class Worker : BackgroundService
     {
         _logger.LogInformation("TbotUltra.Worker started for server {ServerName}.", _botOptions.ServerName);
 
+        // Recover items left in Running by a previous crashed run before picking up new work.
+        var recovered = _queueStore.ResetOrphanedRunningItems();
+        if (recovered > 0)
+        {
+            _logger.LogInformation("Recovered {Count} queue item(s) stuck in Running; reset to Pending.", recovered);
+        }
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try

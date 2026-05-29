@@ -20,4 +20,5 @@ public interface IQueueStore
     bool MarkDeferred(Guid id, TimeSpan delay);
     bool UpdateDeferred(Guid id, Dictionary<string, string>? payload, TimeSpan? delay = null);
     bool MarkExecutionFailed(Guid id);
+    int ResetOrphanedRunningItems();
 }

@@ -340,6 +340,33 @@ public sealed class JsonQueueStore : IQueueStore
         });
     }
 
+    // Resets items stranded in Running (e.g. the process crashed mid-execution) back to Pending so
+    // they are retried instead of stuck forever. Only safe to call at startup, before any execution
+    // begins — a Running item found then necessarily belongs to a previous, dead session.
+    public int ResetOrphanedRunningItems()
+    {
+        lock (_sync)
+        {
+            var items = LoadMutable();
+            var now = DateTimeOffset.UtcNow;
+            var resetCount = 0;
+            foreach (var item in items.Where(item => item.Status == QueueStatus.Running))
+            {
+                item.Status = QueueStatus.Pending;
+                item.NextAttemptAt = now;
+                item.UpdatedAt = now;
+                resetCount += 1;
+            }
+
+            if (resetCount > 0)
+            {
+                SaveMutable(items);
+            }
+
+            return resetCount;
+        }
+    }
+
     private bool Update(Guid id, Func<QueueItem, bool> update)
     {
         lock (_sync)
