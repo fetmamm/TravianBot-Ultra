@@ -65,14 +65,7 @@ public sealed partial class TravianClient
         const int safetyCap = 30;
 
         // One-shot: read dorf2 to get original level + main building slot id.
-        if (IsCurrentUrlForPath(Paths.Buildings))
-        {
-            await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
-        }
-        else
-        {
-            await GotoAsync(Paths.Buildings, cancellationToken);
-        }
+        await ReloadOrGotoAsync(Paths.Buildings, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification on dorf2.", cancellationToken);
 
         var initialSlots = await ReadBuildingInfosAsync(cancellationToken);
@@ -140,14 +133,7 @@ public sealed partial class TravianClient
             await Task.Delay(waitMs, cancellationToken);
 
             // Reload the main building page in place — no detour to dorf2.
-            if (IsCurrentUrlForPath(mainBuildingPath))
-            {
-                await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
-            }
-            else
-            {
-                await GotoAsync(mainBuildingPath, cancellationToken);
-            }
+            await ReloadOrGotoAsync(mainBuildingPath, cancellationToken);
         }
 
         return $"Demolished slot {slotId} from level {originalLevel} to {currentLevel} in {demolitions} step(s).";
@@ -178,14 +164,7 @@ public sealed partial class TravianClient
             {
 
             // Step 1: ensure dorf2 with fresh data.
-            if (IsCurrentUrlForPath(Paths.Buildings))
-            {
-                await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
-            }
-            else
-            {
-                await GotoAsync(Paths.Buildings, cancellationToken);
-            }
+            await ReloadOrGotoAsync(Paths.Buildings, cancellationToken);
             await PauseForManualStepIfVisibleAsync("Manual verification on dorf2.", cancellationToken);
 
             // Step 2: read this slot's level.
@@ -724,14 +703,7 @@ public sealed partial class TravianClient
             {
 
             // Step 1: ensure dorf2 with fresh data.
-            if (IsCurrentUrlForPath(Paths.Buildings))
-            {
-                await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
-            }
-            else
-            {
-                await GotoAsync(Paths.Buildings, cancellationToken);
-            }
+            await ReloadOrGotoAsync(Paths.Buildings, cancellationToken);
             await PauseForManualStepIfVisibleAsync("Manual verification on dorf2.", cancellationToken);
 
             // Step 2: read current level + figure out max from catalog.
@@ -1408,14 +1380,7 @@ public sealed partial class TravianClient
         const int attempts = 3;
         for (var attempt = 1; attempt <= attempts; attempt++)
         {
-            if (IsCurrentUrlForPath(Paths.Buildings))
-            {
-                await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
-            }
-            else
-            {
-                await GotoAsync(Paths.Buildings, cancellationToken);
-            }
+            await ReloadOrGotoAsync(Paths.Buildings, cancellationToken);
 
             await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the building overview.", cancellationToken);
             await EnsureLoggedInAsync();
@@ -1769,14 +1734,7 @@ public sealed partial class TravianClient
 
         Notify($"Building overview scan looked incomplete ({DescribeBuildingOverviewScan(firstScan)}). Reloading once.");
 
-        if (IsCurrentUrlForPath(Paths.Buildings))
-        {
-            await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
-        }
-        else
-        {
-            await GotoAsync(Paths.Buildings, cancellationToken);
-        }
+        await ReloadOrGotoAsync(Paths.Buildings, cancellationToken);
 
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while retrying the building overview scan.", cancellationToken);
         await EnsureLoggedInAsync();

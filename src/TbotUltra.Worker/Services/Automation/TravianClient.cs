@@ -1042,6 +1042,19 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         await TryDismissContinuePromptAsync(cancellationToken);
     }
 
+    // Reloads in place when already on the target path, otherwise navigates to it.
+    private async Task ReloadOrGotoAsync(string pathOrUrl, CancellationToken cancellationToken)
+    {
+        if (IsCurrentUrlForPath(pathOrUrl))
+        {
+            await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+        }
+        else
+        {
+            await GotoAsync(pathOrUrl, cancellationToken);
+        }
+    }
+
     private bool IsCurrentUrlForPath(string pathOrUrl)
     {
         if (string.IsNullOrWhiteSpace(_page.Url))
