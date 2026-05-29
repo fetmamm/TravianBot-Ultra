@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Desktop.ViewModels;
 
 namespace TbotUltra.Desktop.Views;
 
@@ -43,19 +44,14 @@ public partial class BuildingsPanel : UserControl
         Host?.OnUpgradeAllBuildingsToMaxClicked();
     }
 
-    private static bool IsPinnedBuildingTopSlot(int slotId)
-    {
-        return slotId == 26 || slotId == 39 || slotId == 40;
-    }
-
     private void BuildingTopSlotsView_Filter(object sender, FilterEventArgs e)
     {
-        e.Accepted = e.Item is BuildingSlotRow row && IsPinnedBuildingTopSlot(row.SlotId);
+        e.Accepted = e.Item is BuildingSlotRow row && BuildingsViewModel.IsPinnedBuildingTopSlot(row.SlotId);
     }
 
     private void BuildingRemainingSlotsView_Filter(object sender, FilterEventArgs e)
     {
-        e.Accepted = e.Item is BuildingSlotRow row && !IsPinnedBuildingTopSlot(row.SlotId);
+        e.Accepted = e.Item is BuildingSlotRow row && !BuildingsViewModel.IsPinnedBuildingTopSlot(row.SlotId);
     }
 
     private void BuildingSlotCircleButton_Click(object sender, RoutedEventArgs e)

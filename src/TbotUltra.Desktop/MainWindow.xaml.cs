@@ -175,8 +175,10 @@ public partial class MainWindow : Window
     // Building slots now live on BuildingsViewModel; this delegates so existing
     // code-behind that mutates _buildingRows in place keeps working unchanged.
     private ObservableCollection<BuildingSlotRow> _buildingRows => _buildingsViewModel.BuildingSlots;
-    private readonly ObservableCollection<BuildingCatalogOption> _buildingCatalogOptions = [];
-    private readonly ObservableCollection<BuildingSlotRow> _demolishableBuildings = [];
+    // These collections also live on BuildingsViewModel now; delegate so existing
+    // code-behind that mutates them in place keeps working unchanged.
+    private ObservableCollection<BuildingCatalogOption> _buildingCatalogOptions => _buildingsViewModel.BuildingCatalogOptions;
+    private ObservableCollection<BuildingSlotRow> _demolishableBuildings => _buildingsViewModel.DemolishableBuildings;
     private readonly Dictionary<int, DateTimeOffset> _resourceClickCooldownBySlot = new();
     private readonly Dictionary<int, (int Target, DateTimeOffset At)> _resourceLastQueuedTargetBySlot = new();
     private readonly Dictionary<int, int> _resourcePendingTargetBySlot = new();
@@ -185,7 +187,7 @@ public partial class MainWindow : Window
     private readonly Dictionary<int, (int Target, DateTimeOffset At)> _buildingLastQueuedTargetBySlot = new();
     private readonly Dictionary<int, (string Name, int Gid, DateTimeOffset At)> _buildingLastQueuedConstructBySlot = new();
     private readonly HashSet<int> _buildingDemolishingSlots = new();
-    private static readonly IReadOnlyDictionary<int, (double Left, double Top)> BuildingSlotLayoutById = CreateBuildingSlotLayout();
+    private static readonly IReadOnlyDictionary<int, (double Left, double Top)> BuildingSlotLayoutById = BuildingsViewModel.CreateBuildingSlotLayout();
 
     private CancellationTokenSource? _loopCts;
     private CancellationTokenSource? _operationCts;
