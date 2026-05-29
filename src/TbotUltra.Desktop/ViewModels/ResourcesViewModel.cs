@@ -30,6 +30,7 @@ public sealed class ResourcesViewModel : BaseViewModel
     private Dictionary<string, ResourceStorageForecast> _baseForecasts = new(StringComparer.OrdinalIgnoreCase);
     private DateTimeOffset? _baseForecastCapturedAtUtc;
     private DateTimeOffset _lastLiveForecastUiUpdateUtc = DateTimeOffset.MinValue;
+    private readonly Dictionary<int, int> _pendingTargetBySlot = new();
 
     /// <summary>Resource fields grouped into the Wood column on the Resources tab.</summary>
     public ObservableCollection<ResourceFieldRow> WoodFields { get; } = [];
@@ -170,6 +171,52 @@ public sealed class ResourcesViewModel : BaseViewModel
 
         _lastLiveForecastUiUpdateUtc = nowUtc;
     }
+
+    /// <summary>
+    /// Resolves the effective pending upgrade target shown on a resource slot,
+    /// reconciling the queue's queued target with this view model's remembered
+    /// pending target. Returns null (and forgets the slot) when there is no
+    /// higher target than the field's current level. The remembered target lets
+    /// a freshly clicked upgrade survive a queue/UI refresh before the queue has
+    /// caught up.
+    /// </summary>
+    public int? ResolveQueuedResourceTarget(int slotId, int currentLevel, IReadOnlyDictionary<int, int> queuedTargetsBySlot)
+    {
+        var hasQueuedTarget = queuedTargetsBySlot.TryGetValue(slotId, out var queuedTarget) && queuedTarget > 0;
+        if (!hasQueuedTarget)
+        {
+            _pendingTargetBySlot.Remove(slotId);
+            return null;
+        }
+
+        var effectiveTarget = queuedTarget;
+        var hasPendingTarget = _pendingTargetBySlot.TryGetValue(slotId, out var rememberedTarget) && rememberedTarget > 0;
+        if (hasPendingTarget && rememberedTarget > effectiveTarget)
+        {
+            effectiveTarget = rememberedTarget;
+        }
+
+        if (effectiveTarget <= currentLevel)
+        {
+            _pendingTargetBySlot.Remove(slotId);
+            return null;
+        }
+
+        _pendingTargetBySlot[slotId] = effectiveTarget;
+        return effectiveTarget;
+    }
+
+    /// <summary>Reads the remembered pending target for a slot, if any.</summary>
+    public bool TryGetPendingTarget(int slotId, out int target) => _pendingTargetBySlot.TryGetValue(slotId, out target);
+
+    /// <summary>Remembers a pending upgrade target for a slot.</summary>
+    public void RememberPendingTarget(int slotId, int target) => _pendingTargetBySlot[slotId] = target;
+
+    /// <summary>Forgets the remembered pending target for a single slot.</summary>
+    public void ForgetPendingTarget(int slotId) => _pendingTargetBySlot.Remove(slotId);
+
+    /// <summary>Forgets all remembered pending targets (e.g. on village switch).</summary>
+    public void ClearPendingTargets() => _pendingTargetBySlot.Clear();
 
     private static ResourceStorageBarItem CreateBar(string key, string name, string barColor, string trackColor)
     {

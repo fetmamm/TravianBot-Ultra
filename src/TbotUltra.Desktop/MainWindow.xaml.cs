@@ -181,7 +181,6 @@ public partial class MainWindow : Window
     private ObservableCollection<BuildingSlotRow> _demolishableBuildings => _buildingsViewModel.DemolishableBuildings;
     private readonly Dictionary<int, DateTimeOffset> _resourceClickCooldownBySlot = new();
     private readonly Dictionary<int, (int Target, DateTimeOffset At)> _resourceLastQueuedTargetBySlot = new();
-    private readonly Dictionary<int, int> _resourcePendingTargetBySlot = new();
     private FunctionTestWindow? _resourceTestFunctionsWindow;
     private readonly Dictionary<int, DateTimeOffset> _buildingClickCooldownBySlot = new();
     private readonly Dictionary<int, (int Target, DateTimeOffset At)> _buildingLastQueuedTargetBySlot = new();
@@ -1290,7 +1289,7 @@ public partial class MainWindow : Window
             _botService.ClearQueue();
             _resourceClickCooldownBySlot.Clear();
             _resourceLastQueuedTargetBySlot.Clear();
-            _resourcePendingTargetBySlot.Clear();
+            _resourcesViewModel.ClearPendingTargets();
             _buildingClickCooldownBySlot.Clear();
             _buildingLastQueuedTargetBySlot.Clear();
             _buildingLastQueuedConstructBySlot.Clear();

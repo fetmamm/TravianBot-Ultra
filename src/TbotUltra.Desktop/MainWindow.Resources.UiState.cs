@@ -167,28 +167,7 @@ public partial class MainWindow
 
     private int? ResolveQueuedResourceTarget(int slotId, int currentLevel, IReadOnlyDictionary<int, int> queuedTargetsBySlot)
     {
-        var hasQueuedTarget = queuedTargetsBySlot.TryGetValue(slotId, out var queuedTarget) && queuedTarget > 0;
-        if (!hasQueuedTarget)
-        {
-            _resourcePendingTargetBySlot.Remove(slotId);
-            return null;
-        }
-
-        var effectiveTarget = queuedTarget;
-        var hasPendingTarget = _resourcePendingTargetBySlot.TryGetValue(slotId, out var rememberedTarget) && rememberedTarget > 0;
-        if (hasPendingTarget && rememberedTarget > effectiveTarget)
-        {
-            effectiveTarget = rememberedTarget;
-        }
-
-        if (effectiveTarget <= currentLevel)
-        {
-            _resourcePendingTargetBySlot.Remove(slotId);
-            return null;
-        }
-
-        _resourcePendingTargetBySlot[slotId] = effectiveTarget;
-        return effectiveTarget;
+        return _resourcesViewModel.ResolveQueuedResourceTarget(slotId, currentLevel, queuedTargetsBySlot);
     }
 
     private void SyncPendingResourceTargetsInUi()
@@ -234,7 +213,7 @@ public partial class MainWindow
 
     private void ClearPendingResourceLevelsFromUi()
     {
-        _resourcePendingTargetBySlot.Clear();
+        _resourcesViewModel.ClearPendingTargets();
         if (ResourcesDataGrid.ItemsSource is not IEnumerable<ResourceFieldRow> sourceRows)
         {
             return;
@@ -259,12 +238,12 @@ public partial class MainWindow
     private void SetPendingResourceLevel(int slotId, int targetLevel)
     {
         var normalizedTarget = Math.Clamp(targetLevel, 1, _activeVillageResourceMaxLevel);
-        if (_resourcePendingTargetBySlot.TryGetValue(slotId, out var existingTarget) && existingTarget > normalizedTarget)
+        if (_resourcesViewModel.TryGetPendingTarget(slotId, out var existingTarget) && existingTarget > normalizedTarget)
         {
             normalizedTarget = existingTarget;
         }
 
-        _resourcePendingTargetBySlot[slotId] = normalizedTarget;
+        _resourcesViewModel.RememberPendingTarget(slotId, normalizedTarget);
 
         if (ResourcesDataGrid.ItemsSource is not IEnumerable<ResourceFieldRow> sourceRows)
         {
@@ -288,7 +267,7 @@ public partial class MainWindow
 
         if (updated.FirstOrDefault(row => row.SlotId == slotId)?.PendingTargetLevel is null)
         {
-            _resourcePendingTargetBySlot.Remove(slotId);
+            _resourcesViewModel.ForgetPendingTarget(slotId);
         }
 
         SetResourceRows(updated);
@@ -296,7 +275,7 @@ public partial class MainWindow
 
     private void MarkResourceAsMax(int slotId)
     {
-        _resourcePendingTargetBySlot.Remove(slotId);
+        _resourcesViewModel.ForgetPendingTarget(slotId);
         if (ResourcesDataGrid.ItemsSource is not IEnumerable<ResourceFieldRow> sourceRows)
         {
             return;
