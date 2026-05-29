@@ -90,6 +90,23 @@ public sealed class ResourcesViewModelTests
     }
 
     [Fact]
+    public void TargetLevelOptions_CoverOneThroughForty_WithDefaultSelectionTen()
+    {
+        var vm = new ResourcesViewModel();
+
+        Assert.Equal(Enumerable.Range(1, 40), vm.TargetLevelOptions);
+        Assert.Equal(10, vm.SelectedTargetLevel);
+    }
+
+    [Fact]
+    public void ActionsEnabled_DefaultsToTrue()
+    {
+        var vm = new ResourcesViewModel();
+
+        Assert.True(vm.ActionsEnabled);
+    }
+
+    [Fact]
     public void ClearPendingTargets_RemovesAllRememberedTargets()
     {
         var vm = new ResourcesViewModel();

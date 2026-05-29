@@ -368,7 +368,8 @@ public partial class MainWindow
     private void UpgradeAllResourcesButton_Click(object sender, RoutedEventArgs e)
     {
         var operationId = BeginOperation("UpgradeAllResources");
-        if (ResourceTargetLevelComboBox.SelectedItem is not int targetLevel)
+        var targetLevel = _resourcesViewModel.SelectedTargetLevel;
+        if (targetLevel <= 0)
         {
             AppendLog($"[{operationId}] FAIL 0.0s | No target level selected.");
             return;
@@ -406,10 +407,7 @@ public partial class MainWindow
         }
 
         var enabled = !busy;
-        SetEnabled(LoadResourcesButton, enabled);
-        SetEnabled(ResourceTargetLevelComboBox, enabled);
-        SetEnabled(UpgradeAllResourcesButton, enabled);
-        SetEnabled(UpgradeAllResourcesToMaxButton, enabled);
+        _resourcesViewModel.ActionsEnabled = enabled;
         if (_resourceTestFunctionsWindow is not null)
         {
             _resourceTestFunctionsWindow.IsEnabled = enabled;

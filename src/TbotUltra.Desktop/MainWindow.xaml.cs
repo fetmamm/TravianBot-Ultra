@@ -529,8 +529,6 @@ public partial class MainWindow : Window
 
         ResetVillageSelectionUi();
         VillageComboBox.SelectionChanged += VillageComboBox_SelectionChanged;
-        ResourceTargetLevelComboBox.ItemsSource = Enumerable.Range(1, 40).ToList();
-        ResourceTargetLevelComboBox.SelectedItem = 10;
         BuildingCategoryComboBox.ItemsSource = new[] { "all", "infrastructure", "army_buildings", "resource_buildings" };
         BuildingCategoryComboBox.SelectedIndex = 0;
         ConstructBuildingComboBox.ItemsSource = _buildingCatalogOptions;
@@ -1826,10 +1824,7 @@ public partial class MainWindow : Window
             SetEnabled(ResetProgramButton, true);
             SetEnabled(StorageRefreshButton, defaultEnabled && !_resourceSnapshotRefreshRunning);
             UpdateResourceTransferStatus();
-            SetEnabled(LoadResourcesButton, defaultEnabled);
-            SetEnabled(ResourceTargetLevelComboBox, defaultEnabled);
-            SetEnabled(UpgradeAllResourcesButton, defaultEnabled);
-            SetEnabled(UpgradeAllResourcesToMaxButton, defaultEnabled);
+            _resourcesViewModel.ActionsEnabled = defaultEnabled;
             _inboxViewModel.ActionsEnabled = defaultEnabled;
             SetEnabled(StopBotButton, true);
 

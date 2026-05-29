@@ -69,6 +69,30 @@ public sealed class ResourcesViewModel : BaseViewModel
         set => SetProperty(ref _infoText, value);
     }
 
+    /// <summary>Target-level choices for the "upgrade all" combo box (1â€“40).</summary>
+    public IReadOnlyList<int> TargetLevelOptions { get; } = Enumerable.Range(1, 40).ToList();
+
+    private int _selectedTargetLevel = 10;
+
+    /// <summary>Selected target level for the bulk resource upgrade action.</summary>
+    public int SelectedTargetLevel
+    {
+        get => _selectedTargetLevel;
+        set => SetProperty(ref _selectedTargetLevel, value);
+    }
+
+    private bool _actionsEnabled = true;
+
+    /// <summary>
+    /// Enable-state for the Resources tab action controls (load, target combo,
+    /// upgrade-all, upgrade-to-max). Toggled while a resources action runs.
+    /// </summary>
+    public bool ActionsEnabled
+    {
+        get => _actionsEnabled;
+        set => SetProperty(ref _actionsEnabled, value);
+    }
+
     private bool _isBuildLowestFirst = true;
     private bool _isBuildSmart;
 

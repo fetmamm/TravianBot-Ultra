@@ -815,12 +815,12 @@
                                        Foreground="#111827"
                                        Margin="0,0,0,12" />
                             <StackPanel Orientation="Horizontal">
-                            <Button x:Name="LoadResourcesButton" Content="↻" Width="42" FontSize="16" Click="LoadResourcesButton_Click" ToolTip="Refresh resources" />
+                            <Button x:Name="LoadResourcesButton" Content="↻" Width="42" FontSize="16" Click="LoadResourcesButton_Click" ToolTip="Refresh resources" IsEnabled="{Binding ActionsEnabled}" />
                             <TextBlock Text="Target level" VerticalAlignment="Center" Margin="0,0,8,0" />
-                            <ComboBox x:Name="ResourceTargetLevelComboBox" Width="90" Margin="0,0,8,0" />
-                            <Button x:Name="UpgradeAllResourcesButton" Content="Upgrade all to level" Width="160" Background="#030826" Foreground="White" BorderBrush="#030826" Click="UpgradeAllResourcesButton_Click"
+                            <ComboBox x:Name="ResourceTargetLevelComboBox" Width="90" Margin="0,0,8,0" ItemsSource="{Binding TargetLevelOptions}" SelectedItem="{Binding SelectedTargetLevel}" IsEnabled="{Binding ActionsEnabled}" />
+                            <Button x:Name="UpgradeAllResourcesButton" Content="Upgrade all to level" Width="160" Background="#030826" Foreground="White" BorderBrush="#030826" Click="UpgradeAllResourcesButton_Click" IsEnabled="{Binding ActionsEnabled}"
                                     ToolTip="Queue upgrades for every resource field up to the target level selected on the left, following the chosen Build order (Lowest level first or Smart)." />
-                            <Button x:Name="UpgradeAllResourcesToMaxButton" Content="Upgrade to max" Width="140" Margin="8,0,0,0" Background="#FCD34D" Foreground="#1F2937" BorderBrush="#F59E0B" Click="UpgradeAllResourcesToMaxButton_Click"
+                            <Button x:Name="UpgradeAllResourcesToMaxButton" Content="Upgrade to max" Width="140" Margin="8,0,0,0" Background="#FCD34D" Foreground="#1F2937" BorderBrush="#F59E0B" Click="UpgradeAllResourcesToMaxButton_Click" IsEnabled="{Binding ActionsEnabled}"
                                     ToolTip="Queue upgrades for every resource field up to its maximum level, following the chosen Build order (Lowest level first or Smart)." />
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,10,0,0" VerticalAlignment="Center">
