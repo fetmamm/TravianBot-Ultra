@@ -1831,7 +1831,7 @@ public partial class MainWindow : Window
             SetEnabled(ResourceTargetLevelComboBox, defaultEnabled);
             SetEnabled(UpgradeAllResourcesButton, defaultEnabled);
             SetEnabled(UpgradeAllResourcesToMaxButton, defaultEnabled);
-            InboxPanelControl?.SetActionsEnabled(defaultEnabled);
+            _inboxViewModel.ActionsEnabled = defaultEnabled;
             SetEnabled(StopBotButton, true);
 
             if (StartLoopButton is not null)

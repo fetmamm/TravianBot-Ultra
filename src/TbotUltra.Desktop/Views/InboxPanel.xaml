@@ -57,6 +57,7 @@
                             Width="120"
                             Margin="0"
                             Content="Mark as read"
+                            IsEnabled="{Binding ActionsEnabled}"
                             Click="MarkMessagesReadButton_Click"
                             ToolTipService.InitialShowDelay="500">
                         <Button.ToolTip>
@@ -99,6 +100,7 @@
                             Width="120"
                             Margin="0"
                             Content="Mark as read"
+                            IsEnabled="{Binding ActionsEnabled}"
                             Click="MarkReportsReadButton_Click"
                             ToolTipService.InitialShowDelay="500">
                         <Button.ToolTip>

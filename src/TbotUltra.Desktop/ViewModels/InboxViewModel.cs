@@ -18,6 +18,7 @@ public sealed class InboxViewModel : BaseViewModel
     private int _unreadReports;
     private bool _autoReadMessages;
     private bool _autoReadReports;
+    private bool _actionsEnabled = true;
 
     /// <summary>Number of unread game messages last reported by the worker.</summary>
     public int UnreadMessages
@@ -73,5 +74,15 @@ public sealed class InboxViewModel : BaseViewModel
     {
         get => _autoReadReports;
         set => SetProperty(ref _autoReadReports, value);
+    }
+
+    /// <summary>
+    /// Whether the "Mark as read" buttons are interactive. Driven by the host's
+    /// busy state; the buttons bind their IsEnabled to this.
+    /// </summary>
+    public bool ActionsEnabled
+    {
+        get => _actionsEnabled;
+        set => SetProperty(ref _actionsEnabled, value);
     }
 }

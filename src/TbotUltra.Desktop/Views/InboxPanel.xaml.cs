@@ -46,10 +46,4 @@ public partial class InboxPanel : UserControl
     {
         Host?.OnInboxAutoReadChanged();
     }
-
-    internal void SetActionsEnabled(bool enabled)
-    {
-        MarkMessagesReadButton.IsEnabled = enabled;
-        MarkReportsReadButton.IsEnabled = enabled;
-    }
 }
