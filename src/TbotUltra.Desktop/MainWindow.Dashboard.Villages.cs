@@ -274,7 +274,7 @@ public partial class MainWindow
             _lastBuildingStatus = status;
             PopulateBuildingsTab(status);
 
-            BuildingsInfoTextBlock.Text = $"Buildings loaded for selected village '{selectedVillage.Name}'. Occupied slots: {_buildingRows.Count(row => row.IsOccupied)}, free slots: {_buildingRows.Count(row => !row.IsOccupied)}.";
+            BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"selected village '{selectedVillage.Name}'");
 
             TribeInfoTextBlock.Text = $"Tribe: {status.Tribe}";
             VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";

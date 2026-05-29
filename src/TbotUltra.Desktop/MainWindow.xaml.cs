@@ -342,21 +342,6 @@ public partial class MainWindow : Window
     /// </summary>
     public BuildingsViewModel BuildingsVm => _buildingsViewModel;
 
-    private static bool IsPinnedBuildingTopSlot(int slotId)
-    {
-        return slotId == 26 || slotId == 39 || slotId == 40;
-    }
-
-    private void BuildingTopSlotsView_Filter(object sender, FilterEventArgs e)
-    {
-        e.Accepted = e.Item is BuildingSlotRow row && IsPinnedBuildingTopSlot(row.SlotId);
-    }
-
-    private void BuildingRemainingSlotsView_Filter(object sender, FilterEventArgs e)
-    {
-        e.Accepted = e.Item is BuildingSlotRow row && !IsPinnedBuildingTopSlot(row.SlotId);
-    }
-
     private void InitializeBuildingSlotPlaceholders()
     {
         if (_buildingRows.Count > 0)
@@ -1732,7 +1717,7 @@ public partial class MainWindow : Window
         _lastBuildingStatus = status;
         PopulateBuildingsTab(status);
 
-        BuildingsInfoTextBlock.Text = $"Buildings loaded for active village '{status.ActiveVillage}'. Occupied slots: {_buildingRows.Count(row => row.IsOccupied)}, free slots: {_buildingRows.Count(row => !row.IsOccupied)}.";
+        BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"active village '{status.ActiveVillage}'");
         TribeInfoTextBlock.Text = $"Tribe: {status.Tribe}";
         VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
         SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage);
@@ -2068,7 +2053,7 @@ public partial class MainWindow : Window
         _lastBuildingStatus = status;
         PopulateBuildingsTab(status);
 
-        BuildingsInfoTextBlock.Text = $"Buildings loaded for active village '{status.ActiveVillage}'. Occupied slots: {_buildingRows.Count(row => row.IsOccupied)}, free slots: {_buildingRows.Count(row => !row.IsOccupied)}.";
+        BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"active village '{status.ActiveVillage}'");
 
         TribeInfoTextBlock.Text = $"Tribe: {status.Tribe}";
         VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
