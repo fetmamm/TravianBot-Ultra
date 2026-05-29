@@ -18,3 +18,4 @@ temp_build_out/
 config/queue.json
 /config/accounts
 config/queue.json
+config/bot.json

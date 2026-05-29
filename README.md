@@ -1,41 +1,190 @@
-﻿# Tbot_ultra_new
-Travian bot project for automating tasks on a private server.
+# Tbot_ultra_new
 
-## C# Desktop App (Primary)
-- UI: `src/TbotUltra.Desktop`
-- Engine: `src/TbotUltra.Worker`
-- Target framework: `.NET 8`
+Travian bot for automating tasks on a private server. The runtime and UI are
+fully C# (.NET 8 / WPF). The optional captcha solver is a small Python module.
 
-### Start the app
-- Double-click `Start_Tbot.bat`
-- or run: `dotnet run --project src/TbotUltra.Desktop/TbotUltra.Desktop.csproj -c Debug`
+---
 
-### Configuration
-The app reads:
-- `config/bot.json`
-- `config/queue.json`
-- `.env`
+## Quick start
 
-Example task names in `loop_tasks`:
-- `status`
-- `scan_all_villages`
-- `account_snapshot`
-- `upgrade_resource_to_level`
-- `upgrade_resource_to_max`
-- `upgrade_all_resources_to_level`
-- `upgrade_building_to_level`
-- `upgrade_building_to_max`
-- `construct_building`
+- Launch UI: double-click `Start_Tbot.bat` (or `Start_Tbot_UI.vbs`)
+- Or run: `dotnet run --project src/TbotUltra.Desktop/TbotUltra.Desktop.csproj -c Debug`
+- Smoke check: `Smoke_Check.bat` (build + Worker tests)
 
-Additional task parameters are also read from `config/bot.json` (resource/building fields).
+Config is read from `config/bot.json`, `config/queue.json` and `.env`.
+
+---
+
+## Solution layout
+
+```
+TbotUltra.sln
+├── TbotUltra.Core          shared domain (no UI, no browser, no I/O)
+├── TbotUltra.Worker        engine: browser automation + queue executor
+├── TbotUltra.Worker.Tests  xUnit tests for the worker
+├── TbotUltra.Desktop       WPF UI (the app the user runs)
+└── TbotUltra.Desktop.Tests xUnit tests for desktop view models / services
+```
+
+Dependency direction: `Desktop → Worker → Core`. Core has no dependency on
+the others.
+
+---
+
+## Top-level folders
+
+| Folder | Purpose |
+|---|---|
+| `src/` | All C# projects (see "Source tree" below). |
+| `config/` | Runtime configuration and persisted state (queue, accounts, caches). |
+| `Captcha_solver/` | Standalone Python + tiny C# launcher for captcha solving. |
+| `assets/` | App icons used by the WPF project and installer. |
+| `installer/` | Inno Setup script (`TbotUltraSetup.iss`) for building the Windows installer. |
+| `playwright/` | Local Playwright browser cache (downloaded on first run). |
+| `ms-playwright/` | Same — Playwright's default cache location. |
+| `.release-template/` | Files copied into release builds (`README_RELEASE.txt`, env template, default config). |
+| `.github/workflows/` | CI: `build-exe-on-version.yml`, `discord-push.yml`. |
+| `artifacts/` | Local verification artifacts (gitignored). |
+| `logs/` | Runtime logs from the desktop app (gitignored). |
+| `temp_build_out/` | Scratch space for ad-hoc local builds (gitignored). |
+| `.claude/` | Claude Code worktrees and session data. |
+
+Top-level files worth knowing:
+
+- `PROJECT_SPEC.md` — product spec (goals, MVP, queue rules, edge cases).
+- `AGENTS.md` — coding rules for AI assistants working in this repo.
+- `VERSION` — current version string, consumed by CI.
+- `Start_Tbot.bat` / `Start_Tbot_UI.vbs` — launchers.
+- `Smoke_Check.bat` — build + run worker tests.
+
+---
+
+## Source tree
+
+### `src/TbotUltra.Core/` — shared domain
+
+Pure C#, no WPF, no Playwright. Safe to reference from both Worker and tests.
+
+```
+Accounts/         AccountKeyNormalizer, AccountStoragePaths, constants
+Configuration/    BotOptions + factory, .env parser, payload key mapping
+Tasks/            TaskCatalog + all task payload records (Building, Hero,
+                  Farming, Reinforcements, ResourceTransfer, TroopTraining, …)
+Travian/          Game-data catalogs (TroopCatalog, TroopTrainingBuildingType)
+```
+
+### `src/TbotUltra.Worker/` — engine
+
+Runs the browser, executes queue items, talks to Travian.
+
+```
+Program.cs                  worker host entrypoint
+Worker.cs                   top-level background service loop
+ProjectContext.cs           resolves project root + paths at runtime
+ProjectRootLocator.cs
+
+Configuration/              AccountOptions binding
+Domain/                     QueueItem, QueueGroup, QueueStatus,
+                            TravianModels, CatapultWaveLimits, exceptions
+Infrastructure/             BrowserSession (Playwright wrapper)
+
+Services/
+  Accounts/                 EnvAccountProvider, AccountAnalysisStore,
+                            NatarFarmCacheStore
+  Automation/               TravianClient.* — partial classes per concern
+                            (Buildings, Hero, Inbox, Resources, Catapults,
+                             NpcTrade, ResourceTransfer, Reinforcements,
+                             TroopTraining, BreweryCelebration, CapitalCache,
+                             CaptchaAutoSolve, RetryPolicy, Selectors)
+                            CatapultWavePlanner
+  Catalogs/                 BuildingCatalogService, TaskCatalog
+  Queue/                    JsonQueueStore, PriorityFifoQueueScheduler,
+                            QueueExecutor, QueueGroupCatalog, interfaces
+  BotTaskRunner.cs          dispatches a TaskDescriptor onto TravianClient
+  CaptchaAutoSolver.cs      bridge to the Python solver
+```
+
+### `src/TbotUltra.Desktop/` — WPF UI
+
+The main app. MainWindow is split into many partial files, one per feature
+tab/area, so the codebase scales without one massive file.
+
+```
+App.xaml / App.xaml.cs            WPF entry
+MainWindow.xaml                   root window
+MainWindow.<Feature>.cs           partial classes, grouped by feature:
+                                    AutomationLoop, Buildings, ContinuousLoop,
+                                    Dashboard.*, Farming.*, Hero, Inbox,
+                                    Logging.*, QueueExecution, QueueUi.*,
+                                    Reinforcements, Resources.*,
+                                    ResourceTransfer, SendTroops.Catapults,
+                                    TroopTraining
+<Name>Window.xaml(.cs)            dialogs (Accounts, AddQueueItem, Settings,
+                                  ServerList, Support, FunctionTest, …)
+
+Assets/                           app icon
+Common/                           BaseViewModel, RelayCommand
+Models/                           row/option types bound to the UI lists
+Services/
+  Logging/  LogClassifier
+  Orchestration/  LoopController
+  AccountDeletionService, BotConfigStore, DesktopBotService,
+  EnvAccountStore, ManualFarmingPreferenceStore,
+  ServerCatalogStore, ServerDiscoveryService
+Themes/                           Badges/Buttons/Toggles/Tooltips resources
+ViewModels/                       Hero, Inbox, Main, Resources, TroopTraining
+Views/                            BuildingsPanel, HeroPanel, InboxPanel,
+                                  TroopsPanel (user controls hosted by MainWindow)
+```
+
+### `src/TbotUltra.Worker.Tests/` & `src/TbotUltra.Desktop.Tests/`
+
+xUnit. Each test file targets one class (e.g.
+`QueueStoreAndSchedulerTests`, `BuildingCatalogServiceTests`,
+`HeroViewModelTests`, `ServerDiscoveryServiceTests`).
+
+---
+
+## `config/` — runtime state
+
+```
+bot.json                   active bot options (UI writes here)
+queue.json                 persisted task queue
+queue.json.lock            file lock to serialize queue writes
+buildings_catalog.json     static building data
+servers.user.json          user's saved server list
+accounts/                  per-account profile data
+account-analysis/          cached account snapshots
+cache/                     capital-state, manual-farming prefs, natar-farms
+```
+
+`.env` lives at repo root and holds credentials / per-account secrets.
+
+---
+
+## `Captcha_solver/`
+
+Optional component. C# launcher (`Program.cs`, `Program_test.csproj`) plus a
+Python ML project under `math_ai/` (Keras model, training and inference
+scripts, dataset folders). Started by the worker when an arithmetic captcha
+needs solving.
+
+---
+
+## Conventions
+
+- Code and UI are English (see `AGENTS.md`).
+- `TravianClient` is intentionally split into many partial files — keep the
+  same pattern when adding a new browser-driven feature.
+- MainWindow likewise uses one partial per feature.
+- Core has no references to Playwright or WPF — keep it that way.
+- Don't commit anything under `artifacts/`, `logs/`, `temp_build_out/`,
+  `bin/`, `obj/`, `playwright/`, `ms-playwright/`.
+
+---
 
 ## Status
-- Runtime and UI are fully C# (`TbotUltra.Desktop` + `TbotUltra.Worker`).
-- Root-level Python launch/dependency files are removed.
-- Queue system is persisted in `config/queue.json` and managed from the Queue tab in the desktop UI.
 
-## Smoke check
-- Run `Smoke_Check.bat`
-- or run:
-  - `dotnet build TbotUltra.sln -c Debug`
-  - `dotnet test src/TbotUltra.Worker.Tests/TbotUltra.Worker.Tests.csproj -c Debug`
+- Runtime + UI fully C# (`TbotUltra.Desktop` + `TbotUltra.Worker`).
+- Queue persists in `config/queue.json`, managed from the Queue tab.
+- Captcha solving handled by the Python module in `Captcha_solver/`.

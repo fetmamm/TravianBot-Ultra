@@ -55,6 +55,16 @@ public sealed partial class TravianClient
     private bool? _cachedGoldClubEnabled;
     private string? _sessionTribe;
 
+    // Short-lived cache for ReadActiveConstructionsAsync. Upgrade-loop iterations make 4-5
+    // calls within a few hundred ms (pre-click checks); this collapses them into one network
+    // round-trip. TTL is intentionally short — callers that need fresh state after a click
+    // call InvalidateActiveConstructionsCache(). GotoAsync invalidates automatically.
+    private IReadOnlyList<ActiveConstruction>? _cachedActiveConstructions;
+    private DateTimeOffset _cachedActiveConstructionsAt = DateTimeOffset.MinValue;
+    private static readonly TimeSpan ActiveConstructionsCacheTtl = TimeSpan.FromMilliseconds(800);
+
+    internal void InvalidateActiveConstructionsCache() => _cachedActiveConstructions = null;
+
     private sealed class CaptchaClipRegion
     {
         public double X { get; init; }
@@ -1027,6 +1037,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 RecordServerTime(dateHeader);
             }
         }, cancellationToken: cancellationToken);
+        InvalidateActiveConstructionsCache();
         await PauseForManualStepIfVisibleAsync("Manual verification appeared after navigation.", cancellationToken);
         await TryDismissContinuePromptAsync(cancellationToken);
     }

@@ -280,6 +280,20 @@ public sealed partial class TravianClient
             var progress = await WaitForBuildingLevelAdvanceAsync(slotId, currentLevel, queueFingerprintBefore, cancellationToken);
             if (!progress.Advanced && !progress.QueuedOrInProgress)
             {
+                // Final dorf2 probe before deferring — instant servers complete builds before the
+                // queue can hold them, so the level on dorf2 is the only reliable success signal.
+                var dorf2Level = await ProbeSlotLevelOnDorf2Async(slotId, cancellationToken);
+                if (dorf2Level is int confirmedLevel && confirmedLevel > currentLevel)
+                {
+                    upgrades += 1;
+                    Notify($"Slot {slotId}: upgrade confirmed via dorf2 level read ({currentLevel} → {confirmedLevel}).");
+                    if (confirmedLevel >= targetLevel)
+                    {
+                        return $"Slot {slotId}: reached level {confirmedLevel} (target {targetLevel}). Upgrades performed: {upgrades}.";
+                    }
+                    continue;
+                }
+
                 var waitMs = ComputePostActionWaitMs(durationSeconds);
                 var waitSeconds = Math.Max(1, (int)Math.Ceiling(waitMs / 1000d));
                 Notify($"Slot {slotId}: upgrade click did not confirm immediately ({progress.Evidence}). Deferring {waitSeconds}s before retry.");
@@ -813,6 +827,19 @@ public sealed partial class TravianClient
             var progress = await WaitForBuildingLevelAdvanceAsync(slotId, currentLevel, queueFingerprintBefore, cancellationToken);
             if (!progress.Advanced && !progress.QueuedOrInProgress)
             {
+                // Final dorf2 probe before deferring — see UpgradeBuildingToLevelAsync for rationale.
+                var dorf2Level = await ProbeSlotLevelOnDorf2Async(slotId, cancellationToken);
+                if (dorf2Level is int confirmedLevel && confirmedLevel > currentLevel)
+                {
+                    upgrades += 1;
+                    Notify($"Slot {slotId}: upgrade-to-max confirmed via dorf2 level read ({currentLevel} → {confirmedLevel}).");
+                    if (confirmedLevel >= maxLevel)
+                    {
+                        return $"Slot {slotId}: reached max level {maxLevel}. Upgrades performed: {upgrades}.";
+                    }
+                    continue;
+                }
+
                 var waitMs = ComputePostActionWaitMs(durationSeconds);
                 var waitSeconds = Math.Max(1, (int)Math.Ceiling(waitMs / 1000d));
                 Notify($"Slot {slotId}: upgrade-to-max click did not confirm immediately ({progress.Evidence}). Deferring {waitSeconds}s before retry.");
@@ -933,6 +960,14 @@ public sealed partial class TravianClient
             var progress = await WaitForBuildingLevelAdvanceAsync(slotId, 0, queueFingerprintBefore, cancellationToken);
             if (!progress.Advanced && !progress.QueuedOrInProgress)
             {
+                // Final dorf2 probe: an instant-build server can finish a level-1 construct
+                // before the queue ever shows it; any visible level > 0 means the click landed.
+                var dorf2Level = await ProbeSlotLevelOnDorf2Async(slotId, cancellationToken);
+                if (dorf2Level is int confirmedLevel && confirmedLevel >= 1)
+                {
+                    return $"Constructed {buildingName} in slot {slotId} (confirmed level {confirmedLevel} on dorf2).";
+                }
+
                 var waitMs = ComputePostActionWaitMs(durationSeconds);
                 var waitSeconds = Math.Max(1, (int)Math.Ceiling(waitMs / 1000d));
                 Notify($"Slot {slotId}: construct click did not confirm immediately ({progress.Evidence}). Deferring {waitSeconds}s before retry.");
@@ -2385,6 +2420,15 @@ public sealed partial class TravianClient
 
     public async Task<IReadOnlyList<ActiveConstruction>> ReadActiveConstructionsAsync(CancellationToken cancellationToken = default)
     {
+        // Cache hit collapses the 4-5 calls a single upgrade iteration makes (CheckQueueOrDefer,
+        // ReadHighestKnownQueuedBuildingLevel, ReadQueuedBuildingWaitSeconds, level-advance poll)
+        // into one network round-trip. GotoAsync invalidates the cache automatically.
+        if (_cachedActiveConstructions is not null
+            && DateTimeOffset.UtcNow - _cachedActiveConstructionsAt < ActiveConstructionsCacheTtl)
+        {
+            return _cachedActiveConstructions;
+        }
+
         LogFunctionStarted();
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading active constructions.", cancellationToken);
 
@@ -2430,7 +2474,7 @@ public sealed partial class TravianClient
             ? new List<ActiveConstructionJs>()
             : JsonSerializer.Deserialize<List<ActiveConstructionJs>>(rawJson) ?? new List<ActiveConstructionJs>();
 
-        return raw
+        var result = raw
             .Where(i => !string.IsNullOrWhiteSpace(i.Name))
             .Select(i => new ActiveConstruction(
                 Kind: i.Kind switch
@@ -2444,6 +2488,10 @@ public sealed partial class TravianClient
                 TimeLeftSeconds: i.TimeLeftSeconds ?? ParseDurationToSeconds(i.FinishAtText),
                 FinishAtText: i.FinishAtText))
             .ToList();
+
+        _cachedActiveConstructions = result;
+        _cachedActiveConstructionsAt = DateTimeOffset.UtcNow;
+        return result;
     }
 
     public async Task<ConstructionSlotStatus> EvaluateConstructionSlotsAsync(
@@ -3026,11 +3074,26 @@ public sealed partial class TravianClient
         CancellationToken cancellationToken)
     {
         // Tight poll: most clicks register within ~250ms. Two iterations covers slow pages
-        // without burning a second on the happy path. Each iteration runs two cheap reads.
+        // without burning a second on the happy path. Each iteration runs three cheap reads:
+        // queue, active constructions, and (NEW) the slot level itself — the latter catches
+        // instant-complete servers where the upgrade finishes before the queue can hold it.
         for (var i = 0; i < 2; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             await Task.Delay(250, cancellationToken);
+
+            // Each poll iteration must observe FRESH state — bypass the ReadActiveConstructions
+            // cache so a change since the last 800ms window isn't hidden by a stale result.
+            InvalidateActiveConstructionsCache();
+
+            // Check 1: did the slot's level advance? On fast servers the build completes before
+            // the queue can show it; this read is the only reliable success signal there.
+            var observedLevel = await TryReadSlotLevelOnCurrentPageAsync(slotId);
+            if (observedLevel is int level && level > previousLevel)
+            {
+                return new UpgradeProgressResult(true, true, $"level advanced to {level}");
+            }
+
             var queueItems = await ReadBuildQueueAsync(cancellationToken);
             var queueFingerprintAfter = BuildQueueFingerprint(queueItems);
             if (!string.Equals(queueFingerprintBefore, queueFingerprintAfter, StringComparison.Ordinal))
@@ -3050,7 +3113,84 @@ public sealed partial class TravianClient
             }
         }
 
+        // Final level probe: a fast-server upgrade might finish during the 500ms poll window
+        // without the queue ever rendering. Promote that to a confirmed-advance instead of the
+        // "did not confirm" defer path so we don't burn a full retry cycle on a successful click.
+        var finalLevel = await TryReadSlotLevelOnCurrentPageAsync(slotId);
+        if (finalLevel is int finalValue && finalValue > previousLevel)
+        {
+            return new UpgradeProgressResult(true, true, $"level advanced to {finalValue} (post-poll)");
+        }
+
         return new UpgradeProgressResult(false, false, "no queue or level change");
+    }
+
+    /// <summary>
+    /// Last-chance success probe before triggering the "did not confirm" defer cycle.
+    /// Navigates to dorf2 (if not already there) and reads the slot's level directly. On
+    /// fast servers the upgrade lands so quickly that queue polling misses it; this catches
+    /// those cases for the cost of one nav rather than burning a full ~4s retry tick.
+    /// </summary>
+    private async Task<int?> ProbeSlotLevelOnDorf2Async(int slotId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (!IsCurrentUrlForPath(Paths.Buildings))
+            {
+                await GotoAsync(Paths.Buildings, cancellationToken);
+            }
+            return await TryReadSlotLevelOnCurrentPageAsync(slotId);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Reads the visible level for <paramref name="slotId"/> from whichever Travian page is
+    /// currently loaded — works on the slot's build.php (header) and dorf2 (slot label).
+    /// Returns null if no level indicator is found.
+    /// </summary>
+    private async Task<int?> TryReadSlotLevelOnCurrentPageAsync(int slotId)
+    {
+        try
+        {
+            return await _page.EvaluateAsync<int?>(
+                """
+                (slotId) => {
+                  // 1. Slot's own build page: title like "Main Building Level 5".
+                  const url = location.href.toLowerCase();
+                  if (url.includes(`build.php`) && url.includes(`id=${slotId}`)) {
+                    const header = document.querySelector('h1.titleInHeader, h1');
+                    const text = (header?.textContent || '').trim();
+                    const m = text.match(/level\s*(\d{1,2})/i);
+                    if (m) return Number(m[1]);
+                  }
+
+                  // 2. dorf2 slot: <div class="buildingSlot aN"><a class="level">5</a></div>
+                  //    or "<div class='buildingSlot aN'><div class='labelLayer'>5</div></div>".
+                  const slot =
+                       document.querySelector(`div.buildingSlot.a${slotId}`)
+                    || document.querySelector(`div.buildingSlot[data-aid="${slotId}"]`)
+                    || document.querySelector(`#villageContent div[class*=" a${slotId} "]`)
+                    || document.querySelector(`#villageContent div[class$=" a${slotId}"]`);
+                  if (slot) {
+                    const label = slot.querySelector('.level, .labelLayer, span');
+                    const text = (label?.textContent || slot.textContent || '').trim();
+                    const m = text.match(/\d{1,2}/);
+                    if (m) return Number(m[0]);
+                  }
+
+                  return null;
+                }
+                """,
+                slotId);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private async Task<int> ReadQueuedBuildingWaitSecondsAsync(
