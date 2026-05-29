@@ -130,7 +130,7 @@ public sealed class ManualFarmingPreferenceStore
     {
         return preference with
         {
-            TroopCount = Math.Max(1, preference.TroopCount),
+            TroopCount = Math.Max(1L, preference.TroopCount),
             VariancePercent = NormalizeVariancePercent(preference.VariancePercent),
         };
     }
@@ -147,5 +147,5 @@ public sealed class ManualFarmingPreferenceStore
 }
 
 public sealed record ManualFarmingPreference(
-    [property: JsonPropertyName("troopCount")] int TroopCount = 1,
+    [property: JsonPropertyName("troopCount")] long TroopCount = 1,
     [property: JsonPropertyName("variancePercent")] int VariancePercent = 10);

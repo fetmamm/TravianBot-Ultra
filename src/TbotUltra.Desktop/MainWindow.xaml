@@ -1115,6 +1115,9 @@
                                                     Click="AnalyzeFarmListsButton_Click" />
                                             <Button x:Name="AddFarmsToListButton"
                                                     Content="Add Farms to List"
+                                                    Background="#030826"
+                                                    Foreground="White"
+                                                    BorderBrush="#030826"
                                                     MinWidth="140"
                                                     Click="AddFarmsToListButton_Click" />
                                             <Button x:Name="CreateFarmListButton"
@@ -1133,7 +1136,21 @@
                                                 <ItemsControl x:Name="FarmListsItemsControl">
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate>
-                                                            <Border BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="9" Padding="10" Margin="0,0,0,10" Background="#F9FAFB">
+                                                            <Border CornerRadius="9" Padding="10" Margin="0,0,0,10">
+                                                                <Border.Style>
+                                                                    <Style TargetType="Border">
+                                                                        <Setter Property="Background" Value="#F9FAFB" />
+                                                                        <Setter Property="BorderBrush" Value="#D1D5DB" />
+                                                                        <Setter Property="BorderThickness" Value="1" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsProcessing}" Value="True">
+                                                                                <Setter Property="Background" Value="#DBEAFE" />
+                                                                                <Setter Property="BorderBrush" Value="#2563EB" />
+                                                                                <Setter Property="BorderThickness" Value="2" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Border.Style>
                                                                 <Grid>
                                                                     <Grid.ColumnDefinitions>
                                                                         <ColumnDefinition Width="Auto" />

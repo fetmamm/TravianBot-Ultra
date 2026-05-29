@@ -109,6 +109,9 @@ public sealed partial class TravianClient
         await WaitForNavigationSettledAsync(cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared after dispatching hero.", cancellationToken);
 
+        // Land back on dorf1 after dispatch so the next status read happens on a fresh page.
+        await EnsureFreshDorf1ForHeroAsync(forceReload: false, cancellationToken);
+
         var returnText = returnSeconds is int rs ? FormatDuration(rs) : "(unknown)";
         Notify($"Hero dispatched. Return in: {returnText}.");
 
@@ -475,6 +478,31 @@ public sealed partial class TravianClient
             """);
     }
 
+    public async Task<bool> CheckAndReviveDeadHeroOnCurrentPageAsync(bool autoRevive, CancellationToken cancellationToken = default)
+    {
+        // Lightweight check from whatever page we are currently on. The dead hero indicator
+        // (<div class="bigSpeechBubble dead">) is rendered in the hero sidebar on most pages.
+        var isDead = await _page.EvaluateAsync<bool>(
+            "() => !!document.querySelector('.bigSpeechBubble.dead')");
+        if (!isDead)
+        {
+            return false;
+        }
+
+        Notify("Hero appears dead (bigSpeechBubble.dead detected on current page).");
+        if (!autoRevive)
+        {
+            Notify("Auto revive is disabled. Skipping revive.");
+            return false;
+        }
+
+        var revived = await ReviveHeroOnInventoryAsync(cancellationToken);
+        Notify(revived
+            ? "Auto revive: clicked Revive on hero inventory."
+            : "Auto revive: hero is dead but Revive button could not be located.");
+        return revived;
+    }
+
     private async Task<bool> ReviveHeroOnInventoryAsync(CancellationToken cancellationToken)
     {
         Notify("ReviveHeroOnInventoryAsync started");
@@ -683,6 +711,11 @@ public sealed partial class TravianClient
         Notify("ManageHeroAsync started");
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         UpdateHeroOintmentAutoUseState(autoUseOintments);
+
+        // Force a fresh dorf1 reload before reading hero status. When the continuous loop only runs
+        // the hero function it sits idle until the hero-return timer expires; without this reload the
+        // page can be stale and falsely report the hero as still away.
+        await EnsureFreshDorf1ForHeroAsync(forceReload: true, cancellationToken);
 
         var quick = await ReadHeroQuickStatusAsync(allowDorf1Fallback: true, forceDorf1Reload: false, cancellationToken);
         var status = quick.Status;
@@ -2059,6 +2092,10 @@ public sealed partial class TravianClient
         var dispatched = await IsHeroAdventureActivePageAsync(cancellationToken);
         var returnSeconds = await ReadAdventureReturnSecondsAsync(cancellationToken) ?? fallbackReturnFromDetail;
         Notify($"[adventure] dispatch confirmed={dispatched}, hero return ETA={returnSeconds}s");
+
+        // Navigate back to dorf1 after the "To adventure" submit so we don't leave the page on the
+        // adventure result view (keeps the page fresh for the next hero status read).
+        await EnsureFreshDorf1ForHeroAsync(forceReload: false, cancellationToken);
 
         return (dispatched, duration, returnSeconds);
     }

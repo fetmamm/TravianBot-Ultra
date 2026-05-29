@@ -87,12 +87,12 @@ public sealed class DesktopBotService : IDesktopBotService
         return _taskRunner.EnsureNatarFarmCacheAndReturnToFarmListAsync(options, log, forceRefresh, null, cancellationToken);
     }
 
-    public Task<FarmAddBatchResult> AddFarmsFromNatarsAsync(BotOptions options, string farmListName, string troopType, int troopCount, int requestedCount, Action<string> log, CancellationToken cancellationToken)
+    public Task<FarmAddBatchResult> AddFarmsFromNatarsAsync(BotOptions options, string farmListName, string troopType, int troopCount, int requestedCount, Action<string> log, IProgress<int>? addedProgress, CancellationToken cancellationToken)
     {
-        return _taskRunner.AddFarmsFromNatarsAsync(options, farmListName, troopType, troopCount, requestedCount, log, null, cancellationToken);
+        return _taskRunner.AddFarmsFromNatarsAsync(options, farmListName, troopType, troopCount, requestedCount, log, null, addedProgress, cancellationToken);
     }
 
-    public Task<ManualFarmRunResult> StartManualFarmingFromNatarsAsync(BotOptions options, string troopType, int troopCount, int troopVariancePercent, bool raidAttack, Action<string> log, CancellationToken cancellationToken)
+    public Task<ManualFarmRunResult> StartManualFarmingFromNatarsAsync(BotOptions options, string troopType, long troopCount, int troopVariancePercent, bool raidAttack, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.StartManualFarmingFromNatarsAsync(options, troopType, troopCount, troopVariancePercent, raidAttack, log, null, cancellationToken);
     }
@@ -248,6 +248,11 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
         return _taskRunner.ReadCurrentPageResourceProductionPerHourAsync(options, log, null, cancellationToken);
     }
 
+    public Task<PageHtmlCapture> ReadCurrentPageHtmlAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.ReadCurrentPageHtmlAsync(options, log, null, cancellationToken);
+    }
+
     public Task NavigateToVillageResourceFieldsAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken)
     {
         return _taskRunner.NavigateToVillageResourceFieldsAsync(
@@ -267,6 +272,11 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
     public Task<HeroAdventureDispatchResult> SendHeroOnAdventureAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.SendHeroOnAdventureAsync(options, log, null, cancellationToken);
+    }
+
+    public Task<bool> CheckAndReviveDeadHeroAsync(BotOptions options, bool autoRevive, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.CheckAndReviveDeadHeroAsync(options, autoRevive, log, null, cancellationToken);
     }
 
     public Task<int?> RefreshAdventureCountAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)

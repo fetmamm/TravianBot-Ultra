@@ -186,6 +186,8 @@ public sealed record PostLoginSnapshot(
     InboxStatus InboxStatus,
     int? AdventureCount);
 
+public sealed record PageHtmlCapture(string Url, string Html);
+
 public sealed record FarmListOverview(
     string Name,
     int ActiveFarmCount,
@@ -215,7 +217,7 @@ public sealed record ManualFarmRunResult(
     int FailedCount,
     bool StoppedByNoTroopsAlarm,
     string TroopType,
-    int TroopCount,
+    long TroopCount,
     string AttackMode);
 
 public sealed record CatapultWaveRequest(

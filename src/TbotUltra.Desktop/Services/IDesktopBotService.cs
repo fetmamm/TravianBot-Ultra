@@ -34,8 +34,8 @@ public interface IDesktopBotService
     Task<int?> SendFarmListNowAsync(BotOptions options, string farmListName, Action<string> log, CancellationToken cancellationToken);
     Task<FarmAddResult> AddSingleFarmFromNatarsAsync(BotOptions options, string farmListName, string troopType, int troopCount, Action<string> log, CancellationToken cancellationToken);
     Task<int> EnsureNatarFarmCacheAndReturnToFarmListAsync(BotOptions options, Action<string> log, bool forceRefresh, CancellationToken cancellationToken);
-    Task<FarmAddBatchResult> AddFarmsFromNatarsAsync(BotOptions options, string farmListName, string troopType, int troopCount, int requestedCount, Action<string> log, CancellationToken cancellationToken);
-    Task<ManualFarmRunResult> StartManualFarmingFromNatarsAsync(BotOptions options, string troopType, int troopCount, int troopVariancePercent, bool raidAttack, Action<string> log, CancellationToken cancellationToken);
+    Task<FarmAddBatchResult> AddFarmsFromNatarsAsync(BotOptions options, string farmListName, string troopType, int troopCount, int requestedCount, Action<string> log, IProgress<int>? addedProgress, CancellationToken cancellationToken);
+    Task<ManualFarmRunResult> StartManualFarmingFromNatarsAsync(BotOptions options, string troopType, long troopCount, int troopVariancePercent, bool raidAttack, Action<string> log, CancellationToken cancellationToken);
     Task<IReadOnlyDictionary<string, long>> ReadAvailableTroopsForCatapultWavesAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<IReadOnlyDictionary<string, long>> ReadAvailableTroopsForCatapultWavesAsync(BotOptions options, Action<string> log, bool forceRefresh, CancellationToken cancellationToken);
     Task<CatapultWaveSetupInfo> ReadCatapultWaveSetupInfoAsync(BotOptions options, Action<string> log, bool forceRefresh, CancellationToken cancellationToken);
@@ -60,9 +60,11 @@ public interface IDesktopBotService
     Task<IReadOnlyList<VillageStatus>> ReadAllVillageResourceStatusesAsync(BotOptions options, Action<string> log, string? returnVillageName, string? returnVillageUrl, CancellationToken cancellationToken);
     Task<VillageStatus> ReadCurrentPageResourceStatusQuickAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<IReadOnlyDictionary<string, double?>> ReadCurrentPageResourceProductionPerHourAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
+    Task<PageHtmlCapture> ReadCurrentPageHtmlAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task NavigateToVillageResourceFieldsAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken);
     Task<InboxStatus> ReadInboxStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<HeroAdventureDispatchResult> SendHeroOnAdventureAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
+    Task<bool> CheckAndReviveDeadHeroAsync(BotOptions options, bool autoRevive, Action<string> log, CancellationToken cancellationToken);
     Task<int?> RefreshAdventureCountAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<HeroAttributeSnapshot> ReadHeroAttributesAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     bool ConsumeBrowserClosedByUserSignal();

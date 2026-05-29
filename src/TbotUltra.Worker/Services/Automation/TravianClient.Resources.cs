@@ -76,6 +76,16 @@ public sealed partial class TravianClient
         return production;
     }
 
+    public async Task<PageHtmlCapture> ReadCurrentPageHtmlAsync(CancellationToken cancellationToken = default)
+    {
+        Notify("[ReadCurrentPageHtmlAsync] started");
+        cancellationToken.ThrowIfCancellationRequested();
+        var url = _page.Url;
+        var html = await _page.ContentAsync();
+        Notify($"ReadCurrentPageHtmlAsync: captured {html.Length} chars from url='{url}'.");
+        return new PageHtmlCapture(url ?? string.Empty, html ?? string.Empty);
+    }
+
     private async Task NotifyCurrentResourceProductionForUiAsync(CancellationToken cancellationToken)
     {
         try

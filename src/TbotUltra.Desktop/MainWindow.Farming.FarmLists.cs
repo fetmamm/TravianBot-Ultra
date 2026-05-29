@@ -226,82 +226,139 @@ public partial class MainWindow
         try
         {
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
-            await EnsureChromiumInstalledAsync();
-            var available = await RefreshFarmListsFromServerAsync(options, operationToken);
-            if (!available)
-            {
-                CompleteOperation(operationId, operationSw, "Gold Club is not active.");
-                return;
-            }
 
-            if (_farmLists.Count <= 0)
+            async Task<AddFarmsLoadResult> LoadAsync(CancellationToken token)
             {
-                AppDialog.Show(this, "No farm lists found on farmpage.", "Add farms", MessageBoxButton.OK, MessageBoxImage.Information);
-                CompleteOperation(operationId, operationSw, "No farm lists found.");
-                return;
-            }
-
-            var optionsForDialog = _farmLists
-                .Select(item => new FarmListSelectionOption
+                await EnsureChromiumInstalledAsync();
+                var available = await RefreshFarmListsFromServerAsync(options, token);
+                if (!available)
                 {
-                    Name = item.Name,
-                    ActiveFarmCount = item.ActiveFarmCount,
-                    TotalFarmCount = item.TotalFarmCount,
-                })
-                .ToList();
+                    return new AddFarmsLoadResult(false, null, [], 0);
+                }
 
-            var natarFarmCount = await _botService.EnsureNatarFarmCacheAndReturnToFarmListAsync(options, AppendLog, false, operationToken);
-            if (natarFarmCount <= 0)
-            {
-                SetNatarsProfileAnalyzed(false);
-                AppDialog.Show(this, "No villages named 'Natar farm village' were found.", "Add farms", MessageBoxButton.OK, MessageBoxImage.Information);
-                CompleteOperation(operationId, operationSw, "No matching Natar farms found.");
-                return;
+                if (_farmLists.Count <= 0)
+                {
+                    return new AddFarmsLoadResult(false, "No farm lists found on farmpage.", [], 0);
+                }
+
+                var optionsForDialog = _farmLists
+                    .Select(item => new FarmListSelectionOption
+                    {
+                        Name = item.Name,
+                        ActiveFarmCount = item.ActiveFarmCount,
+                        TotalFarmCount = item.TotalFarmCount,
+                    })
+                    .ToList();
+
+                var natarCount = await _botService.EnsureNatarFarmCacheAndReturnToFarmListAsync(options, AppendLog, false, token);
+                if (natarCount <= 0)
+                {
+                    SetNatarsProfileAnalyzed(false);
+                    return new AddFarmsLoadResult(false, "No villages named 'Natar farm village' were found.", [], 0);
+                }
+
+                SetNatarsProfileAnalyzed(true);
+                return new AddFarmsLoadResult(true, null, optionsForDialog, natarCount);
             }
 
-            SetNatarsProfileAnalyzed(true);
-
-            var dialog = new AddFarmsToListWindow(optionsForDialog, ResolveCurrentTribeForFarming(), natarFarmCount)
+            var dialog = new AddFarmsToListWindow(
+                ResolveCurrentTribeForFarming(),
+                LoadAddFarmsTroopCount(),
+                LoadAsync,
+                operationToken)
             {
                 Owner = this,
             };
-            var addRequested = dialog.ShowDialog() == true && dialog.SelectedOption is not null;
+
+            var addRequested = dialog.ShowDialog() == true && dialog.Targets.Count > 0;
             if (!addRequested)
             {
-                CompleteOperation(operationId, operationSw, "Add farms canceled.");
+                if (!string.IsNullOrWhiteSpace(dialog.LoadFailureMessage))
+                {
+                    AppDialog.Show(this, dialog.LoadFailureMessage, "Add farms", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+
+                CompleteOperation(operationId, operationSw, string.IsNullOrWhiteSpace(dialog.LoadFailureMessage)
+                    ? "Add farms canceled."
+                    : dialog.LoadFailureMessage!);
                 return;
             }
 
-            var selected = dialog.SelectedOption!;
-            AppendLog($"Add farms selected list: {selected.Name} ({selected.CountText}, {selected.CapacityText}).");
-            var result = await _botService.AddFarmsFromNatarsAsync(
-                options,
-                selected.Name,
-                dialog.SelectedTroopType,
-                dialog.TroopCount,
-                dialog.RequestedFarmCount,
-                AppendLog,
-                operationToken);
-            var selectedRow = _farmLists.FirstOrDefault(item => string.Equals(item.Name, selected.Name, StringComparison.OrdinalIgnoreCase));
-            if (selectedRow is not null && result.AddedCount > 0)
-            {
-                selectedRow.ActiveFarmCount = Math.Min(selectedRow.TotalFarmCount, selectedRow.ActiveFarmCount + result.AddedCount);
-                UpdateFarmingUiState();
-            }
+            SaveAddFarmsTroopCount(dialog.TroopCount);
+            var troopType = dialog.SelectedTroopType;
+            var troopCount = dialog.TroopCount;
+            var targets = dialog.Targets;
 
-            if (result.AlreadyInListCount > 0)
+            var totalAdded = 0;
+            var totalExisting = 0;
+            var totalFailed = 0;
+            for (var i = 0; i < targets.Count; i++)
             {
-                AppendLog($"Duplicate farms detected: {result.AlreadyInListCount} result(s) with 'This village is already in the selected farm list.'.");
+                operationToken.ThrowIfCancellationRequested();
+                var target = targets[i];
+                var row = _farmLists.FirstOrDefault(item => string.Equals(item.Name, target.Name, StringComparison.OrdinalIgnoreCase));
+                var baseActive = row?.ActiveFarmCount ?? 0;
+                if (row is not null)
+                {
+                    row.IsProcessing = true;
+                }
+
+                try
+                {
+                    AppendLog($"Add farms [{i + 1}/{targets.Count}] list '{target.Name}' (requested {target.RequestedFarmCount}).");
+                    var progress = new Progress<int>(added =>
+                    {
+                        if (row is null)
+                        {
+                            return;
+                        }
+
+                        row.ActiveFarmCount = Math.Min(row.TotalFarmCount, baseActive + added);
+                        UpdateFarmingUiState();
+                    });
+
+                    var result = await _botService.AddFarmsFromNatarsAsync(
+                        options,
+                        target.Name,
+                        troopType,
+                        troopCount,
+                        target.RequestedFarmCount,
+                        AppendLog,
+                        progress,
+                        operationToken);
+
+                    totalAdded += result.AddedCount;
+                    totalExisting += result.AlreadyInListCount;
+                    totalFailed += result.FailedCount;
+
+                    if (row is not null)
+                    {
+                        row.ActiveFarmCount = Math.Min(row.TotalFarmCount, baseActive + result.AddedCount);
+                        UpdateFarmingUiState();
+                    }
+
+                    if (result.AlreadyInListCount > 0)
+                    {
+                        AppendLog($"Duplicate farms in '{target.Name}': {result.AlreadyInListCount} ('This village is already in the selected farm list.').");
+                    }
+                }
+                finally
+                {
+                    if (row is not null)
+                    {
+                        row.IsProcessing = false;
+                    }
+                }
             }
 
             await RefreshFarmListsFromServerAsync(options, operationToken);
             AppDialog.Show(
                 this,
-                $"Added: {result.AddedCount}, Already in list: {result.AlreadyInListCount}, Failed: {result.FailedCount}.",
+                $"Lists processed: {targets.Count}.\nAdded: {totalAdded}, Already in list: {totalExisting}, Failed: {totalFailed}.",
                 "Add farms",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
-            CompleteOperation(operationId, operationSw, $"Add farms done. Added={result.AddedCount}, Existing={result.AlreadyInListCount}, Failed={result.FailedCount}.");
+            CompleteOperation(operationId, operationSw, $"Add farms done. Lists={targets.Count}, Added={totalAdded}, Existing={totalExisting}, Failed={totalFailed}.");
         }
         catch (OperationCanceledException)
         {
@@ -454,6 +511,50 @@ public partial class MainWindow
         catch
         {
             return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    private const string AddFarmsTroopCountConfigKey = "addFarmsTroopCount";
+    private const int AddFarmsDefaultTroopCount = 100;
+
+    private int LoadAddFarmsTroopCount()
+    {
+        try
+        {
+            var config = _botConfigStore.Load();
+            if (config.TryGetPropertyValue(AddFarmsTroopCountConfigKey, out var node) && node is not null)
+            {
+                var value = node.GetValue<int>();
+                if (value > 0)
+                {
+                    return value;
+                }
+            }
+        }
+        catch
+        {
+            // fall through to default
+        }
+
+        return AddFarmsDefaultTroopCount;
+    }
+
+    private void SaveAddFarmsTroopCount(int troopCount)
+    {
+        if (troopCount <= 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var config = _botConfigStore.Load();
+            config[AddFarmsTroopCountConfigKey] = JsonValue.Create(troopCount);
+            _botConfigStore.Save(config);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Could not save add-farms troop count: {ex.Message}");
         }
     }
 

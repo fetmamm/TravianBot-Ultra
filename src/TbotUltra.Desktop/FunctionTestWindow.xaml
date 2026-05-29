@@ -13,6 +13,16 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
+        <Button x:Name="SavePageHtmlButton"
+                Grid.Row="0"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                Padding="8,4"
+                Content="Save HTML"
+                ToolTip="Opens a dialog to save the raw HTML of the page the browser is currently on to a file for later analysis."
+                ToolTipService.InitialShowDelay="500"
+                Click="SavePageHtmlButton_Click" />
+
         <StackPanel Grid.Row="0" Orientation="Vertical">
             <Button x:Name="TestResourceProductionButton"
                     HorizontalAlignment="Left"

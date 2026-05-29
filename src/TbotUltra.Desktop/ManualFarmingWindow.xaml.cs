@@ -8,19 +8,19 @@ public partial class ManualFarmingWindow : Window
     private static readonly int[] VarianceOptions = [0, 5, 10, 20, 50];
 
     public string SelectedTroopType { get; private set; } = string.Empty;
-    public int TroopCount { get; private set; }
+    public long TroopCount { get; private set; }
     public int TroopVariancePercent { get; private set; } = 10;
     public bool IsRaid { get; private set; } = true;
     public string NatarVillageSelection { get; private set; } = "farm_villages";
-    public Action<int, int>? PreferenceChanged { get; init; }
+    public Action<long, int>? PreferenceChanged { get; init; }
 
-    public ManualFarmingWindow(string tribe, string natarVillageSelection, int troopCount, int troopVariancePercent)
+    public ManualFarmingWindow(string tribe, string natarVillageSelection, long troopCount, int troopVariancePercent)
     {
         InitializeComponent();
         TroopTypeComboBox.ItemsSource = TroopCatalog.ResolveTroopTypesForTribe(tribe);
         TroopTypeComboBox.SelectedIndex = 0;
         VarianceComboBox.ItemsSource = VarianceOptions.Select(value => $"{value}%").ToList();
-        TroopCountTextBox.Text = Math.Max(1, troopCount).ToString();
+        TroopCountTextBox.Text = Math.Max(1L, troopCount).ToString();
         TroopVariancePercent = NormalizeVariancePercent(troopVariancePercent);
         VarianceComboBox.SelectedItem = $"{TroopVariancePercent}%";
         RaidRadioButton.IsChecked = true;
@@ -37,7 +37,7 @@ public partial class ManualFarmingWindow : Window
             return;
         }
 
-        if (!int.TryParse(TroopCountTextBox.Text.Trim(), out var troopCount) || troopCount <= 0)
+        if (!long.TryParse(TroopCountTextBox.Text.Trim(), out var troopCount) || troopCount <= 0)
         {
             AppDialog.Show(this, "Count must be an integer greater than 0.", "Manual farming", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
@@ -94,7 +94,7 @@ public partial class ManualFarmingWindow : Window
         }
 
         var hasTroop = TroopTypeComboBox.SelectedItem is string troop && !string.IsNullOrWhiteSpace(troop);
-        var hasCount = int.TryParse(TroopCountTextBox.Text.Trim(), out var count) && count > 0;
+        var hasCount = long.TryParse(TroopCountTextBox.Text.Trim(), out var count) && count > 0;
         StartButton.IsEnabled = hasTroop && hasCount;
 
         if (!hasTroop)
@@ -130,7 +130,7 @@ public partial class ManualFarmingWindow : Window
             : 10;
     }
 
-    private void UpdateEffectiveRangeText(int troopCount)
+    private void UpdateEffectiveRangeText(long troopCount)
     {
         if (EffectiveRangeTextBlock is null)
         {
@@ -138,14 +138,14 @@ public partial class ManualFarmingWindow : Window
         }
 
         var variance = ReadSelectedVariancePercent();
-        var minAmount = Math.Max(1, (int)Math.Floor(troopCount * (100 - variance) / 100d));
-        var maxAmount = Math.Max(minAmount, (int)Math.Ceiling(troopCount * (100 + variance) / 100d));
+        var minAmount = Math.Max(1L, (long)Math.Floor(troopCount * (100d - variance) / 100d));
+        var maxAmount = Math.Max(minAmount, (long)Math.Ceiling(troopCount * (100d + variance) / 100d));
         EffectiveRangeTextBlock.Text = $"{minAmount}-{maxAmount}";
     }
 
     private void NotifyPreferenceChanged()
     {
-        if (!int.TryParse(TroopCountTextBox.Text.Trim(), out var troopCount) || troopCount <= 0)
+        if (!long.TryParse(TroopCountTextBox.Text.Trim(), out var troopCount) || troopCount <= 0)
         {
             troopCount = 1;
         }

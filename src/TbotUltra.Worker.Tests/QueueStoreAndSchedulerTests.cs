@@ -384,17 +384,14 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
         var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             [BotOptionPayloadKeys.ContinuousFarmListNames] = "List A,List B,List A",
-            [BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes] = "9",
         };
 
         Assert.True(FarmingPayload.TryFromDictionary(payload, out var parsed));
         Assert.NotNull(parsed);
         Assert.Equal(["List A", "List B"], parsed!.FarmListNames);
-        Assert.Equal(5, parsed.DispatchDelayMinutes);
         var serialized = parsed.ToDictionary();
-        Assert.Equal(2, serialized.Count);
+        Assert.Single(serialized);
         Assert.Equal("List A,List B", serialized[BotOptionPayloadKeys.ContinuousFarmListNames]);
-        Assert.Equal("5", serialized[BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes]);
     }
 
     [Fact]

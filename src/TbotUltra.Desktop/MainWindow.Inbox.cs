@@ -147,6 +147,37 @@ public partial class MainWindow
         await RefreshInboxIndicatorsAsync(logErrors: false);
     }
 
+    // Lightweight read-only check used by the ~16s background tick: only reads the
+    // unread counters from the current page and updates the UI. Heavy auto-read
+    // (which may navigate) stays on the dedicated 5-minute timer.
+    private async Task RefreshInboxIndicatorsQuickAsync()
+    {
+        if (_loopController.IsClosing || !_inboxAutoEnabled)
+        {
+            return;
+        }
+
+        if (!await _inboxRefreshGate.WaitAsync(0))
+        {
+            return;
+        }
+
+        try
+        {
+            var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            var status = await _botService.ReadInboxStatusAsync(options, _ => { }, CancellationToken.None);
+            UpdateInboxButtons(status.UnreadMessages, status.UnreadReports);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Quick inbox check skipped: {ex.Message}");
+        }
+        finally
+        {
+            _inboxRefreshGate.Release();
+        }
+    }
+
     private async Task AutoReadInboxItemsAsync(BotOptions options, InboxStatus status)
     {
         var (autoReadMessages, autoReadReports) = GetAutoReadInboxSelectionSnapshot();

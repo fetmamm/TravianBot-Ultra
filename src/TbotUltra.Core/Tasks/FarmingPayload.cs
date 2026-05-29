@@ -2,24 +2,15 @@ using TbotUltra.Core.Configuration;
 
 namespace TbotUltra.Core.Tasks;
 
-public sealed record FarmingPayload(IReadOnlyList<string> FarmListNames, int DispatchDelayMinutes)
+// Note: the dispatch delay is intentionally NOT carried in this payload. It is a live setting read
+// from BotOptions at execution time, so changing it while the continuous loop runs takes effect on
+// the next send cycle instead of being frozen at enqueue time.
+public sealed record FarmingPayload(IReadOnlyList<string> FarmListNames)
 {
     public static bool TryFromDictionary(IReadOnlyDictionary<string, string> payload, out FarmingPayload? result)
     {
-        result = null;
         var names = ParseNames(ReadTrimmed(payload, BotOptionPayloadKeys.ContinuousFarmListNames));
-        var delay = 1;
-        if (payload.TryGetValue(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes, out var delayRaw))
-        {
-            if (!int.TryParse(delayRaw, out var parsedDelay))
-            {
-                return false;
-            }
-
-            delay = Math.Clamp(parsedDelay, 1, 5);
-        }
-
-        result = new FarmingPayload(names, delay);
+        result = new FarmingPayload(names);
         return true;
     }
 
@@ -28,7 +19,6 @@ public sealed record FarmingPayload(IReadOnlyList<string> FarmListNames, int Dis
         return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             [BotOptionPayloadKeys.ContinuousFarmListNames] = string.Join(",", FarmListNames.Where(name => !string.IsNullOrWhiteSpace(name)).Select(name => name.Trim()).Distinct(StringComparer.OrdinalIgnoreCase)),
-            [BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes] = Math.Clamp(DispatchDelayMinutes, 1, 5).ToString(),
         };
     }
 

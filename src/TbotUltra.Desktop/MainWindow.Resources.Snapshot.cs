@@ -356,6 +356,8 @@ public partial class MainWindow
         return true;
     }
 
+    private bool _heroReviveCheckRunning;
+
     private async Task HandleResourceSnapshotRefreshTickAsync()
     {
         if (!ShouldRunBackgroundResourceSnapshotRefresh())
@@ -370,6 +372,37 @@ public partial class MainWindow
         catch (Exception ex)
         {
             AppendLog($"Background resource refresh skipped: {ex.Message}");
+        }
+
+        await TryReviveDeadHeroFromCurrentPageAsync();
+        await RefreshInboxIndicatorsQuickAsync();
+    }
+
+    private async Task TryReviveDeadHeroFromCurrentPageAsync()
+    {
+        if (_heroReviveCheckRunning)
+        {
+            return;
+        }
+
+        var options = LoadBotOptions();
+        if (!options.HeroAutoRevive)
+        {
+            return;
+        }
+
+        _heroReviveCheckRunning = true;
+        try
+        {
+            await _botService.CheckAndReviveDeadHeroAsync(options, true, AppendLog, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Hero revive check skipped: {ex.Message}");
+        }
+        finally
+        {
+            _heroReviveCheckRunning = false;
         }
     }
 

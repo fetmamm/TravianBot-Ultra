@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -76,6 +77,7 @@ public partial class MainWindow
         _resourceTestFunctionsWindow.NpcTradeBuildingTestRequested += TestNpcTradeBuildingButton_Click;
         _resourceTestFunctionsWindow.ReadSmithyQueueTestRequested += TestReadSmithyQueueButton_Click;
         _resourceTestFunctionsWindow.ReinforcementsTestRequested += TestReinforcementsButton_Click;
+        _resourceTestFunctionsWindow.SavePageHtmlRequested += SavePageHtmlButton_Click;
         _resourceTestFunctionsWindow.Closed += (_, _) =>
         {
             _resourceTestFunctionsWindow.ResourceProductionTestRequested -= TestResourceProductionButton_Click;
@@ -85,10 +87,84 @@ public partial class MainWindow
             _resourceTestFunctionsWindow.NpcTradeBuildingTestRequested -= TestNpcTradeBuildingButton_Click;
             _resourceTestFunctionsWindow.ReadSmithyQueueTestRequested -= TestReadSmithyQueueButton_Click;
             _resourceTestFunctionsWindow.ReinforcementsTestRequested -= TestReinforcementsButton_Click;
+            _resourceTestFunctionsWindow.SavePageHtmlRequested -= SavePageHtmlButton_Click;
             _resourceTestFunctionsWindow = null;
         };
 
         _resourceTestFunctionsWindow.Show();
+    }
+
+    private const string SavePageHtmlDirectory = @"C:\Users\jespe\Documents\GitHub\Tbot_ultra_new\temp_build_out\DOM";
+
+    private async void SavePageHtmlButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new SavePageHtmlWindow(SavePageHtmlDirectory)
+        {
+            Owner = _resourceTestFunctionsWindow ?? (Window)this,
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            AppendLog("Save page HTML canceled.");
+            return;
+        }
+
+        var operationId = BeginOperation("SavePageHtml");
+        var operationSw = Stopwatch.StartNew();
+        _operationCts = new CancellationTokenSource();
+        var operationToken = _operationCts.Token;
+        ToggleResourceTabActionsBusy(true);
+        try
+        {
+            var options = LoadBotOptions();
+            AppendLog($"[{operationId}] capturing current page HTML.");
+            var capture = await _botService.ReadCurrentPageHtmlAsync(
+                options,
+                AppendLog,
+                operationToken);
+
+            Directory.CreateDirectory(SavePageHtmlDirectory);
+            var filePath = Path.Combine(SavePageHtmlDirectory, $"{dialog.FileName}.txt");
+            var content = BuildSavedPageHtmlContent(capture, dialog.Notes);
+            await File.WriteAllTextAsync(filePath, content, operationToken);
+
+            AppendLog($"[{operationId}] saved {capture.Html.Length} chars from '{capture.Url}' to {filePath}.");
+            CompleteOperation(operationId, operationSw, $"Saved page HTML to {filePath}");
+        }
+        catch (OperationCanceledException)
+        {
+            AppendLog("Save page HTML paused.");
+        }
+        catch (Exception ex)
+        {
+            FailOperation(operationId, operationSw, ex);
+        }
+        finally
+        {
+            ToggleResourceTabActionsBusy(false);
+            _operationCts?.Dispose();
+            _operationCts = null;
+        }
+    }
+
+    private static string BuildSavedPageHtmlContent(PageHtmlCapture capture, string notes)
+    {
+        var header = new System.Text.StringBuilder();
+        header.AppendLine("<!--");
+        header.AppendLine($"Saved: {DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz}");
+        header.AppendLine($"URL: {capture.Url}");
+        if (!string.IsNullOrWhiteSpace(notes))
+        {
+            header.AppendLine("Notes:");
+            foreach (var line in notes.Replace("\r\n", "\n").Split('\n'))
+            {
+                header.AppendLine($"  {line}");
+            }
+        }
+
+        header.AppendLine("-->");
+        header.AppendLine();
+        return header.ToString() + capture.Html;
     }
 
     private async void TestResourceProductionButton_Click(object sender, RoutedEventArgs e)

@@ -94,6 +94,12 @@ public partial class MainWindow
             return;
         }
 
+        if (!row.IsOccupied && !row.HasPendingConstruct)
+        {
+            ShowConstructChoicesForSlot(row.SlotId);
+            return;
+        }
+
         var canDemolish = CanDemolishBuildings(out var demolishRequirementText);
         var actionsWindow = new BuildingSlotActionsWindow(row, canDemolish, demolishRequirementText)
         {

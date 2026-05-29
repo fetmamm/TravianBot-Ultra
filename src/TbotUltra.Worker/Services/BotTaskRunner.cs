@@ -329,6 +329,7 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
         int requestedCount,
         Action<string> log,
         string? accountName = null,
+        IProgress<int>? addedProgress = null,
         CancellationToken cancellationToken = default)
     {
         FarmAddBatchResult? result = null;
@@ -341,7 +342,7 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             async client =>
             {
                 await client.LoginAsync(cancellationToken);
-                result = await client.AddFarmsFromNatarsAsync(farmListName, troopType, troopCount, requestedCount, cancellationToken);
+                result = await client.AddFarmsFromNatarsAsync(farmListName, troopType, troopCount, requestedCount, addedProgress, cancellationToken);
             });
 
         return result ?? throw new InvalidOperationException("Could not add farms from Natars profile.");
@@ -373,7 +374,7 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
     public async Task<ManualFarmRunResult> StartManualFarmingFromNatarsAsync(
         BotOptions options,
         string troopType,
-        int troopCount,
+        long troopCount,
         int troopVariancePercent,
         bool raidAttack,
         Action<string> log,
@@ -615,6 +616,27 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             });
 
         return status ?? throw new InvalidOperationException("Could not read current-page resource status.");
+    }
+
+    public async Task<PageHtmlCapture> ReadCurrentPageHtmlAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        PageHtmlCapture? capture = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                capture = await client.ReadCurrentPageHtmlAsync(cancellationToken);
+            });
+
+        return capture ?? throw new InvalidOperationException("Could not read current page HTML.");
     }
 
     public async Task<IReadOnlyDictionary<string, double?>> ReadCurrentPageResourceProductionPerHourAsync(
@@ -938,6 +960,29 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             });
 
         return result ?? throw new InvalidOperationException("Could not dispatch hero on adventure.");
+    }
+
+    public async Task<bool> CheckAndReviveDeadHeroAsync(
+        BotOptions options,
+        bool autoRevive,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        var revived = false;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                revived = await client.CheckAndReviveDeadHeroOnCurrentPageAsync(autoRevive, cancellationToken);
+            });
+
+        return revived;
     }
 
     public async Task<int?> RefreshAdventureCountAsync(

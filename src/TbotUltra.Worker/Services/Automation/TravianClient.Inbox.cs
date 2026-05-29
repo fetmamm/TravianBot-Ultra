@@ -79,7 +79,8 @@ public sealed partial class TravianClient
                 );
                 for (const badge of badges) {
                   const text = (badge.textContent || '').replace(/\s+/g, ' ').trim();
-                  const match = text.match(/^(\d{1,3})$/);
+                  // Accept plain counts ("1") and capped counts ("100+").
+                  const match = text.match(/^(\d{1,4})\s*\+?$/);
                   if (match) return Number(match[1]);
                 }
                 // Fallback: an explicit data-count attribute.

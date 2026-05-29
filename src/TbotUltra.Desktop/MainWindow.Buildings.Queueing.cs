@@ -349,6 +349,7 @@ public partial class MainWindow
         var activeItems = queueItems ?? GetActiveQueueItems();
         var activeUpgradeSlots = new HashSet<int>();
         var activeConstructSlots = new HashSet<int>();
+        var activeDemolishSlots = new HashSet<int>();
 
         foreach (var item in activeItems)
         {
@@ -364,6 +365,13 @@ public partial class MainWindow
             {
                 activeConstructSlots.Add(constructSlotId);
             }
+
+            if (string.Equals(item.TaskName, "demolish_building_to_level", StringComparison.OrdinalIgnoreCase)
+                && item.Payload.TryGetValue(BotOptionPayloadKeys.TargetBuildingSlotOrName, out var demolishSlotText)
+                && int.TryParse(demolishSlotText, out var demolishSlotId))
+            {
+                activeDemolishSlots.Add(demolishSlotId);
+            }
         }
 
         foreach (var slotId in _buildingLastQueuedTargetBySlot.Keys.Except(activeUpgradeSlots).ToList())
@@ -374,6 +382,14 @@ public partial class MainWindow
         foreach (var slotId in _buildingLastQueuedConstructBySlot.Keys.Except(activeConstructSlots).ToList())
         {
             _buildingLastQueuedConstructBySlot.Remove(slotId);
+        }
+
+        // Drop the in-progress demolish highlight (red text) once the demolish task is no
+        // longer active in the queue — this covers partial demolitions (target level > 0)
+        // where the slot stays occupied and the empty-slot cleanup never fires.
+        foreach (var slotId in _buildingDemolishingSlots.Except(activeDemolishSlots).ToList())
+        {
+            SetDemolishingFlag(slotId, false);
         }
     }
 

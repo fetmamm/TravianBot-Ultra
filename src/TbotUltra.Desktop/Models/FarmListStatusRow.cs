@@ -10,6 +10,7 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
     private int _activeFarmCount;
     private int _totalFarmCount;
     private int? _remainingSeconds;
+    private bool _isProcessing;
 
     public string Name
     {
@@ -93,6 +94,21 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
             OnPropertyChanged(nameof(IsReady));
             OnPropertyChanged(nameof(TimerText));
             OnPropertyChanged(nameof(CanSendNow));
+        }
+    }
+
+    public bool IsProcessing
+    {
+        get => _isProcessing;
+        set
+        {
+            if (_isProcessing == value)
+            {
+                return;
+            }
+
+            _isProcessing = value;
+            OnPropertyChanged();
         }
     }
 

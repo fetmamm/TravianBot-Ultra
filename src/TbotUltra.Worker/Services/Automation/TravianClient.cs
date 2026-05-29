@@ -589,6 +589,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         string troopType,
         int troopCount,
         int requestedCount,
+        IProgress<int>? addedProgress = null,
         CancellationToken cancellationToken = default)
     {
         LogFunctionStarted();
@@ -659,6 +660,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             if (saveOutcome == AddRaidSaveOutcome.Added)
             {
                 added++;
+                addedProgress?.Report(added);
                 Notify($"{stepPrefix} Added farm ({coordinate.X}|{coordinate.Y}) to '{farmListName}'.");
                 continue;
             }
@@ -701,7 +703,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
     public async Task<ManualFarmRunResult> StartManualFarmingFromNatarsAsync(
         string troopType,
-        int troopCount,
+        long troopCount,
         int troopVariancePercent,
         bool raidAttack,
         CancellationToken cancellationToken = default)
@@ -3065,15 +3067,61 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                   candidate.parentElement ||
                   candidate;
 
-                const timerText =
-                  normalize(container.querySelector('span[id^="timerTop"]')?.textContent) ||
-                  (normalize(container.querySelector('.button-content')?.textContent).match(/\d{1,3}:\d{2}(?::\d{2})?/) || [])[0] ||
-                  '';
+                // Resolve the farm list id (lid). The Start Raid button id encodes the lid
+                // (startRaidBtnTop<lid>), but the countdown span id (timerTop<n>) uses an
+                // unrelated sequential index, so we must read the timer from the button itself.
+                const tryReadListId = (root) => {
+                  if (!root) return null;
+                  const markAll = root.querySelector('input[id^="raidListMarkAll"]');
+                  const markAllMatch = (markAll?.id || '').match(/raidListMarkAll(\d+)/i);
+                  if (markAllMatch) return markAllMatch[1];
+                  const btn = root.querySelector('button[id^="startRaidBtnTop"], button.startRaidButton[data-lid]');
+                  const btnIdMatch = (btn?.id || '').match(/startRaidBtnTop(\d+)/i);
+                  if (btnIdMatch) return btnIdMatch[1];
+                  if (btn?.getAttribute('data-lid')) return btn.getAttribute('data-lid');
+                  const switchNode = root.querySelector('.openedClosedSwitch[onclick*="toggleList"]');
+                  const switchMatch = (switchNode?.getAttribute('onclick') || '').match(/toggleList\((\d+)\)/i);
+                  if (switchMatch) return switchMatch[1];
+                  return null;
+                };
+
+                const lid =
+                  tryReadListId(candidate) ||
+                  tryReadListId(container) ||
+                  tryReadListId(candidate.closest('.listTitle')?.parentElement || null);
+
+                let raidButton = null;
+                if (lid) {
+                  raidButton =
+                    document.getElementById(`startRaidBtnTop${lid}`) ||
+                    document.querySelector(`button.startRaidButton[data-lid="${lid}"]`);
+                }
+                if (!raidButton) {
+                  raidButton = container.querySelector('button[id^="startRaidBtnTop"], button.startRaidButton[data-lid]');
+                }
+
+                const readTimerFrom = (root) => {
+                  if (!root) return '';
+                  const span = root.querySelector('span[id^="timerTop"]');
+                  const spanText = normalize(span?.textContent);
+                  if (/\d{1,3}:\d{2}/.test(spanText)) return spanText;
+                  const contentText = normalize(root.querySelector('.button-content')?.textContent || root.textContent);
+                  const match = contentText.match(/\d{1,3}:\d{2}(?::\d{2})?/);
+                  return match ? match[0] : '';
+                };
+
+                const timerText = readTimerFrom(raidButton) || readTimerFrom(container);
+
+                let disabled = false;
+                if (raidButton) {
+                  const cls = (raidButton.className || '').toLowerCase();
+                  disabled = !!raidButton.disabled || raidButton.getAttribute('disabled') !== null || cls.includes('disabled');
+                }
 
                 const key = name.toLowerCase();
                 const existing = seenByName.get(key);
                 if (!existing) {
-                  seenByName.set(key, { name, activeFarmCount: active, totalFarmCount: total, timerText });
+                  seenByName.set(key, { name, activeFarmCount: active, totalFarmCount: total, timerText, disabled });
                   continue;
                 }
 
@@ -3081,7 +3129,8 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                   name,
                   activeFarmCount: Math.max(existing.activeFarmCount || 0, active),
                   totalFarmCount: Math.max(existing.totalFarmCount || 0, total),
-                  timerText: (existing.timerText && existing.timerText.length > 0) ? existing.timerText : timerText
+                  timerText: (existing.timerText && existing.timerText.length > 0) ? existing.timerText : timerText,
+                  disabled: existing.disabled || disabled
                 });
               }
 
@@ -3099,8 +3148,21 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 Name: row.Name!,
                 ActiveFarmCount: Math.Min(MaxFarmsPerFarmList, Math.Max(0, row.ActiveFarmCount ?? 0)),
                 TotalFarmCount: Math.Min(MaxFarmsPerFarmList, Math.Max(0, row.TotalFarmCount ?? 0)),
-                RemainingSeconds: ParseDurationToSeconds(row.TimerText)))
+                RemainingSeconds: ResolveFarmListRemainingSeconds(row.TimerText, row.Disabled)))
             .ToList();
+    }
+
+    private static int? ResolveFarmListRemainingSeconds(string? timerText, bool disabled)
+    {
+        var seconds = ParseDurationToSeconds(timerText);
+        if (seconds is > 0)
+        {
+            return seconds;
+        }
+
+        // The Start Raid button is disabled while a raid timer is running. If we could not parse
+        // the exact countdown text, still report a running timer so the UI does not show "Ready".
+        return disabled ? 1 : seconds;
     }
 
     private async Task WaitForDispatchLimitToClearAsync(CancellationToken cancellationToken)
@@ -3715,7 +3777,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
     private async Task<ManualAttackSendResult> TrySendManualAttackAsync(
         string troopType,
         int troopIndex,
-        int troopCount,
+        long troopCount,
         int troopVariancePercent,
         int x,
         int y,
@@ -3724,7 +3786,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared before filling manual farming form.", cancellationToken);
         var randomizedTroopCount = ResolveRandomizedTroopCount(troopCount, troopVariancePercent);
-        var minimumAcceptedTroopCount = Math.Max(1, (int)Math.Ceiling(randomizedTroopCount * ManualFarmingMinimumTroopRatio));
+        var minimumAcceptedTroopCount = Math.Max(1L, (long)Math.Ceiling(randomizedTroopCount * ManualFarmingMinimumTroopRatio));
         var fieldToken = $"t{troopIndex}";
         var availableTroopCount = await WaitForAvailableTroopsAsync(fieldToken, troopType, cancellationToken);
         if (availableTroopCount == 0)
@@ -3740,7 +3802,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
         if (availableTroopCount.HasValue)
         {
-            troopCountToSend = (int)Math.Min(randomizedTroopCount, Math.Max(0L, availableTroopCount.Value));
+            troopCountToSend = Math.Min(randomizedTroopCount, Math.Max(0L, availableTroopCount.Value));
             if (troopCountToSend < minimumAcceptedTroopCount)
             {
                 return new ManualAttackSendResult(
@@ -3886,12 +3948,24 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 $"Waiting {ManualFarmingNoTroopsRetryWaitSeconds}s before retry {attempt + 1}/{ManualFarmingNoTroopsRetryAttempts}. " +
                 $"queue_wait_seconds={ManualFarmingNoTroopsRetryWaitSeconds}");
             await Task.Delay(TimeSpan.FromSeconds(ManualFarmingNoTroopsRetryWaitSeconds), cancellationToken);
+
+            // The rally point page goes stale while we wait, so the next ReadAvailableTroopCountAsync
+            // would re-read the old (zero) troop count. Reload so returning troops are picked up.
+            try
+            {
+                await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+                await WaitForNavigationSettledAsync(cancellationToken);
+            }
+            catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+            {
+                Notify("Page navigated while refreshing troop availability. Continuing.");
+            }
         }
 
         return 0;
     }
 
-    private async Task<bool> TryFillTroopInputAsync(string fieldToken, string troopType, int troopCountToSend, CancellationToken cancellationToken)
+    private async Task<bool> TryFillTroopInputAsync(string fieldToken, string troopType, long troopCountToSend, CancellationToken cancellationToken)
     {
         var selectors = new[]
         {
@@ -4124,8 +4198,8 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
     private sealed record ManualAttackSendResult(
         ManualAttackSendStatus Status,
         long AvailableTroopCount,
-        int SentTroopCount,
-        int MinimumAcceptedTroopCount);
+        long SentTroopCount,
+        long MinimumAcceptedTroopCount);
 
     private enum ManualAttackSendStatus
     {
@@ -4155,9 +4229,9 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         };
     }
 
-    private static int ResolveRandomizedTroopCount(int troopCount, int troopVariancePercent)
+    private static long ResolveRandomizedTroopCount(long troopCount, int troopVariancePercent)
     {
-        var normalizedTroopCount = Math.Max(1, troopCount);
+        var normalizedTroopCount = Math.Max(1L, troopCount);
         var normalizedVariancePercent = troopVariancePercent switch
         {
             0 or 5 or 10 or 20 or 50 => troopVariancePercent,
@@ -4169,9 +4243,9 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             return normalizedTroopCount;
         }
 
-        var min = Math.Max(1, (int)Math.Floor(normalizedTroopCount * (100 - normalizedVariancePercent) / 100d));
-        var max = Math.Max(min, (int)Math.Ceiling(normalizedTroopCount * (100 + normalizedVariancePercent) / 100d));
-        return Random.Shared.Next(min, max + 1);
+        var min = Math.Max(1L, (long)Math.Floor(normalizedTroopCount * (100d - normalizedVariancePercent) / 100d));
+        var max = Math.Max(min, (long)Math.Ceiling(normalizedTroopCount * (100d + normalizedVariancePercent) / 100d));
+        return Random.Shared.NextInt64(min, max + 1);
     }
 
     private async Task ClickDetectedUpgradeCandidateAsync(int slotId, int? candidateIndex, CancellationToken cancellationToken)
@@ -4551,6 +4625,9 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
         [JsonPropertyName("timerText")]
         public string? TimerText { get; init; }
+
+        [JsonPropertyName("disabled")]
+        public bool Disabled { get; init; }
     }
 
     private sealed class FarmDispatchLimitStateJs

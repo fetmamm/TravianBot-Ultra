@@ -111,6 +111,21 @@ public sealed partial class TravianClient
                 cancellationToken);
             if (!started)
             {
+                // The demolish form is hidden while a demolition is already running.
+                // Wait for any in-progress demolition to finish, then retry once before giving up.
+                var pending = await WaitForActiveDemolitionToFinishAsync(mainBuildingPath, cancellationToken);
+                if (pending)
+                {
+                    started = await TryStartDemolitionStepAsync(
+                        mainBuildingSlotId: mainSlot.Value,
+                        targetSlotId: slotId,
+                        targetBuildingName: targetBuildingName,
+                        cancellationToken);
+                }
+            }
+
+            if (!started)
+            {
                 return $"Slot {slotId}: could not start demolition (main building page didn't expose a demolish action). Steps: {demolitions}.";
             }
 
@@ -120,20 +135,16 @@ public sealed partial class TravianClient
             }
             catch
             {
-                // Continue — duration read below copes with partial loads.
+                // Continue — the wait loop below copes with partial loads.
             }
 
-            // Read the demolition timer from the queue list on the Main Building page.
-            var durationSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken) ?? 0;
-            var waitMs = ComputePostActionWaitMs(durationSeconds);
             demolitions += 1;
             currentLevel -= 1;
-            Notify($"Slot {slotId}: demolish step {demolitions} queued (was level {currentLevel + 1}). Waiting {waitMs}ms.");
+            Notify($"Slot {slotId}: demolish step {demolitions} queued (was level {currentLevel + 1}). Waiting for it to complete.");
 
-            await Task.Delay(waitMs, cancellationToken);
-
-            // Reload the main building page in place — no detour to dorf2.
-            await ReloadOrGotoAsync(mainBuildingPath, cancellationToken);
+            // Wait for this demolition to actually complete (read its real countdown timer)
+            // before reloading and starting the next level — otherwise the form is unavailable.
+            await WaitForActiveDemolitionToFinishAsync(mainBuildingPath, cancellationToken);
         }
 
         return $"Demolished slot {slotId} from level {originalLevel} to {currentLevel} in {demolitions} step(s).";
@@ -1697,6 +1708,77 @@ public sealed partial class TravianClient
               return true;
             }
             """);
+    }
+
+    // Reads the remaining seconds of an in-progress demolition (or any build queue timer)
+    // from the Main Building page. Travian countdown timers carry a `value` attribute with
+    // the seconds remaining, which is far more reliable than parsing the displayed text.
+    private async Task<int?> ReadActiveDemolitionSecondsOnCurrentPageAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var rawJson = await _page.EvaluateAsync<string>(
+            """
+            () => {
+              const seconds = [];
+              const pushTimer = (node) => {
+                if (!node) return;
+                const attr = node.getAttribute && node.getAttribute('value');
+                const n = attr != null ? Number(attr) : NaN;
+                if (Number.isFinite(n) && n > 0) seconds.push(n);
+              };
+              const containers = document.querySelectorAll(
+                '.buildingList, #building_contract, .underConstruction, .demolish, #demolish, .boxes-contents, .content');
+              for (const c of containers) {
+                for (const t of c.querySelectorAll('.timer, [id^="timer"], [counting="down"]')) {
+                  pushTimer(t);
+                }
+              }
+              return JSON.stringify(seconds);
+            }
+            """);
+
+        var raw = string.IsNullOrWhiteSpace(rawJson)
+            ? new List<int>()
+            : JsonSerializer.Deserialize<List<int>>(rawJson) ?? new List<int>();
+        if (raw.Count == 0)
+        {
+            return null;
+        }
+
+        // The longest timer represents the active demolition/construction we must outlast.
+        return raw.Max();
+    }
+
+    // Polls the Main Building page until no demolition/build countdown remains.
+    // Returns true if a demolition was actually in progress and we waited for it.
+    private async Task<bool> WaitForActiveDemolitionToFinishAsync(string mainBuildingPath, CancellationToken cancellationToken)
+    {
+        const int maxTotalWaitSeconds = 20 * 60; // safety cap
+        const int maxChunkSeconds = 30;
+        var waitedSeconds = 0;
+        var waitedAtLeastOnce = false;
+
+        while (waitedSeconds < maxTotalWaitSeconds)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var remaining = await ReadActiveDemolitionSecondsOnCurrentPageAsync(cancellationToken);
+            if (remaining is not > 0)
+            {
+                return waitedAtLeastOnce;
+            }
+
+            waitedAtLeastOnce = true;
+            var chunk = Math.Min(remaining.Value, maxChunkSeconds);
+            Notify($"Demolition/build in progress (~{remaining.Value}s remaining). Waiting {chunk}s.");
+            await Task.Delay(chunk * 1000 + 500, cancellationToken);
+            waitedSeconds += chunk + 1;
+
+            await ReloadOrGotoAsync(mainBuildingPath, cancellationToken);
+        }
+
+        Notify("Stopped waiting for demolition: safety cap reached.");
+        return waitedAtLeastOnce;
     }
 
     private async Task<IReadOnlyList<Building>> ReadBuildingsAsync(CancellationToken cancellationToken)

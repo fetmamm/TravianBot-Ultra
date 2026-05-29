@@ -216,7 +216,7 @@ public partial class MainWindow
 
                 if (selectedFarmLists.Count > 0)
                 {
-                    var payload = new FarmingPayload(selectedFarmLists, options.ContinuousFarmDispatchDelayMinutes).ToDictionary();
+                    var payload = new FarmingPayload(selectedFarmLists).ToDictionary();
                     _botService.EnqueueRuntime("send_farmlists", "Send selected farmlists", payload, priority: -50, maxRetries: 0);
                 }
             }
@@ -400,6 +400,44 @@ public partial class MainWindow
         await RefreshInboxIndicatorsAsync(logErrors: false, force: true);
     }
 
+    private void MarkContinuousBrowserActivity()
+    {
+        _lastContinuousBrowserActivityUtc = DateTimeOffset.UtcNow;
+    }
+
+    // Keep the Travian page from going stale while the loop is idle-waiting. If no task has
+    // navigated the browser for ContinuousKeepAliveIntervalSeconds, do one real navigation so the
+    // session stays live and the next status read happens on a fresh page. Throttled, so it never
+    // fires more than once per interval — not spammy.
+    private async Task MaybeKeepBrowserFreshDuringContinuousLoopAsync(BotOptions options, CancellationToken token)
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (now - _lastContinuousBrowserActivityUtc < TimeSpan.FromSeconds(ContinuousKeepAliveIntervalSeconds))
+        {
+            return;
+        }
+
+        MarkContinuousBrowserActivity();
+
+        try
+        {
+            await _botService.NavigateToVillageResourceFieldsAsync(
+                options,
+                _ => { },
+                GetSelectedVillageName(),
+                GetSelectedVillageUrl(),
+                token);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Continuous loop keep-alive refresh failed: {ex.Message}");
+        }
+    }
+
     private async Task RunContinuousLoopAsync(CancellationToken token)
     {
         while (!token.IsCancellationRequested)
@@ -432,6 +470,7 @@ public partial class MainWindow
                         $"[LOOP {tickId}]",
                         QueueExecutionMode.ContinuousLoop,
                         token);
+                    MarkContinuousBrowserActivity();
                     if (!shouldContinue)
                     {
                         break;
@@ -440,7 +479,7 @@ public partial class MainWindow
                 else
                 {
                     var waitDelay = ResolveContinuousLoopWaitDelay(loopDelaySeconds);
-                    await WaitForNextContinuousLoopPassAsync(tickId, waitDelay, token);
+                    await WaitForNextContinuousLoopPassAsync(tickId, waitDelay, options, token);
                 }
             }
             catch (OperationCanceledException)
@@ -490,7 +529,7 @@ public partial class MainWindow
         }
     }
 
-    private async Task WaitForNextContinuousLoopPassAsync(long tickId, TimeSpan waitDelay, CancellationToken token)
+    private async Task WaitForNextContinuousLoopPassAsync(long tickId, TimeSpan waitDelay, BotOptions options, CancellationToken token)
     {
         var totalSeconds = Math.Max(1, (int)Math.Ceiling(waitDelay.TotalSeconds));
         AppendLog($"[LOOP {tickId}] WAIT {totalSeconds}s");
@@ -523,6 +562,8 @@ public partial class MainWindow
             {
                 // If checking readiness fails, keep the wait responsive and let the next pass log the real error.
             }
+
+            await MaybeKeepBrowserFreshDuringContinuousLoopAsync(options, token);
 
             var remaining = deadline - DateTimeOffset.UtcNow;
             if (remaining <= TimeSpan.Zero)
