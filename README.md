@@ -5,6 +5,23 @@ fully C# (.NET 8 / WPF). The optional captcha solver is a small Python module.
 
 ---
 
+## Download
+
+Each version on the [Releases](../../releases) page ships two options:
+
+- **Installer** (`TbotUltra-Setup-...exe`) – run the setup file to install the app.
+- **Portable** (`tbot-ultra-win-x64-...-portable.zip`) – no installation: extract the
+  zip and run `TbotUltra.Desktop.exe` inside the folder.
+
+Either way, edit `.env` and `config/` in the app folder before first launch.
+
+**Multiple accounts at once:** with the portable build, extract a separate copy of the
+folder per account (e.g. `Tbot-account1\`, `Tbot-account2\`) and run them at the same
+time — each copy keeps its own config, account, browser session and logs. Don't run two
+instances from the same folder.
+
+---
+
 ## Quick start
 
 - Launch UI: double-click `Start_Tbot.bat` (or `Start_Tbot_UI.vbs`)

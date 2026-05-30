@@ -43,6 +43,7 @@ jobs:
           "tag=v$version" >> $env:GITHUB_OUTPUT
           "package_name=tbot-ultra-win-x64-v$version" >> $env:GITHUB_OUTPUT
           "asset_name=TbotUltra-Setup-win-x64-v$version.exe" >> $env:GITHUB_OUTPUT
+          "portable_name=tbot-ultra-win-x64-v$version-portable.zip" >> $env:GITHUB_OUTPUT
 
       - name: Restore
         run: dotnet restore TbotUltra.sln
@@ -277,22 +278,62 @@ jobs:
             subst $sourceDrive /D | Out-Null
           }
 
+      - name: Create portable zip
+        env:
+          PACKAGE_NAME: ${{ steps.version.outputs.package_name }}
+          PORTABLE_NAME: ${{ steps.version.outputs.portable_name }}
+        shell: pwsh
+        run: |
+          $packageRoot = Join-Path $PWD ("temp_build_out\release\" + $env:PACKAGE_NAME)
+          $outputRoot = Join-Path $PWD "temp_build_out\installer"
+          $zipPath = Join-Path $outputRoot $env:PORTABLE_NAME
+
+          if (-not (Test-Path $packageRoot)) {
+            throw "Portable source folder is missing: $packageRoot"
+          }
+
+          # Drop the verification test image so it does not ship in the portable build.
+          Remove-Item (Join-Path $packageRoot "test.png") -ErrorAction SilentlyContinue
+
+          New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
+          if (Test-Path $zipPath) {
+            Remove-Item $zipPath -Force
+          }
+
+          # Zip the package folder itself so it extracts into a single named folder
+          # (run TbotUltra.Desktop.exe inside it; no installation needed).
+          Compress-Archive -Path $packageRoot -DestinationPath $zipPath -CompressionLevel Optimal
+          if (-not (Test-Path $zipPath)) {
+            throw "Portable zip was not created: $zipPath"
+          }
+
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ steps.version.outputs.tag }}
           VERSION_NUMBER: ${{ steps.version.outputs.version }}
           ASSET_NAME: ${{ steps.version.outputs.asset_name }}
+          PORTABLE_NAME: ${{ steps.version.outputs.portable_name }}
         shell: pwsh
         run: |
           $assetPath = Join-Path $PWD "temp_build_out\installer\$env:ASSET_NAME"
+          $portablePath = Join-Path $PWD "temp_build_out\installer\$env:PORTABLE_NAME"
+
+          if (-not (Test-Path $portablePath)) {
+            throw "Portable zip is missing: $portablePath"
+          }
+
           $notes = @"
           Automated release for version $env:VERSION_NUMBER.
 
-          Download the Windows installer, run it, then update the installed .env and config files with your real settings before you start the app.
+          Two download options:
+          - Installer ($env:ASSET_NAME): run it to install the app, then edit the installed .env and config files with your real settings.
+          - Portable ($env:PORTABLE_NAME): no installation. Extract the zip and run TbotUltra.Desktop.exe inside the folder, then edit .env and config there.
+
+          Tip: for multiple accounts, extract a separate copy of the portable folder per account and run them at the same time. Do not run two instances from the same folder.
           "@
 
-          gh release create $env:TAG_NAME $assetPath `
+          gh release create $env:TAG_NAME $assetPath $portablePath `
             --repo $env:GITHUB_REPOSITORY `
             --target $env:GITHUB_SHA `
             --title "Tbot Ultra $env:VERSION_NUMBER" `
