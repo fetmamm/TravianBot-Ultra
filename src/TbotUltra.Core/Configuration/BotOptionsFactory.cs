@@ -13,8 +13,8 @@ public static class BotOptionsFactory
         var reinforcementSourceVillageNames = configuration.GetSection(BotOptionPayloadKeys.ReinforcementsSourceVillageNames).Get<List<string>>() ?? [];
         var reinforcementTroopRules = NormalizeReinforcementTroopRules(
             configuration.GetSection(BotOptionPayloadKeys.ReinforcementsTroopRules).Get<List<ReinforcementTroopRule>>() ?? []);
-        var continuousFarmDispatchDelayMinutes = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes, 1), 1, 5);
-        var queueWaitThresholdMode = configuration[BotOptionPayloadKeys.QueueWaitThresholdMode] ?? "10";
+        var continuousFarmDispatchDelayMinutes = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes, 3), 1, 5);
+        var queueWaitThresholdMode = configuration[BotOptionPayloadKeys.QueueWaitThresholdMode] ?? "smart";
 
         return new BotOptions
         {
@@ -43,7 +43,7 @@ public static class BotOptionsFactory
             TroopTrainingBarracksMaxQueueHours = configuration[BotOptionPayloadKeys.TroopTrainingBarracksMaxQueueHours] ?? "no_limit",
             TroopTrainingBarracksAmountMode = configuration[BotOptionPayloadKeys.TroopTrainingBarracksAmountMode] ?? "maximum",
             TroopTrainingBarracksKeepResourcesPercent = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.TroopTrainingBarracksKeepResourcesPercent, 10), 0, 95),
-            TroopTrainingBarracksRunMode = configuration[BotOptionPayloadKeys.TroopTrainingBarracksRunMode] ?? "min_troops",
+            TroopTrainingBarracksRunMode = configuration[BotOptionPayloadKeys.TroopTrainingBarracksRunMode] ?? "resource_percent",
             TroopTrainingBarracksMinimumTroops = Math.Max(1, configuration.GetValue(BotOptionPayloadKeys.TroopTrainingBarracksMinimumTroops, 1)),
             TroopTrainingBarracksMinimumResourcesPercent = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.TroopTrainingBarracksMinimumResourcesPercent, 50), 0, 100),
             TroopTrainingBarracksCheckWood = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingBarracksCheckWood, true),
@@ -55,7 +55,7 @@ public static class BotOptionsFactory
             TroopTrainingStableMaxQueueHours = configuration[BotOptionPayloadKeys.TroopTrainingStableMaxQueueHours] ?? "no_limit",
             TroopTrainingStableAmountMode = configuration[BotOptionPayloadKeys.TroopTrainingStableAmountMode] ?? "maximum",
             TroopTrainingStableKeepResourcesPercent = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.TroopTrainingStableKeepResourcesPercent, 10), 0, 95),
-            TroopTrainingStableRunMode = configuration[BotOptionPayloadKeys.TroopTrainingStableRunMode] ?? "min_troops",
+            TroopTrainingStableRunMode = configuration[BotOptionPayloadKeys.TroopTrainingStableRunMode] ?? "resource_percent",
             TroopTrainingStableMinimumTroops = Math.Max(1, configuration.GetValue(BotOptionPayloadKeys.TroopTrainingStableMinimumTroops, 1)),
             TroopTrainingStableMinimumResourcesPercent = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.TroopTrainingStableMinimumResourcesPercent, 50), 0, 100),
             TroopTrainingStableCheckWood = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingStableCheckWood, true),
@@ -67,16 +67,16 @@ public static class BotOptionsFactory
             TroopTrainingWorkshopMaxQueueHours = configuration[BotOptionPayloadKeys.TroopTrainingWorkshopMaxQueueHours] ?? "no_limit",
             TroopTrainingWorkshopAmountMode = configuration[BotOptionPayloadKeys.TroopTrainingWorkshopAmountMode] ?? "maximum",
             TroopTrainingWorkshopKeepResourcesPercent = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopKeepResourcesPercent, 10), 0, 95),
-            TroopTrainingWorkshopRunMode = configuration[BotOptionPayloadKeys.TroopTrainingWorkshopRunMode] ?? "min_troops",
+            TroopTrainingWorkshopRunMode = configuration[BotOptionPayloadKeys.TroopTrainingWorkshopRunMode] ?? "resource_percent",
             TroopTrainingWorkshopMinimumTroops = Math.Max(1, configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopMinimumTroops, 1)),
             TroopTrainingWorkshopMinimumResourcesPercent = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopMinimumResourcesPercent, 50), 0, 100),
             TroopTrainingWorkshopCheckWood = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopCheckWood, true),
             TroopTrainingWorkshopCheckClay = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopCheckClay, true),
             TroopTrainingWorkshopCheckIron = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopCheckIron, true),
             TroopTrainingWorkshopCheckCrop = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopCheckCrop, true),
-            TroopTrainingFallbackCooldownSeconds = ClampTroopTrainingFallbackCooldownSeconds(configuration.GetValue(BotOptionPayloadKeys.TroopTrainingFallbackCooldownSeconds, 30)),
-            NpcTradeEnabled = configuration.GetValue(BotOptionPayloadKeys.NpcTradeEnabled, false),
-            NpcTradeConstructionEnabled = configuration.GetValue(BotOptionPayloadKeys.NpcTradeConstructionEnabled, false),
+            TroopTrainingFallbackCooldownSeconds = ClampTroopTrainingFallbackCooldownSeconds(configuration.GetValue(BotOptionPayloadKeys.TroopTrainingFallbackCooldownSeconds, 120)),
+            NpcTradeEnabled = configuration.GetValue(BotOptionPayloadKeys.NpcTradeEnabled, true),
+            NpcTradeConstructionEnabled = configuration.GetValue(BotOptionPayloadKeys.NpcTradeConstructionEnabled, true),
             NpcTradeThresholdPercent = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.NpcTradeThresholdPercent, 90), 1, 100),
             NpcTradeAnalyzeWood = configuration.GetValue(BotOptionPayloadKeys.NpcTradeAnalyzeWood, true),
             NpcTradeAnalyzeClay = configuration.GetValue(BotOptionPayloadKeys.NpcTradeAnalyzeClay, true),
@@ -101,14 +101,14 @@ public static class BotOptionsFactory
             HumanLikeSpeed = configuration["human_like_speed"] ?? "medium",
             TargetVillageName = configuration[BotOptionPayloadKeys.TargetVillageName] ?? string.Empty,
             TargetVillageUrl = configuration[BotOptionPayloadKeys.TargetVillageUrl] ?? string.Empty,
-            AllowGoldSpending = configuration.GetValue("allow_gold_spending", false),
+            AllowGoldSpending = configuration.GetValue("allow_gold_spending", true),
             AllowSilverSpending = configuration.GetValue("allow_silver_spending", false),
             GoldLimit = configuration.GetValue("gold_limit", 800),
             SilverLimit = configuration.GetValue("silver_limit", 100),
             ResourceUpgradeSlotId = configuration.GetValue<int?>(BotOptionPayloadKeys.ResourceUpgradeSlotId),
             ResourceUpgradeTargetLevel = configuration.GetValue<int?>(BotOptionPayloadKeys.ResourceUpgradeTargetLevel),
             ResourceUpgradeMaxAttempts = configuration.GetValue(BotOptionPayloadKeys.ResourceUpgradeMaxAttempts, 30),
-            ResourceBuildStrategy = configuration[BotOptionPayloadKeys.ResourceBuildStrategy] ?? "lowest_first",
+            ResourceBuildStrategy = configuration[BotOptionPayloadKeys.ResourceBuildStrategy] ?? "smart",
             BuildingUpgradeSlotId = configuration.GetValue<int?>(BotOptionPayloadKeys.BuildingUpgradeSlotId),
             BuildingUpgradeTargetLevel = configuration.GetValue<int?>(BotOptionPayloadKeys.BuildingUpgradeTargetLevel),
             BuildingUpgradeMaxAttempts = configuration.GetValue(BotOptionPayloadKeys.BuildingUpgradeMaxAttempts, 30),

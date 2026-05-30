@@ -12,7 +12,7 @@ public sealed class TroopTrainingBuildingOption : INotifyPropertyChanged
     private string _maxQueueMode = "no_limit";
     private string _amountMode = "maximum";
     private int _keepResourcesPercent = 10;
-    private string _runMode = "min_troops";
+    private string _runMode = "resource_percent";
     private int _minimumTroops = 1;
     private int _minimumResourcesPercent = 50;
     private bool _checkWood = true;

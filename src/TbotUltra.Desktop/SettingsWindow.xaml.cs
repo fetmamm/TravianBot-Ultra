@@ -25,8 +25,8 @@ public partial class SettingsWindow : Window
         HeadlessCheckBox.IsChecked = _config["headless"]?.GetValue<bool>() ?? false;
         HumanLikeCheckBox.IsChecked = _config["human_like_enabled"]?.GetValue<bool>() ?? false;
         AllowSilverSpendingCheckBox.IsChecked = _config["allow_silver_spending"]?.GetValue<bool>() ?? false;
-        SelectQueueWaitThresholdMode(_config[BotOptionPayloadKeys.QueueWaitThresholdMode]?.GetValue<string>() ?? "10");
-        SelectFarmDispatchDelayMinutes(_config[BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes]?.GetValue<int>() ?? 1);
+        SelectQueueWaitThresholdMode(_config[BotOptionPayloadKeys.QueueWaitThresholdMode]?.GetValue<string>() ?? "smart");
+        SelectFarmDispatchDelayMinutes(_config[BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes]?.GetValue<int>() ?? 3);
         PostLoginAnalyzeFarmlistsCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginAnalyzeFarmlists]?.GetValue<bool>() ?? false;
         PostLoginAnalyzeHeroCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginAnalyzeHero]?.GetValue<bool>() ?? false;
         PostLoginReadTroopTrainingQueueCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginReadTroopTrainingQueue]?.GetValue<bool>() ?? false;
@@ -83,8 +83,8 @@ public partial class SettingsWindow : Window
         HeadlessCheckBox.IsChecked = false;
         HumanLikeCheckBox.IsChecked = false;
         AllowSilverSpendingCheckBox.IsChecked = false;
-        SelectQueueWaitThresholdMode("10");
-        SelectFarmDispatchDelayMinutes(1);
+        SelectQueueWaitThresholdMode("smart");
+        SelectFarmDispatchDelayMinutes(3);
         PostLoginAnalyzeFarmlistsCheckBox.IsChecked = false;
         PostLoginAnalyzeHeroCheckBox.IsChecked = false;
         PostLoginReadTroopTrainingQueueCheckBox.IsChecked = false;

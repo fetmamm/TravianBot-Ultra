@@ -13,12 +13,21 @@
   "loop_tasks": [
     "status"
   ],
+  "queue_wait_threshold_mode": "smart",
+  "continuous_farm_dispatch_delay_minutes": 3,
   "github_releases_url": "",
   "human_like_enabled": false,
   "human_like_speed": "slow",
-  "allow_gold_spending": false,
+  "allow_gold_spending": true,
   "allow_silver_spending": false,
   "gold_limit": 800,
   "silver_limit": 100,
+  "npc_trade_enabled": true,
+  "npc_trade_construction_enabled": true,
+  "troop_training_barracks_run_mode": "resource_percent",
+  "troop_training_stable_run_mode": "resource_percent",
+  "troop_training_workshop_run_mode": "resource_percent",
+  "troop_training_fallback_cooldown_seconds": 120,
+  "resource_build_strategy": "smart",
   "natar_village_selection": "farm_villages"
 }

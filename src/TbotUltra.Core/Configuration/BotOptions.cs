@@ -57,10 +57,10 @@ public sealed class BotOptions
     public List<string> ContinuousFarmListNames { get; init; } = [];
 
     [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes)]
-    public int ContinuousFarmDispatchDelayMinutes { get; init; } = 1;
+    public int ContinuousFarmDispatchDelayMinutes { get; init; } = 3;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.QueueWaitThresholdMode)]
-    public string QueueWaitThresholdMode { get; init; } = "10";
+    public string QueueWaitThresholdMode { get; init; } = "smart";
 
     [ConfigurationKeyName(BotOptionPayloadKeys.PostLoginAnalyzeFarmlists)]
     public bool PostLoginAnalyzeFarmlists { get; init; }
@@ -90,7 +90,7 @@ public sealed class BotOptions
     public int TroopTrainingBarracksKeepResourcesPercent { get; init; } = 10;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksRunMode)]
-    public string TroopTrainingBarracksRunMode { get; init; } = "min_troops";
+    public string TroopTrainingBarracksRunMode { get; init; } = "resource_percent";
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksMinimumTroops)]
     public int TroopTrainingBarracksMinimumTroops { get; init; } = 1;
@@ -126,7 +126,7 @@ public sealed class BotOptions
     public int TroopTrainingStableKeepResourcesPercent { get; init; } = 10;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableRunMode)]
-    public string TroopTrainingStableRunMode { get; init; } = "min_troops";
+    public string TroopTrainingStableRunMode { get; init; } = "resource_percent";
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableMinimumTroops)]
     public int TroopTrainingStableMinimumTroops { get; init; } = 1;
@@ -162,7 +162,7 @@ public sealed class BotOptions
     public int TroopTrainingWorkshopKeepResourcesPercent { get; init; } = 10;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopRunMode)]
-    public string TroopTrainingWorkshopRunMode { get; init; } = "min_troops";
+    public string TroopTrainingWorkshopRunMode { get; init; } = "resource_percent";
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopMinimumTroops)]
     public int TroopTrainingWorkshopMinimumTroops { get; init; } = 1;
@@ -183,16 +183,16 @@ public sealed class BotOptions
     public bool TroopTrainingWorkshopCheckCrop { get; init; } = true;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingFallbackCooldownSeconds)]
-    public int TroopTrainingFallbackCooldownSeconds { get; init; } = 30;
+    public int TroopTrainingFallbackCooldownSeconds { get; init; } = 120;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.BreweryAutoCelebrationEnabled)]
     public bool BreweryAutoCelebrationEnabled { get; init; }
 
     [ConfigurationKeyName(BotOptionPayloadKeys.NpcTradeEnabled)]
-    public bool NpcTradeEnabled { get; init; }
+    public bool NpcTradeEnabled { get; init; } = true;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.NpcTradeConstructionEnabled)]
-    public bool NpcTradeConstructionEnabled { get; init; }
+    public bool NpcTradeConstructionEnabled { get; init; } = true;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.NpcTradeThresholdPercent)]
     public int NpcTradeThresholdPercent { get; init; } = 90;
@@ -273,7 +273,7 @@ public sealed class BotOptions
     public string TargetVillageUrl { get; init; } = string.Empty;
 
     [ConfigurationKeyName("allow_gold_spending")]
-    public bool AllowGoldSpending { get; init; }
+    public bool AllowGoldSpending { get; init; } = true;
 
     [ConfigurationKeyName("allow_silver_spending")]
     public bool AllowSilverSpending { get; init; }
@@ -294,7 +294,7 @@ public sealed class BotOptions
     public int ResourceUpgradeMaxAttempts { get; init; } = 30;
 
     [ConfigurationKeyName("resource_build_strategy")]
-    public string ResourceBuildStrategy { get; init; } = "lowest_first"; // "lowest_first" or "smart"
+    public string ResourceBuildStrategy { get; init; } = "smart"; // "lowest_first" or "smart"
 
     [ConfigurationKeyName("building_upgrade_slot_id")]
     public int? BuildingUpgradeSlotId { get; init; }

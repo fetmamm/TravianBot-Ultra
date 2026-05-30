@@ -44,7 +44,7 @@ public sealed class TroopTrainingViewModel : BaseViewModel
     private bool _checkClay = true;
     private bool _checkIron = true;
     private bool _checkCrop = true;
-    private int _fallbackCooldownSeconds = 30;
+    private int _fallbackCooldownSeconds = 120;
     private bool _autoCelebrationEnabled;
     private bool _autoCelebrationExplicitlyConfigured;
     private bool _isAutoCelebrationAvailableForCurrentTribe;
@@ -52,8 +52,8 @@ public sealed class TroopTrainingViewModel : BaseViewModel
     private int? _autoCelebrationRemainingSeconds;
     private string _autoCelebrationStatusText = "Teutons only.";
     private bool _breweryExists;
-    private bool _npcTradeEnabled;
-    private bool _npcTradeConstructionEnabled;
+    private bool _npcTradeEnabled = true;
+    private bool _npcTradeConstructionEnabled = true;
     private int _npcTradeThresholdPercent = 90;
     private bool _npcTradeAnalyzeWood = true;
     private bool _npcTradeAnalyzeClay = true;
@@ -61,7 +61,7 @@ public sealed class TroopTrainingViewModel : BaseViewModel
     private bool _npcTradeAnalyzeCrop = true;
     private bool _npcTradeBuildTimeLimitEnabled = true;
     private int _npcTradeBuildTimeLimitSeconds = 300;
-    private bool _allowGoldSpending;
+    private bool _allowGoldSpending = true;
     private int _goldLimit = 800;
 
     /// <summary>The three building rules shown as rows on the panel.</summary>

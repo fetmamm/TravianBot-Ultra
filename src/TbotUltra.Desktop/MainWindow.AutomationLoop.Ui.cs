@@ -597,11 +597,29 @@ public partial class MainWindow
 
     private static List<string> GetDefaultContinuousLoopGroupOrder()
     {
-        var heroKey = QueueGroupCatalog.GetKey(QueueGroup.Hero);
-        return new[] { heroKey }
+        // Explicit default priority order shown on the dashboard automation loop:
+        // 1 Auto celebration, 2 Hero, then the remaining groups in their existing relative
+        // order, with NPC Trade landing at position 8.
+        var explicitOrder = new[]
+        {
+            QueueGroup.BreweryCelebration,
+            QueueGroup.Hero,
+            QueueGroup.Construction,
+            QueueGroup.Troops,
+            QueueGroup.Farming,
+            QueueGroup.TroopTraining,
+            QueueGroup.ResourceTransfer,
+            QueueGroup.NpcTrade,
+            QueueGroup.Reinforcements,
+        };
+
+        return explicitOrder
+            .Select(QueueGroupCatalog.GetKey)
+            // Append any group not covered above (defensive against future additions).
             .Concat(QueueGroupCatalog.AllGroups
-                .Select(QueueGroupCatalog.GetKey)
-                .Where(key => !string.Equals(key, heroKey, StringComparison.OrdinalIgnoreCase)))
+                .Where(group => !explicitOrder.Contains(group))
+                .Select(QueueGroupCatalog.GetKey))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
 
