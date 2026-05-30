@@ -24,12 +24,10 @@ namespace TbotUltra.Desktop.ViewModels;
 public sealed class ResourcesViewModel : BaseViewModel
 {
     private const string NotFillingText = "Not filling";
-    private static readonly TimeSpan LiveForecastUpdateInterval = TimeSpan.FromSeconds(1);
     private static readonly Brush FullBrush = (Brush)new BrushConverter().ConvertFromString("#B91C1C")!;
     private static readonly Brush DefaultBrush = (Brush)new BrushConverter().ConvertFromString("#111827")!;
     private Dictionary<string, ResourceStorageForecast> _baseForecasts = new(StringComparer.OrdinalIgnoreCase);
     private DateTimeOffset? _baseForecastCapturedAtUtc;
-    private DateTimeOffset _lastLiveForecastUiUpdateUtc = DateTimeOffset.MinValue;
     private readonly Dictionary<int, int> _pendingTargetBySlot = new();
     private List<ResourceFieldRow> _allFields = [];
 
@@ -183,12 +181,19 @@ public sealed class ResourcesViewModel : BaseViewModel
 
         _baseForecasts = forecasts;
         _baseForecastCapturedAtUtc = DateTimeOffset.UtcNow;
-        _lastLiveForecastUiUpdateUtc = DateTimeOffset.MinValue;
 
-        foreach (var bar in StorageBars)
+        // Don't render the freshly-read values here. Doing so updates the bars off the 1s clock
+        // beat (at the random moment a function re-reads real resources), which makes the storage
+        // counters visibly "blip". Instead we only refresh the extrapolation base above and let the
+        // next regular TickLiveForecasts() render it, so the counters keep advancing on a steady
+        // once-per-second cadence. When there is no forecast data we still render immediately to
+        // clear the bars, since TickLiveForecasts() no-ops on an empty base.
+        if (forecasts.Count == 0)
         {
-            forecasts.TryGetValue(bar.ResourceKey, out var forecast);
-            ApplyForecast(bar, forecast);
+            foreach (var bar in StorageBars)
+            {
+                ApplyForecast(bar, null);
+            }
         }
     }
 
@@ -196,7 +201,6 @@ public sealed class ResourcesViewModel : BaseViewModel
     {
         _baseForecasts = new Dictionary<string, ResourceStorageForecast>(StringComparer.OrdinalIgnoreCase);
         _baseForecastCapturedAtUtc = null;
-        _lastLiveForecastUiUpdateUtc = DateTimeOffset.MinValue;
         foreach (var bar in StorageBars)
         {
             ApplyForecast(bar, null);
@@ -210,21 +214,18 @@ public sealed class ResourcesViewModel : BaseViewModel
             return;
         }
 
+        // No self-throttle here: the caller is the 1s clock timer. A "< 1s since last update"
+        // guard caused drift — timer jitter (a tick landing ~0.98s after the previous update)
+        // skipped that tick, so storage counters advanced every other second instead of every
+        // second. The extrapolation below is idempotent (computed from a fixed base time), so it
+        // is safe and cheap to run on every clock tick.
         var nowUtc = DateTimeOffset.UtcNow;
-        if (_lastLiveForecastUiUpdateUtc != DateTimeOffset.MinValue
-            && nowUtc - _lastLiveForecastUiUpdateUtc < LiveForecastUpdateInterval)
-        {
-            return;
-        }
-
         var elapsedSeconds = Math.Max(0d, (nowUtc - _baseForecastCapturedAtUtc.Value).TotalSeconds);
         foreach (var bar in StorageBars)
         {
             _baseForecasts.TryGetValue(bar.ResourceKey, out var forecast);
             ApplyForecast(bar, ExtrapolateForecast(forecast, elapsedSeconds));
         }
-
-        _lastLiveForecastUiUpdateUtc = nowUtc;
     }
 
     /// <summary>
