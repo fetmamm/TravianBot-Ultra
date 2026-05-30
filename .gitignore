@@ -1,21 +1,37 @@
+# --- Secrets / accounts (never commit) ---
 .env
 config/accounts.json
+/config/accounts
+
+# --- Per-account / runtime working data (keep the repo empty for new users) ---
+config/bot.json
+config/queue.json
+config/queue.json.lock
+config/servers.user.json
+config/account-analysis/
+config/cache/
+
+# --- Python (captcha trainer) ---
 .venv/
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# --- Playwright / browser auth ---
 playwright/.auth/
 ms-playwright/
+
+# --- Build output / logs / temp / IDE ---
+**/bin/
+**/obj/
 logs/
 temp_build_out/
+artifacts/
+.vs/
 **/debug_output/
 **/dataset_quarantine/
 **/review_dataset/
-**/bin/
-**/obj/
-.claude/worktrees/kind-cori-d469bc/
+
+# --- Claude tooling ---
 /.claude
-config/queue.json
-/config/accounts
-config/queue.json
-config/bot.json
+.claude/worktrees/kind-cori-d469bc/
