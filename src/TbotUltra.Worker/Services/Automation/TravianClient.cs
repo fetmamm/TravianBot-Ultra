@@ -49,11 +49,14 @@ public sealed partial class TravianClient
     private DateTimeOffset? _serverTimeUtc;
     private DateTimeOffset _lastManualVerificationScreenshotAt = DateTimeOffset.MinValue;
     private string? _cachedTribe;
-    private bool? _cachedTravianPlusActive;
-    private DateTimeOffset _cachedTribePlusAt = DateTimeOffset.MinValue;
+    private readonly TravianSessionCache _session;
     private static readonly TimeSpan TribePlusCacheTtl = TimeSpan.FromMinutes(10);
-    private bool? _cachedGoldClubEnabled;
-    private string? _sessionTribe;
+    // These caches are backed by the shared session cache (_session) so they survive across the
+    // short-lived TravianClient instances created per operation for the same browser session.
+    private bool? _cachedTravianPlusActive { get => _session.CachedTravianPlusActive; set => _session.CachedTravianPlusActive = value; }
+    private DateTimeOffset _cachedTribePlusAt { get => _session.CachedTribePlusAt; set => _session.CachedTribePlusAt = value; }
+    private bool? _cachedGoldClubEnabled { get => _session.CachedGoldClubEnabled; set => _session.CachedGoldClubEnabled = value; }
+    private string? _sessionTribe { get => _session.SessionTribe; set => _session.SessionTribe = value; }
 
     // Short-lived cache for ReadActiveConstructionsAsync. Upgrade-loop iterations make 4-5
     // calls within a few hundred ms (pre-click checks); this collapses them into one network
@@ -101,9 +104,10 @@ public sealed partial class TravianClient
     // True once the population baseline has been read from spieler.php this session. Re-armed (set
     // false) on a real village switch so the next active village can seed its own baseline.
     private bool _populationBaselineRead;
-    private DateTimeOffset _lastEnsureLoggedInAt = DateTimeOffset.MinValue;
+    // Backed by the shared session cache so the logged-in throttle survives across per-operation clients.
+    private DateTimeOffset _lastEnsureLoggedInAt { get => _session.LastEnsureLoggedInAt; set => _session.LastEnsureLoggedInAt = value; }
     private DateTimeOffset _lastUiSyncAt = DateTimeOffset.MinValue;
-    private bool _lastEnsureLoggedInSucceeded;
+    private bool _lastEnsureLoggedInSucceeded { get => _session.LastEnsureLoggedInSucceeded; set => _session.LastEnsureLoggedInSucceeded = value; }
     private static readonly object NatarCacheSync = new();
     private static readonly Dictionary<string, List<NatarCoordinateJs>> CachedNatarCoordinatesByAccount = new(StringComparer.OrdinalIgnoreCase);
 
@@ -123,13 +127,17 @@ public sealed partial class TravianClient
         bool browserVisible = true,
         string? projectRoot = null,
         ICaptchaAutoSolver? captchaAutoSolver = null,
-        Action<string>? statusCallback = null)
+        Action<string>? statusCallback = null,
+        TravianSessionCache? sessionCache = null)
     {
         _page = page;
         _config = config;
         _account = account;
         _interactive = interactive;
         _browserVisible = browserVisible;
+        // Shared across per-operation clients for the same browser session; falls back to a fresh
+        // private cache when none is supplied (e.g. in tests).
+        _session = sessionCache ?? new TravianSessionCache();
         _projectRoot = string.IsNullOrWhiteSpace(projectRoot)
             ? Directory.GetCurrentDirectory()
             : projectRoot;

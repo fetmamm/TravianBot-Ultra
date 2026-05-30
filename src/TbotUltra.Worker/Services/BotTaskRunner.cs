@@ -60,6 +60,9 @@ public sealed class BotTaskRunner
     private IPage? _sharedVisiblePage;
     private string? _sharedVisibleAccountName;
     private string? _sharedVisibleBaseUrl;
+    // Session-scoped cache shared by every TravianClient created for the shared visible browser, so
+    // feature signals (Plus/GoldClub/tribe) and the logged-in throttle survive across operations.
+    private TravianSessionCache _sharedVisibleSessionCache = new();
     private int _browserClosedByUserSignal;
 
     public BotTaskRunner(IAccountProvider accountProvider, ProjectContext projectContext, ICaptchaAutoSolver captchaAutoSolver)
@@ -1130,6 +1133,7 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
                 _sharedVisiblePage = null;
                 _sharedVisibleAccountName = null;
                 _sharedVisibleBaseUrl = null;
+                _sharedVisibleSessionCache = new TravianSessionCache();
             }
         }
         finally
@@ -1215,10 +1219,12 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             _sharedVisiblePage = page;
             _sharedVisibleAccountName = account.Name;
             _sharedVisibleBaseUrl = desiredBaseUrl;
+            // Fresh browser/account => start a clean session cache so no stale signals carry over.
+            _sharedVisibleSessionCache = new TravianSessionCache();
             log("Opened shared browser window.");
         }
 
-        var sharedClient = CreateClient(_sharedVisiblePage!, options, account, interactive, log);
+        var sharedClient = CreateClient(_sharedVisiblePage!, options, account, interactive, log, _sharedVisibleSessionCache);
         return new ClientLease(_sharedVisibleSession!, sharedClient, true);
     }
 
@@ -1232,7 +1238,8 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
         BotOptions options,
         AccountOptions account,
         bool interactive,
-        Action<string> log)
+        Action<string> log,
+        TravianSessionCache? sessionCache = null)
     {
         return new TravianClient(
             page,
@@ -1242,7 +1249,8 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             browserVisible: !options.Headless,
             projectRoot: _projectContext.RootPath,
             captchaAutoSolver: _captchaAutoSolver,
-            statusCallback: log);
+            statusCallback: log,
+            sessionCache: sessionCache);
     }
 
     private async Task FinalizeLeaseAsync(ClientLease lease, Action<string> log)
