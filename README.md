@@ -13,7 +13,8 @@ Each version on the [Releases](../../releases) page ships two options:
 - **Portable** (`tbot-ultra-win-x64-...-portable.zip`) – no installation: extract the
   zip and run `TbotUltra.Desktop.exe` inside the folder.
 
-Either way, edit `.env` and `config/` in the app folder before first launch.
+Set up your account and server inside the app (**Account → Manage**) — no manual editing
+of `.env` or `config/` files is needed.
 
 **Multiple accounts at once:** with the portable build, extract a separate copy of the
 folder per account (e.g. `Tbot-account1\`, `Tbot-account2\`) and run them at the same

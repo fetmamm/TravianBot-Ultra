@@ -327,8 +327,10 @@ jobs:
           Automated release for version $env:VERSION_NUMBER.
 
           Two download options:
-          - Installer ($env:ASSET_NAME): run it to install the app, then edit the installed .env and config files with your real settings.
-          - Portable ($env:PORTABLE_NAME): no installation. Extract the zip and run TbotUltra.Desktop.exe inside the folder, then edit .env and config there.
+          - Installer ($env:ASSET_NAME): run it to install the app, then start it.
+          - Portable ($env:PORTABLE_NAME): no installation. Extract the zip and run TbotUltra.Desktop.exe inside the folder.
+
+          Set up your account and server inside the app (Account -> Manage). No manual editing of .env or config files is needed.
 
           Tip: for multiple accounts, extract a separate copy of the portable folder per account and run them at the same time. Do not run two instances from the same folder.
           "@
