@@ -70,7 +70,7 @@
                         <TextBlock x:Name="ActiveAccountInfoTextBlock"
                                    Margin="0,6,0,0"
                                    Foreground="#4B5563"
-                                    Text="Account: - | Server: -" />
+                                    Text="-" />
                     </StackPanel>
                 </Border>
 

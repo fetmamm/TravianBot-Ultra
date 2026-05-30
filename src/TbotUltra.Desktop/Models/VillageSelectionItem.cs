@@ -52,19 +52,8 @@ public sealed class VillageSelectionItem
                 parts.Add(CoordsText);
             }
 
-            if (CropFields.HasValue && Population.HasValue)
-            {
-                parts.Add($"{CropFields.Value}c - {Population.Value}");
-            }
-            else if (CropFields.HasValue)
-            {
-                parts.Add($"{CropFields.Value}c");
-            }
-            else if (Population.HasValue)
-            {
-                parts.Add(Population.Value.ToString());
-            }
-
+            // Population/crop fields are intentionally omitted here: the village dropdown shows
+            // only the village name and coordinates.
             return string.Join(" ", parts);
         }
     }

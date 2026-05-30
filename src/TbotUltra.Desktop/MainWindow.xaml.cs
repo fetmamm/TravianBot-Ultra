@@ -3189,7 +3189,61 @@ public partial class MainWindow : Window
 
     private void UpdateAccountInfoLabel(string accountName)
     {
-        ActiveAccountInfoTextBlock.Text = $"Account: {accountName} | Server: {ExtractServerSpeedLabel()}";
+        // Show only the username and a compact server-speed label (e.g. "slangen | 1M").
+        var username = accountName;
+        string? serverName = null;
+        try
+        {
+            var account = _accountStore
+                .ListAccounts()
+                .FirstOrDefault(item => string.Equals(item.Name, accountName, StringComparison.OrdinalIgnoreCase));
+            if (account is not null)
+            {
+                if (!string.IsNullOrWhiteSpace(account.Username))
+                {
+                    username = account.Username;
+                }
+
+                serverName = account.ServerName;
+            }
+        }
+        catch
+        {
+            // Fall back to the raw account name / configured server below.
+        }
+
+        var serverLabel = AbbreviateServerSpeed(serverName ?? LoadBotOptions().ServerName);
+        ActiveAccountInfoTextBlock.Text = string.IsNullOrWhiteSpace(serverLabel) || serverLabel == "-"
+            ? username
+            : $"{username} | {serverLabel}";
+    }
+
+    // Compacts a server-speed string into a short label: 1000000x -> "1M", 50000x -> "50K",
+    // 10x -> "10x". Returns "-" when no speed can be parsed.
+    private static string AbbreviateServerSpeed(string? serverName)
+    {
+        if (string.IsNullOrWhiteSpace(serverName))
+        {
+            return "-";
+        }
+
+        var match = Regex.Match(serverName, @"(\d+)\s*[xX]");
+        if (!match.Success || !long.TryParse(match.Groups[1].Value, out var speed) || speed <= 0)
+        {
+            return "-";
+        }
+
+        if (speed >= 1_000_000)
+        {
+            return $"{(speed / 1_000_000d):0.##}M";
+        }
+
+        if (speed >= 1_000)
+        {
+            return $"{(speed / 1_000d):0.##}K";
+        }
+
+        return $"{speed}x";
     }
 
     private void HeroViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
