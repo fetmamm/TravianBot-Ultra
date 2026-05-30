@@ -135,6 +135,8 @@ public static class LogClassifier
             "[population]",
             "start interval=",
             "resource production update",
+            "readcurrentpageresourceproductionperhourasync",
+            "[upgradeallresourcestolevelasync]",
             "actionability=",
             "already meets",
             "not actionable",

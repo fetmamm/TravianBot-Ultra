@@ -53,11 +53,25 @@ public partial class MainWindow
         _buildingClickCooldownBySlot.Clear();
         EnqueueQuickTask("load_buildings_snapshot", "Load buildings snapshot");
 
-        // Queue upgrade-to-max for every building slot 19-40. Each task self-validates and skips
-        // empty / already-max slots, so we don't need a perfectly fresh snapshot here — the load
-        // task above will refresh the UI before/while these run.
+        // Pre-filter using the currently loaded snapshot so we don't queue a full upgrade_building_to_max
+        // task (each one is a costly navigation tick) for slots that are empty or already at max level.
+        // Only occupied-but-not-maxed buildings (and pending constructions) are worth queueing. Each task
+        // still self-validates when it runs, so a slightly stale snapshot can't cause a wrong upgrade.
+        // Fallback: if no snapshot is loaded yet, queue all slots 19-40 (previous behaviour).
+        var candidateSlots = _buildingRows
+            .Where(row => row.SlotId is >= 19 and <= 40)
+            .Where(row => (row.IsOccupied && !row.IsMaxLevel) || row.HasPendingConstruct)
+            .Select(row => row.SlotId)
+            .Distinct()
+            .OrderBy(slotId => slotId)
+            .ToList();
+
+        var slotsToQueue = candidateSlots.Count > 0
+            ? candidateSlots
+            : (_buildingRows.Count == 0 ? Enumerable.Range(19, 22).ToList() : candidateSlots);
+
         var queued = 0;
-        foreach (var slotId in Enumerable.Range(19, 22))
+        foreach (var slotId in slotsToQueue)
         {
             var payload = new BuildingUpgradePayload(slotId).ToDictionary();
             EnqueueQuickTask(
@@ -65,6 +79,13 @@ public partial class MainWindow
                 $"Upgrade slot {slotId} to max",
                 payload);
             queued++;
+        }
+
+        if (queued == 0)
+        {
+            BuildingsInfoTextBlock.Text = "No upgradeable buildings: every slot is empty or already at max.";
+            AppendLog("Upgrade-all-to-max: nothing to queue (all slots empty or maxed).");
+            return;
         }
 
         BuildingsInfoTextBlock.Text = $"Queued load + upgrade-to-max for {queued} slot(s).";

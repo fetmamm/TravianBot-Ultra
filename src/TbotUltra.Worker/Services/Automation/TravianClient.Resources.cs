@@ -286,7 +286,6 @@ public sealed partial class TravianClient
         }
 
         var upgrades = 0;
-        var knownLevelsBySlot = new Dictionary<int, int>();
         var transientRetries = 0;
         int? currentTransientSlot = null;
         var constructionNpcTradeAttempted = false;
@@ -300,8 +299,9 @@ public sealed partial class TravianClient
                     cancellationToken,
                     "Manual verification appeared while reading resource fields.");
                 var resourceFields = await ReadResourceFieldsAsync(cancellationToken);
-                NotifyResourceLevelIncreases(knownLevelsBySlot, resourceFields);
-                knownLevelsBySlot = BuildResourceLevelMap(resourceFields);
+                // Note: each successful upgrade is already announced by WaitForResourceLevelAdvanceAsync
+                // at the moment the level advances. We deliberately do NOT diff levels again here, as
+                // that produced a duplicate "Resource slot N level increased ..." line per upgrade.
                 var fallbackMax = 40;
                 var actionableFields = resourceFields
                     .Where(field => field.SlotId is not null && field.Level is not null);
@@ -539,45 +539,6 @@ public sealed partial class TravianClient
                     Notify($"Upgrade-all hit transient navigation context ({transientRetries}/8). Retrying...");
                 }
                 await Task.Delay(300 * transientRetries, cancellationToken);
-            }
-        }
-    }
-
-    private static Dictionary<int, int> BuildResourceLevelMap(IReadOnlyList<ResourceField> fields)
-    {
-        var map = new Dictionary<int, int>();
-        foreach (var field in fields)
-        {
-            if (field.SlotId is not int slotId || field.Level is not int level)
-            {
-                continue;
-            }
-
-            map[slotId] = level;
-        }
-
-        return map;
-    }
-
-    private void NotifyResourceLevelIncreases(
-        IReadOnlyDictionary<int, int> knownLevelsBySlot,
-        IReadOnlyList<ResourceField> currentFields)
-    {
-        foreach (var field in currentFields)
-        {
-            if (field.SlotId is not int slotId || field.Level is not int currentLevel)
-            {
-                continue;
-            }
-
-            if (!knownLevelsBySlot.TryGetValue(slotId, out var previousLevel))
-            {
-                continue;
-            }
-
-            if (currentLevel > previousLevel)
-            {
-                Notify($"Resource slot {slotId} level increased from {previousLevel} to {currentLevel}.");
             }
         }
     }
