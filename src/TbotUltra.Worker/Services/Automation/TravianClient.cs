@@ -95,15 +95,18 @@ public sealed partial class TravianClient
     private static readonly object HeroAttributeSnapshotCacheSync = new();
     private static readonly Dictionary<string, CachedVillageResourceSnapshot> CachedVillageResourceSnapshotsByKey = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, HeroAttributeSnapshot> CachedHeroAttributeSnapshotsByKey = new(StringComparer.OrdinalIgnoreCase);
-    private List<Village>? _cachedVillages;
-    private DateTimeOffset _cachedVillagesAt = DateTimeOffset.MinValue;
+    // Villages list + population cache are backed by the shared session cache (_session) so the
+    // spieler.php read survives across the per-operation clients (no duplicate startup navigation)
+    // and the population baseline persists between operations.
+    private List<Village>? _cachedVillages { get => _session.CachedVillages; set => _session.CachedVillages = value; }
+    private DateTimeOffset _cachedVillagesAt { get => _session.CachedVillagesAt; set => _session.CachedVillagesAt = value; }
     // Tracks whether the villages list was read from the server (spieler.php) WITH population.
     // Reset to MinValue on a real village switch to force the next ReadVillagesAsync to re-read
     // population from spieler; otherwise the cache (kept current by incremental updates) is served.
-    private DateTimeOffset _cachedVillagesPopulationAt = DateTimeOffset.MinValue;
+    private DateTimeOffset _cachedVillagesPopulationAt { get => _session.CachedVillagesPopulationAt; set => _session.CachedVillagesPopulationAt = value; }
     // True once the population baseline has been read from spieler.php this session. Re-armed (set
     // false) on a real village switch so the next active village can seed its own baseline.
-    private bool _populationBaselineRead;
+    private bool _populationBaselineRead { get => _session.PopulationBaselineRead; set => _session.PopulationBaselineRead = value; }
     // Backed by the shared session cache so the logged-in throttle survives across per-operation clients.
     private DateTimeOffset _lastEnsureLoggedInAt { get => _session.LastEnsureLoggedInAt; set => _session.LastEnsureLoggedInAt = value; }
     private DateTimeOffset _lastUiSyncAt = DateTimeOffset.MinValue;
