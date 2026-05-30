@@ -94,6 +94,13 @@ public sealed partial class TravianClient
     private static readonly Dictionary<string, HeroAttributeSnapshot> CachedHeroAttributeSnapshotsByKey = new(StringComparer.OrdinalIgnoreCase);
     private List<Village>? _cachedVillages;
     private DateTimeOffset _cachedVillagesAt = DateTimeOffset.MinValue;
+    // Tracks whether the villages list was read from the server (spieler.php) WITH population.
+    // Reset to MinValue on a real village switch to force the next ReadVillagesAsync to re-read
+    // population from spieler; otherwise the cache (kept current by incremental updates) is served.
+    private DateTimeOffset _cachedVillagesPopulationAt = DateTimeOffset.MinValue;
+    // True once the population baseline has been read from spieler.php this session. Re-armed (set
+    // false) on a real village switch so the next active village can seed its own baseline.
+    private bool _populationBaselineRead;
     private DateTimeOffset _lastEnsureLoggedInAt = DateTimeOffset.MinValue;
     private DateTimeOffset _lastUiSyncAt = DateTimeOffset.MinValue;
     private bool _lastEnsureLoggedInSucceeded;
@@ -428,6 +435,10 @@ public sealed partial class TravianClient
             {
                 _cachedVillages = villages.ToList();
                 _cachedVillagesAt = DateTimeOffset.UtcNow;
+                if (villages.Any(v => v.Population.HasValue))
+                {
+                    _cachedVillagesPopulationAt = DateTimeOffset.UtcNow;
+                }
             }
         }
         else
@@ -931,6 +942,10 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         var activeVillageAfterSwitch = await TryReadActiveVillageNameSafeAsync(cancellationToken);
         if (!string.Equals(activeVillageBeforeSwitch, activeVillageAfterSwitch, StringComparison.OrdinalIgnoreCase))
         {
+            // Force the next villages read to navigate to spieler.php so the UI village list
+            // reflects up-to-date population after a switch (e.g. after building elsewhere).
+            _cachedVillagesPopulationAt = DateTimeOffset.MinValue;
+            _populationBaselineRead = false;
             await RefreshCapitalStateForActiveVillageAsync(cancellationToken);
         }
 
@@ -1118,10 +1133,10 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         await TryEmitUiSyncSnapshotAsync(cancellationToken);
     }
 
-    private async Task TryEmitUiSyncSnapshotAsync(CancellationToken cancellationToken)
+    private async Task TryEmitUiSyncSnapshotAsync(CancellationToken cancellationToken, bool force = false)
     {
         var now = DateTimeOffset.UtcNow;
-        if ((now - _lastUiSyncAt) < UiSyncMinInterval)
+        if (!force && (now - _lastUiSyncAt) < UiSyncMinInterval)
         {
             return;
         }
@@ -1990,8 +2005,13 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
     private async Task<IReadOnlyList<Village>> ReadVillagesAsync(CancellationToken cancellationToken)
     {
         Notify("[ReadVillagesAsync] started");
-        if (_cachedVillages is { Count: > 0 } cached
-            && DateTimeOffset.UtcNow - _cachedVillagesAt < VillagesCacheTtl)
+        // Only navigate to spieler.php when the population cache has been explicitly invalidated
+        // (i.e. on a real village switch, where SwitchToVillageAsync resets the timestamp to
+        // MinValue). Otherwise serve the cache: lightweight sidebar reads and incremental
+        // population updates keep it current without an expensive spieler navigation. This means
+        // resource ticks / ui-sync no longer trigger a spieler read.
+        var populationInvalidated = _cachedVillagesPopulationAt == DateTimeOffset.MinValue;
+        if (_cachedVillages is { Count: > 0 } cached && !populationInvalidated)
         {
             return cached;
         }
@@ -2001,6 +2021,10 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         {
             _cachedVillages = villages.ToList();
             _cachedVillagesAt = DateTimeOffset.UtcNow;
+            if (villages.Any(v => v.Population.HasValue))
+            {
+                _cachedVillagesPopulationAt = DateTimeOffset.UtcNow;
+            }
         }
         Notify("[ReadVillagesAsync] finished");
         return villages;
@@ -4341,6 +4365,129 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
         // Prefer the shortest detected upgrade timer; first-hit can be an unrelated countdown.
         return candidateSeconds.Min();
+    }
+
+    // Reads the population increase the current build/upgrade page will grant, from the
+    // ".culturePointsAndPopulation" panel: the ".unit" whose icon is "population_medium" carries
+    // a ".delta" like "(+3)". Returns null when the panel/value is absent (e.g. at max level).
+    private async Task<int?> ReadUpgradePopulationDeltaOnCurrentPageAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        string? deltaText;
+        try
+        {
+            deltaText = await _page.EvaluateAsync<string?>(
+                """
+                () => {
+                  const units = document.querySelectorAll('.culturePointsAndPopulation .unit');
+                  for (const unit of units) {
+                    if (unit.querySelector('i.population_medium')) {
+                      const delta = unit.querySelector('.delta');
+                      return delta ? delta.textContent : null;
+                    }
+                  }
+                  return null;
+                }
+                """);
+        }
+        catch (Exception ex)
+        {
+            Notify($"[ReadUpgradePopulationDeltaOnCurrentPageAsync] read failed: {ex.Message}");
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(deltaText))
+        {
+            return null;
+        }
+
+        // Strip everything but sign and digits (the markup carries invisible bidi marks).
+        var cleaned = new string(deltaText.Where(c => char.IsDigit(c) || c == '-').ToArray());
+        if (string.IsNullOrEmpty(cleaned) || cleaned == "-")
+        {
+            return null;
+        }
+
+        return int.TryParse(cleaned, out var value) ? value : null;
+    }
+
+    // Adds a population delta to the active village in the cache so the UI village list reflects a
+    // just-queued upgrade. The incremental add needs a baseline population to add onto. That baseline
+    // comes from spieler.php and is read at most ONCE per session here (gated on _populationBaselineRead),
+    // never per upgrade. On a real village switch SwitchToVillageAsync re-arms this so the next active
+    // village seeds its own baseline. This keeps spieler navigations to: session start + village switch.
+    private async Task AddPopulationToActiveVillageCacheAsync(int delta, CancellationToken cancellationToken)
+    {
+        if (delta == 0 || _cachedVillages is not { Count: > 0 })
+        {
+            return;
+        }
+
+        string activeName;
+        try
+        {
+            activeName = await ReadActiveVillageNameAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            Notify($"[AddPopulationToActiveVillageCacheAsync] could not read active village: {ex.Message}");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(activeName))
+        {
+            return;
+        }
+
+        // Seed the baseline once if the active village has no cached population yet. Without this the
+        // incremental add has nothing to add onto and the UI never updates.
+        var hasBaseline = _cachedVillages.Any(v =>
+            string.Equals(v.Name, activeName, StringComparison.Ordinal) && v.Population.HasValue);
+        if (!hasBaseline && !_populationBaselineRead)
+        {
+            Notify($"[population] no baseline for '{activeName}', reading spieler.php once this session to seed it.");
+            _populationBaselineRead = true;
+            try
+            {
+                var serverVillages = await ReadVillagesFromServerAsync(cancellationToken);
+                if (serverVillages.Count > 0)
+                {
+                    _cachedVillages = serverVillages.ToList();
+                    _cachedVillagesAt = DateTimeOffset.UtcNow;
+                    if (serverVillages.Any(v => v.Population.HasValue))
+                    {
+                        _cachedVillagesPopulationAt = DateTimeOffset.UtcNow;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Notify($"[population] baseline spieler read failed: {ex.Message}");
+                return;
+            }
+        }
+
+        var updated = false;
+        var list = _cachedVillages.ToList();
+        for (var i = 0; i < list.Count; i++)
+        {
+            if (string.Equals(list[i].Name, activeName, StringComparison.Ordinal)
+                && list[i].Population is int currentPop)
+            {
+                list[i] = list[i] with { Population = currentPop + delta };
+                updated = true;
+                break;
+            }
+        }
+
+        if (updated)
+        {
+            _cachedVillages = list;
+            Notify($"[population] active village '{activeName}' population +{delta} (UI cache updated).");
+            // Push the new population to the UI immediately (bypass the 20s ui-sync throttle) so the
+            // "Villages" box reflects each upgrade as it completes. Cheap: reads the current page only.
+            await TryEmitUiSyncSnapshotAsync(cancellationToken, force: true);
+        }
     }
 
     private async Task CaptureFailureArtifactsAsync(string label, CancellationToken cancellationToken)

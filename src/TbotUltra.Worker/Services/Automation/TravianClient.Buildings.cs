@@ -214,6 +214,8 @@ public sealed partial class TravianClient
 
             // Step 4: read the upgrade duration so we know how long to wait.
             var durationSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken) ?? 0;
+            // Read the population increase this level grants before clicking (page changes after).
+            var populationDelta = await ReadUpgradePopulationDeltaOnCurrentPageAsync(cancellationToken);
 
             // Step 5: click the "Upgrade to level N" button.
             var clicked = await ClickUpgradeToLevelButtonAsync(nextLevel, cancellationToken);
@@ -264,6 +266,10 @@ public sealed partial class TravianClient
             }
 
             upgrades += 1;
+            if (populationDelta is int popDelta)
+            {
+                await AddPopulationToActiveVillageCacheAsync(popDelta, cancellationToken);
+            }
             await WaitForPostUpgradeClickPageLoadAsync(cancellationToken);
             var postClickWaitSeconds = await ReadQueuedBuildingWaitSecondsAsync(buildingName, durationSeconds, cancellationToken);
             transientRetries = 0;
@@ -754,6 +760,8 @@ public sealed partial class TravianClient
 
             // Step 4: read upgrade duration so we know how long to wait.
             var durationSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken) ?? 0;
+            // Read the population increase this level grants before clicking (page changes after).
+            var populationDelta = await ReadUpgradePopulationDeltaOnCurrentPageAsync(cancellationToken);
 
             // Step 5: click "Upgrade to level N".
             var clicked = await ClickUpgradeToLevelButtonAsync(nextLevel, cancellationToken);
@@ -804,6 +812,10 @@ public sealed partial class TravianClient
             }
 
             upgrades += 1;
+            if (populationDelta is int popDelta)
+            {
+                await AddPopulationToActiveVillageCacheAsync(popDelta, cancellationToken);
+            }
             await WaitForPostUpgradeClickPageLoadAsync(cancellationToken);
             var postClickWaitSeconds = await ReadQueuedBuildingWaitSecondsAsync(buildingName, durationSeconds, cancellationToken);
             transientRetries = 0;
@@ -900,6 +912,8 @@ public sealed partial class TravianClient
 
             // Step 2: read build duration.
             var durationSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken) ?? 0;
+            // Read the population the new building grants before clicking (page changes after).
+            var populationDelta = await ReadUpgradePopulationDeltaOnCurrentPageAsync(cancellationToken);
 
             // Step 3: click the "Construct building" button (scoped to this gid when possible).
             var clicked = await ClickConstructBuildingButtonAsync(gid, cancellationToken);
@@ -938,6 +952,11 @@ public sealed partial class TravianClient
 
                 await CaptureFailureArtifactsAsync($"construct-slot-{slotId}-gid-{gid}-no-click", cancellationToken);
                 return $"Slot {slotId}: could not find 'Construct building' button for gid {gid}.";
+            }
+
+            if (populationDelta is int popDelta)
+            {
+                await AddPopulationToActiveVillageCacheAsync(popDelta, cancellationToken);
             }
 
             var progress = await WaitForBuildingLevelAdvanceAsync(slotId, 0, queueFingerprintBefore, cancellationToken);

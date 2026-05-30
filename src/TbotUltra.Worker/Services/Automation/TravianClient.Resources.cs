@@ -224,10 +224,16 @@ public sealed partial class TravianClient
                 }
 
                 var expectedWaitSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken);
+                // Read the population this level grants before clicking (page changes after).
+                var populationDelta = await ReadUpgradePopulationDeltaOnCurrentPageAsync(cancellationToken);
                 await ClickDetectedUpgradeCandidateAsync(slotId, actionability.CandidateIndex, cancellationToken);
                 await NavigateToResourceFieldsAfterUpgradeClickAsync(cancellationToken);
                 await WaitForPostUpgradeClickPageLoadAsync(cancellationToken);
                 upgrades += 1;
+                if (populationDelta is int popDelta)
+                {
+                    await AddPopulationToActiveVillageCacheAsync(popDelta, cancellationToken);
+                }
                 var progress = await WaitForResourceLevelAdvanceAsync(
                     slotId,
                     currentLevel.Value,
@@ -418,10 +424,16 @@ public sealed partial class TravianClient
                         Notify($"[UpgradeAllResourcesToLevelAsync] clicking upgrade for slot={slot} from level={level} toward target={effectiveTarget}.");
                         var queueFingerprintBefore = BuildQueueFingerprint(await ReadBuildQueueAsync(cancellationToken));
                         var rawUpgradeSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken);
+                        // Read the population this level grants before clicking (page changes after).
+                        var populationDelta = await ReadUpgradePopulationDeltaOnCurrentPageAsync(cancellationToken);
                         await ClickDetectedUpgradeCandidateAsync(slot, actionability.CandidateIndex, cancellationToken);
                         await NavigateToResourceFieldsAfterUpgradeClickAsync(cancellationToken);
                         await WaitForPostUpgradeClickPageLoadAsync(cancellationToken);
                         upgrades += 1;
+                        if (populationDelta is int popDelta)
+                        {
+                            await AddPopulationToActiveVillageCacheAsync(popDelta, cancellationToken);
+                        }
                         var progress = await WaitForResourceLevelAdvanceAsync(
                             slot,
                             level,

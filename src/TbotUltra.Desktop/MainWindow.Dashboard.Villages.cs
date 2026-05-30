@@ -61,6 +61,15 @@ public partial class MainWindow
         string? preferredVillageName,
         string? fallbackVillageName)
     {
+        // Don't blank out a populated picker with an empty/placeholder update (e.g. a transient
+        // status refresh delivered while the page was navigating). Keeps the village visible.
+        if (!HasRealVillages(items)
+            && VillageComboBox.ItemsSource is IEnumerable<VillageSelectionItem> currentPicker
+            && HasRealVillages(currentPicker.ToList()))
+        {
+            return;
+        }
+
         var ensuredItems = EnsureVillageSelectionItems(items);
 
         _suppressVillageSelectionChange = true;
@@ -82,11 +91,28 @@ public partial class MainWindow
 
     private void ApplyDashboardVillageListItems(IReadOnlyList<VillageSelectionItem> items)
     {
+        // Don't blank out a populated list with an empty/placeholder update (e.g. a transient
+        // status refresh delivered while the page was navigating). Keeps population visible.
+        if (!HasRealVillages(items)
+            && DashboardVillageList.ItemsSource is IEnumerable<VillageSelectionItem> currentList
+            && HasRealVillages(currentList.ToList()))
+        {
+            return;
+        }
+
         DashboardVillageList.ItemsSource = EnsureVillageSelectionItems(items)
             .OrderByDescending(item => item.IsCapital)
             .ThenByDescending(item => item.Population ?? -1)
             .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    // A list is "real" when it contains at least one named village that isn't the "-" placeholder.
+    private static bool HasRealVillages(IReadOnlyList<VillageSelectionItem> items)
+    {
+        return items.Any(item =>
+            !string.IsNullOrWhiteSpace(item.Name)
+            && !string.Equals(item.Name, "-", StringComparison.Ordinal));
     }
 
     private static IReadOnlyList<VillageSelectionItem> EnsureVillageSelectionItems(IReadOnlyList<VillageSelectionItem> items)
@@ -116,7 +142,8 @@ public partial class MainWindow
                     village.CoordY,
                     village.Population,
                     village.CropFields,
-                    existing);
+                    existing,
+                    preferExistingPopulation: true);
             })
             .ToList();
     }
@@ -162,8 +189,16 @@ public partial class MainWindow
         int? coordY,
         int? population,
         int? cropFields,
-        VillageSelectionItem? existing)
+        VillageSelectionItem? existing,
+        bool preferExistingPopulation = false)
     {
+        // Population is driven by the live [ui-sync] path (incremental upgrades + real spieler reads).
+        // Status/resource-refresh updates carry a frozen/stale population, so for those we keep the
+        // currently displayed value and only seed it when nothing is shown yet — never overwrite.
+        var resolvedPopulation = preferExistingPopulation
+            ? existing?.Population ?? population
+            : population ?? existing?.Population;
+
         return new VillageSelectionItem
         {
             Name = name,
@@ -171,7 +206,7 @@ public partial class MainWindow
             IsCapital = isCapital ?? existing?.IsCapital ?? false,
             CoordX = coordX ?? existing?.CoordX,
             CoordY = coordY ?? existing?.CoordY,
-            Population = population ?? existing?.Population,
+            Population = resolvedPopulation,
             CropFields = cropFields ?? existing?.CropFields,
         };
     }
