@@ -57,4 +57,5 @@ public partial class FunctionTestWindow : Window
     {
         SavePageHtmlRequested?.Invoke(sender, e);
     }
+
 }

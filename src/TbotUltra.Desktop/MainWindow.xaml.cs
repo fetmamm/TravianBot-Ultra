@@ -183,6 +183,8 @@ public partial class MainWindow : Window
     private readonly Dictionary<int, DateTimeOffset> _resourceClickCooldownBySlot = new();
     private readonly Dictionary<int, (int Target, DateTimeOffset At)> _resourceLastQueuedTargetBySlot = new();
     private FunctionTestWindow? _resourceTestFunctionsWindow;
+    private SavePageHtmlWindow? _savePageHtmlWindow;
+    private BulkSavePageHtmlWindow? _bulkSavePageHtmlWindow;
     private readonly Dictionary<int, DateTimeOffset> _buildingClickCooldownBySlot = new();
     private readonly Dictionary<int, (int Target, DateTimeOffset At)> _buildingLastQueuedTargetBySlot = new();
     private readonly Dictionary<int, (string Name, int Gid, DateTimeOffset At)> _buildingLastQueuedConstructBySlot = new();

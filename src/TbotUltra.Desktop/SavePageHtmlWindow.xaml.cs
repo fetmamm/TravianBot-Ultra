@@ -10,6 +10,9 @@ public partial class SavePageHtmlWindow : Window
 {
     private readonly string _saveDirectory;
 
+    public event EventHandler<SavePageHtmlRequest>? SaveRequested;
+    public event EventHandler? BulkSaveRequested;
+
     public string FileName { get; private set; } = string.Empty;
     public string Notes { get; private set; } = string.Empty;
 
@@ -43,14 +46,17 @@ public partial class SavePageHtmlWindow : Window
 
         FileName = trimmed;
         Notes = (NotesTextBox.Text ?? string.Empty).Trim();
-        DialogResult = true;
-        Close();
+        SaveRequested?.Invoke(this, new SavePageHtmlRequest(FileName, Notes));
     }
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
     {
-        DialogResult = false;
         Close();
+    }
+
+    private void BulkSaveButton_Click(object sender, RoutedEventArgs e)
+    {
+        BulkSaveRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private void OpenFolderButton_Click(object sender, RoutedEventArgs e)
@@ -131,4 +137,24 @@ public partial class SavePageHtmlWindow : Window
 
         SaveButton.IsEnabled = !string.IsNullOrWhiteSpace(FileNameTextBox.Text);
     }
+
+    public void SetSaveInProgress(bool isSaving)
+    {
+        SaveButton.IsEnabled = !isSaving && !string.IsNullOrWhiteSpace(FileNameTextBox.Text);
+        BulkSaveButton.IsEnabled = !isSaving;
+        FileNameTextBox.IsEnabled = !isSaving;
+        NotesTextBox.IsEnabled = !isSaving;
+        if (isSaving)
+        {
+            StatusTextBlock.Text = "Saving current browser page...";
+        }
+    }
+
+    public void SetSaveResult(string message)
+    {
+        StatusTextBlock.Text = message;
+        RefreshUiState();
+    }
 }
+
+public sealed record SavePageHtmlRequest(string FileName, string Notes);

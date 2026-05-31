@@ -258,6 +258,11 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
         return _taskRunner.ReadCurrentPageHtmlAsync(options, log, null, cancellationToken);
     }
 
+    public Task<PageHtmlCapture> NavigateToPageAndReadHtmlAsync(BotOptions options, string pagePath, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.NavigateToPageAndReadHtmlAsync(options, pagePath, log, null, cancellationToken);
+    }
+
     public Task NavigateToVillageResourceFieldsAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken)
     {
         return _taskRunner.NavigateToVillageResourceFieldsAsync(

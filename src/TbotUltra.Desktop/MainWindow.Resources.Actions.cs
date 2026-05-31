@@ -96,24 +96,239 @@ public partial class MainWindow
 
     private const string SavePageHtmlDirectory = @"C:\Users\jespe\Documents\GitHub\Tbot_ultra_new\temp_build_out\DOM";
 
-    private async void SavePageHtmlButton_Click(object sender, RoutedEventArgs e)
+    private void SavePageHtmlButton_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new SavePageHtmlWindow(SavePageHtmlDirectory)
-        {
-            Owner = _resourceTestFunctionsWindow ?? (Window)this,
-        };
+        OpenSavePageHtmlWindow();
+    }
 
-        if (dialog.ShowDialog() != true)
+    private void OpenSavePageHtmlWindow(Window? sourceWindow = null, bool closeSourceWindow = false)
+    {
+        if (_savePageHtmlWindow is not null)
         {
-            AppendLog("Save page HTML canceled.");
+            if (!_savePageHtmlWindow.IsVisible)
+            {
+                _savePageHtmlWindow.Show();
+            }
+
+            _savePageHtmlWindow.Activate();
             return;
         }
 
+        _savePageHtmlWindow = new SavePageHtmlWindow(SavePageHtmlDirectory)
+        {
+            Owner = sourceWindow?.Owner ?? _resourceTestFunctionsWindow ?? (Window)this,
+        };
+        _savePageHtmlWindow.SaveRequested += SavePageHtmlWindow_SaveRequested;
+        _savePageHtmlWindow.BulkSaveRequested += SavePageHtmlWindow_BulkSaveRequested;
+        _savePageHtmlWindow.Closed += (_, _) =>
+        {
+            if (_savePageHtmlWindow is not null)
+            {
+                _savePageHtmlWindow.SaveRequested -= SavePageHtmlWindow_SaveRequested;
+                _savePageHtmlWindow.BulkSaveRequested -= SavePageHtmlWindow_BulkSaveRequested;
+                _savePageHtmlWindow = null;
+            }
+        };
+        _savePageHtmlWindow.Show();
+        FinishPopupTransition(_savePageHtmlWindow, sourceWindow, closeSourceWindow);
+    }
+
+    private void SavePageHtmlWindow_BulkSaveRequested(object? sender, EventArgs e)
+    {
+        OpenBulkSavePageHtmlWindow(sender as Window, closeSourceWindow: true);
+    }
+
+    private void OpenBulkSavePageHtmlWindow(Window? sourceWindow = null, bool closeSourceWindow = false)
+    {
+        if (_bulkSavePageHtmlWindow is not null)
+        {
+            if (!_bulkSavePageHtmlWindow.IsVisible)
+            {
+                _bulkSavePageHtmlWindow.Show();
+            }
+
+            _bulkSavePageHtmlWindow.Activate();
+            return;
+        }
+
+        _bulkSavePageHtmlWindow = new BulkSavePageHtmlWindow(SavePageHtmlDirectory)
+        {
+            Owner = sourceWindow?.Owner ?? _resourceTestFunctionsWindow ?? (Window)this,
+        };
+        _bulkSavePageHtmlWindow.SaveRequested += BulkSavePageHtmlWindow_SaveRequested;
+        _bulkSavePageHtmlWindow.CancelRequested += BulkSavePageHtmlWindow_CancelRequested;
+        _bulkSavePageHtmlWindow.Closed += (_, _) =>
+        {
+            if (_bulkSavePageHtmlWindow is not null)
+            {
+                _bulkSavePageHtmlWindow.SaveRequested -= BulkSavePageHtmlWindow_SaveRequested;
+                _bulkSavePageHtmlWindow.CancelRequested -= BulkSavePageHtmlWindow_CancelRequested;
+                _bulkSavePageHtmlWindow = null;
+            }
+        };
+        _bulkSavePageHtmlWindow.Show();
+        FinishPopupTransition(_bulkSavePageHtmlWindow, sourceWindow, closeSourceWindow);
+    }
+
+    private static void FinishPopupTransition(Window targetWindow, Window? sourceWindow, bool closeSourceWindow)
+    {
+        if (sourceWindow is not null)
+        {
+            targetWindow.Left = sourceWindow.Left + Math.Max(0, (sourceWindow.ActualWidth - targetWindow.Width) / 2d);
+            targetWindow.Top = sourceWindow.Top + Math.Max(0, (sourceWindow.ActualHeight - targetWindow.Height) / 2d);
+        }
+
+        targetWindow.Activate();
+        if (closeSourceWindow)
+        {
+            sourceWindow?.Close();
+        }
+    }
+
+    private void BulkSavePageHtmlWindow_CancelRequested(object? sender, EventArgs e)
+    {
+        AppendLog("Cancel requested for bulk save.");
+        try
+        {
+            _operationCts?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+    }
+
+    private async void BulkSavePageHtmlWindow_SaveRequested(object? sender, IReadOnlyList<BulkSavePageRequest> pages)
+    {
+        if (_operationCts is not null)
+        {
+            AppendLog("Bulk save skipped: another operation is already running.");
+            return;
+        }
+
+        var dialog = sender as BulkSavePageHtmlWindow;
+        var operationId = BeginOperation("BulkSavePageHtml");
+        var operationSw = Stopwatch.StartNew();
+        _operationCts = _loopController.CreateCts("operation");
+        var operationToken = _operationCts.Token;
+        dialog?.SetSaveInProgress(true, $"Saving 0/{pages.Count}...");
+
+        var saved = 0;
+        var failed = 0;
+        var finalDialogMessage = string.Empty;
+        try
+        {
+            var options = LoadBotOptions();
+            Directory.CreateDirectory(SavePageHtmlDirectory);
+
+            for (var index = 0; index < pages.Count; index++)
+            {
+                operationToken.ThrowIfCancellationRequested();
+                var request = pages[index];
+                var page = request.Page;
+                dialog?.SetSaveInProgress(true, $"Saving {index + 1}/{pages.Count}: {page}");
+                AppendLog($"[{operationId}] opening {page} ({index + 1}/{pages.Count}).");
+
+                try
+                {
+                    var capture = await _botService.NavigateToPageAndReadHtmlAsync(
+                        options,
+                        page,
+                        AppendLog,
+                        operationToken);
+                    var nameSource = string.IsNullOrWhiteSpace(request.Alias) ? page : request.Alias;
+                    var fileName = BuildBulkSaveHtmlFileName(nameSource, request.Prefix);
+                    var filePath = Path.Combine(SavePageHtmlDirectory, $"{fileName}.txt");
+                    var content = BuildSavedPageHtmlContent(capture, $"Bulk save source page: {page}\nAlias: {request.Alias}");
+                    await File.WriteAllTextAsync(filePath, content, operationToken);
+                    saved++;
+                    AppendLog($"[{operationId}] saved {capture.Html.Length} chars from '{capture.Url}' to {filePath}.");
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    failed++;
+                    AppendLog($"[{operationId}] failed to save {page}: {ex.Message}");
+                }
+            }
+
+            finalDialogMessage = $"Saved {saved}/{pages.Count}. Failed {failed}.";
+            dialog?.SetSaveResult(finalDialogMessage);
+            CompleteOperation(operationId, operationSw, $"Bulk saved {saved}/{pages.Count} HTML page(s). Failed: {failed}.");
+            OpenSavePageHtmlWindow(dialog, closeSourceWindow: true);
+            AppDialog.Show(
+                _savePageHtmlWindow ?? (Window)this,
+                finalDialogMessage,
+                "Bulk save HTML",
+                MessageBoxButton.OK,
+                failed == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
+        }
+        catch (OperationCanceledException)
+        {
+            AppendLog("Bulk save page HTML canceled.");
+            StatusTextBlock.Text = "Bulk save canceled.";
+            finalDialogMessage = $"Canceled. Saved {saved}/{pages.Count}.";
+            dialog?.SetSaveResult(finalDialogMessage);
+        }
+        catch (Exception ex)
+        {
+            FailOperation(operationId, operationSw, ex);
+            finalDialogMessage = $"Bulk save failed: {ex.Message}";
+            dialog?.SetSaveResult(finalDialogMessage);
+        }
+        finally
+        {
+            _operationCts?.Dispose();
+            _operationCts = null;
+            if (string.IsNullOrWhiteSpace(finalDialogMessage))
+            {
+                dialog?.SetSaveInProgress(false, $"Saved {saved}/{pages.Count}. Failed {failed}.");
+            }
+        }
+    }
+
+    private static string BuildBulkSaveHtmlFileName(string page, string? prefix = null)
+    {
+        var value = (page ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            value = "page";
+        }
+
+        if (Uri.TryCreate(value, UriKind.Absolute, out var uri))
+        {
+            value = uri.PathAndQuery.TrimStart('/');
+        }
+
+        value = value.TrimStart('/');
+        foreach (var invalid in Path.GetInvalidFileNameChars())
+        {
+            value = value.Replace(invalid, '_');
+        }
+
+        value = value.Replace('/', '_').Replace('\\', '_').Replace('?', '_').Replace('&', '_').Replace('=', '_');
+        value = string.IsNullOrWhiteSpace(value) ? "page" : value;
+        var cleanPrefix = SanitizeFileNamePart(prefix);
+        return string.IsNullOrWhiteSpace(cleanPrefix) ? value : $"{cleanPrefix}_{value}";
+    }
+
+    private static string SanitizeFileNamePart(string? value)
+    {
+        var result = (value ?? string.Empty).Trim();
+        foreach (var invalid in Path.GetInvalidFileNameChars())
+        {
+            result = result.Replace(invalid, '_');
+        }
+
+        return result.Replace('/', '_').Replace('\\', '_').Replace('?', '_').Replace('&', '_').Replace('=', '_');
+    }
+
+    private async void SavePageHtmlWindow_SaveRequested(object? sender, SavePageHtmlRequest request)
+    {
+        var dialog = sender as SavePageHtmlWindow;
         var operationId = BeginOperation("SavePageHtml");
         var operationSw = Stopwatch.StartNew();
-        _operationCts = new CancellationTokenSource();
-        var operationToken = _operationCts.Token;
-        ToggleResourceTabActionsBusy(true);
+        using var operationCts = new CancellationTokenSource();
+        var operationToken = operationCts.Token;
+        dialog?.SetSaveInProgress(true);
         try
         {
             var options = LoadBotOptions();
@@ -124,26 +339,27 @@ public partial class MainWindow
                 operationToken);
 
             Directory.CreateDirectory(SavePageHtmlDirectory);
-            var filePath = Path.Combine(SavePageHtmlDirectory, $"{dialog.FileName}.txt");
-            var content = BuildSavedPageHtmlContent(capture, dialog.Notes);
+            var filePath = Path.Combine(SavePageHtmlDirectory, $"{request.FileName}.txt");
+            var content = BuildSavedPageHtmlContent(capture, request.Notes);
             await File.WriteAllTextAsync(filePath, content, operationToken);
 
             AppendLog($"[{operationId}] saved {capture.Html.Length} chars from '{capture.Url}' to {filePath}.");
+            dialog?.SetSaveResult($"Saved {request.FileName}.txt");
             CompleteOperation(operationId, operationSw, $"Saved page HTML to {filePath}");
         }
         catch (OperationCanceledException)
         {
             AppendLog("Save page HTML paused.");
+            dialog?.SetSaveResult("Save paused.");
         }
         catch (Exception ex)
         {
             FailOperation(operationId, operationSw, ex);
+            dialog?.SetSaveResult($"Save failed: {ex.Message}");
         }
         finally
         {
-            ToggleResourceTabActionsBusy(false);
-            _operationCts?.Dispose();
-            _operationCts = null;
+            dialog?.SetSaveInProgress(false);
         }
     }
 

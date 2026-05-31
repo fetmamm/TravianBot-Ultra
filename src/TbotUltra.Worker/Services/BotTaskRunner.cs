@@ -701,6 +701,28 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
         return capture ?? throw new InvalidOperationException("Could not read current page HTML.");
     }
 
+    public async Task<PageHtmlCapture> NavigateToPageAndReadHtmlAsync(
+        BotOptions options,
+        string pagePath,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        PageHtmlCapture? capture = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                capture = await client.NavigateToPageAndReadHtmlAsync(pagePath, cancellationToken);
+            });
+
+        return capture ?? throw new InvalidOperationException($"Could not save page HTML for {pagePath}.");
+    }
+
     public async Task<IReadOnlyDictionary<string, double?>> ReadCurrentPageResourceProductionPerHourAsync(
         BotOptions options,
         Action<string> log,

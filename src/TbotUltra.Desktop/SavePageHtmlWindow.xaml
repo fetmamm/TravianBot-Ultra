@@ -78,6 +78,10 @@
                     Content="Clear folder"
                     ToolTip="Deletes all files in the DOM folder (asks for confirmation first)."
                     Click="ClearFolderButton_Click" />
+            <TextBlock x:Name="StatusTextBlock"
+                       VerticalAlignment="Center"
+                       Foreground="#2563EB"
+                       Margin="10,0,0,0" />
         </StackPanel>
 
         <StackPanel Grid.Row="6"
@@ -87,10 +91,19 @@
             <Button x:Name="SaveButton"
                     Width="100"
                     Margin="0,0,8,0"
-                    Content="Save"
+                    Background="#030826"
+                    BorderBrush="#030826"
+                    Foreground="White"
+                    FontWeight="SemiBold"
+                    Content="Save HTML"
                     Click="SaveButton_Click" />
+            <Button x:Name="BulkSaveButton"
+                    Width="100"
+                    Margin="0,0,8,0"
+                    Content="Bulk save"
+                    Click="BulkSaveButton_Click" />
             <Button Width="100"
-                    Content="Cancel"
+                    Content="Close"
                     Click="CancelButton_Click" />
         </StackPanel>
     </Grid>

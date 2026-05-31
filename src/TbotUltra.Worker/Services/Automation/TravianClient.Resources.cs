@@ -136,6 +136,27 @@ public sealed partial class TravianClient
         return new PageHtmlCapture(url ?? string.Empty, html ?? string.Empty);
     }
 
+    public async Task<PageHtmlCapture> NavigateToPageAndReadHtmlAsync(string pagePath, CancellationToken cancellationToken = default)
+    {
+        var normalizedPath = NormalizePagePath(pagePath);
+        Notify($"[NavigateToPageAndReadHtmlAsync] opening {normalizedPath}");
+        await EnsureLoggedInAsync();
+        await GotoAsync(normalizedPath, cancellationToken);
+        await PauseForManualStepIfVisibleAsync($"Manual verification appeared while opening {normalizedPath}.", cancellationToken);
+        return await ReadCurrentPageHtmlAsync(cancellationToken);
+    }
+
+    private static string NormalizePagePath(string pagePath)
+    {
+        var value = (pagePath ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new InvalidOperationException("Page path is empty.");
+        }
+
+        return value;
+    }
+
     private async Task NotifyCurrentResourceProductionForUiAsync(CancellationToken cancellationToken)
     {
         try
