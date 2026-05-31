@@ -512,7 +512,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
         await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
         var rows = await ReadFarmListsFromCurrentPageAsync(cancellationToken);
-        Notify($"Farm lists read: {rows.Count} list(s).");
+        Notify($"[farm-list] read {rows.Count} farm list(s) from rally point");
         return rows;
     }
 
@@ -543,7 +543,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         await PauseForManualStepIfVisibleAsync("Manual verification appeared after sending farm list.", cancellationToken);
         await TryClickCaptchaSuccessDialogOkAsync(cancellationToken);
         var remaining = await ReadFarmListTimerSecondsByNameAsync(farmListName, cancellationToken);
-        Notify($"Farm list '{farmListName}' sent. Timer={(remaining is > 0 ? FormatDuration(remaining.Value) : "Ready")}.");
+        Notify($"[farm-list] '{farmListName}' sent — next ready in {(remaining is > 0 ? FormatDuration(remaining.Value) : "now")}");
         return remaining;
     }
 
@@ -775,7 +775,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             }
 
             attempted++;
-            var stepPrefix = $"[{attempted}/{coordinates.Count}]";
+            var stepPrefix = $"[farm-manual] [{attempted}/{coordinates.Count}]";
             await EnsureRallyPointAndOpenSendTroopsPageAsync(cancellationToken, allowReuseCurrentPage: attempted > 1);
             var sendResult = await TrySendManualAttackAsync(
                 troopType.Trim(),
@@ -812,7 +812,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 Notify($"{stepPrefix} Skipped ({coordinate.X}|{coordinate.Y}). Available {troopType.Trim()}: {FormatLargeCount(sendResult.AvailableTroopCount)}, required minimum: {FormatLargeCount(sendResult.MinimumAcceptedTroopCount)}.");
                 if (consecutiveLowTroopSkips >= ManualFarmingMaxConsecutiveLowTroopSkips)
                 {
-                    Notify($"Stopping manual farming after {consecutiveLowTroopSkips} consecutive low-troop skips.");
+                    Notify($"[farm-manual] stopping — {consecutiveLowTroopSkips} consecutive low-troop skips reached");
                     break;
                 }
 
@@ -3273,7 +3273,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         var waitSeconds = state.MinTimerSeconds is > 0
             ? Math.Max(1, state.MinTimerSeconds.Value)
             : 1;
-        Notify($"Farm dispatch limit active. Deferring farming for {waitSeconds}s.");
+        Notify($"[farm-list] dispatch limit active — deferring farming for {waitSeconds}s");
         throw new InvalidOperationException($"Farm dispatch limit active. queue_wait_seconds={waitSeconds}");
     }
 
@@ -3501,7 +3501,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                     CachedNatarCoordinatesByAccount[cacheKey] = [.. restored];
                 }
 
-                Notify($"Using persisted Natar farms list ({restored.Count}).");
+                Notify($"[farm-natar] using persisted farms list — {restored.Count} enabled target(s)");
                 return restored;
             }
 
@@ -3509,7 +3509,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             {
                 if (CachedNatarCoordinatesByAccount.TryGetValue(cacheKey, out var existing) && existing.Count > 0)
                 {
-                    Notify($"Using cached Natar farms list ({existing.Count}).");
+                    Notify($"[farm-natar] using in-memory cached farms list — {existing.Count} target(s)");
                     return [.. existing];
                 }
             }
@@ -3580,12 +3580,12 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                     .ToList()));
 
             Notify(changed
-                ? $"Scanned Natar farms list and saved {cached.Count} entries."
-                : $"Scanned Natar farms list and confirmed existing {cached.Count} cached entries.");
+                ? $"[farm-natar] scanned profile — saved {cached.Count} target(s) to cache"
+                : $"[farm-natar] scanned profile — confirmed {cached.Count} existing cached target(s)");
         }
         else
         {
-            Notify("Scanned Natar farms list but found no entries.");
+            Notify("[farm-natar] scanned profile but found no targets (empty Natar list?)");
         }
 
         return cached;

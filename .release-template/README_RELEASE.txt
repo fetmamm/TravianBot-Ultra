@@ -4,13 +4,13 @@ There are two ways to get Tbot Ultra. Pick one.
 
 == Option A: Installer (TbotUltra-Setup-...exe) ==
 1. Run the setup file.
-2. Start Tbot Ultra from the installed shortcut or TbotUltra.Desktop.exe.
+2. Start Tbot Ultra from the installed shortcut or Tbot Ultra.exe.
 3. Add your account and server inside the app (Account -> Manage), then log in.
 
 == Option B: Portable (tbot-ultra-win-x64-...-portable.zip) ==
 No installation needed.
 1. Extract the zip to a folder where you have write access (e.g. your Desktop, NOT Program Files).
-2. Run TbotUltra.Desktop.exe.
+2. Run Tbot Ultra.exe.
 3. Add your account and server inside the app (Account -> Manage), then log in.
 
 You do NOT need to edit .env or config files by hand - the app writes them for you

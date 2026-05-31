@@ -46,7 +46,7 @@ public partial class MainWindow
 
         if (dialog.ShowDialog() != true)
         {
-            AppendLog("Manual farming canceled.");
+            AppendLog("[farm-manual] canceled before start (dialog dismissed).");
             return;
         }
 
@@ -66,7 +66,7 @@ public partial class MainWindow
             {
                 operationToken.ThrowIfCancellationRequested();
                 runIndex++;
-                AppendLog($"Manual farming loop {runIndex} started.");
+                AppendLog($"[farm-manual] loop {runIndex} started — troop='{dialog.SelectedTroopType}' count={dialog.TroopCount}±{dialog.TroopVariancePercent}% raid={dialog.IsRaid}");
 
                 var result = await _botService.StartManualFarmingFromNatarsAsync(
                     options,
@@ -90,12 +90,12 @@ public partial class MainWindow
                     break;
                 }
 
-                AppendLog($"Manual farming loop {runIndex} done. Sent={result.SentCount}, Skipped={result.SkippedCount}, Failed={result.FailedCount}, Targets={result.TotalTargets}. Restarting...");
+                AppendLog($"[farm-manual] loop {runIndex} done — sent={result.SentCount}, skipped={result.SkippedCount}, failed={result.FailedCount}, targets={result.TotalTargets}. Restarting...");
             }
         }
         catch (OperationCanceledException)
         {
-            AppendLog("Manual farming canceled.");
+            AppendLog("[farm-manual] canceled by user.");
             CompleteOperation(operationId, operationSw, "Manual farming stopped by user.");
         }
         catch (Exception ex)

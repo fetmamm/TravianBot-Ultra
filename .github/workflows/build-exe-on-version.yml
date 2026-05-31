@@ -162,6 +162,7 @@ jobs:
           New-Item -ItemType Directory -Path $packageRoot | Out-Null
 
           Copy-Item "$publishRoot\*" $packageRoot -Recurse -Force
+          Rename-Item (Join-Path $packageRoot "TbotUltra.Desktop.exe") "Tbot Ultra.exe"
 
           Get-ChildItem $packageRoot -Directory | Where-Object {
             $_.Name -in @("cs", "de", "es", "fr", "it", "ja", "ko", "pl", "pt-BR", "ru", "tr", "zh-Hans", "zh-Hant")
@@ -295,9 +296,9 @@ jobs:
           Remove-Item (Join-Path $packageRoot "playwright.ps1") -ErrorAction SilentlyContinue
           Remove-Item (Join-Path $packageRoot "Assets") -Recurse -Force -ErrorAction SilentlyContinue
 
-          $appExe = Join-Path $packageRoot "TbotUltra.Desktop.exe"
+          $appExe = Join-Path $packageRoot "Tbot Ultra.exe"
           if (-not (Test-Path $appExe)) {
-            throw "Portable package is missing TbotUltra.Desktop.exe."
+            throw "Portable package is missing Tbot Ultra.exe."
           }
 
           $unexpectedRootFiles = Get-ChildItem $packageRoot -File | Where-Object {
@@ -317,7 +318,7 @@ jobs:
           }
 
           # Zip the package folder itself so it extracts into a single named folder
-          # (run TbotUltra.Desktop.exe inside it; no installation needed).
+          # (run Tbot Ultra.exe inside it; no installation needed).
           Compress-Archive -Path $packageRoot -DestinationPath $zipPath -CompressionLevel Optimal
           if (-not (Test-Path $zipPath)) {
             throw "Portable zip was not created: $zipPath"
@@ -344,7 +345,7 @@ jobs:
 
           Two download options:
           - Installer ($env:ASSET_NAME): run it to install the app, then start it.
-          - Portable ($env:PORTABLE_NAME): no installation. Extract the zip and run TbotUltra.Desktop.exe inside the folder.
+          - Portable ($env:PORTABLE_NAME): no installation. Extract the zip and run Tbot Ultra.exe inside the folder.
 
           Set up your account and server inside the app (Account -> Manage). No manual editing of .env or config files is needed.
 

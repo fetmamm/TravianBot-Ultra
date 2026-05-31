@@ -1,6 +1,6 @@
 #define MyAppName "Tbot Ultra"
 #define MyAppPublisher "Tbot Ultra"
-#define MyAppExeName "TbotUltra.Desktop.exe"
+#define MyAppExeName "Tbot Ultra.exe"
 
 #ifndef AppVersion
   #define AppVersion "0.0.0"

@@ -11,7 +11,7 @@ Each version on the [Releases](../../releases) page ships two options:
 
 - **Installer** (`TbotUltra-Setup-...exe`) – run the setup file to install the app.
 - **Portable** (`tbot-ultra-win-x64-...-portable.zip`) – no installation: extract the
-  zip and run `TbotUltra.Desktop.exe` inside the folder.
+  zip and run `Tbot Ultra.exe` inside the folder.
 
 Set up your account and server inside the app (**Account → Manage**) — no manual editing
 of `.env` or `config/` files is needed.
