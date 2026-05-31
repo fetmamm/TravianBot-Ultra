@@ -265,6 +265,10 @@ public partial class MainWindow : Window
     private DateTimeOffset _lastContinuousBrowserActivityUtc = DateTimeOffset.MinValue;
     private volatile bool _isLoggedIn;
     private volatile bool _browserSessionLikelyOpen;
+    // True only while a visible (non-headless) login is running. Lets the captcha/manual-verification
+    // popup know the browser window is already open WITHOUT enabling background/village-selection ops
+    // (which gate on _browserSessionLikelyOpen) to race the login on the shared page.
+    private volatile bool _visibleBrowserLoginInProgress;
     private bool _farmingFeaturesAvailable = true;
     private int _activeVillageResourceMaxLevel = NonCapitalResourceMaxLevel;
     private int _buildQueueRemainingSeconds = -1;
@@ -1117,6 +1121,7 @@ public partial class MainWindow : Window
         }
         finally
         {
+            _visibleBrowserLoginInProgress = false;
             ToggleUiBusy(false);
             _operationCts?.Dispose();
             _operationCts = null;

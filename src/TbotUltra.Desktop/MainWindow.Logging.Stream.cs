@@ -195,7 +195,9 @@ public partial class MainWindow
                         || IsCaptchaAutoSolveFailedMessage(part))
                     {
                         CloseCaptchaAutoSolvePopup();
-                        ShowManualVerificationPopup(_browserSessionLikelyOpen);
+                        // During a visible login the browser window is open even though
+                        // _browserSessionLikelyOpen is still false (it flips only after post-login finishes).
+                        ShowManualVerificationPopup(_browserSessionLikelyOpen || _visibleBrowserLoginInProgress);
                     }
                 }
             }
