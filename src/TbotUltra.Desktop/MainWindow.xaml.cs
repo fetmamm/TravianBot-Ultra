@@ -1916,7 +1916,7 @@ public partial class MainWindow : Window
 
     private void ScheduleDeferredResourcesMidWaitRefresh(QueueItem item, TimeSpan queueWaitDelay)
     {
-        if (!IsResourceAwareQueueTask(item.TaskName) || queueWaitDelay.TotalSeconds < 3)
+        if (!IsResourceAwareQueueTask(item.TaskName) || queueWaitDelay.TotalSeconds < 10)
         {
             return;
         }
@@ -2544,7 +2544,7 @@ public partial class MainWindow : Window
             return false;
         }
 
-        var effectiveSeconds = Math.Max(0, seconds);
+        var effectiveSeconds = Math.Max(1, seconds);
         delay = TimeSpan.FromSeconds(effectiveSeconds);
         return true;
     }

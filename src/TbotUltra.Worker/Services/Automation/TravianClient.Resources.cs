@@ -2032,12 +2032,26 @@ public sealed partial class TravianClient
         try
         {
             var active = await ReadActiveConstructionsAsync(cancellationToken);
-            var resourceTimers = active
-                .Where(item => item.Kind == ConstructionKind.Resource && item.TimeLeftSeconds is int seconds && seconds > 0)
+            var resourceConstructions = active
+                .Where(item => item.Kind == ConstructionKind.Resource)
                 .ToList();
+            var resourceTimers = resourceConstructions
+                .Where(item => item.TimeLeftSeconds is int seconds && seconds > 0)
+                .ToList();
+            var hadStaleResourceTimer = resourceConstructions.Count > 0 && resourceTimers.Count == 0;
+            if (hadStaleResourceTimer)
+            {
+                Notify("Resource queue timer is zero or stale; reloading resource fields before deferring.");
+                await ReloadOrGotoAsync(Paths.Resources, cancellationToken);
+                active = await ReadActiveConstructionsAsync(cancellationToken);
+                resourceTimers = active
+                    .Where(item => item.Kind == ConstructionKind.Resource && item.TimeLeftSeconds is int seconds && seconds > 0)
+                    .ToList();
+            }
+
             if (resourceTimers.Count == 0)
             {
-                return ComputeResourceUpgradeWaitSeconds(fallbackSeconds);
+                return hadStaleResourceTimer ? 1 : Math.Max(1, ComputeResourceUpgradeWaitSeconds(fallbackSeconds));
             }
 
             var matchingTimers = resourceTimers
