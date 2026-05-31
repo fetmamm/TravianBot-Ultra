@@ -1019,6 +1019,7 @@ public partial class MainWindow : Window
         _operationCts = _loopController.CreateCts("operation");
         var operationToken = _operationCts.Token;
         ToggleUiBusy(true);
+        ShowBusyOverlay("Logging in", "Logging in and loading account data…");
         try
         {
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
@@ -1122,10 +1123,42 @@ public partial class MainWindow : Window
         finally
         {
             _visibleBrowserLoginInProgress = false;
+            HideBusyOverlay();
             ToggleUiBusy(false);
             _operationCts?.Dispose();
             _operationCts = null;
             _loginInProgress = false;
+        }
+    }
+
+    // Full-window modal overlay shown while a login/logout runs (incl. account-switch auto-login). It
+    // dims the window and captures all clicks, so the only thing the user can do during the operation is
+    // Cancel — preventing function buttons from interfering with the in-flight work on the shared browser.
+    private void ShowBusyOverlay(string title, string text)
+    {
+        BusyOverlayTitle.Text = title;
+        BusyOverlayText.Text = text;
+        BusyOverlayCancelButton.IsEnabled = true;
+        BusyOverlay.Visibility = Visibility.Visible;
+    }
+
+    private void HideBusyOverlay()
+    {
+        BusyOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    private void BusyOverlayCancelButton_Click(object sender, RoutedEventArgs e)
+    {
+        AppendLog("Cancel requested.");
+        BusyOverlayCancelButton.IsEnabled = false;
+        BusyOverlayText.Text = "Cancelling…";
+        try
+        {
+            _operationCts?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Operation already finished; nothing to cancel.
         }
     }
 
@@ -1136,6 +1169,7 @@ public partial class MainWindow : Window
         _operationCts = _loopController.CreateCts("operation");
         var operationToken = _operationCts.Token;
         ToggleUiBusy(true);
+        ShowBusyOverlay("Logging out", "Logging out…");
         try
         {
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
@@ -1180,6 +1214,7 @@ public partial class MainWindow : Window
         }
         finally
         {
+            HideBusyOverlay();
             ToggleUiBusy(false);
             _operationCts?.Dispose();
             _operationCts = null;
