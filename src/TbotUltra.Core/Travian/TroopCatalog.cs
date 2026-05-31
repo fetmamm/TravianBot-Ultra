@@ -72,6 +72,17 @@ public static class TroopCatalog
             };
         }
 
+        if (value.Contains("gaul"))
+        {
+            return buildingType switch
+            {
+                TroopTrainingBuildingType.Barracks => allTroops.Take(2).ToList(),
+                TroopTrainingBuildingType.Stable => allTroops.Skip(2).Take(4).ToList(),
+                TroopTrainingBuildingType.Workshop => allTroops.Skip(6).Take(2).ToList(),
+                _ => [],
+            };
+        }
+
         return buildingType switch
         {
             TroopTrainingBuildingType.Barracks => allTroops.Take(3).ToList(),

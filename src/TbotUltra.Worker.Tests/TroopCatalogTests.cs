@@ -33,9 +33,25 @@ public sealed class TroopCatalogTests
             TroopCatalog.ResolveTroopTypesForTribe("Teutons", TroopTrainingBuildingType.Workshop));
     }
 
+    [Fact]
+    public void ResolveTroopTypesForTribeAndBuilding_SplitsGaulTroopsWithPathfinderInStable()
+    {
+        Assert.Equal(
+            ["Phalanx", "Swordsman"],
+            TroopCatalog.ResolveTroopTypesForTribe("Gauls", TroopTrainingBuildingType.Barracks));
+        Assert.Equal(
+            ["Pathfinder", "Theutates Thunder", "Druidrider", "Haeduan"],
+            TroopCatalog.ResolveTroopTypesForTribe("Gauls", TroopTrainingBuildingType.Stable));
+        Assert.Equal(
+            ["Ram", "Trebuchet"],
+            TroopCatalog.ResolveTroopTypesForTribe("Gauls", TroopTrainingBuildingType.Workshop));
+    }
+
     [Theory]
     [InlineData("Romans", "Legionnaire", TroopTrainingBuildingType.Barracks, true)]
     [InlineData("Romans", "Equites Legati", TroopTrainingBuildingType.Barracks, false)]
+    [InlineData("Gauls", "Pathfinder", TroopTrainingBuildingType.Barracks, false)]
+    [InlineData("Gauls", "Pathfinder", TroopTrainingBuildingType.Stable, true)]
     [InlineData("Teutons", "Scout", TroopTrainingBuildingType.Barracks, true)]
     [InlineData("Teutons", "Scout", TroopTrainingBuildingType.Stable, false)]
     [InlineData("Teutons", "Ram", TroopTrainingBuildingType.Workshop, true)]
