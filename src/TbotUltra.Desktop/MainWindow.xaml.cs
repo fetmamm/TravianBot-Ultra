@@ -1023,13 +1023,13 @@ public partial class MainWindow : Window
 
             await EnsureChromiumInstalledAsync();
             AppendLog("Login started.");
-            // Mark the (visible) browser as open BEFORE login runs. Login can block on a captcha/manual
-            // step while the browser window is already up; if this flag were still false the manual-
-            // verification popup would wrongly claim "Browser is not open" and offer to open a second
-            // (conflicting) verification browser. Other UI gates also require _isLoggedIn, which stays
-            // false until login finishes, so flipping this early has no side effects. The catch below
-            // resets it if login fails.
-            _browserSessionLikelyOpen = !options.Headless;
+            // A visible browser opens as soon as login starts. Track that in a DEDICATED flag so a
+            // captcha / manual-verification popup mid-login knows the window is already open (and doesn't
+            // offer to open a second, conflicting verification browser). Do NOT flip
+            // _browserSessionLikelyOpen here: that flag also gates background refresh and village-selection
+            // operations, and turning it on before post-login analysis finishes lets those ops race the
+            // login on the shared page (tab flicker). The finally block clears this flag.
+            _visibleBrowserLoginInProgress = !options.Headless;
             await _botService.ExecuteLoginAsync(
                 options,
                 AppendLog,
