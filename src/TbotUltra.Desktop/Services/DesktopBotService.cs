@@ -243,6 +243,11 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
         return _taskRunner.ReadCurrentPageResourceStatusQuickAsync(options, log, null, cancellationToken);
     }
 
+    public Task<VillageStatus> ReadCurrentPageStorageStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.ReadCurrentPageStorageStatusAsync(options, log, null, cancellationToken);
+    }
+
     public Task<IReadOnlyDictionary<string, double?>> ReadCurrentPageResourceProductionPerHourAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.ReadCurrentPageResourceProductionPerHourAsync(options, log, null, cancellationToken);

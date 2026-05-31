@@ -108,6 +108,7 @@ public partial class MainWindow
         if (NeedsConstructionStatusRefresh(item.TaskName))
         {
             await RefreshConstructionStatusAsync(cancellationToken);
+            await RefreshCurrentPageStorageStatusAsync(options, "construction_success", cancellationToken);
         }
         else if (string.Equals(item.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase))
         {

@@ -654,6 +654,32 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
         return status ?? throw new InvalidOperationException("Could not read current-page resource status.");
     }
 
+    public async Task<VillageStatus> ReadCurrentPageStorageStatusAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        VillageStatus? status = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                log($"Quick storage status read for server {options.ServerName}.");
+                status = await client.ReadCurrentPageStorageStatusAsync(cancellationToken);
+                var forecastCount = status?.ResourceStorageForecasts?.Count ?? 0;
+                var warehouse = FormatResourceStatusNumber(status?.WarehouseCapacity);
+                var granary = FormatResourceStatusNumber(status?.GranaryCapacity);
+                log($"Quick storage status: village='{status?.ActiveVillage ?? "-"}', forecasts={forecastCount}, storage={warehouse}/{granary}.");
+            });
+
+        return status ?? throw new InvalidOperationException("Could not read current-page storage status.");
+    }
+
     public async Task<PageHtmlCapture> ReadCurrentPageHtmlAsync(
         BotOptions options,
         Action<string> log,

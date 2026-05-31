@@ -159,6 +159,17 @@ public partial class MainWindow
         TriggerDeferredTroopTrainingWaitRefresh(status, "resource_status_refresh");
     }
 
+    private void ApplyStorageStatusToUi(VillageStatus status, string source)
+    {
+        status = MergeResourceStatusForUi(status);
+        AppendLog($"[storage-refresh] applied from {source}: {BuildResourceLogSummary(status)}");
+        ApplyResourceTransferVillageResourceStatus(status);
+        _resourcesViewModel.ApplyStorageForecasts(status);
+        TriggerDeferredConstructionWaitRefresh(status, "storage_status_refresh");
+        TriggerDeferredTroopTrainingWaitRefresh(status, "storage_status_refresh");
+        UpdateResourcesInfoText(status, _resourcesViewModel.AllFields.Count);
+    }
+
     private VillageStatus MergeResourceStatusForUi(VillageStatus status)
     {
         if (HasCompleteResourceUiSnapshot(status))

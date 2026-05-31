@@ -1919,31 +1919,63 @@ public partial class MainWindow : Window
             return;
         }
 
-        var halfDelay = TimeSpan.FromSeconds(Math.Max(1, Math.Floor(queueWaitDelay.TotalSeconds / 2d)));
         var baseOptions = ApplySelectedVillageToOptions(LoadBotOptions());
         var itemOptions = BotOptionsPayloadApplier.Apply(baseOptions, item.Payload);
+        var deadlineUtc = DateTimeOffset.UtcNow + queueWaitDelay;
 
         _ = Task.Run(async () =>
         {
             try
             {
-                await Task.Delay(halfDelay);
-                var status = await _botService.ReadVillageResourceStatusAsync(
-                    itemOptions,
-                    AppendLog,
-                    null,
-                    null,
-                    CancellationToken.None,
-                    currentPageOnly: true);
-                await Dispatcher.InvokeAsync(() =>
+                while (DateTimeOffset.UtcNow < deadlineUtc && IsQueueItemStillDeferred(item.Id))
                 {
-                    ApplyResourceStatusToUi(status);
-                });
+                    var remaining = deadlineUtc - DateTimeOffset.UtcNow;
+                    var delaySeconds = Math.Clamp(
+                        Math.Floor(remaining.TotalSeconds / 2d),
+                        1d,
+                        120d);
+                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds), CancellationToken.None);
+
+                    if (!IsQueueItemStillDeferred(item.Id))
+                    {
+                        return;
+                    }
+
+                    await RefreshCurrentPageStorageStatusAsync(
+                        itemOptions,
+                        "deferred_queue_wait",
+                        CancellationToken.None);
+                }
             }
             catch (Exception ex)
             {
-                AppendLog($"Deferred dorf1 refresh skipped: {ex.Message}");
+                AppendLog($"Deferred storage refresh skipped: {ex.Message}");
             }
+        });
+    }
+
+    private bool IsQueueItemStillDeferred(Guid itemId)
+    {
+        try
+        {
+            var item = _botService.GetQueueItemsForDisplay().FirstOrDefault(candidate => candidate.Id == itemId);
+            return item is { Status: QueueStatus.Pending } && item.NextAttemptAt > DateTimeOffset.UtcNow;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private async Task RefreshCurrentPageStorageStatusAsync(
+        BotOptions options,
+        string source,
+        CancellationToken cancellationToken)
+    {
+        var status = await _botService.ReadCurrentPageStorageStatusAsync(options, AppendLog, cancellationToken);
+        await Dispatcher.InvokeAsync(() =>
+        {
+            ApplyStorageStatusToUi(status, source);
         });
     }
 

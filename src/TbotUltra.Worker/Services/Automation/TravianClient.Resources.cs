@@ -24,6 +24,56 @@ public sealed partial class TravianClient
         return await ReadCurrentVillageResourceStatusAsync(cancellationToken, allowNavigationToResourcePage);
     }
 
+    public async Task<VillageStatus> ReadCurrentPageStorageStatusAsync(CancellationToken cancellationToken = default)
+    {
+        Notify("[resources:verbose] ReadCurrentPageStorageStatusAsync started");
+        await EnsureLoggedInAsync();
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared before reading storage status.", cancellationToken);
+
+        var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
+        var cachedSnapshot = TryGetCachedVillageResourceSnapshot(activeVillage);
+        var snapshot = await ReadResourceSnapshotAsync(
+            cancellationToken,
+            allowRecovery: false,
+            maxAttempts: 1);
+        var resources = snapshot.Resources;
+        var capacities = (
+            Warehouse: snapshot.Capacities.Warehouse ?? cachedSnapshot?.WarehouseCapacity,
+            Granary: snapshot.Capacities.Granary ?? cachedSnapshot?.GranaryCapacity);
+        var productionByHour = MergeProductionByHour(snapshot.ProductionByHour, cachedSnapshot?.ProductionByHour);
+        var forecasts = BuildResourceForecasts(resources, capacities, productionByHour);
+
+        SaveCachedVillageResourceSnapshot(
+            activeVillage,
+            cachedSnapshot?.ResourceFields ?? [],
+            capacities,
+            productionByHour);
+
+        Notify($"Storage read: village='{activeVillage}', storage wh={FormatResourceLogNumber(capacities.Warehouse)} gr={FormatResourceLogNumber(capacities.Granary)} | stock {BuildResourceValueLog(resources)} | prod {BuildProductionValueLog(productionByHour)}");
+
+        var buildQueue = await ReadBuildQueueAsync(cancellationToken);
+        var remaining = ResolveShortestQueueDurationSeconds(buildQueue);
+
+        return new VillageStatus(
+            ActiveVillage: activeVillage,
+            Villages: [],
+            Resources: resources,
+            ResourceFields: cachedSnapshot?.ResourceFields ?? [],
+            Buildings: [],
+            BuildQueue: buildQueue,
+            Tribe: string.Empty,
+            VillageCount: 0,
+            IsBuildingInProgress: buildQueue.Count > 0,
+            ActiveBuildCount: buildQueue.Count,
+            BuildQueueRemainingSeconds: remaining,
+            BuildQueueRemainingText: remaining is int left ? FormatDuration(left) : string.Empty,
+            IsCapital: TryGetCachedCapitalState(activeVillage),
+            ServerTimeUtc: _serverTimeUtc,
+            WarehouseCapacity: capacities.Warehouse,
+            GranaryCapacity: capacities.Granary,
+            ResourceStorageForecasts: forecasts);
+    }
+
     public async Task<IReadOnlyList<VillageStatus>> ReadAllVillageResourceStatusesAsync(CancellationToken cancellationToken = default)
     {
         Notify("[resources] all-village resource scan starting");

@@ -59,6 +59,7 @@ public interface IDesktopBotService
     Task<VillageStatus> ReadVillageResourceStatusAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken, bool currentPageOnly = false);
     Task<IReadOnlyList<VillageStatus>> ReadAllVillageResourceStatusesAsync(BotOptions options, Action<string> log, string? returnVillageName, string? returnVillageUrl, CancellationToken cancellationToken);
     Task<VillageStatus> ReadCurrentPageResourceStatusQuickAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
+    Task<VillageStatus> ReadCurrentPageStorageStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<IReadOnlyDictionary<string, double?>> ReadCurrentPageResourceProductionPerHourAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<PageHtmlCapture> ReadCurrentPageHtmlAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task NavigateToVillageResourceFieldsAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken);
