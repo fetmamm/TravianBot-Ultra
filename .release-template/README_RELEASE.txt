@@ -29,6 +29,6 @@ Notes:
 - Use a folder the app can write to (logs, queue data, config updates). The
   installer's default location under your user profile already allows this.
 - If .env or config files already exist from an older copy, they are kept.
-- On first browser-based run the app can install Chromium automatically via playwright.ps1.
+- Chromium is bundled in the portable folder.
 - The captcha solver runtime is included in both downloads.
 - Captcha auto-solve is disabled in the release template until you enable it in config.
