@@ -269,6 +269,9 @@ public partial class MainWindow : Window
     // popup know the browser window is already open WITHOUT enabling background/village-selection ops
     // (which gate on _browserSessionLikelyOpen) to race the login on the shared page.
     private volatile bool _visibleBrowserLoginInProgress;
+    // Guards the account-switch flow (logout → close → reopen + auto-login) against overlapping runs so
+    // rapid picker changes can't spawn concurrent flows fighting over the shared browser.
+    private bool _accountSwitchInProgress;
     private bool _farmingFeaturesAvailable = true;
     private int _activeVillageResourceMaxLevel = NonCapitalResourceMaxLevel;
     private int _buildQueueRemainingSeconds = -1;
@@ -581,6 +584,14 @@ public partial class MainWindow : Window
         {
             AppendLog("Chromium warmup skipped: Chromium is not installed locally.");
             return;
+        }
+
+        // Clean up browser windows orphaned by a previous crashed/force-stopped run so they don't
+        // linger on screen and look like the current session flickering.
+        var orphans = BrowserSession.KillOrphanedChromium(_projectRoot);
+        if (orphans > 0)
+        {
+            AppendLog($"Cleaned up {orphans} leftover browser process(es) from a previous run.");
         }
 
         var sw = Stopwatch.StartNew();
@@ -1234,22 +1245,32 @@ public partial class MainWindow : Window
         };
         window.ShowDialog();
         var activeAccountAfterDialog = _accountStore.ActiveAccountName();
-        if (!string.Equals(previouslyActiveAccount, activeAccountAfterDialog, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(previouslyActiveAccount, activeAccountAfterDialog, StringComparison.OrdinalIgnoreCase)
+            && !_accountSwitchInProgress
+            && !_loginInProgress)
         {
-            await ResetForAccountSwitchAsync(options, previousLoggedIn);
-            AppendLog($"Active account changed to '{activeAccountAfterDialog}'. Previous session closed and state reset.");
-            ResetVillageSelectionUi();
-            LoadConfigToUi();
+            _accountSwitchInProgress = true;
+            try
+            {
+                await ResetForAccountSwitchAsync(options, previousLoggedIn);
+                AppendLog($"Active account changed to '{activeAccountAfterDialog}'. Previous session closed and state reset.");
+                ResetVillageSelectionUi();
+                LoadConfigToUi();
 
-            if (previousLoggedIn)
-            {
-                // Mirror the Login button: open a fresh browser/session and log into the new account.
-                AppendLog($"Logging into '{activeAccountAfterDialog}'.");
-                await ExecuteLoginFlowAsync();
+                if (previousLoggedIn)
+                {
+                    // Mirror the Login button: open a fresh browser/session and log into the new account.
+                    AppendLog($"Logging into '{activeAccountAfterDialog}'.");
+                    await ExecuteLoginFlowAsync();
+                }
+                else
+                {
+                    StatusTextBlock.Text = $"Active account: {activeAccountAfterDialog}. Press Login to start a new session.";
+                }
             }
-            else
+            finally
             {
-                StatusTextBlock.Text = $"Active account: {activeAccountAfterDialog}. Press Login to start a new session.";
+                _accountSwitchInProgress = false;
             }
 
             return;
@@ -1270,14 +1291,26 @@ public partial class MainWindow : Window
             return;
         }
 
+        var current = _accountStore.ActiveAccountName();
+        if (string.Equals(current, selected.Name, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        // A switch (logout → close → reopen + auto-login) is a heavy async flow that drives the shared
+        // browser. If the user changes the picker again before it finishes, a second handler would run
+        // concurrently and the two would fight over the same browser (tab flicker). Ignore further changes
+        // until the current switch/login completes, and revert the picker to the still-active account.
+        if (_accountSwitchInProgress || _loginInProgress)
+        {
+            AppendLog("Account switch/login already in progress. Ignoring account change until it finishes.");
+            RefreshAccountPicker();
+            return;
+        }
+
+        _accountSwitchInProgress = true;
         try
         {
-            var current = _accountStore.ActiveAccountName();
-            if (string.Equals(current, selected.Name, StringComparison.OrdinalIgnoreCase))
-            {
-                return;
-            }
-
             // Capture the previous account's options before switching so we can log it out cleanly.
             var previousOptions = ApplySelectedVillageToOptions(LoadBotOptions());
             var previousLoggedIn = _isLoggedIn;
@@ -1305,6 +1338,10 @@ public partial class MainWindow : Window
         {
             AppendLog($"Could not change active account: {ex.Message}");
             RefreshAccountPicker();
+        }
+        finally
+        {
+            _accountSwitchInProgress = false;
         }
     }
 

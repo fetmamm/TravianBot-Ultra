@@ -156,8 +156,47 @@ public sealed class ResourcesViewModel : BaseViewModel
     /// </summary>
     public void SetAllFields(IEnumerable<ResourceFieldRow> rows)
     {
-        _allFields = rows.ToList();
+        var newRows = rows.ToList();
+
+        // The ~16s background resource refresh calls this every tick, almost always with IDENTICAL
+        // field data (levels rarely change). RebuildFieldGroups() does Clear()+Add() on the four
+        // bound column collections, so re-applying identical data makes the resource panel visibly
+        // blip every refresh. Skip the rebuild when nothing actually changed.
+        if (FieldRowsEqual(_allFields, newRows))
+        {
+            return;
+        }
+
+        _allFields = newRows;
         RebuildFieldGroups(_allFields);
+    }
+
+    private static bool FieldRowsEqual(IReadOnlyList<ResourceFieldRow> current, IReadOnlyList<ResourceFieldRow> next)
+    {
+        if (current.Count != next.Count)
+        {
+            return false;
+        }
+
+        var a = current.OrderBy(r => r.SlotId).ToList();
+        var b = next.OrderBy(r => r.SlotId).ToList();
+        for (var i = 0; i < a.Count; i++)
+        {
+            var x = a[i];
+            var y = b[i];
+            if (x.SlotId != y.SlotId
+                || x.Level != y.Level
+                || x.PendingTargetLevel != y.PendingTargetLevel
+                || x.IsMaxLevel != y.IsMaxLevel
+                || !string.Equals(x.FieldType, y.FieldType, StringComparison.Ordinal)
+                || !string.Equals(x.Name, y.Name, StringComparison.Ordinal)
+                || !string.Equals(x.Url, y.Url, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private void RebuildFieldGroups(IEnumerable<ResourceFieldRow> rows)
