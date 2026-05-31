@@ -996,6 +996,11 @@ public partial class MainWindow : Window
 
     private async void LoginButton_Click(object sender, RoutedEventArgs e)
     {
+        await ExecuteLoginFlowAsync();
+    }
+
+    private async Task ExecuteLoginFlowAsync()
+    {
         // Guard against re-entrancy (e.g. double-clicking Login or clicking while a login is
         // already running). The button is also disabled via ToggleUiBusy, but this is belt-and-suspenders.
         if (_loginInProgress)
@@ -1018,6 +1023,13 @@ public partial class MainWindow : Window
 
             await EnsureChromiumInstalledAsync();
             AppendLog("Login started.");
+            // Mark the (visible) browser as open BEFORE login runs. Login can block on a captcha/manual
+            // step while the browser window is already up; if this flag were still false the manual-
+            // verification popup would wrongly claim "Browser is not open" and offer to open a second
+            // (conflicting) verification browser. Other UI gates also require _isLoggedIn, which stays
+            // false until login finishes, so flipping this early has no side effects. The catch below
+            // resets it if login fails.
+            _browserSessionLikelyOpen = !options.Headless;
             await _botService.ExecuteLoginAsync(
                 options,
                 AppendLog,
@@ -1173,6 +1185,7 @@ public partial class MainWindow : Window
     {
         var previouslyActiveAccount = _accountStore.ActiveAccountName();
         var options = ApplySelectedVillageToOptions(LoadBotOptions());
+        var previousLoggedIn = _isLoggedIn;
         var defaultServers = await FetchDefaultServerOptionsAsync(options);
         var servers = FetchEffectiveServerOptions(defaultServers);
         var window = new AccountsWindow(_accountStore, _accountDeletionService, _serverCatalogStore, options.ServerName, options.BaseUrl, servers, defaultServers)
@@ -1183,13 +1196,29 @@ public partial class MainWindow : Window
         var activeAccountAfterDialog = _accountStore.ActiveAccountName();
         if (!string.Equals(previouslyActiveAccount, activeAccountAfterDialog, StringComparison.OrdinalIgnoreCase))
         {
+            await ResetForAccountSwitchAsync(options, previousLoggedIn);
+            AppendLog($"Active account changed to '{activeAccountAfterDialog}'. Previous session closed and state reset.");
             ResetVillageSelectionUi();
+            LoadConfigToUi();
+
+            if (previousLoggedIn)
+            {
+                // Mirror the Login button: open a fresh browser/session and log into the new account.
+                AppendLog($"Logging into '{activeAccountAfterDialog}'.");
+                await ExecuteLoginFlowAsync();
+            }
+            else
+            {
+                StatusTextBlock.Text = $"Active account: {activeAccountAfterDialog}. Press Login to start a new session.";
+            }
+
+            return;
         }
 
         LoadConfigToUi();
     }
 
-    private void AccountComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private async void AccountComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_suppressAccountSelectionChange)
         {
@@ -1209,14 +1238,28 @@ public partial class MainWindow : Window
                 return;
             }
 
+            // Capture the previous account's options before switching so we can log it out cleanly.
+            var previousOptions = ApplySelectedVillageToOptions(LoadBotOptions());
+            var previousLoggedIn = _isLoggedIn;
+
+            await ResetForAccountSwitchAsync(previousOptions, previousLoggedIn);
+
             _accountStore.SetActive(selected.Name);
-            AppendLog($"Active account changed to '{selected.Name}'.");
-            StatusTextBlock.Text = $"Active account: {selected.Name}";
+            AppendLog($"Active account changed to '{selected.Name}'. Previous session closed and state reset.");
             ResetVillageSelectionUi();
             SyncServerFromActiveAccount();
             LoadConfigToUi();
-            _inboxAutoEnabled = false;
-            UpdateInboxButtons(0, 0);
+
+            if (previousLoggedIn)
+            {
+                // Mirror the Login button: open a fresh browser/session and log into the new account.
+                AppendLog($"Logging into '{selected.Name}'.");
+                await ExecuteLoginFlowAsync();
+            }
+            else
+            {
+                StatusTextBlock.Text = $"Active account: {selected.Name}. Press Login to start a new session.";
+            }
         }
         catch (Exception ex)
         {
@@ -1234,6 +1277,27 @@ public partial class MainWindow : Window
             },
             preferredVillageName: "-",
             fallbackVillageName: null);
+    }
+
+    // ResetVillageSelectionUi() goes through ApplyVillagePickerItems(), which deliberately REFUSES to
+    // blank a populated picker (guards against transient empty status updates mid-navigation). That makes
+    // it a no-op on account switch, leaving the previous account's village selected — which then leaks
+    // into the new account's login as a bogus target village (navigating to a village that doesn't exist
+    // on the new server). This forces the picker + dashboard list back to the empty placeholder.
+    private void ForceClearVillageSelectionUi()
+    {
+        _suppressVillageSelectionChange = true;
+        try
+        {
+            var placeholder = new[] { new VillageSelectionItem { Name = "-", Url = string.Empty } };
+            VillageComboBox.ItemsSource = placeholder;
+            VillageComboBox.SelectedItem = placeholder[0];
+            DashboardVillageList.ItemsSource = Array.Empty<VillageSelectionItem>();
+        }
+        finally
+        {
+            _suppressVillageSelectionChange = false;
+        }
     }
 
     private async void ResetProgramButton_Click(object sender, RoutedEventArgs e)
@@ -1256,23 +1320,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            _loopController.RequestLoopStop();
-            _loopController.RequestQueueStop();
-            _operationCts?.Cancel();
-            _autoQueueRunCts?.Cancel();
-            _loopCts?.Cancel();
-            _villageSwitchCts?.Cancel();
-
-            var stopDeadline = DateTime.UtcNow.AddSeconds(8);
-            while (DateTime.UtcNow < stopDeadline)
-            {
-                if (!_uiBusy && !_autoQueueRunning && (_loopTask is null || _loopTask.IsCompleted))
-                {
-                    break;
-                }
-
-                await Task.Delay(120);
-            }
+            await StopAllAutomationAndWaitAsync();
 
             // Close the shared browser session so the program returns to its just-started state.
             // This disposes Chromium but keeps the saved auth state, so the user can simply press
@@ -1286,40 +1334,153 @@ public partial class MainWindow : Window
                 AppendLog($"Could not close browser during reset: {ex.Message}");
             }
 
-            _botService.ClearQueue();
-            _resourceClickCooldownBySlot.Clear();
-            _resourceLastQueuedTargetBySlot.Clear();
-            _resourcesViewModel.ClearPendingTargets();
-            _buildingClickCooldownBySlot.Clear();
-            _buildingLastQueuedTargetBySlot.Clear();
-            _buildingLastQueuedConstructBySlot.Clear();
-            _buildQueueActiveCount = 0;
-            _buildQueueRemainingSeconds = -1;
-            _activeVillageResourceMaxLevel = NonCapitalResourceMaxLevel;
-            _lastBuildingStatus = null;
-            _lastResourceStatusForUi = null;
-
-            SetResourceRows([]);
-            _resourcesViewModel.ResetStorageForecasts();
-            _buildingRows.Clear();
-            _demolishableBuildings.Clear();
-            BuildQueueStatusTextBlock.Text = "Build queue: idle";
-
-            // Return login/session state to startup: not logged in, browser closed, inbox idle.
-            _isLoggedIn = false;
-            _browserSessionLikelyOpen = false;
-            _inboxAutoEnabled = false;
-            UpdateLoginButtonsVisual(false);
-            UpdateInboxButtons(0, 0);
-
-            RefreshQueueUi();
-            UpdateExecutionStateIndicator();
+            ClearAccountScopedUiState();
             StatusTextBlock.Text = "Program reset. Press Login to start a new session.";
             AppendLog("Program reset completed. Browser session closed, internal state and queue cleared. Press Login to start again.");
         }
         catch (Exception ex)
         {
             AppendLog($"Program reset failed: {ex.Message}");
+        }
+    }
+
+    private async Task StopAllAutomationAndWaitAsync()
+    {
+        _loopController.RequestLoopStop();
+        _loopController.RequestQueueStop();
+        _operationCts?.Cancel();
+        _autoQueueRunCts?.Cancel();
+        _loopCts?.Cancel();
+        _villageSwitchCts?.Cancel();
+
+        var stopDeadline = DateTime.UtcNow.AddSeconds(8);
+        while (DateTime.UtcNow < stopDeadline)
+        {
+            if (!_uiBusy
+                && !_autoQueueRunning
+                && !_resourceSnapshotRefreshRunning
+                && (_loopTask is null || _loopTask.IsCompleted))
+            {
+                break;
+            }
+
+            await Task.Delay(120);
+        }
+    }
+
+    private void ClearAccountScopedUiState()
+    {
+        _botService.ClearQueue();
+        _resourceClickCooldownBySlot.Clear();
+        _resourceLastQueuedTargetBySlot.Clear();
+        _resourcesViewModel.ClearPendingTargets();
+        _buildingClickCooldownBySlot.Clear();
+        _buildingLastQueuedTargetBySlot.Clear();
+        _buildingLastQueuedConstructBySlot.Clear();
+        _buildQueueActiveCount = 0;
+        _buildQueueRemainingSeconds = -1;
+        _activeVillageResourceMaxLevel = NonCapitalResourceMaxLevel;
+        _lastBuildingStatus = null;
+        _lastResourceStatusForUi = null;
+
+        SetResourceRows([]);
+        _resourcesViewModel.ResetStorageForecasts();
+        _buildingRows.Clear();
+        _demolishableBuildings.Clear();
+        ForceClearVillageSelectionUi();
+        BuildQueueStatusTextBlock.Text = "Build queue: idle";
+
+        // Return login/session state to startup: not logged in, browser closed, inbox idle.
+        _isLoggedIn = false;
+        _browserSessionLikelyOpen = false;
+        _inboxAutoEnabled = false;
+        UpdateLoginButtonsVisual(false);
+        UpdateInboxButtons(0, 0);
+
+        RefreshQueueUi();
+        UpdateExecutionStateIndicator();
+    }
+
+    // Switching the active account mid-session must behave like a fresh start: stop any running
+    // automation, log out + close the old browser session, and clear all account-scoped cache so
+    // stale buildings/villages/login state from the previous account never carry over. Closing the
+    // worker session also guarantees the next login opens a brand-new browser and runs the full
+    // login flow (the fresh session cache forces a real logged-in check).
+    private async Task ResetForAccountSwitchAsync(BotOptions previousOptions, bool previousLoggedIn)
+    {
+        // Disable all background session work BEFORE anything else. While _isLoggedIn /
+        // _browserSessionLikelyOpen are still true, the ~16s resource-refresh tick (and inbox checks)
+        // can slip onto the session gate right after logout and silently log the OLD account back in.
+        // Flipping these first makes ShouldRunBackgroundResourceSnapshotRefresh() bail; the wait below
+        // then drains anything already in flight.
+        _isLoggedIn = false;
+        _browserSessionLikelyOpen = false;
+        _inboxAutoEnabled = false;
+        await StopAllAutomationAndWaitAsync();
+
+        if (previousLoggedIn)
+        {
+            try
+            {
+                await _botService.ExecuteLogoutAsync(previousOptions, AppendLog, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"Could not log out previous account (continuing): {ex.Message}");
+            }
+        }
+
+        try
+        {
+            await _botService.ShutdownAsync(AppendLog);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Could not close browser during account switch: {ex.Message}");
+        }
+
+        ClearPersistedAccountScopedConfig();
+        ClearAccountScopedUiState();
+    }
+
+    // bot.json is shared across accounts, but a handful of settings point at specific villages or
+    // farm lists (by name, URL or id). Left in place they make the next login navigate to a village
+    // that does not exist on the new account — which silently logs the fresh session out. Remove
+    // them on every account switch so the new account is not contaminated by the previous one.
+    private void ClearPersistedAccountScopedConfig()
+    {
+        string[] accountScopedKeys =
+        {
+            BotOptionPayloadKeys.TargetVillageName,
+            BotOptionPayloadKeys.TargetVillageUrl,
+            BotOptionPayloadKeys.ReinforcementsTargetVillageName,
+            BotOptionPayloadKeys.ReinforcementsSourceVillageNames,
+            BotOptionPayloadKeys.ResourceTransferTargetVillageName,
+            BotOptionPayloadKeys.ResourceTransferSourceVillageNames,
+            BotOptionPayloadKeys.ContinuousFarmListNames,
+            BotOptionPayloadKeys.ContinuousFarmListIds,
+        };
+
+        try
+        {
+            var config = _botConfigStore.Load();
+            var changed = false;
+            foreach (var key in accountScopedKeys)
+            {
+                if (config.Remove(key))
+                {
+                    changed = true;
+                }
+            }
+
+            if (changed)
+            {
+                _botConfigStore.Save(config);
+            }
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Could not clear previous account's village/farm-list settings: {ex.Message}");
         }
     }
 

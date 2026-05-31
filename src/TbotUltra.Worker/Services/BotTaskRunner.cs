@@ -1060,6 +1060,10 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
                 log($"Starting logout for server {options.ServerName}.");
                 await client.LogoutAsync(cancellationToken);
                 log("Logout completed.");
+                // Drop all session-scoped cache (villages, population, plus/gold, logged-in state)
+                // so a subsequent login on this shared browser starts from a clean slate and never
+                // reuses the logged-out account's data.
+                _sharedVisibleSessionCache = new TravianSessionCache();
             });
     }
 
