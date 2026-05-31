@@ -58,13 +58,17 @@ public sealed partial class TravianClient
     private bool? _cachedGoldClubEnabled { get => _session.CachedGoldClubEnabled; set => _session.CachedGoldClubEnabled = value; }
     private string? _sessionTribe { get => _session.SessionTribe; set => _session.SessionTribe = value; }
 
-    // Short-lived cache for ReadActiveConstructionsAsync. Upgrade-loop iterations make 4-5
-    // calls within a few hundred ms (pre-click checks); this collapses them into one network
-    // round-trip. TTL is intentionally short — callers that need fresh state after a click
-    // call InvalidateActiveConstructionsCache(). GotoAsync invalidates automatically.
+    // Short-lived cache for ReadActiveConstructionsAsync. One upgrade-to-max iteration makes
+    // several pre-click reads of the SAME dorf2 page state (e.g. ReadHighestKnownQueuedBuildingLevel
+    // then CheckQueueOrDefer/EvaluateConstructionSlots). At 800ms these missed on slightly slow pages
+    // and re-fetched, doubling the network round-trips per upgraded level. The TTL is sized to span a
+    // single iteration's pre-click window so those collapse into one read. This is safe: every caller
+    // that needs FRESH state after a click calls InvalidateActiveConstructionsCache() first
+    // (e.g. WaitForBuildingLevelAdvanceAsync), and GotoAsync/ReloadOrGotoAsync invalidate automatically
+    // on every navigation — so the cache is always re-seeded fresh at the top of each iteration.
     private IReadOnlyList<ActiveConstruction>? _cachedActiveConstructions;
     private DateTimeOffset _cachedActiveConstructionsAt = DateTimeOffset.MinValue;
-    private static readonly TimeSpan ActiveConstructionsCacheTtl = TimeSpan.FromMilliseconds(800);
+    private static readonly TimeSpan ActiveConstructionsCacheTtl = TimeSpan.FromMilliseconds(2500);
 
     internal void InvalidateActiveConstructionsCache() => _cachedActiveConstructions = null;
 
@@ -1076,6 +1080,10 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         if (IsCurrentUrlForPath(pathOrUrl))
         {
             await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+            // A reload replaces page content just like a navigation, so any page-derived cache must
+            // be dropped here too (the GotoAsync branch already does this). Without this the longer
+            // active-constructions TTL could serve pre-reload state at the top of an upgrade iteration.
+            InvalidateActiveConstructionsCache();
         }
         else
         {
