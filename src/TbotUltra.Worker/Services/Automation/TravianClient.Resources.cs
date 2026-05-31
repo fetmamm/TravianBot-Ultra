@@ -1911,9 +1911,13 @@ public sealed partial class TravianClient
 
     private async Task NavigateToResourceFieldsAfterUpgradeClickAsync(CancellationToken cancellationToken)
     {
-        await EnsureResourceFieldsPageAsync(
-            cancellationToken,
-            "Manual verification appeared while returning to resource fields after upgrade click.");
+        if (!IsCurrentUrlForPath(Paths.Resources))
+        {
+            await GotoAsync(Paths.Resources, cancellationToken);
+        }
+
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while returning to resource fields after upgrade click.", cancellationToken);
+        await EnsureLoggedInAsync();
     }
 
     private async Task EnsureResourceFieldsPageAsync(CancellationToken cancellationToken, string manualVerificationMessage)
@@ -1960,6 +1964,11 @@ public sealed partial class TravianClient
                 Notify($"Resource slot {slotId} level increased from {previousLevel} to {currentLevel}.");
                 return new UpgradeProgressResult(true, false, "level advanced");
             }
+
+            if (i == 0 && HasResourceQueueProgress(queueFingerprintBefore, latestSnapshot))
+            {
+                return new UpgradeProgressResult(false, true, "queue changed");
+            }
         }
 
         if (latestSnapshot is null)
@@ -1985,6 +1994,13 @@ public sealed partial class TravianClient
         }
 
         return new UpgradeProgressResult(false, false, "no queue or level change");
+    }
+
+    private static bool HasResourceQueueProgress(string queueFingerprintBefore, ResourceProgressSnapshot snapshot)
+    {
+        var queueFingerprintAfter = BuildQueueFingerprint(snapshot.BuildQueue);
+        return !string.Equals(queueFingerprintBefore, queueFingerprintAfter, StringComparison.Ordinal)
+               || snapshot.BuildQueue.Count > 0;
     }
 
     private async Task<ResourceProgressSnapshot> ReadResourceProgressSnapshotAsync(CancellationToken cancellationToken)
