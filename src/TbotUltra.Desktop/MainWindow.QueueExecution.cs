@@ -206,6 +206,7 @@ public partial class MainWindow
 
                 ScheduleDeferredBuildingsMidWaitRefresh(item, queueWaitDelay);
                 ScheduleDeferredResourcesMidWaitRefresh(item, queueWaitDelay);
+                await RefreshFarmListsUiAfterAutoSendIfNeededAsync(item, ex.Message);
                 AppendLog($"{logPrefix} DEFER {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | next try in {queueWaitDelay.TotalSeconds:F0}s{constructionSuffix}");
                 return true;
             }

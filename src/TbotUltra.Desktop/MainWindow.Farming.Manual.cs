@@ -154,6 +154,12 @@ public partial class MainWindow
                 EnsureManualExecutionTracking();
             }
 
+            if (CancelFarmingOperationButton is not null)
+            {
+                CancelFarmingOperationButton.Visibility = running ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+                CancelFarmingOperationButton.IsEnabled = running;
+            }
+
             UpdateExecutionStateIndicator();
         }
         finally
@@ -163,6 +169,17 @@ public partial class MainWindow
                 CompleteManualExecutionTrackingIfNeeded();
             }
         }
+    }
+
+    private void CancelFarmingOperationButton_Click(object sender, System.Windows.RoutedEventArgs e)
+    {
+        if (CancelFarmingOperationButton is not null)
+        {
+            CancelFarmingOperationButton.IsEnabled = false;
+        }
+
+        AppendLog("Cancel requested for the running farming operation.");
+        _operationCts?.Cancel();
     }
 
     private static BotOptions ApplyManualFarmingSelectionToOptions(BotOptions options, string natarVillageSelection)

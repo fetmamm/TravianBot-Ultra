@@ -9,6 +9,7 @@ public static class BotOptionsFactory
         var tasks = configuration.GetSection("loop_tasks").Get<List<string>>() ?? ["status"];
         var continuousLoopGroups = configuration.GetSection("continuous_loop_groups").Get<List<string>>() ?? [];
         var continuousFarmListNames = configuration.GetSection(BotOptionPayloadKeys.ContinuousFarmListNames).Get<List<string>>() ?? [];
+        var continuousFarmListIds = configuration.GetSection(BotOptionPayloadKeys.ContinuousFarmListIds).Get<List<string>>() ?? [];
         var resourceTransferSourceVillageNames = configuration.GetSection(BotOptionPayloadKeys.ResourceTransferSourceVillageNames).Get<List<string>>() ?? [];
         var reinforcementSourceVillageNames = configuration.GetSection(BotOptionPayloadKeys.ReinforcementsSourceVillageNames).Get<List<string>>() ?? [];
         var reinforcementTroopRules = NormalizeReinforcementTroopRules(
@@ -32,6 +33,7 @@ public static class BotOptionsFactory
             LoopTasks = tasks,
             ContinuousLoopGroups = continuousLoopGroups,
             ContinuousFarmListNames = continuousFarmListNames,
+            ContinuousFarmListIds = continuousFarmListIds,
             ContinuousFarmDispatchDelayMinutes = continuousFarmDispatchDelayMinutes,
             QueueWaitThresholdMode = queueWaitThresholdMode,
             PostLoginAnalyzeFarmlists = configuration.GetValue(BotOptionPayloadKeys.PostLoginAnalyzeFarmlists, false),
@@ -152,6 +154,7 @@ public static class BotOptionsFactory
             LoopTasks = source.LoopTasks,
             ContinuousLoopGroups = source.ContinuousLoopGroups,
             ContinuousFarmListNames = source.ContinuousFarmListNames,
+            ContinuousFarmListIds = source.ContinuousFarmListIds,
             ContinuousFarmDispatchDelayMinutes = source.ContinuousFarmDispatchDelayMinutes,
             QueueWaitThresholdMode = source.QueueWaitThresholdMode,
             PostLoginAnalyzeFarmlists = source.PostLoginAnalyzeFarmlists,

@@ -186,19 +186,27 @@ public partial class MainWindow
             if (goldClubEnabled)
             {
                 await EnsureContinuousFarmListsReadyAsync(options);
-                var selectedFarmLists = Dispatcher.CheckAccess()
-                    ? _farmLists
-                        .Where(item => item.IsEnabled)
+                (List<string> Names, List<string> Ids) GatherSelectedFarmLists()
+                {
+                    var enabled = _farmLists.Where(item => item.IsEnabled).ToList();
+                    var names = enabled
                         .Select(item => item.Name)
                         .Where(name => !string.IsNullOrWhiteSpace(name))
                         .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToList()
-                    : Dispatcher.Invoke(() => _farmLists
-                        .Where(item => item.IsEnabled)
-                        .Select(item => item.Name)
-                        .Where(name => !string.IsNullOrWhiteSpace(name))
+                        .ToList();
+                    var ids = enabled
+                        .Select(item => item.ListId)
+                        .Where(id => !string.IsNullOrWhiteSpace(id))
+                        .Select(id => id!.Trim())
                         .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToList());
+                        .ToList();
+                    return (names, ids);
+                }
+
+                var selectedSnapshot = Dispatcher.CheckAccess()
+                    ? GatherSelectedFarmLists()
+                    : Dispatcher.Invoke(GatherSelectedFarmLists);
+                var selectedFarmLists = selectedSnapshot.Names;
                 var availableFarmListCount = Dispatcher.CheckAccess()
                     ? _farmLists.Count
                     : Dispatcher.Invoke(() => _farmLists.Count);
@@ -216,7 +224,7 @@ public partial class MainWindow
 
                 if (selectedFarmLists.Count > 0)
                 {
-                    var payload = new FarmingPayload(selectedFarmLists).ToDictionary();
+                    var payload = new FarmingPayload(selectedFarmLists, selectedSnapshot.Ids).ToDictionary();
                     _botService.EnqueueRuntime("send_farmlists", "Send selected farmlists", payload, priority: -50, maxRetries: 0);
                 }
             }

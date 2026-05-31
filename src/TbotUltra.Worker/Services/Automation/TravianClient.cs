@@ -3164,7 +3164,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 const key = name.toLowerCase();
                 const existing = seenByName.get(key);
                 if (!existing) {
-                  seenByName.set(key, { name, activeFarmCount: active, totalFarmCount: total, timerText, disabled });
+                  seenByName.set(key, { name, activeFarmCount: active, totalFarmCount: total, timerText, disabled, lid: lid || '' });
                   continue;
                 }
 
@@ -3173,7 +3173,8 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                   activeFarmCount: Math.max(existing.activeFarmCount || 0, active),
                   totalFarmCount: Math.max(existing.totalFarmCount || 0, total),
                   timerText: (existing.timerText && existing.timerText.length > 0) ? existing.timerText : timerText,
-                  disabled: existing.disabled || disabled
+                  disabled: existing.disabled || disabled,
+                  lid: (existing.lid && existing.lid.length > 0) ? existing.lid : (lid || '')
                 });
               }
 
@@ -3191,7 +3192,8 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 Name: row.Name!,
                 ActiveFarmCount: Math.Min(MaxFarmsPerFarmList, Math.Max(0, row.ActiveFarmCount ?? 0)),
                 TotalFarmCount: Math.Min(MaxFarmsPerFarmList, Math.Max(0, row.TotalFarmCount ?? 0)),
-                RemainingSeconds: ResolveFarmListRemainingSeconds(row.TimerText, row.Disabled)))
+                RemainingSeconds: ResolveFarmListRemainingSeconds(row.TimerText, row.Disabled),
+                ListId: string.IsNullOrWhiteSpace(row.Lid) ? null : row.Lid!.Trim()))
             .ToList();
     }
 
@@ -4794,6 +4796,9 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
         [JsonPropertyName("disabled")]
         public bool Disabled { get; init; }
+
+        [JsonPropertyName("lid")]
+        public string? Lid { get; init; }
     }
 
     private sealed class FarmDispatchLimitStateJs

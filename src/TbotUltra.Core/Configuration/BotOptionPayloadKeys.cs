@@ -45,6 +45,9 @@ public static class BotOptionPayloadKeys
     public const string HeroHideMode = "hero_hide_mode"; // "hide" or "fight"
     public const string HeroContinuousAdventures = "hero_continuous_adventures";
     public const string ContinuousFarmListNames = "continuous_farm_list_names";
+    // Stable Travian farm-list ids (lid) for the selected lists. Persisted alongside the names so
+    // the selection survives a village/list rename: the name changes on Travian but the lid does not.
+    public const string ContinuousFarmListIds = "continuous_farm_list_ids";
     public const string ContinuousFarmDispatchDelayMinutes = "continuous_farm_dispatch_delay_minutes";
     public const string QueueWaitThresholdMode = "queue_wait_threshold_mode";
     public const string PostLoginAnalyzeFarmlists = "post_login_analyze_farmlists";

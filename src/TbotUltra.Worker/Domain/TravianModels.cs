@@ -192,7 +192,8 @@ public sealed record FarmListOverview(
     string Name,
     int ActiveFarmCount,
     int TotalFarmCount,
-    int? RemainingSeconds);
+    int? RemainingSeconds,
+    string? ListId = null);
 
 public sealed record FarmAddResult(
     string FarmListName,

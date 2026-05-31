@@ -32,6 +32,7 @@ public static class BotOptionsPayloadApplier
         var upgradeSelectorProfile = source.UpgradeSelectorProfile;
         var natarVillageSelection = source.NatarVillageSelection;
         var continuousFarmListNames = source.ContinuousFarmListNames;
+        var continuousFarmListIds = source.ContinuousFarmListIds;
         var continuousFarmDispatchDelayMinutes = source.ContinuousFarmDispatchDelayMinutes;
         var queueWaitThresholdMode = source.QueueWaitThresholdMode;
         var postLoginAnalyzeFarmlists = source.PostLoginAnalyzeFarmlists;
@@ -272,6 +273,16 @@ public static class BotOptionsPayloadApplier
                 if (key.Equals(BotOptionPayloadKeys.ContinuousFarmListNames, StringComparison.OrdinalIgnoreCase))
                 {
                     continuousFarmListNames = value
+                        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                        .Where(item => !string.IsNullOrWhiteSpace(item))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ContinuousFarmListIds, StringComparison.OrdinalIgnoreCase))
+                {
+                    continuousFarmListIds = value
                         .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                         .Where(item => !string.IsNullOrWhiteSpace(item))
                         .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -763,6 +774,7 @@ public static class BotOptionsPayloadApplier
             LoopTasks = source.LoopTasks,
             ContinuousLoopGroups = source.ContinuousLoopGroups,
             ContinuousFarmListNames = continuousFarmListNames,
+            ContinuousFarmListIds = continuousFarmListIds,
             ContinuousFarmDispatchDelayMinutes = continuousFarmDispatchDelayMinutes,
             QueueWaitThresholdMode = queueWaitThresholdMode,
             PostLoginAnalyzeFarmlists = postLoginAnalyzeFarmlists,

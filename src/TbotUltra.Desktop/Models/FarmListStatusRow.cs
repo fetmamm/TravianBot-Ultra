@@ -7,6 +7,7 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
 {
     private bool _isEnabled;
     private string _name = string.Empty;
+    private string? _listId;
     private int _activeFarmCount;
     private int _totalFarmCount;
     private int? _remainingSeconds;
@@ -23,6 +24,24 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
             }
 
             _name = value;
+            OnPropertyChanged();
+        }
+    }
+
+    // Stable Travian farm-list id (lid). Used to keep the selection matched after a village/list
+    // rename — the display Name changes but the lid does not. May be null for lists where the lid
+    // could not be resolved from the page.
+    public string? ListId
+    {
+        get => _listId;
+        set
+        {
+            if (_listId == value)
+            {
+                return;
+            }
+
+            _listId = value;
             OnPropertyChanged();
         }
     }

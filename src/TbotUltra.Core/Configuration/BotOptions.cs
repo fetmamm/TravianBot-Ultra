@@ -56,6 +56,9 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmListNames)]
     public List<string> ContinuousFarmListNames { get; init; } = [];
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmListIds)]
+    public List<string> ContinuousFarmListIds { get; init; } = [];
+
     [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes)]
     public int ContinuousFarmDispatchDelayMinutes { get; init; } = 3;
 

@@ -1487,20 +1487,38 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             .Select(name => name.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
-        if (selectedNames.Count <= 0)
+        var selectedIds = (context.Options.ContinuousFarmListIds ?? [])
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => id.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (selectedNames.Count <= 0 && selectedIds.Count <= 0)
         {
             throw new InvalidOperationException("No farm lists selected for continuous farming.");
         }
 
+        // Match by the stable list id (lid) first so a renamed village/list still resolves; fall
+        // back to name for selections saved before lids existed or lists without a resolvable lid.
+        bool IsSelected(FarmListOverview item) =>
+            (item.ListId is not null && selectedIds.Contains(item.ListId))
+            || selectedNames.Contains(item.Name, StringComparer.OrdinalIgnoreCase);
+
         var overview = await context.Client.ReadFarmListsOverviewAsync(context.CancellationToken);
         var matchingLists = overview
-            .Where(item => item is not null && selectedNames.Contains(item.Name, StringComparer.OrdinalIgnoreCase))
+            .Where(item => item is not null && IsSelected(item))
             .OrderBy(item => item.RemainingSeconds is > 0 ? item.RemainingSeconds.Value : 0)
             .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
         if (matchingLists.Count <= 0)
         {
-            throw new InvalidOperationException("Selected farm lists were not found on the farm page.");
+            // The selection is stored by farm-list name. If the user renamed a village/list on
+            // Travian, the saved names no longer match the freshly read page. Don't raise a hard
+            // alarm — defer quietly so the desktop UI can re-analyze and surface the current names
+            // for re-selection. Embedding queue_wait_seconds routes this through the defer path.
+            var retryWaitSeconds = Math.Clamp(context.Options.ContinuousFarmDispatchDelayMinutes, 1, 5) * 60;
+            context.Log(overview.Count > 0
+                ? $"Continuous farming: none of the selected farm lists ({string.Join(", ", selectedNames)}) were found on the farm page. They may have been renamed — re-analyze and re-select. Retrying in {retryWaitSeconds}s."
+                : $"Continuous farming: no farm lists were found on the farm page. Retrying in {retryWaitSeconds}s.");
+            throw new InvalidOperationException($"Selected farm lists were not found on the farm page. queue_wait_seconds={Math.Max(1, retryWaitSeconds)}");
         }
 
         var readyLists = matchingLists
@@ -1527,7 +1545,7 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
 
         var refreshedOverview = await context.Client.ReadFarmListsOverviewAsync(context.CancellationToken);
         var refreshedMatching = refreshedOverview
-            .Where(item => item is not null && selectedNames.Contains(item.Name, StringComparer.OrdinalIgnoreCase))
+            .Where(item => item is not null && IsSelected(item))
             .OrderBy(item => item.RemainingSeconds is > 0 ? item.RemainingSeconds.Value : 0)
             .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();

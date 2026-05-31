@@ -395,6 +395,33 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
     }
 
     [Fact]
+    public void FarmingPayload_RoundTripsListIds()
+    {
+        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.ContinuousFarmListNames] = "List A,List B",
+            [BotOptionPayloadKeys.ContinuousFarmListIds] = "39,42,39",
+        };
+
+        Assert.True(FarmingPayload.TryFromDictionary(payload, out var parsed));
+        Assert.NotNull(parsed);
+        Assert.Equal(["39", "42"], parsed!.FarmListIds);
+
+        var serialized = parsed.ToDictionary();
+        Assert.Equal("List A,List B", serialized[BotOptionPayloadKeys.ContinuousFarmListNames]);
+        Assert.Equal("39,42", serialized[BotOptionPayloadKeys.ContinuousFarmListIds]);
+    }
+
+    [Fact]
+    public void FarmingPayload_OmitsListIdsKeyWhenEmpty()
+    {
+        var parsed = new FarmingPayload(["List A"]);
+        var serialized = parsed.ToDictionary();
+        Assert.Single(serialized);
+        Assert.False(serialized.ContainsKey(BotOptionPayloadKeys.ContinuousFarmListIds));
+    }
+
+    [Fact]
     public void BreweryPayload_ParsesAndSerializesDictionary()
     {
         var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)

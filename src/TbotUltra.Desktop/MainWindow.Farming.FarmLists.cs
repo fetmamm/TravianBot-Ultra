@@ -12,6 +12,7 @@ using System.Windows.Data;
 using System.Windows.Threading;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop;
 
@@ -90,7 +91,8 @@ public partial class MainWindow
 
         var lists = await _botService.ReadFarmListsOverviewAsync(options, AppendLog, cancellationToken) ?? [];
         var selectedFarmLists = LoadConfiguredContinuousFarmListNames();
-        var mergedByName = new Dictionary<string, (int Active, int Total, int? RemainingSeconds)>(StringComparer.OrdinalIgnoreCase);
+        var selectedFarmListIds = LoadConfiguredContinuousFarmListIds();
+        var mergedByName = new Dictionary<string, (int Active, int Total, int? RemainingSeconds, string? ListId)>(StringComparer.OrdinalIgnoreCase);
         foreach (var list in lists)
         {
             if (list is null)
@@ -99,12 +101,14 @@ public partial class MainWindow
             }
 
             var normalizedName = string.IsNullOrWhiteSpace(list.Name) ? "Farm list" : list.Name.Trim();
+            var incomingListId = string.IsNullOrWhiteSpace(list.ListId) ? null : list.ListId.Trim();
             if (!mergedByName.TryGetValue(normalizedName, out var existing))
             {
                 mergedByName[normalizedName] = (
                     Active: Math.Max(0, list.ActiveFarmCount),
                     Total: Math.Max(0, list.TotalFarmCount),
-                    RemainingSeconds: list.RemainingSeconds is > 0 ? list.RemainingSeconds : null);
+                    RemainingSeconds: list.RemainingSeconds is > 0 ? list.RemainingSeconds : null,
+                    ListId: incomingListId);
                 continue;
             }
 
@@ -114,7 +118,8 @@ public partial class MainWindow
                 Total: Math.Max(existing.Total, Math.Max(0, list.TotalFarmCount)),
                 RemainingSeconds: existing.RemainingSeconds is > 0
                     ? existing.RemainingSeconds
-                    : incomingRemaining);
+                    : incomingRemaining,
+                ListId: string.IsNullOrWhiteSpace(existing.ListId) ? incomingListId : existing.ListId);
         }
 
         await Dispatcher.InvokeAsync(() =>
@@ -131,12 +136,17 @@ public partial class MainWindow
                         break;
                     }
 
+                    var hasSelection = selectedFarmLists.Count > 0 || selectedFarmListIds.Count > 0;
+                    var isSelected = !hasSelection
+                        || (pair.Value.ListId is not null && selectedFarmListIds.Contains(pair.Value.ListId))
+                        || selectedFarmLists.Contains(pair.Key);
                     _farmLists.Add(new FarmListStatusRow
                     {
                         Name = pair.Key,
+                        ListId = pair.Value.ListId,
                         ActiveFarmCount = pair.Value.Active,
                         TotalFarmCount = pair.Value.Total,
-                        IsEnabled = selectedFarmLists.Count <= 0 || selectedFarmLists.Contains(pair.Key),
+                        IsEnabled = isSelected,
                         RemainingSeconds = pair.Value.RemainingSeconds,
                     });
                     displayedRows++;
@@ -172,6 +182,44 @@ public partial class MainWindow
         }
 
         return true;
+    }
+
+    // After the auto-loop send_farmlists task actually dispatches a list it defers with a
+    // "cooldown active" message. The worker reads the new timer on its side but the desktop
+    // rows are never updated, so they keep showing "Ready" and Send Now stays clickable until
+    // the user manually clicks Analyze. Re-analyze here so timers, names and buttons stay in
+    // sync — the same effect as the Analyze Farmlists button. We also re-analyze on the
+    // "not found" defer (a likely rename) so the current list names surface for re-selection.
+    // The frequent "no list ready" defer is skipped — names are unchanged and a re-read there
+    // would navigate the browser on every loop iteration.
+    private async Task RefreshFarmListsUiAfterAutoSendIfNeededAsync(QueueItem item, string message)
+    {
+        if (!string.Equals(item.TaskName, "send_farmlists", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var sendHappened = message.IndexOf("cooldown active", StringComparison.OrdinalIgnoreCase) >= 0;
+        var possibleRename = message.IndexOf("were not found on the farm page", StringComparison.OrdinalIgnoreCase) >= 0;
+        if (string.IsNullOrEmpty(message) || (!sendHappened && !possibleRename))
+        {
+            return;
+        }
+
+        if (_farmingOperationBusy)
+        {
+            return;
+        }
+
+        try
+        {
+            var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            await RefreshFarmListsFromServerAsync(options, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Farm list UI refresh after send failed: {ex.Message}");
+        }
     }
 
     private async void AnalyzeFarmListsButton_Click(object sender, RoutedEventArgs e)
@@ -514,6 +562,22 @@ public partial class MainWindow
         }
     }
 
+    private IReadOnlySet<string> LoadConfiguredContinuousFarmListIds()
+    {
+        try
+        {
+            var options = LoadBotOptions();
+            return options.ContinuousFarmListIds
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Select(id => id.Trim())
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
     private const string AddFarmsTroopCountConfigKey = "addFarmsTroopCount";
     private const int AddFarmsDefaultTroopCount = 100;
 
@@ -562,14 +626,22 @@ public partial class MainWindow
     {
         try
         {
-            var selectedNames = _farmLists
-                .Where(item => item.IsEnabled)
+            var enabledRows = _farmLists.Where(item => item.IsEnabled).ToList();
+            var selectedNames = enabledRows
                 .Select(item => item.Name)
                 .Where(name => !string.IsNullOrWhiteSpace(name))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
+            // Persist the stable lids too so the selection survives a village/list rename.
+            var selectedIds = enabledRows
+                .Select(item => item.ListId)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Select(id => id!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
             var config = _botConfigStore.Load();
             config[BotOptionPayloadKeys.ContinuousFarmListNames] = new JsonArray(selectedNames.Select(name => JsonValue.Create(name)!).ToArray());
+            config[BotOptionPayloadKeys.ContinuousFarmListIds] = new JsonArray(selectedIds.Select(id => JsonValue.Create(id)!).ToArray());
             _botConfigStore.Save(config);
         }
         catch (Exception ex)
