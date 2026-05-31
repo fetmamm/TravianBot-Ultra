@@ -13,7 +13,7 @@ public sealed partial class TravianClient
 
     public async Task<HeroAdventureDispatchResult> SendHeroOnAdventureAsync(CancellationToken cancellationToken = default)
     {
-        Notify("SendHeroOnAdventureAsync started");
+        Notify("[hero] adventure check starting");
 
         var quick = await ReadHeroQuickStatusAsync(allowDorf1Fallback: true, forceDorf1Reload: false, cancellationToken);
         var statusText = quick.Sidebar.StatusText;
@@ -22,7 +22,7 @@ public sealed partial class TravianClient
         var isOnTheWay = (quick.Status.SecondsUntilReturn is > 0) || IsHeroStatusTextAway(statusText);
         var adventures = ResolveAdventureCount(quick);
 
-        Notify($"Hero quick status: '{statusText ?? "(unknown)"}', adventures available: {adventures}.");
+        Notify($"[hero] status — '{statusText ?? "(unknown)"}', inHomeVillage={inHomeVillage}, dead={isDead}, onTheWay={isOnTheWay}, hp={quick.Status.HpPercent?.ToString() ?? "?"}%, adventures={adventures}");
 
         if (isDead)
         {
@@ -113,7 +113,7 @@ public sealed partial class TravianClient
         await EnsureFreshDorf1ForHeroAsync(forceReload: false, cancellationToken);
 
         var returnText = returnSeconds is int rs ? FormatDuration(rs) : "(unknown)";
-        Notify($"Hero dispatched. Return in: {returnText}.");
+        Notify($"[hero] adventure dispatched — return in {returnText}");
 
         return new HeroAdventureDispatchResult(
             IsInHomeVillage: true,
@@ -126,7 +126,7 @@ public sealed partial class TravianClient
 
     public async Task<int?> RefreshAdventureCountAsync(bool forceReload = true, CancellationToken cancellationToken = default)
     {
-        Notify("RefreshAdventureCountAsync started");
+        Notify("[hero:verbose] RefreshAdventureCountAsync started");
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var sidebar = await ReadHeroSidebarStatusAsync(cancellationToken);
@@ -227,7 +227,9 @@ public sealed partial class TravianClient
 
     private async Task EnsureFreshDorf1ForHeroAsync(bool forceReload, CancellationToken cancellationToken)
     {
-        if (!IsCurrentUrlForPath(Paths.Resources))
+        var onDorf1 = IsCurrentUrlForPath(Paths.Resources);
+        Notify($"[hero:verbose] EnsureFreshDorf1ForHero — onDorf1={onDorf1}, forceReload={forceReload}");
+        if (!onDorf1)
         {
             await GotoAsync(Paths.Resources, cancellationToken);
         }
@@ -239,6 +241,7 @@ public sealed partial class TravianClient
             return;
         }
 
+        Notify("[hero:verbose] reloading dorf1 to refresh hero sidebar");
         await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
         await WaitForNavigationSettledAsync(cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while refreshing dorf1 for hero check.", cancellationToken);
@@ -489,7 +492,7 @@ public sealed partial class TravianClient
             return false;
         }
 
-        Notify("Hero appears dead (bigSpeechBubble.dead detected on current page).");
+        Notify("[hero] dead — bigSpeechBubble.dead detected on current page");
         if (!autoRevive)
         {
             Notify("Auto revive is disabled. Skipping revive.");
@@ -505,7 +508,7 @@ public sealed partial class TravianClient
 
     private async Task<bool> ReviveHeroOnInventoryAsync(CancellationToken cancellationToken)
     {
-        Notify("ReviveHeroOnInventoryAsync started");
+        Notify("[hero] revive flow starting (inventory page)");
         await GotoAsync(Paths.HeroInventory, cancellationToken);
         await WaitForNavigationSettledAsync(cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening hero inventory.", cancellationToken);
@@ -601,7 +604,7 @@ public sealed partial class TravianClient
 
     private async Task<int?> ReadHeroReturnFromRallyPointAsync(CancellationToken cancellationToken)
     {
-        Notify("ReadHeroReturnFromRallyPointAsync started");
+        Notify("[hero:verbose] ReadHeroReturnFromRallyPoint starting");
         await GotoAsync(Paths.RallyPointTroops, cancellationToken);
         await WaitForNavigationSettledAsync(cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening rally point.", cancellationToken);
@@ -708,7 +711,7 @@ public sealed partial class TravianClient
         string hideMode = "hide",
         CancellationToken cancellationToken = default)
     {
-        Notify("ManageHeroAsync started");
+        Notify("[hero] manage starting (revive + points + adventure)");
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         UpdateHeroOintmentAutoUseState(autoUseOintments);
 
@@ -743,7 +746,7 @@ public sealed partial class TravianClient
 
         if (quick.HasUnassignedPointsSignal)
         {
-            Notify("Hero level up / unassigned points signal detected.");
+            Notify("[hero] level up — unassigned points signal detected");
         }
 
         if (autoAssignPoints && quick.HasUnassignedPointsSignal)
@@ -997,7 +1000,7 @@ public sealed partial class TravianClient
 
     public async Task<HeroAttributeSnapshot> ReadHeroAttributeSnapshotAsync(CancellationToken cancellationToken = default)
     {
-        Notify("ReadHeroAttributeSnapshotAsync started");
+        Notify("[hero:verbose] ReadHeroAttributeSnapshotAsync started");
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var quick = await ReadHeroQuickStatusAsync(
@@ -1474,7 +1477,7 @@ public sealed partial class TravianClient
 
     private async Task<int> TryAllocateHeroPointsAsync(string priority, CancellationToken cancellationToken)
     {
-        Notify("[allocate-v2] TryAllocateHeroPointsAsync entered");
+        Notify("[hero:verbose] TryAllocateHeroPoints entered");
         await EnsureHeroInventoryAttributesTabAsync(cancellationToken);
         // The plus buttons live inside the collapsible panel; expand it so Travian's click
         // handler accepts the input. Read-only flows skip this on purpose (it's a slow toggle).
@@ -1497,10 +1500,10 @@ public sealed partial class TravianClient
               });
             }
             """);
-        Notify($"[allocate-v2] DOM diag: {diag}");
+        Notify($"[hero:verbose] allocate DOM diag: {diag}");
 
         var snapshot = await ReadHeroInventorySnapshotAsync(cancellationToken);
-        Notify($"Hero free points found: {snapshot.FreePoints}.");
+        Notify($"[hero] free attribute points found: {snapshot.FreePoints}");
         if (snapshot.FreePoints <= 0)
         {
             return 0;
@@ -1542,7 +1545,7 @@ public sealed partial class TravianClient
         if (saved)
         {
             InvalidateCachedHeroAttributeSnapshot();
-            Notify("Hero points saved.");
+            Notify("[hero] attribute points saved");
         }
 
         return saved ? allocated : 0;
@@ -1841,10 +1844,10 @@ public sealed partial class TravianClient
         }
         catch (Exception ex)
         {
-            Notify($"[snapshot] EvaluateAsync threw: {ex.GetType().Name}: {ex.Message}");
+            Notify($"[hero] inventory snapshot EvaluateAsync threw: {ex.GetType().Name}: {ex.Message}");
             return new HeroAttributeSnapshot();
         }
-        Notify($"[snapshot] raw JSON: {rawJson}");
+        Notify($"[hero:verbose] inventory snapshot raw JSON: {rawJson}");
 
         if (string.IsNullOrWhiteSpace(rawJson))
         {
@@ -1894,7 +1897,7 @@ public sealed partial class TravianClient
 
     public async Task<bool> SetHeroHideModeOnlyAsync(string hideMode, CancellationToken cancellationToken = default)
     {
-        Notify($"SetHeroHideModeOnlyAsync started: requested='{hideMode}'.");
+        Notify($"[hero] set hide mode — requested='{hideMode}'");
         return await ApplyHeroHideModeAsync(hideMode, cancellationToken);
     }
 

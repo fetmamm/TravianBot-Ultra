@@ -12,7 +12,7 @@ public sealed partial class TravianClient
 
     public async Task<string> SendResourcesBetweenOwnVillagesAsync(CancellationToken cancellationToken = default)
     {
-        LogFunctionStarted();
+        Notify($"[transfer] starting — target='{_config.ResourceTransferTargetVillageName ?? "(unset)"}', sources={(_config.ResourceTransferSourceVillageNames?.Count ?? 0)}");
         await EnsureLoggedInAsync();
 
         if (string.IsNullOrWhiteSpace(_config.ResourceTransferTargetVillageName))

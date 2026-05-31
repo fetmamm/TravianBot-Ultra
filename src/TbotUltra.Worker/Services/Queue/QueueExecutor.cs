@@ -42,6 +42,17 @@ public sealed class QueueExecutor
             log($"[queue] CANCELED id={item.Id} task='{item.TaskName}' after {sw.Elapsed.TotalSeconds:F1}s");
             throw;
         }
+        catch (TaskWaitException waitEx)
+        {
+            // Normal "retry later" control flow — the scheduler re-defers this item. Not a failure.
+            log($"[queue] DEFER id={item.Id} task='{item.TaskName}' after {sw.Elapsed.TotalSeconds:F1}s — wait {waitEx.DelaySeconds}s");
+            throw;
+        }
+        catch (TaskBlockedPermanentlyException blockedEx)
+        {
+            log($"[queue] BLOCKED id={item.Id} task='{item.TaskName}' after {sw.Elapsed.TotalSeconds:F1}s: {blockedEx.Message}");
+            throw;
+        }
         catch (Exception ex)
         {
             log($"[queue] FAIL id={item.Id} task='{item.TaskName}' after {sw.Elapsed.TotalSeconds:F1}s: {ex.GetType().Name}: {ex.Message}");

@@ -8,7 +8,7 @@ public sealed partial class TravianClient
 {
     public async Task<VillageStatus> ReadVillageResourceStatusAsync(CancellationToken cancellationToken = default, bool allowNavigationToResourcePage = true)
     {
-        Notify("[ReadVillageResourceStatusAsync] started");
+        Notify("[resources:verbose] ReadVillageResourceStatusAsync started");
         if (allowNavigationToResourcePage && !IsCurrentUrlForPath(Paths.Resources))
         {
             await GotoAsync(Paths.Resources, cancellationToken);
@@ -26,7 +26,7 @@ public sealed partial class TravianClient
 
     public async Task<IReadOnlyList<VillageStatus>> ReadAllVillageResourceStatusesAsync(CancellationToken cancellationToken = default)
     {
-        Notify("[ReadAllVillageResourceStatusesAsync] started");
+        Notify("[resources] all-village resource scan starting");
         await EnsureLoggedInAsync();
 
         var villages = await ReadVillagesAsync(cancellationToken);
@@ -43,13 +43,13 @@ public sealed partial class TravianClient
             statuses.Add(await ReadVillageResourceStatusAsync(cancellationToken));
         }
 
-        Notify($"[ReadAllVillageResourceStatusesAsync] finished count={statuses.Count}");
+        Notify($"[resources] all-village resource scan finished — {statuses.Count} village(s)");
         return statuses;
     }
 
     public async Task NavigateToResourceFieldsAsync(CancellationToken cancellationToken = default)
     {
-        Notify("[NavigateToResourceFieldsAsync] started");
+        Notify("[resources:verbose] NavigateToResourceFieldsAsync started");
         if (!IsCurrentUrlForPath(Paths.Resources))
         {
             await GotoAsync(Paths.Resources, cancellationToken);
@@ -124,7 +124,7 @@ public sealed partial class TravianClient
 
     public async Task<string> UpgradeResourceToLevelAsync(int slotId, int targetLevel, CancellationToken cancellationToken = default)
     {
-        Notify("UpgradeResourceToLevelAsync started");
+        Notify("[resources] upgrade resource field starting");
         if (slotId < 1 || slotId > 18)
         {
             throw new InvalidOperationException($"Resource slot {slotId} is outside the resource field range.");
@@ -1004,7 +1004,16 @@ public sealed partial class TravianClient
               return resources;
             }
             """);
-        return raw ?? new Dictionary<string, string>();
+        var result = raw ?? new Dictionary<string, string>();
+        if (result.Count == 0)
+        {
+            Notify("[resources:verbose] ReadResourcesAsync read 0 values (page may not be dorf1/dorf2 or stock bar not loaded)");
+        }
+        else
+        {
+            Notify($"[resources:verbose] ReadResourcesAsync — wood={result.GetValueOrDefault("wood", "-")} clay={result.GetValueOrDefault("clay", "-")} iron={result.GetValueOrDefault("iron", "-")} crop={result.GetValueOrDefault("crop", "-")}");
+        }
+        return result;
     }
 
     private sealed class ResourceSnapshotDomReadResult

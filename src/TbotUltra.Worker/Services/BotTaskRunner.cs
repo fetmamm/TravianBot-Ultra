@@ -127,6 +127,21 @@ public sealed class BotTaskRunner
                         log($"[{taskName} CANCELED] after {taskSw.Elapsed.TotalSeconds:F1}s ({taskIndex}/{tasks.Count})");
                         throw;
                     }
+                    catch (TaskWaitException waitEx)
+                    {
+                        // Not a failure — this is the worker telling the queue "I can't make progress
+                        // right now (resources/queue/cooldown), retry me in N seconds". The outer
+                        // loop already logs a [LOOP n] DEFER line. Don't trip the alarm panel.
+                        log($"[{taskName} DEFERRED] after {taskSw.Elapsed.TotalSeconds:F1}s — wait {waitEx.DelaySeconds}s: {waitEx.Message}");
+                        throw;
+                    }
+                    catch (TaskBlockedPermanentlyException blockedEx)
+                    {
+                        // Permanent block (e.g. building at max, required building missing). Worth
+                        // noting clearly but not the same as an unexpected crash.
+                        log($"[{taskName} BLOCKED] after {taskSw.Elapsed.TotalSeconds:F1}s: {blockedEx.Message}");
+                        throw;
+                    }
                     catch (Exception ex)
                     {
                         log($"[{taskName} FAILED] after {taskSw.Elapsed.TotalSeconds:F1}s: {ex.GetType().Name}: {ex.Message}");

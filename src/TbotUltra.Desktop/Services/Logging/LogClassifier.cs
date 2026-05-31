@@ -64,7 +64,7 @@ public static class LogClassifier
             return LogCategory.Queue;
         }
 
-        if (Contains(value, "upgradeallresources", "upgraderesource", "resource read", "resource slot", "resource production", "resource field"))
+        if (Contains(value, "[resources]", "[resources:verbose]", "[transfer]", "[npc", "upgradeallresources", "upgraderesource", "resource read", "resource slot", "resource production", "resource field"))
         {
             return LogCategory.Resources;
         }
@@ -84,7 +84,7 @@ public static class LogClassifier
             return LogCategory.Troops;
         }
 
-        if (Contains(value, "hero", "adventure"))
+        if (Contains(value, "[hero]", "[hero:verbose]", "hero", "adventure"))
         {
             return LogCategory.Hero;
         }
