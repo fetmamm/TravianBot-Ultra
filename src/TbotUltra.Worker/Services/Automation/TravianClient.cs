@@ -159,10 +159,11 @@ public sealed partial class TravianClient
 
     public async Task LoginAsync(CancellationToken cancellationToken = default)
     {
-        Notify("[LoginAsync] started");
+        Notify($"[login] account='{_account.Name}' server='{ServerUrl}' — starting");
         await PauseForManualStepIfVisibleAsync("Manual verification appeared before login.", cancellationToken);
         if (await IsLoggedInAsync())
         {
+            Notify($"[login] already logged in as '{_account.Name}'");
             await RefreshAccountFeatureSignalsAsync(cancellationToken);
             return;
         }
@@ -171,7 +172,7 @@ public sealed partial class TravianClient
         var loggedInFromCurrentPage = await TryLoginUsingCurrentPageAsync(cancellationToken);
         if (loggedInFromCurrentPage)
         {
-            Notify("Login successful using current page.");
+            Notify($"[login] success ({_account.Name}) — used existing page form");
             // Behövs inte, göra senare.
             //await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
             await RefreshAccountFeatureSignalsAsync(cancellationToken);
@@ -182,7 +183,7 @@ public sealed partial class TravianClient
         await PauseForManualStepIfVisibleAsync("Manual verification appeared on the login page.", cancellationToken);
         if (await IsLoggedInAsync())
         {
-            Notify("Login successful after navigating to login page.");
+            Notify($"[login] success ({_account.Name}) — already authenticated after opening login page");
             // Behövs inte, göra senare.
             //await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
             await RefreshAccountFeatureSignalsAsync(cancellationToken);
@@ -211,13 +212,13 @@ public sealed partial class TravianClient
         if (await CaptchaOrManualStepVisibleAsync())
         {
             var screenshotPath = await CaptureManualVerificationScreenshotAsync("login-page", cancellationToken);
-            Notify("Captcha or manual login step detected.");
+            Notify($"[login] captcha/manual step detected for {_account.Name} — attempting auto-solve");
             if (await TrySolveCaptchaAutomaticallyAsync("login-page", screenshotPath, cancellationToken))
             {
                 var loggedInAfterAutoSolve = await WaitUntilLoggedInAsync(cancellationToken);
                 if (loggedInAfterAutoSolve)
                 {
-                    Notify("Login successful after captcha auto-solve.");
+                    Notify($"[login] success ({_account.Name}) — captcha auto-solve cleared the block");
                     // Behövs inte, göra senare.
                     //await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
                     await RefreshAccountFeatureSignalsAsync(cancellationToken);
@@ -231,7 +232,7 @@ public sealed partial class TravianClient
                     "Captcha/manual verification appeared while running headless.");
             }
 
-            Notify("Captcha auto-solve did not clear login captcha. Solve it in the browser window. The bot is paused.");
+            Notify($"[login] ALARM: captcha auto-solve failed for {_account.Name}. Solve it manually in the browser — bot is paused.");
             await WaitForManualVerificationToClearAsync(cancellationToken);
         }
         else
@@ -244,7 +245,7 @@ public sealed partial class TravianClient
         {
             throw new InvalidOperationException("Login did not complete successfully.");
         }
-        Notify("Login successful using other method...");
+        Notify($"[login] success ({_account.Name}) — submitted credentials and confirmed");
         // Behövs inte, göra senare.
         //await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
         await RefreshAccountFeatureSignalsAsync(cancellationToken);
@@ -332,7 +333,7 @@ public sealed partial class TravianClient
             return false;
         }
 
-        Notify("Login form detected on current page. Trying login here first.");
+        Notify($"[login] form already on current page — submitting inline for {_account.Name}");
 
         await FillFirstAvailableAsync(Selectors.LoginUsernameField, _account.Username, cancellationToken);
         await FillFirstAvailableAsync(Selectors.LoginPasswordField, _account.Password, cancellationToken);
@@ -340,13 +341,13 @@ public sealed partial class TravianClient
         if (await CaptchaOrManualStepVisibleAsync())
         {
             var screenshotPath = await CaptureManualVerificationScreenshotAsync("login-current-page", cancellationToken);
-            Notify("Captcha or manual login step detected.");
+            Notify($"[login] captcha/manual step on inline form for {_account.Name} — attempting auto-solve");
             if (await TrySolveCaptchaAutomaticallyAsync("login-current-page", screenshotPath, cancellationToken))
             {
                 var autoSolvedLoggedIn = await WaitUntilLoggedInAsync(cancellationToken);
                 if (autoSolvedLoggedIn)
                 {
-                    Notify("Login completed from current page after captcha auto-solve.");
+                    Notify($"[login] success ({_account.Name}) — inline form, captcha auto-solved");
                     return autoSolvedLoggedIn;
                 }
             }
@@ -365,7 +366,7 @@ public sealed partial class TravianClient
         var loggedIn = await WaitUntilLoggedInAsync(cancellationToken);
         if (loggedIn)
         {
-            Notify("Login completed from current page.");
+            Notify($"[login] success ({_account.Name}) — inline form submitted");
         }
 
         return loggedIn;
@@ -373,7 +374,7 @@ public sealed partial class TravianClient
 
     public async Task LogoutAsync(CancellationToken cancellationToken = default)
     {
-        Notify("[LogoutAsync] started");
+        Notify($"[logout] account='{_account.Name}' — starting");
         _sessionTribe = null;
         _cachedTribe = null;
         _cachedGoldClubEnabled = null;
@@ -381,7 +382,7 @@ public sealed partial class TravianClient
         await PauseForManualStepIfVisibleAsync("Manual verification appeared before logout.", cancellationToken);
         if (!await IsLoggedInAsync())
         {
-            Notify("Already logged out.");
+            Notify($"[logout] {_account.Name} was already logged out");
             return;
         }
 
@@ -394,7 +395,7 @@ public sealed partial class TravianClient
                 await GotoAsync(candidatePath, cancellationToken);
                 if (!await IsLoggedInAsync())
                 {
-                    Notify($"Logged out by navigation to {candidatePath}.");
+                    Notify($"[logout] {_account.Name} logged out via navigation to {candidatePath}");
                     return;
                 }
             }
@@ -405,7 +406,7 @@ public sealed partial class TravianClient
             cancellationToken.ThrowIfCancellationRequested();
             if (!await IsLoggedInAsync())
             {
-                Notify("Logged out successfully.");
+                Notify($"[logout] {_account.Name} logged out successfully");
                 return;
             }
 
@@ -903,14 +904,18 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
     public async Task SwitchToVillageAsync(string villageName = "", string? villageUrl = null, CancellationToken cancellationToken = default, bool skipFeatureRefresh = false)
     {
-        LogFunctionStarted();
         var activeVillageBeforeSwitch = await TryReadActiveVillageNameSafeAsync(cancellationToken);
+        var requestedLabel = !string.IsNullOrWhiteSpace(villageName)
+            ? $"'{villageName}'"
+            : (!string.IsNullOrWhiteSpace(villageUrl) ? $"url={villageUrl}" : "(unspecified)");
+        Notify($"[village-switch] requested {requestedLabel} — current='{activeVillageBeforeSwitch ?? "(unknown)"}'");
 
         // If we are already on the requested village, no navigation is needed.
         if (!string.IsNullOrWhiteSpace(villageName)
             && !string.IsNullOrWhiteSpace(activeVillageBeforeSwitch)
             && string.Equals(activeVillageBeforeSwitch, villageName, StringComparison.OrdinalIgnoreCase))
         {
+            Notify($"[village-switch] already on '{villageName}' — no navigation needed");
             return;
         }
 
@@ -957,11 +962,16 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         var activeVillageAfterSwitch = await TryReadActiveVillageNameSafeAsync(cancellationToken);
         if (!string.Equals(activeVillageBeforeSwitch, activeVillageAfterSwitch, StringComparison.OrdinalIgnoreCase))
         {
+            Notify($"[village-switch] now on '{activeVillageAfterSwitch ?? "(unknown)"}' (was '{activeVillageBeforeSwitch ?? "(unknown)"}')");
             // Force the next villages read to navigate to spieler.php so the UI village list
             // reflects up-to-date population after a switch (e.g. after building elsewhere).
             _cachedVillagesPopulationAt = DateTimeOffset.MinValue;
             _populationBaselineRead = false;
             await RefreshCapitalStateForActiveVillageAsync(cancellationToken);
+        }
+        else
+        {
+            Notify($"[village-switch] navigation completed but active village still reads '{activeVillageAfterSwitch ?? "(unknown)"}'");
         }
 
         if (!skipFeatureRefresh)
@@ -974,6 +984,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
     private async Task<string?> TryGetVillageHrefFromSidebarAsync(string villageName, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        Notify($"[village-switch:verbose] sidebar lookup for '{villageName}'");
         try
         {
             var href = await _page.EvaluateAsync<string?>(
@@ -1006,10 +1017,18 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 """,
                 villageName);
 
-            return string.IsNullOrWhiteSpace(href) ? null : ResolveUrl(href);
+            if (string.IsNullOrWhiteSpace(href))
+            {
+                Notify($"[village-switch:verbose] sidebar had no matching link for '{villageName}' — falling back to spieler.php village list");
+                return null;
+            }
+            var resolved = ResolveUrl(href);
+            Notify($"[village-switch:verbose] sidebar matched '{villageName}' → {resolved}");
+            return resolved;
         }
         catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
         {
+            Notify($"[village-switch:verbose] sidebar lookup transient navigation for '{villageName}': {ex.Message}");
             return null;
         }
     }
@@ -1667,15 +1686,20 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
     private async Task<bool> WaitUntilLoggedInAsync(CancellationToken cancellationToken)
     {
-        var deadline = DateTime.UtcNow.AddSeconds(Math.Max(10, _config.ManualLoginTimeoutSeconds));
+        var timeoutSeconds = Math.Max(10, _config.ManualLoginTimeoutSeconds);
+        var deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
         var manualMessageShown = false;
+        var pollCount = 0;
+        Notify($"[login:verbose] waiting for login confirmation (timeout={timeoutSeconds}s, interactive={_interactive}, browserVisible={_browserVisible})");
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            pollCount++;
             if (DateTime.UtcNow >= deadline)
             {
                 if (!_interactive || !_browserVisible)
                 {
+                    Notify($"[login] timeout: login not confirmed after {timeoutSeconds}s (polls={pollCount}, headless/non-interactive)");
                     throw new InvalidOperationException("Login was not confirmed before timeout.");
                 }
 
@@ -1694,6 +1718,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
                 if (await IsLoggedInAsync())
                 {
+                    Notify($"[login:verbose] login confirmed after {pollCount} poll(s)");
                     return true;
                 }
 
@@ -1702,6 +1727,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 var loginError = await TryReadVisibleLoginErrorAsync();
                 if (loginError is not null)
                 {
+                    Notify($"[login] credential/account error visible on page: {loginError}");
                     throw new InvalidOperationException($"Login failed: {loginError}");
                 }
 

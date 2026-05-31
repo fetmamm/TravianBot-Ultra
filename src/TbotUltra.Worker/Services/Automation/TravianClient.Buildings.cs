@@ -10,13 +10,16 @@ public sealed partial class TravianClient
 {
     private async Task WaitForPostUpgradeClickPageLoadAsync(CancellationToken cancellationToken)
     {
+        Notify("[build:verbose] waiting for post-upgrade-click page load (DOMContentLoaded)");
         try
         {
             await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+            Notify("[build:verbose] post-upgrade-click page load complete");
         }
-        catch
+        catch (Exception ex)
         {
             // Continue with the best available page state.
+            Notify($"[build:verbose] post-upgrade-click load wait failed (continuing): {ex.GetType().Name}: {ex.Message}");
         }
 
         await PauseForManualStepIfVisibleAsync("Manual verification appeared after upgrade click.", cancellationToken);
@@ -24,7 +27,7 @@ public sealed partial class TravianClient
 
     public async Task<VillageStatus> ReadBuildingsStatusAsync(CancellationToken cancellationToken = default)
     {
-        Notify("ReadBuildingsStatusAsync started");
+        Notify("[build:verbose] ReadBuildingsStatusAsync started");
         var buildings = await ReadBuildingsAsync(cancellationToken);
         var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
         var tribe = await ReadTribeAsync(cancellationToken);
@@ -47,7 +50,7 @@ public sealed partial class TravianClient
         int targetLevel,
         CancellationToken cancellationToken = default)
     {
-        Notify($"DemolishBuildingToLevelAsync target='{targetBuildingSlotOrName}' targetLevel={targetLevel} started");
+        Notify($"[demolish] starting — target='{targetBuildingSlotOrName}', targetLevel={targetLevel}");
         if (targetLevel < 0)
         {
             throw new InvalidOperationException("Demolish target level must be >= 0.");
@@ -152,7 +155,7 @@ public sealed partial class TravianClient
 
     public async Task<string> UpgradeBuildingToLevelAsync(int slotId, int targetLevel, CancellationToken cancellationToken = default)
     {
-        Notify($"UpgradeBuildingToLevelAsync slot={slotId} target={targetLevel} started");
+        Notify($"[build] upgrade starting — slot={slotId}, target=lvl {targetLevel}");
         if (slotId < 19)
         {
             throw new InvalidOperationException($"Building slot {slotId} is outside the building range.");
@@ -266,6 +269,7 @@ public sealed partial class TravianClient
             }
 
             upgrades += 1;
+            Notify($"[build] click ok — slot={slotId} '{buildingName}' lvl {currentLevel} → {nextLevel} queued (duration~{durationSeconds}s, pop +{populationDelta?.ToString() ?? "?"})");
             if (populationDelta is int popDelta)
             {
                 await AddPopulationToActiveVillageCacheAsync(popDelta, cancellationToken);
@@ -298,6 +302,7 @@ public sealed partial class TravianClient
 
             if (progress.Advanced)
             {
+                Notify($"[build] level advance confirmed — slot={slotId} '{buildingName}' now lvl {nextLevel} (target {targetLevel}, upgrades this run: {upgrades})");
                 if (nextLevel >= targetLevel)
                 {
                     return $"Slot {slotId}: reached level {nextLevel} (target {targetLevel}). Upgrades performed: {upgrades}.";
@@ -701,7 +706,7 @@ public sealed partial class TravianClient
 
     public async Task<string> UpgradeBuildingToMaxAsync(int slotId, int maxAttempts = 30, CancellationToken cancellationToken = default)
     {
-        Notify($"UpgradeBuildingToMaxAsync slot={slotId} started");
+        Notify($"[build] upgrade-to-max starting — slot={slotId}");
         if (slotId < 19)
         {
             throw new InvalidOperationException($"Building slot {slotId} is outside the building range.");
@@ -812,6 +817,7 @@ public sealed partial class TravianClient
             }
 
             upgrades += 1;
+            Notify($"[build] click ok — slot={slotId} '{buildingName}' lvl {currentLevel} → {nextLevel} queued (duration~{durationSeconds}s, pop +{populationDelta?.ToString() ?? "?"})");
             if (populationDelta is int popDelta)
             {
                 await AddPopulationToActiveVillageCacheAsync(popDelta, cancellationToken);
@@ -843,6 +849,7 @@ public sealed partial class TravianClient
 
             if (progress.Advanced)
             {
+                Notify($"[build] level advance confirmed — slot={slotId} '{buildingName}' now lvl {nextLevel} (max {maxLevel}, upgrades this run: {upgrades})");
                 if (nextLevel >= maxLevel)
                 {
                     return $"Slot {slotId}: reached max level {maxLevel}. Upgrades performed: {upgrades}.";
@@ -872,7 +879,7 @@ public sealed partial class TravianClient
 
     public async Task<string> ConstructBuildingAsync(int slotId, int gid, string name, CancellationToken cancellationToken = default)
     {
-        Notify($"ConstructBuildingAsync slot={slotId} gid={gid} started");
+        Notify($"[construct] starting — slot={slotId}, gid={gid}");
         if (slotId < 19)
         {
             throw new InvalidOperationException($"Building slot {slotId} is outside the building range.");
@@ -1619,7 +1626,7 @@ public sealed partial class TravianClient
 
     public async Task<IReadOnlyList<ServerBuildChoice>> ReadAvailableBuildingsForSlotAsync(int slotId, CancellationToken cancellationToken = default)
     {
-        Notify("ReadAvailableBuildingsForSlotAsync started");
+        Notify("[build:verbose] ReadAvailableBuildingsForSlotAsync started");
         if (slotId < 19)
         {
             throw new InvalidOperationException($"Building slot {slotId} is outside the building range.");

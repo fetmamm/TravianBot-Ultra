@@ -352,15 +352,19 @@ public partial class MainWindow
         var orderedGroups = GetContinuousLoopEnabledGroupsInOrder().ToList();
         if (orderedGroups.Count <= 0)
         {
+            AppendLog("[loop-pick:verbose] no enabled groups — nothing to schedule");
             return null;
         }
 
         var queueItems = _botService.GetQueueItemsForDisplay();
         var now = DateTimeOffset.UtcNow;
+        string? lastSkipReason = null;
         foreach (var group in orderedGroups)
         {
             if (group == QueueGroup.Construction && !IsConstructionGroupReady())
             {
+                lastSkipReason = $"group={group} skipped (construction group not ready)";
+                AppendLog($"[loop-pick:verbose] {lastSkipReason}");
                 continue;
             }
 
@@ -371,17 +375,31 @@ public partial class MainWindow
             var head = orderedGroupItems.FirstOrDefault();
             if (head is null)
             {
+                lastSkipReason = $"group={group} skipped (no pending/running/paused items)";
+                AppendLog($"[loop-pick:verbose] {lastSkipReason}");
                 continue;
             }
 
-            if (head.Status != QueueStatus.Pending || head.NextAttemptAt > now)
+            if (head.Status != QueueStatus.Pending)
             {
+                lastSkipReason = $"group={group} head task='{head.TaskName}' is {head.Status} (not Pending)";
+                AppendLog($"[loop-pick:verbose] {lastSkipReason}");
+                continue;
+            }
+
+            if (head.NextAttemptAt > now)
+            {
+                var waitSec = (head.NextAttemptAt - now).TotalSeconds;
+                lastSkipReason = $"group={group} head task='{head.TaskName}' waiting {waitSec:F0}s (NextAttemptAt in future)";
+                AppendLog($"[loop-pick:verbose] {lastSkipReason}");
                 continue;
             }
 
             return head;
         }
 
+        AppendLog($"[loop-pick:verbose] no item selected from {orderedGroups.Count} group(s)"
+            + (lastSkipReason is null ? string.Empty : $" — last reason: {lastSkipReason}"));
         return null;
     }
 

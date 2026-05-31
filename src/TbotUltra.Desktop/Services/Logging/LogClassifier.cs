@@ -54,12 +54,12 @@ public static class LogClassifier
 
         var value = message.ToLowerInvariant();
 
-        if (value.Contains("[loop "))
+        if (value.Contains("[loop ") || value.Contains("[tick]") || value.Contains("[loop-pick"))
         {
             return LogCategory.Loop;
         }
 
-        if (value.Contains("[autoq "))
+        if (value.Contains("[autoq ") || value.Contains("[queue]"))
         {
             return LogCategory.Queue;
         }
@@ -69,7 +69,7 @@ public static class LogClassifier
             return LogCategory.Resources;
         }
 
-        if (Contains(value, "upgradebuilding", "construct", "build queue", "demolish", "buildings snapshot"))
+        if (Contains(value, "[build]", "[build:verbose]", "[construct]", "[demolish]", "upgradebuilding", "construct", "build queue", "demolish", "buildings snapshot"))
         {
             return LogCategory.Buildings;
         }
@@ -99,7 +99,7 @@ public static class LogClassifier
             return LogCategory.Inbox;
         }
 
-        if (Contains(value, "login", "logged in", "captcha", "verification", "chromium", "session"))
+        if (Contains(value, "[login]", "[logout]", "[village-switch]", "login", "logged in", "captcha", "verification", "chromium", "session"))
         {
             return LogCategory.Login;
         }
@@ -123,6 +123,9 @@ public static class LogClassifier
         return Contains(
             value,
             "starting tick",
+            // Diagnostic verbose tags — convention: ":verbose]" suffix anywhere in the prefix
+            // means "show only when Clean mode is off". Used by login, village-switch, loop-pick.
+            ":verbose]",
             "building snapshot refreshed",
             "[tryreadactivevillagenamesafeasync] attempting to read active village name from page",
             "target village applied:",
@@ -150,7 +153,9 @@ public static class LogClassifier
             "readinboxstatus",
             "ensuring logged in",
             "checkloggedinasync",
-            "loginasync",
+            // Note: bare "loginasync" pattern intentionally removed — [login] milestones now
+            // use the "[login] ..." prefix which is NOT verbose. Per-function "[LoginAsync] started"
+            // is no longer emitted (replaced with explicit account/server context).
             "refreshaccountfeaturesignalsasync",
             "istravianplusactiveasync",
             "goldclub",

@@ -91,31 +91,49 @@ public sealed class BotTaskRunner
             cancellationToken,
             async client =>
             {
-                log($"Starting tick for server {options.ServerName}.");
-                log($"Tasks: {string.Join(",", tasks)}");
+                var tickSw = System.Diagnostics.Stopwatch.StartNew();
+                log($"[tick] starting — account='{client.AccountName}' server='{options.ServerName}' targetVillage='{options.TargetVillageName ?? "(default)"}'");
+                log($"[tick] tasks ({tasks.Count}): {string.Join(", ", tasks)}");
 
                 await client.LoginAsync(cancellationToken);
                 await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken);
                 var context = new TaskExecutionContext(this, options, client, log, cancellationToken);
+                var taskIndex = 0;
                 foreach (var taskName in tasks)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
+                    taskIndex++;
                     if (!TaskCatalog.IsAllowed(taskName))
                     {
-                        log($"Task '{taskName}' is not allowed.");
+                        log($"[tick] task '{taskName}' is not allowed — skipping ({taskIndex}/{tasks.Count})");
                         continue;
                     }
 
                     if (!TaskHandlers.TryGetValue(taskName, out var handler))
                     {
-                        log($"Task '{taskName}' is allowed but not implemented yet.");
+                        log($"[tick] task '{taskName}' is allowed but not implemented — skipping ({taskIndex}/{tasks.Count})");
                         continue;
                     }
 
-                    log($"[{taskName} STARTED]");
-                    await handler(context);
-                    log($"[{taskName} COMPLETED]");
+                    var taskSw = System.Diagnostics.Stopwatch.StartNew();
+                    log($"[{taskName} STARTED] ({taskIndex}/{tasks.Count}) on '{client.AccountName}'");
+                    try
+                    {
+                        await handler(context);
+                        log($"[{taskName} COMPLETED] in {taskSw.Elapsed.TotalSeconds:F1}s ({taskIndex}/{tasks.Count})");
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        log($"[{taskName} CANCELED] after {taskSw.Elapsed.TotalSeconds:F1}s ({taskIndex}/{tasks.Count})");
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        log($"[{taskName} FAILED] after {taskSw.Elapsed.TotalSeconds:F1}s: {ex.GetType().Name}: {ex.Message}");
+                        throw;
+                    }
                 }
+                log($"[tick] completed in {tickSw.Elapsed.TotalSeconds:F1}s ({tasks.Count} task(s)) on '{client.AccountName}'");
             });
     }
 
