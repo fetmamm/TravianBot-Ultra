@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,6 +12,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Threading;
+using TbotUltra.Core.Accounts;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Worker.Domain;
@@ -90,6 +93,15 @@ public partial class MainWindow
         }
 
         var lists = await _botService.ReadFarmListsOverviewAsync(options, AppendLog, cancellationToken) ?? [];
+        await ApplyFarmListOverviewToUiAsync(lists);
+        return true;
+    }
+
+    // Merges a freshly read farm-list overview into the UI rows: dedupes by name, keeps timers/lids,
+    // and re-applies the persisted selection (by lid, falling back to name). Shared by the full
+    // server re-analyze and the instant post-send snapshot load so both produce identical rows.
+    private async Task ApplyFarmListOverviewToUiAsync(IReadOnlyList<FarmListOverview> lists)
+    {
         var selectedFarmLists = LoadConfiguredContinuousFarmListNames();
         var selectedFarmListIds = LoadConfiguredContinuousFarmListIds();
         var mergedByName = new Dictionary<string, (int Active, int Total, int? RemainingSeconds, string? ListId)>(StringComparer.OrdinalIgnoreCase);
@@ -180,8 +192,6 @@ public partial class MainWindow
         {
             AppendLog($"Farm list UI limited to {MaxFarmListsShown} rows (detected {mergedByName.Count}).");
         }
-
-        return true;
     }
 
     // After the auto-loop send_farmlists task actually dispatches a list it defers with a
@@ -213,6 +223,14 @@ public partial class MainWindow
 
         try
         {
+            // On a real send the worker just read the farm page and wrote a fresh snapshot — apply
+            // it directly so the UI updates instantly without navigating the browser again. On a
+            // rename ("not found") there is no fresh snapshot, so fall back to a full re-analyze.
+            if (sendHappened && await TryApplyFarmListsSnapshotAsync())
+            {
+                return;
+            }
+
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
             await RefreshFarmListsFromServerAsync(options, CancellationToken.None);
         }
@@ -220,6 +238,68 @@ public partial class MainWindow
         {
             AppendLog($"Farm list UI refresh after send failed: {ex.Message}");
         }
+    }
+
+    // Loads the snapshot the worker writes immediately after a send and applies it to the UI rows.
+    // Returns false (so the caller can fall back to a server re-analyze) when the snapshot is
+    // missing, unparseable, or too old to trust.
+    private async Task<bool> TryApplyFarmListsSnapshotAsync()
+    {
+        var snapshotPath = AccountStoragePaths.FarmListsSnapshotPath(_projectRoot, _accountStore.ActiveAccountName());
+        if (!File.Exists(snapshotPath))
+        {
+            return false;
+        }
+
+        FarmListsSnapshotDto? snapshot;
+        try
+        {
+            var json = await File.ReadAllTextAsync(snapshotPath);
+            snapshot = JsonSerializer.Deserialize<FarmListsSnapshotDto>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+            });
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Farm list snapshot could not be parsed: {ex.Message}");
+            return false;
+        }
+
+        if (snapshot?.Lists is null
+            || snapshot.CapturedAtUtc is null
+            || DateTimeOffset.UtcNow - snapshot.CapturedAtUtc.Value > TimeSpan.FromMinutes(2))
+        {
+            return false;
+        }
+
+        var lists = snapshot.Lists
+            .Where(entry => entry is not null && !string.IsNullOrWhiteSpace(entry.Name))
+            .Select(entry => new FarmListOverview(
+                Name: entry!.Name!,
+                ActiveFarmCount: entry.ActiveFarmCount,
+                TotalFarmCount: entry.TotalFarmCount,
+                RemainingSeconds: entry.RemainingSeconds,
+                ListId: string.IsNullOrWhiteSpace(entry.ListId) ? null : entry.ListId))
+            .ToList();
+
+        await ApplyFarmListOverviewToUiAsync(lists);
+        return true;
+    }
+
+    private sealed class FarmListsSnapshotDto
+    {
+        public DateTimeOffset? CapturedAtUtc { get; init; }
+        public List<FarmListSnapshotEntryDto>? Lists { get; init; }
+    }
+
+    private sealed class FarmListSnapshotEntryDto
+    {
+        public string? Name { get; init; }
+        public int ActiveFarmCount { get; init; }
+        public int TotalFarmCount { get; init; }
+        public int? RemainingSeconds { get; init; }
+        public string? ListId { get; init; }
     }
 
     private async void AnalyzeFarmListsButton_Click(object sender, RoutedEventArgs e)

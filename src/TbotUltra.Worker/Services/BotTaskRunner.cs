@@ -1443,6 +1443,39 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
         await File.WriteAllTextAsync(outputPath, JsonSerializer.Serialize(payload), context.CancellationToken);
     }
 
+    private static async Task WriteFarmListsSnapshotAsync(TaskExecutionContext context, IReadOnlyList<FarmListOverview> overview)
+    {
+        try
+        {
+            var activeAccount = context.Runner._accountProvider.LoadAccount().Name;
+            var outputPath = AccountStoragePaths.FarmListsSnapshotPath(context.Runner._projectContext.RootPath, activeAccount);
+            Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+
+            var payload = new
+            {
+                account = activeAccount,
+                capturedAtUtc = DateTimeOffset.UtcNow,
+                lists = overview
+                    .Where(item => item is not null)
+                    .Select(item => new
+                    {
+                        name = item.Name,
+                        activeFarmCount = item.ActiveFarmCount,
+                        totalFarmCount = item.TotalFarmCount,
+                        remainingSeconds = item.RemainingSeconds,
+                        listId = item.ListId,
+                    })
+                    .ToList(),
+            };
+
+            await File.WriteAllTextAsync(outputPath, JsonSerializer.Serialize(payload), context.CancellationToken);
+        }
+        catch (Exception ex)
+        {
+            context.Log($"Could not write farm list snapshot: {ex.Message}");
+        }
+    }
+
     private static async Task RefreshBuildingsSnapshotAfterTaskAsync(TaskExecutionContext context)
     {
         try
@@ -1544,6 +1577,9 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
         context.Log($"Continuous farming sending list '{ready.Name}'. Delay between sends={dispatchDelaySeconds}s.");
 
         var refreshedOverview = await context.Client.ReadFarmListsOverviewAsync(context.CancellationToken);
+        // Persist the freshly read page so the desktop can update its farm-list UI instantly after
+        // the send, without paying for the extra navigations a full re-analyze would cost.
+        await WriteFarmListsSnapshotAsync(context, refreshedOverview);
         var refreshedMatching = refreshedOverview
             .Where(item => item is not null && IsSelected(item))
             .OrderBy(item => item.RemainingSeconds is > 0 ? item.RemainingSeconds.Value : 0)

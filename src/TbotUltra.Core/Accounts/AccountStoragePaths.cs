@@ -106,4 +106,9 @@ public static class AccountStoragePaths
     {
         return Path.Combine(projectRoot, "temp_build_out", "buildings-snapshots", $"{NormalizeAccountKey(accountName)}.json");
     }
+
+    public static string FarmListsSnapshotPath(string projectRoot, string accountName)
+    {
+        return Path.Combine(projectRoot, "temp_build_out", "farmlist-snapshots", $"{NormalizeAccountKey(accountName)}.json");
+    }
 }

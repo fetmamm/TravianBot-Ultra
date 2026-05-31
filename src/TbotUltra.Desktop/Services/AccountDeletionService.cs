@@ -95,6 +95,7 @@ public sealed class AccountDeletionService
         DeleteFileIfExists(AccountStoragePaths.BrowserStatePath(_projectRoot, accountName));
         DeleteFileIfExists(AccountStoragePaths.LegacyBrowserStatePath(_projectRoot, accountName));
         DeleteFileIfExists(AccountStoragePaths.BuildingsSnapshotPath(_projectRoot, accountName));
+        DeleteFileIfExists(AccountStoragePaths.FarmListsSnapshotPath(_projectRoot, accountName));
 
         DeleteLegacyAnalysisFiles(accountKey);
         DeleteLegacyNatarFarmCacheFiles(accountKey);
