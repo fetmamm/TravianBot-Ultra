@@ -77,9 +77,9 @@ jobs:
           $browserRoot = Join-Path $PWD "temp_build_out\playwright-browsers"
           New-Item -ItemType Directory -Path $browserRoot -Force | Out-Null
           $env:PLAYWRIGHT_BROWSERS_PATH = $browserRoot
-          $scriptPath = Join-Path $PWD "temp_build_out\publish\playwright.ps1"
+          $scriptPath = Join-Path $PWD "src\TbotUltra.Desktop\bin\Release\net8.0-windows\win-x64\playwright.ps1"
           if (-not (Test-Path $scriptPath)) {
-            throw "Could not find playwright.ps1 in publish output."
+            throw "Could not find playwright.ps1 in desktop build output."
           }
           & $scriptPath install chromium
           if ($LASTEXITCODE -ne 0) {

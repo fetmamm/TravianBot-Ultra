@@ -1,5 +1,6 @@
 using System.Windows;
 using System.ComponentModel;
+using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
 
@@ -10,6 +11,9 @@ public partial class ServerListWindow : Window
     private readonly List<ServerOption> _sourceServers;
     private readonly List<ServerOption> _defaultServers;
     private readonly ServerCatalogStore _serverCatalogStore;
+    // The built-in SS-Travi servers (url -> name). Editing or removing these is what we warn
+    // about; adding/updating/removing the user's own servers is frictionless.
+    private readonly Dictionary<string, string> _protectedSsServers;
     private List<ServerOption> _workingServers = [];
     private string _savedSnapshot = string.Empty;
     private bool _isClosing;
@@ -20,25 +24,18 @@ public partial class ServerListWindow : Window
         _sourceServers = serverOptions.ToList();
         _defaultServers = defaultServers.ToList();
         _serverCatalogStore = serverCatalogStore;
+        _protectedSsServers = _defaultServers
+            .Where(item => item.ServerFlavor == ServerFlavor.SsTravi
+                && !string.IsNullOrWhiteSpace(item.Name)
+                && !string.IsNullOrWhiteSpace(item.BaseUrl))
+            .GroupBy(item => NormalizeUrl(item.BaseUrl), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First().Name.Trim(), StringComparer.OrdinalIgnoreCase);
         ReloadWorkingCopy(_sourceServers);
         _savedSnapshot = BuildSnapshot();
     }
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
-        var warning = AppDialog.ShowCustom(
-            this,
-            "Changing server URLs is not recommended and may break login or actions.\n\nPress Save to save anyway, or Cancel to abort.",
-            "Warning",
-            [("Save", MessageBoxResult.OK), ("Cancel", MessageBoxResult.Cancel)],
-            MessageBoxImage.Warning,
-            MessageBoxResult.OK,
-            MessageBoxResult.Cancel);
-        if (warning != MessageBoxResult.OK)
-        {
-            return;
-        }
-
         var validated = new List<ServerOption>();
         foreach (var item in _workingServers)
         {
@@ -68,6 +65,22 @@ public partial class ServerListWindow : Window
             return;
         }
 
+        if (ChangesBuiltInSsServers(validated))
+        {
+            var warning = AppDialog.ShowCustom(
+                this,
+                "You are changing or removing one of the built-in SS-Travi servers. This is not recommended and may break login or actions.\n\nPress Save to save anyway, or Cancel to abort.",
+                "Warning",
+                [("Save", MessageBoxResult.OK), ("Cancel", MessageBoxResult.Cancel)],
+                MessageBoxImage.Warning,
+                MessageBoxResult.OK,
+                MessageBoxResult.Cancel);
+            if (warning != MessageBoxResult.OK)
+            {
+                return;
+            }
+        }
+
         _sourceServers.Clear();
         _sourceServers.AddRange(validated.OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase));
         _serverCatalogStore.Save(_sourceServers);
@@ -75,6 +88,36 @@ public partial class ServerListWindow : Window
         _isClosing = true;
         DialogResult = true;
         Close();
+    }
+
+    private bool ChangesBuiltInSsServers(IReadOnlyCollection<ServerOption> validated)
+    {
+        if (_protectedSsServers.Count == 0)
+        {
+            return false;
+        }
+
+        var validatedByUrl = validated
+            .GroupBy(item => NormalizeUrl(item.BaseUrl), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First().Name.Trim(), StringComparer.OrdinalIgnoreCase);
+
+        // A built-in SS-Travi server is "changed" if its URL is gone (removed/edited) or its
+        // name was modified. Adding or editing the user's own servers never trips this.
+        return _protectedSsServers.Any(protectedServer =>
+            !validatedByUrl.TryGetValue(protectedServer.Key, out var name)
+            || !string.Equals(name, protectedServer.Value, StringComparison.Ordinal));
+    }
+
+    private static string NormalizeUrl(string url)
+    {
+        var trimmed = (url ?? string.Empty).Trim().TrimEnd('/');
+        if (Uri.TryCreate(trimmed, UriKind.Absolute, out var uri)
+            && (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp))
+        {
+            return uri.GetLeftPart(UriPartial.Authority).TrimEnd('/');
+        }
+
+        return trimmed;
     }
 
     private void ResetButton_Click(object sender, RoutedEventArgs e)

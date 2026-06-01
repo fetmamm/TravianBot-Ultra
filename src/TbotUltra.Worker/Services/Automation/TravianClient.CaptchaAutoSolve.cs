@@ -9,6 +9,11 @@ public sealed partial class TravianClient
         string? screenshotPath,
         CancellationToken cancellationToken)
     {
+        if (!_config.IsPrivateServer)
+        {
+            return false; // Captcha auto-solve is SS-Travi only; official has no such captcha.
+        }
+
         if (!_config.CaptchaAutoSolveEnabled)
         {
             return false;

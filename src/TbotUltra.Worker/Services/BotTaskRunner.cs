@@ -1407,7 +1407,7 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             interactive: interactive,
             browserVisible: !options.Headless,
             projectRoot: _projectContext.RootPath,
-            captchaAutoSolver: _captchaAutoSolver,
+            captchaAutoSolver: options.IsPrivateServer ? _captchaAutoSolver : null,
             statusCallback: log,
             sessionCache: sessionCache);
     }

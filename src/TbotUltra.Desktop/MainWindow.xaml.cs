@@ -631,6 +631,12 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (!options.IsPrivateServer)
+        {
+            AppendLog("Captcha warmup skipped: not an SS-Travi server.");
+            return;
+        }
+
         if (!options.CaptchaAutoSolveEnabled)
         {
             AppendLog("Captcha warmup skipped: captcha auto-solve is disabled.");

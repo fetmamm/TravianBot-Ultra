@@ -51,6 +51,7 @@ public partial class AccountsWindow : Window
 
     private void Reload()
     {
+        ReconcileAccountServerNames();
         _activeAccountName = _store.ActiveAccountName();
         _accounts = _store.ListAccounts()
             .OrderByDescending(account => string.Equals(account.Name, _activeAccountName, StringComparison.OrdinalIgnoreCase))
@@ -249,6 +250,45 @@ public partial class AccountsWindow : Window
         }
     }
 
+    private void ClearAccountsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_accounts.Count == 0)
+        {
+            InfoTextBlock.Text = "No accounts to clear.";
+            return;
+        }
+
+        var confirm = AppDialog.Show(
+            this,
+            $"Clear all {_accounts.Count} account(s)? This cannot be undone.",
+            "Clear accounts",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (confirm != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            // Clearing the editor selection avoids an extra unsaved-changes prompt when the
+            // list is reloaded after removal.
+            _selectedAccountName = string.Empty;
+            foreach (var account in _accounts.ToList())
+            {
+                _deletionService.DeleteAccount(account.Name);
+            }
+
+            Reload();
+            InfoTextBlock.Text = "Cleared all accounts.";
+        }
+        catch (Exception ex)
+        {
+            AppDialog.Show(this, ex.Message, "Clear accounts", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Reload();
+        }
+    }
+
     private void CloseButton_Click(object sender, RoutedEventArgs e)
     {
         if (!PromptToSaveUnsavedChanges())
@@ -312,18 +352,83 @@ public partial class AccountsWindow : Window
         };
         if (dialog.ShowDialog() == true)
         {
-            var previouslySelectedName = (ServerComboBox.SelectedItem as ServerOption)?.Name ?? _defaultServerName;
-            var previouslySelectedUrl = (ServerComboBox.SelectedItem as ServerOption)?.BaseUrl ?? _defaultServerUrl;
-            EnsureServerListContainsDefaults();
-            if (_editingExistingAccount)
+            // Refresh from the saved catalog, then reload accounts so a server edit (e.g. a
+            // renamed server) propagates to the accounts that use it. Reload() reconciles names.
+            var editingName = _editingExistingAccount ? _editingOriginalName : null;
+            ReloadServerOptionsFromCatalog();
+            _selectedAccountName = string.Empty;
+            Reload();
+            if (!string.IsNullOrEmpty(editingName))
             {
-                SelectServer(_editingOriginalServerName, previouslySelectedUrl);
-            }
-            else
-            {
-                SelectServer(previouslySelectedName, previouslySelectedUrl);
+                SelectByName(editingName);
             }
         }
+    }
+
+    private void ReloadServerOptionsFromCatalog()
+    {
+        List<ServerOption> latest;
+        try
+        {
+            latest = _serverCatalogStore.Load();
+        }
+        catch (Exception ex)
+        {
+            AppendCatalogLoadFailure(ex);
+            return;
+        }
+
+        if (latest.Count == 0)
+        {
+            return;
+        }
+
+        _serverOptions.Clear();
+        _serverOptions.AddRange(latest);
+    }
+
+    // Update accounts whose server URL still matches a known server but whose stored server name
+    // has drifted (e.g. the server was renamed). Runs on every Reload so the list self-heals.
+    private void ReconcileAccountServerNames()
+    {
+        var nameByUrl = _serverOptions
+            .Where(option => !string.IsNullOrWhiteSpace(option.BaseUrl) && !string.IsNullOrWhiteSpace(option.Name))
+            .GroupBy(option => NormalizeServerUrl(option.BaseUrl), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First().Name.Trim(), StringComparer.OrdinalIgnoreCase);
+
+        if (nameByUrl.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var account in _store.ListAccounts())
+        {
+            if (string.IsNullOrWhiteSpace(account.ServerUrl))
+            {
+                continue;
+            }
+
+            if (!nameByUrl.TryGetValue(NormalizeServerUrl(account.ServerUrl), out var newName))
+            {
+                continue;
+            }
+
+            if (string.Equals(account.ServerName.Trim(), newName, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            account.ServerName = newName;
+            _store.SaveAccount(account, setActive: false);
+        }
+    }
+
+    private static string NormalizeServerUrl(string url)
+        => (url ?? string.Empty).Trim().TrimEnd('/');
+
+    private void AppendCatalogLoadFailure(Exception ex)
+    {
+        InfoTextBlock.Text = $"Could not reload server list: {ex.Message}";
     }
 
     private void AccountsWindow_Closing(object? sender, CancelEventArgs e)
