@@ -436,10 +436,17 @@ public sealed partial class TravianClient
         return await IsLoggedInAsync();
     }
 
-    public async Task<AccountSnapshot> ReadAccountSnapshotAsync(bool forceRefreshVillages = false, CancellationToken cancellationToken = default)
+    public async Task<AccountSnapshot> ReadAccountSnapshotAsync(
+        bool forceRefreshVillages = false,
+        bool preferCurrentPageVillages = false,
+        CancellationToken cancellationToken = default)
     {
         Notify("ReadAccountSnapshotAsync started");
-        await GotoAsync(_config.VillageOverviewPath, cancellationToken);
+        if (!IsCurrentUrlForPath(_config.VillageOverviewPath))
+        {
+            await GotoAsync(_config.VillageOverviewPath, cancellationToken);
+        }
+
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading account info.", cancellationToken);
         await EnsureLoggedInAsync();
 
@@ -459,7 +466,9 @@ public sealed partial class TravianClient
         }
         else
         {
-            villages = await ReadVillagesAsync(cancellationToken);
+            villages = preferCurrentPageVillages
+                ? await ReadVillagesPreferCacheAsync(cancellationToken)
+                : await ReadVillagesAsync(cancellationToken);
         }
 
         return new AccountSnapshot(
@@ -917,7 +926,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         // If we are already on the requested village, no navigation is needed.
         if (!string.IsNullOrWhiteSpace(villageName)
             && !string.IsNullOrWhiteSpace(activeVillageBeforeSwitch)
-            && string.Equals(activeVillageBeforeSwitch, villageName, StringComparison.OrdinalIgnoreCase))
+            && IsSameVillageName(activeVillageBeforeSwitch, villageName))
         {
             Notify($"[village-switch] already on '{villageName}' — no navigation needed");
             return;
@@ -964,7 +973,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         await PauseForManualStepIfVisibleAsync($"Manual verification appeared while switching to village '{villageName}'.", cancellationToken);
         await EnsureLoggedInAsync();
         var activeVillageAfterSwitch = await TryReadActiveVillageNameSafeAsync(cancellationToken);
-        if (!string.Equals(activeVillageBeforeSwitch, activeVillageAfterSwitch, StringComparison.OrdinalIgnoreCase))
+        if (!IsSameVillageName(activeVillageBeforeSwitch, activeVillageAfterSwitch))
         {
             Notify($"[village-switch] now on '{activeVillageAfterSwitch ?? "(unknown)"}' (was '{activeVillageBeforeSwitch ?? "(unknown)"}')");
             // Force the next villages read to navigate to spieler.php so the UI village list
@@ -983,6 +992,36 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             // Re-emit account signals so UI refreshes after a village switch (Plus/Gold can be unchanged but UI may not have them yet).
             await RefreshAccountFeatureSignalsAsync(cancellationToken);
         }
+    }
+
+    private static bool IsSameVillageName(string? left, string? right)
+    {
+        var normalizedLeft = NormalizeVillageNameForComparison(left);
+        var normalizedRight = NormalizeVillageNameForComparison(right);
+        return normalizedLeft.Length > 0
+            && normalizedRight.Length > 0
+            && string.Equals(normalizedLeft, normalizedRight, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeVillageNameForComparison(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var cleaned = value
+            .Replace("\u202A", string.Empty)
+            .Replace("\u202B", string.Empty)
+            .Replace("\u202C", string.Empty)
+            .Replace("\u202D", string.Empty)
+            .Replace("\u202E", string.Empty)
+            .Replace("\u200E", string.Empty)
+            .Replace("\u200F", string.Empty)
+            .Replace('−', '-');
+        cleaned = Regex.Replace(cleaned, @"\s*\(\s*-?\d+\s*\|\s*-?\d+\s*\)\s*$", string.Empty);
+        cleaned = Regex.Replace(cleaned, @"\s+", " ").Trim();
+        return cleaned;
     }
 
     private async Task<string?> TryGetVillageHrefFromSidebarAsync(string villageName, CancellationToken cancellationToken)
@@ -1080,6 +1119,8 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         var url = pathOrUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase)
             ? pathOrUrl
             : $"{_config.BaseUrl.TrimEnd('/')}/{pathOrUrl.TrimStart('/')}";
+        var beforeUrl = _page.Url;
+        Notify($"[nav] GOTO start target='{url}' from='{beforeUrl}' pages={TryGetPageCountForDiagnostics()}");
         await RetryAsync($"navigate to {pathOrUrl}", async () =>
         {
             var response = await _page.GotoAsync(url, new PageGotoOptions
@@ -1092,6 +1133,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 RecordServerTime(dateHeader);
             }
         }, cancellationToken: cancellationToken);
+        Notify($"[nav] GOTO done target='{url}' current='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
         InvalidateActiveConstructionsCache();
         await PauseForManualStepIfVisibleAsync("Manual verification appeared after navigation.", cancellationToken);
         await TryDismissContinuePromptAsync(cancellationToken);
@@ -1102,7 +1144,9 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
     {
         if (IsCurrentUrlForPath(pathOrUrl))
         {
+            Notify($"[nav] RELOAD start target='{pathOrUrl}' current='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
             await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+            Notify($"[nav] RELOAD done target='{pathOrUrl}' current='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
             // A reload replaces page content just like a navigation, so any page-derived cache must
             // be dropped here too (the GotoAsync branch already does this). Without this the longer
             // active-constructions TTL could serve pre-reload state at the top of an upgrade iteration.
@@ -1111,6 +1155,18 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         else
         {
             await GotoAsync(pathOrUrl, cancellationToken);
+        }
+    }
+
+    private int TryGetPageCountForDiagnostics()
+    {
+        try
+        {
+            return _page.Context.Pages.Count;
+        }
+        catch
+        {
+            return -1;
         }
     }
 
@@ -1183,10 +1239,11 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             return;
         }
 
-        Notify("Ensuring logged in");
+        Notify($"[ensure-logged-in] start force={force} url='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
         var loggedIn = await IsLoggedInAsync();
         _lastEnsureLoggedInAt = now;
         _lastEnsureLoggedInSucceeded = loggedIn;
+        Notify($"[ensure-logged-in] state loggedIn={loggedIn} url='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
         if (!loggedIn)
         {
             // Session may have expired during a long idle wait (Travian logs the user out and
@@ -1220,7 +1277,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
             throw new InvalidOperationException($"Not logged in. Current page state is '{state}'.");
         }
-        Notify("Logged in confirmed");
+        Notify($"[ensure-logged-in] confirmed url='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
         await TryEmitUiSyncSnapshotAsync(cancellationToken);
     }
 
@@ -4410,6 +4467,11 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
         await EnsureExpectedBuildSlotPageAsync(slotId, "click detected upgrade candidate");
 
+        if (await TryClickOfficialPrimaryUpgradeButtonAsync(cancellationToken))
+        {
+            return;
+        }
+
         var locator = _page.Locator("button, input[type='submit'], input[type='button'], a, div.addHoverClick, div.button-container").Nth(candidateIndex.Value);
         await RetryAsync($"click detected upgrade candidate index {candidateIndex.Value} for slot {slotId}", async () =>
         {
@@ -4417,6 +4479,42 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         }, cancellationToken: cancellationToken);
 
         await PauseForManualStepIfVisibleAsync("Manual verification appeared after clicking detected upgrade candidate.", cancellationToken);
+    }
+
+    private async Task<bool> TryClickOfficialPrimaryUpgradeButtonAsync(CancellationToken cancellationToken)
+    {
+        var pattern = new Regex(@"upgrade\s+to\s+level", RegexOptions.IgnoreCase);
+        var selectors = new[]
+        {
+            ".upgradeButtonsContainer .section1 button.green.build",
+            ".upgradeButtonsContainer .section1 button.green",
+            ".upgradeButtonsContainer .section1 button",
+        };
+
+        foreach (var selector in selectors)
+        {
+            var locator = _page.Locator(selector).Filter(new LocatorFilterOptions { HasTextRegex = pattern }).First;
+            if (await locator.CountAsync() <= 0)
+            {
+                continue;
+            }
+
+            try
+            {
+                await RetryAsync($"click official primary upgrade button '{selector}'", async () =>
+                {
+                    await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
+                }, cancellationToken: cancellationToken);
+                await PauseForManualStepIfVisibleAsync("Manual verification appeared after clicking official upgrade button.", cancellationToken);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Notify($"Could not click official primary upgrade button '{selector}': {ex.Message}");
+            }
+        }
+
+        return false;
     }
 
     internal static UpgradeAttemptOutcome ParseUpgradeOutcome(string? value)
@@ -4508,7 +4606,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             deltaText = await _page.EvaluateAsync<string?>(
                 """
                 () => {
-                  const units = document.querySelectorAll('.culturePointsAndPopulation .unit');
+                  const units = document.querySelectorAll('.culturePointsAndPopulation .unit, .buildingBenefits .unit');
                   for (const unit of units) {
                     if (unit.querySelector('i.population_medium')) {
                       const delta = unit.querySelector('.delta');

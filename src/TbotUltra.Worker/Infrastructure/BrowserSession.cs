@@ -16,6 +16,7 @@ public sealed class BrowserSession : IAsyncDisposable
     private readonly AccountOptions _account;
     private readonly bool? _headlessOverride;
     private readonly string _projectRoot;
+    private readonly Action<string>? _log;
 
     private IPlaywright? _playwright;
     private IBrowser? _browser;
@@ -25,12 +26,14 @@ public sealed class BrowserSession : IAsyncDisposable
         BotOptions config,
         AccountOptions account,
         string projectRoot,
-        bool? headlessOverride = null)
+        bool? headlessOverride = null,
+        Action<string>? log = null)
     {
         _config = config;
         _account = account;
         _projectRoot = projectRoot;
         _headlessOverride = headlessOverride;
+        _log = log;
     }
 
     public string StorageStatePath =>
@@ -155,15 +158,78 @@ public sealed class BrowserSession : IAsyncDisposable
 
         _context = await _browser.NewContextAsync(contextOptions);
         _context.SetDefaultTimeout(_config.TimeoutMs);
+        await _context.RouteAsync("**/*", async route =>
+        {
+            if (IsBlockedPopupOrConsentUrl(route.Request.Url))
+            {
+                _log?.Invoke($"[browser] blocked request url='{route.Request.Url}'");
+                await route.AbortAsync();
+                return;
+            }
 
-        // The SS-Travi site opens cross-promo popups to its sister servers (e.g. a blank
-        // mga.ss-travi.com tab) via window.open. Neutralise window.open in every document so those
-        // popups are never created. The bot never relies on window.open itself (it navigates with
-        // GotoAsync and creates pages via NewPageAsync), so this is safe.
+            await route.ContinueAsync();
+        });
+
+        // Some Travian pages spawn short-lived tabs via window.open or target=_blank links. Neutralise
+        // those in every document so they are never created. The bot navigates with GotoAsync and
+        // creates its own pages via NewPageAsync, so it does not rely on page script popups.
         await _context.AddInitScriptAsync(
-            "window.open = function () { return null; };");
+            """
+            (() => {
+              const blockedOpen = function () { return null; };
+              try {
+                Object.defineProperty(window, 'open', {
+                  value: blockedOpen,
+                  writable: false,
+                  configurable: false
+                });
+              } catch (_) {
+                window.open = blockedOpen;
+              }
+
+              const neutralizeTargets = () => {
+                for (const element of document.querySelectorAll('a[target], form[target]')) {
+                  element.removeAttribute('target');
+                }
+              };
+
+              const originalAnchorClick = HTMLAnchorElement.prototype.click;
+              HTMLAnchorElement.prototype.click = function () {
+                this.removeAttribute('target');
+                return originalAnchorClick.call(this);
+              };
+
+              const originalFormSubmit = HTMLFormElement.prototype.submit;
+              HTMLFormElement.prototype.submit = function () {
+                this.removeAttribute('target');
+                return originalFormSubmit.call(this);
+              };
+
+              if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', neutralizeTargets, { once: true });
+              } else {
+                neutralizeTargets();
+              }
+
+              new MutationObserver(neutralizeTargets).observe(document.documentElement, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['target']
+              });
+            })();
+            """);
 
         var page = await _context.NewPageAsync();
+        _log?.Invoke($"[browser] main page created pages={_context.Pages.Count} url='{page.Url}'");
+        page.Popup += async (_, popup) =>
+        {
+            await CloseBlockedPopupAsync(popup, "page-popup");
+        };
+        page.Close += (_, _) =>
+        {
+            _log?.Invoke($"[browser] main page closed pages={TryGetPageCount()}");
+        };
 
         string? workingHost = null;
         try
@@ -188,8 +254,24 @@ public sealed class BrowserSession : IAsyncDisposable
 
             try
             {
+                _log?.Invoke($"[browser] page event pages={TryGetPageCount()} initialUrl='{popup.Url}'");
+                if (await CloseBlockedPopupAsync(popup, "context-page-initial"))
+                {
+                    return;
+                }
+
+                popup.Close += (_, _) =>
+                {
+                    _log?.Invoke($"[browser] page closed pages={TryGetPageCount()} url='{popup.Url}'");
+                };
+
                 try { await popup.WaitForLoadStateAsync(LoadState.DOMContentLoaded, new PageWaitForLoadStateOptions { Timeout = 1500 }); }
                 catch { /* about:blank or fast-closing popup */ }
+
+                if (await CloseBlockedPopupAsync(popup, "context-page-loaded"))
+                {
+                    return;
+                }
 
                 var popupHost = Uri.TryCreate(popup.Url ?? string.Empty, UriKind.Absolute, out var popupUri)
                     ? popupUri.Host
@@ -201,10 +283,13 @@ public sealed class BrowserSession : IAsyncDisposable
                 var foreignHost = workingHost is not null
                     && !string.IsNullOrEmpty(popupHost)
                     && !string.Equals(popupHost, workingHost, StringComparison.OrdinalIgnoreCase);
+                var opener = await popup.OpenerAsync();
+                _log?.Invoke($"[browser] new page detected url='{popup.Url}' host='{popupHost ?? "-"}' opener={(opener is null ? "false" : "true")} foreign={foreignHost}");
 
-                if (foreignHost || await popup.OpenerAsync() is not null)
+                if (foreignHost || opener is not null)
                 {
                     await popup.CloseAsync();
+                    _log?.Invoke($"[browser] closed popup url='{popup.Url}' foreign={foreignHost} opener={(opener is null ? "false" : "true")}");
                 }
             }
             catch
@@ -214,6 +299,51 @@ public sealed class BrowserSession : IAsyncDisposable
         };
 
         return page;
+    }
+
+    private async Task<bool> CloseBlockedPopupAsync(IPage popup, string source)
+    {
+        try
+        {
+            var url = popup.Url ?? string.Empty;
+            if (!IsBlockedPopupOrConsentUrl(url))
+            {
+                return false;
+            }
+
+            await popup.CloseAsync();
+            _log?.Invoke($"[browser] closed blocked popup source={source} url='{url}' pages={TryGetPageCount()}");
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool IsBlockedPopupOrConsentUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)
+            || !Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            return false;
+        }
+
+        var host = uri.Host;
+        return host.Equals("consentmanager.net", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".consentmanager.net", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private int TryGetPageCount()
+    {
+        try
+        {
+            return _context?.Pages.Count ?? 0;
+        }
+        catch
+        {
+            return -1;
+        }
     }
 
     public async Task SaveStateAsync()

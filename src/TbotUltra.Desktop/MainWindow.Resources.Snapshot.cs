@@ -304,12 +304,14 @@ public partial class MainWindow
                 : (options is null ? ApplySelectedVillageToOptions(LoadBotOptions()) : ApplySelectedVillageToOptions(options));
             var selectedVillage = forceCurrentVillage || currentPageOnly ? "(current)" : (GetSelectedVillageName() ?? "-");
             AppendLog($"[resource-refresh] start village='{selectedVillage}'");
-            var status = await ReadVillageStatusWithRetryAsync(
-                effectiveOptions,
-                cancellationToken,
-                resourceOnly: true,
-                forceCurrentVillage: forceCurrentVillage,
-                currentPageOnly: currentPageOnly);
+            var status = currentPageOnly && IsOfficialTravianServer(effectiveOptions)
+                ? await _botService.ReadCurrentPageResourceStatusQuickAsync(effectiveOptions, AppendLog, cancellationToken)
+                : await ReadVillageStatusWithRetryAsync(
+                    effectiveOptions,
+                    cancellationToken,
+                    resourceOnly: true,
+                    forceCurrentVillage: forceCurrentVillage,
+                    currentPageOnly: currentPageOnly);
             AppendLog($"[resource-refresh] read village='{status.ActiveVillage}' | {BuildResourceLogSummary(status)}");
 
             await Dispatcher.InvokeAsync(() =>
@@ -354,7 +356,8 @@ public partial class MainWindow
 
         try
         {
-            if (_botService.GetQueueItemsForDisplay().Any(item => item.Status == QueueStatus.Running))
+            if (_botService.GetQueueItemsForDisplay().Any(item =>
+                    item.Status is QueueStatus.Pending or QueueStatus.Running))
             {
                 return false;
             }
@@ -376,17 +379,30 @@ public partial class MainWindow
             return;
         }
 
+        var options = LoadBotOptions();
+        var officialServer = IsOfficialTravianServer(options);
+
         try
         {
-            await RefreshResourceSnapshotForUiAsync(cancellationToken: CancellationToken.None, currentPageOnly: true);
+            await RefreshResourceSnapshotForUiAsync(options, CancellationToken.None, currentPageOnly: true);
         }
         catch (Exception ex)
         {
             AppendLog($"Background resource refresh skipped: {ex.Message}");
         }
 
-        await TryReviveDeadHeroFromCurrentPageAsync();
-        await RefreshInboxIndicatorsQuickAsync();
+        if (!officialServer)
+        {
+            await TryReviveDeadHeroFromCurrentPageAsync();
+            await RefreshInboxIndicatorsQuickAsync();
+        }
+    }
+
+    private static bool IsOfficialTravianServer(BotOptions options)
+    {
+        return Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out var uri)
+            && (uri.Host.Equals("travian.com", StringComparison.OrdinalIgnoreCase)
+                || uri.Host.EndsWith(".travian.com", StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task TryReviveDeadHeroFromCurrentPageAsync()

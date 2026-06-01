@@ -278,6 +278,7 @@ public partial class MainWindow : Window
     private int _activeVillageResourceMaxLevel = NonCapitalResourceMaxLevel;
     private int _buildQueueRemainingSeconds = -1;
     private int _buildQueueActiveCount;
+    private bool? _travianPlusActive;
     private List<int> _smithyUpgradeRemainingSeconds = [];
     private bool _smithyUpgradeStatusRefreshRunning;
     private IReadOnlyList<Building>? _pendingSmithyUpgradeStatusBuildings;
@@ -777,6 +778,7 @@ public partial class MainWindow : Window
 
     private void UpdatePlusInfo(bool? active)
     {
+        _travianPlusActive = active;
         if (active == true)
         {
             PlusInfoTextBlock.Text = "Yes";
@@ -1061,12 +1063,16 @@ public partial class MainWindow : Window
             StatusTextBlock.Text = "Login completed.";
             UpdateLoginButtonsVisual(true);
             _isLoggedIn = true;
-            _browserSessionLikelyOpen = !options.Headless;
             _inboxAutoEnabled = true;
             RefreshNatarsProfileAnalyzedFromCache();
+            var officialServer = IsOfficialTravianServer(options);
             var snapshot = await _botService.LoadPostLoginSnapshotAsync(options, AppendLog, cancellationToken: operationToken);
             ApplyPostLoginSnapshot(snapshot);
-            await RefreshResourceSnapshotForUiAsync(options, operationToken, forceCurrentVillage: true);
+            await RefreshResourceSnapshotForUiAsync(
+                options,
+                operationToken,
+                forceCurrentVillage: !officialServer,
+                currentPageOnly: officialServer);
             if (options.PostLoginAnalyzeFarmlists)
             {
                 try
@@ -1115,12 +1121,21 @@ public partial class MainWindow : Window
                 }
             }
 
-            await _botService.NavigateToVillageResourceFieldsAsync(
-                options,
-                AppendLog,
-                GetSelectedVillageName(),
-                GetSelectedVillageUrl(),
-                cancellationToken: operationToken);
+            var postLoginAnalysisMayNavigate =
+                options.PostLoginAnalyzeFarmlists
+                || options.PostLoginAnalyzeHero
+                || options.PostLoginAnalyzeBrewery;
+            if (!officialServer || postLoginAnalysisMayNavigate)
+            {
+                await _botService.NavigateToVillageResourceFieldsAsync(
+                    options,
+                    AppendLog,
+                    GetSelectedVillageName(),
+                    GetSelectedVillageUrl(),
+                    cancellationToken: operationToken);
+            }
+
+            _browserSessionLikelyOpen = !options.Headless;
             CompleteOperation(operationId, operationSw, "Login completed.");
         }
         catch (OperationCanceledException)

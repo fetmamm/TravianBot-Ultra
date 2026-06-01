@@ -362,7 +362,20 @@ public partial class MainWindow
 
     private bool IsConstructionGroupReady()
     {
-        return ResolveConstructionGroupRemainingSeconds() is not > 0;
+        if (ResolveConstructionGroupRemainingSeconds() is not > 0)
+        {
+            return true;
+        }
+
+        // With Travian Plus the official server allows a second active construction.
+        // Do not block the whole Construction group just because the first timer is running;
+        // the worker still performs the authoritative slot check before clicking.
+        if (_travianPlusActive == true && _buildQueueActiveCount < 2)
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private void ApplyConstructionInlineWait(TimeSpan waitDelay)

@@ -1,4 +1,5 @@
 using Microsoft.Playwright;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using TbotUltra.Core.Configuration;
@@ -651,6 +652,9 @@ public sealed partial class TravianClient
         string? lastError = null;
         var selectors = new[]
         {
+            ".upgradeButtonsContainer .section1 button.green.build",
+            ".upgradeButtonsContainer .section1 button.green",
+            ".upgradeButtonsContainer .section1 button",
             "div.addHoverClick",
             "div.button-container",
             "button.green",
@@ -1085,7 +1089,9 @@ public sealed partial class TravianClient
                 if (!/(construct|build|bauen|bygg)/.test(text)) continue;
                 const disabled = el.disabled || classes.includes('disabled') || el.getAttribute('aria-disabled') === 'true';
                 if (disabled) continue;
-                if (text.includes('npc') || text.includes('instant') || classes.includes('gold')) continue;
+                const inOfficialPrimarySection = !!el.closest('.upgradeButtonsContainer .section1');
+                const inOfficialSpeedupSection = !!el.closest('.upgradeButtonsContainer .section2');
+                if (text.includes('npc') || text.includes('instant') || text.includes('faster') || classes.includes('gold') || classes.includes('purple') || classes.includes('videofeaturebutton') || inOfficialSpeedupSection) continue;
                 const isUpgrade = /upgrade\s+to\s+level/i.test(text);
                 if (isUpgrade) continue;
                 // Travian wraps each constructable building in `#contract_building{gid}` (private servers
@@ -1120,7 +1126,7 @@ public sealed partial class TravianClient
                   if (otherId !== `contract_building${gidText}` && otherId !== `building${gidText}`) continue;
                 }
                 const isConstruct = /construct\s+building/i.test(rawText) || /build\s+building/i.test(rawText);
-                const rank = (wrapperMatchesGid ? 10 : 0) + (onclickMentionsGid ? 5 : 0) + (isConstruct ? 3 : 0) + 1;
+                const rank = (wrapperMatchesGid ? 10 : 0) + (inOfficialPrimarySection ? 8 : 0) + (onclickMentionsGid ? 5 : 0) + (isConstruct ? 3 : 0) + (classes.includes('green') ? 2 : 0) + 1;
                 matches.push({ index: candidates.indexOf(el), rank, text: rawText.slice(0, 60), gidContext: { wrapper: wrapperMatchesGid, onclick: onclickMentionsGid } });
               }
               matches.sort((a, b) => b.rank - a.rank);
@@ -1920,6 +1926,8 @@ public sealed partial class TravianClient
                 const namedElement = slot.querySelector('.name, .title, .desc, .buildingName, .hover, [title], [aria-label], img[alt]');
                 const link = slot.querySelector('a[href], area[href]');
                 const image = slot.querySelector('img[alt]');
+                const dataName = clean(slot.getAttribute('data-name') || '');
+                const dataLevel = clean(slot.getAttribute('data-level') || link?.getAttribute('data-level') || '');
                 const buildingImg = slot.querySelector('img.building, img[class*=" g"], img[class^="g"]');
                 const buildingImgClass = buildingImg ? String(buildingImg.className || '') : '';
                 const text = clean(slot.textContent || '');
@@ -1938,6 +1946,8 @@ public sealed partial class TravianClient
                   className,
                   outerHtml: slot.outerHTML || '',
                   levelText: clean(label ? label.textContent : ''),
+                  dataLevelText: dataLevel,
+                  dataNameText: dataName,
                   nameText: clean(namedElement ? namedElement.textContent : ''),
                   titleText: clean(slot.getAttribute('title') || (namedElement ? namedElement.getAttribute('title') : '') || (link ? link.getAttribute('title') : '') || ''),
                   altText: clean(image ? image.getAttribute('alt') : ''),
@@ -2024,9 +2034,9 @@ public sealed partial class TravianClient
 
         var buildingCode = TryExtractBuildingCode(classes)
             ?? TryExtractBuildingCodeFromText(slotSnapshot.OuterHtml);
-        var level = TryParseOverviewLevel(slotSnapshot.LevelText, slotSnapshot.Text);
+        var level = TryParseOverviewLevel(slotSnapshot.LevelText, slotSnapshot.DataLevelText, slotSnapshot.Text);
         var levelKnown = level.HasValue;
-        var nameCandidate = SelectBuildingNameCandidate(slotSnapshot.NameText, slotSnapshot.TitleText, slotSnapshot.AltText);
+        var nameCandidate = SelectBuildingNameCandidate(slotSnapshot.DataNameText, slotSnapshot.NameText, slotSnapshot.TitleText, slotSnapshot.AltText);
         var hasOccupancyEvidence = slotSnapshot.OccupiedEvidence
             || !string.IsNullOrWhiteSpace(buildingCode)
             || !string.IsNullOrWhiteSpace(nameCandidate);
@@ -2121,18 +2131,21 @@ public sealed partial class TravianClient
             || SameBuildingName(item.BuildingName, name));
     }
 
-    private static int? TryParseOverviewLevel(string? levelText, string? fallbackText)
+    private static int? TryParseOverviewLevel(params string?[] candidates)
     {
-        if (TryParsePositiveInt(levelText, out var parsedLevel))
+        foreach (var candidate in candidates)
         {
-            return parsedLevel;
-        }
+            if (TryParsePositiveInt(candidate, out var parsedLevel))
+            {
+                return parsedLevel;
+            }
 
-        var fallbackMatch = OverviewLevelRegex.Match(fallbackText ?? string.Empty);
-        if (fallbackMatch.Success
-            && int.TryParse(fallbackMatch.Groups["level"].Value, out parsedLevel))
-        {
-            return parsedLevel;
+            var fallbackMatch = OverviewLevelRegex.Match(candidate ?? string.Empty);
+            if (fallbackMatch.Success
+                && int.TryParse(fallbackMatch.Groups["level"].Value, out parsedLevel))
+            {
+                return parsedLevel;
+            }
         }
 
         return null;
@@ -2502,7 +2515,37 @@ public sealed partial class TravianClient
         LogFunctionStarted();
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading active constructions.", cancellationToken);
 
-        var rawJson = await _page.EvaluateAsync<string>(
+        var raw = await ReadActiveConstructionsOnCurrentPageAsync();
+        if (raw.Count == 0
+            && IsOfficialTravianServer()
+            && !IsCurrentUrlForPath(Paths.Buildings))
+        {
+            await GotoAsync(Paths.Buildings, cancellationToken);
+            raw = await ReadActiveConstructionsOnCurrentPageAsync();
+        }
+
+        var result = raw
+            .Where(i => !string.IsNullOrWhiteSpace(i.Name))
+            .Select(i => new ActiveConstruction(
+                Kind: i.Kind switch
+                {
+                    "Resource" => ConstructionKind.Resource,
+                    "Building" => ConstructionKind.Building,
+                    _ => ConstructionKind.Unknown
+                },
+                Name: i.Name!,
+                Level: i.Level,
+                TimeLeftSeconds: i.TimeLeftSeconds ?? ParseDurationToSeconds(i.FinishAtText),
+                FinishAtText: i.FinishAtText))
+            .ToList();
+
+        _cachedActiveConstructions = result;
+        _cachedActiveConstructionsAt = DateTimeOffset.UtcNow;
+        return result;
+
+        async Task<List<ActiveConstructionJs>> ReadActiveConstructionsOnCurrentPageAsync()
+        {
+            var rawJson = await _page.EvaluateAsync<string>(
             """
             () => {
               const items = [];
@@ -2524,7 +2567,7 @@ public sealed partial class TravianClient
                 const timer = li.querySelector('.timer, [counting="down"]');
                 let timeLeft = null;
                 if (timer) {
-                  const v = timer.getAttribute('value');
+                  const v = timer.getAttribute('value') || timer.getAttribute('data-value');
                   if (v && !isNaN(Number(v))) timeLeft = Number(v);
                 }
                 const finishText = (li.querySelector('.buildDuration')?.textContent || '').replace(/\s+/g, ' ').trim();
@@ -2540,28 +2583,17 @@ public sealed partial class TravianClient
             }
             """);
 
-        var raw = string.IsNullOrWhiteSpace(rawJson)
-            ? new List<ActiveConstructionJs>()
-            : JsonSerializer.Deserialize<List<ActiveConstructionJs>>(rawJson) ?? new List<ActiveConstructionJs>();
+            return string.IsNullOrWhiteSpace(rawJson)
+                ? new List<ActiveConstructionJs>()
+                : JsonSerializer.Deserialize<List<ActiveConstructionJs>>(rawJson) ?? new List<ActiveConstructionJs>();
+        }
+    }
 
-        var result = raw
-            .Where(i => !string.IsNullOrWhiteSpace(i.Name))
-            .Select(i => new ActiveConstruction(
-                Kind: i.Kind switch
-                {
-                    "Resource" => ConstructionKind.Resource,
-                    "Building" => ConstructionKind.Building,
-                    _ => ConstructionKind.Unknown
-                },
-                Name: i.Name!,
-                Level: i.Level,
-                TimeLeftSeconds: i.TimeLeftSeconds ?? ParseDurationToSeconds(i.FinishAtText),
-                FinishAtText: i.FinishAtText))
-            .ToList();
-
-        _cachedActiveConstructions = result;
-        _cachedActiveConstructionsAt = DateTimeOffset.UtcNow;
-        return result;
+    private bool IsOfficialTravianServer()
+    {
+        return Uri.TryCreate(_config.BaseUrl, UriKind.Absolute, out var uri)
+            && (uri.Host.Equals("travian.com", StringComparison.OrdinalIgnoreCase)
+                || uri.Host.EndsWith(".travian.com", StringComparison.OrdinalIgnoreCase));
     }
 
     public async Task<ConstructionSlotStatus> EvaluateConstructionSlotsAsync(
@@ -2910,16 +2942,17 @@ public sealed partial class TravianClient
                         const upgradeText = candidate.text.includes('upgrade') || candidate.text.includes('build');
                         const signalClass = candidate.classes.includes('upgrade') || candidate.classes.includes('build') || candidate.classes.includes('contract');
                         const container = candidate.inUpgradeContainer;
+                        const officialPrimary = candidate.inOfficialPrimarySection;
                         if (normalizedProfile === 'strict_green') {
-                          return (green ? 6 : 0) + (container ? 2 : 0) + (upgradeText ? 1 : 0);
+                          return (officialPrimary ? 8 : 0) + (green ? 6 : 0) + (container ? 2 : 0) + (upgradeText ? 1 : 0);
                         }
                         if (normalizedProfile === 'container_first') {
-                          return (container ? 6 : 0) + (green ? 2 : 0) + (upgradeText ? 1 : 0);
+                          return (officialPrimary ? 8 : 0) + (container ? 6 : 0) + (green ? 2 : 0) + (upgradeText ? 1 : 0);
                         }
                         if (normalizedProfile === 'aggressive') {
-                          return (signalClass ? 4 : 0) + (container ? 3 : 0) + (green ? 2 : 0) + (upgradeText ? 1 : 0);
+                          return (officialPrimary ? 8 : 0) + (signalClass ? 4 : 0) + (container ? 3 : 0) + (green ? 2 : 0) + (upgradeText ? 1 : 0);
                         }
-                        return (green ? 3 : 0) + (container ? 2 : 0) + (upgradeText ? 1 : 0);
+                        return (officialPrimary ? 8 : 0) + (green ? 3 : 0) + (container ? 2 : 0) + (upgradeText ? 1 : 0);
                       };
 
                       const candidates = Array.from(document.querySelectorAll('button, input[type="submit"], input[type="button"], a, div.addHoverClick, div.button-container'));
@@ -2946,10 +2979,14 @@ public sealed partial class TravianClient
                           || controlClasses.includes('disabled')
                           || (control && control.getAttribute('aria-disabled') === 'true')
                         );
+                        const inOfficialPrimarySection = !!element.closest('.upgradeButtonsContainer .section1');
+                        const inOfficialSpeedupSection = !!element.closest('.upgradeButtonsContainer .section2');
                         const isGold = combined.includes('gold') || combined.includes('npc') || combined.includes('instant') || combined.includes('exchange') || combined.includes('sharing resources') || combined.includes('share resources');
+                        const isSpeedup = inOfficialSpeedupSection || classes.includes('purple') || controlClasses.includes('purple') || classes.includes('videofeaturebutton') || controlClasses.includes('videofeaturebutton') || combined.includes('videoFeature') || combined.includes('videofeature') || combined.includes('faster');
                         const inUpgradeContainer = !!element.closest('.upgradeBuilding, .contract, .contractWrapper, .build_details, .buildingWrapper, #contract, form[action*="build.php"]');
                         const hasUpgradeSignals =
-                          classes.includes('green')
+                          inOfficialPrimarySection
+                          || classes.includes('green')
                           || controlClasses.includes('green')
                           || classes.includes('upgrade')
                           || controlClasses.includes('upgrade')
@@ -2961,10 +2998,10 @@ public sealed partial class TravianClient
                           || controlClasses.includes('addhoverclick')
                           || href.includes('build.php')
                           || formAction.includes('build.php')
-                          || (inUpgradeContainer && displayText.length > 0)
+                          || (inUpgradeContainer && /upgrade\s+to\s+level|upgrade|build/i.test(displayText))
                           || /upgrade\s+to\s+level/i.test(displayText);
 
-                        if (!hasUpgradeSignals || isGold || displayText.length === 0) {
+                        if (!hasUpgradeSignals || isGold || isSpeedup || displayText.length === 0) {
                           continue;
                         }
 
@@ -2972,11 +3009,12 @@ public sealed partial class TravianClient
                           text: displayText.slice(0, 120),
                           classes: classes.slice(0, 120),
                           disabled,
-                          inUpgradeContainer
+                          inUpgradeContainer,
+                          inOfficialPrimarySection
                         });
 
                         if (!disabled) {
-                          clickOrder.push({ candidateIndex, text: displayText, classes: `${classes} ${controlClasses}`, inUpgradeContainer });
+                          clickOrder.push({ candidateIndex, text: displayText, classes: `${classes} ${controlClasses}`, inUpgradeContainer, inOfficialPrimarySection });
                         }
                       }
 
@@ -3555,6 +3593,207 @@ public sealed partial class TravianClient
                 .Select(item => $"{item.Text.Trim()}|{item.TimeLeft?.Trim() ?? string.Empty}"));
     }
 
+    internal static IReadOnlyList<Building> ParseBuildingOverviewHtmlForTests(string html)
+    {
+        var slots = ExtractBuildingSlotHtml(html)
+            .Select((slotHtml, index) =>
+            {
+                var className = ReadAttribute(slotHtml, "class") ?? string.Empty;
+                var labelText = CleanHtmlText(Regex.Match(slotHtml, @"<div\b[^>]*class=[""'][^""']*\blabelLayer\b[^""']*[""'][^>]*>(?<text>.*?)</div>", RegexOptions.IgnoreCase | RegexOptions.Singleline).Groups["text"].Value);
+                var link = Regex.Match(slotHtml, @"<a\b(?<attrs>[^>]*)>", RegexOptions.IgnoreCase | RegexOptions.Singleline).Groups["attrs"].Value;
+                var dataName = ReadAttribute(slotHtml, "data-name") ?? string.Empty;
+                var dataLevel = ReadAttribute(link, "data-level") ?? ReadAttribute(slotHtml, "data-level") ?? string.Empty;
+                return new BuildingOverviewSlotSnapshot
+                {
+                    Index = index,
+                    ClassName = className,
+                    OuterHtml = slotHtml,
+                    LevelText = labelText,
+                    DataLevelText = dataLevel,
+                    DataNameText = dataName,
+                    Text = CleanHtmlText(slotHtml),
+                    OccupiedEvidence = !string.IsNullOrWhiteSpace(link)
+                        || !string.IsNullOrWhiteSpace(dataName)
+                        || Regex.IsMatch(className, @"\bg\d{1,2}\b", RegexOptions.IgnoreCase),
+                };
+            })
+            .ToList();
+
+        return ParseBuildingOverviewScan(slots)
+            .Buildings
+            .Values
+            .OrderBy(item => item.SlotId)
+            .Select(item => new Building(
+                item.SlotId,
+                item.BuildingName,
+                item.LevelKnown || !item.HasOccupancyEvidence ? item.Level : null,
+                null,
+                ParseGidFromBuildingCode(item.BuildingCode)))
+            .ToList();
+    }
+
+    internal static HtmlButtonCandidate? SelectUpgradeButtonCandidateFromHtmlForTests(string html, int nextLevel)
+    {
+        var candidates = ExtractButtonCandidates(html);
+        var expectedText = $"Upgrade to level {nextLevel}";
+        return candidates
+            .Where(candidate => candidate.Text.Contains(expectedText, StringComparison.OrdinalIgnoreCase))
+            .Where(candidate => !candidate.Disabled && !candidate.IsSpeedup && !candidate.IsGold)
+            .OrderByDescending(candidate => candidate.InOfficialPrimarySection)
+            .ThenByDescending(candidate => candidate.Classes.Contains("green", StringComparison.OrdinalIgnoreCase))
+            .FirstOrDefault();
+    }
+
+    internal static IReadOnlyList<HtmlButtonCandidate> ExtractButtonCandidatesFromHtmlForTests(string html)
+    {
+        return ExtractButtonCandidates(html);
+    }
+
+    internal static HtmlButtonCandidate? SelectConstructButtonCandidateFromHtmlForTests(string html, int gid)
+    {
+        var gidText = gid.ToString(CultureInfo.InvariantCulture);
+        return ExtractButtonCandidates(html)
+            .Where(candidate => candidate.Text.Contains("Construct building", StringComparison.OrdinalIgnoreCase))
+            .Where(candidate => !candidate.Disabled && !candidate.IsSpeedup && !candidate.IsGold)
+            .Where(candidate => string.Equals(candidate.WrapperGid, gidText, StringComparison.Ordinal)
+                || candidate.OnClick.Contains($"gid={gidText}", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(candidate => string.Equals(candidate.WrapperGid, gidText, StringComparison.Ordinal))
+            .ThenByDescending(candidate => candidate.InOfficialPrimarySection)
+            .ThenByDescending(candidate => candidate.Classes.Contains("green", StringComparison.OrdinalIgnoreCase))
+            .FirstOrDefault();
+    }
+
+    internal static IReadOnlyDictionary<string, long?> ReadConstructionCostFromHtmlForTests(string html)
+    {
+        var result = new Dictionary<string, long?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (key, cssClass) in new[] { ("wood", "r1"), ("clay", "r2"), ("iron", "r3"), ("crop", "r4") })
+        {
+            var match = Regex.Match(
+                html,
+                $@"<i\b[^>]*class=[""'][^""']*\b{cssClass}Big\b[^""']*[""'][^>]*>\s*</i>\s*<span\b[^>]*class=[""'][^""']*\bvalue\b[^""']*[""'][^>]*>(?<value>.*?)</span>",
+                RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            result[key] = match.Success ? TryParseResourceValue(CleanHtmlText(match.Groups["value"].Value)) : null;
+        }
+
+        return result;
+    }
+
+    internal static int? ReadPrimaryBuildDurationSecondsFromHtmlForTests(string html)
+    {
+        var source = html ?? string.Empty;
+        var section1Index = Regex.Match(
+            source,
+            @"<div\b[^>]*class=[""'][^""']*\bsection1\b[^""']*[""']",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        if (section1Index.Success)
+        {
+            var section2Index = Regex.Match(
+                source[section1Index.Index..],
+                @"<div\b[^>]*class=[""'][^""']*\bsection2\b[^""']*[""']",
+                RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            source = section2Index.Success
+                ? source.Substring(section1Index.Index, section2Index.Index)
+                : source[section1Index.Index..];
+        }
+
+        var match = Regex.Match(
+            source,
+            @"<div\b[^>]*class=[""'][^""']*\bduration\b[^""']*[""'][^>]*>.*?<span\b[^>]*class=[""'][^""']*\bvalue\b[^""']*[""'][^>]*>(?<value>.*?)</span>",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        return match.Success ? ParseDurationToSeconds(CleanHtmlText(match.Groups["value"].Value)) : null;
+    }
+
+    internal sealed record HtmlButtonCandidate(
+        string Text,
+        string Classes,
+        string OnClick,
+        string? WrapperGid,
+        bool Disabled,
+        bool IsGold,
+        bool IsSpeedup,
+        bool InOfficialPrimarySection);
+
+    private static IReadOnlyList<HtmlButtonCandidate> ExtractButtonCandidates(string html)
+    {
+        var candidates = new List<HtmlButtonCandidate>();
+        var sourceHtml = html ?? string.Empty;
+        foreach (Match match in Regex.Matches(sourceHtml, @"<button\b(?<attrs>[^>]*)>(?<text>.*?)</button>", RegexOptions.IgnoreCase | RegexOptions.Singleline))
+        {
+            var attrs = match.Groups["attrs"].Value;
+            var text = CleanHtmlText(ReadAttribute(attrs, "value") ?? match.Groups["text"].Value);
+            var classes = ReadAttribute(attrs, "class") ?? string.Empty;
+            var onclick = System.Net.WebUtility.HtmlDecode(ReadAttribute(attrs, "onclick") ?? string.Empty);
+            var before = sourceHtml[..match.Index];
+            var afterLastWrapper = before.LastIndexOf("contract_building", StringComparison.OrdinalIgnoreCase);
+            string? wrapperGid = null;
+            if (afterLastWrapper >= 0)
+            {
+                var wrapperMatch = Regex.Match(before[afterLastWrapper..], @"contract_building(?<gid>\d{1,2})", RegexOptions.IgnoreCase);
+                wrapperGid = wrapperMatch.Success ? wrapperMatch.Groups["gid"].Value : null;
+            }
+
+            var lastSection1 = LastSectionIndex(before, "section1");
+            var lastSection2 = LastSectionIndex(before, "section2");
+            var inPrimary = lastSection1 > lastSection2;
+            var lowerCombined = $"{text} {classes} {onclick}".ToLowerInvariant();
+            candidates.Add(new HtmlButtonCandidate(
+                text,
+                classes,
+                onclick,
+                wrapperGid,
+                HasDisabledAttribute(attrs) || classes.Contains("disabled", StringComparison.OrdinalIgnoreCase),
+                lowerCombined.Contains("gold") || lowerCombined.Contains("npc") || lowerCombined.Contains("instant"),
+                lastSection2 > lastSection1 || lowerCombined.Contains("purple") || lowerCombined.Contains("videofeature") || lowerCombined.Contains("faster"),
+                inPrimary));
+        }
+
+        return candidates;
+    }
+
+    private static bool HasDisabledAttribute(string attributes)
+    {
+        return Regex.IsMatch(
+            attributes ?? string.Empty,
+            @"(?:^|\s)disabled(?:\s|=|$)",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline);
+    }
+
+    private static int LastSectionIndex(string html, string sectionClass)
+    {
+        var matches = Regex.Matches(
+            html,
+            @$"<div\b[^>]*class=[""'][^""']*\b{Regex.Escape(sectionClass)}\b[^""']*[""']",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+        return matches.Count == 0 ? -1 : matches[^1].Index;
+    }
+
+    private static IReadOnlyList<string> ExtractBuildingSlotHtml(string html)
+    {
+        return Regex.Matches(
+                html ?? string.Empty,
+                @"<div\b[^>]*class=[""'][^""']*\bbuildingSlot\b[^""']*[""'][\s\S]*?(?=<div\b[^>]*class=[""'][^""']*\bbuildingSlot\b|<div\s+id=[""']sidebar|$)",
+                RegexOptions.IgnoreCase)
+            .Cast<Match>()
+            .Select(match => match.Value)
+            .ToList();
+    }
+
+    private static string? ReadAttribute(string htmlOrAttributes, string attributeName)
+    {
+        var match = Regex.Match(
+            htmlOrAttributes ?? string.Empty,
+            $@"\b{Regex.Escape(attributeName)}\s*=\s*([""'])(?<value>.*?)\1",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        return match.Success ? System.Net.WebUtility.HtmlDecode(match.Groups["value"].Value) : null;
+    }
+
+    private static string CleanHtmlText(string value)
+    {
+        var decoded = System.Net.WebUtility.HtmlDecode(Regex.Replace(value ?? string.Empty, "<.*?>", " ", RegexOptions.Singleline));
+        return string.Join(" ", decoded.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)).Trim();
+    }
+
     private async Task EnsureExpectedBuildSlotPageAsync(int slotId, string operationLabel)
     {
         var currentUrl = _page.Url;
@@ -3701,6 +3940,8 @@ public sealed partial class TravianClient
         public string ClassName { get; set; } = string.Empty;
         public string OuterHtml { get; set; } = string.Empty;
         public string LevelText { get; set; } = string.Empty;
+        public string DataLevelText { get; set; } = string.Empty;
+        public string DataNameText { get; set; } = string.Empty;
         public string NameText { get; set; } = string.Empty;
         public string TitleText { get; set; } = string.Empty;
         public string AltText { get; set; } = string.Empty;

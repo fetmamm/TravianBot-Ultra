@@ -10,6 +10,8 @@ namespace TbotUltra.Worker.Services;
 
 public sealed class BotTaskRunner
 {
+    private static long _browserOperationSequence;
+
     private static readonly IReadOnlyDictionary<string, Func<TaskExecutionContext, Task>> TaskHandlers =
         new Dictionary<string, Func<TaskExecutionContext, Task>>(StringComparer.OrdinalIgnoreCase)
         {
@@ -219,9 +221,12 @@ public sealed class BotTaskRunner
                 await client.LoginAsync(cancellationToken);
                 await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken, skipFeatureRefresh: true);
 
-                // Visit spieler.php once after login so village/account data is refreshed from
-                // the authoritative profile page before the lighter status reads use the cache.
-                await client.ReadAccountSnapshotAsync(forceRefreshVillages: true, cancellationToken);
+                // SS-Travi keeps the old profile refresh. Official Travian can read the post-login
+                // village list from the current dorf1/sidebar, avoiding visible profile<->dorf1 flicker.
+                await client.ReadAccountSnapshotAsync(
+                    forceRefreshVillages: options.IsPrivateServer,
+                    preferCurrentPageVillages: !options.IsPrivateServer,
+                    cancellationToken);
                 var villageStatus = await client.ReadVillageStatusAsync(cancellationToken);
                 if (options.PostLoginReadTroopTrainingQueue)
                 {
@@ -1245,22 +1250,29 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
         Func<TravianClient, Task> action)
     {
         var account = _accountProvider.LoadAccount(accountName);
+        var operationId = Interlocked.Increment(ref _browserOperationSequence);
+        log($"[browser-op:{operationId}] WAIT account='{account.Name}' server='{options.BaseUrl.TrimEnd('/')}' interactive={interactive}");
         await _sessionGate.WaitAsync(cancellationToken);
         try
         {
+            log($"[browser-op:{operationId}] ENTER");
             var lease = await AcquireClientLeaseAsync(options, account, log, interactive, cancellationToken);
             try
             {
+                LogPageState(log, operationId, "LEASED");
                 await action(lease.Client);
+                LogPageState(log, operationId, "ACTION_DONE");
             }
             finally
             {
                 await FinalizeLeaseAsync(lease, log);
+                LogPageState(log, operationId, "FINALIZED");
             }
         }
         finally
         {
             _sessionGate.Release();
+            log($"[browser-op:{operationId}] EXIT");
         }
     }
 
@@ -1273,19 +1285,46 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
     {
         if (options.Headless)
         {
-            var session = new BrowserSession(options, account, _projectContext.RootPath);
+            var session = new BrowserSession(options, account, _projectContext.RootPath, log: log);
             var page = await session.OpenPageAsync(cancellationToken);
             var client = CreateClient(page, options, account, interactive, log);
             return new ClientLease(session, client, false);
         }
 
         var desiredBaseUrl = options.BaseUrl.TrimEnd('/');
+        var replaceReasons = new List<string>();
+        if (_sharedVisibleSession is null)
+        {
+            replaceReasons.Add("session=null");
+        }
+
+        if (_sharedVisiblePage is null)
+        {
+            replaceReasons.Add("page=null");
+        }
+        else if (_sharedVisiblePage.IsClosed)
+        {
+            replaceReasons.Add("page=closed");
+        }
+
+        if (!string.Equals(_sharedVisibleAccountName, account.Name, StringComparison.OrdinalIgnoreCase))
+        {
+            replaceReasons.Add($"account='{_sharedVisibleAccountName ?? "-"}'->'{account.Name}'");
+        }
+
+        if (!string.Equals(_sharedVisibleBaseUrl, desiredBaseUrl, StringComparison.OrdinalIgnoreCase))
+        {
+            replaceReasons.Add($"baseUrl='{_sharedVisibleBaseUrl ?? "-"}'->'{desiredBaseUrl}'");
+        }
+
         var mustReplaceSession =
             _sharedVisibleSession is null ||
             _sharedVisiblePage is null ||
             _sharedVisiblePage.IsClosed ||
             !string.Equals(_sharedVisibleAccountName, account.Name, StringComparison.OrdinalIgnoreCase) ||
             !string.Equals(_sharedVisibleBaseUrl, desiredBaseUrl, StringComparison.OrdinalIgnoreCase);
+
+        log($"[browser-session] visible page count before lease={TryGetSharedPageCount()} replace={mustReplaceSession} reason='{string.Join(", ", replaceReasons)}' currentUrl='{_sharedVisiblePage?.Url ?? "-"}'");
 
         if (_sharedVisiblePage is not null && _sharedVisiblePage.IsClosed)
         {
@@ -1307,7 +1346,7 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
                 }
             }
 
-            var session = new BrowserSession(options, account, _projectContext.RootPath, headlessOverride: false);
+            var session = new BrowserSession(options, account, _projectContext.RootPath, headlessOverride: false, log: log);
             var page = await session.OpenPageAsync(cancellationToken);
             _sharedVisibleSession = session;
             _sharedVisiblePage = page;
@@ -1318,8 +1357,34 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             log("Opened shared browser window.");
         }
 
+        log($"[browser-session] visible page count after lease={TryGetSharedPageCount()} url='{_sharedVisiblePage?.Url ?? "-"}'");
         var sharedClient = CreateClient(_sharedVisiblePage!, options, account, interactive, log, _sharedVisibleSessionCache);
         return new ClientLease(_sharedVisibleSession!, sharedClient, true);
+    }
+
+    private int TryGetSharedPageCount()
+    {
+        try
+        {
+            return _sharedVisiblePage?.Context.Pages.Count ?? 0;
+        }
+        catch
+        {
+            return -1;
+        }
+    }
+
+    private void LogPageState(Action<string> log, long operationId, string stage)
+    {
+        try
+        {
+            var pageCount = _sharedVisiblePage?.Context.Pages.Count ?? 0;
+            log($"[browser-op:{operationId}] {stage} pages={pageCount} url='{_sharedVisiblePage?.Url ?? "-"}'");
+        }
+        catch (Exception ex)
+        {
+            log($"[browser-op:{operationId}] {stage} page-state failed: {ex.Message}");
+        }
     }
 
     public bool ConsumeBrowserClosedByUserSignal()

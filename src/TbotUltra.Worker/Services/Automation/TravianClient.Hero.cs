@@ -280,6 +280,18 @@ public sealed partial class TravianClient
                     }
                   }
 
+                  if (!found) {
+                    // Official Travian (T4.6): the adventure indicator is an anchor to
+                    // /hero/adventures with the count in a .content child (e.g. "99+").
+                    const adv = document.querySelector('a.adventure[href*="/hero/adventures"], #heroV2 a[href*="/hero/adventures"], a[href*="/hero/adventures"]');
+                    if (adv) {
+                      found = true;
+                      const contentEl = adv.querySelector('.content') || adv;
+                      const parsed = parseInt(clean(contentEl.textContent || '').replace(/[^\d]/g, ''), 10);
+                      if (Number.isFinite(parsed)) count = parsed;
+                    }
+                  }
+
                   return JSON.stringify({ statusText, adventureFound: found, adventureCount: count });
                 }
                 """);
@@ -305,9 +317,10 @@ public sealed partial class TravianClient
             () => {
               const candidate =
                 document.querySelector('button.adventureWhite, button.layoutButton.adventureWhite')
+                || document.querySelector('a.adventure[href*="/hero/adventures"], a[href*="/hero/adventures"]')
                 || Array.from(document.querySelectorAll('button')).find(b => /adventure/i.test(b.className || ''));
               if (!candidate) return false;
-              if (candidate.hasAttribute('disabled')) return false;
+              if (candidate.hasAttribute('disabled') || /\bdisabled\b/.test(candidate.className || '')) return false;
               candidate.click();
               return true;
             }
@@ -324,7 +337,7 @@ public sealed partial class TravianClient
             return;
         }
 
-        await GotoAsync(Paths.HeroAdventures, cancellationToken);
+        await GotoAsync(HeroAdventuresPath, cancellationToken);
         await WaitForNavigationSettledAsync(cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared on hero adventures page.", cancellationToken);
         if (await HasAdventureEntryOnPageAsync(cancellationToken))
@@ -346,7 +359,7 @@ public sealed partial class TravianClient
 
         try
         {
-            await GotoAsync(Paths.HeroAdventures, cancellationToken);
+            await GotoAsync(HeroAdventuresPath, cancellationToken);
             await WaitForNavigationSettledAsync(cancellationToken);
             await PauseForManualStepIfVisibleAsync("Manual verification appeared on hero adventures page.", cancellationToken);
             if (await IsHeroAdventuresPageAsync(cancellationToken))
@@ -373,7 +386,8 @@ public sealed partial class TravianClient
                 """
                 () => {
                   const url = (window.location.href || '').toLowerCase();
-                  if (url.includes('/hero_adventure.php') || url.includes('/hero.php?t=3')) {
+                  // SS/legacy: /hero_adventure.php or /hero.php?t=3. Official (T4.6): /hero/adventures.
+                  if (url.includes('/hero_adventure.php') || url.includes('/hero.php?t=3') || url.includes('/hero/adventures')) {
                     return true;
                   }
 
@@ -405,6 +419,7 @@ public sealed partial class TravianClient
                 const href = (node.getAttribute('href') || '').toLowerCase();
                 return text.includes('to the adventure')
                     || text.includes('to adventure')
+                    || text.includes('explore')
                     || href.includes('hero.php?t=3&kid=');
               });
             }
@@ -427,11 +442,11 @@ public sealed partial class TravianClient
                 return true;
               }
 
-              const submit = Array.from(document.querySelectorAll('button[type="submit"], input[type="submit"]'))
+              const submit = Array.from(document.querySelectorAll('button, input[type="submit"]'))
                 .find(node => {
                   if (isDisabled(node)) return false;
                   const text = ((node.value || '') + ' ' + (node.textContent || '') + ' ' + (node.getAttribute('title') || '')).toLowerCase();
-                  return text.includes('to adventure') || text.includes('to the adventure');
+                  return text.includes('to adventure') || text.includes('to the adventure') || text.includes('continue');
                 });
               if (!submit) return false;
               submit.click();
@@ -471,6 +486,7 @@ public sealed partial class TravianClient
                 return text.includes('to the adventure')
                     || text.includes('to adventure')
                     || text.includes('start adventure')
+                    || text.includes('explore')
                     || href.includes('hero.php?t=3&kid=')
                     || href.includes('action=start');
               });
@@ -509,7 +525,7 @@ public sealed partial class TravianClient
     private async Task<bool> ReviveHeroOnInventoryAsync(CancellationToken cancellationToken)
     {
         Notify("[hero] revive flow starting (inventory page)");
-        await GotoAsync(Paths.HeroInventory, cancellationToken);
+        await GotoAsync(HeroInventoryPath, cancellationToken);
         await WaitForNavigationSettledAsync(cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening hero inventory.", cancellationToken);
 
@@ -890,7 +906,7 @@ public sealed partial class TravianClient
             var revived = await TryReviveHeroAsync(cancellationToken);
             actions.Add(revived ? "revive_started" : "revive_not_available");
             // Re-read after revive attempt.
-            await GotoAsync(Paths.HeroAdventures, cancellationToken);
+            await GotoAsync(HeroAdventuresPath, cancellationToken);
             status = await ReadHeroStatusAsync(cancellationToken);
             adventureCount = await CountAdventureRowsAsync(cancellationToken);
             hpPercent = status.HpPercent ?? await ReadHeroHpFromSidebarAsync(cancellationToken);
@@ -941,7 +957,7 @@ public sealed partial class TravianClient
         }
 
         // Step 5: end on /hero_inventory.php (Attributes) — that's where the user wants to land.
-        await GotoAsync(Paths.HeroInventory, cancellationToken);
+        await GotoAsync(HeroInventoryPath, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while returning to hero inventory.", cancellationToken);
         await ExpandAttributesPanelIfClosedAsync(cancellationToken);
 
@@ -1098,6 +1114,9 @@ public sealed partial class TravianClient
                 ?? parseNumber(document.querySelector('a[href*="hero_adventure.php"] .speechBubble')?.textContent || '')
                 ?? parseNumber(document.querySelector('a[href*="hero.php?t=3"] .speechBubbleContent')?.textContent || '')
                 ?? parseNumber(document.querySelector('a[href*="hero.php?t=3"] .speechBubble')?.textContent || '')
+                // Official Travian (T4.6): adventure menu anchor /hero/adventures with count in .content.
+                ?? parseNumber(document.querySelector('a.adventure[href*="/hero/adventures"] .content')?.textContent || '')
+                ?? parseNumber(document.querySelector('a[href*="/hero/adventures"] .content')?.textContent || '')
                 // Adventures list page: count rows directly.
                 ?? (document.querySelectorAll('#adventureListForm tbody tr, table.adventureList tbody tr').length || null)
                 ?? parseNumber(document.querySelector('#adventureCount')?.textContent || '')
@@ -1164,7 +1183,7 @@ public sealed partial class TravianClient
     private async Task<bool> TryReviveHeroAsync(CancellationToken cancellationToken)
     {
         // Revive UI is on the inventory/attributes page on this Travian version. /hero.php opens Appearance.
-        await GotoAsync(Paths.HeroInventory, cancellationToken);
+        await GotoAsync(HeroInventoryPath, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while trying to revive hero.", cancellationToken);
         return await _page.EvaluateAsync<bool>(
             """
@@ -1234,7 +1253,7 @@ public sealed partial class TravianClient
             return HeroOintmentUseResult.Suppressed;
         }
 
-        await GotoAsync(Paths.HeroInventory, cancellationToken);
+        await GotoAsync(HeroInventoryPath, cancellationToken);
         await WaitForNavigationSettledAsync(cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening hero inventory for ointments.", cancellationToken);
 
@@ -1598,14 +1617,14 @@ public sealed partial class TravianClient
 
     private async Task EnsureHeroInventoryAttributesTabAsync(CancellationToken cancellationToken)
     {
-        await GotoAsync(Paths.HeroInventory, cancellationToken);
+        await GotoAsync(HeroInventoryPath, cancellationToken);
         await WaitForNavigationSettledAsync(cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening hero inventory.", cancellationToken);
         await EnsureLoggedInAsync();
 
-        if (!IsCurrentUrlForPath(Paths.HeroInventory))
+        if (!IsCurrentUrlForPath(HeroInventoryPath))
         {
-            await GotoAsync(Paths.HeroInventory, cancellationToken);
+            await GotoAsync(HeroInventoryPath, cancellationToken);
             await WaitForNavigationSettledAsync(cancellationToken);
             await PauseForManualStepIfVisibleAsync("Manual verification appeared after re-opening hero inventory.", cancellationToken);
         }
@@ -1648,8 +1667,8 @@ public sealed partial class TravianClient
         var tableReady = await WaitForAttributesTableAsync(cancellationToken, timeoutMs: 4000);
         if (!tableReady)
         {
-            Notify($"Hero attributes table missing after tab click — reloading {Paths.HeroInventory}.");
-            await GotoAsync(Paths.HeroInventory, cancellationToken);
+            Notify($"Hero attributes table missing after tab click — reloading {HeroInventoryPath}.");
+            await GotoAsync(HeroInventoryPath, cancellationToken);
             await WaitForNavigationSettledAsync(cancellationToken);
             tableReady = await WaitForAttributesTableAsync(cancellationToken, timeoutMs: 6000);
             if (!tableReady)
@@ -2038,19 +2057,35 @@ public sealed partial class TravianClient
                 return Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]);
               };
 
-              const links = Array.from(document.querySelectorAll('a.gotoAdventure[href*="start_adventure.php"]'));
-              if (links.length === 0) return JSON.stringify({ ok: false });
+              const isDisabled = (node) =>
+                !node || (node.hasAttribute && node.hasAttribute('disabled'))
+                || (node.className || '').toString().toLowerCase().includes('disabled');
 
-              const entries = links.map(link => {
-                const row = link.closest('tr');
+              const candidates = Array.from(document.querySelectorAll('a.gotoAdventure[href*="start_adventure.php"], a, button, input[type="submit"]'))
+                .filter(node => {
+                  if (isDisabled(node)) return false;
+                  const text = ((node.textContent || '') + ' ' + (node.getAttribute('value') || '') + ' ' + (node.getAttribute('title') || '')).toLowerCase();
+                  const href = (node.getAttribute('href') || '').toLowerCase();
+                  return node.matches('a.gotoAdventure[href*="start_adventure.php"]')
+                    || text.includes('to the adventure')
+                    || text.includes('to adventure')
+                    || text.includes('start adventure')
+                    || text.includes('explore')
+                    || href.includes('hero.php?t=3&kid=')
+                    || href.includes('action=start');
+                });
+              if (candidates.length === 0) return JSON.stringify({ ok: false });
+
+              const entries = candidates.map(node => {
+                const row = node.closest('tr');
                 const moveCell = row?.querySelector('td.moveTime');
                 const duration = parseDuration(moveCell?.textContent || row?.textContent || '');
-                return { link, duration };
+                return { node, duration };
               });
 
               if (order === 'shortest') entries.sort((a, b) => a.duration - b.duration);
               const chosen = entries[0];
-              chosen.link.click();
+              chosen.node.click();
               return JSON.stringify({ ok: true, durationSeconds: chosen.duration, returnSeconds: 0 });
             }
             """);
@@ -2078,8 +2113,8 @@ public sealed partial class TravianClient
             () => {
               const btn = document.querySelector('button#start[name="s1"], button[name="s1"], button#start');
               if (btn && !btn.hasAttribute('disabled')) { btn.click(); return true; }
-              const fallback = Array.from(document.querySelectorAll('button[type="submit"], input[type="submit"]'))
-                .find(n => !n.hasAttribute('disabled') && /to\s+adventure|start\s+adventure/i.test((n.value || '') + ' ' + (n.textContent || '')));
+              const fallback = Array.from(document.querySelectorAll('button, input[type="submit"]'))
+                .find(n => !n.hasAttribute('disabled') && !/(^|\s)disabled(\s|$)/i.test(n.className || '') && /to\s+adventure|start\s+adventure|continue/i.test((n.value || '') + ' ' + (n.textContent || '')));
               if (fallback) { fallback.click(); return true; }
               return false;
             }
