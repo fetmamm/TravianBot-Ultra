@@ -24,7 +24,7 @@ public sealed partial class TravianClient
         bool allowSameSourceAndTarget,
         CancellationToken cancellationToken)
     {
-        LogFunctionStarted();
+        Notify($"[reinforce] starting — target='{(string.IsNullOrWhiteSpace(_config.ReinforcementsTargetVillageName) ? "(config)" : _config.ReinforcementsTargetVillageName)}', sameSrcTgtAllowed={allowSameSourceAndTarget}");
         await EnsureLoggedInAsync();
 
         if (ResolveEnabledReinforcementRules(_config).Count == 0)
@@ -54,7 +54,7 @@ public sealed partial class TravianClient
             if (!allowSameSourceAndTarget && string.Equals(sourceName, targetVillage.Name, StringComparison.OrdinalIgnoreCase))
             {
                 skippedCount++;
-                Notify($"Reinforcements: skip '{sourceName}' because it is the target village.");
+                Notify($"[reinforce:verbose] skip '{sourceName}' — it is the target village");
                 continue;
             }
 
@@ -63,7 +63,7 @@ public sealed partial class TravianClient
             if (sourceVillage is null)
             {
                 skippedCount++;
-                Notify($"Reinforcements: source village '{sourceName}' was not found.");
+                Notify($"[reinforce] skip — source village '{sourceName}' was not found");
                 continue;
             }
 
@@ -71,11 +71,11 @@ public sealed partial class TravianClient
             if (troopRules.Count == 0)
             {
                 skippedCount++;
-                Notify($"Reinforcements: skip '{sourceVillage.Name}' because no troops are selected for this source village.");
+                Notify($"[reinforce:verbose] skip '{sourceVillage.Name}' — no troops selected for this source");
                 continue;
             }
 
-            Notify($"Reinforcements: opening Rally Point in '{sourceVillage.Name}'.");
+            Notify($"[reinforce:verbose] opening Rally Point in '{sourceVillage.Name}'");
             await SwitchToVillageAsync(sourceVillage.Name, sourceVillage.Url, cancellationToken, skipFeatureRefresh: true);
             await EnsureRallyPointAndOpenSendTroopsPageAsync(cancellationToken, allowReuseCurrentPage: false);
 
@@ -83,7 +83,7 @@ public sealed partial class TravianClient
             if (resolvedAmounts.Count == 0)
             {
                 skippedCount++;
-                Notify($"Reinforcements: skip '{sourceVillage.Name}' because no selected troops are available.");
+                Notify($"[reinforce:verbose] skip '{sourceVillage.Name}' — no selected troops available");
                 continue;
             }
 
@@ -92,8 +92,8 @@ public sealed partial class TravianClient
             {
                 skippedCount++;
                 Notify(string.IsNullOrWhiteSpace(sendResult.Error)
-                    ? $"Reinforcements: could not send from '{sourceVillage.Name}'."
-                    : $"Reinforcements: could not send from '{sourceVillage.Name}': {sendResult.Error}");
+                    ? $"[reinforce] could not send from '{sourceVillage.Name}' to '{targetVillage.Name}'"
+                    : $"[reinforce] could not send from '{sourceVillage.Name}' to '{targetVillage.Name}': {sendResult.Error}");
                 if (allowSameSourceAndTarget
                     && string.Equals(sourceVillage.Name, targetVillage.Name, StringComparison.OrdinalIgnoreCase)
                     && !string.IsNullOrWhiteSpace(sendResult.Error))
@@ -105,7 +105,7 @@ public sealed partial class TravianClient
             }
 
             sentCount++;
-            Notify($"Reinforcements: sent from '{sourceVillage.Name}' to '{targetVillage.Name}' {FormatReinforcementAmounts(resolvedAmounts)}.");
+            Notify($"[reinforce] sent from '{sourceVillage.Name}' to '{targetVillage.Name}' — {FormatReinforcementAmounts(resolvedAmounts)}");
             await ApplyActionDelayAsync(cancellationToken);
         }
 
@@ -202,14 +202,14 @@ public sealed partial class TravianClient
             var troopIndex = TroopCatalog.ResolveTroopIndex(rule.TroopType);
             if (troopIndex is null)
             {
-                Notify($"Reinforcements: skip unknown troop type '{rule.TroopType}'.");
+                Notify($"[reinforce:verbose] skip unknown troop type '{rule.TroopType}'");
                 continue;
             }
 
             var troopTypes = TroopCatalog.ResolveTroopTypesForTribe(tribe);
             if (!troopTypes.Any(item => string.Equals(item, rule.TroopType, StringComparison.OrdinalIgnoreCase)))
             {
-                Notify($"Reinforcements: skip '{rule.TroopType}' because it is not valid for tribe '{tribe}'.");
+                Notify($"[reinforce:verbose] skip '{rule.TroopType}' — not valid for tribe '{tribe}'");
                 continue;
             }
 
@@ -218,13 +218,13 @@ public sealed partial class TravianClient
             var requestedAmount = ResolveRequestedReinforcementAmount(rule, available);
             if (requestedAmount <= 0)
             {
-                Notify($"Reinforcements: skip {rule.TroopType}, available={available.GetValueOrDefault()}.");
+                Notify($"[reinforce:verbose] skip {rule.TroopType} — available={available.GetValueOrDefault()}");
                 continue;
             }
 
             if (!rule.UsesAllAvailable && !rule.UsesPercentAvailable && available is not null && available.Value < requestedAmount)
             {
-                Notify($"Reinforcements: skip {rule.TroopType}, available={available.Value}, requested={requestedAmount}.");
+                Notify($"[reinforce:verbose] skip {rule.TroopType} — available={available.Value}, requested={requestedAmount}");
                 continue;
             }
 
@@ -269,7 +269,7 @@ public sealed partial class TravianClient
         {
             if (!await TryFillTroopInputAsync($"t{amount.TroopIndex}", amount.TroopType, amount.Amount, cancellationToken))
             {
-                Notify($"Reinforcements: could not fill {amount.TroopType} amount.");
+                Notify($"[reinforce:verbose] could not fill {amount.TroopType} amount");
                 return new ReinforcementSendAttemptResult(false, $"Could not fill {amount.TroopType} amount.");
             }
         }
@@ -325,7 +325,7 @@ public sealed partial class TravianClient
 
     private async Task WaitBeforeReinforcementConfirmAsync(string stepName, CancellationToken cancellationToken)
     {
-        Notify($"Reinforcements: waiting before {stepName}.");
+        Notify($"[reinforce:verbose] waiting before {stepName}");
         await WaitForNavigationSettledAsync(cancellationToken);
         await PauseForManualStepIfVisibleAsync($"Manual verification appeared before reinforcement {stepName}.", cancellationToken);
         await Task.Delay(500, cancellationToken);

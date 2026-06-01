@@ -8,9 +8,10 @@ public sealed partial class TravianClient
 {
     public async Task<InboxStatus> ReadInboxStatusAsync(CancellationToken cancellationToken = default)
     {
-        Notify("ReadInboxStatusAsync started");
+        Notify("[inbox:verbose] reading unread counts");
         await EnsureLoggedInAsync();
         var unreadInbox = await ReadUnreadInboxCountsAsync(cancellationToken);
+        Notify($"[inbox] unread — messages={unreadInbox.UnreadMessages}, reports={unreadInbox.UnreadReports}");
         return new InboxStatus(
             UnreadMessages: unreadInbox.UnreadMessages,
             UnreadReports: unreadInbox.UnreadReports);
@@ -18,7 +19,7 @@ public sealed partial class TravianClient
 
     public async Task<bool> MarkMessagesAsReadAsync(CancellationToken cancellationToken = default)
     {
-        Notify("MarkMessagesAsReadAsync started");
+        Notify("[inbox] marking messages as read");
         await EnsureLoggedInAsync();
         await GotoAsync(Paths.Messages, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening messages.", cancellationToken);
@@ -42,7 +43,7 @@ public sealed partial class TravianClient
 
     public async Task<bool> MarkReportsAsReadAsync(CancellationToken cancellationToken = default)
     {
-        Notify("MarkReportsAsReadAsync started");
+        Notify("[inbox] marking reports as read");
         await EnsureLoggedInAsync();
         await GotoAsync(Paths.Reports, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening reports.", cancellationToken);
@@ -139,7 +140,7 @@ public sealed partial class TravianClient
             await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening next messages page.", cancellationToken);
         }
 
-        Notify("Stopped marking messages as read after reaching the page limit.");
+        Notify("[inbox] stopped marking as read — page limit reached");
         return changed;
     }
 

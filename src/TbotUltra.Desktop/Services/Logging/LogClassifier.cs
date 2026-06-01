@@ -79,7 +79,7 @@ public static class LogClassifier
             return LogCategory.Brewery;
         }
 
-        if (Contains(value, "troop", "smithy", "build_troops", "barracks", "stable", "workshop", "celebration", "reinforcement"))
+        if (Contains(value, "[troops]", "[troops:verbose]", "[reinforce", "[catapult", "troop", "smithy", "build_troops", "barracks", "stable", "workshop", "celebration", "reinforcement"))
         {
             return LogCategory.Troops;
         }
@@ -124,14 +124,16 @@ public static class LogClassifier
             value,
             "starting tick",
             // Diagnostic verbose tags — convention: ":verbose]" suffix anywhere in the prefix
-            // means "show only when Clean mode is off". Used by login, village-switch, loop-pick.
+            // means "show only when Clean mode is off". This single rule covers every module's
+            // verbose lines: [login:verbose], [village-switch:verbose], [loop-pick:verbose],
+            // [build:verbose], [resources:verbose], [hero:verbose], [troops:verbose],
+            // [reinforce:verbose], [catapult:verbose], [brewery:verbose], [inbox:verbose], [scan:verbose].
             ":verbose]",
             "building snapshot refreshed",
-            "[tryreadactivevillagenamesafeasync] attempting to read active village name from page",
-            "target village applied:",
             "building overview scan looked incomplete",
+            // Catches per-function "[SomeFunctionAsync] started" diagnostics. Note: task-lifecycle
+            // lines read "[task STARTED]" (bracket AFTER the word) so they are NOT matched here.
             "] started",
-            " scanned ",
             "evaluating slot=",
             "clicking upgrade",
             "click result",
@@ -150,7 +152,6 @@ public static class LogClassifier
             "resource read:",
             "readactiveconstructionsasync",
             "evaluateconstructionslotsasync",
-            "readinboxstatus",
             "ensuring logged in",
             "checkloggedinasync",
             // Note: bare "loginasync" pattern intentionally removed — [login] milestones now

@@ -174,13 +174,13 @@ public sealed partial class TravianClient
                 && slot is >= 19 and <= 40)
             {
                 var source = payload.TryGetProperty("source", out var sourceNode) ? sourceNode.GetString() : null;
-                Notify($"Brewery fallback probe found slot {slot} via {source ?? "unknown"}.");
+                Notify($"[brewery:verbose] fallback probe found slot {slot} via {source ?? "unknown"}");
                 return slot;
             }
         }
         catch (Exception ex) when (!IsTransientExecutionContextException(ex))
         {
-            Notify($"Brewery fallback probe failed: {ex.Message}");
+            Notify($"[brewery:verbose] fallback probe failed: {ex.Message}");
         }
 
         return null;
@@ -188,33 +188,39 @@ public sealed partial class TravianClient
 
     public async Task<string> RunBreweryCelebrationAsync(CancellationToken cancellationToken = default)
     {
-        LogFunctionStarted();
+        Notify("[brewery] celebration run starting");
         await EnsureLoggedInAsync();
 
         var status = await ReadBreweryCelebrationStatusAsync(cancellationToken: cancellationToken);
         if (!status.IsAvailableForTribe)
         {
+            Notify("[brewery] skip — Teutons only");
             return "Brewery celebration: Teutons only. queue_wait_seconds=600";
         }
 
         if (status.IsCapital == false)
         {
+            Notify("[brewery] skip — capital village required");
             return "Brewery celebration: capital village required. queue_wait_seconds=600";
         }
 
         if (!status.BreweryExists || status.BrewerySlotId is not > 0)
         {
+            Notify("[brewery] skip — brewery not found in this village");
             return "Brewery celebration: brewery not found in this village. queue_wait_seconds=600";
         }
 
         if (status.CelebrationRunning && status.RemainingSeconds is > 0)
         {
+            Notify($"[brewery] already running — {FormatDuration(status.RemainingSeconds.Value)} remaining");
             return $"Brewery celebration running. queue_wait_seconds={Math.Max(1, status.RemainingSeconds.Value)}";
         }
 
+        Notify($"[brewery] attempting to start celebration at slot {status.BrewerySlotId.Value}");
         var startAttempt = await TryStartBreweryCelebrationFromCurrentPageAsync(cancellationToken);
         if (!startAttempt.Started)
         {
+            Notify($"[brewery] start failed — {startAttempt.Message}");
             return $"{startAttempt.Message} queue_wait_seconds={BreweryCelebrationRetrySeconds}";
         }
 
@@ -237,9 +243,11 @@ public sealed partial class TravianClient
 
         if (!startedStatus.CelebrationRunning)
         {
+            Notify("[brewery] start did not register — will retry");
             return $"Brewery celebration: start did not register, retrying. queue_wait_seconds={BreweryCelebrationRetrySeconds}";
         }
 
+        Notify($"[brewery] celebration started — {FormatDuration(Math.Max(1, remainingSeconds))} remaining");
         return $"Brewery celebration started. queue_wait_seconds={Math.Max(1, remainingSeconds)}";
     }
 

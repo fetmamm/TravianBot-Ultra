@@ -67,7 +67,7 @@ public sealed partial class TravianClient
         await EnsureLoggedInAsync();
 
         IReadOnlyList<Building> buildings = knownBuildings ?? (await ReadBuildingsStatusAsync(cancellationToken)).Buildings;
-        Notify($"Troop queue scan: using {buildings.Count} known building(s).");
+        Notify($"[troops:verbose] queue scan:using {buildings.Count} known building(s).");
         var statuses = new List<TroopTrainingQueueStatus>();
         foreach (var buildingType in new[]
                  {
@@ -76,10 +76,10 @@ public sealed partial class TravianClient
                      TroopTrainingBuildingType.Workshop,
                  })
         {
-            Notify($"Troop queue scan: reading {buildingType}.");
+            Notify($"[troops:verbose] queue scan:reading {buildingType}.");
             var queueStatus = await ReadTroopTrainingQueueStatusAsync(buildings, buildingType, cancellationToken);
             statuses.Add(queueStatus);
-            Notify($"Troop queue scan: {queueStatus.BuildingName} exists={queueStatus.Exists}, remaining={(queueStatus.RemainingSeconds is > 0 ? queueStatus.RemainingText : "Ready")}.");
+            Notify($"[troops:verbose] queue scan:{queueStatus.BuildingName} exists={queueStatus.Exists}, remaining={(queueStatus.RemainingSeconds is > 0 ? queueStatus.RemainingText : "Ready")}.");
         }
 
         return statuses;
@@ -89,17 +89,17 @@ public sealed partial class TravianClient
     {
         LogFunctionStarted();
         await EnsureLoggedInAsync();
-        Notify("Build troops: loading village status.");
+        Notify("[troops:verbose]loading village status.");
 
         var status = await ReadVillageStatusAsync(cancellationToken);
-        Notify($"Build troops: activeVillage='{status.ActiveVillage}', tribe='{status.Tribe}', resources={string.Join(", ", status.Resources.Select(pair => $"{pair.Key}={pair.Value}"))}.");
+        Notify($"[troops:verbose]activeVillage='{status.ActiveVillage}', tribe='{status.Tribe}', resources={string.Join(", ", status.Resources.Select(pair => $"{pair.Key}={pair.Value}"))}.");
         var requests = BuildTroopTrainingRequests(_config, status.Tribe);
-        Notify($"Build troops: loaded {requests.Count} building request(s) from config.");
-        Notify($"Build troops: requests={string.Join(" | ", requests.Select(item => $"{item.BuildingName}:enabled={item.IsEnabled}:troop='{item.TroopType}':limit='{item.MaxQueueMode}':mode='{item.AmountMode}':keep={item.KeepResourcesPercent}%:runMode='{item.RunMode}':minTroops={item.MinimumTroops}:minRes={item.MinimumResourcesPercent}%:check=[w={item.CheckWood},c={item.CheckClay},i={item.CheckIron},crop={item.CheckCrop}]"))}.");
+        Notify($"[troops:verbose]loaded {requests.Count} building request(s) from config.");
+        Notify($"[troops:verbose]requests={string.Join(" | ", requests.Select(item => $"{item.BuildingName}:enabled={item.IsEnabled}:troop='{item.TroopType}':limit='{item.MaxQueueMode}':mode='{item.AmountMode}':keep={item.KeepResourcesPercent}%:runMode='{item.RunMode}':minTroops={item.MinimumTroops}:minRes={item.MinimumResourcesPercent}%:check=[w={item.CheckWood},c={item.CheckClay},i={item.CheckIron},crop={item.CheckCrop}]"))}.");
         var enabledRequests = requests
             .Where(item => item.IsEnabled && !string.IsNullOrWhiteSpace(item.TroopType))
             .ToList();
-        Notify($"Build troops: queue scan limited to {enabledRequests.Count} enabled building(s).");
+        Notify($"[troops:verbose]queue scan limited to {enabledRequests.Count} enabled building(s).");
 
         var fallbackCooldownSeconds = ResolveTroopTrainingFallbackCooldownSeconds(_config.TroopTrainingFallbackCooldownSeconds);
         var liveSnapshot = await ReadTroopTrainingResourceSnapshotFromCurrentPageAsync(cancellationToken);
@@ -109,7 +109,7 @@ public sealed partial class TravianClient
         var currentCapacities = mergedEarlySnapshot.Capacities;
         if (currentResources.Values.All(value => value <= 0))
         {
-            Notify("Build troops: early snapshot was empty, falling back to village status resources.");
+            Notify("[troops:verbose]early snapshot was empty, falling back to village status resources.");
             currentResources = ParseVillageResources(status.Resources);
             currentProductionByHour = mergedEarlySnapshot.ProductionByHour;
             currentCapacities = mergedEarlySnapshot.Capacities;
@@ -127,7 +127,7 @@ public sealed partial class TravianClient
 
             if (MeetsMinimumResourcePercentThreshold(currentResources, currentCapacities, request))
             {
-                Notify($"Build troops: early % resource gate passed for {request.BuildingName} ({request.MinimumResourcesPercent}%).");
+                Notify($"[troops:verbose]early % resource gate passed for {request.BuildingName} ({request.MinimumResourcesPercent}%).");
                 requestsToScan.Add(request);
                 continue;
             }
@@ -141,7 +141,7 @@ public sealed partial class TravianClient
                 requiredResources,
                 fallbackCooldownSeconds,
                 $"Build troops: {request.BuildingName} waiting for {request.TroopType} resources threshold");
-            Notify($"Build troops: early % resource gate blocked {request.BuildingName}. wait={waitOutcome.WaitSeconds?.ToString() ?? "null"}.");
+            Notify($"[troops:verbose]early % resource gate blocked {request.BuildingName}. wait={waitOutcome.WaitSeconds?.ToString() ?? "null"}.");
             if (waitOutcome.WaitSeconds is > 0
                 && (shortestWaitOutcome is null || waitOutcome.WaitSeconds.Value < shortestWaitOutcome.WaitSeconds))
             {
@@ -171,32 +171,32 @@ public sealed partial class TravianClient
             .Where(item => item.QueueStatus.Exists)
             .OrderBy(item => item.QueueRemainingSeconds)
             .ToList();
-        Notify($"Build troops: queue statuses={string.Join(" | ", queueStatuses.Select(item => $"{item.BuildingName}:exists={item.Exists}:slot={(item.SlotId?.ToString() ?? "null")}:remaining='{item.RemainingText}'"))}.");
+        Notify($"[troops:verbose]queue statuses={string.Join(" | ", queueStatuses.Select(item => $"{item.BuildingName}:exists={item.Exists}:slot={(item.SlotId?.ToString() ?? "null")}:remaining='{item.RemainingText}'"))}.");
 
         if (candidates.Count > 0)
         {
-            Notify($"Build troops: candidates={string.Join(" | ", candidates.Select(item => $"{item.Request.BuildingName}:{item.Request.TroopType}:queue={(item.QueueRemainingSeconds > 0 ? FormatDuration(item.QueueRemainingSeconds) : "Ready")}:limit={(item.QueueLimitSeconds is > 0 ? FormatDuration(item.QueueLimitSeconds.Value) : "NoLimit")}:mode={item.Request.AmountMode}:keep={item.Request.KeepResourcesPercent}%:runMode={item.Request.RunMode}:minTroops={item.Request.MinimumTroops}:minRes={item.Request.MinimumResourcesPercent}%:check=[w={item.Request.CheckWood},c={item.Request.CheckClay},i={item.Request.CheckIron},crop={item.Request.CheckCrop}]"))}.");
+            Notify($"[troops:verbose]candidates={string.Join(" | ", candidates.Select(item => $"{item.Request.BuildingName}:{item.Request.TroopType}:queue={(item.QueueRemainingSeconds > 0 ? FormatDuration(item.QueueRemainingSeconds) : "Ready")}:limit={(item.QueueLimitSeconds is > 0 ? FormatDuration(item.QueueLimitSeconds.Value) : "NoLimit")}:mode={item.Request.AmountMode}:keep={item.Request.KeepResourcesPercent}%:runMode={item.Request.RunMode}:minTroops={item.Request.MinimumTroops}:minRes={item.Request.MinimumResourcesPercent}%:check=[w={item.Request.CheckWood},c={item.Request.CheckClay},i={item.Request.CheckIron},crop={item.Request.CheckCrop}]"))}.");
         }
 
         if (candidates.Count <= 0)
         {
             if (shortestWaitOutcome is not null)
             {
-                Notify($"Build troops: no candidates needed navigation; deferring with shortest wait {shortestWaitOutcome.WaitSeconds}s.");
+                Notify($"[troops] no candidates needed navigation — deferring, shortest wait {shortestWaitOutcome.WaitSeconds}s");
                 return shortestWaitOutcome.Message;
             }
 
-            Notify("Build troops: no enabled existing candidates after filtering.");
+            Notify("[troops:verbose]no enabled existing candidates after filtering.");
             return $"Build troops: no enabled troop building is available in this village. queue_wait_seconds={fallbackCooldownSeconds}";
         }
 
         foreach (var candidate in candidates)
         {
-            Notify($"Build troops: evaluating {candidate.Request.BuildingName} for troop '{candidate.Request.TroopType}'.");
+            Notify($"[troops:verbose]evaluating {candidate.Request.BuildingName} for troop '{candidate.Request.TroopType}'.");
             if (candidate.QueueLimitSeconds is int limitSeconds
                 && candidate.QueueRemainingSeconds > limitSeconds)
             {
-                Notify($"Build troops: skipped {candidate.Request.BuildingName} because queue {FormatDuration(candidate.QueueRemainingSeconds)} exceeds limit {FormatDuration(limitSeconds)}.");
+                Notify($"[troops] skipped {candidate.Request.BuildingName} — queue {FormatDuration(candidate.QueueRemainingSeconds)} exceeds limit {FormatDuration(limitSeconds)}");
                 var queueLimitWaitSeconds = Math.Max(1, candidate.QueueRemainingSeconds - limitSeconds);
                 var queueLimitOutcome = new TroopTrainingAttemptOutcome(
                     false,
@@ -211,7 +211,7 @@ public sealed partial class TravianClient
             }
 
             var outcome = await TryTrainTroopsAtBuildingAsync(status, candidate, fallbackCooldownSeconds, cancellationToken);
-            Notify($"Build troops: outcome for {candidate.Request.BuildingName}: success={outcome.Success}, wait={outcome.WaitSeconds?.ToString() ?? "null"}, message='{outcome.Message}'.");
+            Notify($"[troops] {candidate.Request.BuildingName} result — success={outcome.Success}, wait={outcome.WaitSeconds?.ToString() ?? "null"}s, msg='{outcome.Message}'");
             if (outcome.Success)
             {
                 return outcome.Message;
@@ -226,7 +226,7 @@ public sealed partial class TravianClient
 
         if (shortestWaitOutcome is not null)
         {
-            Notify($"Build troops: deferring with shortest wait {shortestWaitOutcome.WaitSeconds}s.");
+            Notify($"[troops] deferring — shortest wait {shortestWaitOutcome.WaitSeconds}s");
             return shortestWaitOutcome.Message;
         }
 
@@ -491,18 +491,18 @@ public sealed partial class TravianClient
         var buildingName = ResolveTroopTrainingBuildingName(buildingType);
         if (building is null || building.SlotId is not > 0)
         {
-            Notify($"Troop queue scan: {buildingName} not found in current village.");
+            Notify($"[troops:verbose] queue scan:{buildingName} not found in current village.");
             return new TroopTrainingQueueStatus(buildingType, buildingName, false, null, [], null, "Building not found");
         }
 
-        Notify($"Troop queue scan: navigating to {buildingName} slot {building.SlotId.Value}.");
+        Notify($"[troops:verbose] queue scan:navigating to {buildingName} slot {building.SlotId.Value}.");
         await GotoAsync(Paths.BuildBySlot(building.SlotId.Value), cancellationToken);
         await PauseForManualStepIfVisibleAsync($"Manual verification appeared while reading the {buildingName} queue.", cancellationToken);
         await EnsureLoggedInAsync();
 
         var queueItems = await ReadTroopTrainingQueueFromCurrentPageAsync(cancellationToken);
         var remainingSeconds = ResolveTroopTrainingQueueRemainingSeconds(queueItems);
-        Notify($"Troop queue scan: {buildingName} queue items={queueItems.Count}, maxRemaining={(remainingSeconds > 0 ? FormatDuration(remainingSeconds) : "Ready")}.");
+        Notify($"[troops:verbose] queue scan:{buildingName} queue items={queueItems.Count}, maxRemaining={(remainingSeconds > 0 ? FormatDuration(remainingSeconds) : "Ready")}.");
         return new TroopTrainingQueueStatus(
             buildingType,
             buildingName,
@@ -520,28 +520,28 @@ public sealed partial class TravianClient
         CancellationToken cancellationToken)
     {
         var troopUnitId = TroopCatalog.ResolveTravianUnitId(status.Tribe, candidate.Request.TroopType);
-        Notify($"Build troops: resolved unit id for '{candidate.Request.TroopType}' in tribe '{status.Tribe}' => {(troopUnitId?.ToString() ?? "null")}.");
+        Notify($"[troops:verbose]resolved unit id for '{candidate.Request.TroopType}' in tribe '{status.Tribe}' => {(troopUnitId?.ToString() ?? "null")}.");
         if (troopUnitId is null
             || !TroopCatalog.IsTroopTypeAllowedForBuilding(status.Tribe, candidate.Request.TroopType, candidate.Request.BuildingType))
         {
-            Notify($"Build troops: troop '{candidate.Request.TroopType}' is invalid for {candidate.Request.BuildingName}.");
+            Notify($"[troops:verbose]troop '{candidate.Request.TroopType}' is invalid for {candidate.Request.BuildingName}.");
             return new TroopTrainingAttemptOutcome(false, $"Skip {candidate.Request.BuildingName}: troop '{candidate.Request.TroopType}' is not valid for this building.");
         }
 
         if (candidate.QueueStatus.SlotId is not > 0)
         {
-            Notify($"Build troops: {candidate.Request.BuildingName} slot id missing.");
+            Notify($"[troops:verbose]{candidate.Request.BuildingName} slot id missing.");
             return new TroopTrainingAttemptOutcome(false, $"Skip {candidate.Request.BuildingName}: building slot not found.");
         }
 
-        Notify($"Build troops: navigating to {candidate.Request.BuildingName} slot {candidate.QueueStatus.SlotId.Value}.");
+        Notify($"[troops:verbose]navigating to {candidate.Request.BuildingName} slot {candidate.QueueStatus.SlotId.Value}.");
         await GotoAsync(Paths.BuildBySlot(candidate.QueueStatus.SlotId.Value), cancellationToken);
         await PauseForManualStepIfVisibleAsync($"Manual verification appeared while opening the {candidate.Request.BuildingName}.", cancellationToken);
         await EnsureLoggedInAsync();
-        Notify($"Build troops: page after navigation url='{_page.Url}'.");
+        Notify($"[troops:verbose]page after navigation url='{_page.Url}'.");
 
         var buildInfo = await ReadTroopUnitBuildInfoFromCurrentPageAsync(troopUnitId.Value, cancellationToken);
-        Notify($"Build troops: build info found={buildInfo.Found}, canTrain={buildInfo.CanTrain}, troopType='{buildInfo.TroopType}', costs=({buildInfo.WoodCost},{buildInfo.ClayCost},{buildInfo.IronCost},{buildInfo.CropCost}).");
+        Notify($"[troops:verbose]build info found={buildInfo.Found}, canTrain={buildInfo.CanTrain}, troopType='{buildInfo.TroopType}', costs=({buildInfo.WoodCost},{buildInfo.ClayCost},{buildInfo.IronCost},{buildInfo.CropCost}).");
         if (!buildInfo.Found || !buildInfo.CanTrain)
         {
             return new TroopTrainingAttemptOutcome(false, $"Skip {candidate.Request.BuildingName}: '{candidate.Request.TroopType}' is not trainable right now.");
@@ -554,12 +554,12 @@ public sealed partial class TravianClient
         var liveCapacities = mergedLiveResourceSnapshot.Capacities;
         if (parsedResources.Values.All(value => value <= 0))
         {
-            Notify("Build troops: current page resources were empty, falling back to village status resources.");
+            Notify("[troops:verbose]current page resources were empty, falling back to village status resources.");
             parsedResources = ParseVillageResources(status.Resources);
             productionByHour = mergedLiveResourceSnapshot.ProductionByHour;
             liveCapacities = mergedLiveResourceSnapshot.Capacities;
         }
-        Notify($"Build troops: live resources wood={parsedResources["wood"]}, clay={parsedResources["clay"]}, iron={parsedResources["iron"]}, crop={parsedResources["crop"]}.");
+        Notify($"[troops:verbose]live resources wood={parsedResources["wood"]}, clay={parsedResources["clay"]}, iron={parsedResources["iron"]}, crop={parsedResources["crop"]}.");
 
         if (_config.NpcTradeEnabled)
         {
@@ -585,7 +585,7 @@ public sealed partial class TravianClient
                     parsedResources = mergedAfterNpc.Resources;
                     productionByHour = mergedAfterNpc.ProductionByHour;
                     liveCapacities = mergedAfterNpc.Capacities;
-                    Notify($"Build troops: resources after NPC trade wood={parsedResources["wood"]}, clay={parsedResources["clay"]}, iron={parsedResources["iron"]}, crop={parsedResources["crop"]}.");
+                    Notify($"[troops:verbose]resources after NPC trade wood={parsedResources["wood"]}, clay={parsedResources["clay"]}, iron={parsedResources["iron"]}, crop={parsedResources["crop"]}.");
                 }
             }
         }
@@ -607,14 +607,14 @@ public sealed partial class TravianClient
             buildInfo.CropCost,
             "maximum",
             0);
-        Notify($"Build troops: live trainable amount actual={actualTrainableAmount}, maximum={maximumTrainableAmount}, mode={candidate.Request.AmountMode}, keep={candidate.Request.KeepResourcesPercent}%.");
+        Notify($"[troops:verbose]live trainable amount actual={actualTrainableAmount}, maximum={maximumTrainableAmount}, mode={candidate.Request.AmountMode}, keep={candidate.Request.KeepResourcesPercent}%.");
 
         if (string.Equals(candidate.Request.RunMode, "resource_percent", StringComparison.OrdinalIgnoreCase))
         {
             var capacities = liveCapacities;
             if (capacities.WarehouseCapacity is not > 0 || capacities.GranaryCapacity is not > 0)
             {
-                Notify("Build troops: status capacities were empty, reading capacities from current page.");
+                Notify("[troops:verbose]status capacities were empty, reading capacities from current page.");
                 capacities = await ReadVillageStorageCapacitiesFromCurrentPageAsync(cancellationToken);
             }
             if (!MeetsMinimumResourcePercentThreshold(parsedResources, capacities, candidate.Request))
@@ -671,12 +671,12 @@ public sealed partial class TravianClient
                     fallbackCooldownSeconds,
                     $"Build troops: {candidate.Request.BuildingName} waiting for enough resources to train {candidate.Request.TroopType}");
             }
-            Notify("Build troops: maximum mode selected, skipping resource amount calculation.");
+            Notify("[troops:verbose]maximum mode selected, skipping resource amount calculation.");
         }
         else
         {
             amount = actualTrainableAmount;
-            Notify($"Build troops: calculated amount={amount} using mode={candidate.Request.AmountMode}, keep={candidate.Request.KeepResourcesPercent}%.");
+            Notify($"[troops:verbose]calculated amount={amount} using mode={candidate.Request.AmountMode}, keep={candidate.Request.KeepResourcesPercent}%.");
             if (amount <= 0)
             {
                 return BuildTroopTrainingWaitOutcome(
@@ -697,13 +697,13 @@ public sealed partial class TravianClient
             }
         }
 
-        Notify($"Build troops: submitting training for unitId={troopUnitId.Value}, amount={amount}, useMaxShortcut={useMaxShortcut}.");
+        Notify($"[troops:verbose]submitting training for unitId={troopUnitId.Value}, amount={amount}, useMaxShortcut={useMaxShortcut}.");
         var submitted = await SubmitTroopTrainingFromCurrentPageAsync(
             troopUnitId.Value,
             Math.Max(0, amount),
             useMaxShortcut,
             cancellationToken);
-        Notify($"Build troops: submit result submitted={submitted}.");
+        Notify($"[troops:verbose]submit result submitted={submitted}.");
         if (!submitted)
         {
             return new TroopTrainingAttemptOutcome(false, $"Skip {candidate.Request.BuildingName}: could not submit training for '{candidate.Request.TroopType}'.");
@@ -711,13 +711,13 @@ public sealed partial class TravianClient
 
         await Task.Delay(300, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared after starting troop training.", cancellationToken);
-        Notify($"Build troops: page after submit url='{_page.Url}'.");
+        Notify($"[troops:verbose]page after submit url='{_page.Url}'.");
         var resourcesAfterSubmit = await ReadVillageResourcesFromCurrentPageAsync(cancellationToken);
-        Notify($"Build troops: resources after submit wood={resourcesAfterSubmit["wood"]}, clay={resourcesAfterSubmit["clay"]}, iron={resourcesAfterSubmit["iron"]}, crop={resourcesAfterSubmit["crop"]}.");
+        Notify($"[troops:verbose]resources after submit wood={resourcesAfterSubmit["wood"]}, clay={resourcesAfterSubmit["clay"]}, iron={resourcesAfterSubmit["iron"]}, crop={resourcesAfterSubmit["crop"]}.");
         var queueItems = await ReadTroopTrainingQueueFromCurrentPageAsync(cancellationToken);
         var queueSeconds = ResolveTroopTrainingQueueRemainingSeconds(queueItems);
         var queueText = queueSeconds > 0 ? FormatDuration(queueSeconds) : "Ready";
-        Notify($"Build troops: queue after submit items={queueItems.Count}, remaining='{queueText}'.");
+        Notify($"[troops:verbose]queue after submit items={queueItems.Count}, remaining='{queueText}'.");
         return new TroopTrainingAttemptOutcome(
             true,
             $"Build troops: queued {(useMaxShortcut ? "maximum" : amount.ToString())} {candidate.Request.TroopType} at {candidate.Request.BuildingName}. Queue={queueText}. Stock={BuildTroopTrainingResourceSummary(resourcesAfterSubmit)}.");
@@ -742,8 +742,8 @@ public sealed partial class TravianClient
         var parsedResources = ParseVillageResources(rawResources);
         var capacities = new ResourceCapacitySnapshot(snapshot.Capacities.Warehouse, snapshot.Capacities.Granary);
         var productionByHour = snapshot.ProductionByHour ?? new Dictionary<string, double?>(StringComparer.OrdinalIgnoreCase);
-        Notify($"Build troops: live snapshot resource payload wood='{rawResources.GetValueOrDefault("wood")}', clay='{rawResources.GetValueOrDefault("clay")}', iron='{rawResources.GetValueOrDefault("iron")}', crop='{rawResources.GetValueOrDefault("crop")}'.");
-        Notify($"Build troops: live snapshot capacities warehouse='{snapshot.Capacities.Warehouse?.ToString() ?? "null"}', granary='{snapshot.Capacities.Granary?.ToString() ?? "null"}'.");
+        Notify($"[troops:verbose]live snapshot resource payload wood='{rawResources.GetValueOrDefault("wood")}', clay='{rawResources.GetValueOrDefault("clay")}', iron='{rawResources.GetValueOrDefault("iron")}', crop='{rawResources.GetValueOrDefault("crop")}'.");
+        Notify($"[troops:verbose]live snapshot capacities warehouse='{snapshot.Capacities.Warehouse?.ToString() ?? "null"}', granary='{snapshot.Capacities.Granary?.ToString() ?? "null"}'.");
         return new TroopTrainingResourceSnapshot(parsedResources, capacities, productionByHour);
     }
 
@@ -1182,7 +1182,7 @@ public sealed partial class TravianClient
     private async Task<TroopUnitBuildInfo> ReadTroopUnitBuildInfoFromCurrentPageAsync(int troopIndex, CancellationToken cancellationToken)
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading troop build costs.", cancellationToken);
-        Notify($"Build troops: reading troop unit build info for t{troopIndex}.");
+        Notify($"[troops:verbose]reading troop unit build info for t{troopIndex}.");
         var rawJson = await _page.EvaluateAsync<string>(
             """
             (troopIndex) => {
@@ -1233,7 +1233,7 @@ public sealed partial class TravianClient
             """,
             troopIndex);
 
-        Notify($"Build troops: raw build info payload for t{troopIndex}: {rawJson}");
+        Notify($"[troops:verbose]raw build info payload for t{troopIndex}: {rawJson}");
 
         try
         {
@@ -1257,7 +1257,7 @@ public sealed partial class TravianClient
     private async Task<bool> SubmitTroopTrainingFromCurrentPageAsync(int troopIndex, int amount, bool useMaxShortcut, CancellationToken cancellationToken)
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while submitting troop training.", cancellationToken);
-        Notify($"Build troops submit: locating input t{troopIndex}. amount={amount}, useMaxShortcut={useMaxShortcut}.");
+        Notify($"[troops:verbose] submit:locating input t{troopIndex}. amount={amount}, useMaxShortcut={useMaxShortcut}.");
         var input = _page.Locator($"input[name='t{troopIndex}'], input[id='t{troopIndex}']").First;
         if (await input.CountAsync() <= 0)
         {
@@ -1266,12 +1266,12 @@ public sealed partial class TravianClient
         }
 
         var action = input.Locator("xpath=ancestor::*[contains(@class,'action')][1]").First;
-        Notify($"Build troops submit: located action container for t{troopIndex}.");
+        Notify($"[troops:verbose] submit:located action container for t{troopIndex}.");
         if (useMaxShortcut)
         {
-            Notify($"Build troops submit: resolving max value for t{troopIndex} from action link.");
+            Notify($"[troops:verbose] submit:resolving max value for t{troopIndex} from action link.");
             var maxAmount = await ResolveTroopTrainingMaxAmountAsync(troopIndex);
-            Notify($"Build troops submit: resolved max value for t{troopIndex} => {(maxAmount?.ToString() ?? "null")}.");
+            Notify($"[troops:verbose] submit:resolved max value for t{troopIndex} => {(maxAmount?.ToString() ?? "null")}.");
             if (maxAmount is not > 0)
             {
                 Notify($"Troop training submit skipped: max value for t{troopIndex} was not found.");
@@ -1293,27 +1293,27 @@ public sealed partial class TravianClient
                 }
                 """,
                 new { troopIndex, maxAmount = maxAmount.Value });
-            Notify($"Build troops submit: set t{troopIndex} directly to max value '{maxAmount.Value}'.");
-            Notify($"Clicked {maxAmount.Value}");
+            Notify($"[troops:verbose] submit:set t{troopIndex} directly to max value '{maxAmount.Value}'.");
+            Notify($"[troops:verbose] submit: clicked max shortcut value {maxAmount.Value}");
         }
         else
         {
             var integerAmount = Math.Max(0, amount);
             if (integerAmount <= 0)
             {
-                Notify($"Build troops submit: integer amount for t{troopIndex} was <= 0.");
+                Notify($"[troops:verbose] submit:integer amount for t{troopIndex} was <= 0.");
                 return false;
             }
 
             await input.ClickAsync();
             await input.FillAsync(integerAmount.ToString());
-            Notify($"Build troops submit: filled t{troopIndex} with '{integerAmount}'.");
+            Notify($"[troops:verbose] submit:filled t{troopIndex} with '{integerAmount}'.");
         }
 
         await Task.Delay(150, cancellationToken);
         var parsedValueRaw = await input.InputValueAsync();
         var parsedDigits = new string(parsedValueRaw.Where(char.IsDigit).ToArray());
-        Notify($"Build troops submit: input t{troopIndex} now has raw='{parsedValueRaw}', digits='{parsedDigits}'.");
+        Notify($"[troops:verbose] submit:input t{troopIndex} now has raw='{parsedValueRaw}', digits='{parsedDigits}'.");
         if (!int.TryParse(parsedDigits, out var parsedValue) || parsedValue <= 0)
         {
             Notify($"Troop training submit skipped: input t{troopIndex} stayed at '{parsedValueRaw}'.");
@@ -1321,9 +1321,9 @@ public sealed partial class TravianClient
         }
 
         var form = input.Locator("xpath=ancestor::form[1]").First;
-        Notify($"Build troops submit: located form for t{troopIndex}.");
+        Notify($"[troops:verbose] submit:located form for t{troopIndex}.");
         var submitButton = form.Locator("button.startTraining, button.green.startTraining, button[type='submit'].startTraining, button[type='submit'].green").First;
-        Notify($"Build troops submit: locating Train button for t{troopIndex}.");
+        Notify($"[troops:verbose] submit:locating Train button for t{troopIndex}.");
         if (await submitButton.CountAsync() <= 0)
         {
             Notify($"Troop training submit skipped: Train button not found for t{troopIndex}.");
@@ -1331,10 +1331,10 @@ public sealed partial class TravianClient
         }
 
         var submitText = (await submitButton.InnerTextAsync()).Trim();
-        Notify($"Build troops submit: Train button text='{submitText}' for t{troopIndex}.");
+        Notify($"[troops:verbose] submit:Train button text='{submitText}' for t{troopIndex}.");
         await submitButton.ClickAsync();
-        Notify($"Build troops submit: clicked Train button for t{troopIndex} with parsedValue={parsedValue}.");
-        Notify("Train clicked");
+        Notify($"[troops:verbose] submit:clicked Train button for t{troopIndex} with parsedValue={parsedValue}.");
+        Notify("[troops:verbose] submit: Train button clicked");
         return true;
     }
 
@@ -1377,7 +1377,7 @@ public sealed partial class TravianClient
             return maxAmount;
         }
 
-        Notify($"Build troops submit: failed to parse max value for t{troopIndex} from raw='{rawValue}'.");
+        Notify($"[troops:verbose] submit:failed to parse max value for t{troopIndex} from raw='{rawValue}'.");
 
         return null;
     }

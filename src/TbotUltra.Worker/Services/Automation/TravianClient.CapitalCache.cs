@@ -99,15 +99,14 @@ public sealed partial class TravianClient
 
     private async Task<string?> TryReadActiveVillageNameSafeAsync(CancellationToken cancellationToken)
     {
-        Notify("[TryReadActiveVillageNameSafeAsync] started");
+        Notify("[scan:verbose] reading active village name from page");
         try
         {
-            Notify("[TryReadActiveVillageNameSafeAsync] attempting to read active village name from page...");
             return await ReadActiveVillageNameAsync(cancellationToken);
         }
         catch
-        {  
-            Notify("[TryReadActiveVillageNameSafeAsync] failed to read active village name from page.");
+        {
+            Notify("[scan:verbose] failed to read active village name from page");
             return null;
         }
     }

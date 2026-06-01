@@ -1167,7 +1167,7 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
                 await client.LoginAsync(cancellationToken);
                 await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken, villageName, villageUrl);
                 var changed = await client.MarkMessagesAsReadAsync(cancellationToken);
-                log(changed ? "Messages marked as read." : "No unread messages to mark as read.");
+                log(changed ? "[inbox] messages marked as read." : "[inbox] no unread messages to mark as read.");
             });
     }
 
@@ -1190,7 +1190,7 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
                 await client.LoginAsync(cancellationToken);
                 await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken, villageName, villageUrl);
                 var changed = await client.MarkReportsAsReadAsync(cancellationToken);
-                log(changed ? "Reports marked as read." : "No unread reports to mark as read.");
+                log(changed ? "[inbox] reports marked as read." : "[inbox] no unread reports to mark as read.");
             });
     }
 
@@ -1364,7 +1364,7 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
     private static async Task ExecuteScanAllVillagesAsync(TaskExecutionContext context)
     {
         var statuses = await context.Client.ReadAllVillageStatusesAsync(context.CancellationToken);
-        context.Log($"All villages scanned. StatusCount={statuses.Count}");
+        context.Log($"[scan] all villages scanned — {statuses.Count} status(es)");
     }
 
     private static async Task ExecuteAccountSnapshotAsync(TaskExecutionContext context)
@@ -1472,7 +1472,7 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
 
     private static async Task ExecuteBuildTroopsAsync(TaskExecutionContext context)
     {
-        context.Log("build_troops: starting.");
+        context.Log("[troops] build_troops starting");
         var result = await context.Client.BuildTroopsAsync(context.CancellationToken);
         context.Log(result);
         ThrowIfTaskBlocked("build_troops", result);
@@ -1480,7 +1480,7 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
 
     private static async Task ExecuteRunBreweryCelebrationAsync(TaskExecutionContext context)
     {
-        context.Log("run_brewery_celebration: starting.");
+        context.Log("[brewery] run_brewery_celebration starting");
         var result = await context.Client.RunBreweryCelebrationAsync(context.CancellationToken);
         context.Log(result);
         ThrowIfTaskBlocked("run_brewery_celebration", result);
@@ -1879,6 +1879,6 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
 
         await client.SwitchToVillageAsync(targetName, targetUrl, cancellationToken, skipFeatureRefresh);
         var label = !string.IsNullOrWhiteSpace(targetName) ? targetName : targetUrl;
-        log($"Target village applied: {label}");
+        log($"[village-switch:verbose] target village applied: {label}");
     }
 }

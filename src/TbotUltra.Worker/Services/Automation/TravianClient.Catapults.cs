@@ -55,8 +55,8 @@ public sealed partial class TravianClient
         CatapultWaveRequest request,
         CancellationToken cancellationToken = default)
     {
-        LogFunctionStarted();
         var plan = CatapultWavePlanner.BuildPlan(request);
+        Notify($"[catapult] starting — target ({request.X}|{request.Y}), {plan.Attacks.Count} attack(s): 1 first + {request.WaveCount} wave(s)");
 
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         await EnsureRallyPointAndOpenSendTroopsPageAsync(cancellationToken, allowReuseCurrentPage: true);
@@ -74,7 +74,7 @@ public sealed partial class TravianClient
                 var page = i == 0 ? _page : await _page.Context.NewPageAsync();
                 page.SetDefaultTimeout(_config.TimeoutMs);
 
-                Notify($"Preparing catapult {attack.Label.ToLowerInvariant()} to ({request.X}|{request.Y}).");
+                Notify($"[catapult:verbose] preparing {attack.Label.ToLowerInvariant()} to ({request.X}|{request.Y})");
                 var preparedAttack = await PrepareCatapultAttackPageAsync(
                     page,
                     attack,
@@ -104,18 +104,18 @@ public sealed partial class TravianClient
                     if (await WaitForCatapultSendResultAsync(attack, cancellationToken))
                     {
                         sent++;
-                        Notify($"Sent catapult {attack.Label.ToLowerInvariant()} to ({request.X}|{request.Y}).");
+                        Notify($"[catapult] sent {attack.Label.ToLowerInvariant()} to ({request.X}|{request.Y})");
                     }
                     else
                     {
                         failed++;
-                        Notify($"Failed to confirm catapult {attack.Label.ToLowerInvariant()} to ({request.X}|{request.Y}).");
+                        Notify($"[catapult] FAILED to confirm {attack.Label.ToLowerInvariant()} to ({request.X}|{request.Y})");
                     }
                 }
                 else
                 {
                     failed++;
-                    Notify($"Failed to confirm catapult {attack.Label.ToLowerInvariant()} to ({request.X}|{request.Y}).");
+                    Notify($"[catapult] FAILED to confirm {attack.Label.ToLowerInvariant()} to ({request.X}|{request.Y}) (confirm button not clickable)");
                 }
             }
 
@@ -123,6 +123,7 @@ public sealed partial class TravianClient
             await PauseForManualStepIfVisibleAsync("Manual verification appeared after sending catapult waves.", cancellationToken);
             await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
+            Notify($"[catapult] done — sent {sent}/{prepared.Count} prepared, failed {failed}, target ({request.X}|{request.Y})");
             return new CatapultWaveRunResult(
                 plan.Attacks.Count,
                 prepared.Count,
@@ -200,7 +201,7 @@ public sealed partial class TravianClient
 
             if (string.Equals(attack.Label, CatapultWavePlanner.FirstAttackLabel, StringComparison.OrdinalIgnoreCase))
             {
-                Notify($"Filled catapult first attack troop: {troop.Key}={troop.Value}.");
+                Notify($"[catapult:verbose] filled first-attack troop {troop.Key}={troop.Value}");
             }
         }
 
@@ -389,7 +390,7 @@ public sealed partial class TravianClient
         }
         catch (Exception ex)
         {
-            Notify($"Could not read Rally Point level: {ex.Message}");
+            Notify($"[catapult:verbose] could not read Rally Point level: {ex.Message}");
             return null;
         }
     }

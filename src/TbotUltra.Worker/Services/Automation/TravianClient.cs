@@ -846,7 +846,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
     public async Task<IReadOnlyList<VillageStatus>> ReadAllVillageStatusesAsync(CancellationToken cancellationToken = default)
     {
-        Notify("ReadAllVillageStatusesAsync started");
+        Notify("[scan] all-village status scan starting");
         var returnVillageName = await TryReadActiveVillageNameSafeAsync(cancellationToken);
         await GotoAsync(_config.VillageOverviewPath, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the village overview.", cancellationToken);
@@ -861,9 +861,12 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         var statuses = new List<VillageStatus>();
         try
         {
+            var scanIndex = 0;
             foreach (var village in villages)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                scanIndex++;
+                Notify($"[scan:verbose] reading village '{village.Name}' ({scanIndex}/{villages.Count})");
 
                 if (!string.IsNullOrWhiteSpace(village.Url))
                 {
@@ -884,17 +887,18 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         }
         finally
         {
+            Notify($"[scan] all-village status scan finished — read {statuses.Count}/{villages.Count} village(s)");
             if (!string.IsNullOrWhiteSpace(returnVillageName))
             {
                 try
                 {
                     await SwitchToVillageAsync(returnVillageName, cancellationToken: CancellationToken.None, skipFeatureRefresh: true);
                     await GotoAsync(Paths.Resources, CancellationToken.None);
-                    Notify($"ReadAllVillageStatusesAsync returned to original village '{returnVillageName}' on dorf1.");
+                    Notify($"[scan:verbose] returned to original village '{returnVillageName}' on dorf1");
                 }
                 catch (Exception ex)
                 {
-                    Notify($"ReadAllVillageStatusesAsync could not return to original village '{returnVillageName}': {ex.Message}");
+                    Notify($"[scan] could not return to original village '{returnVillageName}': {ex.Message}");
                 }
             }
         }
@@ -2049,7 +2053,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
     private async Task<IReadOnlyList<Village>> ReadVillagesAsync(CancellationToken cancellationToken)
     {
-        Notify("[ReadVillagesAsync] started");
+        Notify("[scan:verbose] ReadVillagesAsync started");
         // Only navigate to spieler.php when the population cache has been explicitly invalidated
         // (i.e. on a real village switch, where SwitchToVillageAsync resets the timestamp to
         // MinValue). Otherwise serve the cache: lightweight sidebar reads and incremental
@@ -2071,7 +2075,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 _cachedVillagesPopulationAt = DateTimeOffset.UtcNow;
             }
         }
-        Notify("[ReadVillagesAsync] finished");
+        Notify("[scan:verbose] ReadVillagesAsync finished");
         return villages;
     }
 
@@ -2124,7 +2128,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         }
         catch (Exception ex)
         {
-            Notify($"[ReadVillagesPreferCacheAsync] sidebar read failed, falling back: {ex.Message}");
+            Notify($"[scan:verbose] ReadVillagesPreferCache sidebar read failed, falling back: {ex.Message}");
         }
 
         if (_cachedVillages is { Count: > 0 } stale)

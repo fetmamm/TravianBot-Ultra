@@ -800,6 +800,16 @@ public partial class MainWindow
             return true;
         }
 
+        // Normal "defer and retry later" signals are NOT errors. The worker raises a
+        // TaskWaitException (and embeds queue_wait_seconds=) when a task simply needs to wait —
+        // e.g. build queue full, hero already dispatched, resources still accumulating. These would
+        // otherwise match the "failed"/"] fail" keywords below and flood the alarm panel even though
+        // nothing is wrong, so they are explicitly classified as non-alarms.
+        if (value.Contains("taskwaitexception") || value.Contains("queue_wait_seconds="))
+        {
+            return false;
+        }
+
         if (value.Contains(" started]"))
         {
             return false;
