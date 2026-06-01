@@ -32,10 +32,21 @@ public sealed partial class TravianClient
                   const wanted = clean(vName).toLowerCase();
                   if (!wanted) return 'unknown';
 
-                  const capitalSpan = document.querySelector('span.mainVillage');
+                  // SS (private) marks the capital row with span.mainVillage.
+                  // Official Travian (T4.6) instead adds span.additionalInfo with the
+                  // text "(Capital)" inside the village's td.name cell.
+                  let capitalSpan = document.querySelector('span.mainVillage');
+                  if (!capitalSpan) {
+                    for (const info of document.querySelectorAll('td.name span.additionalInfo, span.additionalInfo')) {
+                      if (/\bcapital\b/i.test(info.textContent || '')) {
+                        capitalSpan = info;
+                        break;
+                      }
+                    }
+                  }
                   if (!capitalSpan) return 'unknown';
 
-                  // Confine the comparison to the row that contains the mainVillage marker.
+                  // Confine the comparison to the row that contains the capital marker.
                   // Walking further up reaches the table body which holds *all* village names
                   // and would falsely report any village as capital.
                   const row = capitalSpan.closest('tr, li, .row, .villageRow, .entry');

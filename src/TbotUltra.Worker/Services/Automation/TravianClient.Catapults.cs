@@ -177,7 +177,7 @@ public sealed partial class TravianClient
     {
         if (!allowReuseCurrentPage || !await IsSendTroopsPageAsync(page, cancellationToken))
         {
-            await GotoAsync(page, Paths.RallyPointSendTroops, cancellationToken);
+            await GotoAsync(page, RallyPointSendTroopsPath, cancellationToken);
         }
 
         if (!await IsSendTroopsPageAsync(page, cancellationToken))
@@ -459,7 +459,8 @@ public sealed partial class TravianClient
             """
             () => {
               const hasCoords = !!document.querySelector('input[name="x"], input[name="y"], input[name*="xCoord" i], input[name*="yCoord" i], input[id*="xCoord" i], input[id*="yCoord" i]');
-              const hasAttackMode = !!document.querySelector('input[type="radio"][name="c"]');
+              // SS uses radio name="c"; official Travian (T4.6) uses name="eventType".
+              const hasAttackMode = !!document.querySelector('input[type="radio"][name="c"], input[type="radio"][name="eventType"]');
               const body = (document.body?.innerText || '').toLowerCase();
               return hasCoords && hasAttackMode && body.includes('send troops');
             }
@@ -530,7 +531,9 @@ public sealed partial class TravianClient
         return await page.EvaluateAsync<bool>(
             """
             (raidAttack) => {
-              const radioButtons = Array.from(document.querySelectorAll('input[type="radio"][name="c"]'));
+              // SS uses radio name="c"; official Travian (T4.6) uses name="eventType".
+              // Attack (3) and raid (4) values are identical on both.
+              const radioButtons = Array.from(document.querySelectorAll('input[type="radio"][name="c"], input[type="radio"][name="eventType"]'));
               const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
               const radio = radioButtons.find(node => {
                 const value = (node.getAttribute('value') || '').trim();

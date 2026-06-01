@@ -35,6 +35,14 @@ public sealed partial class TravianClient
         };
     }
 
+    // Rally Point tab URLs differ by server flavor: SS/legacy uses build.php?id=39&t=N,
+    // while official Travian (T4.6) uses build.php?id=39&gid=16&tt=N.
+    private string RallyPointTroopsPath =>
+        _config.IsPrivateServer ? Paths.RallyPointTroops : "/build.php?id=39&gid=16&tt=1";
+
+    private string RallyPointSendTroopsPath =>
+        _config.IsPrivateServer ? Paths.RallyPointSendTroops : "/build.php?id=39&gid=16&tt=2";
+
     private static class Selectors
     {
         public static readonly string[] LoginUsernameField =

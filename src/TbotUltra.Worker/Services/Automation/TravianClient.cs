@@ -2368,10 +2368,15 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                     if (!profileLikeRow) continue;
 
                     const villageHref = resolveVillageHref(row, nameAnchor?.getAttribute('href') || '');
-                    const coordAnchor = row.querySelector('td.coords a[href*="karte.php"], a[href*="karte.php"]');
+                    // Prefer the actual coordinate link (karte.php?x=..&y=..) over the village-name
+                    // link, which on official Travian also points at karte.php but only carries ?d=<did>.
+                    // Official uses td.coordinates; SS uses td.coords.
+                    const coordAnchor =
+                      row.querySelector('td.coordinates a[href*="x="], a[href*="karte.php?x="], a[href*="x="][href*="y="]')
+                      || row.querySelector('td.coords a[href*="karte.php"], a[href*="karte.php"]');
                     const coordHref = coordAnchor?.getAttribute('href') || '';
-                    const coordXText = clean(row.querySelector('td.coords .coordinateX')?.textContent || '');
-                    const coordYText = clean(row.querySelector('td.coords .coordinateY')?.textContent || '');
+                    const coordXText = clean(row.querySelector('td.coords .coordinateX, td.coordinates .coordinateX')?.textContent || '');
+                    const coordYText = clean(row.querySelector('td.coords .coordinateY, td.coordinates .coordinateY')?.textContent || '');
                     const coordText = clean(coordAnchor?.textContent || row.querySelector('td.coords')?.textContent || '');
                     const coord = parseCoords(
                       coordHref
@@ -2394,7 +2399,10 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                     const cropMatch = rowText.match(/\b(\d{1,2})\s*c\b/i) || name.match(/\b(\d{1,2})\s*c\b/i);
                     const cropFields = cropMatch ? Number.parseInt(cropMatch[1], 10) : null;
 
-                    const isCapital = !!row.querySelector('span.mainVillage, td.isCapital, .capital');
+                    // SS marks the capital with span.mainVillage; official Travian uses
+                    // span.additionalInfo with the text "(Capital)" in the name cell.
+                    const isCapital = !!row.querySelector('span.mainVillage, td.isCapital, .capital')
+                      || Array.from(row.querySelectorAll('span.additionalInfo')).some(node => /\bcapital\b/i.test(node.textContent || ''));
                     const key = `${name}|${coord.x ?? ''}|${coord.y ?? ''}`;
                     if (seen.has(key)) continue;
                     seen.add(key);
@@ -2477,6 +2485,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             () => {
               const selectors = [
                 '#sidebarBoxVillagelist a[href*="newdid"]',
+                '#sidebarBoxVillageList a[href*="newdid"]',
                 '#villageList a[href*="newdid"]',
                 '.villageList a[href*="newdid"]',
                 'a[href*="newdid"]'
@@ -2495,6 +2504,23 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 }
                 if (villages.length) return JSON.stringify(villages);
               }
+
+              // Official Travian (T4.6) renders the village switcher as
+              // div.listEntry.village[data-did] with the name in span.name[data-did];
+              // there are no newdid anchors (switching is JS-driven via data-did).
+              // Reconstruct the classic switch URL dorf1.php?newdid=<did> so the rest
+              // of the pipeline keeps working unchanged.
+              for (const node of document.querySelectorAll('.listEntry.village[data-did], #sidebarBoxVillageList .name[data-did], span.name[data-did]')) {
+                const did = node.getAttribute('data-did');
+                if (!did) continue;
+                const nameNode = node.classList.contains('name') ? node : node.querySelector('.name');
+                const name = ((nameNode ? nameNode.textContent : node.textContent) || '').replace(/\s+/g, ' ').trim();
+                const key = `${name}|${did}`;
+                if (!name || seen.has(key)) continue;
+                seen.add(key);
+                villages.push([name, 'dorf1.php?newdid=' + did]);
+              }
+              if (villages.length) return JSON.stringify(villages);
 
               const heading = document.querySelector('h1, .titleInHeader, #content h2');
               const fallbackName = heading ? heading.textContent.replace(/\s+/g, ' ').trim() : '';
@@ -3040,7 +3066,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             return;
         }
 
-        await GotoAsync(Paths.RallyPointSendTroops, cancellationToken);
+        await GotoAsync(RallyPointSendTroopsPath, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening send troops.", cancellationToken);
         await EnsureLoggedInAsync();
         if (await IsSendTroopsPageAsync(cancellationToken))
@@ -3052,7 +3078,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening rally point slot.", cancellationToken);
         await EnsureLoggedInAsync();
 
-        await GotoAsync(Paths.RallyPointSendTroops, cancellationToken);
+        await GotoAsync(RallyPointSendTroopsPath, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reopening send troops.", cancellationToken);
         await EnsureLoggedInAsync();
         if (await IsSendTroopsPageAsync(cancellationToken))
@@ -3097,7 +3123,8 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             """
             () => {
               const hasCoords = !!document.querySelector('input[name="x"], input[name="y"], input[name*="xCoord" i], input[name*="yCoord" i], input[id*="xCoord" i], input[id*="yCoord" i]');
-              const hasAttackMode = !!document.querySelector('input[type="radio"][name="c"]');
+              // SS uses radio name="c"; official Travian (T4.6) uses name="eventType".
+              const hasAttackMode = !!document.querySelector('input[type="radio"][name="c"], input[type="radio"][name="eventType"]');
               const body = (document.body?.innerText || '').toLowerCase();
               return hasCoords && hasAttackMode && body.includes('send troops');
             }
@@ -4151,7 +4178,9 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             return await _page.EvaluateAsync<bool>(
                 """
                 (raidAttack) => {
-                  const radioButtons = Array.from(document.querySelectorAll('input[type="radio"][name="c"]'));
+                  // SS uses radio name="c"; official Travian (T4.6) uses name="eventType".
+                  // Attack (3) and raid (4) values are identical on both.
+                  const radioButtons = Array.from(document.querySelectorAll('input[type="radio"][name="c"], input[type="radio"][name="eventType"]'));
                   const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
                   const radio = radioButtons.find(node => {
                     const value = (node.getAttribute('value') || '').trim();

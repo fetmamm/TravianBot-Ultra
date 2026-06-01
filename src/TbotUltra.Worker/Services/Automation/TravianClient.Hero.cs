@@ -605,7 +605,7 @@ public sealed partial class TravianClient
     private async Task<int?> ReadHeroReturnFromRallyPointAsync(CancellationToken cancellationToken)
     {
         Notify("[hero:verbose] ReadHeroReturnFromRallyPoint starting");
-        await GotoAsync(Paths.RallyPointTroops, cancellationToken);
+        await GotoAsync(RallyPointTroopsPath, cancellationToken);
         await WaitForNavigationSettledAsync(cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening rally point.", cancellationToken);
 

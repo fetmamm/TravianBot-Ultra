@@ -383,11 +383,13 @@ public sealed partial class TravianClient
             """
             () => {
               const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
-              const radioButtons = Array.from(document.querySelectorAll('input[type="radio"][name="c"]'));
+              // SS uses radio name="c" with reinforcement value "2"; official Travian (T4.6)
+              // uses name="eventType" with reinforcement value "5".
+              const radioButtons = Array.from(document.querySelectorAll('input[type="radio"][name="c"], input[type="radio"][name="eventType"]'));
               const radio = radioButtons.find(node => {
                 const value = (node.getAttribute('value') || '').trim();
                 const label = normalize(node.parentElement?.textContent || node.closest('label')?.textContent || '');
-                return value === '2' || label.includes('reinforcement') || label.includes('support');
+                return value === '2' || value === '5' || label.includes('reinforcement') || label.includes('support');
               });
               if (!radio) return false;
               radio.checked = true;

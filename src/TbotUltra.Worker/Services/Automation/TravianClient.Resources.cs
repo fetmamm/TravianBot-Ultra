@@ -757,8 +757,8 @@ public sealed partial class TravianClient
                     clay: readFirstText(['#l2', '#stockBarResource2 .value', '#stockBarResource2']),
                     iron: readFirstText(['#l3', '#stockBarResource3 .value', '#stockBarResource3']),
                     crop: readFirstText(['#l4', '#stockBarResource4 .value', '#stockBarResource4']),
-                    warehouse: readFirstText(['#stockBarWarehouse', '#stockBarWarehouse .value', '#warehouse', '#warehouse .value']),
-                    granary: readFirstText(['#stockBarGranary', '#stockBarGranary .value', '#stockBarSilo', '#stockBarSilo .value', '#granary', '#granary .value', '#silo', '#silo .value']),
+                    warehouse: readFirstText(['#stockBarWarehouse', '#stockBarWarehouse .value', '#warehouse', '#warehouse .value', '.warehouse .capacity .value', '.warehouse .value']),
+                    granary: readFirstText(['#stockBarGranary', '#stockBarGranary .value', '#stockBarSilo', '#stockBarSilo .value', '#granary', '#granary .value', '#silo', '#silo .value', '.granary .capacity .value', '.granary .value']),
                     woodProduction: readProduction('r1'),
                     clayProduction: readProduction('r2'),
                     ironProduction: readProduction('r3'),
@@ -767,8 +767,8 @@ public sealed partial class TravianClient
                       `url=${location.pathname}${location.search}`,
                       `ready=${document.readyState}`,
                       `l1=${readFirstText(['#l1', '#stockBarResource1 .value', '#stockBarResource1']) || '-'}`,
-                      `warehouseNode=${document.querySelector('#stockBarWarehouse') ? 'yes' : 'no'}`,
-                      `granaryNode=${document.querySelector('#stockBarGranary') ? 'yes' : 'no'}`,
+                      `warehouseNode=${document.querySelector('#stockBarWarehouse, .warehouse .capacity .value') ? 'yes' : 'no'}`,
+                      `granaryNode=${document.querySelector('#stockBarGranary, .granary .capacity .value') ? 'yes' : 'no'}`,
                       `productionNode=${document.querySelector('#production') ? 'yes' : 'no'}`,
                       `productionText=${String(readProduction('r1') ?? '-')}`,
                       `bodyClass=${document.body?.className || '-'}`
@@ -938,7 +938,8 @@ public sealed partial class TravianClient
                     """
                     () => {
                       const hasResourceValue = !!document.querySelector('#l1, #stockBarResource1 .value, #stockBarResource1');
-                      const hasCapacity = !!document.querySelector('#stockBarWarehouse, #stockBarGranary, #stockBarSilo');
+                      // SS uses #stockBar* ids; official Travian (T4.6) uses .warehouse/.granary > .capacity > .value.
+                      const hasCapacity = !!document.querySelector('#stockBarWarehouse, #stockBarGranary, #stockBarSilo, .warehouse .capacity .value, .granary .capacity .value');
                       const hasProduction = !!document.querySelector('#production td.num, #production tbody tr');
                       return hasResourceValue && hasCapacity && hasProduction;
                     }
@@ -1015,8 +1016,8 @@ public sealed partial class TravianClient
                     `url=${location.pathname}${location.search}`,
                     `ready=${document.readyState}`,
                     `l1=${document.querySelector('#l1') ? 'yes' : 'no'}:${text('#l1')}`,
-                    `warehouse=${document.querySelector('#stockBarWarehouse') ? 'yes' : 'no'}:${text('#stockBarWarehouse')}`,
-                    `granary=${document.querySelector('#stockBarGranary') ? 'yes' : 'no'}:${text('#stockBarGranary')}`,
+                    `warehouse=${document.querySelector('#stockBarWarehouse, .warehouse .capacity .value') ? 'yes' : 'no'}:${text('#stockBarWarehouse, .warehouse .capacity .value')}`,
+                    `granary=${document.querySelector('#stockBarGranary, .granary .capacity .value') ? 'yes' : 'no'}:${text('#stockBarGranary, .granary .capacity .value')}`,
                     `production=${document.querySelector('#production') ? 'yes' : 'no'}`,
                     `villageMap=${document.querySelector('#village_map') ? 'yes' : 'no'}`,
                     `bodyClass=${document.body?.className || '-'}`
