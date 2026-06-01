@@ -1,0 +1,116 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using TbotUltra.Core.Accounts;
+using TbotUltra.Core.Configuration;
+using TbotUltra.Desktop.Services;
+using Xunit;
+
+namespace TbotUltra.Desktop.Tests;
+
+public sealed class BotConfigStoreTests : IDisposable
+{
+    private readonly string _root;
+    private readonly string _configPath;
+    private string _activeAccount = "alice";
+
+    public BotConfigStoreTests()
+    {
+        _root = Path.Combine(Path.GetTempPath(), "tbot-ultra-config-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(_root, "config"));
+        _configPath = Path.Combine(_root, "config", "bot.json");
+    }
+
+    [Fact]
+    public void Load_OverlaysActiveAccountSettingsOnGlobalConfig()
+    {
+        WriteJson(
+            _configPath,
+            new JsonObject
+            {
+                ["server_name"] = "Global",
+                ["base_url"] = "https://example.com",
+                [BotOptionPayloadKeys.HeroMinHpForAdventure] = 60,
+            });
+        WriteJson(
+            AccountStoragePaths.AccountSettingsPath(_root, "alice"),
+            new JsonObject
+            {
+                [BotOptionPayloadKeys.HeroMinHpForAdventure] = 30,
+            });
+        var store = CreateStore();
+
+        var config = store.Load();
+
+        Assert.Equal("Global", config["server_name"]!.GetValue<string>());
+        Assert.Equal(30, config[BotOptionPayloadKeys.HeroMinHpForAdventure]!.GetValue<int>());
+    }
+
+    [Fact]
+    public void Save_MovesAccountScopedValuesToActiveAccountSettings()
+    {
+        WriteJson(
+            _configPath,
+            new JsonObject
+            {
+                ["server_name"] = "Global",
+                ["base_url"] = "https://example.com",
+                [BotOptionPayloadKeys.HeroMinHpForAdventure] = 60,
+                ["server_flavor"] = "ss_travi",
+                ["login_path"] = "/login.php",
+                ["village_overview_path"] = "/dorf1.php",
+            });
+        var store = CreateStore();
+        var config = store.Load();
+        config[BotOptionPayloadKeys.HeroMinHpForAdventure] = 35;
+
+        store.Save(config);
+
+        var global = JsonNode.Parse(File.ReadAllText(_configPath))!.AsObject();
+        Assert.Equal("Global", global["server_name"]!.GetValue<string>());
+        Assert.False(global.ContainsKey(BotOptionPayloadKeys.HeroMinHpForAdventure));
+        Assert.False(global.ContainsKey("server_flavor"));
+        Assert.False(global.ContainsKey("login_path"));
+        Assert.False(global.ContainsKey("village_overview_path"));
+
+        var account = JsonNode.Parse(File.ReadAllText(AccountStoragePaths.AccountSettingsPath(_root, "alice")))!.AsObject();
+        Assert.Equal(35, account[BotOptionPayloadKeys.HeroMinHpForAdventure]!.GetValue<int>());
+    }
+
+    [Fact]
+    public void Save_WithoutActiveAccountKeepsGlobalAccountScopedValues()
+    {
+        WriteJson(
+            _configPath,
+            new JsonObject
+            {
+                ["server_name"] = "Global",
+                [BotOptionPayloadKeys.ReinforcementsTroopRules] = new JsonArray(new JsonObject { ["accountName"] = "bob" }),
+            });
+        var store = new BotConfigStore(_configPath);
+        var config = store.Load();
+
+        store.Save(config);
+
+        var global = JsonNode.Parse(File.ReadAllText(_configPath))!.AsObject();
+        Assert.True(global.ContainsKey(BotOptionPayloadKeys.ReinforcementsTroopRules));
+    }
+
+    private BotConfigStore CreateStore()
+    {
+        return new BotConfigStore(_configPath, _root, () => _activeAccount);
+    }
+
+    private static void WriteJson(string path, JsonObject config)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, config.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_root))
+        {
+            Directory.Delete(_root, recursive: true);
+        }
+    }
+}

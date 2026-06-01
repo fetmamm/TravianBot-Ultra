@@ -57,6 +57,11 @@ public static class AccountStoragePaths
         return Path.Combine(AccountDirectory(projectRoot, accountName), "session", "playwright-state.json");
     }
 
+    public static string AccountSettingsPath(string projectRoot, string accountName)
+    {
+        return Path.Combine(AccountDirectory(projectRoot, accountName), "settings.json");
+    }
+
     public static string LegacyBrowserStatePath(string projectRoot, string accountName)
     {
         return Path.Combine(projectRoot, "playwright", ".auth", $"{NormalizeAccountKey(accountName)}.json");

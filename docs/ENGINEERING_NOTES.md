@@ -84,7 +84,8 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
 
 ## 3. Konventioner
 
-- `bot.json` är **global** (delas av alla konton) — by-/farmlist-pekare läcker mellan konton.
+- `bot.json` är global fallback. Konto-/by-specifika UI-val ska sparas i
+  `config/accounts/<account>/settings.json` och läsas som overlay ovanpå `bot.json`.
 - **Kontobyte = full reset** — inget från gamla kontot ska ligga kvar laddat/cachat.
 - Bygg: `dotnet build TbotUltra.sln`. Test: `dotnet test src/TbotUltra.Worker.Tests/...` (+ Desktop.Tests).
 - Diagnostik: `[flavor]`-raden vid login visar `ServerFlavor`/`IsPrivateServer`/`baseUrl`

@@ -18,6 +18,8 @@ public static class BotOptionsFactory
         var queueWaitThresholdMode = configuration[BotOptionPayloadKeys.QueueWaitThresholdMode] ?? "smart";
 
         var baseUrl = (configuration["base_url"] ?? string.Empty).TrimEnd('/');
+        var serverFlavor = ServerFlavorDetector.FromBaseUrl(baseUrl);
+        var isOfficialServer = serverFlavor == ServerFlavor.Official;
 
         return new BotOptions
         {
@@ -80,8 +82,8 @@ public static class BotOptionsFactory
             TroopTrainingWorkshopCheckIron = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopCheckIron, true),
             TroopTrainingWorkshopCheckCrop = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopCheckCrop, true),
             TroopTrainingFallbackCooldownSeconds = ClampTroopTrainingFallbackCooldownSeconds(configuration.GetValue(BotOptionPayloadKeys.TroopTrainingFallbackCooldownSeconds, 120)),
-            NpcTradeEnabled = configuration.GetValue(BotOptionPayloadKeys.NpcTradeEnabled, true),
-            NpcTradeConstructionEnabled = configuration.GetValue(BotOptionPayloadKeys.NpcTradeConstructionEnabled, true),
+            NpcTradeEnabled = GetValueOrDefault(configuration, BotOptionPayloadKeys.NpcTradeEnabled, defaultValue: !isOfficialServer),
+            NpcTradeConstructionEnabled = GetValueOrDefault(configuration, BotOptionPayloadKeys.NpcTradeConstructionEnabled, defaultValue: !isOfficialServer),
             NpcTradeThresholdPercent = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.NpcTradeThresholdPercent, 90), 1, 100),
             NpcTradeAnalyzeWood = configuration.GetValue(BotOptionPayloadKeys.NpcTradeAnalyzeWood, true),
             NpcTradeAnalyzeClay = configuration.GetValue(BotOptionPayloadKeys.NpcTradeAnalyzeClay, true),
@@ -106,9 +108,9 @@ public static class BotOptionsFactory
             HumanLikeSpeed = configuration["human_like_speed"] ?? "medium",
             TargetVillageName = configuration[BotOptionPayloadKeys.TargetVillageName] ?? string.Empty,
             TargetVillageUrl = configuration[BotOptionPayloadKeys.TargetVillageUrl] ?? string.Empty,
-            AllowGoldSpending = configuration.GetValue("allow_gold_spending", true),
+            AllowGoldSpending = GetValueOrDefault(configuration, "allow_gold_spending", defaultValue: !isOfficialServer),
             AllowSilverSpending = configuration.GetValue("allow_silver_spending", false),
-            GoldLimit = configuration.GetValue("gold_limit", 800),
+            GoldLimit = configuration.GetValue("gold_limit", isOfficialServer ? 200 : 800),
             SilverLimit = configuration.GetValue("silver_limit", 100),
             ResourceUpgradeSlotId = configuration.GetValue<int?>(BotOptionPayloadKeys.ResourceUpgradeSlotId),
             ResourceUpgradeTargetLevel = configuration.GetValue<int?>(BotOptionPayloadKeys.ResourceUpgradeTargetLevel),
@@ -266,6 +268,13 @@ public static class BotOptionsFactory
             10 or 30 or 60 or 120 or 300 or 600 => value,
             _ => 30,
         };
+    }
+
+    private static bool GetValueOrDefault(IConfiguration configuration, string key, bool defaultValue)
+    {
+        return configuration[key] is null
+            ? defaultValue
+            : configuration.GetValue(key, defaultValue);
     }
 
     private static List<ReinforcementTroopRule> NormalizeReinforcementTroopRules(IEnumerable<ReinforcementTroopRule> rules)

@@ -158,6 +158,70 @@ public sealed class BotOptionsPayloadApplierTests
     }
 
     [Fact]
+    public void FromConfiguration_UsesSafeOfficialGoldAndNpcDefaults()
+    {
+        var values = new Dictionary<string, string?>
+        {
+            ["server_name"] = "Official",
+            ["base_url"] = "https://ts50.x5.europe.travian.com",
+        };
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(values)
+            .Build();
+
+        var options = BotOptionsFactory.FromConfiguration(configuration);
+
+        Assert.False(options.NpcTradeEnabled);
+        Assert.False(options.NpcTradeConstructionEnabled);
+        Assert.False(options.AllowGoldSpending);
+        Assert.Equal(200, options.GoldLimit);
+    }
+
+    [Fact]
+    public void FromConfiguration_KeepsLegacyPrivateServerGoldAndNpcDefaults()
+    {
+        var values = new Dictionary<string, string?>
+        {
+            ["server_name"] = "SS",
+            ["base_url"] = "https://mga.ss-travi.com",
+        };
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(values)
+            .Build();
+
+        var options = BotOptionsFactory.FromConfiguration(configuration);
+
+        Assert.True(options.NpcTradeEnabled);
+        Assert.True(options.NpcTradeConstructionEnabled);
+        Assert.True(options.AllowGoldSpending);
+        Assert.Equal(800, options.GoldLimit);
+    }
+
+    [Fact]
+    public void FromConfiguration_ExplicitGoldAndNpcSettingsOverrideOfficialDefaults()
+    {
+        var values = new Dictionary<string, string?>
+        {
+            ["server_name"] = "Official",
+            ["base_url"] = "https://ts50.x5.europe.travian.com",
+            [BotOptionPayloadKeys.NpcTradeEnabled] = "true",
+            [BotOptionPayloadKeys.NpcTradeConstructionEnabled] = "true",
+            ["allow_gold_spending"] = "true",
+            ["gold_limit"] = "500",
+        };
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(values)
+            .Build();
+
+        var options = BotOptionsFactory.FromConfiguration(configuration);
+
+        Assert.True(options.NpcTradeEnabled);
+        Assert.True(options.NpcTradeConstructionEnabled);
+        Assert.True(options.AllowGoldSpending);
+        Assert.Equal(500, options.GoldLimit);
+    }
+
+    [Fact]
     public void FromConfiguration_LoadsReinforcementSettings()
     {
         var values = new Dictionary<string, string?>

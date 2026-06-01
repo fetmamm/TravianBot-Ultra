@@ -30,11 +30,11 @@ public sealed class BotOptions
 
     [ConfigurationKeyName("login_path")]
     [Required]
-    public string LoginPath { get; init; } = string.Empty;
+    public string LoginPath { get; init; } = "/login.php";
 
     [ConfigurationKeyName("village_overview_path")]
     [Required]
-    public string VillageOverviewPath { get; init; } = string.Empty;
+    public string VillageOverviewPath { get; init; } = "/dorf1.php";
 
     [ConfigurationKeyName("headless")]
     public bool Headless { get; init; }

@@ -406,9 +406,9 @@ public partial class MainWindow : Window
         _sessionLogPath = Path.Combine(_projectRoot, "logs", $"TbotUltra_Log_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
         InitializeSessionLogFile();
 
-        _botConfigStore = new BotConfigStore(_botConfigPath);
         _accountProvider = new EnvAccountProvider(_envPath);
         _accountStore = new EnvAccountStore(_envPath);
+        _botConfigStore = new BotConfigStore(_botConfigPath, _projectRoot, () => _accountStore.ActiveAccountName());
         _accountAnalysisStore = new AccountAnalysisStore(_projectRoot);
         _natarFarmCacheStore = new NatarFarmCacheStore(_projectRoot);
         _manualFarmingPreferenceStore = new ManualFarmingPreferenceStore(_projectRoot);
@@ -666,9 +666,11 @@ public partial class MainWindow : Window
 
     private BotOptions LoadBotOptions()
     {
+        var configJson = _botConfigStore.Load().ToJsonString();
+        using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(configJson));
         var configuration = new ConfigurationBuilder()
             .SetBasePath(_projectRoot)
-            .AddJsonFile(_botConfigPath, optional: false, reloadOnChange: false)
+            .AddJsonStream(stream)
             .Build();
         return BotOptionsFactory.FromConfiguration(configuration);
     }
