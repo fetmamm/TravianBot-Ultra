@@ -1,3 +1,7 @@
+## Läs först
+- Läs och följ `docs/ENGINEERING_NOTES.md` innan du ändrar selektorer, sökvägar eller serverlogik.
+- Den innehåller projektets konventioner, regler för de två servervarianterna (Official/SS-Travi), beslutslogg och kända fallgropar — följ dem och uppdatera filen löpande.
+
 ## Kodregler
 - Försök att inte ändra kod som inte behöver ändras.
 - Ändra bara det som är nödvändigt för att lösa uppgiften.
