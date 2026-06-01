@@ -21,7 +21,7 @@ public sealed partial class TravianClient
     {
         Notify("[inbox] marking messages as read");
         await EnsureLoggedInAsync();
-        await GotoAsync(Paths.Messages, cancellationToken);
+        await GotoAsync(MessagesPath, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening messages.", cancellationToken);
         return await TryMarkMessagesAsReadAcrossPagesAsync(
             markSelectors:
@@ -45,7 +45,7 @@ public sealed partial class TravianClient
     {
         Notify("[inbox] marking reports as read");
         await EnsureLoggedInAsync();
-        await GotoAsync(Paths.Reports, cancellationToken);
+        await GotoAsync(ReportsPath, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening reports.", cancellationToken);
         return await TryMarkInboxItemsAsReadAsync(
             markSelectors:
@@ -99,9 +99,13 @@ public sealed partial class TravianClient
                 return numberFromBadge(el);
               };
 
+              // Official Travian (T4.6) nav has no #n5/#n6; it uses anchors
+              // a.messages / a.reports with the unread count in a .indicator child.
+              const readForSelector = (selector) => numberFromBadge(document.querySelector(selector));
+
               return {
-                unreadMessages: readForId('n6'),
-                unreadReports: readForId('n5')
+                unreadMessages: readForId('n6') || readForSelector('a.messages, a[href="/messages"], a[href*="nachrichten"]'),
+                unreadReports: readForId('n5') || readForSelector('a.reports, a[href="/report"], a[href*="berichte"]')
               };
             }
             """);
