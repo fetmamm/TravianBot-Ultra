@@ -723,6 +723,30 @@ public sealed partial class TravianClient
         return ParseDurationToSeconds(raw);
     }
 
+    /// <summary>
+    /// When the hero is on an adventure, opens the adventures page and reads the return ETA so the
+    /// loop can defer instead of re-querying every tick. Official Travian (T4.6) shows the countdown
+    /// as "Arrival in <span class='timerReact'>00:04:20</span>" on /hero/adventures.
+    /// </summary>
+    private async Task<int?> ReadHeroReturnEtaWhenAwayAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (!IsCurrentUrlForPath(HeroAdventuresPath))
+            {
+                await GotoAsync(HeroAdventuresPath, cancellationToken);
+                await WaitForNavigationSettledAsync(cancellationToken);
+                await EnsureLoggedInAsync();
+            }
+
+            return await ReadHeroReturnSecondsAsync(cancellationToken);
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            return null;
+        }
+    }
+
     public async Task<string> ManageHeroAsync(
         int minHpForAdventure,
         bool autoRevive,
@@ -856,6 +880,12 @@ public sealed partial class TravianClient
         else if (adventureCount > 0 && !inVillage)
         {
             actions.Add("adventure_skipped_hero_away");
+            // The hero is on an adventure. Read the return ETA so the loop defers until the hero
+            // is home instead of re-queueing hero_manage every tick (which otherwise spams).
+            if (heroReturnWaitSeconds is not > 0)
+            {
+                heroReturnWaitSeconds = await ReadHeroReturnEtaWhenAwayAsync(cancellationToken);
+            }
         }
         else if (adventureCount > 0 && !canSendByHp)
         {
@@ -866,6 +896,13 @@ public sealed partial class TravianClient
             ? (status.UnassignedPoints > 0 ? status.UnassignedPoints.ToString() : "signal")
             : status.UnassignedPoints.ToString();
         var summary = $"Hero status: dead={status.IsDead}, hp={hpPercent?.ToString() ?? "?"}%, adventures={adventureCount}, points={pointsText}, in_village={inVillage}";
+        // When the hero is away, always defer by the return ETA (or a sane fallback) so the loop
+        // does not re-run hero_manage every second while there is nothing to do.
+        if (!inVillage && adventureCount > 0)
+        {
+            var awaitSeconds = heroReturnWaitSeconds is > 0 ? heroReturnWaitSeconds.Value : 300;
+            return $"{summary}. Hero is away. queue_wait_seconds={awaitSeconds}";
+        }
         if (heroReturnWaitSeconds is > 0 && actions.Count == 0)
         {
             return $"{summary}. Hero is away. queue_wait_seconds={heroReturnWaitSeconds.Value}";
@@ -2134,23 +2171,44 @@ public sealed partial class TravianClient
         var duration = picked.DurationSeconds ?? 0;
         var fallbackReturnSeconds = duration > 0 ? duration * 2 : 0;
 
-        // Step 2: confirm on the start_adventure.php page by clicking #start (button[name="s1"]).
+        // Step 2: confirm the adventure.
+        // SS/legacy navigates to start_adventure.php with a #start (button[name="s1"]) button.
+        // Official Travian (T4.6) instead opens a React confirmation modal with a "Continue"
+        // button (class "...continue...") and does NOT navigate — the modal needs a moment to
+        // render, so poll for the confirm button before giving up.
         await WaitForNavigationSettledAsync(cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared on adventure detail page.", cancellationToken);
         var fallbackReturnFromDetail = await ReadAdventureReturnSecondsAsync(cancellationToken) ?? fallbackReturnSeconds;
         Notify($"[adventure] picked {pickOrder} adventure, duration={duration}s, hero return ETA={fallbackReturnFromDetail}s");
 
-        var confirmed = await _page.EvaluateAsync<bool>(
-            """
-            () => {
-              const btn = document.querySelector('button#start[name="s1"], button[name="s1"], button#start');
-              if (btn && !btn.hasAttribute('disabled')) { btn.click(); return true; }
-              const fallback = Array.from(document.querySelectorAll('button, input[type="submit"]'))
-                .find(n => !n.hasAttribute('disabled') && !/(^|\s)disabled(\s|$)/i.test(n.className || '') && /to\s+adventure|start\s+adventure|continue/i.test((n.value || '') + ' ' + (n.textContent || '')));
-              if (fallback) { fallback.click(); return true; }
-              return false;
+        var confirmed = false;
+        for (var attempt = 0; attempt < 10 && !confirmed; attempt++)
+        {
+            confirmed = await _page.EvaluateAsync<bool>(
+                """
+                () => {
+                  const isDisabled = (n) => !n
+                    || (n.hasAttribute && n.hasAttribute('disabled'))
+                    || /(^|\s)disabled(\s|$)/i.test((n.className || '').toString());
+                  // SS/legacy: start button on the adventure detail page.
+                  const start = document.querySelector('button#start[name="s1"], button[name="s1"], button#start');
+                  if (start && !isDisabled(start)) { start.click(); return true; }
+                  // Official (T4.6): "Continue" button in the confirmation modal.
+                  const cont = Array.from(document.querySelectorAll('button.continue, button'))
+                    .find(n => !isDisabled(n) && /\bcontinue\b/i.test((n.value || '') + ' ' + (n.textContent || '')));
+                  if (cont) { cont.click(); return true; }
+                  // Other localized submit labels.
+                  const submit = Array.from(document.querySelectorAll('button, input[type="submit"]'))
+                    .find(n => !isDisabled(n) && /to\s+adventure|start\s+adventure/i.test((n.value || '') + ' ' + (n.textContent || '')));
+                  if (submit) { submit.click(); return true; }
+                  return false;
+                }
+                """);
+            if (!confirmed)
+            {
+                await Task.Delay(300, cancellationToken);
             }
-            """);
+        }
 
         if (!confirmed)
         {
@@ -2225,6 +2283,7 @@ public sealed partial class TravianClient
 
                   const bodyText = clean(document.body?.innerText || '');
                   return bodyText.includes('hero is on adventure')
+                    || bodyText.includes('on its way to an adventure') // official Travian (T4.6)
                     || bodyText.includes('arrival in')
                     || bodyText.includes('back in');
                 }
@@ -2264,10 +2323,11 @@ public sealed partial class TravianClient
                 // Anything else (52/53 = on the way, 51 = dead) => not in this village.
                 if (/heroStatus\d+/i.test(cls)) return false;
               }
-              // 2) Official Travian (T4.6): a hero on its way shows a statusRunning icon and an
-              // "on its way to an adventure" / "Arrival in <timerReact>" message; there is no
-              // heroStatus class. Any of these means the hero is NOT in the village.
-              if (document.querySelector('[class*="statusRunning"], .timerReact')) return false;
+              // 2) Official Travian (T4.6): a hero on its way is shown by a heroRunning icon in the
+              // top-bar sidebar, and on the adventures page by a statusRunning icon + .heroState /
+              // "on its way to an adventure" / "Arrival in <timerReact>". There is no heroStatus
+              // class. Any of these means the hero is NOT in the village.
+              if (document.querySelector('[class*="heroRunning"], [class*="statusRunning"], .heroState, .timerReact')) return false;
               const officialBox = document.querySelector('#topBarHero, #heroV2, .heroV2');
               const officialText = (officialBox?.textContent || '').toLowerCase();
               if (/on its way|on the way to|arrival in/.test(officialText)) return false;
