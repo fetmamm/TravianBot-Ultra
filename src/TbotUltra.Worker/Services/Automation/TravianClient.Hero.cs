@@ -739,6 +739,23 @@ public sealed partial class TravianClient
                 await EnsureLoggedInAsync();
             }
 
+            // The away countdown (.heroState span.timerReact / "Arrival in 00:05:30") is
+            // React-rendered and not in the DOM immediately after navigation. Wait for it to
+            // appear, otherwise the read returns null and the caller falls back to a flat guess.
+            try
+            {
+                await _page.WaitForFunctionAsync(
+                    """
+                    () => !!document.querySelector('.heroState .timerReact, span.timerReact, .timerReact')
+                       || /arrival\s+in\s+\d/i.test(document.body?.innerText || '')
+                    """,
+                    null,
+                    new PageWaitForFunctionOptions { Timeout = 5000 });
+            }
+            catch (TimeoutException)
+            {
+            }
+
             return await ReadHeroReturnSecondsAsync(cancellationToken);
         }
         catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
@@ -1733,8 +1750,8 @@ public sealed partial class TravianClient
         // The attributes table is in DOM regardless of whether the collapsible panel is expanded —
         // we don't block on expansion here. Callers that need to CLICK (e.g. assign points) must
         // call ExpandAttributesPanelIfClosedAsync themselves; pure reads don't.
-        var tableReady = await WaitForAttributesTableAsync(cancellationToken, timeoutMs: 4000);
-        if (!tableReady)
+        var tableReady = await WaitForAttributesTableAsync(cancellationToken, timeoutMs: _config.IsPrivateServer ? 4000 : 1000);
+        if (!tableReady && _config.IsPrivateServer)
         {
             Notify($"Hero attributes table missing after tab click — reloading {HeroInventoryPath}.");
             await GotoAsync(HeroInventoryPath, cancellationToken);
@@ -1744,6 +1761,13 @@ public sealed partial class TravianClient
             {
                 Notify($"Hero attributes table still missing after reload. url='{_page.Url}'.");
             }
+        }
+        else if (!tableReady)
+        {
+            // Official Travian (T4.6) renders the attributes panel with React and has no
+            // a.setPoint / td.pointsValueSetter markup, so this table never appears for the
+            // SS reader. Skip the reload + long retry (it just wasted ~13s every loop).
+            Notify("Hero attributes table not present (official Travian uses a React attributes panel); skipping retry.");
         }
 
         // Fire-and-forget: open the panel so the user lands on a visually-expanded panel if they
@@ -2114,6 +2138,28 @@ public sealed partial class TravianClient
     {
         await OpenHeroAdventuresPageAsync(cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening adventures.", cancellationToken);
+
+        // The adventures list on official Travian (T4.6) is React-rendered and is often not in the
+        // DOM yet right after navigation. Wait for the adventure rows (Explore buttons) — or the
+        // hero-away state — to render before picking; otherwise the pick finds nothing and the
+        // dispatch falsely reports "adventure_not_clickable".
+        try
+        {
+            await _page.WaitForFunctionAsync(
+                """
+                () => !!document.querySelector('table.adventureList tbody tr, a.gotoAdventure[href*="start_adventure.php"]')
+                   || /on its way to an adventure/i.test(document.body?.innerText || '')
+                   || !!document.querySelector('.heroState, [class*="statusRunning"], [class*="heroRunning"]')
+                """,
+                null,
+                new PageWaitForFunctionOptions { Timeout = 6000 });
+        }
+        catch (TimeoutException)
+        {
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+        }
 
         // Step 1: pick a row (top or shortest), open the adventure detail page, and report its duration.
         var pickedJson = await _page.EvaluateAsync<string>(
