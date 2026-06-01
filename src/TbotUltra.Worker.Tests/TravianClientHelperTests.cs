@@ -522,6 +522,23 @@ public sealed class TravianClientHelperTests
         Assert.Contains("Granary Level 3", first);
     }
 
+    [Fact]
+    public void BuildQueueIdentityFingerprint_IgnoresTimerChanges()
+    {
+        IReadOnlyList<BuildQueueItem> firstQueue =
+        [
+            new BuildQueueItem("Warehouse Level 5", "00:05:00"),
+        ];
+        IReadOnlyList<BuildQueueItem> secondQueue =
+        [
+            new BuildQueueItem("Warehouse Level 5", "00:04:59"),
+        ];
+
+        Assert.Equal(
+            TravianClient.BuildQueueIdentityFingerprint(firstQueue),
+            TravianClient.BuildQueueIdentityFingerprint(secondQueue));
+    }
+
     [Theory]
     [InlineData(null, null)]
     [InlineData("", null)]

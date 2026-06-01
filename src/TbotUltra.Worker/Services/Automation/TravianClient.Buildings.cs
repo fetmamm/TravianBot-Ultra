@@ -2501,7 +2501,9 @@ public sealed partial class TravianClient
         return s + 1;
     }
 
-    public async Task<IReadOnlyList<ActiveConstruction>> ReadActiveConstructionsAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<ActiveConstruction>> ReadActiveConstructionsAsync(
+        CancellationToken cancellationToken = default,
+        bool allowNavigationToBuildings = true)
     {
         // Cache hit collapses the 4-5 calls a single upgrade iteration makes (CheckQueueOrDefer,
         // ReadHighestKnownQueuedBuildingLevel, ReadQueuedBuildingWaitSeconds, level-advance poll)
@@ -2518,6 +2520,7 @@ public sealed partial class TravianClient
         var raw = await ReadActiveConstructionsOnCurrentPageAsync();
         if (raw.Count == 0
             && IsOfficialTravianServer()
+            && allowNavigationToBuildings
             && !IsCurrentUrlForPath(Paths.Buildings))
         {
             await GotoAsync(Paths.Buildings, cancellationToken);
@@ -2599,10 +2602,11 @@ public sealed partial class TravianClient
     public async Task<ConstructionSlotStatus> EvaluateConstructionSlotsAsync(
         string tribe,
         bool travianPlusActive,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool allowNavigationToBuildings = true)
     {
         LogFunctionStarted();
-        var active = await ReadActiveConstructionsAsync(cancellationToken);
+        var active = await ReadActiveConstructionsAsync(cancellationToken, allowNavigationToBuildings);
         return ComputeConstructionSlotStatus(active, tribe, travianPlusActive);
     }
 
@@ -2687,10 +2691,16 @@ public sealed partial class TravianClient
         ConstructionKind kind,
         int slotId,
         int upgrades,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool allowNavigationToBuildings = true)
     {
         var (tribe, plusActive) = await GetCachedTribeAndPlusAsync(cancellationToken);
-        var status = await EvaluateConstructionSlotsAsync(tribe, plusActive, cancellationToken);
+        if (!allowNavigationToBuildings)
+        {
+            InvalidateActiveConstructionsCache();
+        }
+
+        var status = await EvaluateConstructionSlotsAsync(tribe, plusActive, cancellationToken, allowNavigationToBuildings);
         var canStart = kind == ConstructionKind.Resource ? status.CanStartResource : status.CanStartBuilding;
         if (canStart)
         {
@@ -2969,6 +2979,7 @@ public sealed partial class TravianClient
                       const candidates = Array.from(document.querySelectorAll('button, input[type="submit"], input[type="button"], a, div.addHoverClick, div.button-container'));
                       const picked = [];
                       const clickOrder = [];
+                      let hasMasterBuilderOnlyControl = false;
 
                       for (let candidateIndex = 0; candidateIndex < candidates.length; candidateIndex += 1) {
                         const element = candidates[candidateIndex];
@@ -2992,7 +3003,8 @@ public sealed partial class TravianClient
                         );
                         const inOfficialPrimarySection = !!element.closest('.upgradeButtonsContainer .section1');
                         const inOfficialSpeedupSection = !!element.closest('.upgradeButtonsContainer .section2');
-                        const isGold = combined.includes('gold') || combined.includes('npc') || combined.includes('instant') || combined.includes('exchange') || combined.includes('sharing resources') || combined.includes('share resources');
+                        const isMasterBuilder = combined.includes('master builder') || combined.includes('buildmaster');
+                        const isGold = isMasterBuilder || combined.includes('gold') || combined.includes('npc') || combined.includes('instant') || combined.includes('exchange') || combined.includes('sharing resources') || combined.includes('share resources');
                         const isSpeedup = inOfficialSpeedupSection || classes.includes('purple') || controlClasses.includes('purple') || classes.includes('videofeaturebutton') || controlClasses.includes('videofeaturebutton') || combined.includes('videoFeature') || combined.includes('videofeature') || combined.includes('faster');
                         const inUpgradeContainer = !!element.closest('.upgradeBuilding, .contract, .contractWrapper, .build_details, .buildingWrapper, #contract, form[action*="build.php"]');
                         const hasUpgradeSignals =
@@ -3012,7 +3024,16 @@ public sealed partial class TravianClient
                           || (inUpgradeContainer && /upgrade\s+to\s+level|upgrade|build/i.test(displayText))
                           || /upgrade\s+to\s+level/i.test(displayText);
 
-                        if (!hasUpgradeSignals || isGold || isSpeedup || displayText.length === 0) {
+                        if (isMasterBuilder) {
+                          hasMasterBuilderOnlyControl = true;
+                        }
+
+                        const looksLikePrimaryNoise = inOfficialPrimarySection
+                          && !/upgrade|construct|build/i.test(displayText)
+                          && !href.includes('action=build')
+                          && !formAction.includes('build.php');
+
+                        if (!hasUpgradeSignals || isGold || isSpeedup || looksLikePrimaryNoise || displayText.length === 0) {
                           continue;
                         }
 
@@ -3058,6 +3079,17 @@ public sealed partial class TravianClient
                           reason: workersBusyHint
                             ? `Page indicates workers are busy: '${workersBusyHint.slice(0, 120)}'.`
                             : 'Page indicates building queue/slot is busy.',
+                          detectedMaxLevel: detectMaxLevel(),
+                          queueWaitSeconds,
+                          summary: picked.slice(0, 8)
+                        });
+                      }
+
+                      if (hasMasterBuilderOnlyControl) {
+                        const queueWaitSeconds = detectQueueWaitSeconds();
+                        return JSON.stringify({
+                          outcome: 'BlockedByQueue',
+                          reason: 'Only master builder construction is available; normal build queue is full.',
                           detectedMaxLevel: detectMaxLevel(),
                           queueWaitSeconds,
                           summary: picked.slice(0, 8)
@@ -3602,6 +3634,20 @@ public sealed partial class TravianClient
             queue
                 .Take(5)
                 .Select(item => $"{item.Text.Trim()}|{item.TimeLeft?.Trim() ?? string.Empty}"));
+    }
+
+    internal static string BuildQueueIdentityFingerprint(IReadOnlyList<BuildQueueItem> queue)
+    {
+        if (queue.Count == 0)
+        {
+            return "empty";
+        }
+
+        return string.Join(
+            " || ",
+            queue
+                .Take(5)
+                .Select(item => item.Text.Trim()));
     }
 
     internal static IReadOnlyList<Building> ParseBuildingOverviewHtmlForTests(string html)

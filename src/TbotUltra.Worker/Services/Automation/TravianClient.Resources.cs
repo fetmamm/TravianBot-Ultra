@@ -248,7 +248,7 @@ public sealed partial class TravianClient
                     return deferMessage;
                 }
 
-                var queueFingerprintBefore = BuildQueueFingerprint(snapshot.BuildQueue);
+                var queueFingerprintBefore = BuildQueueIdentityFingerprint(snapshot.BuildQueue);
                 var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: false);
                 var detectedMax = actionability.DetectedMaxLevel;
                 var effectiveTarget = detectedMax is int maxLevel ? Math.Min(targetLevel, maxLevel) : targetLevel;
@@ -328,6 +328,17 @@ public sealed partial class TravianClient
                     }
 
                     return $"Resource slot {slotId}: queued upgrade toward level {effectiveTarget}. Evidence: {progress.Evidence}. queue_wait_seconds={queuedWaitSeconds}";
+                }
+
+                var queueDeferMessage = await CheckQueueOrDeferAsync(
+                    ConstructionKind.Resource,
+                    slotId,
+                    upgrades,
+                    cancellationToken,
+                    allowNavigationToBuildings: false);
+                if (queueDeferMessage is not null)
+                {
+                    return queueDeferMessage;
                 }
 
                 return $"Resource slot {slotId} blocked (NoImmediateProgress): Upgrade triggered but level is still {currentLevel} and no queue/in-progress evidence was detected queue_wait_seconds=6";
@@ -453,6 +464,18 @@ public sealed partial class TravianClient
                         continue;
                     }
 
+                    var preflightQueueDeferMessage = await CheckQueueOrDeferAsync(
+                        ConstructionKind.Resource,
+                        slot,
+                        upgrades,
+                        cancellationToken,
+                        allowNavigationToBuildings: false);
+                    if (preflightQueueDeferMessage is not null)
+                    {
+                        Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} deferred by dorf1 queue gate before opening upgrade page. message={preflightQueueDeferMessage}");
+                        return preflightQueueDeferMessage;
+                    }
+
                     Notify($"[UpgradeAllResourcesToLevelAsync] evaluating slot={slot} name='{resourceName}' level={level} target={targetLevel}.");
                     var actionability = await AnalyzeUpgradeActionabilityAsync(slot, cancellationToken, performClick: false);
                     var cap = actionability.DetectedMaxLevel ?? fallbackMax;
@@ -468,7 +491,7 @@ public sealed partial class TravianClient
                     {
                         attemptedAny = true;
                         Notify($"[UpgradeAllResourcesToLevelAsync] clicking upgrade for slot={slot} from level={level} toward target={effectiveTarget}.");
-                        var queueFingerprintBefore = BuildQueueFingerprint(await ReadBuildQueueAsync(cancellationToken));
+                        var queueFingerprintBefore = BuildQueueIdentityFingerprint(await ReadBuildQueueAsync(cancellationToken));
                         var rawUpgradeSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken);
                         // Read the population this level grants before clicking (page changes after).
                         var populationDelta = await ReadUpgradePopulationDeltaOnCurrentPageAsync(cancellationToken);
@@ -489,6 +512,18 @@ public sealed partial class TravianClient
                         Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} click result advanced={progress.Advanced} queued={progress.QueuedOrInProgress} evidence={progress.Evidence}.");
                         if (!progress.Advanced && !progress.QueuedOrInProgress)
                         {
+                            var queueDeferMessage = await CheckQueueOrDeferAsync(
+                                ConstructionKind.Resource,
+                                slot,
+                                upgrades,
+                                cancellationToken,
+                                allowNavigationToBuildings: false);
+                            if (queueDeferMessage is not null)
+                            {
+                                Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} deferred by dorf1 queue gate after unconfirmed click. message={queueDeferMessage}");
+                                return queueDeferMessage;
+                            }
+
                             var upgradeWaitSeconds = ComputeResourceUpgradeWaitSeconds(rawUpgradeSeconds);
                             Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} click did not confirm immediately ({progress.Evidence}). Deferring {upgradeWaitSeconds}s before retry.");
                             return $"Resource slot {slot}: upgrade click did not confirm immediately ({progress.Evidence}). queue_wait_seconds={Math.Max(1, upgradeWaitSeconds)}";
@@ -1946,15 +1981,10 @@ public sealed partial class TravianClient
             latestSnapshot = await ReadResourceProgressSnapshotAsync(cancellationToken);
         }
 
-        var queueFingerprintAfter = BuildQueueFingerprint(latestSnapshot.BuildQueue);
+        var queueFingerprintAfter = BuildQueueIdentityFingerprint(latestSnapshot.BuildQueue);
         if (!string.Equals(queueFingerprintBefore, queueFingerprintAfter, StringComparison.Ordinal))
         {
             return new UpgradeProgressResult(false, true, "queue changed");
-        }
-
-        if (latestSnapshot.BuildQueue.Count > 0)
-        {
-            return new UpgradeProgressResult(false, true, "queue has entries");
         }
 
         var waitSeconds = ComputeResourceUpgradeWaitSeconds(expectedWaitSeconds);
@@ -1968,9 +1998,8 @@ public sealed partial class TravianClient
 
     private static bool HasResourceQueueProgress(string queueFingerprintBefore, ResourceProgressSnapshot snapshot)
     {
-        var queueFingerprintAfter = BuildQueueFingerprint(snapshot.BuildQueue);
-        return !string.Equals(queueFingerprintBefore, queueFingerprintAfter, StringComparison.Ordinal)
-               || snapshot.BuildQueue.Count > 0;
+        var queueFingerprintAfter = BuildQueueIdentityFingerprint(snapshot.BuildQueue);
+        return !string.Equals(queueFingerprintBefore, queueFingerprintAfter, StringComparison.Ordinal);
     }
 
     private async Task<ResourceProgressSnapshot> ReadResourceProgressSnapshotAsync(CancellationToken cancellationToken)
