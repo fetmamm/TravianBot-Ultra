@@ -2767,6 +2767,15 @@ public sealed partial class TravianClient
         return await _page.EvaluateAsync<bool>(
             """
             () => {
+              // Official Travian (T4.6): the village quick-links bar is a Travian Plus feature.
+              // The MarketplaceSendResources quick link (data-dragid villageQuickLinks1) is
+              // clickable when Plus is active and carries the class "disabled" when it is not.
+              // This markup does not exist on SS, so SS falls through to the legacy check below.
+              const quickLink = document.querySelector('a[data-load-tooltip-data*="MarketplaceSendResources"], a[data-dragid^="villageQuickLinks"]');
+              if (quickLink) {
+                return !/\bdisabled\b/.test((quickLink.className || '').toString());
+              }
+
               const box = document.querySelector('#sidebarBoxLinklist');
               if (!box) return false;
               const html = box.innerHTML || '';
