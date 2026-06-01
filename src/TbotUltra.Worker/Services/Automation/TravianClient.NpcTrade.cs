@@ -78,8 +78,14 @@ public sealed partial class TravianClient
         var exchangeButton = _page.Locator($"#button{troopUnitId}").First;
         if (await exchangeButton.CountAsync() <= 0)
         {
-            Notify($"NPC trade: skip. 'NPC Trade' button #button{troopUnitId} not found on the page.");
-            return false;
+            // Official Travian (T4.6) has no per-unit NPC button; the training building page exposes
+            // a general "Exchange resources" button (class "exchange") that opens the same NPC dialog.
+            exchangeButton = _page.Locator("button.exchange[value='Exchange resources' i], div.npcMerchant button[value='Exchange resources' i], button[value='Exchange resources' i]").First;
+            if (await exchangeButton.CountAsync() <= 0)
+            {
+                Notify($"NPC trade: skip. 'NPC Trade' button #button{troopUnitId} not found on the page.");
+                return false;
+            }
         }
 
         await exchangeButton.ClickAsync();
@@ -244,11 +250,14 @@ public sealed partial class TravianClient
                 const looksInstantOnly = combined.includes('instant') && !hasNpcSignal && !hasSharingSignal;
                 const validSharingButton = hasSharingSignal && (hasGoldSignal || hasExchangeClass);
                 const validNpcButton = inBuildArea && hasNpcSignal && hasGoldSignal;
-                if (disabled || (!validSharingButton && !validNpcButton) || looksInstantOnly) {
+                // Official Travian (T4.6): the "Exchange resources" button (class "exchange") opens
+                // the NPC merchant dialog and can appear outside the build area.
+                const validOfficialExchange = hasExchangeClass && /exchange\s+resources/.test(combined);
+                if (disabled || (!validSharingButton && !validNpcButton && !validOfficialExchange) || looksInstantOnly) {
                   continue;
                 }
 
-                matches.push({ index: i, rank: (validSharingButton ? 10 : 0) + (hasSharingSignal ? 6 : 0) + (text.includes('npc') ? 4 : 0) + (onclick.includes('exchangeresources') ? 3 : 0) + (classes.includes('gold') ? 1 : 0) });
+                matches.push({ index: i, rank: (validSharingButton ? 10 : 0) + (validOfficialExchange ? 8 : 0) + (hasSharingSignal ? 6 : 0) + (text.includes('npc') ? 4 : 0) + (onclick.includes('exchangeresources') ? 3 : 0) + (classes.includes('gold') ? 1 : 0) });
               }
 
               matches.sort((a, b) => b.rank - a.rank);
