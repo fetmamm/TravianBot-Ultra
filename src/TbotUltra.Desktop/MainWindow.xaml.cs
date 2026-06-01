@@ -1149,22 +1149,18 @@ public partial class MainWindow : Window
     // Cancel — preventing function buttons from interfering with the in-flight work on the shared browser.
     private void ShowBusyOverlay(string title, string text)
     {
-        BusyOverlayTitle.Text = title;
-        BusyOverlayText.Text = text;
-        BusyOverlayCancelButton.IsEnabled = true;
-        BusyOverlay.Visibility = Visibility.Visible;
+        BusyOverlay.Show(title, text);
     }
 
     private void HideBusyOverlay()
     {
-        BusyOverlay.Visibility = Visibility.Collapsed;
+        BusyOverlay.Hide();
     }
 
-    private void BusyOverlayCancelButton_Click(object sender, RoutedEventArgs e)
+    private void BusyOverlay_Cancelled(object sender, EventArgs e)
     {
+        // The overlay already disabled its button and showed "Cancelling…"; we just cancel the work.
         AppendLog("Cancel requested.");
-        BusyOverlayCancelButton.IsEnabled = false;
-        BusyOverlayText.Text = "Cancelling…";
         try
         {
             _operationCts?.Cancel();

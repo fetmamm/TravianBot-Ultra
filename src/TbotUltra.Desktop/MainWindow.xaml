@@ -2742,36 +2742,9 @@
 
         </Grid>
 
-        <Border x:Name="BusyOverlay"
-                Grid.Column="0" Grid.ColumnSpan="2"
-                Background="#CC111827"
-                Visibility="Collapsed">
-            <Border Background="White" CornerRadius="10" Padding="30,26"
-                    HorizontalAlignment="Center" VerticalAlignment="Center"
-                    MaxWidth="440">
-                <StackPanel HorizontalAlignment="Center">
-                    <TextBlock x:Name="BusyOverlayTitle"
-                               Text="Logging in"
-                               FontSize="16" FontWeight="SemiBold"
-                               Foreground="#111827"
-                               HorizontalAlignment="Center" Margin="0,0,0,12" />
-                    <ProgressBar IsIndeterminate="True" Width="260" Height="6" Margin="0,0,0,14" />
-                    <TextBlock x:Name="BusyOverlayText"
-                               Text="Logging in and loading account data…"
-                               FontSize="13"
-                               Foreground="#374151"
-                               TextWrapping="Wrap"
-                               TextAlignment="Center"
-                               HorizontalAlignment="Center"
-                               Margin="0,0,0,18" />
-                    <Button x:Name="BusyOverlayCancelButton"
-                            Content="Cancel"
-                            Width="120"
-                            HorizontalAlignment="Center"
-                            Click="BusyOverlayCancelButton_Click" />
-                </StackPanel>
-            </Border>
-        </Border>
+        <views:BusyOverlayControl x:Name="BusyOverlay"
+                                  Grid.Column="0" Grid.ColumnSpan="2"
+                                  Cancelled="BusyOverlay_Cancelled" />
 
     </Grid>
 </Window>

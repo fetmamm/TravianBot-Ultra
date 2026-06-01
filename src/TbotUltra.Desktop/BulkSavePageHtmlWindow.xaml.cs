@@ -155,16 +155,20 @@ public partial class BulkSavePageHtmlWindow : Window
         OpenFolderButton.IsEnabled = !isSaving;
         ClearFolderButton.IsEnabled = !isSaving;
         StatusTextBlock.Text = message ?? (isSaving ? "Saving..." : string.Empty);
-        LoadingOverlay.Visibility = isSaving ? Visibility.Visible : Visibility.Collapsed;
-        LoadingCancelButton.IsEnabled = isSaving;
-        LoadingCancelButton.Visibility = Visibility.Visible;
-        LoadingTextBlock.Text = message ?? "Saving HTML pages...";
+        if (isSaving)
+        {
+            LoadingOverlay.Show("Bulk saving HTML", message ?? "Saving HTML pages...");
+        }
+        else
+        {
+            LoadingOverlay.Hide();
+        }
     }
 
     public void SetSaveResult(string message)
     {
         StatusTextBlock.Text = message;
-        LoadingOverlay.Visibility = Visibility.Collapsed;
+        LoadingOverlay.Hide();
         RefreshUiState();
     }
 
@@ -173,10 +177,9 @@ public partial class BulkSavePageHtmlWindow : Window
         SaveButton.IsEnabled = Pages.Any(item => item.IsSelected && !string.IsNullOrWhiteSpace(item.Page));
     }
 
-    private void LoadingCancelButton_Click(object sender, RoutedEventArgs e)
+    private void LoadingOverlay_Cancelled(object sender, EventArgs e)
     {
-        LoadingTextBlock.Text = "Cancelling...";
-        LoadingCancelButton.IsEnabled = false;
+        // The overlay already disabled its button and showed "Cancelling…"; forward to the host.
         CancelRequested?.Invoke(this, EventArgs.Empty);
     }
 }

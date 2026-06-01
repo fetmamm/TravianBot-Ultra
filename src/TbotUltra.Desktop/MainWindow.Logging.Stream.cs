@@ -800,6 +800,15 @@ public partial class MainWindow
             return true;
         }
 
+        // Verbose diagnostic lines (":verbose]" tag) are never alarms by definition. Their free-text
+        // payload often contains words like "timeout", "failed" or "error" (e.g.
+        // "[login:verbose] waiting for login confirmation (timeout=180s ...)") that would otherwise
+        // trip the keyword check below.
+        if (value.Contains(":verbose]"))
+        {
+            return false;
+        }
+
         // Normal "defer and retry later" signals are NOT errors. The worker raises a
         // TaskWaitException (and embeds queue_wait_seconds=) when a task simply needs to wait —
         // e.g. build queue full, hero already dispatched, resources still accumulating. These would

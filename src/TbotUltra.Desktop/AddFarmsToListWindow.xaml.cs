@@ -83,7 +83,7 @@ public partial class AddFarmsToListWindow : Window
                 firstWithSlots.IsChecked = true;
             }
 
-            LoadingOverlay.Visibility = Visibility.Collapsed;
+            LoadingOverlay.Hide();
             RefreshUiState();
         }
         catch (OperationCanceledException)
@@ -99,10 +99,9 @@ public partial class AddFarmsToListWindow : Window
         }
     }
 
-    private void LoadingCancelButton_Click(object sender, RoutedEventArgs e)
+    private void LoadingOverlay_Cancelled(object sender, EventArgs e)
     {
-        LoadingTextBlock.Text = "Cancelling…";
-        LoadingCancelButton.IsEnabled = false;
+        // The overlay already disabled its button and showed "Cancelling…"; we just cancel the load.
         _loadCts.Cancel();
     }
 
