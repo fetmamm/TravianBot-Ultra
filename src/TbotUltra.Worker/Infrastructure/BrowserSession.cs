@@ -194,8 +194,12 @@ public sealed class BrowserSession : IAsyncDisposable
                 var popupHost = Uri.TryCreate(popup.Url ?? string.Empty, UriKind.Absolute, out var popupUri)
                     ? popupUri.Host
                     : null;
+                // Note: about:blank yields an EMPTY (non-null) host. The bot's own extra pages
+                // (catapult waves via NewPageAsync) start as about:blank before they navigate, so we
+                // must require a real, non-empty host here — otherwise those tabs would be treated as
+                // "foreign" and closed before the catapult code can navigate them.
                 var foreignHost = workingHost is not null
-                    && popupHost is not null
+                    && !string.IsNullOrEmpty(popupHost)
                     && !string.Equals(popupHost, workingHost, StringComparison.OrdinalIgnoreCase);
 
                 if (foreignHost || await popup.OpenerAsync() is not null)

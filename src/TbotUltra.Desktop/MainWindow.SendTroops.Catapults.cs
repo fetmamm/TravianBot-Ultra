@@ -37,15 +37,26 @@ public partial class MainWindow
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
             await EnsureChromiumInstalledAsync();
             SetCatapultWavesStatus("Reading troops from Rally Point...");
-            var setupInfo = await _botService.ReadCatapultWaveSetupInfoAsync(
-                options,
-                AppendLog,
-                forceRefresh: false,
-                operationToken);
 
-            var dialog = new CatapultWaveWindow(ResolveCurrentTribeForFarming(), setupInfo.AvailableTroops, setupInfo.RallyPointLevel)
+            // Open the window immediately; it shows its own busy overlay and loads the troops via
+            // InitialLoadRequested, so the popup never appears empty while the Rally Point is read.
+            var dialog = new CatapultWaveWindow(ResolveCurrentTribeForFarming())
             {
                 Owner = this,
+                InitialLoadRequested = async (status, token) =>
+                {
+                    var initialSetupInfo = await _botService.ReadCatapultWaveSetupInfoAsync(
+                        options,
+                        message =>
+                        {
+                            AppendLog(message);
+                            status(message);
+                        },
+                        forceRefresh: false,
+                        operationToken);
+                    SetCatapultWavesStatus("Troops loaded from Rally Point.");
+                    return initialSetupInfo;
+                },
                 RefreshRequested = async (status, token) =>
                 {
                     status("Refreshing troops from Rally Point...");

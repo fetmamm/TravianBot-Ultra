@@ -123,7 +123,11 @@ public sealed partial class TravianClient
             await PauseForManualStepIfVisibleAsync("Manual verification appeared after sending catapult waves.", cancellationToken);
             await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
-            Notify($"[catapult] done — sent {sent}/{prepared.Count} prepared, failed {failed}, target ({request.X}|{request.Y})");
+            // Only mention failures when there are any: the word "failed" trips the alarm panel,
+            // so a clean run must not contain it, while a partial failure legitimately should.
+            Notify(failed > 0
+                ? $"[catapult] done — sent {sent}/{prepared.Count} prepared, {failed} failed, target ({request.X}|{request.Y})"
+                : $"[catapult] done — sent {sent}/{prepared.Count} prepared, target ({request.X}|{request.Y})");
             return new CatapultWaveRunResult(
                 plan.Attacks.Count,
                 prepared.Count,

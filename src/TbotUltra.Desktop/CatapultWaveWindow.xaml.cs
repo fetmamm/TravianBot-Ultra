@@ -25,11 +25,20 @@ public partial class CatapultWaveWindow : Window
     public Func<CatapultWaveRequest, Action<string>, CancellationToken, Task<CatapultWaveRunResult>>? StartRequested { get; init; }
     public Func<Action<string>, CancellationToken, Task<CatapultWaveSetupInfo>>? RefreshRequested { get; init; }
 
-    public CatapultWaveWindow(string tribe, IReadOnlyDictionary<string, long> availableTroops, int? rallyPointLevel)
+    /// <summary>
+    /// Optional first-time load run automatically when the window opens. While it runs the busy
+    /// overlay is shown so the popup never appears empty/unresponsive. If null, the window opens
+    /// with whatever troops were passed to the constructor.
+    /// </summary>
+    public Func<Action<string>, CancellationToken, Task<CatapultWaveSetupInfo>>? InitialLoadRequested { get; init; }
+
+    public CatapultWaveWindow(string tribe, IReadOnlyDictionary<string, long>? availableTroops = null, int? rallyPointLevel = null)
     {
         InitializeComponent();
         _troopTypes = TroopCatalog.ResolveTroopTypesForTribe(tribe);
-        _availableTroops = new Dictionary<string, long>(availableTroops, StringComparer.OrdinalIgnoreCase);
+        _availableTroops = availableTroops is null
+            ? new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, long>(availableTroops, StringComparer.OrdinalIgnoreCase);
         _rallyPointLevel = rallyPointLevel;
         ConfigureZeroDefaultTextBox(XTextBox);
         ConfigureZeroDefaultTextBox(YTextBox);
@@ -37,6 +46,42 @@ public partial class CatapultWaveWindow : Window
         BuildTroopGrid(WaveTroopsGrid, _waveInputs, isFirstAttackGrid: false);
         RefreshRallyPointLevelText();
         RefreshUiState();
+        Loaded += OnWindowLoaded;
+    }
+
+    private async void OnWindowLoaded(object sender, RoutedEventArgs e)
+    {
+        // Only run the auto-load once.
+        Loaded -= OnWindowLoaded;
+
+        if (InitialLoadRequested is null)
+        {
+            // Nothing to load — the overlay starts visible (XAML IsBusy=True), so hide it.
+            BusyOverlay.Hide();
+            return;
+        }
+
+        SetRefreshing(true);
+        BusyOverlay.Show("Catapult waves", "Reading troops from Rally Point…");
+        try
+        {
+            var setupInfo = await InitialLoadRequested(message => SetStatus(message, isAlarm: false), CancellationToken.None);
+            UpdateSetupInfo(setupInfo);
+            SetStatus("Troops loaded from Rally Point.", isAlarm: false);
+        }
+        catch (OperationCanceledException)
+        {
+            SetStatus("Loading canceled.", isAlarm: true);
+        }
+        catch (Exception ex)
+        {
+            SetStatus(ex.Message, isAlarm: true);
+        }
+        finally
+        {
+            BusyOverlay.Hide();
+            SetRefreshing(false);
+        }
     }
 
     #region UI building
@@ -135,6 +180,7 @@ public partial class CatapultWaveWindow : Window
         }
 
         SetRunning(true);
+        BusyOverlay.Show("Sending catapult waves", "Preparing catapult waves…");
         try
         {
             SetStatus("Preparing catapult waves...", isAlarm: false);
@@ -156,6 +202,7 @@ public partial class CatapultWaveWindow : Window
         }
         finally
         {
+            BusyOverlay.Hide();
             SetRunning(false);
         }
     }
@@ -261,6 +308,7 @@ public partial class CatapultWaveWindow : Window
         }
 
         SetRefreshing(true);
+        BusyOverlay.Show("Catapult waves", "Refreshing troops from Rally Point…");
         try
         {
             SetStatus("Refreshing troops from Rally Point...", isAlarm: false);
@@ -278,6 +326,7 @@ public partial class CatapultWaveWindow : Window
         }
         finally
         {
+            BusyOverlay.Hide();
             SetRefreshing(false);
         }
     }
@@ -653,6 +702,12 @@ public partial class CatapultWaveWindow : Window
         StatusTextBlock.Foreground = isAlarm
             ? new SolidColorBrush(Color.FromRgb(153, 27, 27))
             : new SolidColorBrush(Color.FromRgb(55, 65, 81));
+
+        // Mirror live progress into the busy overlay so the user sees what's happening there too.
+        if (!isAlarm && BusyOverlay.IsBusy)
+        {
+            BusyOverlay.Text = status;
+        }
     }
 
     private static string FormatLargeCount(long value)
