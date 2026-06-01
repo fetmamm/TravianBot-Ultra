@@ -254,6 +254,7 @@ public sealed partial class TravianClient
     public async Task RefreshAccountFeatureSignalsAsync(CancellationToken cancellationToken = default)
     {
         LogFunctionStarted();
+        Notify($"[flavor] {_config.ServerFlavor} (isPrivate={_config.IsPrivateServer}, baseUrl='{_config.BaseUrl}')");
 
         // Plus / Gold Club / Tribe rarely change. Re-querying them on every tight worker tick
         // (e.g. upgrade_building_to_max retries every ~4s) wasted ~300ms each. Skip the network
