@@ -4114,6 +4114,15 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                     if (Number.isFinite(parsed)) return parsed;
                   }
 
+                  // Official Travian (T4.6): the available count is shown after the input as
+                  // "<input> / <span>123</span>" inside the same cell (span.none means zero).
+                  for (let sib = input.nextElementSibling; sib; sib = sib.nextElementSibling) {
+                    if (sib.tagName === 'SPAN') {
+                      const n = Number.parseInt((sib.textContent || '').replace(/[^\d]/g, ''), 10);
+                      if (Number.isFinite(n)) return n;
+                    }
+                  }
+
                   if (input.disabled || input.getAttribute('disabled') !== null) return 0;
 
                   const maxValue = input.getAttribute('max') || '';
