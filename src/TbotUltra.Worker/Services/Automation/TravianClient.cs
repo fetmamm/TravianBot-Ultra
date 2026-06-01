@@ -1114,6 +1114,26 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         }
     }
 
+    // True when Travian shows its own "auto-reload failed" UI on any timer: a <span class="timer no-reload">
+    // wrapping a refresh icon (img/refresh.png). When this appears the page is stuck — the countdown has
+    // expired but the expected reload never fired — and any value/level we read from it is stale. Detection
+    // is a separate signal from "duration == 0" because the timer's value may be negative ("counting=down
+    // value=-60") rather than zero. Callers that depend on fresh state should force a reload when this is true.
+    private async Task<bool> IsPageMarkedStaleAsync()
+    {
+        try
+        {
+            return await _page.EvaluateAsync<bool>(
+                """
+                () => !!document.querySelector('span.timer.no-reload, .timer.no-reload')
+                """);
+        }
+        catch (PlaywrightException)
+        {
+            return false;
+        }
+    }
+
     private bool IsCurrentUrlForPath(string pathOrUrl)
     {
         if (string.IsNullOrWhiteSpace(_page.Url))
@@ -1169,7 +1189,36 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         _lastEnsureLoggedInSucceeded = loggedIn;
         if (!loggedIn)
         {
-            throw new InvalidOperationException($"Not logged in. Current page state is '{await LoginStateAsync()}'.");
+            // Session may have expired during a long idle wait (Travian logs the user out and
+            // redirects to login.php). Re-use the existing LoginAsync flow rather than throwing —
+            // BotTaskRunner already calls LoginAsync at the start of every feature, so this just
+            // covers the in-feature drop case (and the keep-alive idle path). Other non-logged-in
+            // states (captcha, manual_step, unknown) still need human attention, so keep throwing.
+            var state = await LoginStateAsync();
+            if (state == "logged_out")
+            {
+                Notify("[ensure-logged-in] session expired — attempting auto-relogin");
+                try
+                {
+                    await LoginAsync(cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _lastEnsureLoggedInSucceeded = false;
+                    throw new InvalidOperationException($"Auto-relogin failed: {ex.Message}", ex);
+                }
+                _lastEnsureLoggedInAt = DateTimeOffset.UtcNow;
+                _lastEnsureLoggedInSucceeded = await IsLoggedInAsync();
+                if (!_lastEnsureLoggedInSucceeded)
+                {
+                    throw new InvalidOperationException("Auto-relogin completed but session is still not logged in.");
+                }
+                Notify("[ensure-logged-in] auto-relogin succeeded");
+                await TryEmitUiSyncSnapshotAsync(cancellationToken);
+                return;
+            }
+
+            throw new InvalidOperationException($"Not logged in. Current page state is '{state}'.");
         }
         Notify("Logged in confirmed");
         await TryEmitUiSyncSnapshotAsync(cancellationToken);

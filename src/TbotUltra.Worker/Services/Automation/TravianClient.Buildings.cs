@@ -1245,14 +1245,18 @@ public sealed partial class TravianClient
                 cancellationToken: cancellationToken);
             if (durationSeconds is int dur)
             {
-                if (dur <= 0)
+                // Also reload when Travian shows its own "auto-reload failed" marker on the timer:
+                // the duration may have ticked into a negative value rather than exactly zero, so
+                // dur<=0 alone misses it. IsPageMarkedStaleAsync catches the visual .timer.no-reload
+                // indicator regardless of the parsed duration.
+                if (dur <= 0 || await IsPageMarkedStaleAsync())
                 {
                     consecutiveZeroDurationReloads += 1;
                     if (consecutiveZeroDurationReloads >= 3)
                     {
                         return $"Smithy: research timer stuck at 00:00:00 after 3 reloads. Manual review needed. Upgrades clicked: {totalUpgradeClicks}.";
                     }
-                    Notify($"Smithy: timer at 00:00:00, reloading (attempt {consecutiveZeroDurationReloads}/3).");
+                    Notify($"Smithy: timer at 00:00:00 or page marked stale, reloading (attempt {consecutiveZeroDurationReloads}/3).");
                     await TryReloadSmithyAsync(cancellationToken);
                     continue;
                 }
@@ -3143,6 +3147,7 @@ public sealed partial class TravianClient
         // without burning a second on the happy path. Each iteration runs three cheap reads:
         // queue, active constructions, and (NEW) the slot level itself — the latter catches
         // instant-complete servers where the upgrade finishes before the queue can hold it.
+        var stalePageReloads = 0;
         for (var i = 0; i < 2; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -3151,6 +3156,28 @@ public sealed partial class TravianClient
             // Each poll iteration must observe FRESH state — bypass the ReadActiveConstructions
             // cache so a change since the last 800ms window isn't hidden by a stale result.
             InvalidateActiveConstructionsCache();
+
+            // If Travian's own "auto-reload failed" marker is visible on the page (a build timer
+            // ticked past zero but the page never reloaded), our level / queue reads below would
+            // see pre-completion state. Force a reload and re-poll. Don't count this as a "did not
+            // confirm" attempt — the iteration burned its budget waiting on a stale DOM. Cap the
+            // retries at 2 so a persistent marker (server problem, blocked reload) can't loop forever.
+            if (await IsPageMarkedStaleAsync())
+            {
+                if (stalePageReloads >= 2)
+                {
+                    Notify("Build queue page still marked stale after 2 reloads; continuing with possibly stale state.");
+                }
+                else
+                {
+                    stalePageReloads += 1;
+                    Notify($"Build queue page is stale (Travian auto-reload failed); reloading (attempt {stalePageReloads}/2).");
+                    await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+                    InvalidateActiveConstructionsCache();
+                    i--; // re-run this iteration after the reload
+                    continue;
+                }
+            }
 
             // Check 1: did the slot's level advance? On fast servers the build completes before
             // the queue can show it; this read is the only reliable success signal there.

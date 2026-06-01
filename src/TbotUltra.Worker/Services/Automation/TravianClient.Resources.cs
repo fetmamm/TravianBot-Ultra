@@ -2038,7 +2038,11 @@ public sealed partial class TravianClient
             var resourceTimers = resourceConstructions
                 .Where(item => item.TimeLeftSeconds is int seconds && seconds > 0)
                 .ToList();
-            var hadStaleResourceTimer = resourceConstructions.Count > 0 && resourceTimers.Count == 0;
+            // Also treat the page as stale when Travian's own .timer.no-reload marker is present:
+            // that marker means the in-page auto-reload failed, so even if some timer values look
+            // plausible the rest of the DOM may not reflect the current construction state.
+            var hadStaleResourceTimer = (resourceConstructions.Count > 0 && resourceTimers.Count == 0)
+                || await IsPageMarkedStaleAsync();
             if (hadStaleResourceTimer)
             {
                 Notify("Resource queue timer is zero or stale; reloading resource fields before deferring.");
