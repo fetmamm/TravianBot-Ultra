@@ -310,7 +310,8 @@ public sealed partial class TravianClient
                 """
                 () => {
                   const clean = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
-                  const checkAll = document.querySelector("input#sAll[type='checkbox'], .footer .markAll input.check[type='checkbox'], .markAll input[type='checkbox']");
+                  // Official Travian (T4.6) uses id="sAll1"/"sAll2" for select-all (not "sAll").
+                  const checkAll = document.querySelector("input#sAll[type='checkbox'], input[id^='sAll'][type='checkbox'], .footer .markAll input.check[type='checkbox'], .markAll input[type='checkbox']");
                   if (checkAll && !checkAll.checked) {
                     checkAll.click();
                   }
@@ -327,6 +328,13 @@ public sealed partial class TravianClient
 
                   if (!checkAll && checkboxes.length === 0) {
                     return false;
+                  }
+
+                  // Official Travian (T4.6) messages submit button: <button name="mark" value="read" id="mark">.
+                  const officialMark = document.querySelector("button#mark[name='mark'], button[name='mark'][value='read' i]");
+                  if (officialMark && !officialMark.disabled) {
+                    officialMark.click();
+                    return true;
                   }
 
                   const contentNode = Array.from(document.querySelectorAll('div.button-content'))
@@ -420,7 +428,9 @@ public sealed partial class TravianClient
     {
         try
         {
-            return await _page.EvaluateAsync<bool>(
+            // Step 1: trigger "Mark all as read". Official Travian (T4.6) uses a button with class
+            // "markAsRead" (onclick handleMarkAsRead); SS uses a button-content / value label.
+            var triggered = await _page.EvaluateAsync<bool>(
                 """
                 () => {
                   const clean = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -428,6 +438,9 @@ public sealed partial class TravianClient
                     const text = clean(value);
                     return text.includes('mark all as read') || text.includes('all as read') || text.includes('alle als gelesen');
                   };
+
+                  const official = document.querySelector("button.markAsRead, button[onclick*='handleMarkAsRead']");
+                  if (official && !official.disabled) { official.click(); return true; }
 
                   const contentNode = Array.from(document.querySelectorAll('div.button-content'))
                     .find((node) => isMarkAllAsRead(node.textContent || ''));
@@ -447,6 +460,23 @@ public sealed partial class TravianClient
                   return true;
                 }
                 """);
+
+            if (!triggered)
+            {
+                return false;
+            }
+
+            // Step 2: official Travian shows a confirmation dialog with a confirm button
+            // (onclick processMarkAsRead). Click it if it appears (best-effort, fire-and-forget).
+            await Task.Delay(400);
+            await _page.EvaluateAsync(
+                """
+                () => {
+                  const confirm = document.querySelector("button[onclick*='processMarkAsRead'], .dialog button.confirm, button.confirm.negativeAction");
+                  if (confirm && !confirm.disabled) confirm.click();
+                }
+                """);
+            return true;
         }
         catch (PlaywrightException ex) when (IsExecutionContextDestroyed(ex))
         {
