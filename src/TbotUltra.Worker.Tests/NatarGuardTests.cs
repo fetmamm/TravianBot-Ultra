@@ -17,10 +17,10 @@ public sealed class NatarGuardTests
             new ThrowingCaptchaSolver());
 
         var logs = new List<string>();
+        // ServerFlavor is derived from BaseUrl; ts1.travian.com resolves to Official.
         var options = new BotOptions
         {
             BaseUrl = "https://ts1.travian.com",
-            ServerFlavor = ServerFlavor.Official,
         };
 
         var count = await runner.EnsureNatarFarmCacheAndReturnToFarmListAsync(options, logs.Add);

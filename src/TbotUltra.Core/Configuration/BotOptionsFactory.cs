@@ -18,19 +18,12 @@ public static class BotOptionsFactory
         var queueWaitThresholdMode = configuration[BotOptionPayloadKeys.QueueWaitThresholdMode] ?? "smart";
 
         var baseUrl = (configuration["base_url"] ?? string.Empty).TrimEnd('/');
-        // The server host is the authoritative flavor signal (e.g. *.ss-travi.com => SsTravi).
-        // Only fall back to an explicit server_flavor config when no base_url is set, so a stale
-        // server_flavor value left over from a previous account/server can never override the
-        // actual host (which previously made SS-Travi navigate to official-only /hero/* URLs).
-        var serverFlavor = string.IsNullOrWhiteSpace(baseUrl)
-            ? (ServerFlavorDetector.ParseExplicit(configuration["server_flavor"]) ?? ServerFlavor.Official)
-            : ServerFlavorDetector.FromBaseUrl(baseUrl);
 
         return new BotOptions
         {
             ServerName = configuration["server_name"] ?? string.Empty,
             BaseUrl = baseUrl,
-            ServerFlavor = serverFlavor,
+            // ServerFlavor is a computed property derived from BaseUrl — no assignment needed.
             LoginPath = configuration["login_path"] ?? "/login.php",
             VillageOverviewPath = configuration["village_overview_path"] ?? "/dorf1.php",
             Headless = configuration.GetValue("headless", false),
@@ -152,7 +145,6 @@ public static class BotOptionsFactory
         {
             ServerName = source.ServerName,
             BaseUrl = source.BaseUrl,
-            ServerFlavor = source.ServerFlavor,
             LoginPath = source.LoginPath,
             VillageOverviewPath = source.VillageOverviewPath,
             Headless = headlessOverride ?? source.Headless,
