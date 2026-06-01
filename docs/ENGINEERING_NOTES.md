@@ -140,3 +140,55 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
 4. `dotnet build` + `dotnet test`.
 5. **Verifiera live** mot officiell — och en snabb SS-körning för att bekräfta ingen regression.
 6. Uppdatera tabellen i avsnitt 6 + ev. Beslutslogg/fallgropar.
+
+---
+
+## 8. Hur nya funktioner ska byggas
+
+**Gyllene regel:** ny kod får **inte** göra god-klasserna (`TravianClient`, `MainWindow`) större.
+Extrahera hellre. Bygg beteendebevarande och testbart.
+
+### Ny bot-förmåga (Worker)
+- **Stateless parsing → egen klass + enhetstester.** Det som tolkar DOM/text till data ska ligga
+  i en ren klass (t.ex. `XxxParser`/`XxxCalculator`) utan I/O, så den kan unit-testas. Lägg den
+  **inte** som ännu en metod i `TravianClient`-monoliten.
+- **Navigation/klick → tunn `TravianClient`-partial** som hämtar HTML och **delegerar** tolkningen
+  till parsern. Håll sekvenslogiken kort.
+- **Selektorer:** additiva + flavor-aware (se §2). Aldrig ersätt en SS-selektor.
+- **Task:** registrera via `BotTaskRunner`-handler-dictionaryn (befintligt mönster).
+
+### Nytt UI (Desktop)
+- **ViewModel-mönster** — använd `TroopTrainingViewModel` som mall. Logik i VM/service,
+  **inte** i `MainWindow`-code-behind.
+- **Async-handlers via en `SafeInvokeAsync`-hjälpare** (try/catch → logg), inte rå `async void`
+  (obevakade undantag kan krascha UI:t).
+- **Loop/CTS-livscykel via `LoopController`** — inga nya spridda `CancellationTokenSource`-fält.
+
+### Checklista för en ny feature
+1. Stateless logik i egen, testad klass.
+2. Selektorer additiva + flavor-aware; sökväg via flavor-aware helper om den skiljer.
+3. `dotnet build TbotUltra.sln` + `dotnet test`.
+4. **Verifiera live** på officiell **och** snabb SS-körning (ingen regression).
+5. Uppdatera §6 (status) + ev. §4 (beslut) / §5 (fallgropar).
+
+---
+
+## 9. Målarkitektur / refaktoriseringsriktning
+
+Vi gör **ingen omskrivning och inget nytt ramverk** — riktningen är **stegvis, beteendebevarande**
+förbättring mot de mönster som redan finns. Se `docs/REFACTOR_PLAN.md` för mätningar och prioordning.
+
+**Prioordning (från REFACTOR_PLAN, lägst risk först):**
+1. Fortsätt `LoopController`-extraktionen (threading/CTS-livscykel).
+2. Inför `SafeInvokeAsync` och flytta `async void`-handlers dit.
+3. Flytta residual code-behind till tematiska partials/services.
+4. Extrahera **stateless parsers** ur `TravianClient` (med enhetstester).
+5. Inför VM-gränser panel för panel (`TroopTrainingViewModel` som mall).
+
+**Lämna orört:** `TravianClient`-partialernas **navigations-/sekvenslogik** (fungerande men bräcklig).
+Rör bara **stateless parsing** — inte klick-/navigeringsordningen.
+
+**Riktmärken för "bra" framåt:**
+- En ny förmåga ska kunna unit-testas till >50 % utan browser (parsing isolerad).
+- Inga nya rå `async void` / spridda CTS-fält.
+- God-klasserna ska **krympa eller stå still**, aldrig växa.
