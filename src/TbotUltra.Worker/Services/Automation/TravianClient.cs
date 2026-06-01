@@ -3029,6 +3029,24 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 return m ? altNorm(m[1]) : null;
               };
 
+              // Most reliable on official Travian (T4.6): building slots and their images carry
+              // the village tribe as a CSS class token, e.g. "buildingSlot a19 g0 aid19 gaul"
+              // and "building g23 gaul". Use getAttribute so SVG className objects are handled.
+              const classNorm = (raw) => {
+                const c = (raw || '').toLowerCase();
+                if (/\bgaul\b/.test(c)) return 'Gauls';
+                if (/\bteuton\b/.test(c)) return 'Teutons';
+                if (/\broman\b/.test(c)) return 'Romans';
+                if (/\begyptian\b/.test(c)) return 'Egyptians';
+                if (/\bhun\b/.test(c)) return 'Huns';
+                if (/\bspartan\b/.test(c)) return 'Spartans';
+                return null;
+              };
+              for (const node of document.querySelectorAll('div.buildingSlot, img.building')) {
+                const fromClass = classNorm(node.getAttribute('class'));
+                if (fromClass) return fromClass;
+              }
+
               // Primary: tribe icon img (works directly from dorf1/dorf2).
               for (const img of document.querySelectorAll('img.nationBig, img[src*="/tribes/"], img[src*="nation"], img[alt]')) {
                 const fromAlt = altNorm(img.getAttribute('alt'));
@@ -3037,13 +3055,15 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 if (fromSrc) return fromSrc;
               }
 
+              // Note: a bare 'body' catch-all was removed — scanning the whole page text for a
+              // tribe word false-matched a stray "roman" on official Travian and got cached.
+              // Returning 'Unknown' (not cached, retried on dorf2) is safer than a wrong tribe.
               const selectors = [
                 '[class*="tribe" i]',
                 '[id*="tribe" i]',
                 '.playerInfo',
                 '#sidebarBoxActiveVillage',
-                '#sidebarBoxVillagelist',
-                'body'
+                '#sidebarBoxVillagelist'
               ];
 
               for (const selector of selectors) {
@@ -4474,7 +4494,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             throw new InvalidOperationException($"Upgrade candidate index is missing for slot {slotId}.");
         }
 
-        await EnsureExpectedBuildSlotPageAsync(slotId, "click detected upgrade candidate");
+        await EnsureExpectedBuildSlotPageAsync(slotId, "click detected upgrade candidate", cancellationToken);
 
         if (await TryClickOfficialPrimaryUpgradeButtonAsync(cancellationToken))
         {

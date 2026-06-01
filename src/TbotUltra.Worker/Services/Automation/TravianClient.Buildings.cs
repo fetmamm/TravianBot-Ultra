@@ -2788,7 +2788,7 @@ public sealed partial class TravianClient
                 await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
                 await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the upgrade page.", cancellationToken);
                 await EnsureLoggedInAsync();
-                await EnsureExpectedBuildSlotPageAsync(slotId, "analyze upgrade");
+                await EnsureExpectedBuildSlotPageAsync(slotId, "analyze upgrade", cancellationToken);
                 await ApplyActionDelayAsync(cancellationToken);
 
                 var rawJson = await _page.EvaluateAsync<string>(
@@ -3794,14 +3794,23 @@ public sealed partial class TravianClient
         return string.Join(" ", decoded.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)).Trim();
     }
 
-    private async Task EnsureExpectedBuildSlotPageAsync(int slotId, string operationLabel)
+    private async Task EnsureExpectedBuildSlotPageAsync(int slotId, string operationLabel, CancellationToken cancellationToken = default)
     {
-        var currentUrl = _page.Url;
-        var currentSlotId = ExtractSlotIdFromUrl(currentUrl);
+        var currentSlotId = ExtractSlotIdFromUrl(_page.Url);
         if (currentSlotId != slotId)
         {
-            throw new InvalidOperationException(
-                $"{operationLabel} expected build.php?id={slotId}, but current url is '{currentUrl}'.");
+            // A prior read in the upgrade flow (ReadActiveConstructionsAsync / ReadBuildQueueAsync)
+            // can navigate away from the build slot page to dorf2.php. Re-open the slot so the
+            // upgrade click targets the right building instead of failing on the wrong page.
+            // (Notably triggered on official Travian, where build.php?id=N redirects to add &gid=.)
+            await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
+            await EnsureLoggedInAsync();
+            currentSlotId = ExtractSlotIdFromUrl(_page.Url);
+            if (currentSlotId != slotId)
+            {
+                throw new InvalidOperationException(
+                    $"{operationLabel} expected build.php?id={slotId}, but current url is '{_page.Url}'.");
+            }
         }
 
         var hasBuildContext = await _page.EvaluateAsync<bool>(

@@ -175,7 +175,13 @@ public static class LogClassifier
             "logged in confirmed",
             "ui sync snapshot",
             "current resource production for ui",
-            "preliminary target");
+            "preliminary target",
+            // Browser/session/navigation plumbing — high-volume, not actionable in Clean mode.
+            "[browser-op",
+            "[browser-session",
+            "[browser]",
+            "[nav]",
+            "[ensure-logged-in");
     }
 
     private static bool Contains(string haystack, params string[] needles)
