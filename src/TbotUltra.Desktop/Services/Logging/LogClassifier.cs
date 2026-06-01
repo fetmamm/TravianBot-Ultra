@@ -181,7 +181,8 @@ public static class LogClassifier
             "[browser-session",
             "[browser]",
             "[nav]",
-            "[ensure-logged-in");
+            "[ensure-logged-in",
+            "[flavor]");
     }
 
     private static bool Contains(string haystack, params string[] needles)
