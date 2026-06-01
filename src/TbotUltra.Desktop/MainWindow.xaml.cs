@@ -1060,7 +1060,7 @@ public partial class MainWindow : Window
             // operations, and turning it on before post-login analysis finishes lets those ops race the
             // login on the shared page (tab flicker). The finally block clears this flag.
             _visibleBrowserLoginInProgress = !options.Headless;
-            await _botService.ExecuteLoginAsync(
+            var snapshot = await _botService.ExecuteLoginAndLoadPostLoginSnapshotAsync(
                 options,
                 AppendLog,
                 keepBrowserOpenAfterLogin: !options.Headless,
@@ -1074,7 +1074,6 @@ public partial class MainWindow : Window
             _inboxAutoEnabled = true;
             RefreshNatarsProfileAnalyzedFromCache();
             var officialServer = IsOfficialTravianServer(options);
-            var snapshot = await _botService.LoadPostLoginSnapshotAsync(options, AppendLog, cancellationToken: operationToken);
             ApplyPostLoginSnapshot(snapshot);
             await RefreshResourceSnapshotForUiAsync(
                 options,

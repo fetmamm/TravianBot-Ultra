@@ -202,6 +202,38 @@ public sealed class BotTaskRunner
             });
     }
 
+    public async Task<PostLoginSnapshot> ExecuteLoginAndLoadPostLoginSnapshotAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default,
+        bool keepBrowserOpenAfterLogin = false)
+    {
+        _ = keepBrowserOpenAfterLogin;
+        PostLoginSnapshot? snapshot = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: true,
+            cancellationToken,
+            async client =>
+            {
+                log($"Starting login for server {options.ServerName}.");
+                await client.LoginAsync(cancellationToken);
+                await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken, skipFeatureRefresh: true);
+                log("Login completed and browser session saved.");
+                if (!options.Headless)
+                {
+                    log("Browser stays open (headless is disabled).");
+                }
+
+                snapshot = await LoadPostLoginSnapshotAsync(client, options, log, cancellationToken);
+            });
+
+        return snapshot ?? throw new InvalidOperationException("Could not load post-login snapshot.");
+    }
+
     public async Task<PostLoginSnapshot> LoadPostLoginSnapshotAsync(
         BotOptions options,
         Action<string> log,
@@ -217,41 +249,95 @@ public sealed class BotTaskRunner
             cancellationToken,
             async client =>
             {
-                log($"Loading post-login data for server {options.ServerName}.");
                 await client.LoginAsync(cancellationToken);
                 await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken, skipFeatureRefresh: true);
-
-                // SS-Travi keeps the old profile refresh. Official Travian can read the post-login
-                // village list from the current dorf1/sidebar, avoiding visible profile<->dorf1 flicker.
-                await client.ReadAccountSnapshotAsync(
-                    forceRefreshVillages: options.IsPrivateServer,
-                    preferCurrentPageVillages: !options.IsPrivateServer,
-                    cancellationToken);
-                var villageStatus = await client.ReadVillageStatusAsync(cancellationToken);
-                if (options.PostLoginReadTroopTrainingQueue)
-                {
-                    var troopQueues = await client.ReadTroopTrainingQueuesAsync(villageStatus.Buildings, cancellationToken);
-                    villageStatus = villageStatus with { TroopTrainingQueues = troopQueues };
-                }
-                var inboxStatus = new InboxStatus(villageStatus.UnreadMessages, villageStatus.UnreadReports);
-
-                await client.NavigateToResourceFieldsAsync(cancellationToken);
-                var adventureCount = await client.RefreshAdventureCountAsync(forceReload: false, cancellationToken);
-
-                snapshot = new PostLoginSnapshot(villageStatus, inboxStatus, adventureCount);
+                snapshot = await LoadPostLoginSnapshotAsync(client, options, log, cancellationToken);
             });
 
         return snapshot ?? throw new InvalidOperationException("Could not load post-login snapshot.");
     }
 
-public async Task<bool> ReadAndPersistGoldClubStatusAsync(
+    private async Task<PostLoginSnapshot> LoadPostLoginSnapshotAsync(
+        TravianClient client,
+        BotOptions options,
+        Action<string> log,
+        CancellationToken cancellationToken)
+    {
+        log($"Loading post-login data for server {options.ServerName}.");
+
+        var accountSnapshot = await client.ReadAccountSnapshotAsync(
+            forceRefreshVillages: true,
+            preferCurrentPageVillages: false,
+            restorePageAfterProfile: false,
+            suppressEnsureUiSync: true,
+            cancellationToken);
+
+        var buildingStatus = await client.ReadBuildingsStatusAsync(cancellationToken);
+        var villageStatus = await client.ReadVillageStatusAsync(
+            accountSnapshot.Villages,
+            buildingStatus.Buildings,
+            cancellationToken);
+
+        if (options.PostLoginReadTroopTrainingQueue)
+        {
+            var troopQueues = await client.ReadTroopTrainingQueuesAsync(villageStatus.Buildings, cancellationToken);
+            villageStatus = villageStatus with { TroopTrainingQueues = troopQueues };
+        }
+
+        var inboxStatus = new InboxStatus(villageStatus.UnreadMessages, villageStatus.UnreadReports);
+        var adventureCount = await client.RefreshAdventureCountAsync(forceReload: false, cancellationToken);
+        PersistStableAccountSignals(client, accountSnapshot.Tribe, log);
+
+        return new PostLoginSnapshot(villageStatus, inboxStatus, adventureCount);
+    }
+
+    private void PersistStableAccountSignals(
+        TravianClient client,
+        string? fallbackTribe,
+        Action<string> log)
+    {
+        _accountAnalysisStore.TryLoad(client.AccountName, out var existing, client.ServerUrl);
+
+        var tribe = IsKnownTribe(client.KnownTribe)
+            ? client.KnownTribe!
+            : IsKnownTribe(fallbackTribe)
+                ? fallbackTribe!
+                : existing?.Tribe ?? "Unknown";
+        var goldClubEnabled = client.KnownGoldClubEnabled == true || existing?.GoldClubEnabled == true;
+
+        if (!IsKnownTribe(tribe) && !goldClubEnabled)
+        {
+            return;
+        }
+
+        var completed = new AccountAnalysisSnapshot(
+            SchemaVersion: AccountAnalysisConstants.CurrentSchemaVersion,
+            AnalyzedAtUtc: DateTimeOffset.UtcNow,
+            AccountName: client.AccountName,
+            ServerUrl: client.ServerUrl,
+            Tribe: IsKnownTribe(tribe) ? tribe : "Unknown",
+            GoldClubEnabled: goldClubEnabled,
+            BuildingCatalog: existing?.BuildingCatalog ?? (IsKnownTribe(tribe) ? BuildingCatalogService.GetCatalogForTribe(tribe) : []),
+            AutoCelebrationEnabled: existing?.AutoCelebrationEnabled,
+            AutomationLoopEnabledGroups: existing?.AutomationLoopEnabledGroups,
+            AutomationLoopVisibleGroups: existing?.AutomationLoopVisibleGroups);
+
+        _accountAnalysisStore.Save(completed);
+        log($"[cache] stable account signals saved for '{completed.AccountName}' (tribe={completed.Tribe}, goldclub={completed.GoldClubEnabled}).");
+    }
+
+    private static bool IsKnownTribe(string? tribe)
+        => !string.IsNullOrWhiteSpace(tribe)
+           && !string.Equals(tribe, "Unknown", StringComparison.OrdinalIgnoreCase);
+
+    public async Task<bool> ReadAndPersistGoldClubStatusAsync(
         BotOptions options,
         Action<string> log,
         string? accountName = null,
         CancellationToken cancellationToken = default)
     {
         var account = _accountProvider.LoadAccount(accountName);
-        _accountAnalysisStore.TryLoad(account.Name, out var existing);
+        _accountAnalysisStore.TryLoad(account.Name, out var existing, options.BaseUrl);
         var detectedGoldClubEnabled = false;
         var serverUrl = options.BaseUrl.TrimEnd('/');
         var tribe = existing?.Tribe ?? "Unknown";
@@ -1287,7 +1373,8 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
         {
             var session = new BrowserSession(options, account, _projectContext.RootPath, log: log);
             var page = await session.OpenPageAsync(cancellationToken);
-            var client = CreateClient(page, options, account, interactive, log);
+            var sessionCache = CreateSeededSessionCache(account, options, log);
+            var client = CreateClient(page, options, account, interactive, log, sessionCache);
             return new ClientLease(session, client, false);
         }
 
@@ -1353,8 +1440,12 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             _sharedVisibleAccountName = account.Name;
             _sharedVisibleBaseUrl = desiredBaseUrl;
             // Fresh browser/account => start a clean session cache so no stale signals carry over.
-            _sharedVisibleSessionCache = new TravianSessionCache();
+            _sharedVisibleSessionCache = CreateSeededSessionCache(account, options, log);
             log("Opened shared browser window.");
+        }
+        else
+        {
+            SeedStableAccountSignals(_sharedVisibleSessionCache, account, options, log);
         }
 
         log($"[browser-session] visible page count after lease={TryGetSharedPageCount()} url='{_sharedVisiblePage?.Url ?? "-"}'");
@@ -1410,6 +1501,42 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
             captchaAutoSolver: options.IsPrivateServer ? _captchaAutoSolver : null,
             statusCallback: log,
             sessionCache: sessionCache);
+    }
+
+    private TravianSessionCache CreateSeededSessionCache(
+        AccountOptions account,
+        BotOptions options,
+        Action<string> log)
+    {
+        var sessionCache = new TravianSessionCache();
+        SeedStableAccountSignals(sessionCache, account, options, log);
+        return sessionCache;
+    }
+
+    private void SeedStableAccountSignals(
+        TravianSessionCache sessionCache,
+        AccountOptions account,
+        BotOptions options,
+        Action<string> log)
+    {
+        if (!_accountAnalysisStore.TryLoad(account.Name, out var analysis, options.BaseUrl))
+        {
+            return;
+        }
+
+        if (IsKnownTribe(analysis?.Tribe) && !IsKnownTribe(sessionCache.SessionTribe))
+        {
+            sessionCache.SessionTribe = analysis!.Tribe;
+            sessionCache.CachedTribePlusAt = DateTimeOffset.UtcNow;
+            log($"[cache] tribe='{analysis.Tribe}' loaded for '{account.Name}'.");
+        }
+
+        if (analysis?.GoldClubEnabled == true && sessionCache.CachedGoldClubEnabled != true)
+        {
+            sessionCache.CachedGoldClubEnabled = true;
+            sessionCache.CachedTribePlusAt = DateTimeOffset.UtcNow;
+            log($"[cache] goldclub=True loaded for '{account.Name}'.");
+        }
     }
 
     private async Task FinalizeLeaseAsync(ClientLease lease, Action<string> log)

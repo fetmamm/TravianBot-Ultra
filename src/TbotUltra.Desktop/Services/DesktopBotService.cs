@@ -122,6 +122,11 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
         return _taskRunner.ExecuteLoginAsync(options, log, null, cancellationToken, keepBrowserOpenAfterLogin);
     }
 
+    public Task<PostLoginSnapshot> ExecuteLoginAndLoadPostLoginSnapshotAsync(BotOptions options, Action<string> log, bool keepBrowserOpenAfterLogin, CancellationToken cancellationToken)
+    {
+        return _taskRunner.ExecuteLoginAndLoadPostLoginSnapshotAsync(options, log, null, cancellationToken, keepBrowserOpenAfterLogin);
+    }
+
     public Task<PostLoginSnapshot> LoadPostLoginSnapshotAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.LoadPostLoginSnapshotAsync(options, log, null, cancellationToken);

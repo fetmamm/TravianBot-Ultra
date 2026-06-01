@@ -14,6 +14,10 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
+    private static readonly TimeSpan LoopPickVerboseThrottle = TimeSpan.FromSeconds(30);
+    private readonly object _loopPickVerboseLogGate = new();
+    private readonly Dictionary<string, DateTimeOffset> _loopPickVerboseLogAtByKey = new(StringComparer.Ordinal);
+
     private async Task TriggerQueueAutoRunAsync()
     {
         if (_loopTask is not null && !_loopTask.IsCompleted)
@@ -352,7 +356,9 @@ public partial class MainWindow
         var orderedGroups = GetContinuousLoopEnabledGroupsInOrder().ToList();
         if (orderedGroups.Count <= 0)
         {
-            AppendLog("[loop-pick:verbose] no enabled groups — nothing to schedule");
+            AppendLoopPickVerbose(
+                "[loop-pick:verbose] no enabled groups — nothing to schedule",
+                "no-enabled-groups");
             return null;
         }
 
@@ -364,7 +370,9 @@ public partial class MainWindow
             if (group == QueueGroup.Construction && !IsConstructionGroupReady())
             {
                 lastSkipReason = $"group={group} skipped (construction group not ready)";
-                AppendLog($"[loop-pick:verbose] {lastSkipReason}");
+                AppendLoopPickVerbose(
+                    $"[loop-pick:verbose] {lastSkipReason}",
+                    $"group:{group}:construction-not-ready");
                 continue;
             }
 
@@ -376,14 +384,18 @@ public partial class MainWindow
             if (head is null)
             {
                 lastSkipReason = $"group={group} skipped (no pending/running/paused items)";
-                AppendLog($"[loop-pick:verbose] {lastSkipReason}");
+                AppendLoopPickVerbose(
+                    $"[loop-pick:verbose] {lastSkipReason}",
+                    $"group:{group}:empty");
                 continue;
             }
 
             if (head.Status != QueueStatus.Pending)
             {
                 lastSkipReason = $"group={group} head task='{head.TaskName}' is {head.Status} (not Pending)";
-                AppendLog($"[loop-pick:verbose] {lastSkipReason}");
+                AppendLoopPickVerbose(
+                    $"[loop-pick:verbose] {lastSkipReason}",
+                    $"group:{group}:task:{head.Id}:status:{head.Status}");
                 continue;
             }
 
@@ -391,16 +403,56 @@ public partial class MainWindow
             {
                 var waitSec = (head.NextAttemptAt - now).TotalSeconds;
                 lastSkipReason = $"group={group} head task='{head.TaskName}' waiting {waitSec:F0}s (NextAttemptAt in future)";
-                AppendLog($"[loop-pick:verbose] {lastSkipReason}");
+                AppendLoopPickVerbose(
+                    $"[loop-pick:verbose] {lastSkipReason}",
+                    $"group:{group}:task:{head.Id}:waiting");
                 continue;
             }
 
             return head;
         }
 
-        AppendLog($"[loop-pick:verbose] no item selected from {orderedGroups.Count} group(s)"
-            + (lastSkipReason is null ? string.Empty : $" — last reason: {lastSkipReason}"));
+        AppendLoopPickVerbose(
+            $"[loop-pick:verbose] no item selected from {orderedGroups.Count} group(s)"
+                + (lastSkipReason is null ? string.Empty : $" — last reason: {lastSkipReason}"),
+            $"no-selected:{orderedGroups.Count}:{BuildLoopPickSkipKey(lastSkipReason)}");
         return null;
+    }
+
+    private void AppendLoopPickVerbose(string message, string key)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var shouldLog = false;
+        lock (_loopPickVerboseLogGate)
+        {
+            if (!_loopPickVerboseLogAtByKey.TryGetValue(key, out var lastLogAt)
+                || now - lastLogAt >= LoopPickVerboseThrottle)
+            {
+                _loopPickVerboseLogAtByKey[key] = now;
+                shouldLog = true;
+            }
+        }
+
+        if (shouldLog)
+        {
+            AppendLog(message);
+        }
+    }
+
+    private static string BuildLoopPickSkipKey(string? skipReason)
+    {
+        if (string.IsNullOrWhiteSpace(skipReason))
+        {
+            return "none";
+        }
+
+        var waitingIndex = skipReason.IndexOf(" waiting ", StringComparison.Ordinal);
+        if (waitingIndex >= 0)
+        {
+            return skipReason[..waitingIndex] + " waiting";
+        }
+
+        return skipReason;
     }
 
     private async Task MaybeCheckInboxDuringContinuousLoopAsync()

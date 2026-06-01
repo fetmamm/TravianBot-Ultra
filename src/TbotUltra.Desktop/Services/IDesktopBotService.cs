@@ -41,6 +41,7 @@ public interface IDesktopBotService
     Task<CatapultWaveSetupInfo> ReadCatapultWaveSetupInfoAsync(BotOptions options, Action<string> log, bool forceRefresh, CancellationToken cancellationToken);
     Task<CatapultWaveRunResult> StartCatapultWavesAsync(BotOptions options, CatapultWaveRequest request, Action<string> log, CancellationToken cancellationToken);
     Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepBrowserOpenAfterLogin, CancellationToken cancellationToken);
+    Task<PostLoginSnapshot> ExecuteLoginAndLoadPostLoginSnapshotAsync(BotOptions options, Action<string> log, bool keepBrowserOpenAfterLogin, CancellationToken cancellationToken);
     Task<PostLoginSnapshot> LoadPostLoginSnapshotAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task ExecuteLogoutAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task MarkMessagesAsReadAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken);

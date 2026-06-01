@@ -9,6 +9,9 @@
 - Försök att använda samma struktur, stil och namngivning som redan finns i projektet.
 - Skriv tydlig och praktisk kod framför smart men svårläst kod.
 - All kod skrivs på engelska. UI ska vara på engelska.
+- Duplicera inte kod i onödan. Försök återanvända om det går.
+- Skriv kod som går att återanvända och är enkel att underhålla och felsöka
+- Skriv loggar i nya funktioner med mer så det enkelt går att felöka i framtiden
 
 ## Vid ändringar
 - Ändra inte befintliga funktioner i onödan.

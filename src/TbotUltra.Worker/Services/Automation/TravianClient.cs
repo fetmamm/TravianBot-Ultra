@@ -115,6 +115,7 @@ public sealed partial class TravianClient
     private DateTimeOffset _lastEnsureLoggedInAt { get => _session.LastEnsureLoggedInAt; set => _session.LastEnsureLoggedInAt = value; }
     private DateTimeOffset _lastUiSyncAt = DateTimeOffset.MinValue;
     private bool _lastEnsureLoggedInSucceeded { get => _session.LastEnsureLoggedInSucceeded; set => _session.LastEnsureLoggedInSucceeded = value; }
+    private int _suppressEnsureUiSyncDepth;
     private static readonly object NatarCacheSync = new();
     private static readonly Dictionary<string, List<NatarCoordinateJs>> CachedNatarCoordinatesByAccount = new(StringComparer.OrdinalIgnoreCase);
 
@@ -156,16 +157,31 @@ public sealed partial class TravianClient
 
     public string AccountName => _account.Name;
     public string ServerUrl => _config.BaseUrl.TrimEnd('/');
+    public string? KnownTribe => IsKnownTribe(_sessionTribe) ? _sessionTribe : IsKnownTribe(_cachedTribe) ? _cachedTribe : null;
+    public bool? KnownGoldClubEnabled => _cachedGoldClubEnabled;
 
     public async Task LoginAsync(CancellationToken cancellationToken = default)
     {
         Notify($"[login] account='{_account.Name}' server='{ServerUrl}' — starting");
         await PauseForManualStepIfVisibleAsync("Manual verification appeared before login.", cancellationToken);
-        if (await IsLoggedInAsync())
+        var state = await LoginStateAsync();
+        if (state == "logged_in")
         {
             Notify($"[login] already logged in as '{_account.Name}'");
             await RefreshAccountFeatureSignalsAsync(cancellationToken);
             return;
+        }
+
+        if (state == "unknown" && IsLikelyGamePageUrl(_page.Url))
+        {
+            Notify("[login] state unknown on game page; rechecking dorf1 before opening login page.");
+            await GotoAsync(_config.VillageOverviewPath, cancellationToken);
+            if (await IsLoggedInAsync())
+            {
+                Notify($"[login] already logged in as '{_account.Name}' after dorf1 recheck");
+                await RefreshAccountFeatureSignalsAsync(cancellationToken);
+                return;
+            }
         }
 
 
@@ -256,16 +272,14 @@ public sealed partial class TravianClient
         LogFunctionStarted();
         Notify($"[flavor] {_config.ServerFlavor} (isPrivate={_config.IsPrivateServer}, baseUrl='{_config.BaseUrl}')");
 
-        // Plus / Gold Club / Tribe rarely change. Re-querying them on every tight worker tick
-        // (e.g. upgrade_building_to_max retries every ~4s) wasted ~300ms each. Skip the network
-        // round-trips when all three signals are already cached AND the cache is < 60s old.
+        // Plus can change during a round. Tribe cannot, and Gold Club only matters as a latched true.
         if (_cachedTravianPlusActive.HasValue
-            && _cachedGoldClubEnabled.HasValue
-            && _sessionTribe is not null
+            && (_cachedGoldClubEnabled == true)
+            && IsKnownTribe(_sessionTribe)
             && DateTimeOffset.UtcNow - _cachedTribePlusAt < TimeSpan.FromSeconds(60))
         {
             Notify($"[plus] active={_cachedTravianPlusActive.Value} (cached)");
-            Notify($"[goldclub] active={_cachedGoldClubEnabled.Value} (cached)");
+            Notify("[goldclub] active=True (cached)");
             Notify($"[tribe] {_sessionTribe} (cached)");
             return;
         }
@@ -304,12 +318,16 @@ public sealed partial class TravianClient
             }
         }
 
-        if (_sessionTribe is null)
+        if (IsKnownTribe(_sessionTribe))
+        {
+            Notify($"[tribe] {_sessionTribe} (cached)");
+        }
+        else
         {
             try
             {
                 var tribe = await ReadTribeAsync(cancellationToken);
-                if (!string.IsNullOrWhiteSpace(tribe) && !string.Equals(tribe, "Unknown", StringComparison.OrdinalIgnoreCase))
+                if (IsKnownTribe(tribe))
                 {
                     _sessionTribe = tribe;
                     _cachedTribe = tribe;
@@ -430,6 +448,22 @@ public sealed partial class TravianClient
         return await ReadCurrentVillageStatusAsync(cancellationToken);
     }
 
+    public async Task<VillageStatus> ReadVillageStatusAsync(
+        IReadOnlyList<Village> knownVillages,
+        IReadOnlyList<Building> knownBuildings,
+        CancellationToken cancellationToken = default)
+    {
+        Notify("ReadVillageStatusAsync started with known villages/buildings");
+        if (!IsCurrentUrlForPath(_config.VillageOverviewPath))
+        {
+            await GotoAsync(_config.VillageOverviewPath, cancellationToken);
+            await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the village overview.", cancellationToken);
+        }
+
+        await EnsureLoggedInAsync();
+        return await ReadCurrentVillageStatusAsync(cancellationToken, knownVillages, knownBuildings);
+    }
+
     public async Task<bool> CheckLoggedInAsync(CancellationToken cancellationToken = default)
     {
         Notify("CheckLoggedInAsync started");
@@ -440,44 +474,61 @@ public sealed partial class TravianClient
     public async Task<AccountSnapshot> ReadAccountSnapshotAsync(
         bool forceRefreshVillages = false,
         bool preferCurrentPageVillages = false,
+        bool restorePageAfterProfile = true,
+        bool suppressEnsureUiSync = false,
         CancellationToken cancellationToken = default)
     {
         Notify("ReadAccountSnapshotAsync started");
-        if (!IsCurrentUrlForPath(_config.VillageOverviewPath))
+        if (suppressEnsureUiSync)
         {
-            await GotoAsync(_config.VillageOverviewPath, cancellationToken);
+            _suppressEnsureUiSyncDepth++;
         }
 
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading account info.", cancellationToken);
-        await EnsureLoggedInAsync();
-
-        IReadOnlyList<Village> villages;
-        if (forceRefreshVillages)
+        try
         {
-            villages = await ReadVillagesFromServerAsync(cancellationToken);
-            if (villages.Count > 0)
+            if (!IsCurrentUrlForPath(_config.VillageOverviewPath))
             {
-                _cachedVillages = villages.ToList();
-                _cachedVillagesAt = DateTimeOffset.UtcNow;
-                if (villages.Any(v => v.Population.HasValue))
+                await GotoAsync(_config.VillageOverviewPath, cancellationToken);
+            }
+
+            await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading account info.", cancellationToken);
+            await EnsureLoggedInAsync();
+
+            IReadOnlyList<Village> villages;
+            if (forceRefreshVillages)
+            {
+                villages = await ReadVillagesFromServerAsync(cancellationToken, restorePreviousUrl: restorePageAfterProfile);
+                if (villages.Count > 0)
                 {
-                    _cachedVillagesPopulationAt = DateTimeOffset.UtcNow;
+                    _cachedVillages = villages.ToList();
+                    _cachedVillagesAt = DateTimeOffset.UtcNow;
+                    if (villages.Any(v => v.Population.HasValue))
+                    {
+                        _cachedVillagesPopulationAt = DateTimeOffset.UtcNow;
+                    }
                 }
             }
-        }
-        else
-        {
-            villages = preferCurrentPageVillages
-                ? await ReadVillagesPreferCacheAsync(cancellationToken)
-                : await ReadVillagesAsync(cancellationToken);
-        }
+            else
+            {
+                villages = preferCurrentPageVillages
+                    ? await ReadVillagesPreferCacheAsync(cancellationToken)
+                    : await ReadVillagesAsync(cancellationToken);
+            }
 
-        return new AccountSnapshot(
-            Tribe: await ReadTribeAsync(cancellationToken),
-            ActiveVillage: await ReadActiveVillageNameAsync(cancellationToken),
-            VillageCount: villages.Count,
-            Villages: villages,
-            ServerTimeUtc: _serverTimeUtc);
+            return new AccountSnapshot(
+                Tribe: await ReadTribeAsync(cancellationToken),
+                ActiveVillage: await ReadActiveVillageNameAsync(cancellationToken),
+                VillageCount: villages.Count,
+                Villages: villages,
+                ServerTimeUtc: _serverTimeUtc);
+        }
+        finally
+        {
+            if (suppressEnsureUiSync)
+            {
+                _suppressEnsureUiSyncDepth--;
+            }
+        }
     }
 
 public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(CancellationToken cancellationToken = default)
@@ -1077,10 +1128,15 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         }
     }
 
-    private async Task<VillageStatus> ReadCurrentVillageStatusAsync(CancellationToken cancellationToken)
+    private async Task<VillageStatus> ReadCurrentVillageStatusAsync(
+        CancellationToken cancellationToken,
+        IReadOnlyList<Village>? knownVillages = null,
+        IReadOnlyList<Building>? knownBuildings = null)
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared before reading village status.", cancellationToken);
-        var villages = await ReadVillagesAsync(cancellationToken);
+        var villages = knownVillages is { Count: > 0 }
+            ? knownVillages
+            : await ReadVillagesAsync(cancellationToken);
         var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
         var buildQueue = await ReadBuildQueueAsync(cancellationToken);
         var remaining = ResolveShortestQueueDurationSeconds(buildQueue);
@@ -1096,7 +1152,9 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             Villages: villages,
             Resources: resources,
             ResourceFields: await ReadResourceFieldsAsync(cancellationToken),
-            Buildings: await ReadBuildingsAsync(cancellationToken),
+            Buildings: knownBuildings is { Count: > 0 }
+                ? knownBuildings
+                : await ReadBuildingsAsync(cancellationToken),
             BuildQueue: buildQueue,
             Tribe: await ReadTribeAsync(cancellationToken),
             VillageCount: villages.Count,
@@ -1272,14 +1330,20 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                     throw new InvalidOperationException("Auto-relogin completed but session is still not logged in.");
                 }
                 Notify("[ensure-logged-in] auto-relogin succeeded");
-                await TryEmitUiSyncSnapshotAsync(cancellationToken);
+                if (_suppressEnsureUiSyncDepth <= 0)
+                {
+                    await TryEmitUiSyncSnapshotAsync(cancellationToken);
+                }
                 return;
             }
 
             throw new InvalidOperationException($"Not logged in. Current page state is '{state}'.");
         }
         Notify($"[ensure-logged-in] confirmed url='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
-        await TryEmitUiSyncSnapshotAsync(cancellationToken);
+        if (_suppressEnsureUiSyncDepth <= 0)
+        {
+            await TryEmitUiSyncSnapshotAsync(cancellationToken);
+        }
     }
 
     private async Task TryEmitUiSyncSnapshotAsync(CancellationToken cancellationToken, bool force = false)
@@ -1439,6 +1503,24 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         }
 
         throw new InvalidOperationException("Could not find login button.");
+    }
+
+    private static bool IsLikelyGamePageUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            return false;
+        }
+
+        var path = uri.AbsolutePath;
+        return path.Equals("/dorf1.php", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("/dorf2.php", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("/spieler.php", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/build.php", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/profile", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/hero", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/messages", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/report", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -2333,7 +2415,9 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         _cachedVillagesAt = DateTimeOffset.UtcNow;
     }
 
-    private async Task<IReadOnlyList<Village>> ReadVillagesFromServerAsync(CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<Village>> ReadVillagesFromServerAsync(
+        CancellationToken cancellationToken,
+        bool restorePreviousUrl = true)
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading villages.", cancellationToken);
         var previousUrl = _page.Url;
@@ -2516,7 +2600,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         }
         finally
         {
-            if (!string.IsNullOrWhiteSpace(previousUrl))
+            if (restorePreviousUrl && !string.IsNullOrWhiteSpace(previousUrl))
             {
                 await GotoAsync(previousUrl, cancellationToken);
             }
@@ -3001,6 +3085,12 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
     private async Task<string> ReadTribeAsync(CancellationToken cancellationToken)
     {
+        var cached = KnownTribe;
+        if (!string.IsNullOrWhiteSpace(cached))
+        {
+            return cached;
+        }
+
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading tribe.", cancellationToken);
         var value = await _page.EvaluateAsync<string>(
             """
@@ -3086,13 +3176,26 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             }
             """);
 
-        return string.IsNullOrWhiteSpace(value) ? "Unknown" : value;
+        if (!IsKnownTribe(value))
+        {
+            return "Unknown";
+        }
+
+        _sessionTribe = value;
+        _cachedTribe = value;
+        _cachedTribePlusAt = DateTimeOffset.UtcNow;
+        return value;
     }
 
     private async Task<bool> ReadGoldClubEnabledAsync(CancellationToken cancellationToken)
     {
+        if (_cachedGoldClubEnabled == true)
+        {
+            return true;
+        }
+
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading gold club status.", cancellationToken);
-        return await _page.EvaluateAsync<bool>(
+        var enabled = await _page.EvaluateAsync<bool>(
             """
             () => {
               if (document.querySelector('#buttonBuild')) return true;
@@ -3101,7 +3204,18 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
               return /buildOff|buildOn|builder=On/.test(sidebar?.innerHTML || '');
             }
             """);
+
+        if (enabled)
+        {
+            _cachedGoldClubEnabled = true;
+        }
+
+        return enabled;
     }
+
+    private static bool IsKnownTribe(string? tribe)
+        => !string.IsNullOrWhiteSpace(tribe)
+           && !string.Equals(tribe, "Unknown", StringComparison.OrdinalIgnoreCase);
 
     private async Task EnsureRallyPointAndOpenFarmListPageAsync(CancellationToken cancellationToken)
     {

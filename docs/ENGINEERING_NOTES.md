@@ -101,6 +101,8 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   Skäl: config-bindning gjorde att en stale `server_flavor` feltolkade SS som Official.
 - **2026-06-01** — Behåll SS-selektor-fallbacks även om SS fasas ut (inerta/ofarliga på officiell);
   ta hellre bort **Natar-featuren** + tagga en `ss-stable`-punkt än att rensa spridda selektorer.
+- **2026-06-01** — `Tribe` är stabil per konto/server och får seedas från account analysis-cache.
+  `GoldClubEnabled` får bara latched-cachas när det är `true`; `false` ska kunna omprövas.
 
 ---
 
