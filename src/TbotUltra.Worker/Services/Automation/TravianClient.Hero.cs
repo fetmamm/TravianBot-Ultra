@@ -221,6 +221,8 @@ public sealed partial class TravianClient
     {
         var text = (statusText ?? string.Empty).ToLowerInvariant();
         return text.Contains("on the way", StringComparison.Ordinal)
+            || text.Contains("on its way", StringComparison.Ordinal) // official Travian (T4.6)
+            || text.Contains("arrival in", StringComparison.Ordinal)
             || text.Contains("back from", StringComparison.Ordinal)
             || text.Contains("returning", StringComparison.Ordinal);
     }
@@ -706,8 +708,12 @@ public sealed partial class TravianClient
             () => {
               const clean = (v) => (v || '').replace(/\s+/g, ' ').trim();
               const text = clean(document.body?.innerText || '');
-              const match = text.match(/back\s*in[^\d]*(\d{1,2}:\d{2}(?::\d{2})?)/i);
+              const match = text.match(/back\s*in[^\d]*(\d{1,2}:\d{2}(?::\d{2})?)/i)
+                || text.match(/arrival\s*in[^\d]*(\d{1,2}:\d{2}(?::\d{2})?)/i);
               if (match) return match[1];
+              // Official Travian (T4.6): the hero return/arrival countdown is a span.timerReact.
+              const timerReact = document.querySelector('span.timerReact, .timerReact');
+              if (timerReact) return clean(timerReact.textContent || '');
               const timer = document.querySelector('.heroReturn .timer, [class*="return" i] [class*="timer" i]');
               if (timer) return clean(timer.textContent || '');
               return null;
@@ -828,7 +834,11 @@ public sealed partial class TravianClient
             }
         }
 
-        var canSendByHp = !status.IsDead && (hpPercent ?? 0) >= minHpThreshold;
+        // On official Travian (T4.6) the hero HP bar is an SVG clip-path with no numeric value,
+        // so hpPercent is null there. Treat unknown HP as sendable on official only; SS keeps
+        // the strict threshold (a failed read should not dispatch a possibly-low hero there).
+        var canSendByHp = !status.IsDead
+            && (hpPercent.HasValue ? hpPercent.Value >= minHpThreshold : !_config.IsPrivateServer);
 
         if (adventureCount > 0 && canSendByHp && inVillage)
         {
@@ -932,7 +942,9 @@ public sealed partial class TravianClient
         }
 
         // Step 4: dispatch adventure if hero is in village, has HP and adventures exist.
-        var canSendByHp = !status.IsDead && (hpPercent ?? 0) >= Math.Clamp(minHpForAdventure, 1, 100);
+        // Unknown HP (null) is sendable on official Travian only (SVG HP bar, no numeric value).
+        var canSendByHp = !status.IsDead
+            && (hpPercent.HasValue ? hpPercent.Value >= Math.Clamp(minHpForAdventure, 1, 100) : !_config.IsPrivateServer);
         var heroReturnWaitSeconds = status.SecondsUntilReturn;
         if (adventureCount > 0 && canSendByHp && inVillage)
         {
@@ -989,7 +1001,21 @@ public sealed partial class TravianClient
     {
         return await _page.EvaluateAsync<int>(
             """
-            () => document.querySelectorAll('a.gotoAdventure[href*="start_adventure.php"]').length
+            () => {
+              // SS/legacy: each adventure is a gotoAdventure link.
+              const legacy = document.querySelectorAll('a.gotoAdventure[href*="start_adventure.php"]').length;
+              if (legacy > 0) return legacy;
+              // Official Travian (T4.6): adventures are rows in <table class="... adventureList">.
+              const official = document.querySelectorAll('table.adventureList tbody tr').length;
+              if (official > 0) return official;
+              // Last resort: the sidebar adventure badge count (a.adventure -> .content, e.g. "3").
+              const badge = document.querySelector('a.adventure[href*="/hero/adventures"] .content, a[href*="/hero/adventures"] .content');
+              if (badge) {
+                const n = parseInt((badge.textContent || '').replace(/[^\d]/g, ''), 10);
+                if (Number.isFinite(n)) return n;
+              }
+              return 0;
+            }
             """);
     }
 
@@ -1139,8 +1165,14 @@ public sealed partial class TravianClient
                 ?? parseInlineTimer(document.body?.innerText || '', [
                   /back\s+in\s*:?\s*(\d{1,3}:\d{2}:\d{2})/i,
                   /return\s+in\s*:?\s*(\d{1,3}:\d{2}:\d{2})/i,
-                  /arrival\s+in\s*:?\s*\d{1,3}:\d{2}:\d{2}(?:\s*hour)?\s*\|\s*back\s+in\s*:?\s*(\d{1,3}:\d{2}:\d{2})/i
-                ]);
+                  /arrival\s+in\s*:?\s*\d{1,3}:\d{2}:\d{2}(?:\s*hour)?\s*\|\s*back\s+in\s*:?\s*(\d{1,3}:\d{2}:\d{2})/i,
+                  // Official Travian (T4.6): "Arrival in 00:03:20 at 17:53".
+                  /arrival\s+in\s*:?\s*(\d{1,2}:\d{2}(?::\d{2})?)/i
+                ])
+                // Official countdown span, only trusted when the hero is on an adventure.
+                ?? (/on its way to an adventure/i.test(document.body?.innerText || '')
+                      ? parseTimer(document.querySelector('span.timerReact, .timerReact')?.textContent || '')
+                      : null);
 
               const exists = !!document.querySelector('#heroImage, #heroStatus, [class*="hero" i]');
               return JSON.stringify({
@@ -2232,7 +2264,15 @@ public sealed partial class TravianClient
                 // Anything else (52/53 = on the way, 51 = dead) => not in this village.
                 if (/heroStatus\d+/i.test(cls)) return false;
               }
-              // 2) Fallback: localized status text in the hero sidebar box.
+              // 2) Official Travian (T4.6): a hero on its way shows a statusRunning icon and an
+              // "on its way to an adventure" / "Arrival in <timerReact>" message; there is no
+              // heroStatus class. Any of these means the hero is NOT in the village.
+              if (document.querySelector('[class*="statusRunning"], .timerReact')) return false;
+              const officialBox = document.querySelector('#topBarHero, #heroV2, .heroV2');
+              const officialText = (officialBox?.textContent || '').toLowerCase();
+              if (/on its way|on the way to|arrival in/.test(officialText)) return false;
+
+              // 3) Fallback: localized status text in the hero sidebar box.
               const box = document.querySelector('#sidebarBoxHero, .heroSidebar, .heroStatusMessage');
               const text = (box?.textContent || '').toLowerCase();
               if (!text) return true; // unknown — don't block
