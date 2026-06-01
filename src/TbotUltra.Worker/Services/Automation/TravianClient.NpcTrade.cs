@@ -191,7 +191,9 @@ public sealed partial class TravianClient
             }
         }
 
-        var distributeRemaining = _page.Locator("#mobile_npc_distribute, #submitText button, button:has-text('distribution Resources remaining')").First;
+        // SS uses "distribution Resources remaining"; official Travian (T4.6) uses a button with
+        // value="Distribute remaining resources." (onclick exchangeResources.distribute(...)).
+        var distributeRemaining = _page.Locator("#mobile_npc_distribute, #submitText button, button:has-text('distribution Resources remaining'), button[onclick*='exchangeResources.distribute'], button[value='Distribute remaining resources.' i]").First;
         if (!await TryClickDialogButtonAsync(distributeRemaining, "distribution Resources remaining", cancellationToken))
         {
             return false;
@@ -199,6 +201,8 @@ public sealed partial class TravianClient
 
         await Task.Delay(400, cancellationToken);
 
+        // Official "Redeem" submit button is #npc_market_button (already covered), enabled only
+        // after the distribute step above.
         var distributeNow = _page.Locator("#mobile_npc_confirm, #npc_market_button, button:has-text('distribution right now')").First;
         if (!await TryClickDialogButtonAsync(distributeNow, "distribution right now", cancellationToken))
         {
