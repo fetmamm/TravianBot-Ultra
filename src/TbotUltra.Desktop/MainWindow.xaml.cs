@@ -722,6 +722,8 @@ public partial class MainWindow : Window
             SetNatarsProfileAnalyzed(false);
         }
 
+        // Hide/show Natar-only controls based on whether the active server is the private server.
+        ApplyNatarFeatureVisibility();
     }
 
     private void UpdateGoldClubInfo(bool? enabled)
@@ -1784,6 +1786,16 @@ public partial class MainWindow : Window
             if (!string.Equals(currentUrl, targetUrl, StringComparison.OrdinalIgnoreCase))
             {
                 config["base_url"] = targetUrl;
+                changed = true;
+            }
+
+            var currentFlavor = config["server_flavor"]?.GetValue<string>() ?? string.Empty;
+            var targetFlavor = ServerFlavorDetector.FromBaseUrl(targetUrl) == ServerFlavor.SsTravi
+                ? "ss_travi"
+                : "official";
+            if (!string.Equals(currentFlavor, targetFlavor, StringComparison.OrdinalIgnoreCase))
+            {
+                config["server_flavor"] = targetFlavor;
                 changed = true;
             }
 

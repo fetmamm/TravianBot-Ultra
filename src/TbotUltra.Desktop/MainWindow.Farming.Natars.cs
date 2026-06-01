@@ -15,8 +15,61 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
+    /// <summary>
+    /// True when the active server is the SS-Travi private server, where Natar villages exist.
+    /// Natar features are private-server-only and are hidden/disabled on official Travian servers.
+    /// </summary>
+    private bool IsNatarFarmingAvailable()
+    {
+        try
+        {
+            return LoadBotOptions().IsPrivateServer;
+        }
+        catch
+        {
+            // If options cannot be read, fail closed (treat as unavailable) so private-server
+            // features never leak onto an unknown/official server.
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Shows or hides the Natar-only controls based on the active server flavor.
+    /// Called on startup and whenever the active account/server changes.
+    /// </summary>
+    private void ApplyNatarFeatureVisibility()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.BeginInvoke(ApplyNatarFeatureVisibility);
+            return;
+        }
+
+        var visibility = IsNatarFarmingAvailable() ? Visibility.Visible : Visibility.Collapsed;
+        if (AnalyzeNatarsProfileButton is not null)
+        {
+            AnalyzeNatarsProfileButton.Visibility = visibility;
+        }
+
+        if (ShowNatarsListButton is not null)
+        {
+            ShowNatarsListButton.Visibility = visibility;
+        }
+
+        if (NatarsAnalyzedPanel is not null)
+        {
+            NatarsAnalyzedPanel.Visibility = visibility;
+        }
+    }
+
     private async void AnalyzeNatarsProfileButton_Click(object sender, RoutedEventArgs e)
     {
+        if (!IsNatarFarmingAvailable())
+        {
+            AppendLog("Natar farming is only available on the SS-Travi private server.");
+            return;
+        }
+
         if (!_farmingFeaturesAvailable)
         {
             AppendLog("Analyze natars profile is unavailable while Gold Club farming is disabled.");
@@ -67,6 +120,12 @@ public partial class MainWindow
 
     private async void ShowNatarsListButton_Click(object sender, RoutedEventArgs e)
     {
+        if (!IsNatarFarmingAvailable())
+        {
+            AppendLog("Natar farming is only available on the SS-Travi private server.");
+            return;
+        }
+
         if (!_natarsProfileAnalyzed)
         {
             return;

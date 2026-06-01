@@ -1330,7 +1330,8 @@
                                                         ToolTip="Starts manual farming with the selected farming settings."
                                                         Click="StartManualFarmingButton_Click" />
 
-                                                <StackPanel Grid.Row="0"
+                                                <StackPanel x:Name="NatarsAnalyzedPanel"
+                                                            Grid.Row="0"
                                                             Grid.Column="1"
                                                             Orientation="Horizontal"
                                                             VerticalAlignment="Center"

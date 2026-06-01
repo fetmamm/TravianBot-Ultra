@@ -13,6 +13,20 @@ public sealed class BotOptions
     [Required]
     public string BaseUrl { get; init; } = string.Empty;
 
+    /// <summary>
+    /// Which kind of Travian server this is. Controls gating of private-server-only
+    /// features (e.g. Natar farming). Resolved from <c>server_flavor</c> in config when set,
+    /// otherwise auto-detected from <see cref="BaseUrl"/>. Defaults to <see cref="ServerFlavor.Official"/>.
+    /// </summary>
+    [ConfigurationKeyName("server_flavor")]
+    public ServerFlavor ServerFlavor { get; init; } = ServerFlavor.Official;
+
+    /// <summary>
+    /// True when connected to the SS-Travi private server. Use this to gate
+    /// private-server-only behaviour so it stays disabled on official servers.
+    /// </summary>
+    public bool IsPrivateServer => ServerFlavor == ServerFlavor.SsTravi;
+
     [ConfigurationKeyName("login_path")]
     [Required]
     public string LoginPath { get; init; } = string.Empty;

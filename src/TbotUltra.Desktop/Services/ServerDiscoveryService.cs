@@ -7,6 +7,11 @@ namespace TbotUltra.Desktop.Services;
 
 public sealed class ServerDiscoveryService
 {
+    // Auto-discovery scrapes the SS-Travi server directory, which by definition only lists
+    // ss-travi.com game worlds. Official Travian (Travian Legends) servers are NOT listed here;
+    // they are added manually via the Server list window (Add server), which accepts any valid
+    // http/https URL. The ss-travi.com host filter below therefore only constrains what this
+    // scraper accepts from the SS-Travi index – it does not restrict official servers.
     private const string IndexUrl = "https://ss-travi.com/International/index.php";
 
     public async Task<List<ServerOption>> FetchServersAsync(CancellationToken cancellationToken = default)

@@ -17,10 +17,15 @@ public static class BotOptionsFactory
         var continuousFarmDispatchDelayMinutes = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes, 3), 1, 5);
         var queueWaitThresholdMode = configuration[BotOptionPayloadKeys.QueueWaitThresholdMode] ?? "smart";
 
+        var baseUrl = (configuration["base_url"] ?? string.Empty).TrimEnd('/');
+        var serverFlavor = ServerFlavorDetector.ParseExplicit(configuration["server_flavor"])
+            ?? ServerFlavorDetector.FromBaseUrl(baseUrl);
+
         return new BotOptions
         {
             ServerName = configuration["server_name"] ?? string.Empty,
-            BaseUrl = (configuration["base_url"] ?? string.Empty).TrimEnd('/'),
+            BaseUrl = baseUrl,
+            ServerFlavor = serverFlavor,
             LoginPath = configuration["login_path"] ?? "/login.php",
             VillageOverviewPath = configuration["village_overview_path"] ?? "/dorf1.php",
             Headless = configuration.GetValue("headless", false),
@@ -142,6 +147,7 @@ public static class BotOptionsFactory
         {
             ServerName = source.ServerName,
             BaseUrl = source.BaseUrl,
+            ServerFlavor = source.ServerFlavor,
             LoginPath = source.LoginPath,
             VillageOverviewPath = source.VillageOverviewPath,
             Headless = headlessOverride ?? source.Headless,

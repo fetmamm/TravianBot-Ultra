@@ -391,6 +391,15 @@ public async Task<bool> ReadAndPersistGoldClubStatusAsync(
         string? accountName = null,
         CancellationToken cancellationToken = default)
     {
+        // Defensive guard: Natar villages only exist on the SS-Travi private server.
+        // Skip the operation entirely on official servers, even if invoked programmatically
+        // (e.g. from the continuous loop), so the bot never navigates to the Natar profile there.
+        if (!options.IsPrivateServer)
+        {
+            log("Natar farm analysis skipped: only available on the SS-Travi private server.");
+            return 0;
+        }
+
         var count = 0;
         await ExecuteWithClientAsync(
             options,
