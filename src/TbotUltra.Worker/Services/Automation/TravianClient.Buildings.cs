@@ -171,6 +171,7 @@ public sealed partial class TravianClient
         int? lastKnownLevel = null;
         var transientRetries = 0;
         var constructionNpcTradeAttempted = false;
+        var heroTransferAttempted = false;
         for (var iteration = 0; iteration < safetyCap; iteration++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -238,6 +239,14 @@ public sealed partial class TravianClient
                 }
 
                 var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: false);
+                if (!heroTransferAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
+                {
+                    heroTransferAttempted = true;
+                    if (await TryHeroResourceTransferForConstructionAsync($"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}", cancellationToken))
+                    {
+                        continue;
+                    }
+                }
                 if (!constructionNpcTradeAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
                 {
                     constructionNpcTradeAttempted = true;
@@ -720,6 +729,7 @@ public sealed partial class TravianClient
         var upgrades = 0;
         var transientRetries = 0;
         var constructionNpcTradeAttempted = false;
+        var heroTransferAttempted = false;
 
         for (var iteration = 0; iteration < safetyCap; iteration++)
         {
@@ -789,6 +799,14 @@ public sealed partial class TravianClient
                 }
 
                 var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: false);
+                if (!heroTransferAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
+                {
+                    heroTransferAttempted = true;
+                    if (await TryHeroResourceTransferForConstructionAsync($"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}", cancellationToken))
+                    {
+                        continue;
+                    }
+                }
                 if (!constructionNpcTradeAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
                 {
                     constructionNpcTradeAttempted = true;
@@ -896,6 +914,7 @@ public sealed partial class TravianClient
         var buildingName = string.IsNullOrWhiteSpace(name) ? $"gid {gid}" : name.Trim();
         const int safetyCap = 6;
         var constructionNpcTradeAttempted = false;
+        var heroTransferAttempted = false;
 
         for (var attempt = 0; attempt < safetyCap; attempt++)
         {
@@ -948,6 +967,15 @@ public sealed partial class TravianClient
                         $"Building slot {slotId} construct {buildingName}",
                         60,
                         cancellationToken);
+
+                    if (!heroTransferAttempted)
+                    {
+                        heroTransferAttempted = true;
+                        if (await TryHeroResourceTransferForConstructionAsync($"Building slot {slotId} construct {buildingName}", cancellationToken))
+                        {
+                            continue;
+                        }
+                    }
 
                     if (!constructionNpcTradeAttempted)
                     {

@@ -309,6 +309,11 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
         return _taskRunner.ReadHeroAttributesAsync(options, log, null, cancellationToken);
     }
 
+    public Task<HeroInventoryResources> RefreshHeroInventoryAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.ReadHeroInventoryResourcesAsync(options, log, null, cancellationToken);
+    }
+
     public bool ConsumeBrowserClosedByUserSignal()
     {
         return _taskRunner.ConsumeBrowserClosedByUserSignal();

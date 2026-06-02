@@ -31,6 +31,7 @@ public static class BotOptionsPayloadApplier
         var heroHideMode = source.HeroHideMode;
         var heroContinuousAdventures = source.HeroContinuousAdventures;
         var autoCollectTasksEnabled = source.AutoCollectTasksEnabled;
+        var heroResourceTransferEnabled = source.HeroResourceTransferEnabled;
         var upgradeSelectorProfile = source.UpgradeSelectorProfile;
         var natarVillageSelection = source.NatarVillageSelection;
         var continuousFarmListNames = source.ContinuousFarmListNames;
@@ -39,6 +40,7 @@ public static class BotOptionsPayloadApplier
         var queueWaitThresholdMode = source.QueueWaitThresholdMode;
         var postLoginAnalyzeFarmlists = source.PostLoginAnalyzeFarmlists;
         var postLoginAnalyzeHero = source.PostLoginAnalyzeHero;
+        var postLoginAnalyzeHeroInventory = source.PostLoginAnalyzeHeroInventory;
         var postLoginReadTroopTrainingQueue = source.PostLoginReadTroopTrainingQueue;
         var postLoginAnalyzeBrewery = source.PostLoginAnalyzeBrewery;
         var troopTrainingBarracksEnabled = source.TroopTrainingBarracksEnabled;
@@ -280,6 +282,13 @@ public static class BotOptionsPayloadApplier
                     continue;
                 }
 
+                if (key.Equals(BotOptionPayloadKeys.HeroResourceTransferEnabled, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var heroResourceTransfer))
+                {
+                    heroResourceTransferEnabled = heroResourceTransfer;
+                    continue;
+                }
+
                 if (key.Equals(BotOptionPayloadKeys.UpgradeSelectorProfile, StringComparison.OrdinalIgnoreCase))
                 {
                     upgradeSelectorProfile = value;
@@ -330,6 +339,13 @@ public static class BotOptionsPayloadApplier
                     && bool.TryParse(value, out var analyzeHero))
                 {
                     postLoginAnalyzeHero = analyzeHero;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.PostLoginAnalyzeHeroInventory, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var analyzeHeroInventory))
+                {
+                    postLoginAnalyzeHeroInventory = analyzeHeroInventory;
                     continue;
                 }
 
@@ -795,6 +811,7 @@ public static class BotOptionsPayloadApplier
             QueueWaitThresholdMode = queueWaitThresholdMode,
             PostLoginAnalyzeFarmlists = postLoginAnalyzeFarmlists,
             PostLoginAnalyzeHero = postLoginAnalyzeHero,
+            PostLoginAnalyzeHeroInventory = postLoginAnalyzeHeroInventory,
             PostLoginReadTroopTrainingQueue = postLoginReadTroopTrainingQueue,
             PostLoginAnalyzeBrewery = postLoginAnalyzeBrewery,
             TroopTrainingBarracksEnabled = troopTrainingBarracksEnabled,
@@ -889,6 +906,7 @@ public static class BotOptionsPayloadApplier
             HeroHideMode = heroHideMode,
             HeroContinuousAdventures = heroContinuousAdventures,
             AutoCollectTasksEnabled = autoCollectTasksEnabled,
+            HeroResourceTransferEnabled = heroResourceTransferEnabled,
             UpgradeSelectorProfile = upgradeSelectorProfile,
             NatarVillageSelection = natarVillageSelection,
         };

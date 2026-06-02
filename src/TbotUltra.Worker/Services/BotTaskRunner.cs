@@ -288,9 +288,16 @@ public sealed class BotTaskRunner
 
         var inboxStatus = new InboxStatus(villageStatus.UnreadMessages, villageStatus.UnreadReports);
         var adventureCount = await client.RefreshAdventureCountAsync(forceReload: false, cancellationToken);
+
+        HeroInventoryResources? heroInventory = null;
+        if (options.PostLoginAnalyzeHeroInventory)
+        {
+            heroInventory = await client.ReadHeroInventoryResourcesAsync(cancellationToken);
+        }
+
         PersistStableAccountSignals(client, accountSnapshot.Tribe, log);
 
-        return new PostLoginSnapshot(villageStatus, inboxStatus, adventureCount);
+        return new PostLoginSnapshot(villageStatus, inboxStatus, adventureCount, heroInventory);
     }
 
     private void PersistStableAccountSignals(
@@ -1247,6 +1254,28 @@ public sealed class BotTaskRunner
             });
 
         return snapshot ?? throw new InvalidOperationException("Could not read hero attributes.");
+    }
+
+    public async Task<HeroInventoryResources> ReadHeroInventoryResourcesAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        HeroInventoryResources? resources = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                resources = await client.ReadHeroInventoryResourcesAsync(cancellationToken);
+                log($"Hero inventory: wood={resources.Wood}, clay={resources.Clay}, iron={resources.Iron}, crop={resources.Crop}.");
+            });
+
+        return resources ?? throw new InvalidOperationException("Could not read hero inventory resources.");
     }
 
     public async Task ExecuteLogoutAsync(

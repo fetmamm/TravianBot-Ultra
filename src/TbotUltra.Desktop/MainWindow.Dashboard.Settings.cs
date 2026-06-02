@@ -39,4 +39,45 @@ public partial class MainWindow
         config[BotOptionPayloadKeys.AutoCollectTasksEnabled] = AutoCollectTasksCheckBox.IsChecked == true;
         _botConfigStore.Save(config);
     }
+
+    private bool _suppressHeroResourceTransferConfigWrite;
+
+    private void ApplyHeroResourceTransferConfigToUi(BotOptions options)
+    {
+        if (HeroResourceTransferCheckBox is null)
+        {
+            return;
+        }
+
+        _suppressHeroResourceTransferConfigWrite = true;
+        try
+        {
+            HeroResourceTransferCheckBox.IsChecked = options.HeroResourceTransferEnabled;
+        }
+        finally
+        {
+            _suppressHeroResourceTransferConfigWrite = false;
+        }
+    }
+
+    private void HeroResourceTransferSetting_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_suppressHeroResourceTransferConfigWrite || _botConfigStore is null)
+        {
+            return;
+        }
+
+        var config = _botConfigStore.Load();
+        config[BotOptionPayloadKeys.HeroResourceTransferEnabled] = HeroResourceTransferCheckBox.IsChecked == true;
+        _botConfigStore.Save(config);
+    }
+
+    // Opens the Hero / Adventures tab so the user can reach the hero inventory settings.
+    private void HeroInventorySettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (MainTabControl is not null && HeroTabItem is not null)
+        {
+            MainTabControl.SelectedItem = HeroTabItem;
+        }
+    }
 }

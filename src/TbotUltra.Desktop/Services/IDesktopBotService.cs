@@ -71,6 +71,7 @@ public interface IDesktopBotService
     Task<int?> RefreshAdventureCountAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<bool> HasClaimableTasksOnCurrentPageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<HeroAttributeSnapshot> ReadHeroAttributesAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
+    Task<HeroInventoryResources> RefreshHeroInventoryAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     bool ConsumeBrowserClosedByUserSignal();
     Task ShutdownAsync(Action<string> log);
 }

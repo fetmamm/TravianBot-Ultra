@@ -824,6 +824,33 @@
                                                 </ContentControl.ToolTip>
                                             </ContentControl>
                                         </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                            <CheckBox x:Name="HeroResourceTransferCheckBox" Content="Use hero inventory resources"
+                                                      Foreground="#374151"
+                                                      VerticalAlignment="Center"
+                                                      Checked="HeroResourceTransferSetting_Changed" Unchecked="HeroResourceTransferSetting_Changed" />
+                                            <ContentControl Style="{StaticResource SettingInfoIconStyle}">
+                                                <ContentControl.ToolTip>
+                                                    <ToolTip MaxWidth="320">
+                                                        <TextBlock TextWrapping="Wrap"
+                                                                   Text="Official servers only. When an upgrade lacks resources, the bot pulls the missing wood/clay/iron/crop from the hero's inventory and then continues the upgrade. Off by default." />
+                                                    </ToolTip>
+                                                </ContentControl.ToolTip>
+                                            </ContentControl>
+                                            <Button x:Name="HeroInventorySettingsButton"
+                                                    Content="&#xE713;"
+                                                    FontFamily="Segoe MDL2 Assets"
+                                                    FontSize="13"
+                                                    Width="26"
+                                                    Height="22"
+                                                    Padding="0"
+                                                    Margin="6,0,0,0"
+                                                    VerticalAlignment="Center"
+                                                    Background="#FFFFFF"
+                                                    BorderBrush="#D1D5DB"
+                                                    ToolTip="Open hero inventory settings"
+                                                    Click="HeroInventorySettingsButton_Click" />
+                                        </StackPanel>
                                     </StackPanel>
                                 </Border>
                             </Grid>

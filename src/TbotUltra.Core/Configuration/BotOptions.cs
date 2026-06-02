@@ -86,6 +86,9 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.PostLoginAnalyzeHero)]
     public bool PostLoginAnalyzeHero { get; init; }
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.PostLoginAnalyzeHeroInventory)]
+    public bool PostLoginAnalyzeHeroInventory { get; init; }
+
     [ConfigurationKeyName(BotOptionPayloadKeys.PostLoginReadTroopTrainingQueue)]
     public bool PostLoginReadTroopTrainingQueue { get; init; }
 
@@ -372,6 +375,9 @@ public sealed class BotOptions
 
     [ConfigurationKeyName(BotOptionPayloadKeys.AutoCollectTasksEnabled)]
     public bool AutoCollectTasksEnabled { get; init; } = true;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.HeroResourceTransferEnabled)]
+    public bool HeroResourceTransferEnabled { get; init; }
 
     [ConfigurationKeyName("upgrade_selector_profile")]
     public string UpgradeSelectorProfile { get; init; } = "auto";

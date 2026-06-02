@@ -2215,6 +2215,80 @@ public sealed partial class TravianClient
         Notify("Hero attributes panel did not visibly expand after 2 toggle attempts — proceeding anyway.");
     }
 
+    // Reads the four resource consumables the hero is carrying (wood=item145, clay=item146,
+    // iron=item147, crop=item148) from the hero inventory grid. Official-only data, but the read
+    // itself is harmless on any server: a missing item simply reads as 0. Navigates to the hero
+    // inventory page so it can be called on demand from the desktop.
+    public async Task<HeroInventoryResources> ReadHeroInventoryResourcesAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Notify("[hero-inventory] reading resources from inventory");
+
+        await EnsureLoggedInAsync();
+        await GotoAsync(HeroInventoryPath, cancellationToken);
+        await WaitForNavigationSettledAsync(cancellationToken);
+        await EnsureLoggedInAsync();
+
+        // Give the React-rendered inventory grid a moment to appear; a timeout just falls through
+        // to a best-effort read (missing items read as 0).
+        try
+        {
+            await _page.WaitForSelectorAsync(
+                ".heroItems .heroItem .item",
+                new PageWaitForSelectorOptions { Timeout = 5000 });
+        }
+        catch (TimeoutException)
+        {
+        }
+        catch (PlaywrightException)
+        {
+        }
+
+        string rawJson;
+        try
+        {
+            rawJson = await _page.EvaluateAsync<string>(
+                """
+                () => {
+                  const readCount = (itemClass) => {
+                    const item = document.querySelector('.heroItems .item.' + itemClass);
+                    if (!item) return 0;
+                    const slot = item.closest('.heroItem');
+                    const countEl = slot ? slot.querySelector('.count') : null;
+                    const text = (countEl?.textContent || '').replace(/[^0-9]/g, '');
+                    return text ? Number(text) || 0 : 0;
+                  };
+                  return JSON.stringify({
+                    wood: readCount('item145'),
+                    clay: readCount('item146'),
+                    iron: readCount('item147'),
+                    crop: readCount('item148')
+                  });
+                }
+                """);
+        }
+        catch (Exception ex)
+        {
+            Notify($"[hero-inventory] read EvaluateAsync threw: {ex.GetType().Name}: {ex.Message}");
+            return new HeroInventoryResources();
+        }
+
+        if (string.IsNullOrWhiteSpace(rawJson))
+        {
+            Notify("[hero-inventory] read returned empty result");
+            return new HeroInventoryResources();
+        }
+
+        var resources = JsonSerializer.Deserialize<HeroInventoryResources>(
+                rawJson,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+            ?? new HeroInventoryResources();
+
+        Notify($"[hero-inventory] wood={resources.Wood} clay={resources.Clay} iron={resources.Iron} crop={resources.Crop}");
+        UpdateHeroInventoryCache(resources);
+        return resources;
+    }
+
     private async Task<HeroAttributeSnapshot> ReadHeroInventorySnapshotAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

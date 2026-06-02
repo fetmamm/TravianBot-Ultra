@@ -116,6 +116,12 @@ public sealed record HeroAttributeSnapshot(
     int? ReviveRemainingSeconds = null,
     string? HideMode = null);
 
+public sealed record HeroInventoryResources(
+    int Wood = 0,
+    int Clay = 0,
+    int Iron = 0,
+    int Crop = 0);
+
 public sealed record HeroAdventureDispatchResult(
     bool IsInHomeVillage,
     string? StatusText,
@@ -185,7 +191,8 @@ public sealed record InboxStatus(
 public sealed record PostLoginSnapshot(
     VillageStatus VillageStatus,
     InboxStatus InboxStatus,
-    int? AdventureCount);
+    int? AdventureCount,
+    HeroInventoryResources? HeroInventory = null);
 
 public sealed record PageHtmlCapture(string Url, string Html);
 

@@ -36,6 +36,12 @@ public sealed class HeroViewModel : BaseViewModel
     private string _adventureStatusText = "Adventures not loaded.";
     private string _heroStatusText = "Hero status: Unknown";
 
+    private string _heroInventoryWood = "-";
+    private string _heroInventoryClay = "-";
+    private string _heroInventoryIron = "-";
+    private string _heroInventoryCrop = "-";
+    private string _heroInventoryStatusText = "Hero inventory not loaded.";
+
     private int _minHpForAdventure = 60;
     private int _heroHpRegenPerDayPercent = 100;
     private bool _autoRevive = true;
@@ -96,6 +102,53 @@ public sealed class HeroViewModel : BaseViewModel
     {
         get => _heroStatusText;
         set => SetProperty(ref _heroStatusText, string.IsNullOrWhiteSpace(value) ? "Hero status: Unknown" : value);
+    }
+
+    /// <summary>Hero inventory resource amounts. Always shown (default "-") so they can be
+    /// refreshed in place by <see cref="ApplyInventory"/>.</summary>
+    public string HeroInventoryWood
+    {
+        get => _heroInventoryWood;
+        set => SetProperty(ref _heroInventoryWood, value);
+    }
+
+    public string HeroInventoryClay
+    {
+        get => _heroInventoryClay;
+        set => SetProperty(ref _heroInventoryClay, value);
+    }
+
+    public string HeroInventoryIron
+    {
+        get => _heroInventoryIron;
+        set => SetProperty(ref _heroInventoryIron, value);
+    }
+
+    public string HeroInventoryCrop
+    {
+        get => _heroInventoryCrop;
+        set => SetProperty(ref _heroInventoryCrop, value);
+    }
+
+    public string HeroInventoryStatusText
+    {
+        get => _heroInventoryStatusText;
+        set => SetProperty(ref _heroInventoryStatusText, value);
+    }
+
+    /// <summary>Applies a hero inventory read to the four resource fields.</summary>
+    public void ApplyInventory(HeroInventoryResources resources)
+    {
+        if (resources is null)
+        {
+            return;
+        }
+
+        HeroInventoryWood = resources.Wood.ToString();
+        HeroInventoryClay = resources.Clay.ToString();
+        HeroInventoryIron = resources.Iron.ToString();
+        HeroInventoryCrop = resources.Crop.ToString();
+        HeroInventoryStatusText = "Hero inventory updated.";
     }
 
     /// <summary>

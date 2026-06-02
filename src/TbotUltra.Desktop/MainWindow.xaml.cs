@@ -517,6 +517,7 @@ public partial class MainWindow : Window
         _troopTrainingViewModel.UpdateTroopOptions(ResolveStoredTroopTrainingTribe());
         _troopTrainingViewModel.ResetQueueStatus();
         _troopTrainingViewModel.ConfigChanged += OnTroopTrainingConfigChanged;
+        SubscribeToHeroInventoryUpdates();
         InitializeBuildingSlotPlaceholders();
         _farmLists.CollectionChanged += (_, _) =>
         {
@@ -706,6 +707,7 @@ public partial class MainWindow : Window
         ApplyResourceTransferConfigToUi(options);
         ApplyReinforcementConfigToUi(options);
         ApplyAutoCollectTasksConfigToUi(options);
+        ApplyHeroResourceTransferConfigToUi(options);
 
         try
         {
@@ -2048,6 +2050,12 @@ public partial class MainWindow : Window
         {
             ApplyHeroAdventureAvailability(snapshot.AdventureCount.Value);
             AppendLog($"Adventure count after login: {snapshot.AdventureCount.Value}.");
+        }
+
+        if (snapshot.HeroInventory is { } heroInventory)
+        {
+            _heroViewModel.ApplyInventory(heroInventory);
+            AppendLog($"Hero inventory after login: wood={heroInventory.Wood}, clay={heroInventory.Clay}, iron={heroInventory.Iron}, crop={heroInventory.Crop}.");
         }
     }
 

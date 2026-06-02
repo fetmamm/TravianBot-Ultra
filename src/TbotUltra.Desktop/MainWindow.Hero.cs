@@ -7,6 +7,7 @@ using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Tasks;
 using TbotUltra.Worker;
 using TbotUltra.Worker.Domain;
+using TbotUltra.Worker.Services;
 
 namespace TbotUltra.Desktop;
 
@@ -297,6 +298,59 @@ public partial class MainWindow
         {
             FailOperation(operationId, operationSw, ex);
             _heroViewModel.AdventureStatusText = $"Refresh failed: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Subscribes to the worker's hero-inventory cache updates so the Hero-tab fields reflect
+    /// reads and transfers that happen during automated runs (not just manual refreshes).
+    /// Unsubscribed in <see cref="OnClosed"/> to avoid leaking via the static event.
+    /// </summary>
+    private void SubscribeToHeroInventoryUpdates()
+    {
+        TravianClient.HeroInventoryUpdated += OnWorkerHeroInventoryUpdated;
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        TravianClient.HeroInventoryUpdated -= OnWorkerHeroInventoryUpdated;
+        base.OnClosed(e);
+    }
+
+    private void OnWorkerHeroInventoryUpdated(string accountName, HeroInventoryResources resources)
+    {
+        // Ignore updates for an account other than the one currently shown.
+        if (!string.Equals(accountName, _accountStore.ActiveAccountName(), StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        Dispatcher.InvokeAsync(() => _heroViewModel.ApplyInventory(resources));
+    }
+
+    /// <summary>
+    /// Operation-bracketed refresh of the hero inventory resources. Navigates to the hero
+    /// inventory page, reads the four resource amounts and updates the bound UI fields.
+    /// Called by the panel's Refresh-hero-inventory button (the panel toggles its own
+    /// IsEnabled around the call).
+    /// </summary>
+    internal async Task RefreshHeroInventoryCoreAsync()
+    {
+        var operationId = BeginOperation("Refresh hero inventory");
+        var operationSw = Stopwatch.StartNew();
+        try
+        {
+            await EnsureChromiumInstalledAsync();
+            var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            var resources = await _botService.RefreshHeroInventoryAsync(options, AppendLog, CancellationToken.None);
+            _heroViewModel.ApplyInventory(resources);
+            CompleteOperation(operationId, operationSw,
+                $"Hero inventory refreshed. wood={resources.Wood}, clay={resources.Clay}, iron={resources.Iron}, crop={resources.Crop}.");
+        }
+        catch (Exception ex)
+        {
+            FailOperation(operationId, operationSw, ex);
+            _heroViewModel.HeroInventoryStatusText = $"Hero inventory refresh failed: {ex.Message}";
         }
     }
 }

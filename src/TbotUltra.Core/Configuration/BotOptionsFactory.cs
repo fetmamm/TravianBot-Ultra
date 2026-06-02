@@ -43,6 +43,7 @@ public static class BotOptionsFactory
             QueueWaitThresholdMode = queueWaitThresholdMode,
             PostLoginAnalyzeFarmlists = configuration.GetValue(BotOptionPayloadKeys.PostLoginAnalyzeFarmlists, false),
             PostLoginAnalyzeHero = configuration.GetValue(BotOptionPayloadKeys.PostLoginAnalyzeHero, false),
+            PostLoginAnalyzeHeroInventory = configuration.GetValue(BotOptionPayloadKeys.PostLoginAnalyzeHeroInventory, false),
             PostLoginReadTroopTrainingQueue = configuration.GetValue(BotOptionPayloadKeys.PostLoginReadTroopTrainingQueue, false),
             PostLoginAnalyzeBrewery = configuration.GetValue(BotOptionPayloadKeys.PostLoginAnalyzeBrewery, false),
             TroopTrainingBarracksEnabled = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingBarracksEnabled, false),
@@ -135,6 +136,7 @@ public static class BotOptionsFactory
             HeroHideMode = configuration[BotOptionPayloadKeys.HeroHideMode] ?? "hide",
             HeroContinuousAdventures = configuration.GetValue(BotOptionPayloadKeys.HeroContinuousAdventures, false),
             AutoCollectTasksEnabled = configuration.GetValue(BotOptionPayloadKeys.AutoCollectTasksEnabled, true),
+            HeroResourceTransferEnabled = configuration.GetValue(BotOptionPayloadKeys.HeroResourceTransferEnabled, false),
             UpgradeSelectorProfile = configuration[BotOptionPayloadKeys.UpgradeSelectorProfile] ?? "auto",
             NatarVillageSelection = configuration["natar_village_selection"] ?? "farm_villages",
         };
@@ -167,6 +169,7 @@ public static class BotOptionsFactory
             QueueWaitThresholdMode = source.QueueWaitThresholdMode,
             PostLoginAnalyzeFarmlists = source.PostLoginAnalyzeFarmlists,
             PostLoginAnalyzeHero = source.PostLoginAnalyzeHero,
+            PostLoginAnalyzeHeroInventory = source.PostLoginAnalyzeHeroInventory,
             PostLoginReadTroopTrainingQueue = source.PostLoginReadTroopTrainingQueue,
             PostLoginAnalyzeBrewery = source.PostLoginAnalyzeBrewery,
             TroopTrainingBarracksEnabled = source.TroopTrainingBarracksEnabled,

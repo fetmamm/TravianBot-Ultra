@@ -211,6 +211,7 @@ public sealed partial class TravianClient
         var safetyCap = ComputeResourceUpgradeSafetyCap(targetLevel);
         int? lastKnownLevel = null;
         var constructionNpcTradeAttempted = false;
+        var heroTransferAttempted = false;
         for (var iteration = 0; iteration < safetyCap; iteration++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -271,6 +272,14 @@ public sealed partial class TravianClient
                     return $"Resource slot {slotId} appears maxed at level {resolvedMax}. No upgrade performed.";
                 }
 
+                if (!heroTransferAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
+                {
+                    heroTransferAttempted = true;
+                    if (await TryHeroResourceTransferForConstructionAsync($"Resource slot {slotId} ({resourceName}) upgrade to level {effectiveTarget}", cancellationToken))
+                    {
+                        continue;
+                    }
+                }
                 if (!constructionNpcTradeAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
                 {
                     constructionNpcTradeAttempted = true;
@@ -371,6 +380,7 @@ public sealed partial class TravianClient
         var transientRetries = 0;
         int? currentTransientSlot = null;
         var constructionNpcTradeAttempted = false;
+        var heroTransferAttempted = false;
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -549,6 +559,14 @@ public sealed partial class TravianClient
                     var label = string.IsNullOrWhiteSpace(candidate.Name)
                         ? $"Resource slot {slot} upgrade to level {effectiveTarget}"
                         : $"Resource slot {slot} ({candidate.Name}) upgrade to level {effectiveTarget}";
+                    if (!heroTransferAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
+                    {
+                        heroTransferAttempted = true;
+                        if (await TryHeroResourceTransferForConstructionAsync(label, cancellationToken))
+                        {
+                            goto NextLoopTick;
+                        }
+                    }
                     if (!constructionNpcTradeAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
                     {
                         constructionNpcTradeAttempted = true;

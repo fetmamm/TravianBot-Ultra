@@ -111,6 +111,12 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
 - **2026-06-02** — Hero inventory-resurser (item145/146/147/148 → `.count`) läses från `/hero/inventory`
   via `ReadHeroInventoryResourcesAsync`. Visas i Hero-fliken (4 fält + Refresh), valbar post-login-läsning
   (`PostLoginAnalyzeHeroInventory`, default OFF). Adventures-kortet flyttat upp i Settings-kortet.
+- **2026-06-02** — Hero inventory cachas i minnet (statisk dict keyed `account|baseUrl`, som hero-attribut-
+  snapshoten). Uppdateras vid varje full läsning och efter en transfer (drar av de auto-fyllda beloppen, ingen
+  extra navigering). Statiskt event `TravianClient.HeroInventoryUpdated(account, resources)` → Desktop
+  uppdaterar Hero-fältens UI live (filtrerat på aktivt konto, avregistreras i `OnClosed`). Ingen
+  proaktiv "skippa om tomt"-logik ännu — Travian visar bara `.transfer`-ikonen när hjälten har resurser,
+  så tom inventory ger naturligt ingen transfer.
 
 ---
 

@@ -208,10 +208,105 @@
                             </Border>
                         </StackPanel>
                     </Grid>
+
+                    <!-- Adventures (moved here from the bottom-right card; layout to be refined later). -->
+                    <Border Background="#FFFFFF"
+                            BorderBrush="#E5E7EB"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="14"
+                            Margin="0,12,0,0"
+                            HorizontalAlignment="Right"
+                            MinWidth="320">
+                        <StackPanel>
+                            <TextBlock Text="Adventures"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="#111827"
+                                       Margin="0,0,0,12" />
+                            <DockPanel Margin="0,0,0,10">
+                                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                                    <Border Background="#F0FDF4"
+                                            BorderBrush="#BBF7D0"
+                                            BorderThickness="1"
+                                            CornerRadius="6"
+                                            Padding="10,6"
+                                            Margin="0,0,12,0">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="#F0FDF4" />
+                                                <Setter Property="BorderBrush" Value="#BBF7D0" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding AdventureCountText}" Value="0">
+                                                        <Setter Property="Background" Value="#F3F4F6" />
+                                                        <Setter Property="BorderBrush" Value="#D1D5DB" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="Available:" VerticalAlignment="Center" Margin="0,0,6,0">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="#166534" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding AdventureCountText}" Value="0">
+                                                                <Setter Property="Foreground" Value="#6B7280" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <TextBlock Text="{Binding AdventureCountText}"
+                                                       FontWeight="SemiBold"
+                                                       FontSize="15"
+                                                       VerticalAlignment="Center">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="#166534" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding AdventureCountText}" Value="0">
+                                                                <Setter Property="Foreground" Value="#6B7280" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Border>
+                                    <Button x:Name="RefreshAdventuresButton"
+                                            Content="Refresh adventures"
+                                            Width="160"
+                                            Click="RefreshAdventuresButton_Click"
+                                            Background="#FFFFFF"
+                                            BorderBrush="#E5E7EB" />
+                                </StackPanel>
+                            </DockPanel>
+                            <TextBlock Text="{Binding HeroStatusText}"
+                                       Foreground="#111827"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap"
+                                       Margin="0,0,0,8" />
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="Start adventure"
+                                        Width="190"
+                                        Click="QueueHeroManageButton_Click"
+                                        Background="#030826"
+                                        Foreground="White"
+                                        BorderBrush="#030826" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding AdventureStatusText}"
+                                       Foreground="#6B7280"
+                                       FontSize="12"
+                                       TextWrapping="Wrap"
+                                       Margin="0,8,0,0" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Border>
 
-            <!-- Attribute priority + Adventures side by side -->
+            <!-- Attribute priority + Hero inventory side by side -->
             <Grid Margin="2,0,2,2">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -344,7 +439,7 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Adventures card -->
+                <!-- Hero inventory card (placed where Adventures used to be). -->
                 <Border Grid.Column="1"
                         Background="#FFFFFF"
                         BorderBrush="#E5E7EB"
@@ -353,88 +448,67 @@
                         Padding="14"
                         Margin="6,0,0,0">
                     <StackPanel>
-                        <TextBlock Text="Adventures"
-                                   FontSize="14"
-                                   FontWeight="SemiBold"
-                                   Foreground="#111827"
-                                   Margin="0,0,0,12" />
-                        <DockPanel Margin="0,0,0,10">
-                            <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
-                                <Border Background="#F0FDF4"
-                                        BorderBrush="#BBF7D0"
-                                        BorderThickness="1"
-                                        CornerRadius="6"
-                                        Padding="10,6"
-                                        Margin="0,0,12,0">
-                                    <Border.Style>
-                                        <Style TargetType="Border">
-                                            <Setter Property="Background" Value="#F0FDF4" />
-                                            <Setter Property="BorderBrush" Value="#BBF7D0" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding AdventureCountText}" Value="0">
-                                                    <Setter Property="Background" Value="#F3F4F6" />
-                                                    <Setter Property="BorderBrush" Value="#D1D5DB" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Border.Style>
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="Available:" VerticalAlignment="Center" Margin="0,0,6,0">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock">
-                                                    <Setter Property="Foreground" Value="#166534" />
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding AdventureCountText}" Value="0">
-                                                            <Setter Property="Foreground" Value="#6B7280" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
-                                        <TextBlock Text="{Binding AdventureCountText}"
-                                                   FontWeight="SemiBold"
-                                                   FontSize="15"
-                                                   VerticalAlignment="Center">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock">
-                                                    <Setter Property="Foreground" Value="#166534" />
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding AdventureCountText}" Value="0">
-                                                            <Setter Property="Foreground" Value="#6B7280" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
-                                    </StackPanel>
-                                </Border>
-                                <Button x:Name="RefreshAdventuresButton"
-                                        Content="Refresh adventures"
-                                        Width="160"
-                                        Click="RefreshAdventuresButton_Click"
-                                        Background="#FFFFFF"
-                                        BorderBrush="#E5E7EB" />
-                            </StackPanel>
+                        <DockPanel Margin="0,0,0,12">
+                            <TextBlock DockPanel.Dock="Left"
+                                       Text="Hero inventory"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="#111827"
+                                       VerticalAlignment="Center" />
+                            <Button x:Name="RefreshHeroInventoryButton"
+                                    DockPanel.Dock="Right"
+                                    Content="Refresh hero inventory"
+                                    Width="170"
+                                    HorizontalAlignment="Right"
+                                    Click="RefreshHeroInventoryButton_Click"
+                                    Background="#FFFFFF"
+                                    BorderBrush="#E5E7EB" />
                         </DockPanel>
-                        <TextBlock Text="{Binding HeroStatusText}"
-                                   Foreground="#111827"
-                                   FontSize="12"
-                                   FontWeight="SemiBold"
-                                   TextWrapping="Wrap"
-                                   Margin="0,0,0,8" />
-                        <StackPanel Orientation="Horizontal">
-                            <Button Content="Start adventure"
-                                    Width="190"
-                                    Click="QueueHeroManageButton_Click"
-                                    Background="#030826"
-                                    Foreground="White"
-                                    BorderBrush="#030826" />
-                        </StackPanel>
-                        <TextBlock Text="{Binding AdventureStatusText}"
+
+                        <!-- Always four fields so they can be refreshed in place. -->
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                <TextBlock Text="Wood" Foreground="#374151" FontSize="12" />
+                                <TextBox Text="{Binding HeroInventoryWood}" IsReadOnly="True" Margin="0,4,0,0" Padding="6,4" BorderBrush="#E5E7EB" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                                <TextBlock Text="Clay" Foreground="#374151" FontSize="12" />
+                                <TextBox Text="{Binding HeroInventoryClay}" IsReadOnly="True" Margin="0,4,0,0" Padding="6,4" BorderBrush="#E5E7EB" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Margin="0,0,8,0">
+                                <TextBlock Text="Iron" Foreground="#374151" FontSize="12" />
+                                <TextBox Text="{Binding HeroInventoryIron}" IsReadOnly="True" Margin="0,4,0,0" Padding="6,4" BorderBrush="#E5E7EB" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="3">
+                                <TextBlock Text="Crop" Foreground="#374151" FontSize="12" />
+                                <TextBox Text="{Binding HeroInventoryCrop}" IsReadOnly="True" Margin="0,4,0,0" Padding="6,4" BorderBrush="#E5E7EB" />
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="{Binding HeroInventoryStatusText}"
                                    Foreground="#6B7280"
                                    FontSize="12"
                                    TextWrapping="Wrap"
-                                   Margin="0,8,0,0" />
+                                   Margin="0,0,0,8" />
+
+                        <!-- Placeholder for upcoming hero resource-transfer settings. -->
+                        <Border BorderBrush="#F3F4F6"
+                                BorderThickness="1"
+                                Background="#FAFBFC"
+                                CornerRadius="6"
+                                Padding="10"
+                                MinHeight="60">
+                            <TextBlock Text="Hero resource-transfer settings will appear here."
+                                       Foreground="#9CA3AF"
+                                       FontSize="12"
+                                       TextWrapping="Wrap" />
+                        </Border>
                     </StackPanel>
                 </Border>
             </Grid>

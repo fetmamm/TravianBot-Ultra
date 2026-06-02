@@ -170,4 +170,22 @@ public partial class HeroPanel : UserControl
     {
         Host?.QueueHeroAdventure();
     }
+
+    private async void RefreshHeroInventoryButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (Host is not { } host)
+        {
+            return;
+        }
+
+        RefreshHeroInventoryButton.IsEnabled = false;
+        try
+        {
+            await host.RefreshHeroInventoryCoreAsync();
+        }
+        finally
+        {
+            RefreshHeroInventoryButton.IsEnabled = true;
+        }
+    }
 }
