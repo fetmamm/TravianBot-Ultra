@@ -78,7 +78,6 @@ the others.
 | `artifacts/` | Local verification artifacts (gitignored). |
 | `logs/` | Runtime logs from the desktop app (gitignored). |
 | `temp_build_out/` | Scratch space for ad-hoc local builds (gitignored). |
-| `.claude/` | Claude Code worktrees and session data. |
 
 Top-level files worth knowing:
 
@@ -219,3 +218,21 @@ needs solving.
 - Runtime + UI fully C# (`TbotUltra.Desktop` + `TbotUltra.Worker`).
 - Queue persists in `config/queue.json`, managed from the Queue tab.
 - Captcha solving handled by the Python module in `Captcha_solver/`.
+
+---
+
+## Disclaimer
+
+This project is provided for educational purposes. Automating gameplay may
+violate the terms of service of Travian and/or private servers, and can lead
+to account bans. Use it at your own risk — the authors take no responsibility
+for any consequences of using this software.
+
+Credentials and per-account data are stored locally only (in `.env` and
+`config/`, all gitignored) and are never committed to this repository.
+
+---
+
+## License
+
+Released under the [MIT License](LICENSE).
