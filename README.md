@@ -13,7 +13,8 @@ Travian bot for automating tasks, compatible with:
 
 Runtime and UI are fully built in C# (.NET 8 / WPF).
 The optional captcha solver is a small separate Python module.
-NOTE: It is important that the language is set to `English` in the settings page.
+
+`NOTE:` It is important that the language is set to `English` in the travian browser settings page.
 
 ---
 
