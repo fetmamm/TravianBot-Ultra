@@ -374,7 +374,7 @@ public sealed class BotOptions
     public bool HeroContinuousAdventures { get; init; }
 
     [ConfigurationKeyName(BotOptionPayloadKeys.AutoCollectTasksEnabled)]
-    public bool AutoCollectTasksEnabled { get; init; } = true;
+    public bool AutoCollectTasksEnabled { get; init; }
 
     [ConfigurationKeyName(BotOptionPayloadKeys.AutoCollectDailyQuestsEnabled)]
     public bool AutoCollectDailyQuestsEnabled { get; init; }
