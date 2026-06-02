@@ -1405,23 +1405,40 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 return "logged_out";
             }
 
-            foreach (var selector in Selectors.LoggedInIndicators)
+            // The page can still be settling right after a navigation/reload (especially the
+            // official React in-game pages). Probing the indicators too early yielded a false
+            // 'unknown' → "Not logged in. Current page state is 'unknown'." task failures even
+            // though we were on an authenticated page (e.g. dorf1.php). Retry the probe a few
+            // times with a short wait before giving up. The happy path (indicator already present)
+            // returns immediately on the first attempt with no delay.
+            const int probeAttempts = 4;
+            for (var attempt = 0; attempt < probeAttempts; attempt++)
             {
-                if (await _page.Locator(selector).CountAsync() > 0)
+                foreach (var selector in Selectors.LoggedInIndicators)
                 {
-                    Notify("You are logged in");
-                    return "logged_in";
+                    if (await _page.Locator(selector).CountAsync() > 0)
+                    {
+                        Notify("You are logged in");
+                        return "logged_in";
+                    }
+                }
+
+                foreach (var selector in Selectors.LoggedOutIndicators)
+                {
+                    if (await _page.Locator(selector).CountAsync() > 0)
+                    {
+                        Notify("You are logged out");
+                        return "logged_out";
+                    }
+                }
+
+                if (attempt < probeAttempts - 1)
+                {
+                    // Give the DOM a moment to render the topbar/village list, then re-probe.
+                    await Task.Delay(400);
                 }
             }
 
-            foreach (var selector in Selectors.LoggedOutIndicators)
-            {
-                if (await _page.Locator(selector).CountAsync() > 0)
-                {
-                    Notify("You are logged out");
-                    return "logged_out";
-                }
-            }
             Notify("Login state is unknown");
             return "unknown";
         }
