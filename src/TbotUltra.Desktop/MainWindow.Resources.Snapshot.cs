@@ -379,7 +379,14 @@ public partial class MainWindow
     // de-duplicated so the same collection is never queued twice.
     private async Task TryQueueAutoCollectTasksAsync(BotOptions options)
     {
-        if (!options.AutoCollectTasksEnabled || HasActiveCollectTasksTask())
+        if (!options.AutoCollectTasksEnabled)
+        {
+            // Setting turned off — make sure nothing that was queued earlier keeps running.
+            RemovePendingCollectTasks();
+            return;
+        }
+
+        if (HasActiveCollectTasksTask())
         {
             return;
         }
@@ -404,6 +411,27 @@ public partial class MainWindow
             .Any(item =>
                 string.Equals(item.TaskName, "collect_tasks", StringComparison.OrdinalIgnoreCase)
                 && item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused);
+    }
+
+    // Drops queued (not yet running) collect_tasks items — used when the setting is turned off so a
+    // previously-detected collection can't run after the user disabled the feature.
+    private void RemovePendingCollectTasks()
+    {
+        var pending = _botService.GetQueueItemsForDisplay()
+            .Where(item =>
+                string.Equals(item.TaskName, "collect_tasks", StringComparison.OrdinalIgnoreCase)
+                && item.Status is QueueStatus.Pending or QueueStatus.Paused)
+            .ToList();
+
+        foreach (var item in pending)
+        {
+            _botService.RemoveQueueItem(item.Id);
+        }
+
+        if (pending.Count > 0)
+        {
+            AppendLog($"Tasks: auto-collect disabled — removed {pending.Count} queued collect_tasks item(s).");
+        }
     }
 
     private static bool IsOfficialTravianServer(BotOptions options)

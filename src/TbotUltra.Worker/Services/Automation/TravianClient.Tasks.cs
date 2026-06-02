@@ -101,43 +101,81 @@ public sealed partial class TravianClient
         }
     }
 
-    // Clicks every enabled green "Collect" button on the currently visible tab. Already-claimed
-    // tasks render the button disabled / with the "Collected" label, so they are skipped.
+    // Clicks the green "Collect" buttons on the currently visible tab, ONE AT A TIME with a small
+    // delay between clicks — clicking them all in one synchronous burst makes the React page glitch
+    // and silently drop clicks. Re-queries the DOM each pass so a collected button (label flips from
+    // "Collect" to its data-text-collected "Collected", or it becomes disabled) is skipped next pass.
     private async Task<int> ClickCollectButtonsOnCurrentTabAsync(CancellationToken cancellationToken)
     {
+        // Collect buttons render client-side slightly after the tab; wait briefly for at least one.
+        // None is valid (e.g. the general tab may have nothing to claim) — just return 0 then.
         try
         {
-            var collected = await _page.EvaluateAsync<int>(
-                """
-                () => {
-                  const buttons = Array.from(document.querySelectorAll(
-                    'div.task.achieved button.textButtonV2.collect, button.textButtonV2.collect.green'));
-                  let count = 0;
-                  for (const btn of buttons) {
-                    const disabled = btn.disabled
-                      || /disabled/i.test(btn.className || '')
-                      || btn.getAttribute('aria-disabled') === 'true';
-                    if (disabled) {
-                      continue;
-                    }
-                    btn.click();
-                    count += 1;
-                  }
-                  return count;
-                }
-                """);
-            if (collected > 0)
-            {
-                await ApplyActionDelayAsync(cancellationToken);
-            }
-
-            return collected;
+            await _page.WaitForFunctionAsync(
+                "() => !!document.querySelector('button.textButtonV2.collect')",
+                null,
+                new PageWaitForFunctionOptions { Timeout = 2500 });
         }
-        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        catch (TimeoutException)
         {
-            Notify("[tasks] transient execution-context error while clicking collect buttons; skipping tab");
             return 0;
         }
+        catch (PlaywrightException)
+        {
+            return 0;
+        }
+
+        var collected = 0;
+        const int safetyCap = 40; // bounds the loop if a click never flips the button state
+        for (var i = 0; i < safetyCap; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            bool clicked;
+            try
+            {
+                clicked = await _page.EvaluateAsync<bool>(
+                    """
+                    () => {
+                      const buttons = Array.from(document.querySelectorAll('button.textButtonV2.collect'));
+                      for (const btn of buttons) {
+                        const disabled = btn.disabled
+                          || /(^|\s)disabled(\s|$)/i.test(btn.className || '')
+                          || btn.getAttribute('aria-disabled') === 'true';
+                        if (disabled) {
+                          continue;
+                        }
+                        // Skip already-collected buttons: the visible label flips to "Collected".
+                        const label = (btn.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                        if (label !== 'collect') {
+                          continue;
+                        }
+                        btn.scrollIntoView({ block: 'center' });
+                        btn.click();
+                        return true;
+                      }
+                      return false;
+                    }
+                    """);
+            }
+            catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+            {
+                Notify("[tasks] transient execution-context error while clicking collect buttons; stopping tab");
+                break;
+            }
+
+            if (!clicked)
+            {
+                break;
+            }
+
+            collected += 1;
+            // Small gap so the React page registers the claim before the next click. Not long —
+            // ~50ms is enough to avoid the page glitching/dropping clicks.
+            await Task.Delay(50, cancellationToken);
+        }
+
+        return collected;
     }
 
     private async Task<bool> SwitchToGeneralTasksTabAsync(CancellationToken cancellationToken)
