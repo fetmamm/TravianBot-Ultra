@@ -134,6 +134,7 @@ public static class BotOptionsFactory
             HeroHideModeEnabled = configuration.GetValue(BotOptionPayloadKeys.HeroHideModeEnabled, false),
             HeroHideMode = configuration[BotOptionPayloadKeys.HeroHideMode] ?? "hide",
             HeroContinuousAdventures = configuration.GetValue(BotOptionPayloadKeys.HeroContinuousAdventures, false),
+            AutoCollectTasksEnabled = configuration.GetValue(BotOptionPayloadKeys.AutoCollectTasksEnabled, true),
             UpgradeSelectorProfile = configuration[BotOptionPayloadKeys.UpgradeSelectorProfile] ?? "auto",
             NatarVillageSelection = configuration["natar_village_selection"] ?? "farm_villages",
         };
@@ -258,6 +259,7 @@ public static class BotOptionsFactory
             HeroHideModeEnabled = source.HeroHideModeEnabled,
             HeroHideMode = source.HeroHideMode,
             HeroContinuousAdventures = source.HeroContinuousAdventures,
+            AutoCollectTasksEnabled = source.AutoCollectTasksEnabled,
             UpgradeSelectorProfile = source.UpgradeSelectorProfile,
             NatarVillageSelection = string.IsNullOrWhiteSpace(natarVillageSelectionOverride)
                 ? source.NatarVillageSelection

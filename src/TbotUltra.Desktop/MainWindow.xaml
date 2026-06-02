@@ -794,6 +794,12 @@
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
+
+                                    <Separator Margin="0,10,0,8" Background="#E5E7EB" />
+                                    <TextBlock Text="Settings" FontSize="16" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,6" />
+                                    <CheckBox x:Name="AutoCollectTasksCheckBox" Content="Auto collect tasks"
+                                              Foreground="#374151"
+                                              Checked="AutoCollectTasksSetting_Changed" Unchecked="AutoCollectTasksSetting_Changed" />
                                 </StackPanel>
                             </Border>
                         </Grid>

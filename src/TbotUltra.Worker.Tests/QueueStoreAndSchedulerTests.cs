@@ -142,6 +142,7 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
                 "send_farmlists",
                 "send_resources_between_villages",
                 "send_reinforcements_between_villages",
+                "collect_tasks",
             ],
             CoreTaskCatalog.AllowedTaskNames);
     }

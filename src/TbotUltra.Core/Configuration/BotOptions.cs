@@ -370,6 +370,9 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.HeroContinuousAdventures)]
     public bool HeroContinuousAdventures { get; init; }
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.AutoCollectTasksEnabled)]
+    public bool AutoCollectTasksEnabled { get; init; } = true;
+
     [ConfigurationKeyName("upgrade_selector_profile")]
     public string UpgradeSelectorProfile { get; init; } = "auto";
 

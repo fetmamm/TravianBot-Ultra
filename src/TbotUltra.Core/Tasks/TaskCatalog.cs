@@ -22,6 +22,7 @@ public static class TaskCatalog
         new("send_farmlists", TaskGroup.Farming, "Send farmlists", true, TaskPayloadKind.Farming),
         new("send_resources_between_villages", TaskGroup.ResourceTransfer, "Send resources between villages", true, TaskPayloadKind.ResourceTransfer),
         new("send_reinforcements_between_villages", TaskGroup.Reinforcements, "Send reinforcements between villages", true, TaskPayloadKind.Reinforcements),
+        new("collect_tasks", TaskGroup.Construction, "Collect tasks", true, TaskPayloadKind.None),
     ];
 
     private static readonly IReadOnlyDictionary<string, TaskDescriptor> DescriptorsByName =

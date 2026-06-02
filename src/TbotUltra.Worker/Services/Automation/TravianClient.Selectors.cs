@@ -17,6 +17,8 @@ public sealed partial class TravianClient
         public const string Statistics100 = "/statistiken.php?id=100";
         public const string Messages = "/nachrichten.php";
         public const string Reports = "/berichte.php";
+        // Official Travian (T4.6) Questmaster task overview. Used only on official servers.
+        public const string Tasks = "/tasks";
 
         public const string FarmListPage = "/build.php?id=39&t=99";
         public const string FarmListFastUp = "/build.php?id=39&fastUP=0";

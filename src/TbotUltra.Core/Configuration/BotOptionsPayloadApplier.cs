@@ -30,6 +30,7 @@ public static class BotOptionsPayloadApplier
         var heroHideModeEnabled = source.HeroHideModeEnabled;
         var heroHideMode = source.HeroHideMode;
         var heroContinuousAdventures = source.HeroContinuousAdventures;
+        var autoCollectTasksEnabled = source.AutoCollectTasksEnabled;
         var upgradeSelectorProfile = source.UpgradeSelectorProfile;
         var natarVillageSelection = source.NatarVillageSelection;
         var continuousFarmListNames = source.ContinuousFarmListNames;
@@ -269,6 +270,13 @@ public static class BotOptionsPayloadApplier
                     && bool.TryParse(value, out var continuousAdventures))
                 {
                     heroContinuousAdventures = continuousAdventures;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.AutoCollectTasksEnabled, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var autoCollectTasks))
+                {
+                    autoCollectTasksEnabled = autoCollectTasks;
                     continue;
                 }
 
@@ -880,6 +888,7 @@ public static class BotOptionsPayloadApplier
             HeroHideModeEnabled = heroHideModeEnabled,
             HeroHideMode = heroHideMode,
             HeroContinuousAdventures = heroContinuousAdventures,
+            AutoCollectTasksEnabled = autoCollectTasksEnabled,
             UpgradeSelectorProfile = upgradeSelectorProfile,
             NatarVillageSelection = natarVillageSelection,
         };

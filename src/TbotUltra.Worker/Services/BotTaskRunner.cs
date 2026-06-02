@@ -51,6 +51,8 @@ public sealed class BotTaskRunner
             ["send_resources_between_villages"] = ExecuteSendResourcesBetweenVillagesAsync,
             // Sends selected troops from selected own villages to one target village as reinforcements.
             ["send_reinforcements_between_villages"] = ExecuteSendReinforcementsBetweenVillagesAsync,
+            // Official: collects achieved Questmaster task rewards on the /tasks page (both tabs).
+            ["collect_tasks"] = ExecuteCollectTasksAsync,
         };
 
     private readonly IAccountProvider _accountProvider;
@@ -1201,6 +1203,29 @@ public sealed class BotTaskRunner
         return count;
     }
 
+    // Cheap current-page probe (no navigation) used by the periodic refresh to decide whether
+    // to queue collect_tasks. Returns false on any failure so it never disrupts the refresh.
+    public async Task<bool> HasClaimableTasksOnCurrentPageAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        var claimable = false;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                claimable = await client.HasClaimableTasksOnCurrentPageAsync(cancellationToken);
+            });
+
+        return claimable;
+    }
+
     public async Task<HeroAttributeSnapshot> ReadHeroAttributesAsync(
         BotOptions options,
         Action<string> log,
@@ -1930,6 +1955,12 @@ public sealed class BotTaskRunner
             context.CancellationToken);
         context.Log(result);
         ThrowIfTaskBlocked("hero_manage", result);
+    }
+
+    private static async Task ExecuteCollectTasksAsync(TaskExecutionContext context)
+    {
+        var result = await context.Client.CollectTaskRewardsAsync(context.CancellationToken);
+        context.Log(result);
     }
 
     private static void ThrowIfTaskBlocked(string taskName, string result)

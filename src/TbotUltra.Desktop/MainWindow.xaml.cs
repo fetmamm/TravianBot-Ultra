@@ -705,6 +705,7 @@ public partial class MainWindow : Window
         _resourcesViewModel.LoadSettingsFromConfig(options);
         ApplyResourceTransferConfigToUi(options);
         ApplyReinforcementConfigToUi(options);
+        ApplyAutoCollectTasksConfigToUi(options);
 
         try
         {

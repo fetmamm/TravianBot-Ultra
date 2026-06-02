@@ -126,6 +126,7 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
 | RP send troops + egna trupper | ✅ |
 | Hero auto-adventures (Explore→Continue, away-defer, timer) | ✅ |
 | Inbox (olästa-räknare + mark-as-read) | ✅ |
+| Auto collect tasks (Questmaster `/tasks`, båda flikar) | ✅ (verifiera live) |
 | NPC trade (öppna→fördela→Redeem) | ✅ (verifiera live) |
 | Natar gömt på officiell | ✅ |
 | Hero-attribut (auto-tilldela poäng) | ⛔ React — kräver capture när hjälten har poäng |

@@ -363,11 +363,47 @@ public partial class MainWindow
             AppendLog($"Background resource refresh skipped: {ex.Message}");
         }
 
-        if (!officialServer)
+        if (officialServer)
+        {
+            await TryQueueAutoCollectTasksAsync(options);
+        }
+        else
         {
             await TryReviveDeadHeroFromCurrentPageAsync();
             await RefreshInboxIndicatorsQuickAsync();
         }
+    }
+
+    // Official only: cheap current-page check (no navigation) for claimable Questmaster task
+    // rewards. When found, queues the collect_tasks runtime task. Gated by the user setting and
+    // de-duplicated so the same collection is never queued twice.
+    private async Task TryQueueAutoCollectTasksAsync(BotOptions options)
+    {
+        if (!options.AutoCollectTasksEnabled || HasActiveCollectTasksTask())
+        {
+            return;
+        }
+
+        try
+        {
+            if (await _botService.HasClaimableTasksOnCurrentPageAsync(options, AppendLog, CancellationToken.None))
+            {
+                _botService.EnqueueRuntime("collect_tasks", "Collect tasks", null, priority: -40, maxRetries: 1);
+                AppendLog("Tasks: claimable rewards detected — queued collect_tasks.");
+            }
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Auto collect tasks check skipped: {ex.Message}");
+        }
+    }
+
+    private bool HasActiveCollectTasksTask()
+    {
+        return _botService.GetQueueItemsForDisplay()
+            .Any(item =>
+                string.Equals(item.TaskName, "collect_tasks", StringComparison.OrdinalIgnoreCase)
+                && item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused);
     }
 
     private static bool IsOfficialTravianServer(BotOptions options)
