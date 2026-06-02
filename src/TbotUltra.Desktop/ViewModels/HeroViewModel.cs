@@ -43,6 +43,7 @@ public sealed class HeroViewModel : BaseViewModel
     private bool _autoUseOintments;
     private bool _isAdventurePickTop;
     private bool _isAdventurePickShortest = true;
+    private bool _hideModeControlEnabled;
     private bool _isHideModeFight;
     private bool _isHideModeHide = true;
     private bool _continuousAdventures;
@@ -187,6 +188,13 @@ public sealed class HeroViewModel : BaseViewModel
         }
     }
 
+    /// <summary>True when the bot is allowed to change Travian's hero hide/fight switch.</summary>
+    public bool HideModeControlEnabled
+    {
+        get => _hideModeControlEnabled;
+        set => SetProperty(ref _hideModeControlEnabled, value);
+    }
+
     /// <summary>
     /// Hero hide mode is set to "hide". Mutually exclusive with
     /// <see cref="IsHideModeFight"/>.
@@ -228,6 +236,7 @@ public sealed class HeroViewModel : BaseViewModel
         AutoRevive = options.HeroAutoRevive;
         AutoAssignPoints = options.HeroAutoAssignPoints;
         AutoUseOintments = options.HeroAutoUseOintments;
+        HideModeControlEnabled = options.HeroHideModeEnabled;
         var topFirst = string.Equals(options.HeroAdventurePickOrder, "top", StringComparison.OrdinalIgnoreCase);
         if (topFirst)
         {

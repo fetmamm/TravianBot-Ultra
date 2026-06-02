@@ -1668,11 +1668,14 @@ public partial class MainWindow : Window
         _buildingLastQueuedConstructBySlot.Clear();
         _buildingClickCooldownBySlot.Clear();
 
-        // Drop every pending/deferred queue item so the next Start doesn't resume them.
+        // Drop pending/deferred queue items, but keep the hero return timer across Stop.
         try
         {
-            _botService.ClearQueue();
-            RequestQueueUiRefresh();
+            var preservedHeroTimers = ClearQueuePreservingDeferredHeroTimers();
+            if (preservedHeroTimers > 0)
+            {
+                AppendLog($"Preserved {preservedHeroTimers} deferred hero timer(s) on stop.");
+            }
         }
         catch (Exception ex)
         {
@@ -1681,7 +1684,7 @@ public partial class MainWindow : Window
 
         SetActiveFunctionExecution(null);
         UpdateExecutionStateIndicator();
-        AppendLog("Stop requested. Running actions, waits, and queue cleared.");
+        AppendLog("Stop requested. Running actions and waits were stopped.");
     }
 
     private void ContinuousRunToggleButton_Unchecked(object sender, RoutedEventArgs e)
@@ -3571,6 +3574,7 @@ public partial class MainWindow : Window
             or nameof(HeroViewModel.AutoUseOintments)
             or nameof(HeroViewModel.IsAdventurePickTop)
             or nameof(HeroViewModel.IsAdventurePickShortest)
+            or nameof(HeroViewModel.HideModeControlEnabled)
             or nameof(HeroViewModel.IsHideModeFight)
             or nameof(HeroViewModel.IsHideModeHide)
             or nameof(HeroViewModel.ContinuousAdventures)))

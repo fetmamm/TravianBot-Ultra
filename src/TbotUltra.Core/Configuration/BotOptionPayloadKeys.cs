@@ -43,6 +43,7 @@ public static class BotOptionPayloadKeys
     public const string HeroAutoUseOintments = "hero_auto_use_ointments";
     public const string HeroStatPriority = "hero_stat_priority";
     public const string HeroAdventurePickOrder = "hero_adventure_pick_order"; // "shortest" or "top"
+    public const string HeroHideModeEnabled = "hero_hide_mode_enabled";
     public const string HeroHideMode = "hero_hide_mode"; // "hide" or "fight"
     public const string HeroContinuousAdventures = "hero_continuous_adventures";
     public const string ContinuousFarmListNames = "continuous_farm_list_names";

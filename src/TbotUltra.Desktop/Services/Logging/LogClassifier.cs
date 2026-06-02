@@ -182,7 +182,13 @@ public static class LogClassifier
             "[browser]",
             "[nav]",
             "[ensure-logged-in",
-            "[flavor]");
+            "[flavor]",
+            // High-volume lifecycle/bookkeeping tags the user doesn't need in Clean mode.
+            "[queue]",
+            "[login]",
+            "[tick]",
+            "[village-switch",
+            "[storage-refresh");
     }
 
     private static bool Contains(string haystack, params string[] needles)

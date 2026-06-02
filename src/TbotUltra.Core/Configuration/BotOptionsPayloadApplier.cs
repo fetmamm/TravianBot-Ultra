@@ -27,6 +27,7 @@ public static class BotOptionsPayloadApplier
         var heroAutoUseOintments = source.HeroAutoUseOintments;
         var heroStatPriority = source.HeroStatPriority;
         var heroAdventurePickOrder = source.HeroAdventurePickOrder;
+        var heroHideModeEnabled = source.HeroHideModeEnabled;
         var heroHideMode = source.HeroHideMode;
         var heroContinuousAdventures = source.HeroContinuousAdventures;
         var upgradeSelectorProfile = source.UpgradeSelectorProfile;
@@ -254,6 +255,13 @@ public static class BotOptionsPayloadApplier
                 {
                     var normalized = value.Equals("fight", StringComparison.OrdinalIgnoreCase) ? "fight" : "hide";
                     heroHideMode = normalized;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.HeroHideModeEnabled, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var hideModeEnabled))
+                {
+                    heroHideModeEnabled = hideModeEnabled;
                     continue;
                 }
 
@@ -869,6 +877,7 @@ public static class BotOptionsPayloadApplier
             HeroAutoUseOintments = heroAutoUseOintments,
             HeroStatPriority = heroStatPriority,
             HeroAdventurePickOrder = heroAdventurePickOrder,
+            HeroHideModeEnabled = heroHideModeEnabled,
             HeroHideMode = heroHideMode,
             HeroContinuousAdventures = heroContinuousAdventures,
             UpgradeSelectorProfile = upgradeSelectorProfile,

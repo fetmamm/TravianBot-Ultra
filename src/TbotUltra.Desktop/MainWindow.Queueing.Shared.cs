@@ -29,6 +29,59 @@ public partial class MainWindow
         return removedCount;
     }
 
+    private int ClearQueuePreservingDeferredHeroTimers()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var preservedCount = 0;
+        foreach (var item in _botService.GetQueueItemsForDisplay().ToList())
+        {
+            if (IsDeferredHeroManageTimer(item, now))
+            {
+                preservedCount += 1;
+                continue;
+            }
+
+            _botService.RemoveQueueItem(item.Id);
+        }
+
+        RequestQueueUiRefresh();
+        return preservedCount;
+    }
+
+    private int ClearHeroManageQueueItems()
+    {
+        var removedCount = 0;
+        foreach (var item in _botService.GetQueueItemsForDisplay()
+            .Where(IsHeroManageQueueItem)
+            .ToList())
+        {
+            if (_botService.RemoveQueueItem(item.Id))
+            {
+                removedCount += 1;
+            }
+        }
+
+        if (removedCount > 0)
+        {
+            RequestQueueUiRefresh();
+        }
+
+        return removedCount;
+    }
+
+    private static bool IsDeferredHeroManageTimer(QueueItem item, DateTimeOffset now)
+    {
+        return IsHeroManageQueueItem(item)
+            && item.Group == QueueGroup.Hero
+            && item.Status == QueueStatus.Pending
+            && item.NextAttemptAt > now;
+    }
+
+    private static bool IsHeroManageQueueItem(QueueItem item)
+    {
+        return string.Equals(item.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static bool TryBeginSlotClick(Dictionary<int, DateTimeOffset> cooldowns, int slotId, DateTimeOffset now)
     {
         if (cooldowns.TryGetValue(slotId, out var lastClickAt)

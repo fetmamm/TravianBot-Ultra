@@ -703,7 +703,19 @@ public partial class MainWindow
             return;
         }
 
+        var wasEnabled = option.IsEnabled;
         option.IsEnabled = toggle.IsChecked == true;
+        if (wasEnabled
+            && !option.IsEnabled
+            && string.Equals(option.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Hero), StringComparison.OrdinalIgnoreCase))
+        {
+            var removedHeroTimers = ClearHeroManageQueueItems();
+            if (removedHeroTimers > 0)
+            {
+                AppendLog("Hero group disabled. Cleared cached hero timer so it will be read again when re-enabled.");
+            }
+        }
+
         if (!option.IsEnabled
             && QueueGroupCatalog.TryParse(option.TaskName, out var disabledGroup)
             && ContinuousRunToggleButton?.IsChecked == true

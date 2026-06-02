@@ -1793,6 +1793,12 @@ public sealed class BotTaskRunner
 
     private static async Task ExecuteHeroSetHideModeAsync(TaskExecutionContext context)
     {
+        if (!context.Options.HeroHideModeEnabled)
+        {
+            context.Log("Hero hide mode control is disabled. No Travian hide/fight change was made.");
+            return;
+        }
+
         var result = await context.Client.SetHeroHideModeOnlyAsync(context.Options.HeroHideMode, context.CancellationToken);
         context.Log(result);
     }
@@ -1918,6 +1924,7 @@ public sealed class BotTaskRunner
             context.Options.HeroAutoUseOintments,
             context.Options.HeroStatPriority,
             context.Options.HeroAdventurePickOrder,
+            context.Options.HeroHideModeEnabled,
             context.Options.HeroHideMode,
             context.Options.HeroHpRegenPerDayPercent,
             context.CancellationToken);

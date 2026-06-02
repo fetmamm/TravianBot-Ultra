@@ -238,7 +238,7 @@ public sealed partial class TravianClient
 
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening dorf1 for hero check.", cancellationToken);
         await EnsureLoggedInAsync();
-        if (!forceReload)
+        if (!forceReload || !onDorf1)
         {
             return;
         }
@@ -888,6 +888,7 @@ public sealed partial class TravianClient
         bool autoUseOintments,
         string statPriority,
         string adventurePickOrder = "shortest",
+        bool hideModeEnabled = false,
         string hideMode = "hide",
         int heroHpRegenPerDayPercent = 100,
         CancellationToken cancellationToken = default)
@@ -1165,8 +1166,11 @@ public sealed partial class TravianClient
         await ExpandAttributesPanelIfClosedAsync(cancellationToken);
 
         // Step 6: apply Hide hero / stay-with-troops preference if it differs from current.
-        var hideApplied = await ApplyHeroHideModeAsync(hideMode, cancellationToken);
-        if (hideApplied) actions.Add($"hide_mode_set={(string.Equals(hideMode, "fight", StringComparison.OrdinalIgnoreCase) ? "fight" : "hide")}");
+        if (hideModeEnabled)
+        {
+            var hideApplied = await ApplyHeroHideModeAsync(hideMode, cancellationToken);
+            if (hideApplied) actions.Add($"hide_mode_set={(string.Equals(hideMode, "fight", StringComparison.OrdinalIgnoreCase) ? "fight" : "hide")}");
+        }
 
         var summary = $"Hero status: dead={status.IsDead}, hp={hpPercent?.ToString() ?? "?"}%, adventures={adventureCount}, points={status.UnassignedPoints}, in_village={inVillage}";
         if (heroReturnWaitSeconds is > 0 && actions.Count == 0)

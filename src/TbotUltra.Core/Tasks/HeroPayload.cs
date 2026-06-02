@@ -9,6 +9,7 @@ public sealed record HeroPayload(
     bool? AutoUseOintments = null,
     string? StatPriority = null,
     string? AdventurePickOrder = null,
+    bool? HideModeEnabled = null,
     string? HideMode = null,
     bool? ContinuousAdventures = null)
 {
@@ -30,6 +31,7 @@ public sealed record HeroPayload(
         if (!TryReadBool(payload, BotOptionPayloadKeys.HeroAutoRevive, out var autoRevive)
             || !TryReadBool(payload, BotOptionPayloadKeys.HeroAutoAssignPoints, out var autoAssignPoints)
             || !TryReadBool(payload, BotOptionPayloadKeys.HeroAutoUseOintments, out var autoUseOintments)
+            || !TryReadBool(payload, BotOptionPayloadKeys.HeroHideModeEnabled, out var hideModeEnabled)
             || !TryReadBool(payload, BotOptionPayloadKeys.HeroContinuousAdventures, out var continuousAdventures))
         {
             return false;
@@ -42,6 +44,7 @@ public sealed record HeroPayload(
             autoUseOintments,
             ReadTrimmed(payload, BotOptionPayloadKeys.HeroStatPriority),
             ReadTrimmed(payload, BotOptionPayloadKeys.HeroAdventurePickOrder),
+            hideModeEnabled,
             ReadTrimmed(payload, BotOptionPayloadKeys.HeroHideMode),
             continuousAdventures);
         return true;
@@ -56,6 +59,7 @@ public sealed record HeroPayload(
         AddIfPresent(result, BotOptionPayloadKeys.HeroAutoUseOintments, FormatBool(AutoUseOintments));
         AddIfPresent(result, BotOptionPayloadKeys.HeroStatPriority, StatPriority);
         AddIfPresent(result, BotOptionPayloadKeys.HeroAdventurePickOrder, AdventurePickOrder);
+        AddIfPresent(result, BotOptionPayloadKeys.HeroHideModeEnabled, FormatBool(HideModeEnabled));
         AddIfPresent(result, BotOptionPayloadKeys.HeroHideMode, HideMode);
         AddIfPresent(result, BotOptionPayloadKeys.HeroContinuousAdventures, FormatBool(ContinuousAdventures));
         return result;

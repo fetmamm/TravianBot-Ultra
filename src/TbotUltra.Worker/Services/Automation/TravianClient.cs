@@ -2436,6 +2436,35 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading villages on spieler.php.", cancellationToken);
             await EnsureLoggedInAsync();
 
+            // The official profile (contentV2) renders the villages table client-side, and the
+            // population cell (td.inhabitants) is filled in slightly after the row shell. Reading
+            // too early returns the village name/coords/capital but a null population. Best-effort
+            // wait for a populated inhabitants cell before parsing. SS renders server-side, so this
+            // is gated to official and is tolerant (timeout falls through to the parse anyway).
+            if (!_config.IsPrivateServer)
+            {
+                try
+                {
+                    await _page.WaitForFunctionAsync(
+                        """
+                        () => {
+                          const cells = document.querySelectorAll('table.villages td.inhabitants, td.inhabitants');
+                          for (const cell of cells) {
+                            if (/\d/.test((cell.textContent || ''))) {
+                              return true;
+                            }
+                          }
+                          return false;
+                        }
+                        """,
+                        new PageWaitForFunctionOptions { Timeout = 3000 });
+                }
+                catch
+                {
+                    Notify("[scan:verbose] official villages table population cell not ready within wait; parsing current DOM.");
+                }
+            }
+
             var raw = await _page.EvaluateAsync<PlayerProfileVillageRowJs[]>(
                 """
                 () => {

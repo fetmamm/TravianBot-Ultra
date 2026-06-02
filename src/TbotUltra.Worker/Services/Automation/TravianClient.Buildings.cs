@@ -3052,6 +3052,38 @@ public sealed partial class TravianClient
 
                       clickOrder.sort((a, b) => score(b) - score(a));
 
+                      // Official "not enough resources" hard block: the .upgradeBlocked panel
+                      // replaces the green upgrade button with an errorMessage ("Enough resources
+                      // on DD.MM. at HH:MM") plus only master-builder/exchange (gold) controls.
+                      // When this panel is present we must NOT click any leftover candidate — that
+                      // produced an endless click/navigate spam loop. Take the precise wait from the
+                      // panel's embedded countdown timer (value=<seconds>) so the task defers cleanly.
+                      const upgradeBlockedEl = document.querySelector('.upgradeBlocked');
+                      if (upgradeBlockedEl) {
+                        const blockText = clean(upgradeBlockedEl.textContent || '').toLowerCase();
+                        const isResourceBlock = /enough\s*resources\s*on|not\s*enough|insufficient|missing\s*resources/i.test(blockText);
+                        if (isResourceBlock) {
+                          let blockedSeconds = null;
+                          const timerEl = upgradeBlockedEl.querySelector('.timer[value], .timer[data-value]');
+                          if (timerEl) {
+                            const v = Number(timerEl.getAttribute('value') || timerEl.getAttribute('data-value'));
+                            if (Number.isFinite(v) && v > 0) {
+                              blockedSeconds = v;
+                            }
+                          }
+                          if (blockedSeconds === null) {
+                            blockedSeconds = detectResourceWaitSeconds();
+                          }
+                          return JSON.stringify({
+                            outcome: 'BlockedByResources',
+                            reason: 'Upgrade blocked: not enough resources yet (upgradeBlocked panel).',
+                            detectedMaxLevel: detectMaxLevel(),
+                            queueWaitSeconds: blockedSeconds,
+                            summary: picked.slice(0, 8)
+                          });
+                        }
+                      }
+
                       if (clickOrder.length > 0) {
                         return JSON.stringify({
                           outcome: 'CanUpgrade',

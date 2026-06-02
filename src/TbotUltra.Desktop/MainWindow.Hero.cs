@@ -53,6 +53,7 @@ public partial class MainWindow
             config[BotOptionPayloadKeys.HeroAutoUseOintments] = _heroViewModel.AutoUseOintments;
             config[BotOptionPayloadKeys.HeroStatPriority] = _heroViewModel.BuildPriorityPayload();
             config[BotOptionPayloadKeys.HeroAdventurePickOrder] = _heroViewModel.AdventurePickOrder;
+            config[BotOptionPayloadKeys.HeroHideModeEnabled] = _heroViewModel.HideModeControlEnabled;
             config[BotOptionPayloadKeys.HeroHideMode] = _heroViewModel.HideMode;
             config[BotOptionPayloadKeys.HeroContinuousAdventures] = _heroViewModel.ContinuousAdventures;
             _botConfigStore.Save(config);
@@ -184,8 +185,14 @@ public partial class MainWindow
             return;
         }
 
+        PersistHeroSettingsToConfig();
+        if (!_heroViewModel.HideModeControlEnabled)
+        {
+            return;
+        }
+
         var mode = _heroViewModel.HideMode;
-        var payload = new HeroPayload(HideMode: mode).ToDictionary();
+        var payload = new HeroPayload(HideModeEnabled: true, HideMode: mode).ToDictionary();
         EnqueueQuickTask("hero_set_hide_mode", $"Set hero hide mode to '{mode}'", payload);
     }
 
@@ -210,6 +217,7 @@ public partial class MainWindow
             AutoUseOintments: _heroViewModel.AutoUseOintments,
             StatPriority: _heroViewModel.BuildPriorityPayload(),
             AdventurePickOrder: _heroViewModel.AdventurePickOrder,
+            HideModeEnabled: _heroViewModel.HideModeControlEnabled,
             HideMode: _heroViewModel.HideMode).ToDictionary();
 
         var continuous = _heroViewModel.ContinuousAdventures;
