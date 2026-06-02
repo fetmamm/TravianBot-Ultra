@@ -1694,13 +1694,29 @@ public sealed partial class TravianClient
             fieldOrder = ["power", "offBonus", "defBonus", "productionPoints"];
         }
 
-        var allocated = await _page.EvaluateAsync<int>(
+        var before = await ReadPointsAvailableAsync();
+        if (before <= 0)
+        {
+            Notify("[hero] official allocation: no points available.");
+            return 0;
+        }
+
+        // Click the prioritised attribute's + button `before` times. React may not reflect the
+        // change synchronously, so we verify by re-reading pointsAvailable after an await boundary.
+        var fieldUsed = await _page.EvaluateAsync<string?>(
             """
-            (order) => {
-              const avail = parseInt((document.querySelector('.pointsAvailable')?.textContent || '0').replace(/[^\d]/g, ''), 10) || 0;
-              if (avail <= 0) return 0;
-              // The +/- buttons are siblings of the input's .inputRatio wrapper, so walk up from the
-              // input until an ancestor that contains a .plus button (that ancestor is the attribute row).
+            (args) => {
+              const robustClick = (el) => {
+                el.scrollIntoView && el.scrollIntoView({ block: 'center' });
+                const o = { bubbles: true, cancelable: true, view: window };
+                try { el.dispatchEvent(new PointerEvent('pointerdown', o)); } catch (e) {}
+                el.dispatchEvent(new MouseEvent('mousedown', o));
+                try { el.dispatchEvent(new PointerEvent('pointerup', o)); } catch (e) {}
+                el.dispatchEvent(new MouseEvent('mouseup', o));
+                el.click();
+              };
+              // +/- buttons are siblings of the input's .inputRatio wrapper, so walk up from the
+              // input until the first ancestor that contains a .plus button (= the attribute row).
               const plusFor = (name) => {
                 const input = document.querySelector(`input[name="${name}"]`);
                 if (!input) return null;
@@ -1712,22 +1728,25 @@ public sealed partial class TravianClient
                 }
                 return null;
               };
-              let used = 0;
-              for (const name of order) {
+              for (const name of args.order) {
                 const btn = plusFor(name);
-                if (!btn) continue;
-                while (used < avail && !btn.disabled) {
-                  btn.click();
-                  used += 1;
+                if (!btn || btn.disabled) continue;
+                for (let i = 0; i < args.clicks; i++) {
+                  if (btn.disabled) break;
+                  robustClick(btn);
                 }
-                if (used >= avail) break;
+                return name;
               }
-              return used;
+              return null;
             }
             """,
-            fieldOrder);
+            new { order = fieldOrder, clicks = before });
 
-        if (allocated <= 0)
+        await Task.Delay(600, cancellationToken);
+        var after = await ReadPointsAvailableAsync();
+        var used = Math.Max(0, before - after);
+        Notify($"[hero] official allocation: field={fieldUsed ?? "none"}, points before={before}, after={after}, used={used}");
+        if (used <= 0)
         {
             return 0;
         }
@@ -1758,8 +1777,14 @@ public sealed partial class TravianClient
             await WaitForNavigationSettledAsync(cancellationToken);
         }
 
-        Notify($"[hero] official point allocation: assigned {allocated}, saved={saved}");
-        return allocated;
+        Notify($"[hero] official point allocation: assigned {used}, saved={saved}");
+        return used;
+    }
+
+    private async Task<int> ReadPointsAvailableAsync()
+    {
+        return await _page.EvaluateAsync<int>(
+            """() => parseInt((document.querySelector('.pointsAvailable')?.textContent || '0').replace(/[^\d]/g, ''), 10) || 0""");
     }
 
     private static string? MapStatToOfficialField(string stat) => (stat ?? string.Empty).ToLowerInvariant() switch
