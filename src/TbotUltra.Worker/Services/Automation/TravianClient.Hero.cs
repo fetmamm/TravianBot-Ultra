@@ -1571,7 +1571,9 @@ public sealed partial class TravianClient
         {
             return await _page.EvaluateAsync<bool>(
                 """
-                () => !!document.querySelector('.bigSpeechBubble.levelUp')
+                // SS: .bigSpeechBubble.levelUp. Official (T4.6): an i.levelUp.show icon shown on
+                // almost every page when the hero has unspent attribute points.
+                () => !!document.querySelector('.bigSpeechBubble.levelUp, i.levelUp.show, .levelUp.show')
                 """);
         }
         catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
@@ -1580,8 +1582,102 @@ public sealed partial class TravianClient
         }
     }
 
+    // Official Travian (T4.6): the attributes page (/hero/attributes) is its own form with
+    // inputs name="power"/"offBonus"/"defBonus"/"productionPoints", a .pointsAvailable counter,
+    // per-attribute button.plus / button.minus, and a #savePoints submit (enabled once points are
+    // assigned). Allocate by clicking the prioritised attribute's + button, then save.
+    private async Task<int> AllocateHeroPointsOfficialAsync(string priority, CancellationToken cancellationToken)
+    {
+        Notify("[hero:verbose] official hero point allocation entered");
+        await GotoAsync("/hero/attributes", cancellationToken);
+        await WaitForNavigationSettledAsync(cancellationToken);
+        await EnsureLoggedInAsync();
+
+        try
+        {
+            await _page.WaitForFunctionAsync(
+                """() => !!document.querySelector('input[name="power"], .pointsAvailable')""",
+                null,
+                new PageWaitForFunctionOptions { Timeout = 6000 });
+        }
+        catch (TimeoutException)
+        {
+        }
+
+        var fieldOrder = ParseHeroStatPriority(priority)
+            .Select(MapStatToOfficialField)
+            .Where(field => field is not null)
+            .Select(field => field!)
+            .ToList();
+        if (fieldOrder.Count == 0)
+        {
+            fieldOrder = ["power", "offBonus", "defBonus", "productionPoints"];
+        }
+
+        var allocated = await _page.EvaluateAsync<int>(
+            """
+            (order) => {
+              const avail = parseInt((document.querySelector('.pointsAvailable')?.textContent || '0').replace(/[^\d]/g, ''), 10) || 0;
+              if (avail <= 0) return 0;
+              const plusFor = (name) => {
+                const input = document.querySelector(`input[name="${name}"]`);
+                const row = input?.closest('tr, .attribute, .attributeRow, li, div');
+                return row ? row.querySelector('button.plus, button.textButtonV2.plus, .plus button') : null;
+              };
+              let used = 0;
+              for (const name of order) {
+                const btn = plusFor(name);
+                if (!btn) continue;
+                while (used < avail && !btn.disabled) {
+                  btn.click();
+                  used += 1;
+                }
+                if (used >= avail) break;
+              }
+              return used;
+            }
+            """,
+            fieldOrder);
+
+        if (allocated <= 0)
+        {
+            return 0;
+        }
+
+        var saved = await _page.EvaluateAsync<bool>(
+            """
+            () => {
+              const save = document.querySelector('#savePoints, button#savePoints');
+              if (save && !save.disabled) { save.click(); return true; }
+              return false;
+            }
+            """);
+        if (saved)
+        {
+            InvalidateCachedHeroAttributeSnapshot();
+            await WaitForNavigationSettledAsync(cancellationToken);
+        }
+
+        Notify($"[hero] official point allocation: assigned {allocated}, saved={saved}");
+        return allocated;
+    }
+
+    private static string? MapStatToOfficialField(string stat) => (stat ?? string.Empty).ToLowerInvariant() switch
+    {
+        "fighting_strength" => "power",
+        "offence_bonus" => "offBonus",
+        "defence_bonus" => "defBonus",
+        "resources" => "productionPoints",
+        _ => null,
+    };
+
     private async Task<int> TryAllocateHeroPointsAsync(string priority, CancellationToken cancellationToken)
     {
+        if (!_config.IsPrivateServer)
+        {
+            return await AllocateHeroPointsOfficialAsync(priority, cancellationToken);
+        }
+
         Notify("[hero:verbose] TryAllocateHeroPoints entered");
         await EnsureHeroInventoryAttributesTabAsync(cancellationToken);
         // The plus buttons live inside the collapsible panel; expand it so Travian's click
