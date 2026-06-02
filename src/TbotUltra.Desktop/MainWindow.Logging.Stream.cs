@@ -880,6 +880,11 @@ public partial class MainWindow
         var value = message.ToLowerInvariant();
         return value.Contains("chromium warmup")
             || value.Contains("captcha warmup")
+            || (value.Contains("[resource-refresh] fail")
+                && (value.Contains("execution context was destroyed")
+                    || value.Contains("timeout")))
+            || (value.Contains("background resource refresh skipped:")
+                && value.Contains("timeout"))
             || (value.Contains("hero_adventure.php")
                 && value.Contains("transient navigation context error")
                 && value.Contains("retrying"))

@@ -825,6 +825,19 @@
                                             </ContentControl>
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                            <CheckBox x:Name="AutoCollectDailyQuestsCheckBox" Content="Auto collect daily quests"
+                                                      Foreground="#374151"
+                                                      Checked="AutoCollectDailyQuestsSetting_Changed" Unchecked="AutoCollectDailyQuestsSetting_Changed" />
+                                            <ContentControl Style="{StaticResource SettingInfoIconStyle}">
+                                                <ContentControl.ToolTip>
+                                                    <ToolTip MaxWidth="320">
+                                                        <TextBlock TextWrapping="Wrap"
+                                                                   Text="Official servers only. When the daily quests icon shows an exclamation mark, the bot opens the dialog and collects available daily rewards. Off by default." />
+                                                    </ToolTip>
+                                                </ContentControl.ToolTip>
+                                            </ContentControl>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                             <CheckBox x:Name="HeroResourceTransferCheckBox" Content="Use hero inventory resources"
                                                       Foreground="#374151"
                                                       VerticalAlignment="Center"

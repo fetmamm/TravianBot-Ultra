@@ -366,6 +366,7 @@ public partial class MainWindow
         if (officialServer)
         {
             await TryQueueAutoCollectTasksAsync(options);
+            await TryQueueAutoCollectDailyQuestsAsync(options);
         }
         else
         {
@@ -402,6 +403,63 @@ public partial class MainWindow
         catch (Exception ex)
         {
             AppendLog($"Auto collect tasks check skipped: {ex.Message}");
+        }
+    }
+
+    // Official only: cheap current-page check (no navigation) for claimable Daily Quests rewards.
+    // When found, queues the collect_daily_quests runtime task. Gated by the user setting and
+    // de-duplicated so the same collection is never queued twice.
+    private async Task TryQueueAutoCollectDailyQuestsAsync(BotOptions options)
+    {
+        if (!options.AutoCollectDailyQuestsEnabled)
+        {
+            RemovePendingCollectDailyQuests();
+            return;
+        }
+
+        if (HasActiveCollectDailyQuestsTask())
+        {
+            return;
+        }
+
+        try
+        {
+            if (await _botService.HasClaimableDailyQuestsOnCurrentPageAsync(options, AppendLog, CancellationToken.None))
+            {
+                _botService.EnqueueRuntime("collect_daily_quests", "Collect daily quests", null, priority: -40, maxRetries: 1);
+                AppendLog("Daily quests: claimable rewards detected - queued collect_daily_quests.");
+            }
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Auto collect daily quests check skipped: {ex.Message}");
+        }
+    }
+
+    private bool HasActiveCollectDailyQuestsTask()
+    {
+        return _botService.GetQueueItemsForDisplay()
+            .Any(item =>
+                string.Equals(item.TaskName, "collect_daily_quests", StringComparison.OrdinalIgnoreCase)
+                && item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused);
+    }
+
+    private void RemovePendingCollectDailyQuests()
+    {
+        var pending = _botService.GetQueueItemsForDisplay()
+            .Where(item =>
+                string.Equals(item.TaskName, "collect_daily_quests", StringComparison.OrdinalIgnoreCase)
+                && item.Status is QueueStatus.Pending or QueueStatus.Paused)
+            .ToList();
+
+        foreach (var item in pending)
+        {
+            _botService.RemoveQueueItem(item.Id);
+        }
+
+        if (pending.Count > 0)
+        {
+            AppendLog($"Daily quests: auto-collect disabled - removed {pending.Count} queued collect_daily_quests item(s).");
         }
     }
 

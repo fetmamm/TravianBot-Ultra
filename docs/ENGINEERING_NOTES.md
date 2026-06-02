@@ -133,6 +133,10 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
 - **2026-06-02** — After a successful hero resource-transfer during `UpgradeAllResourcesToLevelAsync`, re-check
   the same build slot page in place. Do not bounce through `dorf1.php` unless the current page is no longer the
   expected slot; Travian's `&reload=auto` page is already the right context once the dialog closes.
+- **2026-06-02** — Daily Quests auto-collect is official-only and opt-in
+  (`AutoCollectDailyQuestsEnabled`, default OFF). The 16s dashboard refresh checks the current page for
+  `a.dailyQuests .indicator` with `!`, queues `collect_daily_quests`, opens the React dialog, clicks
+  `collectRewards`, collects clickable `button.collect.collectable` rewards, then closes the dialog.
 - **2026-06-02** — Hero attribute priority default is flavor-aware: official servers default to
   `resources,fighting_strength,offence_bonus,defence_bonus`; SS/legacy keeps the old combat-first order.
   `hero_stat_priority` is account-scoped, so explicit user reordering is preserved per account.
@@ -171,6 +175,7 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
 | Hero auto-adventures (Explore→Continue, away-defer, timer) | ✅ |
 | Inbox (olästa-räknare + mark-as-read) | ✅ |
 | Auto collect tasks (Questmaster `/tasks`, båda flikar) | ✅ (verifiera live) |
+| Auto collect daily quests (topbar-dialog) | ✅ (verifiera live) |
 | NPC trade (öppna→fördela→Redeem) | ✅ (verifiera live) |
 | Hero-resurstransfer vid resursbrist (opt-in, official) | ✅ (verifiera live) |
 | Hero inventory-läsning (`/hero/inventory`, 4 resurser) | ✅ (verifiera live) |

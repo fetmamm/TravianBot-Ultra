@@ -707,6 +707,7 @@ public partial class MainWindow : Window
         ApplyResourceTransferConfigToUi(options);
         ApplyReinforcementConfigToUi(options);
         ApplyAutoCollectTasksConfigToUi(options);
+        ApplyAutoCollectDailyQuestsConfigToUi(options);
         ApplyHeroResourceTransferConfigToUi(options);
 
         try

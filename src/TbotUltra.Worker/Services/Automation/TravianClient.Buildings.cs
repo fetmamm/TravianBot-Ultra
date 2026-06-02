@@ -407,9 +407,43 @@ public sealed partial class TravianClient
             }
             """);
 
+        var hasProductionTable = await CurrentPageHasProductionTableAsync(cancellationToken);
+        if (!hasProductionTable)
+        {
+            var currentResourcesFromStockBar = await ReadResourcesAsync(cancellationToken);
+            var cachedProductionByHour = await ReadCachedProductionByHourForActiveVillageAsync(cancellationToken);
+            var snapshot = BuildUpgradeResourceWaitSnapshotFromValues(
+                blockedLabel,
+                required,
+                currentResourcesFromStockBar,
+                cachedProductionByHour,
+                fallbackWaitSeconds,
+                HasAnyProduction(cachedProductionByHour) ? "cached_production" : "page_timer");
+            Notify(FormatUpgradeResourceWaitLog(snapshot));
+            return snapshot;
+        }
+
         var currentResources = await ReadResourcesAsync(cancellationToken);
         var productionByHour = await ReadResourceProductionPerHourAsync(cancellationToken);
+        var liveSnapshot = BuildUpgradeResourceWaitSnapshotFromValues(
+            blockedLabel,
+            required,
+            currentResources,
+            productionByHour,
+            fallbackWaitSeconds,
+            "estimated_from_page");
+        Notify(FormatUpgradeResourceWaitLog(liveSnapshot));
+        return liveSnapshot;
+    }
 
+    private static UpgradeResourceWaitSnapshot BuildUpgradeResourceWaitSnapshotFromValues(
+        string blockedLabel,
+        IReadOnlyDictionary<string, long?> required,
+        IReadOnlyDictionary<string, string> currentResources,
+        IReadOnlyDictionary<string, double?> productionByHour,
+        int fallbackWaitSeconds,
+        string waitReasonWhenEstimated)
+    {
         var values = new Dictionary<string, UpgradeResourceWaitValue>(StringComparer.OrdinalIgnoreCase);
         var longestFiniteSeconds = 0;
         var hasUnknownWait = false;
@@ -436,7 +470,7 @@ public sealed partial class TravianClient
                 var computedSeconds = (int)Math.Ceiling((missingValue.Value / productionValue.Value) * 3600d);
                 waitSeconds = Math.Max(1, computedSeconds);
                 longestFiniteSeconds = Math.Max(longestFiniteSeconds, waitSeconds.Value);
-                waitReason = "from_production";
+                waitReason = waitReasonWhenEstimated == "cached_production" ? "from_cached_production" : "from_production";
             }
             else
             {
@@ -453,21 +487,53 @@ public sealed partial class TravianClient
                 WaitReason: waitReason);
         }
 
-        var resolvedWaitSeconds = longestFiniteSeconds > 0
-            ? longestFiniteSeconds
-            : Math.Max(30, fallbackWaitSeconds > 0 ? fallbackWaitSeconds : 60);
-        if (hasUnknownWait)
+        var resolvedWaitSeconds = fallbackWaitSeconds > 0
+            ? fallbackWaitSeconds
+            : longestFiniteSeconds > 0
+                ? longestFiniteSeconds
+                : 60;
+        if (hasUnknownWait && fallbackWaitSeconds <= 0)
         {
             resolvedWaitSeconds = Math.Max(30, Math.Min(resolvedWaitSeconds, 60));
         }
 
-        var snapshot = new UpgradeResourceWaitSnapshot(
+        var resolvedWaitReason = fallbackWaitSeconds > 0
+            ? "page_timer"
+            : waitReasonWhenEstimated;
+
+        return new UpgradeResourceWaitSnapshot(
             blockedLabel,
             values,
             resolvedWaitSeconds,
-            hasUnknownWait ? "recheck_needed" : "estimated_from_page");
-        Notify(FormatUpgradeResourceWaitLog(snapshot));
-        return snapshot;
+            hasUnknownWait && fallbackWaitSeconds <= 0 ? "recheck_needed" : resolvedWaitReason);
+    }
+
+    private async Task<IReadOnlyDictionary<string, double?>> ReadCachedProductionByHourForActiveVillageAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
+            return TryGetCachedVillageResourceSnapshot(activeVillage)?.ProductionByHour
+                ?? new Dictionary<string, double?>(StringComparer.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Notify($"Cached production fallback unavailable: {ex.Message}");
+            return new Dictionary<string, double?>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    private async Task<bool> CurrentPageHasProductionTableAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await PauseForManualStepIfVisibleAsync("Manual verification appeared while checking production table.", cancellationToken);
+            return await _page.EvaluateAsync<bool>("() => !!document.querySelector('#production')");
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            return false;
+        }
     }
 
     private static string FormatUpgradeResourceWaitLog(UpgradeResourceWaitSnapshot snapshot)
@@ -4053,6 +4119,7 @@ public sealed partial class TravianClient
         ["g42"] = "Stone Wall",
         ["g43"] = "Makeshift Wall",
         ["g44"] = "Command Center",
+        ["g46"] = "Hospital",
     };
 
     private static readonly Lazy<IReadOnlyDictionary<string, string>> NormalizedBuildingCodesByName = new(() =>

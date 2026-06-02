@@ -33,6 +33,15 @@ public sealed class BuildingCatalogServiceTests
     }
 
     [Fact]
+    public void FullCatalog_ContainsHospitalAsArmyBuilding()
+    {
+        var gauls = BuildingCatalogService.GetFullCatalog("Gauls");
+
+        Assert.Contains(gauls, item => item.Gid == 46 && item.Name == "Hospital" && item.Category == "army_buildings");
+        Assert.Equal(2, BuildingCatalogService.CategoryIndexFor(46));
+    }
+
+    [Fact]
     public void RequirementsFor_HorseDrinkingTrough_RequireStableAndRallyPoint()
     {
         var requirements = BuildingCatalogService.RequirementsFor(41);
@@ -48,6 +57,15 @@ public sealed class BuildingCatalogServiceTests
 
         Assert.Contains(greatBarracks, item => item.Name == "Barracks" && item.Level == 20);
         Assert.Contains(greatStable, item => item.Name == "Stable" && item.Level == 20);
+    }
+
+    [Fact]
+    public void RequirementsFor_Hospital_RequireMainBuildingAndAcademy()
+    {
+        var requirements = BuildingCatalogService.RequirementsFor(46);
+
+        Assert.Contains(requirements, item => item.Name == "Main Building" && item.Level == 10);
+        Assert.Contains(requirements, item => item.Name == "Academy" && item.Level == 15);
     }
 
     [Theory]

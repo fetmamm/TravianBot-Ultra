@@ -9,6 +9,7 @@ public partial class MainWindow
     // Guards the checkbox handler while we apply loaded options, so seeding the UI does not
     // immediately write back to bot.json.
     private bool _suppressAutoCollectTasksConfigWrite;
+    private bool _suppressAutoCollectDailyQuestsConfigWrite;
 
     private void ApplyAutoCollectTasksConfigToUi(BotOptions options)
     {
@@ -37,6 +38,36 @@ public partial class MainWindow
 
         var config = _botConfigStore.Load();
         config[BotOptionPayloadKeys.AutoCollectTasksEnabled] = AutoCollectTasksCheckBox.IsChecked == true;
+        _botConfigStore.Save(config);
+    }
+
+    private void ApplyAutoCollectDailyQuestsConfigToUi(BotOptions options)
+    {
+        if (AutoCollectDailyQuestsCheckBox is null)
+        {
+            return;
+        }
+
+        _suppressAutoCollectDailyQuestsConfigWrite = true;
+        try
+        {
+            AutoCollectDailyQuestsCheckBox.IsChecked = options.AutoCollectDailyQuestsEnabled;
+        }
+        finally
+        {
+            _suppressAutoCollectDailyQuestsConfigWrite = false;
+        }
+    }
+
+    private void AutoCollectDailyQuestsSetting_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_suppressAutoCollectDailyQuestsConfigWrite || _botConfigStore is null)
+        {
+            return;
+        }
+
+        var config = _botConfigStore.Load();
+        config[BotOptionPayloadKeys.AutoCollectDailyQuestsEnabled] = AutoCollectDailyQuestsCheckBox.IsChecked == true;
         _botConfigStore.Save(config);
     }
 

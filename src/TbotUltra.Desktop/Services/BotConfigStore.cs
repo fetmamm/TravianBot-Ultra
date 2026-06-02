@@ -41,6 +41,7 @@ public sealed class BotConfigStore
         BotOptionPayloadKeys.HeroHideMode,
         BotOptionPayloadKeys.HeroContinuousAdventures,
         BotOptionPayloadKeys.AutoCollectTasksEnabled,
+        BotOptionPayloadKeys.AutoCollectDailyQuestsEnabled,
         BotOptionPayloadKeys.HeroResourceTransferEnabled,
         BotOptionPayloadKeys.ContinuousFarmListNames,
         BotOptionPayloadKeys.ContinuousFarmListIds,

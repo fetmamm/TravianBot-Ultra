@@ -37,6 +37,7 @@ public static class BuildingCatalogService
         [38] = ("Great Warehouse", "resource_buildings"),
         [39] = ("Great Granary", "resource_buildings"),
         [40] = ("Wonder of the World", "infrastructure"),
+        [46] = ("Hospital", "army_buildings"),
     };
 
     private static readonly Dictionary<int, (string Name, string Category)> TribeSpecialBuildings = new()
@@ -80,11 +81,12 @@ public static class BuildingCatalogService
         [37] = [new("Main Building", 3), new("Rally Point", 1)],
         [41] = [new("Rally Point", 10), new("Stable", 20)],
         [44] = [new("Main Building", 10), new("Academy", 15)],
+        [46] = [new("Main Building", 10), new("Academy", 15)],
     };
 
     private static readonly HashSet<int> SingleInstanceGids =
     [
-        12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 25, 26, 27, 28, 29, 30, 34, 35, 36, 37, 40, 41, 44,
+        12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 25, 26, 27, 28, 29, 30, 34, 35, 36, 37, 40, 41, 44, 46,
         31, 32, 33, 42, 43,
     ];
 

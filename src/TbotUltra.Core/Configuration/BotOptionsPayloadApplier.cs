@@ -31,6 +31,7 @@ public static class BotOptionsPayloadApplier
         var heroHideMode = source.HeroHideMode;
         var heroContinuousAdventures = source.HeroContinuousAdventures;
         var autoCollectTasksEnabled = source.AutoCollectTasksEnabled;
+        var autoCollectDailyQuestsEnabled = source.AutoCollectDailyQuestsEnabled;
         var heroResourceTransferEnabled = source.HeroResourceTransferEnabled;
         var upgradeSelectorProfile = source.UpgradeSelectorProfile;
         var natarVillageSelection = source.NatarVillageSelection;
@@ -279,6 +280,13 @@ public static class BotOptionsPayloadApplier
                     && bool.TryParse(value, out var autoCollectTasks))
                 {
                     autoCollectTasksEnabled = autoCollectTasks;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.AutoCollectDailyQuestsEnabled, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var autoCollectDailyQuests))
+                {
+                    autoCollectDailyQuestsEnabled = autoCollectDailyQuests;
                     continue;
                 }
 
@@ -906,6 +914,7 @@ public static class BotOptionsPayloadApplier
             HeroHideMode = heroHideMode,
             HeroContinuousAdventures = heroContinuousAdventures,
             AutoCollectTasksEnabled = autoCollectTasksEnabled,
+            AutoCollectDailyQuestsEnabled = autoCollectDailyQuestsEnabled,
             HeroResourceTransferEnabled = heroResourceTransferEnabled,
             UpgradeSelectorProfile = upgradeSelectorProfile,
             NatarVillageSelection = natarVillageSelection,

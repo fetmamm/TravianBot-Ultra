@@ -43,6 +43,7 @@ instances from the same folder.
 - Smoke check: `Smoke_Check.bat` (build + Worker tests)
 
 Config is read from `config/bot.json`, `config/queue.json` and `.env`.
+Dashboard settings can also save account-scoped opt-ins such as auto collect tasks and auto collect daily quests.
 
 ---
 

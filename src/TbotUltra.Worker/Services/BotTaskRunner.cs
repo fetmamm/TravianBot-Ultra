@@ -53,6 +53,8 @@ public sealed class BotTaskRunner
             ["send_reinforcements_between_villages"] = ExecuteSendReinforcementsBetweenVillagesAsync,
             // Official: collects achieved Questmaster task rewards on the /tasks page (both tabs).
             ["collect_tasks"] = ExecuteCollectTasksAsync,
+            // Official: collects claimable Daily Quests rewards from the topbar React dialog.
+            ["collect_daily_quests"] = ExecuteCollectDailyQuestsAsync,
         };
 
     private readonly IAccountProvider _accountProvider;
@@ -1239,6 +1241,29 @@ public sealed class BotTaskRunner
         return claimable;
     }
 
+    // Cheap current-page probe (no navigation) used by the periodic refresh to decide whether
+    // to queue collect_daily_quests. Returns false on any failure so it never disrupts the refresh.
+    public async Task<bool> HasClaimableDailyQuestsOnCurrentPageAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        var claimable = false;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                claimable = await client.HasClaimableDailyQuestsOnCurrentPageAsync(cancellationToken);
+            });
+
+        return claimable;
+    }
+
     public async Task<HeroAttributeSnapshot> ReadHeroAttributesAsync(
         BotOptions options,
         Action<string> log,
@@ -1995,6 +2020,12 @@ public sealed class BotTaskRunner
     private static async Task ExecuteCollectTasksAsync(TaskExecutionContext context)
     {
         var result = await context.Client.CollectTaskRewardsAsync(context.CancellationToken);
+        context.Log(result);
+    }
+
+    private static async Task ExecuteCollectDailyQuestsAsync(TaskExecutionContext context)
+    {
+        var result = await context.Client.CollectDailyQuestRewardsAsync(context.CancellationToken);
         context.Log(result);
     }
 

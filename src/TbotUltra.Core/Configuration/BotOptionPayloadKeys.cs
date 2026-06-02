@@ -47,6 +47,7 @@ public static class BotOptionPayloadKeys
     public const string HeroHideMode = "hero_hide_mode"; // "hide" or "fight"
     public const string HeroContinuousAdventures = "hero_continuous_adventures";
     public const string AutoCollectTasksEnabled = "auto_collect_tasks_enabled";
+    public const string AutoCollectDailyQuestsEnabled = "auto_collect_daily_quests_enabled";
     public const string HeroResourceTransferEnabled = "hero_resource_transfer_enabled";
     public const string ContinuousFarmListNames = "continuous_farm_list_names";
     // Stable Travian farm-list ids (lid) for the selected lists. Persisted alongside the names so

@@ -116,6 +116,7 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
         Assert.True(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("hero_manage"));
         Assert.True(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("send_resources_between_villages"));
         Assert.True(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("send_reinforcements_between_villages"));
+        Assert.True(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("collect_daily_quests"));
         Assert.False(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("train_troops"));
     }
 
@@ -143,6 +144,7 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
                 "send_resources_between_villages",
                 "send_reinforcements_between_villages",
                 "collect_tasks",
+                "collect_daily_quests",
             ],
             CoreTaskCatalog.AllowedTaskNames);
     }
@@ -157,6 +159,7 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
     [InlineData("build_troops", TaskGroup.TroopTraining, TaskPayloadKind.TroopTraining)]
     [InlineData("run_brewery_celebration", TaskGroup.BreweryCelebration, TaskPayloadKind.Brewery)]
     [InlineData("send_resources_between_villages", TaskGroup.ResourceTransfer, TaskPayloadKind.ResourceTransfer)]
+    [InlineData("collect_daily_quests", TaskGroup.Construction, TaskPayloadKind.None)]
     public void TaskCatalog_Descriptors_ExposeGroupAndPayloadKind(string taskName, TaskGroup group, TaskPayloadKind payloadKind)
     {
         Assert.True(CoreTaskCatalog.TryGetDescriptor(taskName, out var descriptor));
@@ -176,6 +179,7 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
     [InlineData("send_farmlists", QueueGroup.Farming)]
     [InlineData("send_resources_between_villages", QueueGroup.ResourceTransfer)]
     [InlineData("send_reinforcements_between_villages", QueueGroup.Reinforcements)]
+    [InlineData("collect_daily_quests", QueueGroup.Construction)]
     public void QueueGroupCatalog_ResolvesKnownTasks_FromDescriptors(string taskName, QueueGroup expected)
     {
         Assert.Equal(expected, QueueGroupCatalog.ResolveGroup(taskName));

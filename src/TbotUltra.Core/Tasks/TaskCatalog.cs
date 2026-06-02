@@ -23,6 +23,7 @@ public static class TaskCatalog
         new("send_resources_between_villages", TaskGroup.ResourceTransfer, "Send resources between villages", true, TaskPayloadKind.ResourceTransfer),
         new("send_reinforcements_between_villages", TaskGroup.Reinforcements, "Send reinforcements between villages", true, TaskPayloadKind.Reinforcements),
         new("collect_tasks", TaskGroup.Construction, "Collect tasks", true, TaskPayloadKind.None),
+        new("collect_daily_quests", TaskGroup.Construction, "Collect daily quests", true, TaskPayloadKind.None),
     ];
 
     private static readonly IReadOnlyDictionary<string, TaskDescriptor> DescriptorsByName =
