@@ -267,6 +267,14 @@ public sealed class BotTaskRunner
     {
         log($"Loading post-login data for server {options.ServerName}.");
 
+        // When enabled, read the hero inventory FIRST — right after login and before the profile
+        // navigation (ReadAccountSnapshotAsync reads villages from spieler.php/profile).
+        HeroInventoryResources? heroInventory = null;
+        if (options.PostLoginAnalyzeHeroInventory)
+        {
+            heroInventory = await client.ReadHeroInventoryResourcesAsync(cancellationToken);
+        }
+
         var accountSnapshot = await client.ReadAccountSnapshotAsync(
             forceRefreshVillages: true,
             preferCurrentPageVillages: false,
@@ -288,12 +296,6 @@ public sealed class BotTaskRunner
 
         var inboxStatus = new InboxStatus(villageStatus.UnreadMessages, villageStatus.UnreadReports);
         var adventureCount = await client.RefreshAdventureCountAsync(forceReload: false, cancellationToken);
-
-        HeroInventoryResources? heroInventory = null;
-        if (options.PostLoginAnalyzeHeroInventory)
-        {
-            heroInventory = await client.ReadHeroInventoryResourcesAsync(cancellationToken);
-        }
 
         PersistStableAccountSignals(client, accountSnapshot.Tribe, log);
 
