@@ -222,15 +222,23 @@ public sealed class ResourcesViewModel : BaseViewModel
         // beat (at the random moment a function re-reads real resources), which makes the storage
         // counters visibly "blip". Instead we only refresh the extrapolation base above and let the
         // next regular TickLiveForecasts() render it, so the counters keep advancing on a steady
-        // once-per-second cadence. Empty reads are ignored so a transient current-page miss cannot
-        // blank the storage UI or stop the last known production-based forecast.
-        if (forecasts.Count == 0)
+        // once-per-second cadence. Empty/incomplete reads are ignored so a transient current-page
+        // miss cannot blank the storage UI or stop the last known production-based forecast.
+        if (forecasts.Count == 0 || !forecasts.Values.Any(HasUsableStorageForecast))
         {
             return;
         }
 
         _baseForecasts = forecasts;
         _baseForecastCapturedAtUtc = DateTimeOffset.UtcNow;
+    }
+
+    private static bool HasUsableStorageForecast(ResourceStorageForecast forecast)
+    {
+        return forecast.Current is not null
+            || forecast.Capacity is not null
+            || forecast.PercentOfCapacity is not null
+            || forecast.ProductionPerHour is not null;
     }
 
     public void ResetStorageForecasts()

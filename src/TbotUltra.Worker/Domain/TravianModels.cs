@@ -113,7 +113,8 @@ public sealed record HeroAttributeSnapshot(
     int Resources = 0,
     int? AdventureCount = null,
     string HeroState = "Unknown",
-    int? ReviveRemainingSeconds = null);
+    int? ReviveRemainingSeconds = null,
+    string? HideMode = null);
 
 public sealed record HeroAdventureDispatchResult(
     bool IsInHomeVillage,

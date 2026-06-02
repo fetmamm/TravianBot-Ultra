@@ -43,8 +43,8 @@ public sealed class HeroViewModel : BaseViewModel
     private bool _autoUseOintments;
     private bool _isAdventurePickTop;
     private bool _isAdventurePickShortest = true;
-    private bool _isHideModeFight = true;
-    private bool _isHideModeHide;
+    private bool _isHideModeFight;
+    private bool _isHideModeHide = true;
     private bool _continuousAdventures;
 
     /// <summary>

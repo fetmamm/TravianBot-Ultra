@@ -1142,10 +1142,17 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         var remaining = ResolveShortestQueueDurationSeconds(buildQueue);
         var currency = await ReadCurrencyAsync(cancellationToken);
         var unreadInbox = await ReadUnreadInboxCountsAsync(cancellationToken);
-        var resources = await ReadResourcesAsync(cancellationToken);
-        var capacities = await ReadStorageCapacitiesAsync(cancellationToken);
-        var productionByHour = await ReadResourceProductionPerHourAsync(cancellationToken);
+        await WaitForResourceSnapshotWidgetsAsync(cancellationToken);
+        var snapshot = await ReadResourceSnapshotAsync(cancellationToken);
+        var resources = snapshot.Resources;
+        var cachedSnapshot = TryGetCachedVillageResourceSnapshot(activeVillage);
+        var capacities = (
+            Warehouse: snapshot.Capacities.Warehouse ?? cachedSnapshot?.WarehouseCapacity,
+            Granary: snapshot.Capacities.Granary ?? cachedSnapshot?.GranaryCapacity);
+        var productionByHour = MergeProductionByHour(snapshot.ProductionByHour, cachedSnapshot?.ProductionByHour);
         var forecasts = BuildResourceForecasts(resources, capacities, productionByHour);
+        var usingCachedProduction = !HasAnyProduction(snapshot.ProductionByHour) && HasAnyProduction(cachedSnapshot?.ProductionByHour);
+        Notify($"Resource read: storage wh={FormatResourceLogNumber(capacities.Warehouse)} gr={FormatResourceLogNumber(capacities.Granary)} | stock {BuildResourceValueLog(resources)} | prod {BuildProductionValueLog(productionByHour)}{(usingCachedProduction ? " (cached production)" : string.Empty)}");
 
         return new VillageStatus(
             ActiveVillage: activeVillage,

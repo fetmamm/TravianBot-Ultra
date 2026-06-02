@@ -131,7 +131,7 @@ public static class BotOptionsFactory
             HeroAutoUseOintments = configuration.GetValue(BotOptionPayloadKeys.HeroAutoUseOintments, false),
             HeroStatPriority = configuration[BotOptionPayloadKeys.HeroStatPriority] ?? "fighting_strength,offence_bonus,defence_bonus,resources",
             HeroAdventurePickOrder = configuration[BotOptionPayloadKeys.HeroAdventurePickOrder] ?? "shortest",
-            HeroHideMode = configuration[BotOptionPayloadKeys.HeroHideMode] ?? "fight",
+            HeroHideMode = configuration[BotOptionPayloadKeys.HeroHideMode] ?? "hide",
             HeroContinuousAdventures = configuration.GetValue(BotOptionPayloadKeys.HeroContinuousAdventures, false),
             UpgradeSelectorProfile = configuration[BotOptionPayloadKeys.UpgradeSelectorProfile] ?? "auto",
             NatarVillageSelection = configuration["natar_village_selection"] ?? "farm_villages",

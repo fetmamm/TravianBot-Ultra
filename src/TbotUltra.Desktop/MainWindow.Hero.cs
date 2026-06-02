@@ -93,6 +93,7 @@ public partial class MainWindow
     private void ApplyHeroSnapshotToUi(HeroAttributeSnapshot snapshot, string? adventureStatusText = null)
     {
         _heroViewModel.ApplyAttributeSnapshot(snapshot);
+        ApplyHeroHideModeSnapshotToUi(snapshot.HideMode);
         if (snapshot.AdventureCount is not null)
         {
             ApplyHeroAdventureAvailability(snapshot.AdventureCount.Value);
@@ -101,6 +102,40 @@ public partial class MainWindow
         if (!string.IsNullOrWhiteSpace(adventureStatusText))
         {
             _heroViewModel.AdventureStatusText = adventureStatusText;
+        }
+    }
+
+    private void ApplyHeroHideModeSnapshotToUi(string? hideMode)
+    {
+        if (string.IsNullOrWhiteSpace(hideMode))
+        {
+            return;
+        }
+
+        var normalized = string.Equals(hideMode, "fight", StringComparison.OrdinalIgnoreCase) ? "fight" : "hide";
+        if (string.Equals(_heroViewModel.HideMode, normalized, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _suppressHeroHideModeApply = true;
+        try
+        {
+            if (string.Equals(normalized, "fight", StringComparison.OrdinalIgnoreCase))
+            {
+                _heroViewModel.IsHideModeFight = true;
+            }
+            else
+            {
+                _heroViewModel.IsHideModeHide = true;
+            }
+
+            PersistHeroSettingsToConfig();
+            AppendLog($"Hero hide mode synced from Travian: {normalized}.");
+        }
+        finally
+        {
+            _suppressHeroHideModeApply = false;
         }
     }
 

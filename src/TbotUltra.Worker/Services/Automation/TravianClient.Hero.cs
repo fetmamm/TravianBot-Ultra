@@ -1242,13 +1242,24 @@ public sealed partial class TravianClient
             cancellationToken);
         var adventureCount = TryResolveAdventureCount(quick);
         var cachedSnapshot = TryGetCachedHeroAttributeSnapshot();
-        if (cachedSnapshot is not null && !quick.HasUnassignedPointsSignal)
+        if (cachedSnapshot is not null && !quick.HasUnassignedPointsSignal && !string.IsNullOrWhiteSpace(cachedSnapshot.HideMode))
         {
             Notify("Hero attribute snapshot served from cache.");
             return cachedSnapshot with { AdventureCount = adventureCount };
         }
 
-        await EnsureHeroInventoryAttributesTabAsync(cancellationToken);
+        if (_config.IsPrivateServer)
+        {
+            await EnsureHeroInventoryAttributesTabAsync(cancellationToken);
+        }
+        else
+        {
+            await GotoAsync(HeroAttributesPath, cancellationToken);
+            await WaitForNavigationSettledAsync(cancellationToken);
+            await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening hero attributes.", cancellationToken);
+            await EnsureLoggedInAsync();
+        }
+
         if (adventureCount is null)
         {
             var sidebar = await ReadHeroSidebarStatusAsync(cancellationToken);
@@ -1262,7 +1273,7 @@ public sealed partial class TravianClient
         snapshot = snapshot with { AdventureCount = adventureCount };
         SaveCachedHeroAttributeSnapshot(snapshot);
         Notify(
-            $"Hero inventory snapshot: free points={snapshot.FreePoints}, fighting strength={snapshot.FightingStrength}, offence bonus={snapshot.OffenceBonus}, defence bonus={snapshot.DefenceBonus}, resources={snapshot.Resources}, adventures={(snapshot.AdventureCount?.ToString() ?? "?")}.");
+            $"Hero inventory snapshot: free points={snapshot.FreePoints}, fighting strength={snapshot.FightingStrength}, offence bonus={snapshot.OffenceBonus}, defence bonus={snapshot.DefenceBonus}, resources={snapshot.Resources}, adventures={(snapshot.AdventureCount?.ToString() ?? "?")}, hideMode={snapshot.HideMode ?? "?"}.");
         return snapshot;
     }
 
@@ -2259,6 +2270,7 @@ public sealed partial class TravianClient
                     const reviveTimer = reviveTimerNode?.getAttribute?.('value')
                       ? Number(reviveTimerNode.getAttribute('value'))
                       : parseTimer(reviveTimerNode?.textContent || '');
+                    const hideSwitch = document.querySelector('.heroHideSwitch input[name="attackBehaviour"], input[name="attackBehaviour"][value="hide"]');
 
                     return JSON.stringify({
                       ok: true,
@@ -2269,7 +2281,8 @@ public sealed partial class TravianClient
                       defenceBonus: rowPoints('attributedefBonus'),
                       resources: rowPoints('attributeproductionPoints'),
                       heroState: reviving ? 'Reviving' : dead ? 'Dead' : 'Alive',
-                      reviveRemainingSeconds: Number.isFinite(reviveTimer) ? Math.max(0, Math.trunc(reviveTimer)) : null
+                      reviveRemainingSeconds: Number.isFinite(reviveTimer) ? Math.max(0, Math.trunc(reviveTimer)) : null,
+                      hideMode: hideSwitch ? (hideSwitch.checked ? 'hide' : 'fight') : null
                     });
                   } catch (e) {
                     return JSON.stringify({ ok: false, error: String(e && e.message || e) });
@@ -2330,10 +2343,79 @@ public sealed partial class TravianClient
             stat);
     }
 
-    public async Task<bool> SetHeroHideModeOnlyAsync(string hideMode, CancellationToken cancellationToken = default)
+    public async Task<string> SetHeroHideModeOnlyAsync(string hideMode, CancellationToken cancellationToken = default)
     {
         Notify($"[hero] set hide mode — requested='{hideMode}'");
-        return await ApplyHeroHideModeAsync(hideMode, cancellationToken);
+        var desired = string.Equals(hideMode, "fight", StringComparison.OrdinalIgnoreCase) ? "fight" : "hide";
+        if (!_config.IsPrivateServer)
+        {
+            var officialChanged = await ApplyOfficialHeroHideModeAsync(desired, cancellationToken);
+            return officialChanged
+                ? $"Hero hide mode applied: {desired}."
+                : $"Hero hide mode already '{desired}' — no change.";
+        }
+
+        var inVillage = await IsHeroInActiveVillageAsync(cancellationToken);
+        if (!inVillage)
+        {
+            Notify("Hero hide mode skipped: hero is away, avoiding inventory navigation.");
+            return "Hero hide mode skipped because hero is away.";
+        }
+
+        var changed = await ApplyHeroHideModeAsync(hideMode, cancellationToken);
+        return changed
+            ? $"Hero hide mode applied: {hideMode}."
+            : $"Hero hide mode already '{hideMode}' — no change.";
+    }
+
+    private async Task<bool> ApplyOfficialHeroHideModeAsync(string desired, CancellationToken cancellationToken)
+    {
+        await GotoAsync(HeroAttributesPath, cancellationToken);
+        await WaitForNavigationSettledAsync(cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening hero attributes.", cancellationToken);
+        await EnsureLoggedInAsync();
+
+        try
+        {
+            await _page.WaitForFunctionAsync(
+                """
+                () => !!document.querySelector('.heroHideSwitch input[name="attackBehaviour"], input[name="attackBehaviour"][value="hide"]')
+                """,
+                null,
+                new PageWaitForFunctionOptions { Timeout = 5000 }).WaitAsync(cancellationToken);
+        }
+        catch (TimeoutException)
+        {
+            Notify("Hero hide mode switch not found on official attributes page.");
+            return false;
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            Notify($"Hero hide mode switch read hit transient navigation context: {ex.Message}");
+            return false;
+        }
+
+        var changed = await _page.EvaluateAsync<bool>(
+            """
+            (desired) => {
+              const checkbox = document.querySelector('.heroHideSwitch input[name="attackBehaviour"], input[name="attackBehaviour"][value="hide"]');
+              if (!checkbox) return false;
+              const shouldHide = (desired || '').toLowerCase() !== 'fight';
+              if (!!checkbox.checked === shouldHide) return false;
+              checkbox.click();
+              checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+              return true;
+            }
+            """,
+            desired);
+
+        if (changed)
+        {
+            await WaitForNavigationSettledAsync(cancellationToken);
+            Notify($"Hero hide mode set to '{desired}' on official attributes page.");
+        }
+
+        return changed;
     }
 
     private async Task<bool> ApplyHeroHideModeAsync(string hideMode, CancellationToken cancellationToken)

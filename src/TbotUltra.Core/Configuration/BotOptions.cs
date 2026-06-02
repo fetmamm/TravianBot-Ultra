@@ -362,7 +362,7 @@ public sealed class BotOptions
     public string HeroAdventurePickOrder { get; init; } = "shortest"; // "shortest" or "top"
 
     [ConfigurationKeyName("hero_hide_mode")]
-    public string HeroHideMode { get; init; } = "fight"; // "hide" or "fight"
+    public string HeroHideMode { get; init; } = "hide"; // "hide" or "fight"
 
     [ConfigurationKeyName(BotOptionPayloadKeys.HeroContinuousAdventures)]
     public bool HeroContinuousAdventures { get; init; }

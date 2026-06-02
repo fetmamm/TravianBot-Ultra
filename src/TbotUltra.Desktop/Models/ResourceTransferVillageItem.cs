@@ -169,9 +169,23 @@ public sealed class ResourceTransferVillageItem : INotifyPropertyChanged
 
     public void ApplyResourceStatus(VillageStatus status)
     {
-        _baseForecasts = BuildForecastLookup(status);
+        var forecasts = BuildForecastLookup(status);
+        if (!forecasts.Values.Any(HasUsableStorageForecast))
+        {
+            return;
+        }
+
+        _baseForecasts = forecasts;
         _baseForecastCapturedAtUtc = DateTimeOffset.UtcNow;
         TickResourceForecasts();
+    }
+
+    private static bool HasUsableStorageForecast(ResourceStorageForecast forecast)
+    {
+        return forecast.Current is not null
+            || forecast.Capacity is not null
+            || forecast.PercentOfCapacity is not null
+            || forecast.ProductionPerHour is not null;
     }
 
     public void ApplyResourceStatusFrom(ResourceTransferVillageItem source)

@@ -1793,10 +1793,8 @@ public sealed class BotTaskRunner
 
     private static async Task ExecuteHeroSetHideModeAsync(TaskExecutionContext context)
     {
-        var changed = await context.Client.SetHeroHideModeOnlyAsync(context.Options.HeroHideMode, context.CancellationToken);
-        context.Log(changed
-            ? $"Hero hide mode applied: {context.Options.HeroHideMode}."
-            : $"Hero hide mode already '{context.Options.HeroHideMode}' — no change.");
+        var result = await context.Client.SetHeroHideModeOnlyAsync(context.Options.HeroHideMode, context.CancellationToken);
+        context.Log(result);
     }
 
     private static async Task ExecuteSendFarmlistsAsync(TaskExecutionContext context)

@@ -51,6 +51,9 @@ public sealed partial class TravianClient
     private string HeroInventoryPath =>
         _config.IsPrivateServer ? Paths.HeroInventory : "/hero/inventory";
 
+    private string HeroAttributesPath =>
+        _config.IsPrivateServer ? Paths.HeroInventory : "/hero/attributes";
+
     // Inbox: SS/legacy uses German .php routes; official Travian (T4.6) uses /messages and /report.
     private string MessagesPath =>
         _config.IsPrivateServer ? Paths.Messages : "/messages";
