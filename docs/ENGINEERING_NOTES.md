@@ -103,6 +103,14 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   ta hellre bort **Natar-featuren** + tagga en `ss-stable`-punkt än att rensa spridda selektorer.
 - **2026-06-01** — `Tribe` är stabil per konto/server och får seedas från account analysis-cache.
   `GoldClubEnabled` får bara latched-cachas när det är `true`; `false` ska kunna omprövas.
+- **2026-06-02** — Hero-resurstransfer vid resursbrist (official-only, opt-in `HeroResourceTransferEnabled`,
+  default OFF). När en upgrade är blockad av resurser klickar boten `.inlineIcon.resource.transfer`
+  (öppnar `div.resourceTransferDialog`), låter Travian auto-fylla beloppen och klickar "Transfer selected"
+  (`.actionButton.preSelected button`). Sidan laddas om → upgrade-loopen återanalyserar. Försöks **före**
+  NPC-trade när båda är på. Integrerat på samma 5 ställen som `TryNpcTradeForConstructionAsync`.
+- **2026-06-02** — Hero inventory-resurser (item145/146/147/148 → `.count`) läses från `/hero/inventory`
+  via `ReadHeroInventoryResourcesAsync`. Visas i Hero-fliken (4 fält + Refresh), valbar post-login-läsning
+  (`PostLoginAnalyzeHeroInventory`, default OFF). Adventures-kortet flyttat upp i Settings-kortet.
 
 ---
 
@@ -128,8 +136,10 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
 | Inbox (olästa-räknare + mark-as-read) | ✅ |
 | Auto collect tasks (Questmaster `/tasks`, båda flikar) | ✅ (verifiera live) |
 | NPC trade (öppna→fördela→Redeem) | ✅ (verifiera live) |
+| Hero-resurstransfer vid resursbrist (opt-in, official) | ✅ (verifiera live) |
+| Hero inventory-läsning (`/hero/inventory`, 4 resurser) | ✅ (verifiera live) |
 | Natar gömt på officiell | ✅ |
-| Hero-attribut (auto-tilldela poäng) | ⛔ React — kräver capture när hjälten har poäng |
+| Hero-attribut (auto-tilldela poäng) | ✅ |
 | Auctions (köp/sälj) | ⛔ React — live-testning |
 | Farm list | ⏸ kräver Gold Club |
 
