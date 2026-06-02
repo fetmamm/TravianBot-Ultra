@@ -168,6 +168,25 @@ Extrahera hellre. Bygg beteendebevarande och testbart.
   (obevakade undantag kan krascha UI:t).
 - **Loop/CTS-livscykel via `LoopController`** — inga nya spridda `CancellationTokenSource`-fält.
 
+### Dashboard-settings-mönster (checkbox → bot.json)
+- En ny bool-setting speglas **end-to-end** efter `HeroContinuousAdventures`: `BotOptionPayloadKeys`
+  → `BotOptions` (sätt `= true` för default på) → `BotOptionsFactory` (`FromConfiguration` + `CloneWithOverrides`)
+  → `BotOptionsPayloadApplier` (lokal var + `bool.TryParse`-case + fältet i retur-`BotOptions`)
+  → `BotConfigStore.AccountScopedKeys` (settings är **konto-scopade**, inte globala).
+- **Dashboard-checkbox** använder `x:Name` + `Checked/Unchecked`-handler (inte binding), eftersom
+  Dashboard-fliken saknar egen VM. Mall: `MainWindow.Dashboard.Settings.cs` —
+  `ApplyAutoCollectTasksConfigToUi(options)` sätter `IsChecked` under en `_suppress…`-flagga (annars
+  skriver seedningen direkt tillbaka till `bot.json`); handlern gör `_botConfigStore.Load()` →
+  sätt nyckel → `Save()`. Appliceras i `LoadBotOptions`-flödet i `MainWindow.xaml.cs`.
+- **Periodisk auto-trigger** (t.ex. auto-collect tasks) hängs in i **16s-refreshen**
+  (`HandleResourceSnapshotRefreshTickAsync`), official-gren, gated på settingen + en
+  `HasActive…Task()`-dedup mot `GetQueueItemsForDisplay()` innan `EnqueueRuntime(...)`.
+- **Info-ikon (i) per setting:** återanvänd `SettingInfoIconStyle` (Themes/Badges.xaml) —
+  `<ContentControl Style="{StaticResource SettingInfoIconStyle}">` med en `ToolTip` per instans.
+  Lägg en sådan bredvid **varje** ny setting-checkbox.
+- **Scrollande listor i en ruta:** lägg listan i en `ScrollViewer` i en `Border` på en `*`-rad
+  (Villages-rutan på Dashboard) så långa listor scrollar i stället för att tränga undan annat.
+
 ### Checklista för en ny feature
 1. Stateless logik i egen, testad klass.
 2. Selektorer additiva + flavor-aware; sökväg via flavor-aware helper om den skiljer.

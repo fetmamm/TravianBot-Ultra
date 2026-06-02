@@ -54,18 +54,32 @@
                                       Margin="0,4,12,0"
                                       Padding="6,4" />
                         </StackPanel>
-                        <StackPanel Grid.Column="1" VerticalAlignment="Top" Margin="10,0,0,0">
-                            <TextBlock Text="Automation"
+                        <Grid Grid.Column="1" Margin="10,0,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0"
+                                       Text="Automation"
                                        FontWeight="SemiBold"
                                        Foreground="#111827"
                                        FontSize="12"
                                        Margin="0,0,0,8" />
-                            <CheckBox Content="Auto revive" IsChecked="{Binding AutoRevive}" Margin="0,0,0,6" />
-                            <CheckBox Content="Auto assign attribute points" IsChecked="{Binding AutoAssignPoints}" Margin="0,0,0,6" />
-                            <CheckBox Content="Auto use ointments" IsChecked="{Binding AutoUseOintments}" Margin="0,0,0,6" />
-                            <CheckBox Content="Manage hero defence"
-                                      IsChecked="{Binding HideModeControlEnabled}" />
-                        </StackPanel>
+                            <Border Grid.Row="1"
+                                    Background="#FFFFFF"
+                                    BorderBrush="#E5E7EB"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="10">
+                                <StackPanel>
+                                    <CheckBox Content="Auto revive" IsChecked="{Binding AutoRevive}" Margin="0,0,0,6" />
+                                    <CheckBox Content="Auto assign attribute points" IsChecked="{Binding AutoAssignPoints}" Margin="0,0,0,6" />
+                                    <CheckBox Content="Auto use ointments" IsChecked="{Binding AutoUseOintments}" Margin="0,0,0,6" />
+                                    <CheckBox Content="Manage hero defence"
+                                              IsChecked="{Binding HideModeControlEnabled}" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
                     </Grid>
                     <Grid>
                         <Grid.ColumnDefinitions>

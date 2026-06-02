@@ -810,9 +810,20 @@
                                 <Border Grid.Row="1" Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="9" Padding="12" Margin="0,10,0,0">
                                     <StackPanel>
                                         <TextBlock Text="Settings" FontSize="16" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,6" />
-                                        <CheckBox x:Name="AutoCollectTasksCheckBox" Content="Auto collect tasks"
-                                                  Foreground="#374151"
-                                                  Checked="AutoCollectTasksSetting_Changed" Unchecked="AutoCollectTasksSetting_Changed" />
+                                        <!-- Each setting gets a trailing "i" info icon (SettingInfoIconStyle) describing it. -->
+                                        <StackPanel Orientation="Horizontal">
+                                            <CheckBox x:Name="AutoCollectTasksCheckBox" Content="Auto collect tasks"
+                                                      Foreground="#374151"
+                                                      Checked="AutoCollectTasksSetting_Changed" Unchecked="AutoCollectTasksSetting_Changed" />
+                                            <ContentControl Style="{StaticResource SettingInfoIconStyle}">
+                                                <ContentControl.ToolTip>
+                                                    <ToolTip MaxWidth="320">
+                                                        <TextBlock TextWrapping="Wrap"
+                                                                   Text="Official servers only. When the Questmaster has claimable task rewards, the bot opens the Tasks page, collects the rewards on both the village and general tabs, and returns to the village. Checked by default." />
+                                                    </ToolTip>
+                                                </ContentControl.ToolTip>
+                                            </ContentControl>
+                                        </StackPanel>
                                     </StackPanel>
                                 </Border>
                             </Grid>
