@@ -87,7 +87,7 @@ public sealed class BotOptions
     public bool PostLoginAnalyzeHero { get; init; }
 
     [ConfigurationKeyName(BotOptionPayloadKeys.PostLoginAnalyzeHeroInventory)]
-    public bool PostLoginAnalyzeHeroInventory { get; init; }
+    public bool PostLoginAnalyzeHeroInventory { get; init; } = true;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.PostLoginReadTroopTrainingQueue)]
     public bool PostLoginReadTroopTrainingQueue { get; init; }
