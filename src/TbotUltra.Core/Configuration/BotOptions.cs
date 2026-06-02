@@ -339,18 +339,18 @@ public sealed class BotOptions
     public int? TargetLevel { get; init; }
 
     [ConfigurationKeyName("hero_min_hp_for_adventure")]
-    public int HeroMinHpForAdventure { get; init; } = 60;
+    public int HeroMinHpForAdventure { get; init; } = 40;
 
     /// <summary>How much hero HP regenerates per day, in percent (20–100). Used to compute how long
     /// to defer the hero group when HP is below the adventure threshold.</summary>
     [ConfigurationKeyName("hero_hp_regen_per_day_percent")]
-    public int HeroHpRegenPerDayPercent { get; init; } = 100;
+    public int HeroHpRegenPerDayPercent { get; init; } = 20;
 
     [ConfigurationKeyName("hero_auto_revive")]
     public bool HeroAutoRevive { get; init; } = true;
 
     [ConfigurationKeyName("hero_auto_assign_points")]
-    public bool HeroAutoAssignPoints { get; init; } = true;
+    public bool HeroAutoAssignPoints { get; init; } = false;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.HeroAutoUseOintments)]
     public bool HeroAutoUseOintments { get; init; }

@@ -1701,51 +1701,49 @@ public sealed partial class TravianClient
             return 0;
         }
 
-        // Click the prioritised attribute's + button `before` times. React may not reflect the
-        // change synchronously, so we verify by re-reading pointsAvailable after an await boundary.
-        var fieldUsed = await _page.EvaluateAsync<string?>(
-            """
-            (args) => {
-              const robustClick = (el) => {
-                el.scrollIntoView && el.scrollIntoView({ block: 'center' });
-                const o = { bubbles: true, cancelable: true, view: window };
-                try { el.dispatchEvent(new PointerEvent('pointerdown', o)); } catch (e) {}
-                el.dispatchEvent(new MouseEvent('mousedown', o));
-                try { el.dispatchEvent(new PointerEvent('pointerup', o)); } catch (e) {}
-                el.dispatchEvent(new MouseEvent('mouseup', o));
-                el.click();
-              };
-              // +/- buttons are siblings of the input's .inputRatio wrapper, so walk up from the
-              // input until the first ancestor that contains a .plus button (= the attribute row).
-              const plusFor = (name) => {
-                const input = document.querySelector(`input[name="${name}"]`);
-                if (!input) return null;
-                let row = input.parentElement;
-                while (row && row !== document.body) {
-                  const btn = row.querySelector('button.plus, button.textButtonV2.plus');
-                  if (btn) return btn;
-                  row = row.parentElement;
-                }
-                return null;
-              };
-              for (const name of args.order) {
-                const btn = plusFor(name);
-                if (!btn || btn.disabled) continue;
-                for (let i = 0; i < args.clicks; i++) {
-                  if (btn.disabled) break;
-                  robustClick(btn);
-                }
-                return name;
-              }
-              return null;
+        var remaining = before;
+        var used = 0;
+        var exhaustedFields = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var usedFields = new List<string>();
+        while (remaining > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var activeOrder = fieldOrder.Where(field => !exhaustedFields.Contains(field)).ToList();
+            if (activeOrder.Count == 0)
+            {
+                break;
             }
-            """,
-            new { order = fieldOrder, clicks = before });
 
-        await Task.Delay(600, cancellationToken);
+            var fieldClicked = await ClickOfficialHeroAttributePlusAsync(activeOrder, cancellationToken);
+            if (string.IsNullOrWhiteSpace(fieldClicked))
+            {
+                break;
+            }
+
+            await Task.Delay(500, cancellationToken);
+            var latest = await ReadPointsAvailableAsync();
+            if (latest >= remaining)
+            {
+                await Task.Delay(500, cancellationToken);
+                latest = await ReadPointsAvailableAsync();
+            }
+
+            if (latest >= remaining)
+            {
+                exhaustedFields.Add(fieldClicked);
+                Notify($"[hero] official allocation: field={fieldClicked} did not consume a point, trying next priority.");
+                continue;
+            }
+
+            used += remaining - latest;
+            remaining = latest;
+            usedFields.Add(fieldClicked);
+            Notify($"[hero] official allocation: clicked {fieldClicked}, points remaining={remaining}");
+        }
+
         var after = await ReadPointsAvailableAsync();
-        var used = Math.Max(0, before - after);
-        Notify($"[hero] official allocation: field={fieldUsed ?? "none"}, points before={before}, after={after}, used={used}");
+        used = Math.Max(0, before - after);
+        Notify($"[hero] official allocation: fields={string.Join(",", usedFields.Distinct(StringComparer.OrdinalIgnoreCase))}, points before={before}, after={after}, used={used}");
         if (used <= 0)
         {
             return 0;
@@ -1785,6 +1783,45 @@ public sealed partial class TravianClient
     {
         return await _page.EvaluateAsync<int>(
             """() => parseInt((document.querySelector('.pointsAvailable')?.textContent || '0').replace(/[^\d]/g, ''), 10) || 0""");
+    }
+
+    private async Task<string?> ClickOfficialHeroAttributePlusAsync(IReadOnlyList<string> fieldOrder, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return await _page.EvaluateAsync<string?>(
+            """
+            (order) => {
+              const robustClick = (el) => {
+                el.scrollIntoView && el.scrollIntoView({ block: 'center' });
+                const o = { bubbles: true, cancelable: true, view: window };
+                try { el.dispatchEvent(new PointerEvent('pointerdown', o)); } catch (e) {}
+                el.dispatchEvent(new MouseEvent('mousedown', o));
+                try { el.dispatchEvent(new PointerEvent('pointerup', o)); } catch (e) {}
+                el.dispatchEvent(new MouseEvent('mouseup', o));
+                el.click();
+              };
+              const plusFor = (name) => {
+                const input = document.querySelector(`input[name="${name}"]`);
+                if (!input) return null;
+                let row = input.parentElement;
+                while (row && row !== document.body) {
+                  const btn = row.querySelector('button.plus, button.textButtonV2.plus');
+                  if (btn) return btn;
+                  row = row.parentElement;
+                }
+                return null;
+              };
+              for (const name of order) {
+                const btn = plusFor(name);
+                const ariaDisabled = (btn?.getAttribute?.('aria-disabled') || '').toLowerCase() === 'true';
+                if (!btn || btn.disabled || ariaDisabled) continue;
+                robustClick(btn);
+                return name;
+              }
+              return null;
+            }
+            """,
+            fieldOrder);
     }
 
     private static string? MapStatToOfficialField(string stat) => (stat ?? string.Empty).ToLowerInvariant() switch

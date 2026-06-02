@@ -95,6 +95,38 @@ public sealed class BotConfigStoreTests : IDisposable
         Assert.True(global.ContainsKey(BotOptionPayloadKeys.ReinforcementsTroopRules));
     }
 
+    [Fact]
+    public void ResetSettingsToDefaults_KeepsServerAndClearsSavedSettings()
+    {
+        WriteJson(
+            _configPath,
+            new JsonObject
+            {
+                ["server_name"] = "Global",
+                ["base_url"] = "https://example.com",
+                ["headless"] = true,
+                ["silver_limit"] = 500,
+                [BotOptionPayloadKeys.PostLoginAnalyzeHero] = true,
+            });
+        WriteJson(
+            AccountStoragePaths.AccountSettingsPath(_root, "alice"),
+            new JsonObject
+            {
+                [BotOptionPayloadKeys.HeroMinHpForAdventure] = 75,
+            });
+        var store = CreateStore();
+
+        store.ResetSettingsToDefaults();
+
+        var global = JsonNode.Parse(File.ReadAllText(_configPath))!.AsObject();
+        Assert.Equal("Global", global["server_name"]!.GetValue<string>());
+        Assert.Equal("https://example.com", global["base_url"]!.GetValue<string>());
+        Assert.False(global.ContainsKey("headless"));
+        Assert.False(global.ContainsKey("silver_limit"));
+        Assert.False(global.ContainsKey(BotOptionPayloadKeys.PostLoginAnalyzeHero));
+        Assert.False(File.Exists(AccountStoragePaths.AccountSettingsPath(_root, "alice")));
+    }
+
     private BotConfigStore CreateStore()
     {
         return new BotConfigStore(_configPath, _root, () => _activeAccount);

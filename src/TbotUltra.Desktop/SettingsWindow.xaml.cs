@@ -78,19 +78,31 @@ public partial class SettingsWindow : Window
         _isClosing = true;
     }
 
-    private void ResetButton_Click(object sender, RoutedEventArgs e)
+    private void ResetSettingsButton_Click(object sender, RoutedEventArgs e)
     {
-        HeadlessCheckBox.IsChecked = false;
-        HumanLikeCheckBox.IsChecked = false;
-        AllowSilverSpendingCheckBox.IsChecked = false;
-        SelectQueueWaitThresholdMode("smart");
-        SelectFarmDispatchDelayMinutes(3);
-        PostLoginAnalyzeFarmlistsCheckBox.IsChecked = false;
-        PostLoginAnalyzeHeroCheckBox.IsChecked = false;
-        PostLoginReadTroopTrainingQueueCheckBox.IsChecked = false;
-        PostLoginAnalyzeBreweryCheckBox.IsChecked = false;
-        SilverLimitSlider.Value = 100;
-        UpdateLimitLabels();
+        var confirm = AppDialog.Show(
+            this,
+            "Reset all saved program settings to default? Accounts and the selected server are kept.",
+            "Reset settings",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (confirm != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            _store.ResetSettingsToDefaults();
+            LoadConfig();
+            _isClosing = true;
+            DialogResult = true;
+            Close();
+        }
+        catch (Exception ex)
+        {
+            AppDialog.Show(this, ex.Message, "Reset settings", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private void SilverLimitSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -160,4 +172,3 @@ public partial class SettingsWindow : Window
         return 1;
     }
 }
-

@@ -37,5 +37,6 @@
 - Svara så kort som möjligt.
 - Inga långa förklaringar.
 - Ingen introduktion eller sammanfattning.
-- Förklara ändringen kort (max 2–3 meningar).
-- Om svaret kan vara under 10 rader, ska det vara det.
+- Förklara ändringen kort (max 2–4 meningar).
+- Om svaret kan vara under 20 rader, ska det vara det.
+-- Om en plan ska presenteras kan svaret vara längre.

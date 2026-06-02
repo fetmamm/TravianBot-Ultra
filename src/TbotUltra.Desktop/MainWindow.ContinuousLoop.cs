@@ -287,6 +287,11 @@ public partial class MainWindow
             return;
         }
 
+        if (HasReadyContinuousConstructionItem())
+        {
+            return;
+        }
+
         try
         {
             var status = await ReadVillageStatusWithRetryAsync(options, cancellationToken, resourceOnly: false);
@@ -380,6 +385,21 @@ public partial class MainWindow
                 queueItems.Where(item =>
                     item.Group == group &&
                     item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused));
+            if (group == QueueGroup.Construction)
+            {
+                var constructionCandidate = SelectNextConstructionQueueItem(orderedGroupItems, now, out var constructionSkipReason);
+                if (constructionCandidate is not null)
+                {
+                    return constructionCandidate;
+                }
+
+                lastSkipReason = constructionSkipReason ?? $"group={group} skipped (no ready construction items)";
+                AppendLoopPickVerbose(
+                    $"[loop-pick:verbose] {lastSkipReason}",
+                    $"group:{group}:{BuildLoopPickSkipKey(lastSkipReason)}");
+                continue;
+            }
+
             var head = orderedGroupItems.FirstOrDefault();
             if (head is null)
             {
@@ -417,6 +437,74 @@ public partial class MainWindow
                 + (lastSkipReason is null ? string.Empty : $" — last reason: {lastSkipReason}"),
             $"no-selected:{orderedGroups.Count}:{BuildLoopPickSkipKey(lastSkipReason)}");
         return null;
+    }
+
+    private bool HasReadyContinuousConstructionItem()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var items = OrderContinuousLoopGroupItems(
+            _botService.GetQueueItemsForDisplay()
+                .Where(item =>
+                    item.Group == QueueGroup.Construction &&
+                    item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused));
+        return SelectNextConstructionQueueItem(items, now, out _) is not null;
+    }
+
+    private static QueueItem? SelectNextConstructionQueueItem(
+        IReadOnlyList<QueueItem> orderedGroupItems,
+        DateTimeOffset now,
+        out string? skipReason)
+    {
+        skipReason = null;
+        if (orderedGroupItems.Count <= 0)
+        {
+            skipReason = "group=Construction skipped (no pending/running/paused items)";
+            return null;
+        }
+
+        for (var index = 0; index < orderedGroupItems.Count; index++)
+        {
+            var item = orderedGroupItems[index];
+            if (item.Status != QueueStatus.Pending)
+            {
+                skipReason = $"group=Construction task='{item.TaskName}' is {item.Status} (not Pending)";
+                return null;
+            }
+
+            if (item.NextAttemptAt > now)
+            {
+                var waitSec = (item.NextAttemptAt - now).TotalSeconds;
+                skipReason = $"group=Construction task='{item.TaskName}' waiting {waitSec:F0}s (NextAttemptAt in future)";
+                continue;
+            }
+
+            if (IsBuildingUpgradeForSlot(item, out var upgradeSlotId)
+                && HasEarlierPendingConstructForSlot(orderedGroupItems, index, upgradeSlotId))
+            {
+                skipReason = $"group=Construction task='{item.TaskName}' blocked by earlier construct for slot {upgradeSlotId}";
+                continue;
+            }
+
+            return item;
+        }
+
+        return null;
+    }
+
+    private static bool HasEarlierPendingConstructForSlot(IReadOnlyList<QueueItem> orderedItems, int beforeIndex, int slotId)
+    {
+        for (var index = 0; index < beforeIndex; index++)
+        {
+            var earlier = orderedItems[index];
+            if (earlier.Status == QueueStatus.Pending
+                && IsBuildingConstructForSlot(earlier, out var constructSlotId)
+                && constructSlotId == slotId)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void AppendLoopPickVerbose(string message, string key)

@@ -8,6 +8,12 @@ namespace TbotUltra.Desktop.Services;
 
 public sealed class BotConfigStore
 {
+    private static readonly HashSet<string> GlobalIdentityKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "server_name",
+        "base_url",
+    };
+
     private static readonly HashSet<string> AccountScopedKeys = new(StringComparer.OrdinalIgnoreCase)
     {
         BotOptionPayloadKeys.TargetVillageName,
@@ -188,6 +194,22 @@ public sealed class BotConfigStore
         SaveJson(_configPath, globalConfig);
     }
 
+    public void ResetSettingsToDefaults()
+    {
+        var globalConfig = LoadGlobal();
+        var resetGlobalConfig = new JsonObject();
+        foreach (var key in GlobalIdentityKeys)
+        {
+            if (globalConfig.TryGetPropertyValue(key, out var value))
+            {
+                resetGlobalConfig[key] = value?.DeepClone();
+            }
+        }
+
+        SaveJson(_configPath, resetGlobalConfig);
+        ClearAccountSettingsFiles();
+    }
+
     private void SaveAccountScopedValues(string accountName, JsonObject config)
     {
         var accountConfig = LoadAccountSettings(accountName);
@@ -232,6 +254,32 @@ public sealed class BotConfigStore
         catch
         {
             return new JsonObject();
+        }
+    }
+
+    private void ClearAccountSettingsFiles()
+    {
+        if (string.IsNullOrWhiteSpace(_projectRoot))
+        {
+            return;
+        }
+
+        var accountsPath = Path.Combine(_projectRoot, AccountStoragePaths.AccountsRelativeDirectory);
+        if (!Directory.Exists(accountsPath))
+        {
+            return;
+        }
+
+        foreach (var settingsPath in Directory.EnumerateFiles(accountsPath, "settings.json", SearchOption.AllDirectories))
+        {
+            try
+            {
+                File.Delete(settingsPath);
+            }
+            catch
+            {
+                SaveJson(settingsPath, new JsonObject());
+            }
         }
     }
 

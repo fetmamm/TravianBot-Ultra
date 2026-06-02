@@ -4783,10 +4783,8 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
     }
 
     // Adds a population delta to the active village in the cache so the UI village list reflects a
-    // just-queued upgrade. The incremental add needs a baseline population to add onto. That baseline
-    // comes from spieler.php and is read at most ONCE per session here (gated on _populationBaselineRead),
-    // never per upgrade. On a real village switch SwitchToVillageAsync re-arms this so the next active
-    // village seeds its own baseline. This keeps spieler navigations to: session start + village switch.
+    // just-queued upgrade. The incremental add needs an existing baseline; if it is missing, skip the
+    // cache update instead of navigating away from the build flow just to seed UI-only data.
     private async Task AddPopulationToActiveVillageCacheAsync(int delta, CancellationToken cancellationToken)
     {
         if (delta == 0 || _cachedVillages is not { Count: > 0 })
@@ -4810,32 +4808,12 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             return;
         }
 
-        // Seed the baseline once if the active village has no cached population yet. Without this the
-        // incremental add has nothing to add onto and the UI never updates.
         var hasBaseline = _cachedVillages.Any(v =>
             string.Equals(v.Name, activeName, StringComparison.Ordinal) && v.Population.HasValue);
-        if (!hasBaseline && !_populationBaselineRead)
+        if (!hasBaseline)
         {
-            Notify($"[population] no baseline for '{activeName}', reading spieler.php once this session to seed it.");
-            _populationBaselineRead = true;
-            try
-            {
-                var serverVillages = await ReadVillagesFromServerAsync(cancellationToken);
-                if (serverVillages.Count > 0)
-                {
-                    _cachedVillages = serverVillages.ToList();
-                    _cachedVillagesAt = DateTimeOffset.UtcNow;
-                    if (serverVillages.Any(v => v.Population.HasValue))
-                    {
-                        _cachedVillagesPopulationAt = DateTimeOffset.UtcNow;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Notify($"[population] baseline spieler read failed: {ex.Message}");
-                return;
-            }
+            Notify($"[population] no baseline for '{activeName}', skipping UI cache population delta to avoid extra navigation.");
+            return;
         }
 
         var updated = false;

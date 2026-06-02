@@ -1,5 +1,12 @@
 # Tbot_ultra_new
 
+[![Join the Discord](https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/qrge94p7TH)
+
+Join the Discord for support, updates, and community discussion:
+https://discord.gg/qrge94p7TH
+
+---
+
 Travian bot for automating tasks on a private server. The runtime and UI are
 fully C# (.NET 8 / WPF). The optional captcha solver is a small Python module.
 
