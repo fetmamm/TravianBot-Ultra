@@ -178,6 +178,41 @@ public sealed class BotOptionsPayloadApplierTests
     }
 
     [Fact]
+    public void FromConfiguration_UsesResourcesFirstHeroPriorityOnOfficialByDefault()
+    {
+        var values = new Dictionary<string, string?>
+        {
+            ["server_name"] = "Official",
+            ["base_url"] = "https://ts50.x5.europe.travian.com",
+        };
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(values)
+            .Build();
+
+        var options = BotOptionsFactory.FromConfiguration(configuration);
+
+        Assert.Equal("resources,fighting_strength,offence_bonus,defence_bonus", options.HeroStatPriority);
+    }
+
+    [Fact]
+    public void FromConfiguration_PreservesExplicitHeroPriorityOnOfficial()
+    {
+        var values = new Dictionary<string, string?>
+        {
+            ["server_name"] = "Official",
+            ["base_url"] = "https://ts50.x5.europe.travian.com",
+            [BotOptionPayloadKeys.HeroStatPriority] = "offence_bonus,resources,fighting_strength,defence_bonus",
+        };
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(values)
+            .Build();
+
+        var options = BotOptionsFactory.FromConfiguration(configuration);
+
+        Assert.Equal("offence_bonus,resources,fighting_strength,defence_bonus", options.HeroStatPriority);
+    }
+
+    [Fact]
     public void FromConfiguration_KeepsLegacyPrivateServerGoldAndNpcDefaults()
     {
         var values = new Dictionary<string, string?>
@@ -195,6 +230,7 @@ public sealed class BotOptionsPayloadApplierTests
         Assert.True(options.NpcTradeConstructionEnabled);
         Assert.True(options.AllowGoldSpending);
         Assert.Equal(800, options.GoldLimit);
+        Assert.Equal("fighting_strength,offence_bonus,defence_bonus,resources", options.HeroStatPriority);
     }
 
     [Fact]

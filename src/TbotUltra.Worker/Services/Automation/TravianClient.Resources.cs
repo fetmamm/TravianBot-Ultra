@@ -250,7 +250,11 @@ public sealed partial class TravianClient
                 }
 
                 var queueFingerprintBefore = BuildQueueIdentityFingerprint(snapshot.BuildQueue);
-                var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: false);
+                var actionability = await AnalyzeUpgradeActionabilityAsync(
+                    slotId,
+                    cancellationToken,
+                    performClick: false,
+                    skipNavigationIfOnExpectedSlot: true);
                 var detectedMax = actionability.DetectedMaxLevel;
                 var effectiveTarget = detectedMax is int maxLevel ? Math.Min(targetLevel, maxLevel) : targetLevel;
                 Notify($"Resource slot {slotId}: level={currentLevel}, target={effectiveTarget}, max={detectedMax}, outcome={actionability.Outcome}.");
@@ -272,7 +276,8 @@ public sealed partial class TravianClient
                     return $"Resource slot {slotId} appears maxed at level {resolvedMax}. No upgrade performed.";
                 }
 
-                if (!heroTransferAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
+                var blockedByResources = actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources;
+                if (!heroTransferAttempted && (blockedByResources || await CurrentPageLooksBlockedByResourcesAsync(cancellationToken)))
                 {
                     heroTransferAttempted = true;
                     if (await TryHeroResourceTransferForConstructionAsync($"Resource slot {slotId} ({resourceName}) upgrade to level {effectiveTarget}", cancellationToken))
@@ -280,7 +285,7 @@ public sealed partial class TravianClient
                         continue;
                     }
                 }
-                if (!constructionNpcTradeAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
+                if (!constructionNpcTradeAttempted && (blockedByResources || await CurrentPageLooksBlockedByResourcesAsync(cancellationToken)))
                 {
                     constructionNpcTradeAttempted = true;
                     if (await TryNpcTradeForConstructionAsync($"Resource slot {slotId} ({resourceName}) upgrade to level {effectiveTarget}", cancellationToken))
@@ -457,7 +462,6 @@ public sealed partial class TravianClient
 
                 var attemptedAny = false;
                 var blockReasons = new List<string>();
-                UpgradeResourceWaitSnapshot? firstResourceBlockSnapshot = null;
                 foreach (var candidate in candidateRows)
                 {
                     var slot = candidate.SlotId ?? 0;
@@ -486,8 +490,13 @@ public sealed partial class TravianClient
                         return preflightQueueDeferMessage;
                     }
 
+                ReevaluateCurrentSlot:
                     Notify($"[UpgradeAllResourcesToLevelAsync] evaluating slot={slot} name='{resourceName}' level={level} target={targetLevel}.");
-                    var actionability = await AnalyzeUpgradeActionabilityAsync(slot, cancellationToken, performClick: false);
+                    var actionability = await AnalyzeUpgradeActionabilityAsync(
+                        slot,
+                        cancellationToken,
+                        performClick: false,
+                        skipNavigationIfOnExpectedSlot: true);
                     var cap = actionability.DetectedMaxLevel ?? fallbackMax;
                     var effectiveTarget = Math.Min(targetLevel, cap);
                     Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} actionability={actionability.Outcome} effectiveTarget={effectiveTarget} max={actionability.DetectedMaxLevel?.ToString() ?? "unknown"} candidateIndex={actionability.CandidateIndex?.ToString() ?? "-"} reason={actionability.Reason}");
@@ -559,15 +568,17 @@ public sealed partial class TravianClient
                     var label = string.IsNullOrWhiteSpace(candidate.Name)
                         ? $"Resource slot {slot} upgrade to level {effectiveTarget}"
                         : $"Resource slot {slot} ({candidate.Name}) upgrade to level {effectiveTarget}";
-                    if (!heroTransferAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
+                    var blockedByResources = actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources;
+                    if (!heroTransferAttempted && (blockedByResources || await CurrentPageLooksBlockedByResourcesAsync(cancellationToken)))
                     {
                         heroTransferAttempted = true;
                         if (await TryHeroResourceTransferForConstructionAsync(label, cancellationToken))
                         {
-                            goto NextLoopTick;
+                            Notify($"[UpgradeAllResourcesToLevelAsync] hero transfer completed for slot={slot}; rechecking same build page before navigating away.");
+                            goto ReevaluateCurrentSlot;
                         }
                     }
-                    if (!constructionNpcTradeAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
+                    if (!constructionNpcTradeAttempted && (blockedByResources || await CurrentPageLooksBlockedByResourcesAsync(cancellationToken)))
                     {
                         constructionNpcTradeAttempted = true;
                         if (await TryNpcTradeForConstructionAsync(label, cancellationToken))
@@ -582,10 +593,9 @@ public sealed partial class TravianClient
                             label,
                             ClampResourceWaitSeconds(actionability.QueueWaitSeconds),
                             cancellationToken);
-                        firstResourceBlockSnapshot ??= snapshot;
                         blockReasons.Add($"slot {slot}: {actionability.Outcome} ({actionability.Reason})");
-                        Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} blocked by resources. wait={snapshot.WaitSeconds}s reason={snapshot.WaitReason}.");
-                        continue;
+                        Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} blocked by resources. Deferring construction for {snapshot.WaitSeconds}s instead of scanning more slots. reason={snapshot.WaitReason}.");
+                        return BuildUpgradeResourceBlockedResultMessage(snapshot);
                     }
 
                     blockReasons.Add($"slot {slot}: {actionability.Outcome} ({actionability.Reason})");
@@ -603,12 +613,6 @@ public sealed partial class TravianClient
                     if (!IsCurrentUrlForPath(Paths.Resources))
                     {
                         await GotoAsync(Paths.Resources, cancellationToken);
-                    }
-
-                    if (firstResourceBlockSnapshot is not null)
-                    {
-                        Notify($"[UpgradeAllResourcesToLevelAsync] no slot was actionable. Returning first resource wait snapshot after scanning all candidates.");
-                        return BuildUpgradeResourceBlockedResultMessage(firstResourceBlockSnapshot);
                     }
 
                     return $"No resource slot could be upgraded toward level {targetLevel}. Upgrades made: {upgrades}.{reasonSuffix}";

@@ -74,7 +74,7 @@ public sealed partial class TravianClient
             var opened = await _page.EvaluateAsync<bool>(
                 """
                 () => {
-                  const icon = document.querySelector('.inlineIcon.resource.transfer');
+                  const icon = document.querySelector('.upgradeBlocked .inlineIcon.resource.transfer.fillUp, .inlineIcon.resource.transfer.fillUp, .inlineIcon.resource.transfer');
                   if (!icon) return false;
                   icon.click();
                   return true;
@@ -97,8 +97,20 @@ public sealed partial class TravianClient
         try
         {
             await _page.WaitForSelectorAsync(
-                "div.resourceTransferDialog",
-                new PageWaitForSelectorOptions { Timeout = 5000 });
+                "div.resourceTransferDialog, #dialogContent",
+                new PageWaitForSelectorOptions { Timeout = 8000 });
+            await _page.WaitForFunctionAsync(
+                """
+                () => {
+                  const dialog = document.querySelector('div.resourceTransferDialog')
+                    || ((document.querySelector('#dialogContent h3')?.textContent || '').trim().toLowerCase() === 'transfer resources'
+                      ? document.querySelector('#dialogContent')
+                      : null);
+                  return !!dialog?.querySelector('input[name="lumber"], input[name="clay"], input[name="iron"], input[name="crop"]');
+                }
+                """,
+                null,
+                new PageWaitForFunctionOptions { Timeout = 5000 });
         }
         catch (TimeoutException)
         {
@@ -119,8 +131,12 @@ public sealed partial class TravianClient
             var amountsJson = await _page.EvaluateAsync<string>(
                 """
                 () => {
+                  const dialog = document.querySelector('div.resourceTransferDialog')
+                    || ((document.querySelector('#dialogContent h3')?.textContent || '').trim().toLowerCase() === 'transfer resources'
+                      ? document.querySelector('#dialogContent')
+                      : null);
                   const read = (name) => {
-                    const input = document.querySelector('div.resourceTransferDialog input[name="' + name + '"]');
+                    const input = dialog?.querySelector('input[name="' + name + '"]');
                     const text = (input?.value || '').replace(/[^0-9]/g, '');
                     return text ? Number(text) || 0 : 0;
                   };
@@ -147,10 +163,31 @@ public sealed partial class TravianClient
         bool confirmed;
         try
         {
+            await _page.WaitForFunctionAsync(
+                """
+                () => {
+                  const dialog = document.querySelector('div.resourceTransferDialog')
+                    || ((document.querySelector('#dialogContent h3')?.textContent || '').trim().toLowerCase() === 'transfer resources'
+                      ? document.querySelector('#dialogContent')
+                      : null);
+                  if (!dialog) return false;
+                  let button = dialog.querySelector('.actionButton.preSelected button');
+                  if (!button) {
+                    const buttons = Array.from(dialog.querySelectorAll('button'));
+                    button = buttons.find(b => /transfer selected/i.test(b.textContent || ''));
+                  }
+                  return !!button && !button.disabled && button.getAttribute('aria-disabled') !== 'true';
+                }
+                """,
+                null,
+                new PageWaitForFunctionOptions { Timeout = 5000 });
             confirmed = await _page.EvaluateAsync<bool>(
                 """
                 () => {
-                  const dialog = document.querySelector('div.resourceTransferDialog');
+                  const dialog = document.querySelector('div.resourceTransferDialog')
+                    || ((document.querySelector('#dialogContent h3')?.textContent || '').trim().toLowerCase() === 'transfer resources'
+                      ? document.querySelector('#dialogContent')
+                      : null);
                   if (!dialog) return false;
                   let button = dialog.querySelector('.actionButton.preSelected button');
                   if (!button) {
@@ -177,6 +214,22 @@ public sealed partial class TravianClient
 
         Notify($"[hero-transfer] transfer confirmed at {label}; waiting for page reload");
         await WaitForPostUpgradeClickPageLoadAsync(cancellationToken);
+        try
+        {
+            await _page.WaitForFunctionAsync(
+                """
+                () => !document.querySelector('div.resourceTransferDialog')
+                  && !((document.querySelector('#dialogContent h3')?.textContent || '').trim().toLowerCase() === 'transfer resources')
+                """,
+                null,
+                new PageWaitForFunctionOptions { Timeout = 8000 });
+        }
+        catch (TimeoutException)
+        {
+            Notify($"[hero-transfer] transfer dialog still visible after confirm at {label}; continuing with current page state.");
+        }
+
+        await Task.Delay(350, cancellationToken);
         await ApplyActionDelayAsync(cancellationToken);
 
         // Keep the cached inventory in sync by deducting what Travian just moved out of it. We do

@@ -4,6 +4,9 @@ namespace TbotUltra.Core.Configuration;
 
 public static class BotOptionsFactory
 {
+    private const string LegacyHeroStatPriority = "fighting_strength,offence_bonus,defence_bonus,resources";
+    private const string OfficialHeroStatPriority = "resources,fighting_strength,offence_bonus,defence_bonus";
+
     public static BotOptions FromConfiguration(IConfiguration configuration)
     {
         var tasks = configuration.GetSection("loop_tasks").Get<List<string>>() ?? ["status"];
@@ -20,6 +23,9 @@ public static class BotOptionsFactory
         var baseUrl = (configuration["base_url"] ?? string.Empty).TrimEnd('/');
         var serverFlavor = ServerFlavorDetector.FromBaseUrl(baseUrl);
         var isOfficialServer = serverFlavor == ServerFlavor.Official;
+        var heroStatPriority = string.IsNullOrWhiteSpace(configuration[BotOptionPayloadKeys.HeroStatPriority])
+            ? (isOfficialServer ? OfficialHeroStatPriority : LegacyHeroStatPriority)
+            : configuration[BotOptionPayloadKeys.HeroStatPriority]!;
 
         return new BotOptions
         {
@@ -130,7 +136,7 @@ public static class BotOptionsFactory
             HeroAutoRevive = configuration.GetValue(BotOptionPayloadKeys.HeroAutoRevive, true),
             HeroAutoAssignPoints = configuration.GetValue(BotOptionPayloadKeys.HeroAutoAssignPoints, false),
             HeroAutoUseOintments = configuration.GetValue(BotOptionPayloadKeys.HeroAutoUseOintments, false),
-            HeroStatPriority = configuration[BotOptionPayloadKeys.HeroStatPriority] ?? "fighting_strength,offence_bonus,defence_bonus,resources",
+            HeroStatPriority = heroStatPriority,
             HeroAdventurePickOrder = configuration[BotOptionPayloadKeys.HeroAdventurePickOrder] ?? "shortest",
             HeroHideModeEnabled = configuration.GetValue(BotOptionPayloadKeys.HeroHideModeEnabled, false),
             HeroHideMode = configuration[BotOptionPayloadKeys.HeroHideMode] ?? "hide",

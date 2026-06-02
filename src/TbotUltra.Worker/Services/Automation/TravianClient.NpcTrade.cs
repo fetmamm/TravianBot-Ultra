@@ -339,7 +339,8 @@ public sealed partial class TravianClient
             """
             () => {
               const text = (document.body?.innerText || document.body?.textContent || '').replace(/\s+/g, ' ').toLowerCase();
-              return /resources\s*will\s*be\s*available|not\s*enough|insufficient|missing\s*resources|requires\s*more/.test(text);
+              return !!document.querySelector('.upgradeBlocked .inlineIcon.resource.transfer, .inlineIcon.resource.transfer.fillUp')
+                || /resources\s*will\s*be\s*available|enough\s*resources\s*on|not\s*enough|insufficient|missing\s*resources|requires\s*more/.test(text);
             }
             """);
 

@@ -2828,13 +2828,20 @@ public sealed partial class TravianClient
     }
 
 
-    private async Task<UpgradeAttemptResult> AnalyzeUpgradeActionabilityAsync(int slotId, CancellationToken cancellationToken, bool performClick)
+    private async Task<UpgradeAttemptResult> AnalyzeUpgradeActionabilityAsync(
+        int slotId,
+        CancellationToken cancellationToken,
+        bool performClick,
+        bool skipNavigationIfOnExpectedSlot = false)
     {
         for (var attempt = 1; attempt <= 3; attempt++)
         {
             try
             {
-                await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
+                if (!skipNavigationIfOnExpectedSlot || ExtractSlotIdFromUrl(_page.Url) != slotId)
+                {
+                    await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
+                }
                 await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the upgrade page.", cancellationToken);
                 await EnsureLoggedInAsync();
                 await EnsureExpectedBuildSlotPageAsync(slotId, "analyze upgrade", cancellationToken);
@@ -3930,16 +3937,55 @@ public sealed partial class TravianClient
             }
         }
 
-        var hasBuildContext = await _page.EvaluateAsync<bool>(
-            """
-            () => !!document.querySelector(
-              "form[action*='build.php' i], .upgradeBuilding, .contract, .buildingWrapper, a[href*='build.php?id=']"
-            )
-            """);
-        if (!hasBuildContext)
+        for (var attempt = 1; attempt <= 2; attempt++)
         {
-            throw new InvalidOperationException(
-                $"{operationLabel} expected a build slot context, but required build controls were not found.");
+            var hasBuildContext = await WaitForBuildSlotContextAsync(slotId, attempt == 1 ? 5000 : 3000, cancellationToken);
+            if (hasBuildContext)
+            {
+                return;
+            }
+
+            if (attempt == 1)
+            {
+                Notify($"{operationLabel} expected build controls for slot {slotId}, but the page was not ready. Reloading the current build page once.");
+                await ReloadOrGotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
+                await EnsureLoggedInAsync();
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"{operationLabel} expected a build slot context, but required build controls were not found.");
+    }
+
+    private async Task<bool> WaitForBuildSlotContextAsync(int slotId, int timeoutMs, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        try
+        {
+            await _page.WaitForFunctionAsync(
+                """
+                ({ slotId }) => {
+                  const currentSlot = (() => {
+                    const match = window.location.href.match(/[?&]id=(\d+)/);
+                    return match ? Number(match[1]) : null;
+                  })();
+                  if (currentSlot !== slotId) return false;
+                  return !!document.querySelector(
+                    '#build, #contract, .upgradeBuilding, .contractWrapper, .buildingWrapper, .build_details, a[href*="build.php?id="]'
+                  );
+                }
+                """,
+                new { slotId },
+                new PageWaitForFunctionOptions { Timeout = timeoutMs });
+            return true;
+        }
+        catch (TimeoutException)
+        {
+            return false;
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            return false;
         }
     }
 

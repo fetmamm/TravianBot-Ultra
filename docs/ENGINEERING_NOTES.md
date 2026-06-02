@@ -122,6 +122,20 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   inte hela bristen för *alla* korta resurser → hoppa över utan att öppna dialogen (undviker att spendera
   hjälteresurser på en transfer som ändå inte låser upp uppgraderingen). Saknas cache eller går datan inte
   att läsa → fall tillbaka till reaktivt beteende (öppna dialogen).
+- **2026-06-02** — `UpgradeAllResourcesToLevelAsync` defers immediately on `BlockedByResources` after
+  hero-transfer/NPC attempts fail. The page's resource ETA is returned via `queue_wait_seconds` instead of
+  scanning the remaining resource slots, which prevents long-running resource tasks from log-spamming while
+  waiting for production.
+- **2026-06-02** — Hero resource-transfer detection on official build pages treats `upgradeBlocked` +
+  `.inlineIcon.resource.transfer.fillUp` as enough proof of resource shortage. The transfer dialog can render
+  either as `div.resourceTransferDialog` or as `#dialogContent` with the "Transfer resources" header; selectors
+  must support both before clicking "Transfer selected".
+- **2026-06-02** — After a successful hero resource-transfer during `UpgradeAllResourcesToLevelAsync`, re-check
+  the same build slot page in place. Do not bounce through `dorf1.php` unless the current page is no longer the
+  expected slot; Travian's `&reload=auto` page is already the right context once the dialog closes.
+- **2026-06-02** — Hero attribute priority default is flavor-aware: official servers default to
+  `resources,fighting_strength,offence_bonus,defence_bonus`; SS/legacy keeps the old combat-first order.
+  `hero_stat_priority` is account-scoped, so explicit user reordering is preserved per account.
 
 ---
 
@@ -132,6 +146,17 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
 - **Profil-koordinater:** selektor-omordning (prioritera `karte.php?x=`-länk) ändrade SS-beteende
   medvetet — resultatet är lika/bättre, men det är inte ren additiv.
 - **React-sidor utan render-väntan** → läser tomt / "not clickable". Vänta alltid in render.
+- **Resource upgrade-all + resursbrist:** när Travian visar `upgradeBlocked`/`not enough resources yet`
+  ska tasken returnera `queue_wait_seconds` direkt. Att fortsätta scanna andra fält kan skapa en minut-loop
+  med upprepade build.php-navigeringar och loggspam.
+- **Hero transfer-dialog:** official React kan visa dialoginnehållet som `#dialogContent` utan synlig
+  `div.resourceTransferDialog` wrapper i sparad HTML. Klicka bekräftelseknappen via `.actionButton.preSelected`
+  eller texten "Transfer selected".
+- **Hero transfer efter klick:** vänta kort på dialog-inputs, klickbar "Transfer selected", dialog-stängning
+  och en liten settle-delay innan samma build-sida analyseras igen.
+- **Same-slot recheck efter hero transfer:** rätt `build.php?id=N` URL räcker inte alltid; official kan ha
+  URL:en satt innan build-DOM är hydrerad. Vänta på `#build`/`#contract`/`.upgradeBuilding`; om det saknas,
+  reloada samma build-sida en gång i stället för att kasta fel eller gå via `dorf1.php`.
 
 ---
 
