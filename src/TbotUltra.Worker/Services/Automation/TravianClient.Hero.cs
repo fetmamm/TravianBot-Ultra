@@ -703,24 +703,55 @@ public sealed partial class TravianClient
     private async Task<int?> ReadHeroReturnSecondsAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var raw = await _page.EvaluateAsync<string?>(
+        var rawJson = await _page.EvaluateAsync<string?>(
             """
             () => {
               const clean = (v) => (v || '').replace(/\s+/g, ' ').trim();
               const text = clean(document.body?.innerText || '');
+              const heroStateText = clean(document.querySelector('.heroState')?.textContent || '');
+              const awayText = heroStateText || text;
+              const isOutboundAdventure = /on its way to an adventure/i.test(awayText);
+              const isReturningHome = /on its way back to the village/i.test(awayText);
+              const multiplier = isOutboundAdventure && !isReturningHome ? 2 : 1;
+              const pack = (value) => value ? JSON.stringify({ value, multiplier }) : null;
               const match = text.match(/back\s*in[^\d]*(\d{1,2}:\d{2}(?::\d{2})?)/i)
                 || text.match(/arrival\s*in[^\d]*(\d{1,2}:\d{2}(?::\d{2})?)/i);
-              if (match) return match[1];
+              if (match) return pack(match[1]);
               // Official Travian (T4.6): the hero return/arrival countdown is a span.timerReact.
               const timerReact = document.querySelector('span.timerReact, .timerReact');
-              if (timerReact) return clean(timerReact.textContent || '');
+              if (timerReact) return pack(clean(timerReact.textContent || ''));
               const timer = document.querySelector('.heroReturn .timer, [class*="return" i] [class*="timer" i]');
-              if (timer) return clean(timer.textContent || '');
+              if (timer) return pack(clean(timer.textContent || ''));
               return null;
             }
             """);
 
-        return ParseDurationToSeconds(raw);
+        if (string.IsNullOrWhiteSpace(rawJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(rawJson);
+            var root = doc.RootElement;
+            var raw = root.TryGetProperty("value", out var valueProp) ? valueProp.GetString() : null;
+            var seconds = ParseDurationToSeconds(raw);
+            if (seconds is null)
+            {
+                return null;
+            }
+
+            var multiplier = root.TryGetProperty("multiplier", out var multiplierProp)
+                && multiplierProp.TryGetInt32(out var parsedMultiplier)
+                ? Math.Max(1, parsedMultiplier)
+                : 1;
+            return seconds.Value * multiplier;
+        }
+        catch (JsonException)
+        {
+            return ParseDurationToSeconds(rawJson);
+        }
     }
 
     /// <summary>
@@ -788,15 +819,35 @@ public sealed partial class TravianClient
             var hp = await _page.EvaluateAsync<int?>(
                 """
                 () => {
-                  const clean = (el) => (el?.textContent || '').replace(/[^\d.%]/g, '');
-                  const healthRow = document.querySelector('i[class*="attributeHealth"]')
-                    ?.closest('tr, .attribute, .attributeRow, li, section, div');
-                  const scoped = healthRow ? Array.from(healthRow.querySelectorAll('.value')) : [];
-                  const all = scoped.length ? scoped : Array.from(document.querySelectorAll('.value'));
-                  for (const v of all) {
-                    const m = clean(v).match(/^(\d{1,3})%$/); // integer percent only (HP, not 0.0% bonuses)
-                    if (m) return parseInt(m[1], 10);
+                  const parsePercent = (value) => {
+                    const text = (value || '').replace(/[^\d.%]/g, '');
+                    const match = text.match(/(\d{1,3})%/);
+                    if (!match) return null;
+                    const parsed = parseInt(match[1], 10);
+                    return Number.isFinite(parsed) && parsed >= 0 && parsed <= 100 ? parsed : null;
+                  };
+                  const healthIcon = document.querySelector('i[class*="attributeHealth"]');
+                  const healthBox = healthIcon?.closest('.attributeBox, .stats, tr, .attribute, .attributeRow, li, section, div');
+                  const values = healthBox ? Array.from(healthBox.querySelectorAll('.value')) : [];
+                  for (const value of values) {
+                    const parsed = parsePercent(value.textContent || '');
+                    if (parsed !== null) return parsed;
                   }
+
+                  const filling = healthBox?.querySelector('.progressBar .filling, .bar .filling');
+                  const styleWidth = filling?.style?.width || '';
+                  const styleParsed = parsePercent(styleWidth);
+                  if (styleParsed !== null) return styleParsed;
+
+                  const attrWidth = filling?.getAttribute?.('style') || '';
+                  const attrParsed = parsePercent(attrWidth);
+                  if (attrParsed !== null) return attrParsed;
+
+                  for (const value of Array.from(document.querySelectorAll('.value'))) {
+                    const parsed = parsePercent(value.textContent || '');
+                    if (parsed !== null) return parsed;
+                  }
+
                   return null;
                 }
                 """);
@@ -888,9 +939,19 @@ public sealed partial class TravianClient
             }
         }
 
+        var minHpThreshold = Math.Clamp(minHpForAdventure, 1, 100);
+
+        // Official Travian (T4.6) does not expose HP in the sidebar, but /hero/attributes shows it.
+        // Read HP before opening /hero/adventures so low-HP decisions do not require an extra
+        // adventures -> attributes -> adventures round trip.
+        if (!_config.IsPrivateServer && adventureHintCount > 0 && inVillage && !status.IsDead && hpPercent is null)
+        {
+            hpPercent = await ReadHeroHpPercentOfficialAsync(cancellationToken);
+        }
+
         var heroReturnWaitSeconds = status.SecondsUntilReturn;
         var adventureCount = adventureHintCount;
-        if (adventureHintCount > 0)
+        if (adventureHintCount > 0 && !inVillage)
         {
             await OpenHeroAdventuresPageAsync(cancellationToken);
             await PauseForManualStepIfVisibleAsync("Manual verification appeared on adventures page.", cancellationToken);
@@ -900,7 +961,6 @@ public sealed partial class TravianClient
             heroReturnWaitSeconds = status.SecondsUntilReturn;
         }
 
-        var minHpThreshold = Math.Clamp(minHpForAdventure, 1, 100);
         if (hpPercent is >= 0 && hpPercent >= minHpThreshold)
         {
             ClearHeroOintmentMiss();
@@ -942,15 +1002,12 @@ public sealed partial class TravianClient
             }
         }
 
-        // Official Travian (T4.6) does not expose HP in the sidebar, but /hero/attributes shows it
-        // as an integer percent. Read it before deciding to send so a low-HP hero is never sent.
-        if (!_config.IsPrivateServer && adventureCount > 0 && inVillage && !status.IsDead && hpPercent is null)
-        {
-            hpPercent = await ReadHeroHpPercentOfficialAsync(cancellationToken);
-        }
-
-        // Send only when HP is known and at/above the threshold. Unknown HP => do not send (safe).
-        var canSendByHp = !status.IsDead && hpPercent.HasValue && hpPercent.Value >= minHpThreshold;
+        // Official sometimes fails to expose HP immediately after the hero returns. If the sidebar
+        // says the hero is home, do not defer 10 minutes on unknown HP; try to dispatch instead.
+        var canSendByHp = !status.IsDead
+            && (hpPercent.HasValue
+                ? hpPercent.Value >= minHpThreshold
+                : !_config.IsPrivateServer && inVillage);
         var hpTooLow = false;
 
         if (adventureCount > 0 && canSendByHp && inVillage)
@@ -1249,9 +1306,14 @@ public sealed partial class TravianClient
                 return null;
               };
 
-              const text = (document.body?.innerText || '').toLowerCase();
+              const bodyInnerText = document.body?.innerText || '';
+              const text = bodyInnerText.toLowerCase();
               const statusMessage = document.querySelector('.heroStatusMessage');
               const statusText = (statusMessage?.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+              const heroStateText = (document.querySelector('.heroState')?.textContent || '').replace(/\s+/g, ' ').trim();
+              const awayText = heroStateText || bodyInnerText;
+              const isOutboundAdventure = /on its way to an adventure/i.test(awayText);
+              const isReturningHome = /on its way back to the village/i.test(awayText);
               const reviving = /being\s+revived|remaining\s+time|reviv/i.test(statusText)
                 && !!statusMessage?.querySelector('.timer, [counting="down"], .heroStatus101Regenerate');
               const dead = /\bdead\b|\btot\b|\bdeceased\b|\bdöd\b/.test(text);
@@ -1293,20 +1355,23 @@ public sealed partial class TravianClient
                 parseTimer(document.querySelector('.adventure .timer')?.textContent || '')
                 ?? parseTimer(document.querySelector('[class*="adventure" i] [class*="timer" i]')?.textContent || '');
 
-              const returnTimer =
+              const rawReturnTimer =
                 parseTimer(document.querySelector('[class*="return" i] [class*="timer" i]')?.textContent || '')
                 ?? parseTimer(document.querySelector('.heroReturn .timer')?.textContent || '')
-                ?? parseInlineTimer(document.body?.innerText || '', [
+                ?? parseInlineTimer(bodyInnerText, [
                   /back\s+in\s*:?\s*(\d{1,3}:\d{2}:\d{2})/i,
                   /return\s+in\s*:?\s*(\d{1,3}:\d{2}:\d{2})/i,
                   /arrival\s+in\s*:?\s*\d{1,3}:\d{2}:\d{2}(?:\s*hour)?\s*\|\s*back\s+in\s*:?\s*(\d{1,3}:\d{2}:\d{2})/i,
                   // Official Travian (T4.6): "Arrival in 00:03:20 at 17:53".
                   /arrival\s+in\s*:?\s*(\d{1,2}:\d{2}(?::\d{2})?)/i
                 ])
-                // Official countdown span, only trusted when the hero is on an adventure.
-                ?? (/on its way to an adventure/i.test(document.body?.innerText || '')
+                // Official countdown span, only trusted when the hero is moving.
+                ?? ((isOutboundAdventure || isReturningHome)
                       ? parseTimer(document.querySelector('span.timerReact, .timerReact')?.textContent || '')
                       : null);
+              const returnTimer = rawReturnTimer !== null && isOutboundAdventure && !isReturningHome
+                ? rawReturnTimer * 2
+                : rawReturnTimer;
 
               const exists = !!document.querySelector('#heroImage, #heroStatus, [class*="hero" i]');
               return JSON.stringify({
@@ -2618,7 +2683,11 @@ public sealed partial class TravianClient
         return await _page.EvaluateAsync<bool>(
             """
             () => {
-              // 1) Most reliable: the hero icon class.
+              // 1) Most reliable: explicit hero home/running icons in the top bar/sidebar.
+              if (document.querySelector('i.heroHome, [class*="heroHome"]')) return true;
+              if (document.querySelector('i.heroRunning, [class*="heroRunning"]')) return false;
+
+              // 2) Legacy hero status class.
               const icon = document.querySelector('.heroStatus, [class*="heroStatus"]');
               if (icon) {
                 const cls = (icon.className || '').toString();
@@ -2627,16 +2696,16 @@ public sealed partial class TravianClient
                 // Anything else (52/53 = on the way, 51 = dead) => not in this village.
                 if (/heroStatus\d+/i.test(cls)) return false;
               }
-              // 2) Official Travian (T4.6): a hero on its way is shown by a heroRunning icon in the
+              // 3) Official Travian (T4.6): a hero on its way is shown by a heroRunning icon in the
               // top-bar sidebar, and on the adventures page by a statusRunning icon + .heroState /
               // "on its way to an adventure" / "Arrival in <timerReact>". There is no heroStatus
               // class. Any of these means the hero is NOT in the village.
-              if (document.querySelector('[class*="heroRunning"], [class*="statusRunning"], .heroState, .timerReact')) return false;
+              if (document.querySelector('[class*="statusRunning"], .heroState, .timerReact')) return false;
               const officialBox = document.querySelector('#topBarHero, #heroV2, .heroV2');
               const officialText = (officialBox?.textContent || '').toLowerCase();
               if (/on its way|on the way to|arrival in/.test(officialText)) return false;
 
-              // 3) Fallback: localized status text in the hero sidebar box.
+              // 4) Fallback: localized status text in the hero sidebar box.
               const box = document.querySelector('#sidebarBoxHero, .heroSidebar, .heroStatusMessage');
               const text = (box?.textContent || '').toLowerCase();
               if (!text) return true; // unknown — don't block

@@ -218,22 +218,19 @@ public sealed class ResourcesViewModel : BaseViewModel
             .ToDictionary(item => item.ResourceKey, item => item, StringComparer.OrdinalIgnoreCase)
             ?? new Dictionary<string, ResourceStorageForecast>(StringComparer.OrdinalIgnoreCase);
 
-        _baseForecasts = forecasts;
-        _baseForecastCapturedAtUtc = DateTimeOffset.UtcNow;
-
         // Don't render the freshly-read values here. Doing so updates the bars off the 1s clock
         // beat (at the random moment a function re-reads real resources), which makes the storage
         // counters visibly "blip". Instead we only refresh the extrapolation base above and let the
         // next regular TickLiveForecasts() render it, so the counters keep advancing on a steady
-        // once-per-second cadence. When there is no forecast data we still render immediately to
-        // clear the bars, since TickLiveForecasts() no-ops on an empty base.
+        // once-per-second cadence. Empty reads are ignored so a transient current-page miss cannot
+        // blank the storage UI or stop the last known production-based forecast.
         if (forecasts.Count == 0)
         {
-            foreach (var bar in StorageBars)
-            {
-                ApplyForecast(bar, null);
-            }
+            return;
         }
+
+        _baseForecasts = forecasts;
+        _baseForecastCapturedAtUtc = DateTimeOffset.UtcNow;
     }
 
     public void ResetStorageForecasts()

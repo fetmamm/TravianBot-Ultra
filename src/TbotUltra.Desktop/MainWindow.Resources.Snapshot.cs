@@ -339,35 +339,7 @@ public partial class MainWindow
             return false;
         }
 
-        if (_uiBusy)
-        {
-            return false;
-        }
-
-        if (_autoQueueRunning || (_loopTask is not null && !_loopTask.IsCompleted))
-        {
-            return false;
-        }
-
-        if (!string.IsNullOrWhiteSpace(_activeFunctionDisplayName))
-        {
-            return false;
-        }
-
-        try
-        {
-            if (_botService.GetQueueItemsForDisplay().Any(item =>
-                    item.Status is QueueStatus.Pending or QueueStatus.Running))
-            {
-                return false;
-            }
-        }
-        catch
-        {
-            return false;
-        }
-
-        return true;
+        return !_uiBusy;
     }
 
     private bool _heroReviveCheckRunning;
