@@ -1699,10 +1699,18 @@ public sealed partial class TravianClient
             (order) => {
               const avail = parseInt((document.querySelector('.pointsAvailable')?.textContent || '0').replace(/[^\d]/g, ''), 10) || 0;
               if (avail <= 0) return 0;
+              // The +/- buttons are siblings of the input's .inputRatio wrapper, so walk up from the
+              // input until an ancestor that contains a .plus button (that ancestor is the attribute row).
               const plusFor = (name) => {
                 const input = document.querySelector(`input[name="${name}"]`);
-                const row = input?.closest('tr, .attribute, .attributeRow, li, div');
-                return row ? row.querySelector('button.plus, button.textButtonV2.plus, .plus button') : null;
+                if (!input) return null;
+                let row = input.parentElement;
+                while (row && row !== document.body) {
+                  const btn = row.querySelector('button.plus, button.textButtonV2.plus');
+                  if (btn) return btn;
+                  row = row.parentElement;
+                }
+                return null;
               };
               let used = 0;
               for (const name of order) {
@@ -1722,6 +1730,18 @@ public sealed partial class TravianClient
         if (allocated <= 0)
         {
             return 0;
+        }
+
+        // #savePoints stays disabled until the changes register; wait for it to enable before clicking.
+        try
+        {
+            await _page.WaitForFunctionAsync(
+                """() => { const b = document.querySelector('#savePoints'); return !!b && !b.disabled; }""",
+                null,
+                new PageWaitForFunctionOptions { Timeout = 4000 });
+        }
+        catch (TimeoutException)
+        {
         }
 
         var saved = await _page.EvaluateAsync<bool>(
