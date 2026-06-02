@@ -1,6 +1,6 @@
 ## Läs först
 - Läs och följ `docs/ENGINEERING_NOTES.md` innan du ändrar selektorer, sökvägar eller serverlogik.
-- Den innehåller projektets konventioner, regler för de två servervarianterna (Official/SS-Travi), beslutslogg och kända fallgropar — följ dem och uppdatera filen löpande.
+- Den innehåller projektets konventioner, regler för de två servervarianterna (Official/SS-Travi), beslutslogg och kända fallgropar — följ dem och uppdatera filen löpande med relevanta delar.
 
 ## Kodregler
 - Försök att inte ändra kod som inte behöver ändras.
@@ -19,6 +19,7 @@
 - Gör små, lokala ändringar hellre än stora omskrivningar.
 - Om en funktion redan fungerar, bygg vidare på den istället för att skriva om den.
 - Ändra endast de filer och metoder som är direkt relevanta för uppgiften.
+- README ska uppdateras när något ändras som är värt att beskriva.
 
 ## Felsökning och robusthet
 - Hantera vanliga felfall om det är relevant.
