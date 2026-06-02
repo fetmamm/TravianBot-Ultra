@@ -577,8 +577,11 @@ public partial class MainWindow : Window
 
     private async Task RunBackgroundWarmupsAsync()
     {
+        // Captcha warmup is intentionally NOT done here — that captcha only exists on SS-Travi,
+        // so warming it at startup just slows the program for official servers. It is triggered
+        // lazily at login instead (see ExecuteLoginFlowAsync), where RunCaptchaWarmupAsync gates
+        // on IsPrivateServer + CaptchaAutoSolveEnabled.
         await RunChromiumWarmupAsync();
-        await RunCaptchaWarmupAsync();
     }
 
     private async Task RunChromiumWarmupAsync()
@@ -1050,6 +1053,11 @@ public partial class MainWindow : Window
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
             AppendLog($"[{operationId}] INFO server={options.ServerName}, headless={options.Headless}");
             BrowserInfoTextBlock.Text = "Browser: starting";
+
+            // Warm the captcha solver lazily, now that we know the server. Fire-and-forget and
+            // self-gated (only runs for SS-Travi with captcha auto-solve enabled) so it never
+            // slows login on official servers.
+            _ = RunCaptchaWarmupAsync();
 
             await EnsureChromiumInstalledAsync();
             AppendLog("Login started.");
