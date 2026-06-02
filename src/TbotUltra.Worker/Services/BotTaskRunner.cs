@@ -272,7 +272,8 @@ public sealed class BotTaskRunner
         HeroInventoryResources? heroInventory = null;
         if (options.PostLoginAnalyzeHeroInventory)
         {
-            heroInventory = await client.ReadHeroInventoryResourcesAsync(cancellationToken);
+            // Suppress the village/profile UI-sync so the inventory is read before the profile nav.
+            heroInventory = await client.ReadHeroInventoryResourcesAsync(cancellationToken, suppressUiSync: true);
         }
 
         var accountSnapshot = await client.ReadAccountSnapshotAsync(

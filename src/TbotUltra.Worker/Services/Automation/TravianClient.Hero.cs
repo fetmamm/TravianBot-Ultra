@@ -2219,15 +2219,28 @@ public sealed partial class TravianClient
     // iron=item147, crop=item148) from the hero inventory grid. Official-only data, but the read
     // itself is harmless on any server: a missing item simply reads as 0. Navigates to the hero
     // inventory page so it can be called on demand from the desktop.
-    public async Task<HeroInventoryResources> ReadHeroInventoryResourcesAsync(CancellationToken cancellationToken = default)
+    public async Task<HeroInventoryResources> ReadHeroInventoryResourcesAsync(
+        CancellationToken cancellationToken = default,
+        bool suppressUiSync = false)
     {
         cancellationToken.ThrowIfCancellationRequested();
         Notify("[hero-inventory] reading resources from inventory");
 
-        await EnsureLoggedInAsync();
-        await GotoAsync(HeroInventoryPath, cancellationToken);
-        await WaitForNavigationSettledAsync(cancellationToken);
-        await EnsureLoggedInAsync();
+        // EnsureLoggedInAsync emits a UI-sync that reads the village list (navigating to the
+        // profile on the first read of a session). When called as the very first post-login step
+        // this would navigate to the profile BEFORE the inventory is read. Suppress it so the
+        // inventory really is read first; the village/profile read still happens right after.
+        if (suppressUiSync)
+        {
+            _suppressEnsureUiSyncDepth++;
+        }
+
+        try
+        {
+            await EnsureLoggedInAsync();
+            await GotoAsync(HeroInventoryPath, cancellationToken);
+            await WaitForNavigationSettledAsync(cancellationToken);
+            await EnsureLoggedInAsync();
 
         // Give the React-rendered inventory grid a moment to appear; a timeout just falls through
         // to a best-effort read (missing items read as 0).
@@ -2284,9 +2297,17 @@ public sealed partial class TravianClient
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
             ?? new HeroInventoryResources();
 
-        Notify($"[hero-inventory] wood={resources.Wood} clay={resources.Clay} iron={resources.Iron} crop={resources.Crop}");
-        UpdateHeroInventoryCache(resources);
-        return resources;
+            Notify($"[hero-inventory] wood={resources.Wood} clay={resources.Clay} iron={resources.Iron} crop={resources.Crop}");
+            UpdateHeroInventoryCache(resources);
+            return resources;
+        }
+        finally
+        {
+            if (suppressUiSync)
+            {
+                _suppressEnsureUiSyncDepth--;
+            }
+        }
     }
 
     private async Task<HeroAttributeSnapshot> ReadHeroInventorySnapshotAsync(CancellationToken cancellationToken)
