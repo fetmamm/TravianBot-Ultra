@@ -880,6 +880,7 @@ public sealed partial class TravianClient
         // the strict threshold (a failed read should not dispatch a possibly-low hero there).
         var canSendByHp = !status.IsDead
             && (hpPercent.HasValue ? hpPercent.Value >= minHpThreshold : !_config.IsPrivateServer);
+        var hpTooLow = false;
 
         if (adventureCount > 0 && canSendByHp && inVillage)
         {
@@ -907,6 +908,7 @@ public sealed partial class TravianClient
         else if (adventureCount > 0 && !canSendByHp)
         {
             actions.Add($"adventure_skipped_hp_too_low(hp={hpPercent?.ToString() ?? "?"}%)");
+            hpTooLow = true;
         }
 
         var pointsText = quick.HasUnassignedPointsSignal
@@ -919,6 +921,12 @@ public sealed partial class TravianClient
         {
             var awaitSeconds = heroReturnWaitSeconds is > 0 ? heroReturnWaitSeconds.Value : 300;
             return $"{summary}. Hero is away. queue_wait_seconds={awaitSeconds}";
+        }
+        // Too little HP to send safely. Until HP/regen can be read precisely, defer the hero group
+        // a fixed 10 minutes instead of re-checking every tick (avoids spam, lets HP regenerate).
+        if (hpTooLow)
+        {
+            return $"{summary}. Hero HP too low to send. queue_wait_seconds=600";
         }
         if (heroReturnWaitSeconds is > 0 && actions.Count == 0)
         {
