@@ -25,6 +25,7 @@ public sealed class BotConfigStore
         BotOptionPayloadKeys.TargetBuildingSlotOrName,
         BotOptionPayloadKeys.TargetLevel,
         BotOptionPayloadKeys.HeroMinHpForAdventure,
+        BotOptionPayloadKeys.HeroHpRegenPerDayPercent,
         BotOptionPayloadKeys.HeroAutoRevive,
         BotOptionPayloadKeys.HeroAutoAssignPoints,
         BotOptionPayloadKeys.HeroAutoUseOintments,

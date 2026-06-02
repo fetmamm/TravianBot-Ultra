@@ -48,6 +48,11 @@
                                      Margin="0,4,12,0"
                                      Padding="6,4"
                                      BorderBrush="#E5E7EB" />
+                            <TextBlock Text="Hero HP regen per day (%)" Foreground="#374151" FontSize="12" Margin="0,8,0,0" />
+                            <ComboBox ItemsSource="{Binding HeroHpRegenOptions}"
+                                      SelectedItem="{Binding HeroHpRegenPerDayPercent}"
+                                      Margin="0,4,12,0"
+                                      Padding="6,4" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" VerticalAlignment="Bottom">
                             <CheckBox Content="Auto revive" IsChecked="{Binding AutoRevive}" Margin="0,0,0,6" />

@@ -47,6 +47,7 @@ public partial class MainWindow
         {
             var config = _botConfigStore.Load();
             config[BotOptionPayloadKeys.HeroMinHpForAdventure] = _heroViewModel.MinHpForAdventure;
+            config[BotOptionPayloadKeys.HeroHpRegenPerDayPercent] = _heroViewModel.HeroHpRegenPerDayPercent;
             config[BotOptionPayloadKeys.HeroAutoRevive] = _heroViewModel.AutoRevive;
             config[BotOptionPayloadKeys.HeroAutoAssignPoints] = _heroViewModel.AutoAssignPoints;
             config[BotOptionPayloadKeys.HeroAutoUseOintments] = _heroViewModel.AutoUseOintments;

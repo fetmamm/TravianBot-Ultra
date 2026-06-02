@@ -764,6 +764,72 @@ public sealed partial class TravianClient
         }
     }
 
+    // Official Travian (T4.6): the hero HP percent is shown on /hero/attributes as an integer
+    // percent in a .value div (e.g. "96%"); attribute bonuses there are decimals like "0.0%".
+    private async Task<int?> ReadHeroHpPercentOfficialAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await GotoAsync("/hero/attributes", cancellationToken);
+            await WaitForNavigationSettledAsync(cancellationToken);
+            await EnsureLoggedInAsync();
+
+            try
+            {
+                await _page.WaitForFunctionAsync(
+                    """() => !!document.querySelector('.value')""",
+                    null,
+                    new PageWaitForFunctionOptions { Timeout = 6000 });
+            }
+            catch (TimeoutException)
+            {
+            }
+
+            var hp = await _page.EvaluateAsync<int?>(
+                """
+                () => {
+                  const clean = (el) => (el?.textContent || '').replace(/[^\d.%]/g, '');
+                  const healthRow = document.querySelector('i[class*="attributeHealth"]')
+                    ?.closest('tr, .attribute, .attributeRow, li, section, div');
+                  const scoped = healthRow ? Array.from(healthRow.querySelectorAll('.value')) : [];
+                  const all = scoped.length ? scoped : Array.from(document.querySelectorAll('.value'));
+                  for (const v of all) {
+                    const m = clean(v).match(/^(\d{1,3})%$/); // integer percent only (HP, not 0.0% bonuses)
+                    if (m) return parseInt(m[1], 10);
+                  }
+                  return null;
+                }
+                """);
+            Notify($"[hero] official HP read: {(hp?.ToString() ?? "unknown")}%");
+            return hp;
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            return null;
+        }
+    }
+
+    // Estimate how long until the hero regenerates from its current HP back up to the threshold,
+    // based on the configured regen %/day. Falls back to 10 minutes when HP/regen are unknown.
+    private static int ComputeHeroHpWaitSeconds(int? hpPercent, int thresholdPercent, int regenPerDayPercent)
+    {
+        const int Fallback = 600;
+        if (hpPercent is not int hp || regenPerDayPercent <= 0)
+        {
+            return Fallback;
+        }
+
+        var deficit = thresholdPercent - hp;
+        if (deficit <= 0)
+        {
+            return Fallback;
+        }
+
+        var hours = deficit * 24.0 / regenPerDayPercent;
+        var seconds = (int)Math.Ceiling(hours * 3600.0);
+        return Math.Clamp(seconds, 60, 24 * 3600);
+    }
+
     public async Task<string> ManageHeroAsync(
         int minHpForAdventure,
         bool autoRevive,
@@ -772,6 +838,7 @@ public sealed partial class TravianClient
         string statPriority,
         string adventurePickOrder = "shortest",
         string hideMode = "hide",
+        int heroHpRegenPerDayPercent = 100,
         CancellationToken cancellationToken = default)
     {
         Notify("[hero] manage starting (revive + points + adventure)");
@@ -875,11 +942,15 @@ public sealed partial class TravianClient
             }
         }
 
-        // On official Travian (T4.6) the hero HP bar is an SVG clip-path with no numeric value,
-        // so hpPercent is null there. Treat unknown HP as sendable on official only; SS keeps
-        // the strict threshold (a failed read should not dispatch a possibly-low hero there).
-        var canSendByHp = !status.IsDead
-            && (hpPercent.HasValue ? hpPercent.Value >= minHpThreshold : !_config.IsPrivateServer);
+        // Official Travian (T4.6) does not expose HP in the sidebar, but /hero/attributes shows it
+        // as an integer percent. Read it before deciding to send so a low-HP hero is never sent.
+        if (!_config.IsPrivateServer && adventureCount > 0 && inVillage && !status.IsDead && hpPercent is null)
+        {
+            hpPercent = await ReadHeroHpPercentOfficialAsync(cancellationToken);
+        }
+
+        // Send only when HP is known and at/above the threshold. Unknown HP => do not send (safe).
+        var canSendByHp = !status.IsDead && hpPercent.HasValue && hpPercent.Value >= minHpThreshold;
         var hpTooLow = false;
 
         if (adventureCount > 0 && canSendByHp && inVillage)
@@ -922,11 +993,12 @@ public sealed partial class TravianClient
             var awaitSeconds = heroReturnWaitSeconds is > 0 ? heroReturnWaitSeconds.Value : 300;
             return $"{summary}. Hero is away. queue_wait_seconds={awaitSeconds}";
         }
-        // Too little HP to send safely. Until HP/regen can be read precisely, defer the hero group
-        // a fixed 10 minutes instead of re-checking every tick (avoids spam, lets HP regenerate).
+        // Too little HP to send safely. Defer the hero group by the estimated time to regenerate
+        // back to the threshold (from the configured regen %/day), falling back to 10 minutes.
         if (hpTooLow)
         {
-            return $"{summary}. Hero HP too low to send. queue_wait_seconds=600";
+            var waitSeconds = ComputeHeroHpWaitSeconds(hpPercent, minHpThreshold, heroHpRegenPerDayPercent);
+            return $"{summary}. Hero HP too low to send. queue_wait_seconds={waitSeconds}";
         }
         if (heroReturnWaitSeconds is > 0 && actions.Count == 0)
         {

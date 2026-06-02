@@ -1921,6 +1921,7 @@ public sealed class BotTaskRunner
             context.Options.HeroStatPriority,
             context.Options.HeroAdventurePickOrder,
             context.Options.HeroHideMode,
+            context.Options.HeroHpRegenPerDayPercent,
             context.CancellationToken);
         context.Log(result);
         ThrowIfTaskBlocked("hero_manage", result);

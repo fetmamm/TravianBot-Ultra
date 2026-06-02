@@ -37,6 +37,7 @@ public static class BotOptionPayloadKeys
     public const string TargetBuildingSlotOrName = "target_building_slot_or_name";
     public const string TargetLevel = "target_level";
     public const string HeroMinHpForAdventure = "hero_min_hp_for_adventure";
+    public const string HeroHpRegenPerDayPercent = "hero_hp_regen_per_day_percent";
     public const string HeroAutoRevive = "hero_auto_revive";
     public const string HeroAutoAssignPoints = "hero_auto_assign_points";
     public const string HeroAutoUseOintments = "hero_auto_use_ointments";

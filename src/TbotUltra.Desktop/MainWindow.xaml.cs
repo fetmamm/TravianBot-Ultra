@@ -3565,6 +3565,7 @@ public partial class MainWindow : Window
 
         if (e.PropertyName is not (
             nameof(HeroViewModel.MinHpForAdventure)
+            or nameof(HeroViewModel.HeroHpRegenPerDayPercent)
             or nameof(HeroViewModel.AutoRevive)
             or nameof(HeroViewModel.AutoAssignPoints)
             or nameof(HeroViewModel.AutoUseOintments)

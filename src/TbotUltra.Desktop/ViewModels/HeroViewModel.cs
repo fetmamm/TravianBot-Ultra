@@ -37,6 +37,7 @@ public sealed class HeroViewModel : BaseViewModel
     private string _heroStatusText = "Hero status: Unknown";
 
     private int _minHpForAdventure = 60;
+    private int _heroHpRegenPerDayPercent = 100;
     private bool _autoRevive = true;
     private bool _autoAssignPoints = true;
     private bool _autoUseOintments;
@@ -104,6 +105,17 @@ public sealed class HeroViewModel : BaseViewModel
     {
         get => _minHpForAdventure;
         set => SetProperty(ref _minHpForAdventure, Math.Clamp(value, 1, 100));
+    }
+
+    /// <summary>Selectable hero HP regen-per-day percentages for the dropdown (20–100).</summary>
+    public IReadOnlyList<int> HeroHpRegenOptions { get; } = [20, 30, 40, 50, 60, 70, 80, 90, 100];
+
+    /// <summary>How much hero HP regenerates per day (%). Used to estimate the defer time when HP
+    /// is below the adventure threshold. Bound to the regen dropdown in HeroPanel.xaml.</summary>
+    public int HeroHpRegenPerDayPercent
+    {
+        get => _heroHpRegenPerDayPercent;
+        set => SetProperty(ref _heroHpRegenPerDayPercent, Math.Clamp(value, 20, 100));
     }
 
     /// <summary>True to send the hero to revive when HP is below the threshold.</summary>
@@ -212,6 +224,7 @@ public sealed class HeroViewModel : BaseViewModel
     public void LoadSettingsFromConfig(BotOptions options)
     {
         MinHpForAdventure = options.HeroMinHpForAdventure;
+        HeroHpRegenPerDayPercent = options.HeroHpRegenPerDayPercent;
         AutoRevive = options.HeroAutoRevive;
         AutoAssignPoints = options.HeroAutoAssignPoints;
         AutoUseOintments = options.HeroAutoUseOintments;
