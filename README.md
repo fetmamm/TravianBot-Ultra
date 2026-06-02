@@ -7,8 +7,13 @@ https://discord.gg/qrge94p7TH
 
 ---
 
-Travian bot for automating tasks on a private server. The runtime and UI are
-fully C# (.NET 8 / WPF). The optional captcha solver is a small Python module.
+Travian bot for automating tasks, compatible with:
+- SS-Travi — T4.4 — Private server
+- Official Travian — Travian Legends 4.6+ — Official servers
+
+Runtime and UI are fully built in C# (.NET 8 / WPF).
+The optional captcha solver is a small separate Python module.
+NOTE: It is important that the language is set to `English` in the settings page.
 
 ---
 
