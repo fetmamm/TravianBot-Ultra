@@ -117,6 +117,11 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   uppdaterar Hero-fältens UI live (filtrerat på aktivt konto, avregistreras i `OnClosed`). Ingen
   proaktiv "skippa om tomt"-logik ännu — Travian visar bara `.transfer`-ikonen när hjälten har resurser,
   så tom inventory ger naturligt ingen transfer.
+- **2026-06-02** — Proaktiv grind (nivå 3) före transfer: läser bristen (kostnad från transfer-ikonens
+  `targetResourceAmount`-onclick minus lager `#l1..#l4`) och jämför mot cachad inventory. Täcker hjälten
+  inte hela bristen för *alla* korta resurser → hoppa över utan att öppna dialogen (undviker att spendera
+  hjälteresurser på en transfer som ändå inte låser upp uppgraderingen). Saknas cache eller går datan inte
+  att läsa → fall tillbaka till reaktivt beteende (öppna dialogen).
 
 ---
 

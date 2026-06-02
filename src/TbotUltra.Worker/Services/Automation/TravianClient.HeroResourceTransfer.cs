@@ -50,6 +50,23 @@ public sealed partial class TravianClient
             return false;
         }
 
+        // Proactive gate: if we already know (from the cached inventory) the hero cannot fully cover
+        // the missing resources, skip without opening the dialog — a partial transfer would spend
+        // hero resources without unblocking the upgrade. With no cache yet we fall through to the
+        // reactive behaviour (open the dialog and let Travian decide).
+        var cachedInventory = TryGetCachedHeroInventory();
+        if (cachedInventory is not null)
+        {
+            var shortfall = await ReadUpgradeShortfallOnBuildPageAsync(cancellationToken);
+            if (shortfall is not null && !HeroCoversShortfall(cachedInventory, shortfall))
+            {
+                Notify($"[hero-transfer] skip at {label}. Cached hero inventory cannot cover the shortfall "
+                    + $"(need wood={shortfall.Wood} clay={shortfall.Clay} iron={shortfall.Iron} crop={shortfall.Crop}; "
+                    + $"hero has wood={cachedInventory.Wood} clay={cachedInventory.Clay} iron={cachedInventory.Iron} crop={cachedInventory.Crop}).");
+                return false;
+            }
+        }
+
         Notify($"[hero-transfer] opening transfer dialog for {label}");
 
         try
@@ -185,6 +202,71 @@ public sealed partial class TravianClient
     /// <summary>Raised whenever the cached hero inventory changes (read or transfer). The string is
     /// the account name so the UI can ignore updates for a non-active account.</summary>
     public static event Action<string, HeroInventoryResources>? HeroInventoryUpdated;
+
+    // Reads the per-resource shortfall (cost minus current stock, floored at 0) for the upgrade on
+    // the current build page. Cost comes from the transfer icon's `targetResourceAmount` onclick
+    // payload; stock from the top-bar values (#l1..#l4). Returns null when the data can't be read,
+    // so the caller treats "unknown" as "proceed" rather than wrongly skipping.
+    private async Task<HeroInventoryResources?> ReadUpgradeShortfallOnBuildPageAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        string json;
+        try
+        {
+            json = await _page.EvaluateAsync<string>(
+                """
+                () => {
+                  const icon = document.querySelector('.inlineIcon.resource.transfer[onclick]');
+                  if (!icon) return '';
+                  const onclick = icon.getAttribute('onclick') || '';
+                  const grab = (name) => {
+                    const m = onclick.match(new RegExp(name + '\\s*:\\s*(\\d+)'));
+                    return m ? (Number(m[1]) || 0) : 0;
+                  };
+                  const cost = { wood: grab('lumber'), clay: grab('clay'), iron: grab('iron'), crop: grab('crop') };
+                  const stockNum = (id) => {
+                    const el = document.querySelector(id);
+                    const t = (el ? (el.textContent || '') : '').replace(/[^0-9]/g, '');
+                    return t ? (Number(t) || 0) : 0;
+                  };
+                  const stock = { wood: stockNum('#l1'), clay: stockNum('#l2'), iron: stockNum('#l3'), crop: stockNum('#l4') };
+                  const short = (k) => Math.max(0, cost[k] - stock[k]);
+                  return JSON.stringify({ wood: short('wood'), clay: short('clay'), iron: short('iron'), crop: short('crop') });
+                }
+                """);
+        }
+        catch (PlaywrightException)
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<HeroInventoryResources>(
+                json,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    // True when the hero's cached amounts cover every resource that is short. Resources that are
+    // not short have shortfall 0, so they are trivially covered.
+    private static bool HeroCoversShortfall(HeroInventoryResources hero, HeroInventoryResources shortfall)
+    {
+        return hero.Wood >= shortfall.Wood
+            && hero.Clay >= shortfall.Clay
+            && hero.Iron >= shortfall.Iron
+            && hero.Crop >= shortfall.Crop;
+    }
 
     private string BuildHeroInventoryCacheKey() => $"{AccountName}|{ServerUrl}";
 
