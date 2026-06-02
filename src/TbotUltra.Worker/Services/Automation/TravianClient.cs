@@ -476,6 +476,7 @@ public sealed partial class TravianClient
         bool preferCurrentPageVillages = false,
         bool restorePageAfterProfile = true,
         bool suppressEnsureUiSync = false,
+        bool skipOverviewNavigation = false,
         CancellationToken cancellationToken = default)
     {
         Notify("ReadAccountSnapshotAsync started");
@@ -486,7 +487,11 @@ public sealed partial class TravianClient
 
         try
         {
-            if (!IsCurrentUrlForPath(_config.VillageOverviewPath))
+            // Normally we land on the village overview first for a stable page state. The post-login
+            // flow passes skipOverviewNavigation=true when it just read the hero inventory and is
+            // about to refresh villages from the profile anyway — that saves one dorf1 hop, since
+            // ReadVillagesFromServerAsync navigates straight to the profile regardless.
+            if (!skipOverviewNavigation && !IsCurrentUrlForPath(_config.VillageOverviewPath))
             {
                 await GotoAsync(_config.VillageOverviewPath, cancellationToken);
             }

@@ -281,6 +281,9 @@ public sealed class BotTaskRunner
             preferCurrentPageVillages: false,
             restorePageAfterProfile: false,
             suppressEnsureUiSync: true,
+            // We just read the hero inventory and will refresh villages from the profile next —
+            // skip the redundant dorf1 hop in that case.
+            skipOverviewNavigation: heroInventory is not null,
             cancellationToken);
 
         var buildingStatus = await client.ReadBuildingsStatusAsync(cancellationToken);
