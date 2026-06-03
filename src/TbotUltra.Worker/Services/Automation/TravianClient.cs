@@ -3018,11 +3018,12 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 """
                 () => {
                   const parseNumber = (value) => {
-                    const text = (value || '').replace(/\s+/g, ' ').trim();
+                    const text = (value || '')
+                      .replace(/[\u202A-\u202E\u2066-\u2069]/g, '')
+                      .replace(/\s+/g, ' ')
+                      .trim();
                     if (!text) return null;
-                    const match = text.match(/(\d[\d\s.,']*)/);
-                    if (!match) return null;
-                    const digits = match[1].replace(/[^\d]/g, '');
+                    const digits = text.replace(/[^\d]/g, '');
                     if (!digits) return null;
                     const parsed = Number(digits);
                     return Number.isFinite(parsed) ? parsed : null;
@@ -3109,35 +3110,24 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 }
             }
 
+            if (attempt == 0)
+            {
+                var earlyLocator = await ReadCurrencyFromLocatorsAsync(cancellationToken);
+                if (earlyLocator.Gold is not null || earlyLocator.Silver is not null)
+                {
+                    return MergeCurrencyWithCache(earlyLocator.Gold, earlyLocator.Silver);
+                }
+            }
+
             if (attempt < 4)
             {
                 await Task.Delay(220, cancellationToken);
             }
         }
 
-        var locatorGold = await ReadNumberFromSelectorsAsync(
-            [
-                "#ajaxReplaceableGoldAmount_2",
-                "[id^='ajaxReplaceableGoldAmount_']",
-                ".ajaxReplaceableGoldAmount",
-                ".value.ajaxReplaceableGoldAmount",
-                "#gold",
-                "[id*='gold' i]"
-            ],
-            cancellationToken);
-        var locatorSilver = await ReadNumberFromSelectorsAsync(
-            [
-                "#silver",
-                "#silverValue",
-                "[id^='ajaxReplaceableSilverAmount_']",
-                ".ajaxReplaceableSilverAmount",
-                ".value.ajaxReplaceableSilverAmount",
-                "#sidebarBoxActiveVillage #silver",
-                "#sidebarBoxActiveVillage .silver",
-                "font[color='#B3B3B3']",
-                "font[color='#b3b3b3']"
-            ],
-            cancellationToken);
+        var locatorCurrency = await ReadCurrencyFromLocatorsAsync(cancellationToken);
+        var locatorGold = locatorCurrency.Gold;
+        var locatorSilver = locatorCurrency.Silver;
         if (locatorGold is not null || locatorSilver is not null)
         {
             return MergeCurrencyWithCache(locatorGold, locatorSilver);
@@ -3155,6 +3145,34 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
         Notify("Could not detect gold/silver values on this page and no cached values are available. Returning '-'.");
         return (null, null);
+    }
+
+    private async Task<(int? Gold, int? Silver)> ReadCurrencyFromLocatorsAsync(CancellationToken cancellationToken)
+    {
+        var gold = await ReadNumberFromSelectorsAsync(
+            [
+                "#ajaxReplaceableGoldAmount_2",
+                "[id^='ajaxReplaceableGoldAmount_']",
+                ".ajaxReplaceableGoldAmount",
+                ".value.ajaxReplaceableGoldAmount",
+                "#gold",
+                "[id*='gold' i]"
+            ],
+            cancellationToken);
+        var silver = await ReadNumberFromSelectorsAsync(
+            [
+                "#silver",
+                "#silverValue",
+                "[id^='ajaxReplaceableSilverAmount_']",
+                ".ajaxReplaceableSilverAmount",
+                ".value.ajaxReplaceableSilverAmount",
+                "#sidebarBoxActiveVillage #silver",
+                "#sidebarBoxActiveVillage .silver",
+                "font[color='#B3B3B3']",
+                "font[color='#b3b3b3']"
+            ],
+            cancellationToken);
+        return (gold, silver);
     }
 
     private (int? Gold, int? Silver) MergeCurrencyWithCache(int? liveGold, int? liveSilver)
