@@ -805,58 +805,145 @@ public sealed partial class TravianClient
             await WaitForNavigationSettledAsync(cancellationToken);
             await EnsureLoggedInAsync();
 
-            try
-            {
-                await _page.WaitForFunctionAsync(
-                    """() => !!document.querySelector('.value')""",
-                    null,
-                    new PageWaitForFunctionOptions { Timeout = 6000 });
-            }
-            catch (TimeoutException)
-            {
-            }
+            await WaitForOfficialHeroHpRenderAsync(cancellationToken);
 
             var hp = await _page.EvaluateAsync<int?>(
                 """
                 () => {
                   const parsePercent = (value) => {
-                    const text = (value || '').replace(/[^\d.%]/g, '');
-                    const match = text.match(/(\d{1,3})%/);
+                    const text = (value || '').replace(/\s+/g, ' ').trim();
+                    const match = text.match(/(?:^|[^\d.])(\d{1,3})(?:\s*%| percent\b| hp\b)/i);
                     if (!match) return null;
-                    const parsed = parseInt(match[1], 10);
+                    const parsed = Number(match[1]);
                     return Number.isFinite(parsed) && parsed >= 0 && parsed <= 100 ? parsed : null;
                   };
-                  const healthIcon = document.querySelector('i[class*="attributeHealth"]');
+
+                  const readNode = (node) => {
+                    if (!node) return null;
+                    const parts = [
+                      node.textContent || '',
+                      node.getAttribute?.('title') || '',
+                      node.getAttribute?.('aria-label') || '',
+                      node.getAttribute?.('data-tooltip') || '',
+                      node.getAttribute?.('data-tooltip-data') || '',
+                      node.getAttribute?.('value') || ''
+                    ];
+                    for (const part of parts) {
+                      const parsed = parsePercent(part);
+                      if (parsed !== null) return parsed;
+                    }
+
+                    const style = node.getAttribute?.('style') || '';
+                    const styleMatch = style.match(/(?:width|height)\s*:\s*(\d{1,3})(?:\.\d+)?\s*%/i);
+                    if (styleMatch) {
+                      const parsed = Number(styleMatch[1]);
+                      if (Number.isFinite(parsed) && parsed >= 0 && parsed <= 100) return parsed;
+                    }
+
+                    return null;
+                  };
+
+                  const readFirst = (nodes) => {
+                    for (const node of nodes) {
+                      const parsed = readNode(node);
+                      if (parsed !== null) return parsed;
+                    }
+                    return null;
+                  };
+
+                  const healthSelectors = [
+                    '.heroHealthBarBox',
+                    '.heroHealthBarBox .bar',
+                    '.heroHealthBarBox .value',
+                    '[class*="heroHealth" i]',
+                    '[class*="attributeHealth" i]',
+                    '[class*="health" i]',
+                    '[id*="health" i]',
+                    '[title*="health" i]',
+                    '[aria-label*="health" i]',
+                    '[data-tooltip*="health" i]'
+                  ];
+
+                  const direct = readFirst(Array.from(document.querySelectorAll(healthSelectors.join(','))));
+                  if (direct !== null) return direct;
+
+                  const healthIcon = document.querySelector('i[class*="attributeHealth" i], [class*="attributeHealth" i], [class*="heroHealth" i]');
                   const healthBox = healthIcon?.closest('.attributeBox, .stats, tr, .attribute, .attributeRow, li, section, div');
-                  const values = healthBox ? Array.from(healthBox.querySelectorAll('.value')) : [];
-                  for (const value of values) {
-                    const parsed = parsePercent(value.textContent || '');
-                    if (parsed !== null) return parsed;
-                  }
+                  const boxed = healthBox
+                    ? readFirst(Array.from(healthBox.querySelectorAll('.value, [title], [aria-label], [style], [data-tooltip], [data-tooltip-data]')))
+                    : null;
+                  if (boxed !== null) return boxed;
 
-                  const filling = healthBox?.querySelector('.progressBar .filling, .bar .filling');
-                  const styleWidth = filling?.style?.width || '';
-                  const styleParsed = parsePercent(styleWidth);
-                  if (styleParsed !== null) return styleParsed;
+                  const labelledRows = Array.from(document.querySelectorAll('tr, li, .attributeBox, .attributeRow, .attribute, section, div'))
+                    .filter(node => /\b(health|hit points|hp)\b/i.test(node.textContent || ''));
+                  const labelled = readFirst(labelledRows);
+                  if (labelled !== null) return labelled;
 
-                  const attrWidth = filling?.getAttribute?.('style') || '';
-                  const attrParsed = parsePercent(attrWidth);
-                  if (attrParsed !== null) return attrParsed;
-
-                  for (const value of Array.from(document.querySelectorAll('.value'))) {
-                    const parsed = parsePercent(value.textContent || '');
-                    if (parsed !== null) return parsed;
-                  }
+                  const filling = document.querySelector('.heroHealthBarBox .filling, .heroHealthBarBox .bar, [class*="health" i] .filling, [class*="health" i] .bar');
+                  const fillingParsed = readNode(filling);
+                  if (fillingParsed !== null) return fillingParsed;
 
                   return null;
                 }
                 """);
+            if (hp is null)
+            {
+                await LogOfficialHeroHpDiagnosticsAsync(cancellationToken);
+            }
+
             Notify($"[hero] official HP read: {(hp?.ToString() ?? "unknown")}%");
             return hp;
         }
         catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
         {
             return null;
+        }
+    }
+
+    private async Task WaitForOfficialHeroHpRenderAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _page.WaitForFunctionAsync(
+                """
+                () => {
+                  const hasHealthSignal = !!document.querySelector(
+                    '[class*="attributeHealth" i], [class*="heroHealth" i], .heroHealthBarBox, [class*="health" i], [id*="health" i], [title*="health" i], [aria-label*="health" i]'
+                  );
+                  const hasAttributeSignal = !!document.querySelector('#availablePoints, .attributeBox, .attributeRow, .value');
+                  const body = document.body?.innerText || '';
+                  return hasHealthSignal || (hasAttributeSignal && /\b(health|hit points|hp|attributes)\b/i.test(body));
+                }
+                """,
+                null,
+                new PageWaitForFunctionOptions { Timeout = 8000 }).WaitAsync(cancellationToken);
+        }
+        catch (TimeoutException)
+        {
+            Notify("[hero] official HP render wait timed out; trying read anyway.");
+        }
+    }
+
+    private async Task LogOfficialHeroHpDiagnosticsAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        try
+        {
+            var diagnostics = await _page.EvaluateAsync<string>(
+                """
+                () => JSON.stringify({
+                  url: window.location.href,
+                  valueCount: document.querySelectorAll('.value').length,
+                  healthCount: document.querySelectorAll('[class*="health" i], [id*="health" i], [title*="health" i], [aria-label*="health" i]').length,
+                  availablePointsText: document.querySelector('#availablePoints')?.textContent || null,
+                  bodyHasHealthText: /\b(health|hit points|hp)\b/i.test(document.body?.innerText || '')
+                })
+                """);
+            Notify($"[hero] official HP diagnostics: {diagnostics}");
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            Notify($"[hero] official HP diagnostics skipped: {ex.Message}");
         }
     }
 

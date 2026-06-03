@@ -56,6 +56,9 @@ public sealed partial class TravianClient
     private bool? _cachedTravianPlusActive { get => _session.CachedTravianPlusActive; set => _session.CachedTravianPlusActive = value; }
     private DateTimeOffset _cachedTribePlusAt { get => _session.CachedTribePlusAt; set => _session.CachedTribePlusAt = value; }
     private bool? _cachedGoldClubEnabled { get => _session.CachedGoldClubEnabled; set => _session.CachedGoldClubEnabled = value; }
+    private int? _cachedGold { get => _session.CachedGold; set => _session.CachedGold = value; }
+    private int? _cachedSilver { get => _session.CachedSilver; set => _session.CachedSilver = value; }
+    private DateTimeOffset _cachedCurrencyAt { get => _session.CachedCurrencyAt; set => _session.CachedCurrencyAt = value; }
     private string? _sessionTribe { get => _session.SessionTribe; set => _session.SessionTribe = value; }
 
     // Short-lived cache for ReadActiveConstructionsAsync. One upgrade-to-max iteration makes
@@ -2905,8 +2908,8 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             await _page.WaitForFunctionAsync(
                 """
                 () => {
-                  const hasGold = !!document.querySelector('#ajaxReplaceableGoldAmount_2, [id^="ajaxReplaceableGoldAmount_"], .ajaxReplaceableGoldAmount, #gold');
-                  const hasSilver = !!document.querySelector('#silver, #silverValue, [id*="silver" i], [class*="silver" i], font[color="#B3B3B3"], font[color="#b3b3b3"]');
+                  const hasGold = !!document.querySelector('#ajaxReplaceableGoldAmount_2, [id^="ajaxReplaceableGoldAmount_"], .ajaxReplaceableGoldAmount, .value.ajaxReplaceableGoldAmount, #gold');
+                  const hasSilver = !!document.querySelector('#silver, #silverValue, [id^="ajaxReplaceableSilverAmount_"], .ajaxReplaceableSilverAmount, .value.ajaxReplaceableSilverAmount, [id*="silver" i], [class*="silver" i], font[color="#B3B3B3"], font[color="#b3b3b3"]');
                   return hasGold || hasSilver;
                 }
                 """,
@@ -2974,12 +2977,14 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                       '#ajaxReplaceableGoldAmount_2',
                       '[id^="ajaxReplaceableGoldAmount_"]',
                       '.ajaxReplaceableGoldAmount',
+                      '.value.ajaxReplaceableGoldAmount',
                       '#gold',
                       '#gold .value',
                       '[id*="gold" i]',
                       '[class*="gold" i]'
                     ])
                     ?? readFromHtmlPattern(/id=["']ajaxReplaceableGoldAmount_[^"']*["'][^>]*>([^<]+)/i)
+                    ?? readFromHtmlPattern(/class=["'][^"']*\bajaxReplaceableGoldAmount\b[^"']*["'][^>]*>([^<]+)/i)
                     ?? readFromLabel(['gold', 'guld', 'premium']);
 
                   const silver =
@@ -2988,11 +2993,14 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                       '#silverValue',
                       '[id^="ajaxReplaceableSilverAmount_"]',
                       '.ajaxReplaceableSilverAmount',
+                      '.value.ajaxReplaceableSilverAmount',
                       '#sidebarBoxActiveVillage #silver',
                       '#sidebarBoxActiveVillage .silver',
                       "font[color='#B3B3B3']",
                       "font[color='#b3b3b3']"
                     ])
+                    ?? readFromHtmlPattern(/id=["']ajaxReplaceableSilverAmount_[^"']*["'][^>]*>([^<]+)/i)
+                    ?? readFromHtmlPattern(/class=["'][^"']*\bajaxReplaceableSilverAmount\b[^"']*["'][^>]*>([^<]+)/i)
                     ?? readFromHtmlPattern(/<font[^>]*color=["']#b3b3b3["'][^>]*>([^<]+)/i)
                     ?? readFromLabel(['silver', 'silber']);
 
@@ -3006,7 +3014,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 raw.TryGetValue("silver", out var silver);
                 if (gold is not null || silver is not null)
                 {
-                    return (ClampLongToInt32(gold), ClampLongToInt32(silver));
+                    return MergeCurrencyWithCache(ClampLongToInt32(gold), ClampLongToInt32(silver));
                 }
             }
 
@@ -3021,6 +3029,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 "#ajaxReplaceableGoldAmount_2",
                 "[id^='ajaxReplaceableGoldAmount_']",
                 ".ajaxReplaceableGoldAmount",
+                ".value.ajaxReplaceableGoldAmount",
                 "#gold",
                 "[id*='gold' i]"
             ],
@@ -3031,6 +3040,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 "#silverValue",
                 "[id^='ajaxReplaceableSilverAmount_']",
                 ".ajaxReplaceableSilverAmount",
+                ".value.ajaxReplaceableSilverAmount",
                 "#sidebarBoxActiveVillage #silver",
                 "#sidebarBoxActiveVillage .silver",
                 "font[color='#B3B3B3']",
@@ -3039,11 +3049,62 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             cancellationToken);
         if (locatorGold is not null || locatorSilver is not null)
         {
-            return (locatorGold, locatorSilver);
+            return MergeCurrencyWithCache(locatorGold, locatorSilver);
         }
 
-        Notify("Could not detect gold/silver values on this page. Returning '-'.");
+        await LogCurrencyReadFailureDiagnosticsAsync(cancellationToken);
+        if (TryGetCachedCurrency(out var cached))
+        {
+            var ageSeconds = _cachedCurrencyAt == DateTimeOffset.MinValue
+                ? "unknown"
+                : Math.Max(0, (int)(DateTimeOffset.UtcNow - _cachedCurrencyAt).TotalSeconds).ToString(CultureInfo.InvariantCulture);
+            Notify($"Could not detect live gold/silver values on this page. Using cached values from {ageSeconds}s ago: gold={cached.Gold?.ToString() ?? "-"} silver={cached.Silver?.ToString() ?? "-"}.");
+            return cached;
+        }
+
+        Notify("Could not detect gold/silver values on this page and no cached values are available. Returning '-'.");
         return (null, null);
+    }
+
+    private (int? Gold, int? Silver) MergeCurrencyWithCache(int? liveGold, int? liveSilver)
+    {
+        var gold = liveGold ?? _cachedGold;
+        var silver = liveSilver ?? _cachedSilver;
+        _cachedGold = gold;
+        _cachedSilver = silver;
+        _cachedCurrencyAt = DateTimeOffset.UtcNow;
+        return (gold, silver);
+    }
+
+    private bool TryGetCachedCurrency(out (int? Gold, int? Silver) currency)
+    {
+        currency = (_cachedGold, _cachedSilver);
+        return _cachedGold is not null || _cachedSilver is not null;
+    }
+
+    private async Task LogCurrencyReadFailureDiagnosticsAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        try
+        {
+            var diagnostics = await _page.EvaluateAsync<string>(
+                """
+                () => JSON.stringify({
+                  url: window.location.href,
+                  title: document.title || '',
+                  bodyClass: document.body?.className || '',
+                  goldCount: document.querySelectorAll('#ajaxReplaceableGoldAmount_2, [id^="ajaxReplaceableGoldAmount_"], .ajaxReplaceableGoldAmount, .value.ajaxReplaceableGoldAmount, #gold').length,
+                  silverCount: document.querySelectorAll('#silver, #silverValue, [id^="ajaxReplaceableSilverAmount_"], .ajaxReplaceableSilverAmount, .value.ajaxReplaceableSilverAmount').length,
+                  currencyLikeCount: document.querySelectorAll('[class*="currency" i], [id*="currency" i], [class*="gold" i], [id*="gold" i], [class*="silver" i], [id*="silver" i]').length,
+                  dialogCount: document.querySelectorAll('dialog, [role="dialog"], .dialog, #dialogContent, .popup').length
+                })
+                """);
+            Notify($"Currency read diagnostics: {diagnostics}");
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            Notify($"Currency read diagnostics skipped: {ex.Message}");
+        }
     }
 
     private async Task<int?> ReadNumberFromSelectorsAsync(IEnumerable<string> selectors, CancellationToken cancellationToken)

@@ -385,7 +385,7 @@ public sealed partial class TravianClient
         var transientRetries = 0;
         int? currentTransientSlot = null;
         var constructionNpcTradeAttempted = false;
-        var heroTransferAttempted = false;
+        var heroTransferAttemptedSlots = new HashSet<int>();
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -569,9 +569,9 @@ public sealed partial class TravianClient
                         ? $"Resource slot {slot} upgrade to level {effectiveTarget}"
                         : $"Resource slot {slot} ({candidate.Name}) upgrade to level {effectiveTarget}";
                     var blockedByResources = actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources;
-                    if (!heroTransferAttempted && (blockedByResources || await CurrentPageLooksBlockedByResourcesAsync(cancellationToken)))
+                    if (!heroTransferAttemptedSlots.Contains(slot) && (blockedByResources || await CurrentPageLooksBlockedByResourcesAsync(cancellationToken)))
                     {
-                        heroTransferAttempted = true;
+                        heroTransferAttemptedSlots.Add(slot);
                         if (await TryHeroResourceTransferForConstructionAsync(label, cancellationToken))
                         {
                             Notify($"[UpgradeAllResourcesToLevelAsync] hero transfer completed for slot={slot}; rechecking same build page before navigating away.");

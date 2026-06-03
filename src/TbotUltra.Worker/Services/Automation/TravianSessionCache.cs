@@ -10,6 +10,9 @@ public sealed class TravianSessionCache
 {
     public bool? CachedTravianPlusActive { get; set; }
     public bool? CachedGoldClubEnabled { get; set; }
+    public int? CachedGold { get; set; }
+    public int? CachedSilver { get; set; }
+    public System.DateTimeOffset CachedCurrencyAt { get; set; } = System.DateTimeOffset.MinValue;
     public string? SessionTribe { get; set; }
     public System.DateTimeOffset CachedTribePlusAt { get; set; } = System.DateTimeOffset.MinValue;
 

@@ -432,6 +432,12 @@ public partial class MainWindow
                 item.DetailText = "Reinforcements configured.";
                 item.RemainingSeconds = null;
             }
+            else if (group == QueueGroup.Construction && pendingCount > 0 && !paused)
+            {
+                item.StateText = "Ready";
+                item.DetailText = pendingCount == 1 ? "1 queued." : $"{pendingCount} queued.";
+                item.RemainingSeconds = null;
+            }
             else if (paused)
             {
                 item.StateText = "Paused";
@@ -750,11 +756,13 @@ public partial class MainWindow
         {
             ClearBreweryBlockedState();
         }
-        else if (option.IsEnabled
+        else if (!wasEnabled
+            && option.IsEnabled
             && string.Equals(option.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Construction), StringComparison.OrdinalIgnoreCase))
         {
             // Toggling Construction off then on resets any resource-wait timer so the loop re-reads
             // and restarts the function instead of waiting out the old timer.
+            ResetConstructionBuildQueueTimerForManualRefresh();
             ResetDeferredConstructionWaitsNow("construction group re-enabled");
         }
 

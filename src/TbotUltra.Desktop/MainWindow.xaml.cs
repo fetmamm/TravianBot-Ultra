@@ -2734,6 +2734,19 @@ public partial class MainWindow : Window
         RefreshQueueUi();
     }
 
+    private void ResetConstructionBuildQueueTimerForManualRefresh()
+    {
+        _buildQueueActiveCount = 0;
+        _buildQueueRemainingSeconds = 0;
+        _buildQueueReachedZeroPendingCompletion = false;
+        _constructionInlineWaitUntilUtc = DateTimeOffset.MinValue;
+        _continuousLoopConstructionStatusNeedsSync = true;
+
+        UpdateBuildQueueStatusText();
+        UpdateAutomationLoopRunningIndicators();
+        AppendLog("Construction group re-enabled. Build queue timer reset to Ready; construction will be re-read.");
+    }
+
     private void TriggerDeferredTroopTrainingWaitRefresh(VillageStatus status, string source, bool force = false)
     {
         if (!force && status.Resources.Count == 0)
