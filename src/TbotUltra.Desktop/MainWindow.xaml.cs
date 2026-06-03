@@ -1826,116 +1826,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private void SyncServerFromActiveAccount()
-    {
-        try
-        {
-            var activeName = _accountStore.ActiveAccountName();
-            var account = _accountStore
-                .ListAccounts()
-                .FirstOrDefault(item => string.Equals(item.Name, activeName, StringComparison.OrdinalIgnoreCase));
-            if (account is null)
-            {
-                UpdateAccountInfoLabel(activeName);
-                return;
-            }
-
-            UpdateAccountInfoLabel(account.Name);
-            var targetUrl = account.ServerUrl?.Trim().TrimEnd('/') ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(targetUrl))
-            {
-                return;
-            }
-
-            var config = _botConfigStore.Load();
-            var currentUrl = (config["base_url"]?.GetValue<string>() ?? string.Empty).TrimEnd('/');
-            var currentName = config["server_name"]?.GetValue<string>() ?? string.Empty;
-            var changed = false;
-
-            if (!string.IsNullOrWhiteSpace(account.ServerName)
-                && !string.Equals(currentName, account.ServerName, StringComparison.OrdinalIgnoreCase))
-            {
-                config["server_name"] = account.ServerName;
-                changed = true;
-            }
-
-            if (!string.Equals(currentUrl, targetUrl, StringComparison.OrdinalIgnoreCase))
-            {
-                config["base_url"] = targetUrl;
-                changed = true;
-            }
-
-            var currentFlavor = config["server_flavor"]?.GetValue<string>() ?? string.Empty;
-            var targetFlavor = ServerFlavorDetector.FromBaseUrl(targetUrl) == ServerFlavor.SsTravi
-                ? "ss_travi"
-                : "official";
-            if (!string.Equals(currentFlavor, targetFlavor, StringComparison.OrdinalIgnoreCase))
-            {
-                config["server_flavor"] = targetFlavor;
-                changed = true;
-            }
-
-            if (changed)
-            {
-                _botConfigStore.Save(config);
-                AppendLog($"Server synced from active account '{account.Name}'.");
-            }
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Could not sync server from account: {ex.Message}");
-        }
-    }
-
-    private async Task<List<ServerOption>> FetchDefaultServerOptionsAsync(BotOptions options)
-    {
-        try
-        {
-            var servers = await _serverDiscoveryService.FetchServersAsync();
-            if (servers.Count > 0)
-            {
-                return servers;
-            }
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Server discovery failed, using fallback: {ex.Message}");
-        }
-
-        return
-        [
-            new ServerOption
-            {
-                Name = options.ServerName,
-                BaseUrl = options.BaseUrl,
-            },
-        ];
-    }
-
-    private List<ServerOption> FetchEffectiveServerOptions(IEnumerable<ServerOption> defaultServers)
-    {
-        try
-        {
-            var customServers = _serverCatalogStore.Load();
-            if (customServers.Count > 0)
-            {
-                return customServers;
-            }
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Could not load user server list, using defaults: {ex.Message}");
-        }
-
-        return defaultServers
-            .Select(item => new ServerOption
-            {
-                Name = item.Name,
-                BaseUrl = item.BaseUrl,
-            })
-            .ToList();
-    }
-
     private void BeginInlineWait(int seconds)
     {
         var until = DateTimeOffset.UtcNow.AddSeconds(Math.Max(0, seconds));
@@ -2312,36 +2202,6 @@ public partial class MainWindow : Window
         if (element is not null)
         {
             element.IsEnabled = enabled;
-        }
-    }
-
-    private void RefreshAccountPicker()
-    {
-        try
-        {
-            var active = _accountStore.ActiveAccountName();
-            var accounts = _accountStore.ListAccounts()
-                .OrderByDescending(item => string.Equals(item.Name, active, StringComparison.OrdinalIgnoreCase))
-                .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            _suppressAccountSelectionChange = true;
-            try
-            {
-                AccountComboBox.ItemsSource = accounts;
-                var selected = accounts.FirstOrDefault(item =>
-                                   string.Equals(item.Name, active, StringComparison.OrdinalIgnoreCase))
-                               ?? accounts.FirstOrDefault();
-                AccountComboBox.SelectedItem = selected;
-            }
-            finally
-            {
-                _suppressAccountSelectionChange = false;
-            }
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Could not refresh account list: {ex.Message}");
         }
     }
 
@@ -3265,65 +3125,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private void UpdateAccountInfoLabel(string accountName)
-    {
-        // Show only the username and a compact server-speed label (e.g. "slangen | 1M").
-        var username = accountName;
-        string? serverName = null;
-        try
-        {
-            var account = _accountStore
-                .ListAccounts()
-                .FirstOrDefault(item => string.Equals(item.Name, accountName, StringComparison.OrdinalIgnoreCase));
-            if (account is not null)
-            {
-                if (!string.IsNullOrWhiteSpace(account.Username))
-                {
-                    username = account.Username;
-                }
-
-                serverName = account.ServerName;
-            }
-        }
-        catch
-        {
-            // Fall back to the raw account name / configured server below.
-        }
-
-        var serverLabel = AbbreviateServerSpeed(serverName ?? LoadBotOptions().ServerName);
-        ActiveAccountInfoTextBlock.Text = string.IsNullOrWhiteSpace(serverLabel) || serverLabel == "-"
-            ? username
-            : $"{username} | {serverLabel}";
-    }
-
-    // Compacts a server-speed string into a short label: 1000000x -> "1M", 50000x -> "50K",
-    // 10x -> "10x". Returns "-" when no speed can be parsed.
-    private static string AbbreviateServerSpeed(string? serverName)
-    {
-        if (string.IsNullOrWhiteSpace(serverName))
-        {
-            return "-";
-        }
-
-        var match = Regex.Match(serverName, @"(\d+)\s*[xX]");
-        if (!match.Success || !long.TryParse(match.Groups[1].Value, out var speed) || speed <= 0)
-        {
-            return "-";
-        }
-
-        if (speed >= 1_000_000)
-        {
-            return $"{(speed / 1_000_000d):0.##}M";
-        }
-
-        if (speed >= 1_000)
-        {
-            return $"{(speed / 1_000d):0.##}K";
-        }
-
-        return $"{speed}x";
-    }
-
     private void HeroViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (_suppressHeroHideModeApply)
@@ -3443,33 +3244,6 @@ public partial class MainWindow : Window
         }
 
         return null;
-    }
-
-    private string? GetActiveAccountServerUrl()
-    {
-        try
-        {
-            var account = _accountProvider.LoadAccount();
-            return account.ServerUrl;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private string ExtractServerSpeedLabel()
-    {
-        try
-        {
-            var serverName = LoadBotOptions().ServerName ?? string.Empty;
-            var match = Regex.Match(serverName, @"(\d+)\s*[xX]");
-            return match.Success ? $"{match.Groups[1].Value}x" : "-";
-        }
-        catch
-        {
-            return "-";
-        }
     }
 
     private void ApplyVillageStatusToUi(VillageStatus status)
