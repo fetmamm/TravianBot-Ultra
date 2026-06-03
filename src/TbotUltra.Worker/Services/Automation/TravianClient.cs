@@ -3432,8 +3432,17 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         var enabled = await _page.EvaluateAsync<bool>(
             """
             () => {
+              // Official Travian (T4.6) embeds a GraphQL bootstrap state blob in the page that carries
+              // the account's gold features, e.g. "goldFeatures":{"travianPlus":{"isActive":true},"goldClub":true}.
+              // This is the reliable signal: read the boolean directly (the unquoted "goldClub" in the
+              // query definition has no colon+boolean, so it never matches).
+              const html = document.documentElement ? document.documentElement.innerHTML : '';
+              const match = html.match(/"goldClub"\s*:\s*(true|false)/i);
+              if (match) return match[1].toLowerCase() === 'true';
+
+              // Fallback for server variants without the GraphQL blob (e.g. SS-Travi): the Gold Club
+              // master-build button, or a builder marker in the village-list sidebar.
               if (document.querySelector('#buttonBuild')) return true;
-              // Fallback: Gold Club-knappen kan signaleras via klass i sidebaren utan #buttonBuild på vissa varianter.
               const sidebar = document.querySelector('#sidebarBoxVillagelist');
               return /buildOff|buildOn|builder=On/.test(sidebar?.innerHTML || '');
             }
