@@ -17,7 +17,7 @@ Målet: stegvisa, beteendebevarande refaktoriseringar med låg risk och hög nyt
 |------|--------|-------------------|
 | 1 | 🟢 Klar | 2026-06-03 |
 | 2 | 🟢 Klar (lätt variant) | 2026-06-03 |
-| 3 | ⬜ Ej påbörjad | — |
+| 3 | 🟡 Pågår | 2026-06-03 |
 | 4 | ⬜ Ej påbörjad | — |
 | 5 | ⬜ Ej påbörjad | — |
 
@@ -34,6 +34,12 @@ Målet: stegvisa, beteendebevarande refaktoriseringar med låg risk och hög nyt
 - [x] La till återanvändbar hjälpare `AsyncUi.GuardAsync(action, log)` (`src/TbotUltra.Desktop/AsyncUi.cs`) — loggar oväntade fel till **in-app-loggen** (`AppendLog`) med handler-namn istället för bara filen `logs/desktop-unhandled.log`; ignorerar `OperationCanceledException`.
 - [x] Applicerade på den enda klart oskyddade handlern: `AccountsButton_Click` (tidiga `await` före all try; inre try saknade catch). Extraherade kroppen till `AccountsButtonClickAsync()` och wrappade. Bygger rent; tester 39/40 (samma pre-existerande SessionPacer-fel).
 - _Full per-handler-wrapping bedömdes som låg marginalnytta och valdes bort medvetet — hjälparen finns nu för framtida handlers._
+
+### Rank 3 – krympa MainWindow.xaml.cs (pågår)
+Mönster: flytta sammanhängande, helst rena/statiska metodkluster till nya tematiska partials (`MainWindow.X.cs`). Eftersom alla partials delar samma klass är detta beteendebevarande; enda risken är saknade `using`. Verifieras med build + tester per skiva.
+- [x] **Steg 3a:** Flyttade hela "deferred wait"-utvärderingsklustret (records + 14 rena `static`-metoder/dictionaries, ~357 rader) till ny partial `MainWindow.DeferredWaits.cs`. `MainWindow.xaml.cs`: **4042 → 3684 rader**. Ren relocation (inga signaturer/logik ändrade). Bygger rent; tester 39/40 (samma pre-existerande SessionPacer-fel). _Not: en ` `-literal hamnade som faktiskt NBSP-tecken i källan (terminalbegränsning) — kompilerar identiskt._
+- [ ] **Steg 3b (förslag):** Server/konto-hjälpare (`SyncServerFromActiveAccount`, `FetchDefaultServerOptionsAsync`, `FetchEffectiveServerOptions`, `AbbreviateServerSpeed`, `GetActiveAccountServerUrl`, `ExtractServerSpeedLabel`, `UpdateAccountInfoLabel`, `RefreshAccountPicker`) → `MainWindow.ServerAccount.cs`.
+- [ ] **Steg 3c (förslag):** Loop-/exekverings-indikatorvisualer (`SetLoopIndicator`, `ApplyStartLoopButtonVisual`, `SetLoopStateBadge`, `UpdateExecutionStateIndicator`, `UpdateBuildQueueStatusText`, `TickBuildQueueCountdown`, `FormatCountdown`) → `MainWindow.LoopIndicators.cs`.
 
 ## Rekommenderade refaktoriseringar
 
