@@ -164,6 +164,14 @@ jobs:
           Copy-Item "$publishRoot\*" $packageRoot -Recurse -Force
           Rename-Item (Join-Path $packageRoot "TbotUltra.Desktop.exe") "Tbot Ultra.exe"
 
+          # The Worker is an Sdk.Worker (Exe) project but runs in-process under the Desktop host;
+          # it is never launched as its own .exe in the shipped product. Its runtimeconfig/deps
+          # are referenced-project artifacts that leak next to the single-file exe, so drop them.
+          # The later "Create portable zip" check still guards against any other stray runtime files.
+          Remove-Item (Join-Path $packageRoot "TbotUltra.Worker.exe") -ErrorAction SilentlyContinue
+          Remove-Item (Join-Path $packageRoot "TbotUltra.Worker.runtimeconfig.json") -ErrorAction SilentlyContinue
+          Remove-Item (Join-Path $packageRoot "TbotUltra.Worker.deps.json") -ErrorAction SilentlyContinue
+
           Get-ChildItem $packageRoot -Directory | Where-Object {
             $_.Name -in @("cs", "de", "es", "fr", "it", "ja", "ko", "pl", "pt-BR", "ru", "tr", "zh-Hans", "zh-Hant")
           } | Remove-Item -Recurse -Force
