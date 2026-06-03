@@ -473,9 +473,12 @@ public partial class MainWindow
 
             if (item.NextAttemptAt > now)
             {
+                // Strict queue order: if the next item in line is waiting (e.g. for resources),
+                // hold the whole Construction group instead of skipping ahead to build something
+                // queued later. The user wants the queue processed in order.
                 var waitSec = (item.NextAttemptAt - now).TotalSeconds;
-                skipReason = $"group=Construction task='{item.TaskName}' waiting {waitSec:F0}s (NextAttemptAt in future)";
-                continue;
+                skipReason = $"group=Construction task='{item.TaskName}' waiting {waitSec:F0}s (NextAttemptAt in future); holding queue order";
+                return null;
             }
 
             if (IsBuildingUpgradeForSlot(item, out var upgradeSlotId)
