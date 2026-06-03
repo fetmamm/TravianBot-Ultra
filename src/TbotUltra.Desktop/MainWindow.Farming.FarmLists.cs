@@ -304,6 +304,11 @@ public partial class MainWindow
 
     private async void AnalyzeFarmListsButton_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockIfSessionSleeping("Analyze farmlists"))
+        {
+            return;
+        }
+
         var operationId = BeginOperation("Analyze Farmlists");
         var operationSw = Stopwatch.StartNew();
         _operationCts = new CancellationTokenSource();
@@ -340,6 +345,11 @@ public partial class MainWindow
 
     private async void AddFarmsToListButton_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockIfSessionSleeping("Add farms to list"))
+        {
+            return;
+        }
+
         if (!_farmingFeaturesAvailable)
         {
             AppendLog("Add Farms to List is unavailable while Gold Club farming is disabled.");
@@ -517,6 +527,11 @@ public partial class MainWindow
 
     private async void FarmListSendNowButton_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockIfSessionSleeping("Farm send now"))
+        {
+            return;
+        }
+
         if (sender is not Button { Tag: FarmListStatusRow list })
         {
             return;
@@ -559,15 +574,16 @@ public partial class MainWindow
 
     private void SyncFarmingControlsEnabledState()
     {
-        var farmControlsEnabled = !_farmingOperationBusy && _farmingFeaturesAvailable;
+        var sleepAllowsActions = !IsSessionSleeping;
+        var farmControlsEnabled = sleepAllowsActions && !_farmingOperationBusy && _farmingFeaturesAvailable;
         SetEnabled(AddFarmsToListButton, farmControlsEnabled);
         SetEnabled(CreateFarmListButton, farmControlsEnabled);
         SetEnabled(FarmListsItemsControl, farmControlsEnabled);
-        SetEnabled(AnalyzeFarmListsButton, !_farmingOperationBusy);
-        SetEnabled(AnalyzeNatarsProfileButton, !_farmingOperationBusy && _farmingFeaturesAvailable);
-        SetEnabled(ShowNatarsListButton, !_farmingOperationBusy && _farmingFeaturesAvailable && _natarsProfileAnalyzed);
-        SetEnabled(StartManualFarmingButton, _farmingFeaturesAvailable);
-        SetEnabled(StartCatapultWavesButton, !_farmingOperationBusy && _farmingFeaturesAvailable);
+        SetEnabled(AnalyzeFarmListsButton, sleepAllowsActions && !_farmingOperationBusy);
+        SetEnabled(AnalyzeNatarsProfileButton, farmControlsEnabled);
+        SetEnabled(ShowNatarsListButton, farmControlsEnabled && _natarsProfileAnalyzed);
+        SetEnabled(StartManualFarmingButton, sleepAllowsActions && _farmingFeaturesAvailable);
+        SetEnabled(StartCatapultWavesButton, farmControlsEnabled);
         UpdateManualFarmingRunningState();
     }
 

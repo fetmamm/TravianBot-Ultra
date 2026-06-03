@@ -4,8 +4,8 @@ public static class PacingDefaults
 {
     public const bool SessionPacingEnabled = true;
     public const int SessionPacingMaxRunMinutes = 120;
-    public const int SessionPacingSleepMinutes = 60;
-    public const int SessionPacingVariationPercent = 15;
+    public const int SessionPacingSleepMinutes = 30;
+    public const int SessionPacingVariationPercent = 30;
 
     public const bool ActionPacingEnabled = true;
     public const double ActionPacingTaskMinSeconds = 1.0;

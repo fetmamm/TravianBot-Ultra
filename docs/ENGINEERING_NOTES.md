@@ -188,6 +188,10 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   overwrite account-scoped Hero values during the following config reload.
 - **2026-06-03** - Gold/silver read fallback with cached values is `[resources:verbose]`, not an alarm. A missing
   cache still remains visible as an actionable alarm.
+- **2026-06-03** - Session sleep is an offline state. While `SessionPacer` is sleeping, browser/automation
+  actions are blocked and only `Run now` may wake execution; queue-only actions may still add/edit pending
+  work for the next wake. Bot behavior pacing settings are account-scoped. Defaults: sleep 30 min,
+  variation 30%.
 
 ---
 
@@ -228,6 +232,8 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   overlay for display, but must not write account-scoped keys such as hero regen back through global settings.
 - **Clean log + cached currency:** `Could not detect live gold/silver values ... Using cached values` is normal
   on pages without visible currency values. Keep it verbose; only the no-cache case should alert.
+- **Session sleep:** do not let manual refresh, login/logout, scans, tests, village switches, or auto-run wake the
+  browser while the status is `Sleeping`. Queueing is allowed, but execution must wait for `Run now` or scheduled wake.
 
 ---
 

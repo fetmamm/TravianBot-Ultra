@@ -276,7 +276,7 @@ public partial class MainWindow
         ResourceTransferStatusTextBlock.Text = canRun ? "Ready." : reason;
         ResourceTransferStatusTextBlock.Foreground = canRun ? Brushes.SeaGreen : Brushes.DarkOrange;
         ResourceTransferQueueNowButton.IsEnabled = canRun && !_uiBusy && !_resourceTransferScanRunning;
-        ResourceTransferScanVillagesButton.IsEnabled = !_uiBusy && !_resourceTransferScanRunning && _resourceTransferVillages.Count > 0;
+        ResourceTransferScanVillagesButton.IsEnabled = !IsSessionSleeping && !_uiBusy && !_resourceTransferScanRunning && _resourceTransferVillages.Count > 0;
 
         if (!canRun && _resourceTransferVillages.Count > 0)
         {
@@ -323,6 +323,11 @@ public partial class MainWindow
 
     private async void ResourceTransferScanVillagesButton_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockIfSessionSleeping("Resource transfer village scan"))
+        {
+            return;
+        }
+
         if (_resourceTransferScanRunning || _uiBusy)
         {
             return;

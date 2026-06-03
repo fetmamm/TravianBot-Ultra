@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using TbotUltra.Core.Configuration;
@@ -25,6 +26,7 @@ public partial class MainWindow
     private bool _wasLoggedInBeforeSleep;
     private bool _wasContinuousLoopRunningBeforeSleep;
     private bool _wasQueueAutoRunningBeforeSleep;
+    private bool IsSessionSleeping => _sessionPacer.Phase == SessionPacerPhase.Sleeping;
 
     private void InitializeSessionPacing()
     {
@@ -37,6 +39,7 @@ public partial class MainWindow
         {
             _pacingBrush = new SolidColorBrush(Colors.White);
             SessionPacingBorder.Background = _pacingBrush;
+            ToolTipService.SetInitialShowDelay(SessionPacingBorder, 700);
         }
 
         ConfigureSessionPacerFromConfig();
@@ -59,7 +62,7 @@ public partial class MainWindow
         _sessionPacer.Configure(new SessionPacerSettings(
             ReadBool(config, BotOptionPayloadKeys.SessionPacingEnabled, PacingDefaults.SessionPacingEnabled),
             ReadInt(config, BotOptionPayloadKeys.SessionPacingMaxRunMinutes, PacingDefaults.SessionPacingMaxRunMinutes, 1, 10080),
-            ReadInt(config, BotOptionPayloadKeys.SessionPacingSleepMinutes, PacingDefaults.SessionPacingSleepMinutes, 1, 10080),
+            ReadInt(config, BotOptionPayloadKeys.SessionPacingSleepMinutes, PacingDefaults.SessionPacingSleepMinutes, 30, 10080),
             ReadInt(config, BotOptionPayloadKeys.SessionPacingVariationPercent, PacingDefaults.SessionPacingVariationPercent, 0, 100)));
     }
 
@@ -78,6 +81,12 @@ public partial class MainWindow
     // controlled-sleep flow but forces the sleep so it also works when session pacing is turned off.
     private void RequestManualSessionSleep()
     {
+        if (IsSessionSleeping)
+        {
+            AppendLog("[pacing] manual sleep ignored: already sleeping.");
+            return;
+        }
+
         AppendLog("[pacing] manual sleep requested from settings.");
         _ = SafeSessionPacingInvokeAsync(() => HandleSessionPacingSleepStartingAsync(manual: true));
     }
@@ -125,6 +134,7 @@ public partial class MainWindow
                 ToggleUiBusy(false);
             }
 
+            ConfigureSessionPacerFromConfig();
             _sessionPacer.BeginSleep(manual);
         }
         finally
@@ -212,8 +222,69 @@ public partial class MainWindow
         SessionPacingRunNowButton.Visibility = _sessionPacer.Phase == SessionPacerPhase.Sleeping
             ? Visibility.Visible
             : Visibility.Collapsed;
+        UpdateSessionPacingTooltip();
+        ApplySessionSleepingUiState();
 
         ApplyPacingVisual(ResolvePacingVisual());
+    }
+
+    private void UpdateSessionPacingTooltip()
+    {
+        if (SessionPacingBorder is null)
+        {
+            return;
+        }
+
+        var runTime = SessionPacer.FormatDuration(_sessionPacer.ActiveRunDuration ?? _sessionPacer.TimeUntilSleep);
+        var sleepTime = SessionPacer.FormatDuration(_sessionPacer.ActiveSleepDuration ?? _sessionPacer.TimeUntilWake);
+        SessionPacingBorder.ToolTip = new ToolTip
+        {
+            Content = $"Run time: {runTime}\nSleep time: {sleepTime}",
+        };
+    }
+
+    private bool BlockIfSessionSleeping(string actionName)
+    {
+        if (!IsSessionSleeping)
+        {
+            return false;
+        }
+
+        AppendLog(string.IsNullOrWhiteSpace(actionName)
+            ? "Skipped: bot is sleeping."
+            : $"Skipped: bot is sleeping. {actionName} will not run.");
+        return true;
+    }
+
+    private void ApplySessionSleepingUiState()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.BeginInvoke(ApplySessionSleepingUiState);
+            return;
+        }
+
+        var sleeping = IsSessionSleeping;
+        SetEnabled(LoginButton, !sleeping && !_uiBusy);
+        SetEnabled(LogoutButton, !sleeping && !_uiBusy);
+        SetEnabled(StartLoopButton, !sleeping && !_uiBusy && _isLoggedIn);
+        SetEnabled(StopBotButton, !sleeping);
+        SetEnabled(LoadResourcesButton, !sleeping && !_uiBusy);
+        SetEnabled(OpenResourceTestFunctionsButton, !sleeping && !_uiBusy);
+        SetEnabled(StorageRefreshButton, !sleeping && !_uiBusy && !_resourceSnapshotRefreshRunning);
+        SetEnabled(VillageComboBox, !sleeping && !_uiBusy);
+        SetEnabled(AnalyzeFarmListsButton, !sleeping && !_farmingOperationBusy);
+        SetEnabled(AnalyzeNatarsProfileButton, !sleeping && !_farmingOperationBusy && _farmingFeaturesAvailable);
+        SetEnabled(ShowNatarsListButton, !sleeping && !_farmingOperationBusy && _farmingFeaturesAvailable && _natarsProfileAnalyzed);
+        SetEnabled(StartManualFarmingButton, !sleeping && _farmingFeaturesAvailable);
+        SetEnabled(StartCatapultWavesButton, !sleeping && !_farmingOperationBusy && _farmingFeaturesAvailable);
+        SetEnabled(ReinforcementRefreshVillagesButton, !sleeping && !_uiBusy);
+        SetEnabled(ResourceTransferScanVillagesButton, !sleeping && !_uiBusy && !_resourceTransferScanRunning);
+
+        if (_resourceTestFunctionsWindow is not null)
+        {
+            _resourceTestFunctionsWindow.IsEnabled = !sleeping && !_uiBusy;
+        }
     }
 
     private PacingVisual ResolvePacingVisual()

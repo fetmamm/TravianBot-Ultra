@@ -587,6 +587,11 @@ public partial class MainWindow
 
     private async void StorageRefreshButton_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockIfSessionSleeping("Storage refresh"))
+        {
+            return;
+        }
+
         if (_resourceSnapshotRefreshRunning)
         {
             return;
@@ -607,7 +612,7 @@ public partial class MainWindow
         }
         finally
         {
-            SetEnabled(StorageRefreshButton, !_uiBusy);
+            SetEnabled(StorageRefreshButton, !_uiBusy && !IsSessionSleeping);
         }
     }
 

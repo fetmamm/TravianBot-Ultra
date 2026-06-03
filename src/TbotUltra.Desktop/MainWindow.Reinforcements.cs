@@ -407,7 +407,7 @@ public partial class MainWindow
         ReinforcementStatusTextBlock.Text = canRun ? "Ready." : reason;
         ReinforcementStatusTextBlock.Foreground = canRun ? Brushes.SeaGreen : Brushes.DarkOrange;
         ReinforcementQueueNowButton.IsEnabled = canRun && !_uiBusy;
-        ReinforcementRefreshVillagesButton.IsEnabled = !_uiBusy;
+        ReinforcementRefreshVillagesButton.IsEnabled = !_uiBusy && !IsSessionSleeping;
         ReinforcementMarkAllTroopsButton.IsEnabled = !_uiBusy && !string.IsNullOrWhiteSpace(ResolveKnownReinforcementTribe());
         UpdateReinforcementVillageTroopSummaries();
         UpdateReinforcementTroopSummary();
@@ -457,6 +457,11 @@ public partial class MainWindow
 
     private async void ReinforcementRefreshVillagesButton_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockIfSessionSleeping("Refresh reinforcement villages"))
+        {
+            return;
+        }
+
         if (_uiBusy)
         {
             return;

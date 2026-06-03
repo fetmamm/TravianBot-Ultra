@@ -18,10 +18,12 @@ public sealed record SessionPacerSettings(
 public sealed class SessionPacer
 {
     private readonly DispatcherTimer _timer;
-    private SessionPacerSettings _settings = new(true, 120, 60, 15);
+    private SessionPacerSettings _settings = new(true, 120, 30, 30);
     private DateTimeOffset? _runStartedAt;
     private DateTimeOffset? _runDeadline;
     private DateTimeOffset? _wakeAt;
+    private TimeSpan? _activeRunDuration;
+    private TimeSpan? _activeSleepDuration;
     private bool _sleepStartRaised;
     private bool _automationActive;
     private bool _manualSleep;
@@ -36,10 +38,12 @@ public sealed class SessionPacer
     public SessionPacerPhase Phase { get; private set; } = SessionPacerPhase.Disabled;
     public TimeSpan? TimeUntilSleep => _runDeadline is null ? null : Positive(_runDeadline.Value - DateTimeOffset.Now);
     public TimeSpan? TimeUntilWake => _wakeAt is null ? null : Positive(_wakeAt.Value - DateTimeOffset.Now);
+    public TimeSpan? ActiveRunDuration => _activeRunDuration;
+    public TimeSpan? ActiveSleepDuration => _activeSleepDuration;
     public string StatusText => Phase switch
     {
         SessionPacerPhase.Running => $"Next sleep in: {Format(TimeUntilSleep)}",
-        SessionPacerPhase.Sleeping => $"Sleeping - resumes in {Format(TimeUntilWake)}",
+        SessionPacerPhase.Sleeping => "Sleeping",
         // Idle before the loop runs: stay neutral ("Session pacing"). Only show "off" once
         // automation is actually running but pacing is disabled in settings.
         _ => _automationActive ? "Session pacing off" : "Session pacing",
@@ -52,12 +56,20 @@ public sealed class SessionPacer
     public void Configure(SessionPacerSettings settings)
     {
         _settings = Normalize(settings);
+        if (Phase == SessionPacerPhase.Sleeping)
+        {
+            _timer.Start();
+            RaiseTick();
+            return;
+        }
+
         if (!_settings.Enabled)
         {
             Phase = SessionPacerPhase.Disabled;
             _runStartedAt = null;
             _runDeadline = null;
             _wakeAt = null;
+            _activeRunDuration = null;
             _sleepStartRaised = false;
             _timer.Stop();
             RaiseTick();
@@ -85,7 +97,8 @@ public sealed class SessionPacer
 
         Phase = SessionPacerPhase.Running;
         _runStartedAt = DateTimeOffset.Now;
-        _runDeadline = _runStartedAt.Value.AddMinutes(ApplyVariation(_settings.MaxRunMinutes));
+        _activeRunDuration = TimeSpan.FromMinutes(ApplyVariation(_settings.MaxRunMinutes));
+        _runDeadline = _runStartedAt.Value.Add(_activeRunDuration.Value);
         _wakeAt = null;
         _sleepStartRaised = false;
         _timer.Start();
@@ -101,6 +114,7 @@ public sealed class SessionPacer
             Phase = SessionPacerPhase.Disabled;
             _runStartedAt = null;
             _runDeadline = null;
+            _activeRunDuration = null;
             _sleepStartRaised = false;
             _timer.Stop();
         }
@@ -120,8 +134,8 @@ public sealed class SessionPacer
         }
 
         _manualSleep = manual;
-        var ranFor = _runStartedAt is null ? TimeSpan.Zero : DateTimeOffset.Now - _runStartedAt.Value;
-        _wakeAt = DateTimeOffset.Now.AddMinutes(ApplyVariation(_settings.SleepMinutes));
+        _activeSleepDuration = TimeSpan.FromMinutes(ApplyVariation(_settings.SleepMinutes));
+        _wakeAt = DateTimeOffset.Now.Add(_activeSleepDuration.Value);
         Phase = SessionPacerPhase.Sleeping;
         _runDeadline = null;
         _runStartedAt = null;
@@ -148,6 +162,7 @@ public sealed class SessionPacer
     {
         _wakeAt = null;
         _manualSleep = false;
+        _activeSleepDuration = null;
         Phase = SessionPacerPhase.Disabled;
         _timer.Stop();
         Logger?.Invoke("Session waking - resuming.");
@@ -158,7 +173,7 @@ public sealed class SessionPacer
     private void TickTimer()
     {
         // A manual "Sleep now" keeps the countdown alive even when session pacing is turned off.
-        if (!_settings.Enabled && !_manualSleep)
+        if (!_settings.Enabled && !_manualSleep && Phase != SessionPacerPhase.Sleeping)
         {
             Configure(_settings with { Enabled = false });
             return;
@@ -200,7 +215,7 @@ public sealed class SessionPacer
         return settings with
         {
             MaxRunMinutes = Math.Max(1, settings.MaxRunMinutes),
-            SleepMinutes = Math.Max(1, settings.SleepMinutes),
+            SleepMinutes = Math.Max(30, settings.SleepMinutes),
             VariationPercent = Math.Clamp(settings.VariationPercent, 0, 100),
         };
     }
@@ -212,4 +227,6 @@ public sealed class SessionPacer
         var span = value ?? TimeSpan.Zero;
         return $"{(int)span.TotalHours:00}:{span.Minutes:00}:{span.Seconds:00}";
     }
+
+    public static string FormatDuration(TimeSpan? value) => Format(value);
 }

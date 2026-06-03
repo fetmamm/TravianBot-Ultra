@@ -127,6 +127,35 @@ public sealed class BotConfigStoreTests : IDisposable
     }
 
     [Fact]
+    public void Save_MovesPacingValuesToActiveAccountSettings()
+    {
+        WriteJson(
+            _configPath,
+            new JsonObject
+            {
+                ["server_name"] = "Global",
+                ["base_url"] = "https://example.com",
+            });
+        var store = CreateStore();
+        var config = store.Load();
+        config[BotOptionPayloadKeys.SessionPacingSleepMinutes] = 45;
+        config[BotOptionPayloadKeys.SessionPacingVariationPercent] = 30;
+        config[BotOptionPayloadKeys.ActionPacingTaskMinSeconds] = 2.5;
+
+        store.Save(config);
+
+        var global = JsonNode.Parse(File.ReadAllText(_configPath))!.AsObject();
+        Assert.False(global.ContainsKey(BotOptionPayloadKeys.SessionPacingSleepMinutes));
+        Assert.False(global.ContainsKey(BotOptionPayloadKeys.SessionPacingVariationPercent));
+        Assert.False(global.ContainsKey(BotOptionPayloadKeys.ActionPacingTaskMinSeconds));
+
+        var account = JsonNode.Parse(File.ReadAllText(AccountStoragePaths.AccountSettingsPath(_root, "alice")))!.AsObject();
+        Assert.Equal(45, account[BotOptionPayloadKeys.SessionPacingSleepMinutes]!.GetValue<int>());
+        Assert.Equal(30, account[BotOptionPayloadKeys.SessionPacingVariationPercent]!.GetValue<int>());
+        Assert.Equal(2.5, account[BotOptionPayloadKeys.ActionPacingTaskMinSeconds]!.GetValue<double>());
+    }
+
+    [Fact]
     public void ResetSettingsToDefaults_KeepsServerAndClearsSavedSettings()
     {
         WriteJson(

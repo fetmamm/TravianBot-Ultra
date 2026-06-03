@@ -516,6 +516,11 @@ public partial class MainWindow
     /// </summary>
     internal async Task OnCheckCelebrationClickedAsync()
     {
+        if (BlockIfSessionSleeping("Check celebration"))
+        {
+            return;
+        }
+
         if (!_isLoggedIn)
         {
             _troopTrainingViewModel.InfoText = "Log in first to check celebration status.";
@@ -569,6 +574,11 @@ public partial class MainWindow
     /// </summary>
     internal async Task RefreshTroopQueuesCoreAsync()
     {
+        if (BlockIfSessionSleeping("Refresh troop queues"))
+        {
+            return;
+        }
+
         var operationId = BeginOperation("Refresh troop queues");
         try
         {

@@ -12,6 +12,11 @@ public partial class MainWindow
 {
     private void StartManualFarmingButton_Click(object sender, System.Windows.RoutedEventArgs e)
     {
+        if (BlockIfSessionSleeping("Manual farming"))
+        {
+            return;
+        }
+
         if (_farmingOperationBusy)
         {
             return;

@@ -22,11 +22,21 @@ public partial class MainWindow
 
     internal void OnInboxAutoReadChanged()
     {
+        if (IsSessionSleeping)
+        {
+            return;
+        }
+
         _ = RefreshInboxIndicatorsAsync(logErrors: true, force: true);
     }
 
     private async void MarkMessagesReadCore()
     {
+        if (BlockIfSessionSleeping("Mark messages as read"))
+        {
+            return;
+        }
+
         var operationId = BeginOperation("MarkMessagesRead");
         var operationSw = Stopwatch.StartNew();
         _operationCts = new CancellationTokenSource();
@@ -64,6 +74,11 @@ public partial class MainWindow
 
     private async void MarkReportsReadCore()
     {
+        if (BlockIfSessionSleeping("Mark reports as read"))
+        {
+            return;
+        }
+
         var operationId = BeginOperation("MarkReportsRead");
         var operationSw = Stopwatch.StartNew();
         _operationCts = new CancellationTokenSource();
@@ -101,7 +116,7 @@ public partial class MainWindow
 
     private async Task RefreshInboxIndicatorsAsync(bool logErrors, bool force = false)
     {
-        if (_loopController.IsClosing)
+        if (_loopController.IsClosing || IsSessionSleeping)
         {
             return;
         }
@@ -152,7 +167,7 @@ public partial class MainWindow
     // (which may navigate) stays on the dedicated 5-minute timer.
     private async Task RefreshInboxIndicatorsQuickAsync()
     {
-        if (_loopController.IsClosing || !_inboxAutoEnabled)
+        if (_loopController.IsClosing || !_inboxAutoEnabled || IsSessionSleeping)
         {
             return;
         }
@@ -180,6 +195,11 @@ public partial class MainWindow
 
     private async Task AutoReadInboxItemsAsync(BotOptions options, InboxStatus status)
     {
+        if (IsSessionSleeping)
+        {
+            return;
+        }
+
         var (autoReadMessages, autoReadReports) = GetAutoReadInboxSelectionSnapshot();
         if ((!autoReadMessages || status.UnreadMessages <= 0) && (!autoReadReports || status.UnreadReports <= 0))
         {

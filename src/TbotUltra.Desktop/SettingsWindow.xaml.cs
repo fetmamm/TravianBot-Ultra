@@ -12,15 +12,18 @@ public partial class SettingsWindow : Window
     private readonly BotConfigStore _store;
     private JsonObject _config = [];
     private bool _isClosing;
+    private readonly bool _sessionSleeping;
 
     // Set when the user confirms "Sleep now"; MainWindow reads it after ShowDialog to trigger the sleep.
     public bool SleepNowRequested { get; private set; }
 
-    public SettingsWindow(BotConfigStore store)
+    public SettingsWindow(BotConfigStore store, bool sessionSleeping = false)
     {
         InitializeComponent();
         _store = store;
+        _sessionSleeping = sessionSleeping;
         LoadConfig();
+        SleepNowButton.IsEnabled = !_sessionSleeping;
     }
 
     private void LoadConfig()
@@ -69,7 +72,7 @@ public partial class SettingsWindow : Window
             _config[BotOptionPayloadKeys.PostLoginAnalyzeBrewery] = PostLoginAnalyzeBreweryCheckBox.IsChecked == true;
             _config[BotOptionPayloadKeys.PostLoginAnalyzeHeroInventory] = PostLoginAnalyzeHeroInventoryCheckBox.IsChecked == true;
             _config["silver_limit"] = (int)Math.Round(SilverLimitSlider.Value);
-            _store.SaveGlobal(_config);
+            _store.Save(_config);
             return true;
         }
         catch (Exception ex)
@@ -162,7 +165,7 @@ public partial class SettingsWindow : Window
     {
         SessionPacingEnabledCheckBox.IsChecked = ReadBool(BotOptionPayloadKeys.SessionPacingEnabled, PacingDefaults.SessionPacingEnabled);
         SessionMaxRunMinutesTextBox.Text = ReadInt(BotOptionPayloadKeys.SessionPacingMaxRunMinutes, PacingDefaults.SessionPacingMaxRunMinutes).ToString();
-        SessionSleepMinutesTextBox.Text = ReadInt(BotOptionPayloadKeys.SessionPacingSleepMinutes, PacingDefaults.SessionPacingSleepMinutes).ToString();
+        SessionSleepMinutesTextBox.Text = Math.Max(30, ReadInt(BotOptionPayloadKeys.SessionPacingSleepMinutes, PacingDefaults.SessionPacingSleepMinutes)).ToString();
         SessionVariationPercentTextBox.Text = ReadInt(BotOptionPayloadKeys.SessionPacingVariationPercent, PacingDefaults.SessionPacingVariationPercent).ToString();
 
         ActionPacingEnabledCheckBox.IsChecked = ReadBool(BotOptionPayloadKeys.ActionPacingEnabled, PacingDefaults.ActionPacingEnabled);
@@ -180,7 +183,7 @@ public partial class SettingsWindow : Window
     {
         _config[BotOptionPayloadKeys.SessionPacingEnabled] = SessionPacingEnabledCheckBox.IsChecked == true;
         _config[BotOptionPayloadKeys.SessionPacingMaxRunMinutes] = ReadIntText(SessionMaxRunMinutesTextBox, PacingDefaults.SessionPacingMaxRunMinutes, 1, 10080);
-        _config[BotOptionPayloadKeys.SessionPacingSleepMinutes] = ReadIntText(SessionSleepMinutesTextBox, PacingDefaults.SessionPacingSleepMinutes, 1, 10080);
+        _config[BotOptionPayloadKeys.SessionPacingSleepMinutes] = ReadIntText(SessionSleepMinutesTextBox, PacingDefaults.SessionPacingSleepMinutes, 30, 10080);
         _config[BotOptionPayloadKeys.SessionPacingVariationPercent] = ReadIntText(SessionVariationPercentTextBox, PacingDefaults.SessionPacingVariationPercent, 0, 100);
 
         _config[BotOptionPayloadKeys.ActionPacingEnabled] = ActionPacingEnabledCheckBox.IsChecked == true;

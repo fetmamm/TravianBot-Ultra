@@ -147,6 +147,11 @@ public partial class MainWindow
     /// </summary>
     internal async Task RefreshHeroStatsCoreAsync()
     {
+        if (BlockIfSessionSleeping("Refresh hero stats"))
+        {
+            return;
+        }
+
         var operationId = BeginOperation("Refresh hero stats");
         var operationSw = Stopwatch.StartNew();
 
@@ -273,6 +278,11 @@ public partial class MainWindow
     /// </summary>
     internal async Task RefreshAdventuresCoreAsync()
     {
+        if (BlockIfSessionSleeping("Refresh adventures"))
+        {
+            return;
+        }
+
         var operationId = BeginOperation("Refresh adventures");
         var operationSw = Stopwatch.StartNew();
         try
@@ -335,6 +345,11 @@ public partial class MainWindow
     /// </summary>
     internal async Task RefreshHeroInventoryCoreAsync()
     {
+        if (BlockIfSessionSleeping("Refresh hero inventory"))
+        {
+            return;
+        }
+
         var operationId = BeginOperation("Refresh hero inventory");
         var operationSw = Stopwatch.StartNew();
         try

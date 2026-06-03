@@ -53,6 +53,11 @@ public partial class MainWindow
 
     private void StartContinuousLoopRunner()
     {
+        if (BlockIfSessionSleeping("Continuous loop"))
+        {
+            return;
+        }
+
         var initialOptions = LoadBotOptions();
         _loopController.ClearLoopStopRequest();
         _loopController.ClearQueueStopRequest();

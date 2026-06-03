@@ -64,6 +64,11 @@ public partial class MainWindow
 
     private async void AnalyzeNatarsProfileButton_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockIfSessionSleeping("Analyze natars profile"))
+        {
+            return;
+        }
+
         if (!IsNatarFarmingAvailable())
         {
             AppendLog("Natar farming is only available on the SS-Travi private server.");
@@ -120,6 +125,11 @@ public partial class MainWindow
 
     private async void ShowNatarsListButton_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockIfSessionSleeping("Show natars list"))
+        {
+            return;
+        }
+
         if (!IsNatarFarmingAvailable())
         {
             AppendLog("Natar farming is only available on the SS-Travi private server.");

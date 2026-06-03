@@ -17,6 +17,11 @@ public partial class MainWindow
 {
     private async void LoadResourcesButton_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockIfSessionSleeping("Load resources"))
+        {
+            return;
+        }
+
         var operationId = BeginOperation("LoadResources");
         var operationSw = Stopwatch.StartNew();
         _operationCts = new CancellationTokenSource();
@@ -54,6 +59,11 @@ public partial class MainWindow
 
     private void OpenResourceTestFunctionsButton_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockIfSessionSleeping("Resource test functions"))
+        {
+            return;
+        }
+
         if (_resourceTestFunctionsWindow is not null)
         {
             if (!_resourceTestFunctionsWindow.IsVisible)
@@ -98,6 +108,11 @@ public partial class MainWindow
 
     private void SavePageHtmlButton_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockIfSessionSleeping("Save page HTML"))
+        {
+            return;
+        }
+
         OpenSavePageHtmlWindow();
     }
 
@@ -199,6 +214,11 @@ public partial class MainWindow
 
     private async void BulkSavePageHtmlWindow_SaveRequested(object? sender, IReadOnlyList<BulkSavePageRequest> pages)
     {
+        if (BlockIfSessionSleeping("Bulk save page HTML"))
+        {
+            return;
+        }
+
         if (_operationCts is not null)
         {
             AppendLog("Bulk save skipped: another operation is already running.");
@@ -323,6 +343,11 @@ public partial class MainWindow
 
     private async void SavePageHtmlWindow_SaveRequested(object? sender, SavePageHtmlRequest request)
     {
+        if (BlockIfSessionSleeping("Save page HTML"))
+        {
+            return;
+        }
+
         var dialog = sender as SavePageHtmlWindow;
         var operationId = BeginOperation("SavePageHtml");
         var operationSw = Stopwatch.StartNew();
@@ -385,6 +410,11 @@ public partial class MainWindow
 
     private async void TestResourceProductionButton_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockIfSessionSleeping("Test resource production"))
+        {
+            return;
+        }
+
         var operationId = BeginOperation("TestResourceProduction");
         var operationSw = Stopwatch.StartNew();
         _operationCts = new CancellationTokenSource();
@@ -439,6 +469,11 @@ public partial class MainWindow
 
     private async void TestNavigateToBreweryButton_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockIfSessionSleeping("Test navigate to brewery"))
+        {
+            return;
+        }
+
         var operationId = BeginOperation("TestNavigateToBrewery");
         var operationSw = Stopwatch.StartNew();
         _operationCts = new CancellationTokenSource();
@@ -476,6 +511,11 @@ public partial class MainWindow
 
     private async void TestStartCelebrationButton_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockIfSessionSleeping("Test start celebration"))
+        {
+            return;
+        }
+
         var operationId = BeginOperation("TestStartCelebration");
         var operationSw = Stopwatch.StartNew();
         _operationCts = new CancellationTokenSource();
@@ -512,6 +552,11 @@ public partial class MainWindow
 
     private async void TestNpcTradeBarracksButton_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockIfSessionSleeping("Test NPC trade barracks"))
+        {
+            return;
+        }
+
         var operationId = BeginOperation("TestNpcTradeBarracks");
         var operationSw = Stopwatch.StartNew();
         _operationCts = new CancellationTokenSource();
@@ -548,6 +593,11 @@ public partial class MainWindow
 
     private async void TestNpcTradeBuildingButton_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockIfSessionSleeping("Test NPC trade building"))
+        {
+            return;
+        }
+
         var operationId = BeginOperation("TestNpcTradeBuilding");
         var operationSw = Stopwatch.StartNew();
         _operationCts = new CancellationTokenSource();
@@ -583,6 +633,11 @@ public partial class MainWindow
 
     private async void TestReadSmithyQueueButton_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockIfSessionSleeping("Test read Smithy queue"))
+        {
+            return;
+        }
+
         var operationId = BeginOperation("TestReadSmithyQueue");
         var operationSw = Stopwatch.StartNew();
         _operationCts = new CancellationTokenSource();
@@ -618,6 +673,11 @@ public partial class MainWindow
 
     private async void TestReinforcementsButton_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockIfSessionSleeping("Test reinforcements"))
+        {
+            return;
+        }
+
         var operationId = BeginOperation("TestReinforcements");
         var operationSw = Stopwatch.StartNew();
         _operationCts = new CancellationTokenSource();

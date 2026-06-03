@@ -254,12 +254,22 @@ public partial class MainWindow
         }
 
         StatusTextBlock.Text = $"Selected village: {selected.Name}";
+        if (BlockIfSessionSleeping("Village switch"))
+        {
+            return;
+        }
+
         _ = SwitchToSelectedVillageAndRefreshAsync(selected);
     }
 
     private async Task SwitchToSelectedVillageAndRefreshAsync(VillageSelectionItem selectedVillage)
     {
         if (selectedVillage is null)
+        {
+            return;
+        }
+
+        if (BlockIfSessionSleeping("Village switch"))
         {
             return;
         }

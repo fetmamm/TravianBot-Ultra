@@ -1040,6 +1040,11 @@ public partial class MainWindow : Window
 
     private async Task ExecuteLoginFlowAsync()
     {
+        if (BlockIfSessionSleeping("Login"))
+        {
+            return;
+        }
+
         // Guard against re-entrancy (e.g. double-clicking Login or clicking while a login is
         // already running). The button is also disabled via ToggleUiBusy, but this is belt-and-suspenders.
         if (_loginInProgress)
@@ -1212,6 +1217,11 @@ public partial class MainWindow : Window
 
     private async void LogoutButton_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockIfSessionSleeping("Logout"))
+        {
+            return;
+        }
+
         var operationId = BeginOperation("Logout");
         var operationSw = Stopwatch.StartNew();
         _operationCts = _loopController.CreateCts("operation");
@@ -1610,11 +1620,21 @@ public partial class MainWindow : Window
     {
         _ = sender;
         _ = e;
+        if (BlockIfSessionSleeping("Open verification browser"))
+        {
+            return;
+        }
+
         OpenVerificationBrowser();
     }
 
     private void StartLoopButton_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockIfSessionSleeping("Start bot"))
+        {
+            return;
+        }
+
         if (!_isLoggedIn)
         {
             return;
@@ -1670,6 +1690,11 @@ public partial class MainWindow : Window
 
     private void StopBotButton_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockIfSessionSleeping("Stop bot"))
+        {
+            return;
+        }
+
         // Hard stop: abort whatever is running right now (including waits) and clear state.
         _loopController.RequestQueueStop();
         _operationCts?.Cancel();
@@ -1744,7 +1769,7 @@ public partial class MainWindow : Window
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
-        var window = new SettingsWindow(_botConfigStore)
+        var window = new SettingsWindow(_botConfigStore, IsSessionSleeping)
         {
             Owner = this,
         };
@@ -2157,32 +2182,34 @@ public partial class MainWindow : Window
         _uiBusy = busy;
         try
         {
-            var defaultEnabled = !busy;
+            var sleeping = IsSessionSleeping;
+            var defaultEnabled = !busy && !sleeping;
             SetEnabled(AccountComboBox, defaultEnabled);
             SetEnabled(LoginButton, defaultEnabled);
             SetEnabled(LogoutButton, defaultEnabled);
-            SetEnabled(SettingsButton, defaultEnabled);
-            SetEnabled(QueueRemoveButton, defaultEnabled);
-            SetEnabled(QueueMoveUpButton, defaultEnabled);
-            SetEnabled(QueueMoveDownButton, defaultEnabled);
-            SetEnabled(QueueClearButton, defaultEnabled);
-            SetEnabled(QueueRefreshButton, defaultEnabled);
+            SetEnabled(SettingsButton, !busy);
+            SetEnabled(QueueRemoveButton, !busy);
+            SetEnabled(QueueMoveUpButton, !busy);
+            SetEnabled(QueueMoveDownButton, !busy);
+            SetEnabled(QueueClearButton, !busy);
+            SetEnabled(QueueRefreshButton, !busy);
             SetEnabled(ResetProgramButton, true);
             SetEnabled(StorageRefreshButton, defaultEnabled && !_resourceSnapshotRefreshRunning);
             UpdateResourceTransferStatus();
-            _resourcesViewModel.ActionsEnabled = defaultEnabled;
+            _resourcesViewModel.ActionsEnabled = !busy;
             _inboxViewModel.ActionsEnabled = defaultEnabled;
             SetEnabled(StopBotButton, true);
 
             if (StartLoopButton is not null)
             {
-                StartLoopButton.IsEnabled = _isLoggedIn;
+                StartLoopButton.IsEnabled = _isLoggedIn && !sleeping;
                 StartLoopButton.Content = (busy || _autoQueueRunning || !string.IsNullOrWhiteSpace(_activeFunctionDisplayName) || (_loopTask is not null && !_loopTask.IsCompleted))
                     ? "Pause bot"
                     : "Start bot";
             }
 
             SyncFarmingControlsEnabledState();
+            ApplySessionSleepingUiState();
         }
         catch (Exception ex)
         {
@@ -3968,6 +3995,11 @@ public partial class MainWindow : Window
 
     private async void OpenVerificationBrowser()
     {
+        if (BlockIfSessionSleeping("Open verification browser"))
+        {
+            return;
+        }
+
         var operationId = BeginOperation("OpenVerificationBrowser");
         var operationSw = Stopwatch.StartNew();
         _operationCts = _loopController.CreateCts("operation");

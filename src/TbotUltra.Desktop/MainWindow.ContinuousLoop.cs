@@ -20,6 +20,11 @@ public partial class MainWindow
 
     private async Task TriggerQueueAutoRunAsync()
     {
+        if (IsSessionSleeping)
+        {
+            return;
+        }
+
         if (_loopTask is not null && !_loopTask.IsCompleted)
         {
             return;
@@ -75,6 +80,13 @@ public partial class MainWindow
 
     private void TriggerQueueAutoRunFromEnqueue()
     {
+        if (IsSessionSleeping)
+        {
+            UpdateExecutionStateIndicator();
+            AppendLog("Queued item will run after session sleep ends.");
+            return;
+        }
+
         // When continuous-run is toggled ON, queued items must NOT auto-start from an enqueue.
         // They may only begin when the user presses "Start bot", or be picked up by a runner
         // that is already executing (the existing ExecuteQueuedItemsNowAsync / loop will see

@@ -11,6 +11,11 @@ public partial class MainWindow
 {
     private void StartCatapultWavesButton_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockIfSessionSleeping("Catapult waves"))
+        {
+            return;
+        }
+
         if (_farmingOperationBusy)
         {
             return;
