@@ -83,8 +83,7 @@ public partial class MainWindow
 
         var operationId = BeginOperation("Analyze Natars Profile");
         var operationSw = Stopwatch.StartNew();
-        _operationCts = new CancellationTokenSource();
-        var operationToken = _operationCts.Token;
+        var operationToken = _loopController.StartOperation("operation");
         SetFarmingFunctionRunning(true);
         try
         {
@@ -118,8 +117,7 @@ public partial class MainWindow
         finally
         {
             SetFarmingFunctionRunning(false);
-            _operationCts?.Dispose();
-            _operationCts = null;
+            DisposeOperationCts();
         }
     }
 

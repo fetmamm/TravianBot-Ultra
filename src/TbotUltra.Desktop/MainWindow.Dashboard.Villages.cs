@@ -301,10 +301,7 @@ public partial class MainWindow
             return;
         }
 
-        _villageSwitchCts?.Cancel();
-        _villageSwitchCts?.Dispose();
-        _villageSwitchCts = _loopController.CreateCts("village-switch");
-        var operationToken = _villageSwitchCts.Token;
+        var operationToken = _loopController.StartVillageSwitch("village-switch");
         var operationId = BeginOperation("SwitchVillage");
         var operationSw = Stopwatch.StartNew();
         ToggleUiBusy(true);
@@ -354,10 +351,10 @@ public partial class MainWindow
 
         _loopController.RequestLoopStop();
         _loopController.RequestQueueStop();
-        _operationCts?.Cancel();
-        _autoQueueRunCts?.Cancel();
-        _loopCts?.Cancel();
-        _villageSwitchCts?.Cancel();
+        _loopController.CancelOperation();
+        _loopController.CancelAutoQueueRun();
+        _loopController.CancelLoop();
+        _loopController.CancelVillageSwitch();
 
         var stopDeadline = DateTime.UtcNow.AddSeconds(8);
         while (DateTime.UtcNow < stopDeadline)

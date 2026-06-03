@@ -208,9 +208,9 @@ public partial class MainWindow
 
         _loopController.RequestLoopStop();
         _loopController.RequestQueueStop();
-        _operationCts?.Cancel();
-        _autoQueueRunCts?.Cancel();
-        _loopCts?.Cancel();
+        _loopController.CancelOperation();
+        _loopController.CancelAutoQueueRun();
+        _loopController.CancelLoop();
 
         var removed = 0;
         foreach (var row in activeRows)

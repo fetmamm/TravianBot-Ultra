@@ -191,10 +191,7 @@ public partial class MainWindow : Window
     private readonly HashSet<int> _buildingDemolishingSlots = new();
     private static readonly IReadOnlyDictionary<int, (double Left, double Top)> BuildingSlotLayoutById = BuildingsViewModel.CreateBuildingSlotLayout();
 
-    private CancellationTokenSource? _loopCts;
-    private CancellationTokenSource? _operationCts;
     private bool _suppressHeroHideModeApply;
-    private CancellationTokenSource? _villageSwitchCts;
     private Task? _loopTask;
     private bool _chromiumEnsured;
     private bool _suppressAccountSelectionChange;
@@ -250,8 +247,6 @@ public partial class MainWindow : Window
     /// inherits this as DataContext.
     /// </summary>
     public ResourcesViewModel ResourcesVm => _resourcesViewModel;
-    private readonly CancellationTokenSource _queueAutoRunCts = new();
-    private CancellationTokenSource? _autoQueueRunCts;
     private readonly SemaphoreSlim _inboxRefreshGate = new(1, 1);
     private readonly DispatcherTimer _queueUiRefreshTimer;
     private Window? _logsPopupWindow;
@@ -1056,8 +1051,7 @@ public partial class MainWindow : Window
         _loginInProgress = true;
         var operationId = BeginOperation("Login");
         var operationSw = Stopwatch.StartNew();
-        _operationCts = _loopController.CreateCts("operation");
-        var operationToken = _operationCts.Token;
+        var operationToken = _loopController.StartOperation("operation");
         ToggleUiBusy(true);
         ShowBusyOverlay("Logging in", "Logging in and loading account data…");
         try
@@ -1182,8 +1176,7 @@ public partial class MainWindow : Window
             _visibleBrowserLoginInProgress = false;
             HideBusyOverlay();
             ToggleUiBusy(false);
-            _operationCts?.Dispose();
-            _operationCts = null;
+            DisposeOperationCts();
             _loginInProgress = false;
         }
     }
@@ -1207,7 +1200,7 @@ public partial class MainWindow : Window
         AppendLog("Cancel requested.");
         try
         {
-            _operationCts?.Cancel();
+            _loopController.CancelOperation();
         }
         catch (ObjectDisposedException)
         {
@@ -1224,8 +1217,7 @@ public partial class MainWindow : Window
 
         var operationId = BeginOperation("Logout");
         var operationSw = Stopwatch.StartNew();
-        _operationCts = _loopController.CreateCts("operation");
-        var operationToken = _operationCts.Token;
+        var operationToken = _loopController.StartOperation("operation");
         ToggleUiBusy(true);
         ShowBusyOverlay("Logging out", "Logging out…");
         try
@@ -1247,8 +1239,7 @@ public partial class MainWindow : Window
         {
             HideBusyOverlay();
             ToggleUiBusy(false);
-            _operationCts?.Dispose();
-            _operationCts = null;
+            DisposeOperationCts();
         }
     }
 
@@ -1480,10 +1471,10 @@ public partial class MainWindow : Window
     {
         _loopController.RequestLoopStop();
         _loopController.RequestQueueStop();
-        _operationCts?.Cancel();
-        _autoQueueRunCts?.Cancel();
-        _loopCts?.Cancel();
-        _villageSwitchCts?.Cancel();
+        _loopController.CancelOperation();
+        _loopController.CancelAutoQueueRun();
+        _loopController.CancelLoop();
+        _loopController.CancelVillageSwitch();
 
         var stopDeadline = DateTime.UtcNow.AddSeconds(8);
         while (DateTime.UtcNow < stopDeadline)
@@ -1697,12 +1688,12 @@ public partial class MainWindow : Window
 
         // Hard stop: abort whatever is running right now (including waits) and clear state.
         _loopController.RequestQueueStop();
-        _operationCts?.Cancel();
-        _autoQueueRunCts?.Cancel();
+        _loopController.CancelOperation();
+        _loopController.CancelAutoQueueRun();
         if (ContinuousRunToggleButton.IsChecked == true)
         {
             _loopController.RequestLoopStop();
-            _loopCts?.Cancel();
+            _loopController.CancelLoop();
         }
 
         EndInlineWait();
@@ -1741,9 +1732,9 @@ public partial class MainWindow : Window
         _loopController.RequestQueueStop();
         _loopController.RequestLoopStop();
         _startContinuousLoopAfterQueueStop = false;
-        _operationCts?.Cancel();
-        _autoQueueRunCts?.Cancel();
-        _loopCts?.Cancel();
+        _loopController.CancelOperation();
+        _loopController.CancelAutoQueueRun();
+        _loopController.CancelLoop();
         ClearPendingResourceLevelsFromUi();
         SetLoopIndicator(false);
         StartLoopButton.Content = "Start bot";
@@ -1795,9 +1786,9 @@ public partial class MainWindow : Window
             _buildQueueCountdownTimer.Stop();
             _loopController.RequestLoopStop();
             _loopController.RequestQueueStop();
-            _loopCts?.Cancel();
-            _villageSwitchCts?.Cancel();
-            _queueAutoRunCts.Cancel();
+            _loopController.CancelLoop();
+            _loopController.CancelVillageSwitch();
+            _loopController.CancelQueueAutoRunRoot();
             ClosePopupWindows();
 
             // Do not block UI shutdown indefinitely; close shared browser best-effort.
@@ -1811,8 +1802,7 @@ public partial class MainWindow : Window
             {
                 _botService.ClearQueue();
             }
-            _villageSwitchCts?.Dispose();
-            _villageSwitchCts = null;
+            _loopController.DisposeVillageSwitch();
         }
         catch (Exception ex)
         {
@@ -2579,6 +2569,13 @@ public partial class MainWindow : Window
         AppendLog($"[{operationId}] [{operationName} STARTED]");
         return operationId;
     }
+
+    /// <summary>
+    /// Disposes the current manual-operation CTS and clears the field. Idempotent;
+    /// safe to call from finally blocks even when no operation is running.
+    /// Centralizes the dispose/null pattern previously duplicated across panels.
+    /// </summary>
+    private void DisposeOperationCts() => _loopController.DisposeOperation();
 
     private void CompleteOperation(string operationId, Stopwatch sw, string summary)
     {
@@ -4002,8 +3999,7 @@ public partial class MainWindow : Window
 
         var operationId = BeginOperation("OpenVerificationBrowser");
         var operationSw = Stopwatch.StartNew();
-        _operationCts = _loopController.CreateCts("operation");
-        var operationToken = _operationCts.Token;
+        var operationToken = _loopController.StartOperation("operation");
         ToggleUiBusy(true);
         try
         {
@@ -4027,8 +4023,7 @@ public partial class MainWindow : Window
         finally
         {
             ToggleUiBusy(false);
-            _operationCts?.Dispose();
-            _operationCts = null;
+            DisposeOperationCts();
         }
     }
 

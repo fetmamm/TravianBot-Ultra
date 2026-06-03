@@ -469,8 +469,7 @@ public partial class MainWindow
 
         var operationId = BeginOperation("Refresh Reinforcement Villages");
         var operationSw = System.Diagnostics.Stopwatch.StartNew();
-        _operationCts = _loopController.CreateCts("operation");
-        var operationToken = _operationCts.Token;
+        var operationToken = _loopController.StartOperation("operation");
         ToggleUiBusy(true);
         try
         {
@@ -493,8 +492,7 @@ public partial class MainWindow
         {
             ToggleUiBusy(false);
             UpdateReinforcementStatus();
-            _operationCts?.Dispose();
-            _operationCts = null;
+            DisposeOperationCts();
         }
     }
 

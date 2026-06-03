@@ -39,8 +39,7 @@ public partial class MainWindow
 
         var operationId = BeginOperation("MarkMessagesRead");
         var operationSw = Stopwatch.StartNew();
-        _operationCts = new CancellationTokenSource();
-        var operationToken = _operationCts.Token;
+        var operationToken = _loopController.StartOperation("operation");
         ToggleUiBusy(true);
         try
         {
@@ -67,8 +66,7 @@ public partial class MainWindow
         finally
         {
             ToggleUiBusy(false);
-            _operationCts?.Dispose();
-            _operationCts = null;
+            DisposeOperationCts();
         }
     }
 
@@ -81,8 +79,7 @@ public partial class MainWindow
 
         var operationId = BeginOperation("MarkReportsRead");
         var operationSw = Stopwatch.StartNew();
-        _operationCts = new CancellationTokenSource();
-        var operationToken = _operationCts.Token;
+        var operationToken = _loopController.StartOperation("operation");
         ToggleUiBusy(true);
         try
         {
@@ -109,8 +106,7 @@ public partial class MainWindow
         finally
         {
             ToggleUiBusy(false);
-            _operationCts?.Dispose();
-            _operationCts = null;
+            DisposeOperationCts();
         }
     }
 

@@ -24,8 +24,7 @@ public partial class MainWindow
 
         var operationId = BeginOperation("LoadResources");
         var operationSw = Stopwatch.StartNew();
-        _operationCts = new CancellationTokenSource();
-        var operationToken = _operationCts.Token;
+        var operationToken = _loopController.StartOperation("operation");
         ToggleResourceTabActionsBusy(true);
         try
         {
@@ -52,8 +51,7 @@ public partial class MainWindow
         finally
         {
             ToggleResourceTabActionsBusy(false);
-            _operationCts?.Dispose();
-            _operationCts = null;
+            DisposeOperationCts();
         }
     }
 
@@ -205,7 +203,7 @@ public partial class MainWindow
         AppendLog("Cancel requested for bulk save.");
         try
         {
-            _operationCts?.Cancel();
+            _loopController.CancelOperation();
         }
         catch (ObjectDisposedException)
         {
@@ -219,7 +217,7 @@ public partial class MainWindow
             return;
         }
 
-        if (_operationCts is not null)
+        if (_loopController.HasActiveOperation)
         {
             AppendLog("Bulk save skipped: another operation is already running.");
             return;
@@ -228,8 +226,7 @@ public partial class MainWindow
         var dialog = sender as BulkSavePageHtmlWindow;
         var operationId = BeginOperation("BulkSavePageHtml");
         var operationSw = Stopwatch.StartNew();
-        _operationCts = _loopController.CreateCts("operation");
-        var operationToken = _operationCts.Token;
+        var operationToken = _loopController.StartOperation("operation");
         dialog?.SetSaveInProgress(true, $"Saving 0/{pages.Count}...");
 
         var saved = 0;
@@ -296,8 +293,7 @@ public partial class MainWindow
         }
         finally
         {
-            _operationCts?.Dispose();
-            _operationCts = null;
+            DisposeOperationCts();
             if (string.IsNullOrWhiteSpace(finalDialogMessage))
             {
                 dialog?.SetSaveInProgress(false, $"Saved {saved}/{pages.Count}. Failed {failed}.");
@@ -417,8 +413,7 @@ public partial class MainWindow
 
         var operationId = BeginOperation("TestResourceProduction");
         var operationSw = Stopwatch.StartNew();
-        _operationCts = new CancellationTokenSource();
-        var operationToken = _operationCts.Token;
+        var operationToken = _loopController.StartOperation("operation");
         ToggleResourceTabActionsBusy(true);
         try
         {
@@ -462,8 +457,7 @@ public partial class MainWindow
         finally
         {
             ToggleResourceTabActionsBusy(false);
-            _operationCts?.Dispose();
-            _operationCts = null;
+            DisposeOperationCts();
         }
     }
 
@@ -476,8 +470,7 @@ public partial class MainWindow
 
         var operationId = BeginOperation("TestNavigateToBrewery");
         var operationSw = Stopwatch.StartNew();
-        _operationCts = new CancellationTokenSource();
-        var operationToken = _operationCts.Token;
+        var operationToken = _loopController.StartOperation("operation");
         ToggleResourceTabActionsBusy(true);
         try
         {
@@ -504,8 +497,7 @@ public partial class MainWindow
         finally
         {
             ToggleResourceTabActionsBusy(false);
-            _operationCts?.Dispose();
-            _operationCts = null;
+            DisposeOperationCts();
         }
     }
 
@@ -518,8 +510,7 @@ public partial class MainWindow
 
         var operationId = BeginOperation("TestStartCelebration");
         var operationSw = Stopwatch.StartNew();
-        _operationCts = new CancellationTokenSource();
-        var operationToken = _operationCts.Token;
+        var operationToken = _loopController.StartOperation("operation");
         ToggleResourceTabActionsBusy(true);
         try
         {
@@ -545,8 +536,7 @@ public partial class MainWindow
         finally
         {
             ToggleResourceTabActionsBusy(false);
-            _operationCts?.Dispose();
-            _operationCts = null;
+            DisposeOperationCts();
         }
     }
 
@@ -559,8 +549,7 @@ public partial class MainWindow
 
         var operationId = BeginOperation("TestNpcTradeBarracks");
         var operationSw = Stopwatch.StartNew();
-        _operationCts = new CancellationTokenSource();
-        var operationToken = _operationCts.Token;
+        var operationToken = _loopController.StartOperation("operation");
         ToggleResourceTabActionsBusy(true);
         try
         {
@@ -586,8 +575,7 @@ public partial class MainWindow
         finally
         {
             ToggleResourceTabActionsBusy(false);
-            _operationCts?.Dispose();
-            _operationCts = null;
+            DisposeOperationCts();
         }
     }
 
@@ -600,8 +588,7 @@ public partial class MainWindow
 
         var operationId = BeginOperation("TestNpcTradeBuilding");
         var operationSw = Stopwatch.StartNew();
-        _operationCts = new CancellationTokenSource();
-        var operationToken = _operationCts.Token;
+        var operationToken = _loopController.StartOperation("operation");
         ToggleResourceTabActionsBusy(true);
         try
         {
@@ -626,8 +613,7 @@ public partial class MainWindow
         finally
         {
             ToggleResourceTabActionsBusy(false);
-            _operationCts?.Dispose();
-            _operationCts = null;
+            DisposeOperationCts();
         }
     }
 
@@ -640,8 +626,7 @@ public partial class MainWindow
 
         var operationId = BeginOperation("TestReadSmithyQueue");
         var operationSw = Stopwatch.StartNew();
-        _operationCts = new CancellationTokenSource();
-        var operationToken = _operationCts.Token;
+        var operationToken = _loopController.StartOperation("operation");
         ToggleResourceTabActionsBusy(true);
         try
         {
@@ -666,8 +651,7 @@ public partial class MainWindow
         finally
         {
             ToggleResourceTabActionsBusy(false);
-            _operationCts?.Dispose();
-            _operationCts = null;
+            DisposeOperationCts();
         }
     }
 
@@ -680,8 +664,7 @@ public partial class MainWindow
 
         var operationId = BeginOperation("TestReinforcements");
         var operationSw = Stopwatch.StartNew();
-        _operationCts = new CancellationTokenSource();
-        var operationToken = _operationCts.Token;
+        var operationToken = _loopController.StartOperation("operation");
         ToggleResourceTabActionsBusy(true);
         try
         {
@@ -712,8 +695,7 @@ public partial class MainWindow
         finally
         {
             ToggleResourceTabActionsBusy(false);
-            _operationCts?.Dispose();
-            _operationCts = null;
+            DisposeOperationCts();
         }
     }
 

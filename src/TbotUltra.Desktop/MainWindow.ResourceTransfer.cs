@@ -338,8 +338,7 @@ public partial class MainWindow
         var operationId = BeginOperation("Scan Resource Villages");
         var operationSw = Stopwatch.StartNew();
         _resourceTransferScanRunning = true;
-        _operationCts = _loopController.CreateCts("operation");
-        var operationToken = _operationCts.Token;
+        var operationToken = _loopController.StartOperation("operation");
         ToggleUiBusy(true);
         UpdateResourceTransferStatus();
         try
@@ -370,8 +369,7 @@ public partial class MainWindow
             _resourceTransferScanRunning = false;
             ToggleUiBusy(false);
             UpdateResourceTransferStatus();
-            _operationCts?.Dispose();
-            _operationCts = null;
+            DisposeOperationCts();
         }
     }
 

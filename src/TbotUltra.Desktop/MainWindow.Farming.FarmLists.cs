@@ -311,8 +311,7 @@ public partial class MainWindow
 
         var operationId = BeginOperation("Analyze Farmlists");
         var operationSw = Stopwatch.StartNew();
-        _operationCts = new CancellationTokenSource();
-        var operationToken = _operationCts.Token;
+        var operationToken = _loopController.StartOperation("operation");
         SetFarmingFunctionRunning(true);
         try
         {
@@ -338,8 +337,7 @@ public partial class MainWindow
         finally
         {
             SetFarmingFunctionRunning(false);
-            _operationCts?.Dispose();
-            _operationCts = null;
+            DisposeOperationCts();
         }
     }
 
@@ -358,8 +356,7 @@ public partial class MainWindow
 
         var operationId = BeginOperation("Add Farms To List");
         var operationSw = Stopwatch.StartNew();
-        _operationCts = new CancellationTokenSource();
-        var operationToken = _operationCts.Token;
+        var operationToken = _loopController.StartOperation("operation");
         SetFarmingFunctionRunning(true);
         try
         {
@@ -509,8 +506,7 @@ public partial class MainWindow
         finally
         {
             SetFarmingFunctionRunning(false);
-            _operationCts?.Dispose();
-            _operationCts = null;
+            DisposeOperationCts();
         }
     }
 
@@ -544,8 +540,7 @@ public partial class MainWindow
 
         var operationId = BeginOperation("Farm Send Now");
         var operationSw = Stopwatch.StartNew();
-        _operationCts = new CancellationTokenSource();
-        var operationToken = _operationCts.Token;
+        var operationToken = _loopController.StartOperation("operation");
         SetFarmingFunctionRunning(true);
         try
         {
@@ -567,8 +562,7 @@ public partial class MainWindow
         finally
         {
             SetFarmingFunctionRunning(false);
-            _operationCts?.Dispose();
-            _operationCts = null;
+            DisposeOperationCts();
         }
     }
 

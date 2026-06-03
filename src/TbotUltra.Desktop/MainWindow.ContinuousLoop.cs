@@ -35,7 +35,7 @@ public partial class MainWindow
             return;
         }
 
-        var gateLease = await _loopController.TryAcquireQueueAutoRunGateAsync(_queueAutoRunCts.Token);
+        var gateLease = await _loopController.TryAcquireQueueAutoRunGateAsync(_loopController.QueueAutoRunRootToken);
         if (gateLease is null)
         {
             return;
@@ -43,8 +43,7 @@ public partial class MainWindow
 
         _ = Task.Run(async () =>
         {
-            _autoQueueRunCts = CancellationTokenSource.CreateLinkedTokenSource(_queueAutoRunCts.Token);
-            var autoToken = _autoQueueRunCts.Token;
+            var autoToken = _loopController.StartAutoQueueRun();
             try
             {
                 _autoQueueRunning = true;
@@ -54,8 +53,7 @@ public partial class MainWindow
             finally
             {
                 _autoQueueRunning = false;
-                _autoQueueRunCts?.Dispose();
-                _autoQueueRunCts = null;
+                _loopController.DisposeAutoQueueRun();
                 UpdateExecutionStateIndicatorOnUiThread();
                 gateLease.Dispose();
                 _ = Dispatcher.BeginInvoke(() =>

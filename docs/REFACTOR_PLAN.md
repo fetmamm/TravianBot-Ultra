@@ -11,6 +11,24 @@ Projektet har vuxit till en svårunderhållen kodbas. Mätningar på faktisk kod
 
 Målet: stegvisa, beteendebevarande refaktoriseringar med låg risk och hög nytta, som gör framtida AI-assisterad utveckling säkrare.
 
+## Status / Framsteg
+
+| Rank | Status | Senast uppdaterad |
+|------|--------|-------------------|
+| 1 | 🟢 Klar | 2026-06-03 |
+| 2 | ⬜ Ej påbörjad | — |
+| 3 | ⬜ Ej påbörjad | — |
+| 4 | ⬜ Ej påbörjad | — |
+| 5 | ⬜ Ej påbörjad | — |
+
+### Rank 1 – delsteg
+- [x] **Steg 1a:** Routa kvarvarande råa `_operationCts = new CancellationTokenSource()` genom `_loopController.CreateCts("operation")` för enhetlig strukturerad loggning. 16 call-sites i 6 filer (`Farming.Manual`, `Inbox` ×2, `Farming.FarmLists` ×3, `Farming.Natars`, `Resources.Actions` ×8, `SendTroops.Catapults`). Beteendebevarande (endast loggrad tillkommer). Bygger rent (0 fel/varningar). _Lämnad: lokal `using var operationCts` i `Resources.Actions.cs` (egen dispose-semantik)._
+- [x] **Steg 1b:** Samlade det upprepade `_operationCts?.Dispose(); _operationCts = null;`-mönstret (**21 finally-block i 9 filer**) i privat hjälpare `DisposeOperationCts()` på `MainWindow` (nära `BeginOperation`). Lagd på MainWindow t.v. eftersom fältet ägs där; flyttas till `LoopController` i 1c. Bygger rent (0 fel/varningar). _Cancel-anropen (`_operationCts?.Cancel()`) lämnas — separat ansvar, hanteras i 1c._
+- [x] **Steg 1c:** Flyttade `_operationCts` in i `LoopController` bakom ett litet API: `StartOperation(label)` (returnerar token), `CancelOperation()`, `HasActiveOperation`, `DisposeOperation()` (+ disposas i `LoopController.Dispose()`). Tog bort fältet ur `MainWindow`; create-block (13 ställen, 2 rader → 1), cancel (8 ställen) och null-check (1) omdirigerade. `DisposeOperationCts()` delegerar nu. Semantik oförändrad (plain field-access, ingen ny låsning). Bygger rent; Worker-tester 309/309 gröna. _Pre-existerande fel: `SessionPacerTests.SleepingStatusText_DoesNotShowResumeCountdown` (misslyckas även på baseline, ej relaterat)._
+- [x] **Steg 1d:** Flyttade kvarvarande CTS-fält in i `LoopController`. `MainWindow` äger nu **inga** CTS-fält. Nya API:er: `StartLoop`/`CancelLoop`; `StartVillageSwitch`/`CancelVillageSwitch`/`DisposeVillageSwitch`; `QueueAutoRunRootToken` + `StartAutoQueueRun`/`CancelAutoQueueRun`/`DisposeAutoQueueRun` + `CancelQueueAutoRunRoot`. Alla CTS disposas nu i `LoopController.Dispose()`. Semantik oförändrad (länkad root→child bevarad; `_loopCts` disposas fortfarande aldrig under drift). Kompilerar rent (0 fel/varningar, verifierat via separat output-mapp då appen kördes live).
+
+**Rank 1 är därmed klar.** `LoopController` äger nu hela CTS-/loop-state-livscykeln; `MainWindow` driver den via metoder.
+
 ## Rekommenderade refaktoriseringar
 
 | Rank | Område | Rader (faktisk) | Problem | Föreslagen åtgärd | Risk | Reward |

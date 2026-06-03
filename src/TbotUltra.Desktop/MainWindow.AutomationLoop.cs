@@ -62,8 +62,7 @@ public partial class MainWindow
         _loopController.ClearLoopStopRequest();
         _loopController.ClearQueueStopRequest();
         _continuousLoopConstructionStatusNeedsSync = true;
-        _loopCts = _loopController.CreateCts("loop");
-        var token = _loopCts.Token;
+        var token = _loopController.StartLoop("loop");
 
         StartLoopButton.Content = "Pause bot";
         StartLoopButton.IsEnabled = true;

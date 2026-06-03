@@ -731,7 +731,7 @@ public partial class MainWindow
         {
             _restartContinuousLoopAfterStop = HasEnabledContinuousLoopGroupsExcept(disabledGroup);
             _loopController.RequestLoopStop();
-            _loopCts?.Cancel();
+            _loopController.CancelLoop();
             AppendLog($"{QueueGroupCatalog.GetTitle(disabledGroup)} group disabled. Stopping current loop task.");
         }
 

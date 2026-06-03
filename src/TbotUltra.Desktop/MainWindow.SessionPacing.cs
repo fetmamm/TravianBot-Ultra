@@ -111,9 +111,9 @@ public partial class MainWindow
             AppendLog("[pacing] controlled session stop requested.");
             _loopController.RequestLoopStop();
             _loopController.RequestQueueStop();
-            _operationCts?.Cancel();
-            _autoQueueRunCts?.Cancel();
-            _loopCts?.Cancel();
+            _loopController.CancelOperation();
+            _loopController.CancelAutoQueueRun();
+            _loopController.CancelLoop();
             await StopAllAutomationAndWaitAsync();
 
             var operationId = BeginOperation("Session sleep");

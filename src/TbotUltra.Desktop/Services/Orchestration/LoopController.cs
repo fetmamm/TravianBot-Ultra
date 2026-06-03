@@ -16,8 +16,11 @@ namespace TbotUltra.Desktop.Services.Orchestration;
 ///   - a CancellationTokenSource factory that emits a creation log line so we
 ///     can correlate cancellations with their origin in production
 ///
-/// MainWindow still owns its <c>_loopCts</c>/<c>_operationCts</c>/etc. fields
-/// for now; subsequent commits will move that lifecycle here as well.
+/// All cancellation-token-source lifecycles are now owned here: the manual
+/// operation (<c>StartOperation</c>), the continuous loop (<c>StartLoop</c>),
+/// village switches (<c>StartVillageSwitch</c>) and the queue auto-run root +
+/// linked child (<c>StartAutoQueueRun</c>). MainWindow drives them through these
+/// methods and no longer holds CTS fields of its own.
 /// </summary>
 public sealed class LoopController : IDisposable
 {
@@ -169,6 +172,109 @@ public sealed class LoopController : IDisposable
         return cts;
     }
 
+    private CancellationTokenSource? _operationCts;
+
+    /// <summary>
+    /// Starts a new manual-operation scope and returns its token. Replaces the
+    /// current operation CTS field directly (callers historically guarded against
+    /// concurrent operations elsewhere), mirroring the previous MainWindow
+    /// behavior exactly. Always pair with <see cref="DisposeOperation"/> in a
+    /// finally block.
+    /// </summary>
+    public CancellationToken StartOperation(string label)
+    {
+        _operationCts = CreateCts(label);
+        return _operationCts.Token;
+    }
+
+    /// <summary>True while a manual-operation CTS is active.</summary>
+    public bool HasActiveOperation => _operationCts is not null;
+
+    /// <summary>Requests cancellation of the active operation, if any.</summary>
+    public void CancelOperation() => _operationCts?.Cancel();
+
+    /// <summary>Disposes the active operation CTS and clears it. Idempotent.</summary>
+    public void DisposeOperation()
+    {
+        _operationCts?.Dispose();
+        _operationCts = null;
+    }
+
+    // --- Continuous-loop CTS ---
+
+    private CancellationTokenSource? _loopCts;
+
+    /// <summary>
+    /// Starts a new continuous-loop scope and returns its token. The previous
+    /// loop CTS is intentionally not disposed here, mirroring prior MainWindow
+    /// behavior (the loop CTS was only cancelled and replaced, never disposed).
+    /// </summary>
+    public CancellationToken StartLoop(string label)
+    {
+        _loopCts = CreateCts(label);
+        return _loopCts.Token;
+    }
+
+    /// <summary>Requests cancellation of the continuous loop, if any.</summary>
+    public void CancelLoop() => _loopCts?.Cancel();
+
+    // --- Village-switch CTS ---
+
+    private CancellationTokenSource? _villageSwitchCts;
+
+    /// <summary>
+    /// Cancels and disposes any prior village-switch CTS, then starts a new one
+    /// and returns its token.
+    /// </summary>
+    public CancellationToken StartVillageSwitch(string label)
+    {
+        _villageSwitchCts?.Cancel();
+        _villageSwitchCts?.Dispose();
+        _villageSwitchCts = CreateCts(label);
+        return _villageSwitchCts.Token;
+    }
+
+    /// <summary>Requests cancellation of the active village switch, if any.</summary>
+    public void CancelVillageSwitch() => _villageSwitchCts?.Cancel();
+
+    /// <summary>Disposes the village-switch CTS and clears it. Idempotent.</summary>
+    public void DisposeVillageSwitch()
+    {
+        _villageSwitchCts?.Dispose();
+        _villageSwitchCts = null;
+    }
+
+    // --- Queue auto-run CTS (long-lived root + per-run linked child) ---
+
+    private readonly CancellationTokenSource _queueAutoRunCts = new();
+    private CancellationTokenSource? _autoQueueRunCts;
+
+    /// <summary>The long-lived root token, cancelled when the window closes.</summary>
+    public CancellationToken QueueAutoRunRootToken => _queueAutoRunCts.Token;
+
+    /// <summary>
+    /// Starts a queue auto-run scope linked to the root token and returns its
+    /// token. Pair with <see cref="DisposeAutoQueueRun"/> in a finally block.
+    /// </summary>
+    public CancellationToken StartAutoQueueRun()
+    {
+        _autoQueueRunCts = CancellationTokenSource.CreateLinkedTokenSource(_queueAutoRunCts.Token);
+        return _autoQueueRunCts.Token;
+    }
+
+    /// <summary>Requests cancellation of the active queue auto-run, if any.</summary>
+    public void CancelAutoQueueRun() => _autoQueueRunCts?.Cancel();
+
+    /// <summary>Disposes the active queue-auto-run CTS and clears it. Idempotent.</summary>
+    public void DisposeAutoQueueRun()
+    {
+        _autoQueueRunCts?.Dispose();
+        _autoQueueRunCts = null;
+    }
+
+    /// <summary>Cancels the long-lived queue-auto-run root (window closing).</summary>
+    public void CancelQueueAutoRunRoot() => _queueAutoRunCts.Cancel();
+
     public void Dispose()
     {
         if (_disposed)
@@ -177,6 +283,19 @@ public sealed class LoopController : IDisposable
         }
 
         _disposed = true;
+
+        foreach (var cts in new[] { _operationCts, _loopCts, _villageSwitchCts, _autoQueueRunCts, _queueAutoRunCts })
+        {
+            try
+            {
+                cts?.Dispose();
+            }
+            catch
+            {
+                // Disposing twice is harmless; swallow.
+            }
+        }
+
         try
         {
             _queueAutoRunGate.Dispose();

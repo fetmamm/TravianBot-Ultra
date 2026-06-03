@@ -57,8 +57,7 @@ public partial class MainWindow
 
         var operationId = BeginOperation("Start Manual Farming");
         var operationSw = Stopwatch.StartNew();
-        _operationCts = new CancellationTokenSource();
-        var operationToken = _operationCts.Token;
+        var operationToken = _loopController.StartOperation("operation");
         SetFarmingFunctionRunning(true);
         try
         {
@@ -111,8 +110,7 @@ public partial class MainWindow
         finally
         {
             SetFarmingFunctionRunning(false);
-            _operationCts?.Dispose();
-            _operationCts = null;
+            DisposeOperationCts();
         }
     }
 
@@ -184,7 +182,7 @@ public partial class MainWindow
         }
 
         AppendLog("Cancel requested for the running farming operation.");
-        _operationCts?.Cancel();
+        _loopController.CancelOperation();
     }
 
     private static BotOptions ApplyManualFarmingSelectionToOptions(BotOptions options, string natarVillageSelection)
