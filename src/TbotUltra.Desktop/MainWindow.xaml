@@ -848,6 +848,7 @@
                                         <!-- Each setting gets a trailing "i" info icon (SettingInfoIconStyle) describing it. -->
                                         <StackPanel Orientation="Horizontal">
                                             <CheckBox x:Name="AutoCollectTasksCheckBox" Content="Collect tasks"
+                                                      Style="{StaticResource ToggleSwitchStyle}"
                                                       Foreground="#374151"
                                                       Checked="AutoCollectTasksSetting_Changed" Unchecked="AutoCollectTasksSetting_Changed" />
                                             <ContentControl Style="{StaticResource SettingInfoIconStyle}">
@@ -861,6 +862,7 @@
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                             <CheckBox x:Name="AutoCollectDailyQuestsCheckBox" Content="Collect daily quests"
+                                                      Style="{StaticResource ToggleSwitchStyle}"
                                                       Foreground="#374151"
                                                       Checked="AutoCollectDailyQuestsSetting_Changed" Unchecked="AutoCollectDailyQuestsSetting_Changed" />
                                             <ContentControl Style="{StaticResource SettingInfoIconStyle}">
@@ -873,7 +875,8 @@
                                             </ContentControl>
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                            <CheckBox x:Name="HeroResourceTransferCheckBox" Content="Use hero inventory resources"
+                                            <CheckBox x:Name="HeroResourceTransferCheckBox" Content="Use hero resources"
+                                                      Style="{StaticResource ToggleSwitchStyle}"
                                                       Foreground="#374151"
                                                       VerticalAlignment="Center"
                                                       Checked="HeroResourceTransferSetting_Changed" Unchecked="HeroResourceTransferSetting_Changed" />
@@ -901,6 +904,7 @@
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                             <CheckBox Content="Allow gold spending"
+                                                      Style="{StaticResource ToggleSwitchStyle}"
                                                       Foreground="#374151"
                                                       VerticalAlignment="Center"
                                                       IsChecked="{Binding TroopTrainingVm.AllowGoldSpending, ElementName=RootWindow, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />

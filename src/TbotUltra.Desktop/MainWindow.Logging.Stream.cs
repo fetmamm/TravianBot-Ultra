@@ -819,6 +819,14 @@ public partial class MainWindow
             return false;
         }
 
+        // Transient Playwright "Execution context was destroyed, most likely because of a navigation"
+        // is a harmless navigation race (the page reloaded while a read was in flight). The worker
+        // retries and continues, so don't raise it as a red alarm.
+        if (value.Contains("execution context was destroyed"))
+        {
+            return false;
+        }
+
         if (value.Contains(" started]"))
         {
             return false;
