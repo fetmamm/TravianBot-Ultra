@@ -340,6 +340,9 @@ public sealed class BotTaskRunner
 
         _accountAnalysisStore.Save(completed);
         log($"[cache] stable account signals saved for '{completed.AccountName}' (tribe={completed.Tribe}, goldclub={completed.GoldClubEnabled}).");
+        // Emit the real-time signal the desktop UI parses (GoldClubStatusRegex) so the Gold Club
+        // indicator flips at login instead of waiting for the next stored-analysis read (~1 min later).
+        log($"[goldclub] active={goldClubEnabled}");
     }
 
     private static bool IsKnownTribe(string? tribe)
