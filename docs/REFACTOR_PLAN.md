@@ -17,7 +17,7 @@ Målet: stegvisa, beteendebevarande refaktoriseringar med låg risk och hög nyt
 |------|--------|-------------------|
 | 1 | 🟢 Klar | 2026-06-03 |
 | 2 | 🟢 Klar (lätt variant) | 2026-06-03 |
-| 3 | 🟡 Pågår | 2026-06-03 |
+| 3 | 🟢 Klar | 2026-06-03 |
 | 4 | ⬜ Ej påbörjad | — |
 | 5 | ⬜ Ej påbörjad | — |
 
@@ -49,7 +49,9 @@ Mönster: flytta sammanhängande, helst rena/statiska metodkluster till nya tema
 
 - [x] **Steg 3h/3i/3j:** Tre mindre kluster: warmups (`StartBackgroundWarmups`, `Run*WarmupAsync`) → `MainWindow.Warmups.cs`; queue-clear-settings + server-klocka (`ShouldClearQueueOn*`, `ReadQueueClearSetting`, `ResolveQueueServerTimeOffset`, `GetServerNow`, `UpdateClockText`, `FormatQueueServerTime`) → `MainWindow.ServerClock.cs`; manuell exekveringsspårning (`EnsureManualExecutionTracking`, `CompleteManualExecutionTrackingIfNeeded`, `SetManualExecutionOutcome`, `BuildRuntimeManualTaskName`) → `MainWindow.ManualExecution.cs`. ~247 rader. `xaml.cs`: 2036 → 1789. Kompilerar rent; tester 40/40.
 
-**Rank 3 sammanfattning hittills:** `MainWindow.xaml.cs` **4042 → 1789 rader** (−2253, ~56%) fördelat på tio nya tematiska partials (`DeferredWaits`, `ServerAccount`, `LoopIndicators`, `Toolbar`, `Session`, `VillageStatus`, `StatusInfo`, `Warmups`, `ServerClock`, `ManualExecution`). Mönstret är etablerat; återstår bl.a. den utspridda deferred refresh-instansen (~350) samt diverse småmetoder.
+- [x] **Steg 3k:** Flyttade deferred-/mid-wait refresh-instansen (2 sammanhängande block, 16 metoder: predikat + `Schedule*MidWaitRefresh`, `Trigger/Refresh/Reset DeferredConstruction/TroopTraining`, `RefreshConstructionStatusAsync`, `TryExtract*`, ~402 rader) → `MainWindow.DeferredRefresh.cs`. Extraherades via skript direkt ur xaml.cs (verbatim, ingen transkribering). `xaml.cs`: 1789 → 1387. Kompilerar rent; tester 40/40.
+
+**Rank 3 KLAR.** `MainWindow.xaml.cs` **4042 → 1387 rader** (−2655, **~66%**) fördelat på elva nya tematiska partials (`DeferredWaits`, `ServerAccount`, `LoopIndicators`, `Toolbar`, `Session`, `VillageStatus`, `StatusInfo`, `Warmups`, `ServerClock`, `ManualExecution`, `DeferredRefresh`). Kvar i huvudfilen: konstruktor, fält/typ-deklarationer, config-laddning och diverse småmetoder utan tydligt kluster — det hör hemma där. Alla steg rena relocations, separat committade, build + tester gröna genomgående.
 
 ## Rekommenderade refaktoriseringar
 
