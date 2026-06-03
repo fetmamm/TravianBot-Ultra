@@ -271,7 +271,7 @@ public partial class MainWindow
         SetEnabled(StopBotButton, !sleeping);
         SetEnabled(LoadResourcesButton, !sleeping && !_uiBusy);
         SetEnabled(OpenResourceTestFunctionsButton, !sleeping && !_uiBusy);
-        SetEnabled(StorageRefreshButton, !sleeping && !_uiBusy && !_resourceSnapshotRefreshRunning);
+        SetEnabled(StorageRefreshButton, !sleeping && !_uiBusy);
         SetEnabled(VillageComboBox, !sleeping && !_uiBusy);
         SetEnabled(AnalyzeFarmListsButton, !sleeping && !_farmingOperationBusy);
         SetEnabled(AnalyzeNatarsProfileButton, !sleeping && !_farmingOperationBusy && _farmingFeaturesAvailable);

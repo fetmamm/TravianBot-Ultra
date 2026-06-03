@@ -2077,7 +2077,7 @@ public partial class MainWindow : Window
             SetEnabled(QueueClearButton, !busy);
             SetEnabled(QueueRefreshButton, !busy);
             SetEnabled(ResetProgramButton, true);
-            SetEnabled(StorageRefreshButton, defaultEnabled && !_resourceSnapshotRefreshRunning);
+            SetEnabled(StorageRefreshButton, defaultEnabled);
             UpdateResourceTransferStatus();
             _resourcesViewModel.ActionsEnabled = !busy;
             _inboxViewModel.ActionsEnabled = defaultEnabled;

@@ -597,7 +597,6 @@ public partial class MainWindow
             return;
         }
 
-        SetEnabled(StorageRefreshButton, false);
         try
         {
             await EnsureChromiumInstalledAsync();
@@ -609,10 +608,6 @@ public partial class MainWindow
         catch (Exception ex)
         {
             AppendLog($"[resource-refresh] manual quick refresh skipped: {ex.Message}");
-        }
-        finally
-        {
-            SetEnabled(StorageRefreshButton, !_uiBusy && !IsSessionSleeping);
         }
     }
 
