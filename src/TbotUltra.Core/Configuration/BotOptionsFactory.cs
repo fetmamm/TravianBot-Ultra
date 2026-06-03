@@ -113,6 +113,15 @@ public static class BotOptionsFactory
             GithubReleasesUrl = configuration["github_releases_url"] ?? string.Empty,
             HumanLikeEnabled = configuration.GetValue("human_like_enabled", false),
             HumanLikeSpeed = configuration["human_like_speed"] ?? "medium",
+            ActionPacingEnabled = configuration.GetValue(BotOptionPayloadKeys.ActionPacingEnabled, PacingDefaults.ActionPacingEnabled),
+            ActionPacingTaskMinSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingTaskMinSeconds, PacingDefaults.ActionPacingTaskMinSeconds)),
+            ActionPacingTaskMaxSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingTaskMaxSeconds, PacingDefaults.ActionPacingTaskMaxSeconds)),
+            ActionPacingPageLoadMinSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingPageLoadMinSeconds, PacingDefaults.ActionPacingPageLoadMinSeconds)),
+            ActionPacingPageLoadMaxSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingPageLoadMaxSeconds, PacingDefaults.ActionPacingPageLoadMaxSeconds)),
+            ActionPacingClickMinSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingClickMinSeconds, PacingDefaults.ActionPacingClickMinSeconds)),
+            ActionPacingClickMaxSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingClickMaxSeconds, PacingDefaults.ActionPacingClickMaxSeconds)),
+            ActionPacingLoopMinSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingLoopMinSeconds, PacingDefaults.ActionPacingLoopMinSeconds)),
+            ActionPacingLoopMaxSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingLoopMaxSeconds, PacingDefaults.ActionPacingLoopMaxSeconds)),
             TargetVillageName = configuration[BotOptionPayloadKeys.TargetVillageName] ?? string.Empty,
             TargetVillageUrl = configuration[BotOptionPayloadKeys.TargetVillageUrl] ?? string.Empty,
             AllowGoldSpending = GetValueOrDefault(configuration, BotOptionPayloadKeys.AllowGoldSpending, defaultValue: false),
@@ -241,6 +250,15 @@ public static class BotOptionsFactory
             GithubReleasesUrl = source.GithubReleasesUrl,
             HumanLikeEnabled = source.HumanLikeEnabled,
             HumanLikeSpeed = source.HumanLikeSpeed,
+            ActionPacingEnabled = source.ActionPacingEnabled,
+            ActionPacingTaskMinSeconds = source.ActionPacingTaskMinSeconds,
+            ActionPacingTaskMaxSeconds = source.ActionPacingTaskMaxSeconds,
+            ActionPacingPageLoadMinSeconds = source.ActionPacingPageLoadMinSeconds,
+            ActionPacingPageLoadMaxSeconds = source.ActionPacingPageLoadMaxSeconds,
+            ActionPacingClickMinSeconds = source.ActionPacingClickMinSeconds,
+            ActionPacingClickMaxSeconds = source.ActionPacingClickMaxSeconds,
+            ActionPacingLoopMinSeconds = source.ActionPacingLoopMinSeconds,
+            ActionPacingLoopMaxSeconds = source.ActionPacingLoopMaxSeconds,
             TargetVillageName = source.TargetVillageName,
             TargetVillageUrl = source.TargetVillageUrl,
             AllowGoldSpending = source.AllowGoldSpending,
@@ -292,6 +310,16 @@ public static class BotOptionsFactory
         return configuration[key] is null
             ? defaultValue
             : configuration.GetValue(key, defaultValue);
+    }
+
+    private static double ClampDelaySeconds(double value)
+    {
+        if (double.IsNaN(value) || double.IsInfinity(value))
+        {
+            return 0;
+        }
+
+        return Math.Clamp(value, 0, 3600);
     }
 
     private static List<ReinforcementTroopRule> NormalizeReinforcementTroopRules(IEnumerable<ReinforcementTroopRule> rules)

@@ -860,6 +860,12 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                     var humanDelayMs = Random.Shared.Next(100, 1001);
                     await Task.Delay(humanDelayMs, cancellationToken);
                 }
+
+                await ActionPacer.FromOptions(_config, Notify).DelayAsync(
+                    _config.ActionPacingClickMinSeconds,
+                    _config.ActionPacingClickMaxSeconds,
+                    cancellationToken,
+                    "between farm sends");
                 continue;
             }
 
@@ -1198,6 +1204,11 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         }, cancellationToken: cancellationToken);
         Notify($"[nav] GOTO done target='{url}' current='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
         InvalidateActiveConstructionsCache();
+        await ActionPacer.FromOptions(_config, Notify).DelayAsync(
+            _config.ActionPacingPageLoadMinSeconds,
+            _config.ActionPacingPageLoadMaxSeconds,
+            cancellationToken,
+            "after page load");
         await PauseForManualStepIfVisibleAsync("Manual verification appeared after navigation.", cancellationToken);
         await TryDismissContinuePromptAsync(cancellationToken);
     }

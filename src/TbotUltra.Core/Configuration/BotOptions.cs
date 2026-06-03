@@ -287,6 +287,33 @@ public sealed class BotOptions
     [ConfigurationKeyName("human_like_speed")]
     public string HumanLikeSpeed { get; init; } = "medium";
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingEnabled)]
+    public bool ActionPacingEnabled { get; init; } = PacingDefaults.ActionPacingEnabled;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingTaskMinSeconds)]
+    public double ActionPacingTaskMinSeconds { get; init; } = PacingDefaults.ActionPacingTaskMinSeconds;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingTaskMaxSeconds)]
+    public double ActionPacingTaskMaxSeconds { get; init; } = PacingDefaults.ActionPacingTaskMaxSeconds;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingPageLoadMinSeconds)]
+    public double ActionPacingPageLoadMinSeconds { get; init; } = PacingDefaults.ActionPacingPageLoadMinSeconds;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingPageLoadMaxSeconds)]
+    public double ActionPacingPageLoadMaxSeconds { get; init; } = PacingDefaults.ActionPacingPageLoadMaxSeconds;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingClickMinSeconds)]
+    public double ActionPacingClickMinSeconds { get; init; } = PacingDefaults.ActionPacingClickMinSeconds;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingClickMaxSeconds)]
+    public double ActionPacingClickMaxSeconds { get; init; } = PacingDefaults.ActionPacingClickMaxSeconds;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingLoopMinSeconds)]
+    public double ActionPacingLoopMinSeconds { get; init; } = PacingDefaults.ActionPacingLoopMinSeconds;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingLoopMaxSeconds)]
+    public double ActionPacingLoopMaxSeconds { get; init; } = PacingDefaults.ActionPacingLoopMaxSeconds;
+
     [ConfigurationKeyName(BotOptionPayloadKeys.TargetVillageName)]
     public string TargetVillageName { get; init; } = string.Empty;
 

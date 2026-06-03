@@ -245,23 +245,61 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <Border Grid.Row="0" Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,8">
-                <DockPanel>
-                    <TextBlock x:Name="BrowserInfoTextBlock" Text="Browser: idle" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Left" />
-                    <TextBlock x:Name="TribeInfoTextBlock" Text="Tribe: -" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right" />
-                    <TextBlock Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right">
-                        <Run Text="Plus: " /><Run x:Name="PlusInfoTextBlock" Text="-" />
-                    </TextBlock>
-                    <TextBlock Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right">
-                        <Run Text="Goldclub: " /><Run x:Name="GoldClubInfoTextBlock" Text="-" />
-                    </TextBlock>
-                    <TextBlock x:Name="ServerResourcesTextBlock" Text="Gold: - | Silver: -" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right" />
-                    <TextBlock x:Name="CaptchaStatsTextBlock" Text="Captchas solved: 0/0" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right" />
-                    <TextBlock x:Name="NpcTradeSessionStatsTextBlock" Text="Gold spent: 0" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right" />
-                    <TextBlock x:Name="ClockTextBlock" Text="Time: -" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Left" />
-                    <TextBlock x:Name="StatusTextBlock" Text="Ready." Visibility="Collapsed" />
-                </DockPanel>
-            </Border>
+            <Grid Grid.Row="0" Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0"
+                        Background="#FFFFFF"
+                        BorderBrush="#D1D5DB"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="10"
+                        Margin="0,0,8,0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock x:Name="SessionPacingStatusTextBlock"
+                                   Text="Session pacing off"
+                                   Foreground="#374151"
+                                   VerticalAlignment="Center" />
+                        <Button x:Name="SessionPacingRunNowButton"
+                                Content="Run now"
+                                Margin="8,0,0,0"
+                                Padding="6,1"
+                                MinHeight="22"
+                                Visibility="Collapsed"
+                                Click="SessionPacingRunNowButton_Click" />
+                        <Button x:Name="SessionPacingSettingsButton"
+                                Content="&#xE713;"
+                                FontFamily="Segoe MDL2 Assets"
+                                Width="22"
+                                Height="22"
+                                Padding="0"
+                                Margin="6,0,0,0"
+                                ToolTip="Open pacing settings"
+                                Click="SessionPacingSettingsButton_Click" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="8" Padding="10">
+                    <DockPanel>
+                        <TextBlock x:Name="BrowserInfoTextBlock" Text="Browser: idle" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Left" />
+                        <TextBlock x:Name="TribeInfoTextBlock" Text="Tribe: -" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right" />
+                        <TextBlock Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right">
+                            <Run Text="Plus: " /><Run x:Name="PlusInfoTextBlock" Text="-" />
+                        </TextBlock>
+                        <TextBlock Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right">
+                            <Run Text="Goldclub: " /><Run x:Name="GoldClubInfoTextBlock" Text="-" />
+                        </TextBlock>
+                        <TextBlock x:Name="ServerResourcesTextBlock" Text="Gold: - | Silver: -" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right" />
+                        <TextBlock x:Name="CaptchaStatsTextBlock" Text="Captchas solved: 0/0" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right" />
+                        <TextBlock x:Name="NpcTradeSessionStatsTextBlock" Text="Gold spent: 0" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right" />
+                        <TextBlock x:Name="ClockTextBlock" Text="Time: -" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Left" />
+                        <TextBlock x:Name="StatusTextBlock" Text="Ready." Visibility="Collapsed" />
+                    </DockPanel>
+                </Border>
+            </Grid>
 
             <StatusBar Grid.Row="1" Margin="0,0,0,8" Background="#E5E7EB">
                 <StatusBarItem>

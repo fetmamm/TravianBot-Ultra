@@ -130,4 +130,19 @@ public static class BotOptionPayloadKeys
     public const string CaptchaAutoSolveEnabled = "captcha_auto_solve_enabled";
     public const string CaptchaSolverTimeoutSeconds = "captcha_solver_timeout_seconds";
     public const string CaptchaSolverMaxAttempts = "captcha_solver_max_attempts";
+
+    public const string SessionPacingEnabled = "session_pacing_enabled";
+    public const string SessionPacingMaxRunMinutes = "session_pacing_max_run_minutes";
+    public const string SessionPacingSleepMinutes = "session_pacing_sleep_minutes";
+    public const string SessionPacingVariationPercent = "session_pacing_variation_percent";
+
+    public const string ActionPacingEnabled = "action_pacing_enabled";
+    public const string ActionPacingTaskMinSeconds = "action_pacing_task_min_seconds";
+    public const string ActionPacingTaskMaxSeconds = "action_pacing_task_max_seconds";
+    public const string ActionPacingPageLoadMinSeconds = "action_pacing_pageload_min_seconds";
+    public const string ActionPacingPageLoadMaxSeconds = "action_pacing_pageload_max_seconds";
+    public const string ActionPacingClickMinSeconds = "action_pacing_click_min_seconds";
+    public const string ActionPacingClickMaxSeconds = "action_pacing_click_max_seconds";
+    public const string ActionPacingLoopMinSeconds = "action_pacing_loop_min_seconds";
+    public const string ActionPacingLoopMaxSeconds = "action_pacing_loop_max_seconds";
 }

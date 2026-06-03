@@ -44,6 +44,9 @@ instances from the same folder.
 
 Config is read from `config/bot.json`, `config/queue.json` and `.env`.
 Dashboard settings can also save account-scoped opt-ins such as auto collect tasks and auto collect daily quests.
+Global runtime pacing is configured in **Settings -> Bot behavior**. Session pacing defaults to
+120 minutes running, 60 minutes sleeping, 15% variation; action pacing defaults to small randomized
+delays before tasks, after page loads, between farm sends, and between continuous-loop passes.
 
 ---
 

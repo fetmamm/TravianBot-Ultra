@@ -386,15 +386,6 @@ public partial class MainWindow
         string? lastSkipReason = null;
         foreach (var group in orderedGroups)
         {
-            if (group == QueueGroup.Construction && !IsConstructionGroupReady())
-            {
-                lastSkipReason = $"group={group} skipped (construction group not ready)";
-                AppendLoopPickVerbose(
-                    $"[loop-pick:verbose] {lastSkipReason}",
-                    $"group:{group}:construction-not-ready");
-                continue;
-            }
-
             var orderedGroupItems = OrderContinuousLoopGroupItems(
                 queueItems.Where(item =>
                     item.Group == group &&
@@ -405,6 +396,15 @@ public partial class MainWindow
                 var constructionCandidate = SelectNextConstructionQueueItem(orderedGroupItems, now, out var constructionSkipReason);
                 if (constructionCandidate is not null)
                 {
+                    if (!IsConstructionGroupReady(allowWorkerValidationForReadyItem: true))
+                    {
+                        lastSkipReason = $"group={group} skipped (construction group not ready)";
+                        AppendLoopPickVerbose(
+                            $"[loop-pick:verbose] {lastSkipReason}",
+                            $"group:{group}:construction-not-ready");
+                        continue;
+                    }
+
                     return constructionCandidate;
                 }
 
@@ -652,6 +652,11 @@ public partial class MainWindow
                 if (next is not null)
                 {
                     AppendLog($"[LOOP {tickId}] PICK group={next.Group}, task={next.TaskName}, retries={next.Retries}/{next.MaxRetries}");
+                    await ActionPacer.FromOptions(options, AppendLog).DelayAsync(
+                        options.ActionPacingTaskMinSeconds,
+                        options.ActionPacingTaskMaxSeconds,
+                        token,
+                        "before task");
                     var shouldContinue = await ExecuteSingleQueueItemAsync(
                         next,
                         options,
@@ -720,6 +725,14 @@ public partial class MainWindow
     private async Task WaitForNextContinuousLoopPassAsync(long tickId, TimeSpan waitDelay, BotOptions options, CancellationToken token)
     {
         var totalSeconds = Math.Max(1, (int)Math.Ceiling(waitDelay.TotalSeconds));
+        if (options.ActionPacingEnabled)
+        {
+            var minMs = (int)Math.Round(Math.Max(0, options.ActionPacingLoopMinSeconds) * 1000);
+            var maxMs = (int)Math.Round(Math.Max(options.ActionPacingLoopMinSeconds, options.ActionPacingLoopMaxSeconds) * 1000);
+            var pacingSeconds = Random.Shared.Next(minMs, maxMs + 1) / 1000.0;
+            totalSeconds = Math.Max(totalSeconds, (int)Math.Ceiling(pacingSeconds));
+        }
+
         AppendLog($"[LOOP {tickId}] WAIT {totalSeconds}s");
 
         var deadline = DateTimeOffset.UtcNow.AddSeconds(totalSeconds);

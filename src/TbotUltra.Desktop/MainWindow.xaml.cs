@@ -211,6 +211,7 @@ public partial class MainWindow : Window
     private long _operationCounter;
     private long _loopTickCounter;
     private readonly LoopController _loopController;
+    private readonly SessionPacer _sessionPacer = new();
 
     // Initialized in field initializers (i.e. before InitializeComponent runs)
     // so XAML bindings such as {Binding HeroVm, ElementName=RootWindow} resolve
@@ -409,6 +410,7 @@ public partial class MainWindow : Window
         _accountProvider = new EnvAccountProvider(_envPath);
         _accountStore = new EnvAccountStore(_envPath);
         _botConfigStore = new BotConfigStore(_botConfigPath, _projectRoot, () => _accountStore.ActiveAccountName());
+        InitializeSessionPacing();
         _accountAnalysisStore = new AccountAnalysisStore(_projectRoot);
         _natarFarmCacheStore = new NatarFarmCacheStore(_projectRoot);
         _manualFarmingPreferenceStore = new ManualFarmingPreferenceStore(_projectRoot);
@@ -444,6 +446,7 @@ public partial class MainWindow : Window
             try
             {
                 UpdateClockText();
+                UpdateSessionPacingUi();
                 HandleBrowserClosedSignal();
                 TickFarmListCountdowns();
                 TickAutomationLoopCountdowns();
@@ -1217,34 +1220,7 @@ public partial class MainWindow : Window
         ShowBusyOverlay("Logging out", "Logging out…");
         try
         {
-            var options = ApplySelectedVillageToOptions(LoadBotOptions());
-            AppendLog($"[{operationId}] INFO server={options.ServerName}, headless={options.Headless}");
-            await EnsureChromiumInstalledAsync();
-            await _botService.ExecuteLogoutAsync(options, AppendLog, operationToken);
-
-            var account = _accountProvider.LoadAccount();
-            var statePath = AccountStoragePaths.BrowserStatePath(_projectRoot, account.Name);
-            if (File.Exists(statePath))
-            {
-                File.Delete(statePath);
-                AppendLog($"Removed saved browser session for account '{account.Name}'.");
-            }
-
-            var legacyStatePath = AccountStoragePaths.LegacyBrowserStatePath(_projectRoot, account.Name);
-            if (File.Exists(legacyStatePath))
-            {
-                File.Delete(legacyStatePath);
-                AppendLog($"Removed legacy saved browser session for account '{account.Name}'.");
-            }
-
-            StatusTextBlock.Text = "Logged out.";
-            UpdateLoginButtonsVisual(false);
-            _isLoggedIn = false;
-            _browserSessionLikelyOpen = false;
-            _inboxAutoEnabled = false;
-            _lastResourceStatusForUi = null;
-            _resourcesViewModel.ResetStorageForecasts();
-            UpdateInboxButtons(0, 0);
+            await LogoutCoreAsync(operationId, operationToken, clearSavedSession: true);
             CompleteOperation(operationId, operationSw, "Logout completed.");
         }
         catch (OperationCanceledException)
@@ -1264,6 +1240,41 @@ public partial class MainWindow : Window
             _operationCts?.Dispose();
             _operationCts = null;
         }
+    }
+
+    private async Task LogoutCoreAsync(string operationId, CancellationToken operationToken, bool clearSavedSession)
+    {
+        var options = ApplySelectedVillageToOptions(LoadBotOptions());
+        AppendLog($"[{operationId}] INFO server={options.ServerName}, headless={options.Headless}");
+        await EnsureChromiumInstalledAsync();
+        await _botService.ExecuteLogoutAsync(options, AppendLog, operationToken);
+
+        var account = _accountProvider.LoadAccount();
+        if (clearSavedSession)
+        {
+            var statePath = AccountStoragePaths.BrowserStatePath(_projectRoot, account.Name);
+            if (File.Exists(statePath))
+            {
+                File.Delete(statePath);
+                AppendLog($"Removed saved browser session for account '{account.Name}'.");
+            }
+
+            var legacyStatePath = AccountStoragePaths.LegacyBrowserStatePath(_projectRoot, account.Name);
+            if (File.Exists(legacyStatePath))
+            {
+                File.Delete(legacyStatePath);
+                AppendLog($"Removed legacy saved browser session for account '{account.Name}'.");
+            }
+        }
+
+        StatusTextBlock.Text = "Logged out.";
+        UpdateLoginButtonsVisual(false);
+        _isLoggedIn = false;
+        _browserSessionLikelyOpen = false;
+        _inboxAutoEnabled = false;
+        _lastResourceStatusForUi = null;
+        _resourcesViewModel.ResetStorageForecasts();
+        UpdateInboxButtons(0, 0);
     }
 
     private async void AccountsButton_Click(object sender, RoutedEventArgs e)
@@ -1739,6 +1750,7 @@ public partial class MainWindow : Window
         };
         window.ShowDialog();
         LoadConfigToUi();
+        ConfigureSessionPacerFromConfig();
     }
 
     private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
@@ -1748,6 +1760,7 @@ public partial class MainWindow : Window
             _loopController.MarkClosing();
             _inboxAutoEnabled = false;
             _clockTimer.Stop();
+            NotifySessionPacingAutomationStopped();
             _copyFeedbackTimer.Stop();
             _inboxRefreshTimer.Stop();
             _buildQueueCountdownTimer.Stop();
@@ -3556,6 +3569,7 @@ public partial class MainWindow : Window
                 StartLoopButton.Content = "Start bot";
                 StartLoopButton.IsEnabled = true;
                 SetLoopIndicator(false);
+                NotifySessionPacingAutomationStopped();
                 AppendLog("Loop stopped.");
                 if (_restartContinuousLoopAfterStop
                     && ContinuousRunToggleButton?.IsChecked == true

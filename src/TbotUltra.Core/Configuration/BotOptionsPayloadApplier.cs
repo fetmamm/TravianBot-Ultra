@@ -105,6 +105,15 @@ public static class BotOptionsPayloadApplier
         var reinforcementsTargetVillageName = source.ReinforcementsTargetVillageName;
         var reinforcementsSourceVillageNames = source.ReinforcementsSourceVillageNames;
         var reinforcementsTroopRules = source.ReinforcementsTroopRules;
+        var actionPacingEnabled = source.ActionPacingEnabled;
+        var actionPacingTaskMinSeconds = source.ActionPacingTaskMinSeconds;
+        var actionPacingTaskMaxSeconds = source.ActionPacingTaskMaxSeconds;
+        var actionPacingPageLoadMinSeconds = source.ActionPacingPageLoadMinSeconds;
+        var actionPacingPageLoadMaxSeconds = source.ActionPacingPageLoadMaxSeconds;
+        var actionPacingClickMinSeconds = source.ActionPacingClickMinSeconds;
+        var actionPacingClickMaxSeconds = source.ActionPacingClickMaxSeconds;
+        var actionPacingLoopMinSeconds = source.ActionPacingLoopMinSeconds;
+        var actionPacingLoopMaxSeconds = source.ActionPacingLoopMaxSeconds;
 
         if (payload is not null)
         {
@@ -794,6 +803,69 @@ public static class BotOptionsPayloadApplier
                 if (key.Equals(BotOptionPayloadKeys.ReinforcementsTroopRules, StringComparison.OrdinalIgnoreCase))
                 {
                     reinforcementsTroopRules = ParseReinforcementTroopRules(value);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ActionPacingEnabled, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var pacingEnabled))
+                {
+                    actionPacingEnabled = pacingEnabled;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ActionPacingTaskMinSeconds, StringComparison.OrdinalIgnoreCase)
+                    && double.TryParse(value, out var taskMin))
+                {
+                    actionPacingTaskMinSeconds = ClampDelaySeconds(taskMin);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ActionPacingTaskMaxSeconds, StringComparison.OrdinalIgnoreCase)
+                    && double.TryParse(value, out var taskMax))
+                {
+                    actionPacingTaskMaxSeconds = ClampDelaySeconds(taskMax);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ActionPacingPageLoadMinSeconds, StringComparison.OrdinalIgnoreCase)
+                    && double.TryParse(value, out var pageMin))
+                {
+                    actionPacingPageLoadMinSeconds = ClampDelaySeconds(pageMin);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ActionPacingPageLoadMaxSeconds, StringComparison.OrdinalIgnoreCase)
+                    && double.TryParse(value, out var pageMax))
+                {
+                    actionPacingPageLoadMaxSeconds = ClampDelaySeconds(pageMax);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ActionPacingClickMinSeconds, StringComparison.OrdinalIgnoreCase)
+                    && double.TryParse(value, out var clickMin))
+                {
+                    actionPacingClickMinSeconds = ClampDelaySeconds(clickMin);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ActionPacingClickMaxSeconds, StringComparison.OrdinalIgnoreCase)
+                    && double.TryParse(value, out var clickMax))
+                {
+                    actionPacingClickMaxSeconds = ClampDelaySeconds(clickMax);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ActionPacingLoopMinSeconds, StringComparison.OrdinalIgnoreCase)
+                    && double.TryParse(value, out var loopMin))
+                {
+                    actionPacingLoopMinSeconds = ClampDelaySeconds(loopMin);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ActionPacingLoopMaxSeconds, StringComparison.OrdinalIgnoreCase)
+                    && double.TryParse(value, out var loopMax))
+                {
+                    actionPacingLoopMaxSeconds = ClampDelaySeconds(loopMax);
                 }
             }
         }
@@ -886,6 +958,15 @@ public static class BotOptionsPayloadApplier
             GithubReleasesUrl = source.GithubReleasesUrl,
             HumanLikeEnabled = source.HumanLikeEnabled,
             HumanLikeSpeed = source.HumanLikeSpeed,
+            ActionPacingEnabled = actionPacingEnabled,
+            ActionPacingTaskMinSeconds = actionPacingTaskMinSeconds,
+            ActionPacingTaskMaxSeconds = actionPacingTaskMaxSeconds,
+            ActionPacingPageLoadMinSeconds = actionPacingPageLoadMinSeconds,
+            ActionPacingPageLoadMaxSeconds = actionPacingPageLoadMaxSeconds,
+            ActionPacingClickMinSeconds = actionPacingClickMinSeconds,
+            ActionPacingClickMaxSeconds = actionPacingClickMaxSeconds,
+            ActionPacingLoopMinSeconds = actionPacingLoopMinSeconds,
+            ActionPacingLoopMaxSeconds = actionPacingLoopMaxSeconds,
             TargetVillageName = targetVillageName,
             TargetVillageUrl = targetVillageUrl,
             AllowGoldSpending = source.AllowGoldSpending,
@@ -939,5 +1020,15 @@ public static class BotOptionsPayloadApplier
         {
             return [];
         }
+    }
+
+    private static double ClampDelaySeconds(double value)
+    {
+        if (double.IsNaN(value) || double.IsInfinity(value))
+        {
+            return 0;
+        }
+
+        return Math.Clamp(value, 0, 3600);
     }
 }

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json.Nodes;
 using System.Windows;
 using System.Windows.Controls;
@@ -23,8 +24,8 @@ public partial class SettingsWindow : Window
     {
         _config = _store.Load();
         HeadlessCheckBox.IsChecked = _config["headless"]?.GetValue<bool>() ?? false;
-        HumanLikeCheckBox.IsChecked = _config["human_like_enabled"]?.GetValue<bool>() ?? false;
         AllowSilverSpendingCheckBox.IsChecked = _config["allow_silver_spending"]?.GetValue<bool>() ?? false;
+        LoadPacingConfigToUi();
         SelectQueueWaitThresholdMode(_config[BotOptionPayloadKeys.QueueWaitThresholdMode]?.GetValue<string>() ?? "smart");
         SelectFarmDispatchDelayMinutes(_config[BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes]?.GetValue<int>() ?? 3);
         PostLoginAnalyzeFarmlistsCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginAnalyzeFarmlists]?.GetValue<bool>() ?? false;
@@ -41,8 +42,8 @@ public partial class SettingsWindow : Window
         try
         {
             _config["headless"] = HeadlessCheckBox.IsChecked == true;
-            _config["human_like_enabled"] = HumanLikeCheckBox.IsChecked == true;
             _config["allow_silver_spending"] = AllowSilverSpendingCheckBox.IsChecked == true;
+            SavePacingConfigFromUi();
             _config[BotOptionPayloadKeys.QueueWaitThresholdMode] = GetSelectedQueueWaitThresholdMode();
             _config[BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes] = GetSelectedFarmDispatchDelayMinutes();
             _config[BotOptionPayloadKeys.PostLoginAnalyzeFarmlists] = PostLoginAnalyzeFarmlistsCheckBox.IsChecked == true;
@@ -110,6 +111,93 @@ public partial class SettingsWindow : Window
     private void SilverLimitSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         UpdateLimitLabels();
+    }
+
+    private void ResetPacingButton_Click(object sender, RoutedEventArgs e)
+    {
+        ApplyPacingDefaultsToUi();
+    }
+
+    private void LoadPacingConfigToUi()
+    {
+        SessionPacingEnabledCheckBox.IsChecked = ReadBool(BotOptionPayloadKeys.SessionPacingEnabled, PacingDefaults.SessionPacingEnabled);
+        SessionMaxRunMinutesTextBox.Text = ReadInt(BotOptionPayloadKeys.SessionPacingMaxRunMinutes, PacingDefaults.SessionPacingMaxRunMinutes).ToString();
+        SessionSleepMinutesTextBox.Text = ReadInt(BotOptionPayloadKeys.SessionPacingSleepMinutes, PacingDefaults.SessionPacingSleepMinutes).ToString();
+        SessionVariationPercentTextBox.Text = ReadInt(BotOptionPayloadKeys.SessionPacingVariationPercent, PacingDefaults.SessionPacingVariationPercent).ToString();
+
+        ActionPacingEnabledCheckBox.IsChecked = ReadBool(BotOptionPayloadKeys.ActionPacingEnabled, PacingDefaults.ActionPacingEnabled);
+        ActionTaskMinTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingTaskMinSeconds, PacingDefaults.ActionPacingTaskMinSeconds));
+        ActionTaskMaxTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingTaskMaxSeconds, PacingDefaults.ActionPacingTaskMaxSeconds));
+        ActionPageLoadMinTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingPageLoadMinSeconds, PacingDefaults.ActionPacingPageLoadMinSeconds));
+        ActionPageLoadMaxTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingPageLoadMaxSeconds, PacingDefaults.ActionPacingPageLoadMaxSeconds));
+        ActionClickMinTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingClickMinSeconds, PacingDefaults.ActionPacingClickMinSeconds));
+        ActionClickMaxTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingClickMaxSeconds, PacingDefaults.ActionPacingClickMaxSeconds));
+        ActionLoopMinTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingLoopMinSeconds, PacingDefaults.ActionPacingLoopMinSeconds));
+        ActionLoopMaxTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingLoopMaxSeconds, PacingDefaults.ActionPacingLoopMaxSeconds));
+    }
+
+    private void SavePacingConfigFromUi()
+    {
+        _config[BotOptionPayloadKeys.SessionPacingEnabled] = SessionPacingEnabledCheckBox.IsChecked == true;
+        _config[BotOptionPayloadKeys.SessionPacingMaxRunMinutes] = ReadIntText(SessionMaxRunMinutesTextBox, PacingDefaults.SessionPacingMaxRunMinutes, 1, 10080);
+        _config[BotOptionPayloadKeys.SessionPacingSleepMinutes] = ReadIntText(SessionSleepMinutesTextBox, PacingDefaults.SessionPacingSleepMinutes, 1, 10080);
+        _config[BotOptionPayloadKeys.SessionPacingVariationPercent] = ReadIntText(SessionVariationPercentTextBox, PacingDefaults.SessionPacingVariationPercent, 0, 100);
+
+        _config[BotOptionPayloadKeys.ActionPacingEnabled] = ActionPacingEnabledCheckBox.IsChecked == true;
+        WriteDelayRange(BotOptionPayloadKeys.ActionPacingTaskMinSeconds, BotOptionPayloadKeys.ActionPacingTaskMaxSeconds, ActionTaskMinTextBox, ActionTaskMaxTextBox, PacingDefaults.ActionPacingTaskMinSeconds, PacingDefaults.ActionPacingTaskMaxSeconds);
+        WriteDelayRange(BotOptionPayloadKeys.ActionPacingPageLoadMinSeconds, BotOptionPayloadKeys.ActionPacingPageLoadMaxSeconds, ActionPageLoadMinTextBox, ActionPageLoadMaxTextBox, PacingDefaults.ActionPacingPageLoadMinSeconds, PacingDefaults.ActionPacingPageLoadMaxSeconds);
+        WriteDelayRange(BotOptionPayloadKeys.ActionPacingClickMinSeconds, BotOptionPayloadKeys.ActionPacingClickMaxSeconds, ActionClickMinTextBox, ActionClickMaxTextBox, PacingDefaults.ActionPacingClickMinSeconds, PacingDefaults.ActionPacingClickMaxSeconds);
+        WriteDelayRange(BotOptionPayloadKeys.ActionPacingLoopMinSeconds, BotOptionPayloadKeys.ActionPacingLoopMaxSeconds, ActionLoopMinTextBox, ActionLoopMaxTextBox, PacingDefaults.ActionPacingLoopMinSeconds, PacingDefaults.ActionPacingLoopMaxSeconds);
+    }
+
+    private void ApplyPacingDefaultsToUi()
+    {
+        SessionPacingEnabledCheckBox.IsChecked = PacingDefaults.SessionPacingEnabled;
+        SessionMaxRunMinutesTextBox.Text = PacingDefaults.SessionPacingMaxRunMinutes.ToString();
+        SessionSleepMinutesTextBox.Text = PacingDefaults.SessionPacingSleepMinutes.ToString();
+        SessionVariationPercentTextBox.Text = PacingDefaults.SessionPacingVariationPercent.ToString();
+        ActionPacingEnabledCheckBox.IsChecked = PacingDefaults.ActionPacingEnabled;
+        ActionTaskMinTextBox.Text = FormatDelay(PacingDefaults.ActionPacingTaskMinSeconds);
+        ActionTaskMaxTextBox.Text = FormatDelay(PacingDefaults.ActionPacingTaskMaxSeconds);
+        ActionPageLoadMinTextBox.Text = FormatDelay(PacingDefaults.ActionPacingPageLoadMinSeconds);
+        ActionPageLoadMaxTextBox.Text = FormatDelay(PacingDefaults.ActionPacingPageLoadMaxSeconds);
+        ActionClickMinTextBox.Text = FormatDelay(PacingDefaults.ActionPacingClickMinSeconds);
+        ActionClickMaxTextBox.Text = FormatDelay(PacingDefaults.ActionPacingClickMaxSeconds);
+        ActionLoopMinTextBox.Text = FormatDelay(PacingDefaults.ActionPacingLoopMinSeconds);
+        ActionLoopMaxTextBox.Text = FormatDelay(PacingDefaults.ActionPacingLoopMaxSeconds);
+    }
+
+    private bool ReadBool(string key, bool defaultValue) => _config[key]?.GetValue<bool>() ?? defaultValue;
+
+    private int ReadInt(string key, int defaultValue) => _config[key]?.GetValue<int>() ?? defaultValue;
+
+    private double ReadDouble(string key, double defaultValue) => _config[key]?.GetValue<double>() ?? defaultValue;
+
+    private static int ReadIntText(TextBox textBox, int defaultValue, int min, int max)
+    {
+        return int.TryParse(textBox.Text, out var value)
+            ? Math.Clamp(value, min, max)
+            : defaultValue;
+    }
+
+    private static double ReadDoubleText(TextBox textBox, double defaultValue)
+    {
+        return double.TryParse(textBox.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+            ? Math.Clamp(value, 0, 3600)
+            : defaultValue;
+    }
+
+    private static string FormatDelay(double value)
+    {
+        return value.ToString("0.##", CultureInfo.InvariantCulture);
+    }
+
+    private void WriteDelayRange(string minKey, string maxKey, TextBox minTextBox, TextBox maxTextBox, double defaultMin, double defaultMax)
+    {
+        var min = ReadDoubleText(minTextBox, defaultMin);
+        var max = Math.Max(min, ReadDoubleText(maxTextBox, defaultMax));
+        _config[minKey] = min;
+        _config[maxKey] = max;
     }
 
     private void UpdateLimitLabels()

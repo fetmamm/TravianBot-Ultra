@@ -811,7 +811,10 @@ public sealed partial class TravianClient
                 """
                 () => {
                   const parsePercent = (value) => {
-                    const text = (value || '').replace(/\s+/g, ' ').trim();
+                    const text = (value || '')
+                      .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
+                      .replace(/\s+/g, ' ')
+                      .trim();
                     const match = text.match(/(?:^|[^\d.])(\d{1,3})(?:\s*%| percent\b| hp\b)/i);
                     if (!match) return null;
                     const parsed = Number(match[1]);
@@ -868,11 +871,23 @@ public sealed partial class TravianClient
                   if (direct !== null) return direct;
 
                   const healthIcon = document.querySelector('i[class*="attributeHealth" i], [class*="attributeHealth" i], [class*="heroHealth" i]');
-                  const healthBox = healthIcon?.closest('.attributeBox, .stats, tr, .attribute, .attributeRow, li, section, div');
+                  const healthBox = healthIcon?.closest('.attributeBox')
+                    || healthIcon?.closest('.stats')
+                    || healthIcon?.closest('tr, .attribute, .attributeRow, li, section');
                   const boxed = healthBox
                     ? readFirst(Array.from(healthBox.querySelectorAll('.value, [title], [aria-label], [style], [data-tooltip], [data-tooltip-data]')))
                     : null;
                   if (boxed !== null) return boxed;
+
+                  const healthName = Array.from(document.querySelectorAll('.name, [class*="name" i]'))
+                    .find(node => /\b(health|hit points|hp)\b/i.test(node.textContent || ''));
+                  const namedBox = healthName?.closest('.attributeBox')
+                    || healthName?.closest('.stats')
+                    || healthName?.closest('tr, .attribute, .attributeRow, li, section');
+                  const named = namedBox
+                    ? readFirst(Array.from(namedBox.querySelectorAll('.value, [title], [aria-label], [style], [data-tooltip], [data-tooltip-data]')))
+                    : null;
+                  if (named !== null) return named;
 
                   const labelledRows = Array.from(document.querySelectorAll('tr, li, .attributeBox, .attributeRow, .attribute, section, div'))
                     .filter(node => /\b(health|hit points|hp)\b/i.test(node.textContent || ''));
@@ -908,11 +923,13 @@ public sealed partial class TravianClient
                 """
                 () => {
                   const hasHealthSignal = !!document.querySelector(
-                    '[class*="attributeHealth" i], [class*="heroHealth" i], .heroHealthBarBox, [class*="health" i], [id*="health" i], [title*="health" i], [aria-label*="health" i]'
+                    '.attributeBox [class*="attributeHealth" i], [class*="heroHealth" i], .heroHealthBarBox, [class*="health" i], [id*="health" i], [title*="health" i], [aria-label*="health" i]'
                   );
                   const hasAttributeSignal = !!document.querySelector('#availablePoints, .attributeBox, .attributeRow, .value');
                   const body = document.body?.innerText || '';
-                  return hasHealthSignal || (hasAttributeSignal && /\b(health|hit points|hp|attributes)\b/i.test(body));
+                  const healthValueReady = Array.from(document.querySelectorAll('.attributeBox, .stats, tr, .attributeRow, .attribute'))
+                    .some(node => /\b(health|hit points|hp)\b/i.test(node.textContent || '') && /\d{1,3}[\u200e\u200f\u202a-\u202e\u2066-\u2069\s]*%/.test(node.textContent || ''));
+                  return healthValueReady || hasHealthSignal || (hasAttributeSignal && /\b(health|hit points|hp|attributes)\b/i.test(body));
                 }
                 """,
                 null,

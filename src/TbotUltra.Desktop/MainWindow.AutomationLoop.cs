@@ -64,6 +64,7 @@ public partial class MainWindow
         StartLoopButton.IsEnabled = true;
         SetLoopIndicator(true);
         AppendLog($"Loop started. Interval={initialOptions.LoopIntervalSeconds}s");
+        NotifySessionPacingAutomationStarted();
 
         _loopTask = Task.Run(() => RunContinuousLoopAsync(token), token);
         _ = TrackLoopCompletionAsync(_loopTask);
@@ -360,7 +361,7 @@ public partial class MainWindow
         return remainingSeconds > 0 ? remainingSeconds : null;
     }
 
-    private bool IsConstructionGroupReady()
+    private bool IsConstructionGroupReady(bool allowWorkerValidationForReadyItem = false)
     {
         if (_constructionInlineWaitUntilUtc > DateTimeOffset.UtcNow)
         {
@@ -377,6 +378,18 @@ public partial class MainWindow
         // the worker still performs the authoritative slot check before clicking.
         if (_travianPlusActive == true && _buildQueueActiveCount < 2)
         {
+            return true;
+        }
+
+        // If a construction item is due now, do not let Desktop's cached build-queue snapshot be
+        // the final authority. The Worker re-reads Travian Plus and the live construction slots
+        // immediately before clicking, then defers with a real queue_wait_seconds value if full.
+        // This prevents a stale/unknown Plus signal from blocking the possible second slot.
+        if (allowWorkerValidationForReadyItem)
+        {
+            AppendLoopPickVerbose(
+                $"[loop-pick:verbose] group=Construction allowing worker slot validation (active={_buildQueueActiveCount}, remaining={_buildQueueRemainingSeconds}, plus={_travianPlusActive?.ToString() ?? "unknown"})",
+                "group:Construction:worker-slot-validation");
             return true;
         }
 
