@@ -87,8 +87,19 @@ public sealed partial class TravianClient
         {
             await _page.WaitForFunctionAsync(
                 """
-                () => !!document.querySelector('a.tabItem.active')
-                   || !!document.querySelector('button.textButtonV2.collect')
+                () => {
+                  const isVisible = element => {
+                    if (!element) return false;
+                    const style = window.getComputedStyle(element);
+                    const rect = element.getBoundingClientRect();
+                    return style.visibility !== 'hidden'
+                      && style.display !== 'none'
+                      && rect.width > 0
+                      && rect.height > 0;
+                  };
+                  return isVisible(document.querySelector('a.tabItem.active'))
+                    || Array.from(document.querySelectorAll('button.textButtonV2.collect')).some(button => isVisible(button));
+                }
                 """,
                 null,
                 new PageWaitForFunctionOptions { Timeout = 5000 });
@@ -112,7 +123,21 @@ public sealed partial class TravianClient
         try
         {
             await _page.WaitForFunctionAsync(
-                "() => !!document.querySelector('button.textButtonV2.collect')",
+                """
+                () => {
+                  const isVisible = element => {
+                    if (!element) return false;
+                    const style = window.getComputedStyle(element);
+                    const rect = element.getBoundingClientRect();
+                    return style.visibility !== 'hidden'
+                      && style.display !== 'none'
+                      && rect.width > 0
+                      && rect.height > 0;
+                  };
+                  return Array.from(document.querySelectorAll('button.textButtonV2.collect'))
+                    .some(button => isVisible(button));
+                }
+                """,
                 null,
                 new PageWaitForFunctionOptions { Timeout = 2500 });
         }
@@ -137,12 +162,21 @@ public sealed partial class TravianClient
                 clicked = await _page.EvaluateAsync<bool>(
                     """
                     () => {
+                      const isVisible = element => {
+                        if (!element) return false;
+                        const style = window.getComputedStyle(element);
+                        const rect = element.getBoundingClientRect();
+                        return style.visibility !== 'hidden'
+                          && style.display !== 'none'
+                          && rect.width > 0
+                          && rect.height > 0;
+                      };
                       const buttons = Array.from(document.querySelectorAll('button.textButtonV2.collect'));
                       for (const btn of buttons) {
                         const disabled = btn.disabled
                           || /(^|\s)disabled(\s|$)/i.test(btn.className || '')
                           || btn.getAttribute('aria-disabled') === 'true';
-                        if (disabled) {
+                        if (!isVisible(btn) || disabled) {
                           continue;
                         }
                         // Skip already-collected buttons: the visible label flips to "Collected".
@@ -201,9 +235,18 @@ public sealed partial class TravianClient
             var switched = await _page.EvaluateAsync<bool>(
                 """
                 () => {
+                  const isVisible = element => {
+                    if (!element) return false;
+                    const style = window.getComputedStyle(element);
+                    const rect = element.getBoundingClientRect();
+                    return style.visibility !== 'hidden'
+                      && style.display !== 'none'
+                      && rect.width > 0
+                      && rect.height > 0;
+                  };
                   const tabs = Array.from(document.querySelectorAll('a.tabItem'));
                   const general = tabs.find(t => /general/i.test(t.textContent || ''));
-                  if (!general || general.classList.contains('active')) {
+                  if (!isVisible(general) || general.classList.contains('active')) {
                     return false;
                   }
                   general.click();

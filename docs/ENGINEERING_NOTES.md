@@ -192,6 +192,12 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   actions are blocked and only `Run now` may wake execution; queue-only actions may still add/edit pending
   work for the next wake. Bot behavior pacing settings are account-scoped. Defaults: sleep 30 min,
   variation 30%.
+- **2026-06-03** - Daily Quests collect must treat `a.dailyQuests .indicator` as a cheap queue signal only.
+  The React dialog is final authority: wait for dialog/buttons to render visibly, pace before the first collect click,
+  and after closing wait for the topbar signal to clear. If it remains `!`, reload the current page once so the
+  16s refresh does not repeatedly queue stale 0-reward `collect_daily_quests` tasks.
+- **2026-06-03** - Questmaster `/tasks` auto-collect must wait for visible rendered tab/buttons before clicking.
+  React may place task elements in the DOM before they are laid out; only visible enabled `Collect` buttons should be clicked.
 
 ---
 
@@ -234,6 +240,11 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   on pages without visible currency values. Keep it verbose; only the no-cache case should alert.
 - **Session sleep:** do not let manual refresh, login/logout, scans, tests, village switches, or auto-run wake the
   browser while the status is `Sleeping`. Queueing is allowed, but execution must wait for `Run now` or scheduled wake.
+- **Daily Quests stale signal:** after rewards are collected, official React may leave the topbar
+  `a.dailyQuests .indicator` showing `!` until the page is refreshed. Do not trust that signal inside the collect
+  task; verify the rendered dialog and refresh the current page if the signal does not clear after close.
+- **Questmaster `/tasks` render timing:** visible/actionable checks are required before clicking collect buttons
+  or the "General tasks" tab; DOM presence alone is too early on official React pages.
 
 ---
 

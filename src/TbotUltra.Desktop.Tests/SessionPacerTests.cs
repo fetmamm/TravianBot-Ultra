@@ -6,7 +6,7 @@ namespace TbotUltra.Desktop.Tests;
 public sealed class SessionPacerTests
 {
     [Fact]
-    public void SleepingStatusText_DoesNotShowResumeCountdown()
+    public void SleepingStatusText_ShowsResumeCountdown()
     {
         var pacer = new SessionPacer();
         pacer.Configure(new SessionPacerSettings(true, 120, 30, 0));
@@ -14,7 +14,7 @@ public sealed class SessionPacerTests
         pacer.BeginSleep();
 
         Assert.Equal(SessionPacerPhase.Sleeping, pacer.Phase);
-        Assert.Equal("Sleeping", pacer.StatusText);
+        Assert.Matches(@"^Sleeping - \d{2}:\d{2}:\d{2}$", pacer.StatusText);
     }
 
     [Fact]

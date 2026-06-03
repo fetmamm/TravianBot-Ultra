@@ -52,6 +52,7 @@ public sealed partial class TravianClient
         finally
         {
             await CloseDailyQuestsDialogAsync(cancellationToken);
+            await RefreshDailyQuestSignalIfStillStaleAsync(cancellationToken);
         }
     }
 
@@ -78,6 +79,7 @@ public sealed partial class TravianClient
             }
 
             await WaitForDailyQuestsDialogAsync(cancellationToken);
+            await ApplyCollectStepDelayAsync(cancellationToken);
             return true;
         }
         catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
@@ -92,7 +94,22 @@ public sealed partial class TravianClient
         {
             await _page.WaitForFunctionAsync(
                 """
-                () => !!document.querySelector('.dailyQuestsDialog #dailyQuests, .dailyQuestsDialog, #dailyQuests')
+                () => {
+                  const isVisible = element => {
+                    if (!element) return false;
+                    const style = window.getComputedStyle(element);
+                    const rect = element.getBoundingClientRect();
+                    return style.visibility !== 'hidden'
+                      && style.display !== 'none'
+                      && rect.width > 0
+                      && rect.height > 0;
+                  };
+                  const dialog = document.querySelector('.dailyQuestsDialog #dailyQuests, .dailyQuestsDialog, #dailyQuests');
+                  if (!isVisible(dialog)) return false;
+                  const readyElement = dialog.querySelector('button.collectRewards, button.textButtonV2.collectRewards, button.collect.collectable, button.textButtonV2.collect.collectable');
+                  return isVisible(readyElement)
+                    || /daily quests/i.test(dialog.textContent || '');
+                }
                 """,
                 null,
                 new PageWaitForFunctionOptions { Timeout = 5000 });
@@ -104,13 +121,14 @@ public sealed partial class TravianClient
         {
         }
 
-        await Task.Delay(150, cancellationToken);
+        await Task.Delay(300, cancellationToken);
     }
 
     private async Task<bool> ClickDailyQuestCollectRewardsAsync(CancellationToken cancellationToken)
     {
         try
         {
+            await WaitForDailyQuestCollectRewardsButtonAsync(cancellationToken);
             var clicked = await _page.EvaluateAsync<bool>(
                 """
                 () => {
@@ -126,6 +144,7 @@ public sealed partial class TravianClient
             if (clicked)
             {
                 await ApplyCollectStepDelayAsync(cancellationToken);
+                await WaitForDailyQuestCollectableRewardsAsync(cancellationToken);
             }
 
             return clicked;
@@ -134,6 +153,72 @@ public sealed partial class TravianClient
         {
             return false;
         }
+    }
+
+    private async Task WaitForDailyQuestCollectRewardsButtonAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _page.WaitForFunctionAsync(
+                """
+                () => {
+                  const isVisible = element => {
+                    if (!element) return false;
+                    const style = window.getComputedStyle(element);
+                    const rect = element.getBoundingClientRect();
+                    return style.visibility !== 'hidden'
+                      && style.display !== 'none'
+                      && rect.width > 0
+                      && rect.height > 0;
+                  };
+                  const button = document.querySelector('button.textButtonV2.collectRewards, button.collectRewards');
+                  return isVisible(button) && !button.disabled && button.getAttribute('aria-disabled') !== 'true';
+                }
+                """,
+                null,
+                new PageWaitForFunctionOptions { Timeout = 2500 });
+        }
+        catch (TimeoutException)
+        {
+        }
+        catch (PlaywrightException)
+        {
+        }
+
+        await Task.Delay(250, cancellationToken);
+    }
+
+    private async Task WaitForDailyQuestCollectableRewardsAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _page.WaitForFunctionAsync(
+                """
+                () => {
+                  const isVisible = element => {
+                    if (!element) return false;
+                    const style = window.getComputedStyle(element);
+                    const rect = element.getBoundingClientRect();
+                    return style.visibility !== 'hidden'
+                      && style.display !== 'none'
+                      && rect.width > 0
+                      && rect.height > 0;
+                  };
+                  return Array.from(document.querySelectorAll('button.textButtonV2.collect.collectable, button.collect.collectable'))
+                    .some(button => isVisible(button));
+                }
+                """,
+                null,
+                new PageWaitForFunctionOptions { Timeout = 3000 });
+        }
+        catch (TimeoutException)
+        {
+        }
+        catch (PlaywrightException)
+        {
+        }
+
+        await Task.Delay(250, cancellationToken);
     }
 
     private async Task<int> ClickDailyQuestCollectButtonsAsync(CancellationToken cancellationToken)
@@ -150,6 +235,15 @@ public sealed partial class TravianClient
                 clicked = await _page.EvaluateAsync<bool>(
                     """
                     () => {
+                      const isVisible = element => {
+                        if (!element) return false;
+                        const style = window.getComputedStyle(element);
+                        const rect = element.getBoundingClientRect();
+                        return style.visibility !== 'hidden'
+                          && style.display !== 'none'
+                          && rect.width > 0
+                          && rect.height > 0;
+                      };
                       const buttons = Array.from(document.querySelectorAll('button.textButtonV2.collect.collectable, button.collect.collectable'));
                       for (const button of buttons) {
                         const className = button.className || '';
@@ -157,7 +251,7 @@ public sealed partial class TravianClient
                           || /(^|\s)disabled(\s|$)/i.test(className)
                           || button.getAttribute('aria-disabled') === 'true';
                         const label = (button.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
-                        if (disabled || label !== 'collect') {
+                        if (!isVisible(button) || disabled || label !== 'collect') {
                           continue;
                         }
                         button.scrollIntoView({ block: 'center' });
@@ -203,7 +297,7 @@ public sealed partial class TravianClient
                 """);
             if (clicked)
             {
-                await Task.Delay(150, cancellationToken);
+                await Task.Delay(300, cancellationToken);
             }
         }
         catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
@@ -211,6 +305,58 @@ public sealed partial class TravianClient
         }
         catch (PlaywrightException)
         {
+        }
+    }
+
+    private async Task RefreshDailyQuestSignalIfStillStaleAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var cleared = await WaitForDailyQuestIndicatorClearedAsync();
+            if (cleared)
+            {
+                return;
+            }
+
+            Notify("[daily-quests] topbar signal still claimable after collect; reloading current page once");
+            await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+            await WaitForNavigationSettledAsync(cancellationToken);
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+        }
+        catch (PlaywrightException ex)
+        {
+            Notify($"[daily-quests] could not refresh stale topbar signal: {ex.Message}");
+        }
+        catch (TimeoutException)
+        {
+            Notify("[daily-quests] current-page reload timed out while refreshing stale topbar signal");
+        }
+    }
+
+    private async Task<bool> WaitForDailyQuestIndicatorClearedAsync()
+    {
+        try
+        {
+            await _page.WaitForFunctionAsync(
+                """
+                () => {
+                  const indicator = document.querySelector('a.dailyQuests .indicator');
+                  return !indicator || (indicator.textContent || '').trim() !== '!';
+                }
+                """,
+                null,
+                new PageWaitForFunctionOptions { Timeout = 2000 });
+            return true;
+        }
+        catch (TimeoutException)
+        {
+            return false;
+        }
+        catch (PlaywrightException)
+        {
+            return false;
         }
     }
 }
