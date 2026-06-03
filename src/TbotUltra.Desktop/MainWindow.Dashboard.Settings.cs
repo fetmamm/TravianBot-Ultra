@@ -150,4 +150,13 @@ public partial class MainWindow
             MainTabControl.SelectedItem = HeroTabItem;
         }
     }
+
+    // Opens the NPC / Trade tab where the gold limit and NPC trade settings live.
+    private void GoldSpendingSettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (MainTabControl is not null && NpcTradeTabItem is not null)
+        {
+            MainTabControl.SelectedItem = NpcTradeTabItem;
+        }
+    }
 }

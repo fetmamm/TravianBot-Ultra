@@ -162,7 +162,6 @@ public sealed class BrowserSession : IAsyncDisposable
         {
             if (IsBlockedPopupOrConsentUrl(route.Request.Url))
             {
-                _log?.Invoke($"[browser] blocked request url='{route.Request.Url}'");
                 await route.AbortAsync();
                 return;
             }

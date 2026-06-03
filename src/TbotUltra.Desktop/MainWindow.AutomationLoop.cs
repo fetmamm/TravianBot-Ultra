@@ -362,7 +362,12 @@ public partial class MainWindow
 
     private bool IsConstructionGroupReady()
     {
-        if (ResolveConstructionGroupRemainingSeconds() is not > 0)
+        if (_constructionInlineWaitUntilUtc > DateTimeOffset.UtcNow)
+        {
+            return false;
+        }
+
+        if (_buildQueueRemainingSeconds <= 0)
         {
             return true;
         }

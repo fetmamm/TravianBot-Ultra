@@ -1616,6 +1616,7 @@ public partial class MainWindow : Window
                 // Graceful pause: don't pick up new queue items. Let the currently running
                 // task finish; the runner will exit at its next iteration check.
                 _loopController.RequestQueueStop();
+                UpdateExecutionStateIndicator();
                 AppendLog("Pause requested. Letting current task finish before stopping.");
                 return;
             }
@@ -1631,6 +1632,7 @@ public partial class MainWindow : Window
         {
             _startContinuousLoopAfterQueueStop = true;
             _loopController.RequestQueueStop();
+            UpdateExecutionStateIndicator();
             AppendLog("Continuous loop requested. Letting current queue task finish before switching.");
             return;
         }
@@ -1638,6 +1640,7 @@ public partial class MainWindow : Window
         if (_uiBusy && (_loopTask is null || _loopTask.IsCompleted))
         {
             _loopController.RequestQueueStop();
+            UpdateExecutionStateIndicator();
             AppendLog("Pause requested. Letting current function finish before stopping.");
             return;
         }
@@ -1646,6 +1649,7 @@ public partial class MainWindow : Window
         {
             // Pause the loop gracefully too — flag stop, let current iteration finish.
             _loopController.RequestLoopStop();
+            UpdateExecutionStateIndicator();
             AppendLog("Pause requested. Loop will stop after the current iteration.");
             return;
         }
@@ -3327,11 +3331,20 @@ public partial class MainWindow : Window
     private void ApplyStartLoopButtonVisual(string startButtonText)
     {
         StartLoopButton.Content = startButtonText;
+        StartLoopButton.IsEnabled = !string.Equals(startButtonText, "Pausing...", StringComparison.Ordinal);
 
         var highlightPauseState = string.Equals(startButtonText, "Pause bot", StringComparison.Ordinal);
         if (highlightPauseState)
         {
             StartLoopButton.Background = new SolidColorBrush(Color.FromRgb(253, 230, 138));
+            StartLoopButton.BorderBrush = new SolidColorBrush(Color.FromRgb(245, 158, 11));
+            StartLoopButton.Foreground = new SolidColorBrush(Color.FromRgb(120, 53, 15));
+            return;
+        }
+
+        if (string.Equals(startButtonText, "Pausing...", StringComparison.Ordinal))
+        {
+            StartLoopButton.Background = new SolidColorBrush(Color.FromRgb(254, 243, 199));
             StartLoopButton.BorderBrush = new SolidColorBrush(Color.FromRgb(245, 158, 11));
             StartLoopButton.Foreground = new SolidColorBrush(Color.FromRgb(120, 53, 15));
             return;
@@ -3398,6 +3411,14 @@ public partial class MainWindow : Window
         var functionExecutionRunning = IsFunctionExecutionRunning(hasRunningQueueItems);
         var continuousModeEnabled = ContinuousRunToggleButton?.IsChecked == true;
         var continuousModeActive = continuousModeEnabled && (loopRunning || _autoQueueRunning || hasDeferredQueueItems || hasInlineWait || functionExecutionRunning);
+        var pauseRequested = _loopController.LoopStopRequested || _loopController.QueueStopRequested;
+        var activeWorkStopping = pauseRequested && (loopRunning || _autoQueueRunning || _uiBusy || functionExecutionRunning || hasRunningQueueItems);
+
+        if (activeWorkStopping)
+        {
+            SetLoopStateBadge("pausing", Color.FromRgb(217, 119, 6), "Pausing...");
+            return;
+        }
 
         if (!continuousModeEnabled)
         {

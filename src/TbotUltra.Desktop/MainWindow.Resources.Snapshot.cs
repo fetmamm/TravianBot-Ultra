@@ -302,8 +302,6 @@ public partial class MainWindow
             var effectiveOptions = forceCurrentVillage || currentPageOnly
                 ? LoadBotOptions()
                 : (options is null ? ApplySelectedVillageToOptions(LoadBotOptions()) : ApplySelectedVillageToOptions(options));
-            var selectedVillage = forceCurrentVillage || currentPageOnly ? "(current)" : (GetSelectedVillageName() ?? "-");
-            AppendLog($"[resource-refresh] start village='{selectedVillage}'");
             var status = currentPageOnly && IsOfficialTravianServer(effectiveOptions)
                 ? await _botService.ReadCurrentPageResourceStatusQuickAsync(effectiveOptions, AppendLog, cancellationToken)
                 : await ReadVillageStatusWithRetryAsync(
@@ -312,11 +310,9 @@ public partial class MainWindow
                     resourceOnly: true,
                     forceCurrentVillage: forceCurrentVillage,
                     currentPageOnly: currentPageOnly);
-            AppendLog($"[resource-refresh] read village='{status.ActiveVillage}' | {BuildResourceLogSummary(status)}");
 
             await Dispatcher.InvokeAsync(() =>
             {
-                AppendLog($"[resource-refresh] applied village='{status.ActiveVillage}'");
                 ApplyResourceStatusToUi(status);
             });
         }
@@ -327,7 +323,6 @@ public partial class MainWindow
         }
         finally
         {
-            AppendLog("[resource-refresh] END");
             _resourceSnapshotRefreshRunning = false;
         }
     }

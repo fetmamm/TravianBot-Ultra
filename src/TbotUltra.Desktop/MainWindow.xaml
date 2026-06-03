@@ -864,6 +864,33 @@
                                                     ToolTip="Open hero inventory settings"
                                                     Click="HeroInventorySettingsButton_Click" />
                                         </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                            <CheckBox Content="Allow gold spending"
+                                                      Foreground="#374151"
+                                                      VerticalAlignment="Center"
+                                                      IsChecked="{Binding TroopTrainingVm.AllowGoldSpending, ElementName=RootWindow, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            <ContentControl Style="{StaticResource SettingInfoIconStyle}">
+                                                <ContentControl.ToolTip>
+                                                    <ToolTip MaxWidth="320">
+                                                        <TextBlock TextWrapping="Wrap"
+                                                                   Text="Allows gold-spending features such as NPC trade. Spending still respects the gold limit configured on the NPC / Trade tab. Off by default." />
+                                                    </ToolTip>
+                                                </ContentControl.ToolTip>
+                                            </ContentControl>
+                                            <Button x:Name="GoldSpendingSettingsButton"
+                                                    Content="&#xE713;"
+                                                    FontFamily="Segoe MDL2 Assets"
+                                                    FontSize="13"
+                                                    Width="26"
+                                                    Height="22"
+                                                    Padding="0"
+                                                    Margin="6,0,0,0"
+                                                    VerticalAlignment="Center"
+                                                    Background="#FFFFFF"
+                                                    BorderBrush="#D1D5DB"
+                                                    ToolTip="Open NPC trade settings"
+                                                    Click="GoldSpendingSettingsButton_Click" />
+                                        </StackPanel>
                                     </StackPanel>
                                 </Border>
                             </Grid>
@@ -1971,40 +1998,6 @@
                                                FontWeight="SemiBold"
                                                Foreground="#111827"
                                                Margin="0,0,0,12" />
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                                        <CheckBox Content="Allow gold spending"
-                                                  VerticalAlignment="Center"
-                                                  IsChecked="{Binding AllowGoldSpending, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        <Border Width="14"
-                                                Height="14"
-                                                Margin="6,0,0,0"
-                                                CornerRadius="7"
-                                                Background="#E5E7EB"
-                                                BorderBrush="#D1D5DB"
-                                                BorderThickness="1"
-                                                VerticalAlignment="Center"
-                                                ToolTipService.InitialShowDelay="0">
-                                            <Border.ToolTip>
-                                                <ToolTip MaxWidth="340">
-                                                    <StackPanel Width="300">
-                                                        <TextBlock Text="Allow gold spending"
-                                                                   FontWeight="SemiBold"
-                                                                   Foreground="#F9FAFB"
-                                                                   Margin="0,0,0,6" />
-                                                        <TextBlock TextWrapping="Wrap"
-                                                                   Text="Gold-spending features (e.g. NPC trade) will not run if spending would take gold below this limit." />
-                                                    </StackPanel>
-                                                </ToolTip>
-                                            </Border.ToolTip>
-                                            <TextBlock Text="i"
-                                                       FontSize="10"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="#4B5563"
-                                                       HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center"
-                                                       TextAlignment="Center" />
-                                        </Border>
-                                    </StackPanel>
                                     <TextBlock Text="{Binding GoldLimitText}"
                                                Foreground="#111827"
                                                Margin="0,0,0,4" />
@@ -2012,7 +2005,6 @@
                                             Maximum="1000"
                                             TickFrequency="10"
                                             IsSnapToTickEnabled="True"
-                                            IsEnabled="{Binding AllowGoldSpending}"
                                             Width="140"
                                             HorizontalAlignment="Left"
                                             Value="{Binding GoldLimit, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />

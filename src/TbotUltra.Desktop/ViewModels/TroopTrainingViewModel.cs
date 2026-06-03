@@ -549,8 +549,8 @@ public sealed class TroopTrainingViewModel : BaseViewModel
         config[BotOptionPayloadKeys.NpcTradeAnalyzeCrop] = NpcTradeAnalyzeCrop;
         config[BotOptionPayloadKeys.NpcTradeBuildTimeLimitEnabled] = NpcTradeBuildTimeLimitEnabled;
         config[BotOptionPayloadKeys.NpcTradeBuildTimeLimitSeconds] = NpcTradeBuildTimeLimitSeconds;
-        config["allow_gold_spending"] = AllowGoldSpending;
-        config["gold_limit"] = GoldLimit;
+        config[BotOptionPayloadKeys.AllowGoldSpending] = AllowGoldSpending;
+        config[BotOptionPayloadKeys.GoldLimit] = GoldLimit;
     }
 
     /// <summary>

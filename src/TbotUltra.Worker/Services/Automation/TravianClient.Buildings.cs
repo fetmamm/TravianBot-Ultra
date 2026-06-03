@@ -2865,7 +2865,6 @@ public sealed partial class TravianClient
 
     public async Task<bool> IsTravianPlusActiveAsync(CancellationToken cancellationToken = default)
     {
-        LogFunctionStarted();
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading Travian Plus status.", cancellationToken);
 
         return await _page.EvaluateAsync<bool>(

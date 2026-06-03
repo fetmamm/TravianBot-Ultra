@@ -269,30 +269,24 @@ public sealed partial class TravianClient
 
     public async Task RefreshAccountFeatureSignalsAsync(CancellationToken cancellationToken = default)
     {
-        LogFunctionStarted();
-        Notify($"[flavor] {_config.ServerFlavor} (isPrivate={_config.IsPrivateServer}, baseUrl='{_config.BaseUrl}')");
-
         // Plus can change during a round. Tribe cannot, and Gold Club only matters as a latched true.
         if (_cachedTravianPlusActive.HasValue
             && (_cachedGoldClubEnabled == true)
             && IsKnownTribe(_sessionTribe)
             && DateTimeOffset.UtcNow - _cachedTribePlusAt < TimeSpan.FromSeconds(60))
         {
-            Notify($"[plus] active={_cachedTravianPlusActive.Value} (cached)");
-            Notify("[goldclub] active=True (cached)");
-            Notify($"[tribe] {_sessionTribe} (cached)");
             return;
         }
 
         try
         {
             var plus = await IsTravianPlusActiveAsync(cancellationToken);
-            if (_cachedTravianPlusActive != plus)
+            if (!_cachedTravianPlusActive.HasValue || _cachedTravianPlusActive != plus)
             {
                 _cachedTravianPlusActive = plus;
+                Notify($"[plus] active={plus}");
             }
             _cachedTribePlusAt = DateTimeOffset.UtcNow;
-            Notify($"[plus] active={plus}");
         }
         catch (Exception ex)
         {
@@ -300,17 +294,16 @@ public sealed partial class TravianClient
         }
 
         // Gold Club is monotonic — once true within a session it cannot revert. Skip re-checks once latched.
-        if (_cachedGoldClubEnabled == true)
-        {
-            Notify("[goldclub] active=True");
-        }
-        else
+        if (_cachedGoldClubEnabled != true)
         {
             try
             {
                 var gold = await ReadGoldClubEnabledAsync(cancellationToken);
+                if (!_cachedGoldClubEnabled.HasValue || _cachedGoldClubEnabled != gold)
+                {
+                    Notify($"[goldclub] active={gold}");
+                }
                 _cachedGoldClubEnabled = gold;
-                Notify($"[goldclub] active={gold}");
             }
             catch (Exception ex)
             {
@@ -318,11 +311,7 @@ public sealed partial class TravianClient
             }
         }
 
-        if (IsKnownTribe(_sessionTribe))
-        {
-            Notify($"[tribe] {_sessionTribe} (cached)");
-        }
-        else
+        if (!IsKnownTribe(_sessionTribe))
         {
             try
             {
@@ -1323,6 +1312,18 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             // covers the in-feature drop case (and the keep-alive idle path). Other non-logged-in
             // states (captcha, manual_step, unknown) still need human attention, so keep throwing.
             var state = await LoginStateAsync();
+            if (state == "logged_in")
+            {
+                _lastEnsureLoggedInAt = DateTimeOffset.UtcNow;
+                _lastEnsureLoggedInSucceeded = true;
+                Notify($"[ensure-logged-in] recovered after transient login-state miss url='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
+                if (_suppressEnsureUiSyncDepth <= 0)
+                {
+                    await TryEmitUiSyncSnapshotAsync(cancellationToken);
+                }
+
+                return;
+            }
             if (state == "logged_out")
             {
                 Notify("[ensure-logged-in] session expired — attempting auto-relogin");
@@ -1423,7 +1424,6 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 {
                     if (await _page.Locator(selector).CountAsync() > 0)
                     {
-                        Notify("You are logged in");
                         return "logged_in";
                     }
                 }

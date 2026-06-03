@@ -177,7 +177,7 @@ public sealed class BotOptionsPayloadApplierTests
         Assert.False(options.NpcTradeEnabled);
         Assert.False(options.NpcTradeConstructionEnabled);
         Assert.False(options.AllowGoldSpending);
-        Assert.Equal(200, options.GoldLimit);
+        Assert.Equal(300, options.GoldLimit);
     }
 
     [Fact]
@@ -216,7 +216,7 @@ public sealed class BotOptionsPayloadApplierTests
     }
 
     [Fact]
-    public void FromConfiguration_KeepsLegacyPrivateServerGoldAndNpcDefaults()
+    public void FromConfiguration_KeepsLegacyPrivateServerNpcDefaults()
     {
         var values = new Dictionary<string, string?>
         {
@@ -231,7 +231,7 @@ public sealed class BotOptionsPayloadApplierTests
 
         Assert.True(options.NpcTradeEnabled);
         Assert.True(options.NpcTradeConstructionEnabled);
-        Assert.True(options.AllowGoldSpending);
+        Assert.False(options.AllowGoldSpending);
         Assert.Equal(800, options.GoldLimit);
         Assert.Equal("fighting_strength,offence_bonus,defence_bonus,resources", options.HeroStatPriority);
     }
@@ -245,8 +245,8 @@ public sealed class BotOptionsPayloadApplierTests
             ["base_url"] = "https://ts50.x5.europe.travian.com",
             [BotOptionPayloadKeys.NpcTradeEnabled] = "true",
             [BotOptionPayloadKeys.NpcTradeConstructionEnabled] = "true",
-            ["allow_gold_spending"] = "true",
-            ["gold_limit"] = "500",
+            [BotOptionPayloadKeys.AllowGoldSpending] = "true",
+            [BotOptionPayloadKeys.GoldLimit] = "500",
         };
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(values)

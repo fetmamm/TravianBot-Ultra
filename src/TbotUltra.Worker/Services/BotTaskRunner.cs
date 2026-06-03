@@ -10,7 +10,6 @@ namespace TbotUltra.Worker.Services;
 
 public sealed class BotTaskRunner
 {
-    private static long _browserOperationSequence;
 
     private static readonly IReadOnlyDictionary<string, Func<TaskExecutionContext, Task>> TaskHandlers =
         new Dictionary<string, Func<TaskExecutionContext, Task>>(StringComparer.OrdinalIgnoreCase)
@@ -758,14 +757,9 @@ public sealed class BotTaskRunner
             cancellationToken,
             async client =>
             {
-                log($"Quick resource status read for server {options.ServerName}.");
                 status = await client.ReadVillageResourceStatusAsync(
                     cancellationToken,
                     allowNavigationToResourcePage: false);
-                var forecastCount = status?.ResourceStorageForecasts?.Count ?? 0;
-                var warehouse = FormatResourceStatusNumber(status?.WarehouseCapacity);
-                var granary = FormatResourceStatusNumber(status?.GranaryCapacity);
-                log($"Quick resource status: village='{status?.ActiveVillage ?? "-"}', forecasts={forecastCount}, storage={warehouse}/{granary}.");
             });
 
         return status ?? throw new InvalidOperationException("Could not read current-page resource status.");
@@ -786,12 +780,7 @@ public sealed class BotTaskRunner
             cancellationToken,
             async client =>
             {
-                log($"Quick storage status read for server {options.ServerName}.");
                 status = await client.ReadCurrentPageStorageStatusAsync(cancellationToken);
-                var forecastCount = status?.ResourceStorageForecasts?.Count ?? 0;
-                var warehouse = FormatResourceStatusNumber(status?.WarehouseCapacity);
-                var granary = FormatResourceStatusNumber(status?.GranaryCapacity);
-                log($"Quick storage status: village='{status?.ActiveVillage ?? "-"}', forecasts={forecastCount}, storage={warehouse}/{granary}.");
             });
 
         return status ?? throw new InvalidOperationException("Could not read current-page storage status.");
@@ -1421,29 +1410,22 @@ public sealed class BotTaskRunner
         Func<TravianClient, Task> action)
     {
         var account = _accountProvider.LoadAccount(accountName);
-        var operationId = Interlocked.Increment(ref _browserOperationSequence);
-        log($"[browser-op:{operationId}] WAIT account='{account.Name}' server='{options.BaseUrl.TrimEnd('/')}' interactive={interactive}");
         await _sessionGate.WaitAsync(cancellationToken);
         try
         {
-            log($"[browser-op:{operationId}] ENTER");
             var lease = await AcquireClientLeaseAsync(options, account, log, interactive, cancellationToken);
             try
             {
-                LogPageState(log, operationId, "LEASED");
                 await action(lease.Client);
-                LogPageState(log, operationId, "ACTION_DONE");
             }
             finally
             {
                 await FinalizeLeaseAsync(lease, log);
-                LogPageState(log, operationId, "FINALIZED");
             }
         }
         finally
         {
             _sessionGate.Release();
-            log($"[browser-op:{operationId}] EXIT");
         }
     }
 
@@ -1496,7 +1478,10 @@ public sealed class BotTaskRunner
             !string.Equals(_sharedVisibleAccountName, account.Name, StringComparison.OrdinalIgnoreCase) ||
             !string.Equals(_sharedVisibleBaseUrl, desiredBaseUrl, StringComparison.OrdinalIgnoreCase);
 
-        log($"[browser-session] visible page count before lease={TryGetSharedPageCount()} replace={mustReplaceSession} reason='{string.Join(", ", replaceReasons)}' currentUrl='{_sharedVisiblePage?.Url ?? "-"}'");
+        if (mustReplaceSession)
+        {
+            log($"[browser-session] replacing shared browser session. pages={TryGetSharedPageCount()} reason='{string.Join(", ", replaceReasons)}' currentUrl='{_sharedVisiblePage?.Url ?? "-"}'");
+        }
 
         if (_sharedVisiblePage is not null && _sharedVisiblePage.IsClosed)
         {
@@ -1533,7 +1518,6 @@ public sealed class BotTaskRunner
             SeedStableAccountSignals(_sharedVisibleSessionCache, account, options, log);
         }
 
-        log($"[browser-session] visible page count after lease={TryGetSharedPageCount()} url='{_sharedVisiblePage?.Url ?? "-"}'");
         var sharedClient = CreateClient(_sharedVisiblePage!, options, account, interactive, log, _sharedVisibleSessionCache);
         return new ClientLease(_sharedVisibleSession!, sharedClient, true);
     }
@@ -1547,19 +1531,6 @@ public sealed class BotTaskRunner
         catch
         {
             return -1;
-        }
-    }
-
-    private void LogPageState(Action<string> log, long operationId, string stage)
-    {
-        try
-        {
-            var pageCount = _sharedVisiblePage?.Context.Pages.Count ?? 0;
-            log($"[browser-op:{operationId}] {stage} pages={pageCount} url='{_sharedVisiblePage?.Url ?? "-"}'");
-        }
-        catch (Exception ex)
-        {
-            log($"[browser-op:{operationId}] {stage} page-state failed: {ex.Message}");
         }
     }
 

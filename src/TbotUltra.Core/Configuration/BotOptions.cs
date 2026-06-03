@@ -293,13 +293,13 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.TargetVillageUrl)]
     public string TargetVillageUrl { get; init; } = string.Empty;
 
-    [ConfigurationKeyName("allow_gold_spending")]
-    public bool AllowGoldSpending { get; init; } = true;
+    [ConfigurationKeyName(BotOptionPayloadKeys.AllowGoldSpending)]
+    public bool AllowGoldSpending { get; init; }
 
     [ConfigurationKeyName("allow_silver_spending")]
     public bool AllowSilverSpending { get; init; }
 
-    [ConfigurationKeyName("gold_limit")]
+    [ConfigurationKeyName(BotOptionPayloadKeys.GoldLimit)]
     public int GoldLimit { get; init; } = 800;
 
     [ConfigurationKeyName("silver_limit")]
