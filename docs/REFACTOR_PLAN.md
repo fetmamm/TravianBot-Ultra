@@ -41,7 +41,10 @@ Mönster: flytta sammanhängande, helst rena/statiska metodkluster till nya tema
 - [x] **Steg 3b:** Flyttade 8 server/konto-hjälpare (`SyncServerFromActiveAccount`, `FetchDefaultServerOptionsAsync`, `FetchEffectiveServerOptions`, `RefreshAccountPicker`, `UpdateAccountInfoLabel`, `AbbreviateServerSpeed`, `GetActiveAccountServerUrl`, `ExtractServerSpeedLabel`, ~226 rader) till ny partial `MainWindow.ServerAccount.cs`. `MainWindow.xaml.cs`: **3684 → 3458 rader**. Ren relocation. Bygger rent (0 varningar); tester 39/40.
 - [x] **Steg 3c:** Flyttade 8 loop-/exekverings-indikatormetoder (`SetLoopIndicator`, `ApplyStartLoopButtonVisual`, `SetLoopStateBadge`, `UpdateExecutionStateIndicator`, `UpdateExecutionStateIndicatorOnUiThread`, `UpdateBuildQueueStatusText`, `TickBuildQueueCountdown`, `FormatCountdown`, ~274 rader) till ny partial `MainWindow.LoopIndicators.cs`. `MainWindow.xaml.cs`: **3458 → 3184 rader**. Ren relocation. Bygger rent (0 varningar); tester 39/40.
 
-**Rank 3 sammanfattning hittills:** `MainWindow.xaml.cs` **4042 → 3184 rader** (−858, ~21%) fördelat på tre nya tematiska partials (`DeferredWaits`, `ServerAccount`, `LoopIndicators`). Mönstret är etablerat; fler skivor kan göras vid behov (t.ex. login/session-flöden, build-queue-deferred-refresh).
+- [x] **Steg 3d:** Flyttade 9 toolbar-/fönster-kommandohandlers (`StartLoopButton_Click`, `StopBotButton_Click`, `ContinuousRunToggleButton_Unchecked`, `OpenVerificationBrowserButton_Click`, `Help/Reload/Settings_Click`, `MainWindow_Closing`, `ClosePopupWindows`, ~216 rader) → `MainWindow.Toolbar.cs`. `xaml.cs`: 3184 → 2968.
+- [x] **Steg 3e:** Flyttade hela login/logout/konto-reset-klustret (18 metoder, `ExecuteLoginFlowAsync`, `Logout*`, `Accounts*`, `AccountComboBox_SelectionChanged`, `ResetProgram*`, `ResetForAccountSwitchAsync`, `ClearAccountScopedUiState`, busy-overlay, ~582 rader) → `MainWindow.Session.cs`. `xaml.cs`: 2968 → 2386. Kompilerar rent (0 varningar); tester **40/40** (det tidigare SessionPacer-felet var tidsberoende/flaky).
+
+**Rank 3 sammanfattning hittills:** `MainWindow.xaml.cs` **4042 → 2386 rader** (−1656, ~41%) fördelat på fem nya tematiska partials (`DeferredWaits`, `ServerAccount`, `LoopIndicators`, `Toolbar`, `Session`). Mönstret är etablerat; fler skivor kvar (t.ex. status-info, byläsning, deferred refresh).
 
 ## Rekommenderade refaktoriseringar
 

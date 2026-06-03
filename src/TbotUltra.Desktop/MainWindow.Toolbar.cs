@@ -1,0 +1,227 @@
+using System;
+using System.Windows;
+
+namespace TbotUltra.Desktop;
+
+// Toolbar and top-level window command handlers: start/stop/pause the bot,
+// continuous-run toggle, help/reload/settings buttons, window closing and popup
+// cleanup. Extracted verbatim from MainWindow.xaml.cs to keep that file focused;
+// same class, so this is a pure relocation with no behavior change.
+public partial class MainWindow
+{
+    private void OpenVerificationBrowserButton_Click(object sender, RoutedEventArgs e)
+    {
+        _ = sender;
+        _ = e;
+        if (BlockIfSessionSleeping("Open verification browser"))
+        {
+            return;
+        }
+
+        OpenVerificationBrowser();
+    }
+
+    private void StartLoopButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (BlockIfSessionSleeping("Start bot"))
+        {
+            return;
+        }
+
+        if (!_isLoggedIn)
+        {
+            return;
+        }
+
+        if (ContinuousRunToggleButton.IsChecked != true)
+        {
+            if (_autoQueueRunning || _uiBusy)
+            {
+                // Graceful pause: don't pick up new queue items. Let the currently running
+                // task finish; the runner will exit at its next iteration check.
+                _loopController.RequestQueueStop();
+                UpdateExecutionStateIndicator();
+                AppendLog("Pause requested. Letting current task finish before stopping.");
+                return;
+            }
+
+            _loopController.ClearQueueStopRequest();
+            ResumePausedQueueItems();
+            _ = TriggerQueueAutoRunAsync();
+            AppendLog("Function queue start requested.");
+            return;
+        }
+
+        if (_autoQueueRunning)
+        {
+            _startContinuousLoopAfterQueueStop = true;
+            _loopController.RequestQueueStop();
+            UpdateExecutionStateIndicator();
+            AppendLog("Continuous loop requested. Letting current queue task finish before switching.");
+            return;
+        }
+
+        if (_uiBusy && (_loopTask is null || _loopTask.IsCompleted))
+        {
+            _loopController.RequestQueueStop();
+            UpdateExecutionStateIndicator();
+            AppendLog("Pause requested. Letting current function finish before stopping.");
+            return;
+        }
+
+        if (_loopTask is not null && !_loopTask.IsCompleted)
+        {
+            // Pause the loop gracefully too — flag stop, let current iteration finish.
+            _loopController.RequestLoopStop();
+            UpdateExecutionStateIndicator();
+            AppendLog("Pause requested. Loop will stop after the current iteration.");
+            return;
+        }
+
+        StartContinuousLoopRunner();
+    }
+
+    private void StopBotButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (BlockIfSessionSleeping("Stop bot"))
+        {
+            return;
+        }
+
+        // Hard stop: abort whatever is running right now (including waits) and clear state.
+        _loopController.RequestQueueStop();
+        _loopController.CancelOperation();
+        _loopController.CancelAutoQueueRun();
+        if (ContinuousRunToggleButton.IsChecked == true)
+        {
+            _loopController.RequestLoopStop();
+            _loopController.CancelLoop();
+        }
+
+        EndInlineWait();
+        ClearPendingResourceLevelsFromUi();
+        _buildingDemolishingSlots.Clear();
+        _buildingLastQueuedTargetBySlot.Clear();
+        _buildingLastQueuedConstructBySlot.Clear();
+        _buildingClickCooldownBySlot.Clear();
+
+        // Drop pending/deferred queue items, but keep the hero return timer across Stop.
+        try
+        {
+            var preservedHeroTimers = ClearQueuePreservingDeferredHeroTimers();
+            if (preservedHeroTimers > 0)
+            {
+                AppendLog($"Preserved {preservedHeroTimers} deferred hero timer(s) on stop.");
+            }
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Could not clear queue on stop: {ex.Message}");
+        }
+
+        SetActiveFunctionExecution(null);
+        UpdateExecutionStateIndicator();
+        AppendLog("Stop requested. Running actions and waits were stopped.");
+    }
+
+    private void ContinuousRunToggleButton_Unchecked(object sender, RoutedEventArgs e)
+    {
+        if (!_autoQueueRunning && !_uiBusy && (_loopTask is null || _loopTask.IsCompleted))
+        {
+            return;
+        }
+
+        _loopController.RequestQueueStop();
+        _loopController.RequestLoopStop();
+        _startContinuousLoopAfterQueueStop = false;
+        _loopController.CancelOperation();
+        _loopController.CancelAutoQueueRun();
+        _loopController.CancelLoop();
+        ClearPendingResourceLevelsFromUi();
+        SetLoopIndicator(false);
+        StartLoopButton.Content = "Start bot";
+        StartLoopButton.IsEnabled = true;
+        AppendLog("Continuous run disabled. Running actions were stopped.");
+    }
+
+    private void HelpButton_Click(object sender, RoutedEventArgs e)
+    {
+        AppDialog.Show(this,
+            "Use Login first.\nCheck village status and Scan all villages add tasks to queue.\nStart/Stop controls loop execution.",
+            "Help",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
+    }
+
+    private void ReloadButton_Click(object sender, RoutedEventArgs e)
+    {
+        LoadConfigToUi();
+        AppendLog("Config reloaded from config/bot.json.");
+        _ = RefreshInboxIndicatorsAsync(logErrors: false);
+    }
+
+    private void SettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        var window = new SettingsWindow(_botConfigStore, IsSessionSleeping)
+        {
+            Owner = this,
+        };
+        window.ShowDialog();
+        LoadConfigToUi();
+        ConfigureSessionPacerFromConfig();
+        if (window.SleepNowRequested)
+        {
+            RequestManualSessionSleep();
+        }
+    }
+
+    private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        try
+        {
+            _loopController.MarkClosing();
+            _inboxAutoEnabled = false;
+            _clockTimer.Stop();
+            NotifySessionPacingAutomationStopped();
+            _copyFeedbackTimer.Stop();
+            _inboxRefreshTimer.Stop();
+            _buildQueueCountdownTimer.Stop();
+            _loopController.RequestLoopStop();
+            _loopController.RequestQueueStop();
+            _loopController.CancelLoop();
+            _loopController.CancelVillageSwitch();
+            _loopController.CancelQueueAutoRunRoot();
+            ClosePopupWindows();
+
+            // Do not block UI shutdown indefinitely; close shared browser best-effort.
+            var shutdownTask = _botService.ShutdownAsync(AppendLog);
+            if (!shutdownTask.Wait(TimeSpan.FromSeconds(3)))
+            {
+                AppendLog("Shutdown timeout while closing browser session. Continuing app exit.");
+            }
+
+            if (ShouldClearQueueOnShutdown())
+            {
+                _botService.ClearQueue();
+            }
+            _loopController.DisposeVillageSwitch();
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Could not clear queue on shutdown: {ex.Message}");
+        }
+    }
+
+    private void ClosePopupWindows()
+    {
+        try
+        {
+            _logsPopupWindow?.Close();
+            _queuePopupWindow?.Close();
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Could not close popup windows: {ex.Message}");
+        }
+    }
+}
