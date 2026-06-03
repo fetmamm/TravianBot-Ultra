@@ -397,34 +397,83 @@ public sealed partial class TravianClient
             return;
         }
 
-        var clicked = await TryClickFirstAsync(Selectors.LogoutTriggers, cancellationToken);
-
-        if (!clicked)
+        var clicked = await TryTriggerLogoutAsync(cancellationToken);
+        if (clicked)
         {
-            foreach (var candidatePath in Paths.LogoutCandidates)
-            {
-                await GotoAsync(candidatePath, cancellationToken);
-                if (!await IsLoggedInAsync())
-                {
-                    Notify($"[logout] {_account.Name} logged out via navigation to {candidatePath}");
-                    return;
-                }
-            }
-        }
-
-        for (var i = 0; i < 6; i++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (!await IsLoggedInAsync())
+            // Official T4.6 logout is an AJAX call (Travian.api('auth/logout')) that then redirects to
+            // the login scene. Wait for a positive logged-out marker (login form) before declaring success.
+            Notify("[logout] clicked logout control — waiting for the login page to confirm sign-out.");
+            if (await WaitForLoggedOutAsync(cancellationToken))
             {
                 Notify($"[logout] {_account.Name} logged out successfully");
                 return;
             }
 
-            await Task.Delay(350, cancellationToken);
+            Notify("[logout] click did not confirm sign-out — trying legacy logout URLs.");
+        }
+
+        // Fallback for servers where the logout control is missing or the click did not take effect.
+        foreach (var candidatePath in Paths.LogoutCandidates)
+        {
+            await GotoAsync(candidatePath, cancellationToken);
+            if (await WaitForLoggedOutAsync(cancellationToken))
+            {
+                Notify($"[logout] {_account.Name} logged out via navigation to {candidatePath}");
+                return;
+            }
         }
 
         throw new InvalidOperationException("Logout did not complete successfully.");
+    }
+
+    // Triggers the logout control. The official T4.6 control is an <a> with only an onclick
+    // (Travian.api('auth/logout')) and is often hidden behind a menu, so a normal actionability-gated
+    // click times out. Dispatching the click event runs the element's own handler/navigation directly,
+    // without waiting for visibility/stability — which also works for the SS/legacy href-based links.
+    private async Task<bool> TryTriggerLogoutAsync(CancellationToken cancellationToken)
+    {
+        foreach (var selector in Selectors.LogoutTriggers)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (await _page.Locator(selector).CountAsync() == 0)
+            {
+                continue;
+            }
+
+            try
+            {
+                await _page.DispatchEventAsync(selector, "click");
+                Notify($"[logout] triggered logout via '{selector}'.");
+                return true;
+            }
+            catch (PlaywrightException ex)
+            {
+                Notify($"[logout] dispatch on '{selector}' failed: {ex.Message}");
+            }
+        }
+
+        return false;
+    }
+
+    // Confirms sign-out by waiting for a positive logged-out marker (login form / login scene), not just
+    // the absence of logged-in markers — a page that is still rendering would otherwise read as a false
+    // logout. Returns true as soon as the page state is confirmed "logged_out".
+    private async Task<bool> WaitForLoggedOutAsync(CancellationToken cancellationToken)
+    {
+        const int attempts = 10;
+        for (var i = 0; i < attempts; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if ((await LoginStateAsync()) == "logged_out")
+            {
+                return true;
+            }
+
+            await Task.Delay(500, cancellationToken);
+        }
+
+        Notify("[logout] sign-out not confirmed yet (no login page detected).");
+        return false;
     }
 
     public async Task<VillageStatus> ReadVillageStatusAsync(CancellationToken cancellationToken = default)

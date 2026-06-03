@@ -109,6 +109,11 @@ public sealed partial class TravianClient
 
         public static readonly string[] LogoutTriggers =
         {
+            // Official T4.6: the logout control is an <a> with no href and only an SVG icon — it fires
+            // Travian.api('auth/logout') via onclick. Match it by the onclick/class (SS keeps href-based ones below).
+            "a[onclick*='auth/logout']",
+            "a.layoutButton.logout",
+            "a.logout[onclick]",
             "a[href*='logout']",
             "button[name*='logout' i]",
             "input[name*='logout' i]",
@@ -172,6 +177,10 @@ public sealed partial class TravianClient
 
         public static readonly string[] LoggedOutIndicators =
         {
+            // Official T4.6 renders a React login scene (body.login / #loginScene) instead of redirecting
+            // to login.php — keep these first so sign-out is confirmed positively on official too.
+            "#loginScene",
+            "body.login",
             "input[type='password']",
             "input[name='password']",
             "button[type='submit']",

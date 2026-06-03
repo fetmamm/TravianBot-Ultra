@@ -252,6 +252,7 @@
                 </Grid.ColumnDefinitions>
 
                 <Border Grid.Column="0"
+                        x:Name="SessionPacingBorder"
                         Background="#FFFFFF"
                         BorderBrush="#D1D5DB"
                         BorderThickness="1"
@@ -260,7 +261,7 @@
                         Margin="0,0,8,0">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock x:Name="SessionPacingStatusTextBlock"
-                                   Text="Session pacing off"
+                                   Text="Session pacing"
                                    Foreground="#374151"
                                    VerticalAlignment="Center" />
                         <Button x:Name="SessionPacingRunNowButton"
@@ -270,15 +271,6 @@
                                 MinHeight="22"
                                 Visibility="Collapsed"
                                 Click="SessionPacingRunNowButton_Click" />
-                        <Button x:Name="SessionPacingSettingsButton"
-                                Content="&#xE713;"
-                                FontFamily="Segoe MDL2 Assets"
-                                Width="22"
-                                Height="22"
-                                Padding="0"
-                                Margin="6,0,0,0"
-                                ToolTip="Open pacing settings"
-                                Click="SessionPacingSettingsButton_Click" />
                     </StackPanel>
                 </Border>
 

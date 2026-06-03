@@ -83,6 +83,14 @@
                                 <TextBox x:Name="SessionVariationPercentTextBox" Grid.Row="2" Grid.Column="1" Height="24" Margin="0,2" />
                             </Grid>
 
+                            <Button x:Name="SleepNowButton"
+                                    Content="Sleep now"
+                                    HorizontalAlignment="Left"
+                                    Padding="12,4"
+                                    Margin="18,0,0,14"
+                                    ToolTip="Stop automation, log out, and sleep now for the configured sleep time."
+                                    Click="SleepNowButton_Click" />
+
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                 <CheckBox x:Name="ActionPacingEnabledCheckBox"
                                           Content="Action pacing" />

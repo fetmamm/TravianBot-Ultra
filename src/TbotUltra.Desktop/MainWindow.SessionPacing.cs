@@ -1,5 +1,7 @@
 using System.Text.Json.Nodes;
 using System.Windows;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Services.Orchestration;
 
@@ -10,11 +12,33 @@ public partial class MainWindow
     private bool _sessionPacingSleepInProgress;
     private bool _sessionPacingWakeInProgress;
 
+    // Visual state of the pacing box. Animated background pulse is (re)started only on state changes so
+    // the 1s UI tick doesn't restart/flicker the animation.
+    private enum PacingVisual { Idle, Running, Approaching, Sleeping }
+
+    private static readonly TimeSpan PacingApproachingThreshold = TimeSpan.FromMinutes(5);
+    private SolidColorBrush? _pacingBrush;
+    private PacingVisual? _pacingVisualState;
+
+    // Snapshot of what was actually running when sleep started, so wake restores the same state instead
+    // of always starting the continuous loop (the toggle defaults to ON even when the bot was idle).
+    private bool _wasLoggedInBeforeSleep;
+    private bool _wasContinuousLoopRunningBeforeSleep;
+    private bool _wasQueueAutoRunningBeforeSleep;
+
     private void InitializeSessionPacing()
     {
         _sessionPacer.Logger = AppendLog;
-        _sessionPacer.SleepStarting += (_, _) => _ = SafeSessionPacingInvokeAsync(HandleSessionPacingSleepStartingAsync);
+        _sessionPacer.SleepStarting += (_, _) => _ = SafeSessionPacingInvokeAsync(() => HandleSessionPacingSleepStartingAsync());
         _sessionPacer.WakeRequested += (_, _) => _ = SafeSessionPacingInvokeAsync(HandleSessionPacingWakeRequestedAsync);
+
+        // Use a mutable brush so the pacing box background can be animated (XAML's literal brush is frozen).
+        if (SessionPacingBorder is not null)
+        {
+            _pacingBrush = new SolidColorBrush(Colors.White);
+            SessionPacingBorder.Background = _pacingBrush;
+        }
+
         ConfigureSessionPacerFromConfig();
         UpdateSessionPacingUi();
     }
@@ -50,7 +74,15 @@ public partial class MainWindow
         _sessionPacer.NotifyAutomationStopped();
     }
 
-    private async Task HandleSessionPacingSleepStartingAsync()
+    // Triggered from the Settings popup "Sleep now" button (after the user confirms). Reuses the normal
+    // controlled-sleep flow but forces the sleep so it also works when session pacing is turned off.
+    private void RequestManualSessionSleep()
+    {
+        AppendLog("[pacing] manual sleep requested from settings.");
+        _ = SafeSessionPacingInvokeAsync(() => HandleSessionPacingSleepStartingAsync(manual: true));
+    }
+
+    private async Task HandleSessionPacingSleepStartingAsync(bool manual = false)
     {
         if (_sessionPacingSleepInProgress)
         {
@@ -60,6 +92,13 @@ public partial class MainWindow
         _sessionPacingSleepInProgress = true;
         try
         {
+            // Capture the pre-sleep state BEFORE stopping anything, so wake can restore it.
+            _wasLoggedInBeforeSleep = _isLoggedIn;
+            _wasContinuousLoopRunningBeforeSleep = _loopTask is not null && !_loopTask.IsCompleted;
+            _wasQueueAutoRunningBeforeSleep = _autoQueueRunning;
+            AppendLog($"[pacing] pre-sleep state: loggedIn={_wasLoggedInBeforeSleep}, "
+                + $"continuousLoop={_wasContinuousLoopRunningBeforeSleep}, queueAutoRun={_wasQueueAutoRunningBeforeSleep}.");
+
             AppendLog("[pacing] controlled session stop requested.");
             _loopController.RequestLoopStop();
             _loopController.RequestQueueStop();
@@ -86,7 +125,7 @@ public partial class MainWindow
                 ToggleUiBusy(false);
             }
 
-            _sessionPacer.BeginSleep();
+            _sessionPacer.BeginSleep(manual);
         }
         finally
         {
@@ -110,12 +149,33 @@ public partial class MainWindow
                 return;
             }
 
-            await ExecuteLoginFlowAsync();
-            if (ContinuousRunToggleButton?.IsChecked == true
-                && _isLoggedIn
-                && (_loopTask is null || _loopTask.IsCompleted))
+            // Restore the pre-sleep state. If the bot was idle/logged out before sleeping, stay that way.
+            if (!_wasLoggedInBeforeSleep)
             {
+                AppendLog("[pacing] wake: was logged out/idle before sleep — staying idle.");
+                return;
+            }
+
+            await ExecuteLoginFlowAsync();
+            if (!_isLoggedIn)
+            {
+                return;
+            }
+
+            var loopIdle = _loopTask is null || _loopTask.IsCompleted;
+            if (_wasContinuousLoopRunningBeforeSleep && ContinuousRunToggleButton?.IsChecked == true && loopIdle)
+            {
+                AppendLog("[pacing] wake: resuming continuous loop (was running before sleep).");
                 StartContinuousLoopRunner();
+            }
+            else if (_wasQueueAutoRunningBeforeSleep && !_autoQueueRunning && loopIdle)
+            {
+                AppendLog("[pacing] wake: resuming queue auto-run (was running before sleep).");
+                _ = TriggerQueueAutoRunAsync();
+            }
+            else
+            {
+                AppendLog("[pacing] wake: logged in, staying idle (was not running before sleep).");
             }
         }
         finally
@@ -141,11 +201,6 @@ public partial class MainWindow
         _sessionPacer.WakeNow();
     }
 
-    private void SessionPacingSettingsButton_Click(object sender, RoutedEventArgs e)
-    {
-        SettingsButton_Click(sender, e);
-    }
-
     private void UpdateSessionPacingUi()
     {
         if (SessionPacingStatusTextBlock is null)
@@ -157,6 +212,72 @@ public partial class MainWindow
         SessionPacingRunNowButton.Visibility = _sessionPacer.Phase == SessionPacerPhase.Sleeping
             ? Visibility.Visible
             : Visibility.Collapsed;
+
+        ApplyPacingVisual(ResolvePacingVisual());
+    }
+
+    private PacingVisual ResolvePacingVisual()
+    {
+        switch (_sessionPacer.Phase)
+        {
+            case SessionPacerPhase.Sleeping:
+                return PacingVisual.Sleeping;
+            case SessionPacerPhase.Running:
+                var untilSleep = _sessionPacer.TimeUntilSleep;
+                return untilSleep is not null && untilSleep.Value <= PacingApproachingThreshold
+                    ? PacingVisual.Approaching
+                    : PacingVisual.Running;
+            default:
+                return PacingVisual.Idle;
+        }
+    }
+
+    // Applies the pacing-box background for a visual state. Pulsing states animate the brush color
+    // (GPU-composited, negligible cost); only runs when the state actually changes to avoid restarts.
+    private void ApplyPacingVisual(PacingVisual state)
+    {
+        if (_pacingBrush is null || _pacingVisualState == state)
+        {
+            return;
+        }
+
+        _pacingVisualState = state;
+        switch (state)
+        {
+            case PacingVisual.Sleeping:
+                StartPacingPulse(Color.FromRgb(0xDB, 0xEA, 0xFE), Color.FromRgb(0x60, 0xA5, 0xFA));
+                break;
+            case PacingVisual.Approaching:
+                StartPacingPulse(Color.FromRgb(0xFE, 0xF3, 0xC7), Color.FromRgb(0xFB, 0xBF, 0x24));
+                break;
+            case PacingVisual.Running:
+                SetPacingStaticColor(Color.FromRgb(0xEC, 0xFD, 0xF5));
+                break;
+            default:
+                SetPacingStaticColor(Colors.White);
+                break;
+        }
+    }
+
+    private void StartPacingPulse(Color from, Color to)
+    {
+        var animation = new ColorAnimation
+        {
+            From = from,
+            To = to,
+            Duration = TimeSpan.FromSeconds(1.2),
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever,
+            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
+        };
+        _pacingBrush!.BeginAnimation(SolidColorBrush.ColorProperty, animation);
+    }
+
+    private void SetPacingStaticColor(Color color)
+    {
+        // Clear any running animation before setting a fixed color.
+        _pacingBrush!.BeginAnimation(SolidColorBrush.ColorProperty, null);
+        _pacingBrush.Color = color;
     }
 
     private static bool ReadBool(JsonObject config, string key, bool defaultValue)

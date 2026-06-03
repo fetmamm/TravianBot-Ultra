@@ -23,6 +23,8 @@ public sealed class SessionPacer
     private DateTimeOffset? _runDeadline;
     private DateTimeOffset? _wakeAt;
     private bool _sleepStartRaised;
+    private bool _automationActive;
+    private bool _manualSleep;
 
     public SessionPacer()
     {
@@ -38,7 +40,9 @@ public sealed class SessionPacer
     {
         SessionPacerPhase.Running => $"Next sleep in: {Format(TimeUntilSleep)}",
         SessionPacerPhase.Sleeping => $"Sleeping - resumes in {Format(TimeUntilWake)}",
-        _ => "Session pacing off",
+        // Idle before the loop runs: stay neutral ("Session pacing"). Only show "off" once
+        // automation is actually running but pacing is disabled in settings.
+        _ => _automationActive ? "Session pacing off" : "Session pacing",
     };
 
     public event EventHandler? SleepStarting;
@@ -70,6 +74,8 @@ public sealed class SessionPacer
 
     public void NotifyAutomationStarted()
     {
+        _automationActive = true;
+        _manualSleep = false;
         if (!_settings.Enabled)
         {
             Phase = SessionPacerPhase.Disabled;
@@ -89,34 +95,40 @@ public sealed class SessionPacer
 
     public void NotifyAutomationStopped()
     {
+        _automationActive = false;
         if (Phase == SessionPacerPhase.Running)
         {
-            Phase = _settings.Enabled ? SessionPacerPhase.Disabled : SessionPacerPhase.Disabled;
+            Phase = SessionPacerPhase.Disabled;
             _runStartedAt = null;
             _runDeadline = null;
             _sleepStartRaised = false;
             _timer.Stop();
-            RaiseTick();
         }
+
+        RaiseTick();
     }
 
-    public void BeginSleep()
+    // manual=true is a user-triggered "Sleep now": it sleeps even when session pacing is disabled,
+    // using the configured sleep duration, and auto-wakes the same way the timed cycle does.
+    public void BeginSleep(bool manual = false)
     {
-        if (!_settings.Enabled)
+        if (!_settings.Enabled && !manual)
         {
             Phase = SessionPacerPhase.Disabled;
             RaiseTick();
             return;
         }
 
+        _manualSleep = manual;
         var ranFor = _runStartedAt is null ? TimeSpan.Zero : DateTimeOffset.Now - _runStartedAt.Value;
         _wakeAt = DateTimeOffset.Now.AddMinutes(ApplyVariation(_settings.SleepMinutes));
         Phase = SessionPacerPhase.Sleeping;
         _runDeadline = null;
         _runStartedAt = null;
         _sleepStartRaised = false;
+        _automationActive = false;
         _timer.Start();
-        Logger?.Invoke($"[pacing] session sleep starting (ran {Math.Max(0, ranFor.TotalMinutes):F1}m).");
+        Logger?.Invoke($"[pacing] session sleep starting{(manual ? " (manual)" : string.Empty)} (ran {Math.Max(0, ranFor.TotalMinutes):F1}m).");
         Logger?.Invoke($"[pacing] sleeping for {Format(TimeUntilWake)}.");
         RaiseTick();
     }
@@ -128,7 +140,17 @@ public sealed class SessionPacer
             return;
         }
 
-        _wakeAt = DateTimeOffset.Now;
+        CompleteSleepAndWake();
+    }
+
+    // One-shot wake: leave the Sleeping phase and stop the timer before raising WakeRequested so the
+    // handler's login/resume runs exactly once (the timer-driven wake would otherwise refire each tick).
+    private void CompleteSleepAndWake()
+    {
+        _wakeAt = null;
+        _manualSleep = false;
+        Phase = SessionPacerPhase.Disabled;
+        _timer.Stop();
         Logger?.Invoke("[pacing] waking - resuming.");
         WakeRequested?.Invoke(this, EventArgs.Empty);
         RaiseTick();
@@ -136,7 +158,8 @@ public sealed class SessionPacer
 
     private void TickTimer()
     {
-        if (!_settings.Enabled)
+        // A manual "Sleep now" keeps the countdown alive even when session pacing is turned off.
+        if (!_settings.Enabled && !_manualSleep)
         {
             Configure(_settings with { Enabled = false });
             return;
@@ -149,8 +172,7 @@ public sealed class SessionPacer
         }
         else if (Phase == SessionPacerPhase.Sleeping && TimeUntilWake <= TimeSpan.Zero)
         {
-            Logger?.Invoke("[pacing] waking - resuming.");
-            WakeRequested?.Invoke(this, EventArgs.Empty);
+            CompleteSleepAndWake();
         }
 
         RaiseTick();

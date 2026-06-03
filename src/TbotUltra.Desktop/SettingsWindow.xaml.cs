@@ -13,6 +13,9 @@ public partial class SettingsWindow : Window
     private JsonObject _config = [];
     private bool _isClosing;
 
+    // Set when the user confirms "Sleep now"; MainWindow reads it after ShowDialog to trigger the sleep.
+    public bool SleepNowRequested { get; private set; }
+
     public SettingsWindow(BotConfigStore store)
     {
         InitializeComponent();
@@ -39,6 +42,20 @@ public partial class SettingsWindow : Window
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
+        if (!PersistConfig())
+        {
+            return;
+        }
+
+        _isClosing = true;
+        DialogResult = true;
+        Close();
+    }
+
+    // Writes the current UI values to the config store. Returns false (and shows the error) on failure so
+    // callers can abort closing. Shared by Save and the "Sleep now" button.
+    private bool PersistConfig()
+    {
         try
         {
             _config["headless"] = HeadlessCheckBox.IsChecked == true;
@@ -53,15 +70,38 @@ public partial class SettingsWindow : Window
             _config[BotOptionPayloadKeys.PostLoginAnalyzeHeroInventory] = PostLoginAnalyzeHeroInventoryCheckBox.IsChecked == true;
             _config["silver_limit"] = (int)Math.Round(SilverLimitSlider.Value);
             _store.Save(_config);
-
-            _isClosing = true;
-            DialogResult = true;
-            Close();
+            return true;
         }
         catch (Exception ex)
         {
             AppDialog.Show(this, ex.Message, "Save settings", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
         }
+    }
+
+    private void SleepNowButton_Click(object sender, RoutedEventArgs e)
+    {
+        var confirm = AppDialog.Show(
+            this,
+            "Put the bot to sleep now? It will stop automation, log out, and stay asleep for the configured sleep time before resuming automatically.",
+            "Sleep now",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+        if (confirm != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        // Persist first so the sleep uses the current sleep-time/variation values.
+        if (!PersistConfig())
+        {
+            return;
+        }
+
+        SleepNowRequested = true;
+        _isClosing = true;
+        DialogResult = true;
+        Close();
     }
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
