@@ -1,0 +1,288 @@
+using System;
+using System.Linq;
+using System.Windows.Media;
+using System.Windows.Threading;
+using TbotUltra.Worker.Domain;
+
+namespace TbotUltra.Desktop;
+
+// Visual state for the automation loop / queue execution: the loop state badge,
+// the Start/Pause button appearance, and the build-queue countdown text. Extracted
+// verbatim from MainWindow.xaml.cs to keep that file focused; same class, so this
+// is a pure relocation with no behavior change.
+public partial class MainWindow
+{
+    private void SetLoopIndicator(bool running)
+    {
+        _ = running;
+        UpdateExecutionStateIndicator();
+    }
+
+    private void ApplyStartLoopButtonVisual(string startButtonText)
+    {
+        StartLoopButton.Content = startButtonText;
+        StartLoopButton.IsEnabled = !string.Equals(startButtonText, "Pausing...", StringComparison.Ordinal);
+
+        var highlightPauseState = string.Equals(startButtonText, "Pause bot", StringComparison.Ordinal);
+        if (highlightPauseState)
+        {
+            StartLoopButton.Background = new SolidColorBrush(Color.FromRgb(253, 230, 138));
+            StartLoopButton.BorderBrush = new SolidColorBrush(Color.FromRgb(245, 158, 11));
+            StartLoopButton.Foreground = new SolidColorBrush(Color.FromRgb(120, 53, 15));
+            return;
+        }
+
+        if (string.Equals(startButtonText, "Pausing...", StringComparison.Ordinal))
+        {
+            StartLoopButton.Background = new SolidColorBrush(Color.FromRgb(254, 243, 199));
+            StartLoopButton.BorderBrush = new SolidColorBrush(Color.FromRgb(245, 158, 11));
+            StartLoopButton.Foreground = new SolidColorBrush(Color.FromRgb(120, 53, 15));
+            return;
+        }
+
+        StartLoopButton.Background = new SolidColorBrush(Color.FromRgb(3, 8, 38));
+        StartLoopButton.BorderBrush = new SolidColorBrush(Color.FromRgb(3, 8, 38));
+        StartLoopButton.Foreground = Brushes.White;
+    }
+
+    private void SetLoopStateBadge(string stateText, Color color, string startButtonText)
+    {
+        LoopStateTextBlock.Text = $"State: {stateText}";
+        LoopStateBadge.Background = new SolidColorBrush(color);
+        ApplyStartLoopButtonVisual(startButtonText);
+    }
+
+    private void UpdateExecutionStateIndicator()
+    {
+        UpdateAutomationLoopRunningIndicators();
+
+        var loopRunning = _loopTask is not null && !_loopTask.IsCompleted;
+        var hasPausedQueueItems = false;
+        var hasRunningQueueItems = false;
+        var hasFailedQueueItems = false;
+        var hasDeferredQueueItems = false;
+        var hasReadyQueueItems = false;
+        DateTimeOffset? earliestNextAttemptUtc = null;
+        var enabledGroups = GetContinuousLoopEnabledGroupsInOrder().ToHashSet();
+        try
+        {
+            var nowUtc = DateTimeOffset.UtcNow;
+            var queueItems = _botService.GetQueueItemsForDisplay();
+            var relevantQueueItems = enabledGroups.Count > 0
+                ? queueItems.Where(item => enabledGroups.Contains(item.Group)).ToList()
+                : [];
+            hasPausedQueueItems = relevantQueueItems.Any(item => item.Status == QueueStatus.Paused);
+            hasRunningQueueItems = relevantQueueItems.Any(item => item.Status == QueueStatus.Running);
+            hasFailedQueueItems = relevantQueueItems.Any(item => item.Status == QueueStatus.Failed);
+            hasReadyQueueItems = relevantQueueItems.Any(item =>
+                item.Status == QueueStatus.Pending &&
+                item.NextAttemptAt <= nowUtc);
+            var deferredItems = relevantQueueItems
+                .Where(item => item.Status == QueueStatus.Pending && item.NextAttemptAt > nowUtc)
+                .ToList();
+            hasDeferredQueueItems = deferredItems.Count > 0;
+            if (hasDeferredQueueItems)
+            {
+                earliestNextAttemptUtc = deferredItems.Min(item => item.NextAttemptAt);
+            }
+
+            if (_inlineWaitUntilUtc <= nowUtc)
+            {
+                _inlineWaitUntilUtc = DateTimeOffset.MinValue;
+            }
+        }
+        catch
+        {
+            // Ignore indicator read errors.
+        }
+
+        var nowForWait = DateTimeOffset.UtcNow;
+        var hasInlineWait = _inlineWaitUntilUtc > nowForWait;
+        var functionExecutionRunning = IsFunctionExecutionRunning(hasRunningQueueItems);
+        var continuousModeEnabled = ContinuousRunToggleButton?.IsChecked == true;
+        var continuousModeActive = continuousModeEnabled && (loopRunning || _autoQueueRunning || hasDeferredQueueItems || hasInlineWait || functionExecutionRunning);
+        var pauseRequested = _loopController.LoopStopRequested || _loopController.QueueStopRequested;
+        var activeWorkStopping = pauseRequested && (loopRunning || _autoQueueRunning || _uiBusy || functionExecutionRunning || hasRunningQueueItems);
+
+        if (activeWorkStopping)
+        {
+            SetLoopStateBadge("pausing", Color.FromRgb(217, 119, 6), "Pausing...");
+            return;
+        }
+
+        if (pauseRequested)
+        {
+            SetLoopStateBadge("paused", Color.FromRgb(217, 119, 6), "Start bot");
+            return;
+        }
+
+        if (!continuousModeEnabled)
+        {
+            if ((hasDeferredQueueItems && !hasRunningQueueItems && !_uiBusy && !functionExecutionRunning) || hasInlineWait)
+            {
+                var remainingSeconds = hasInlineWait
+                    ? (int)Math.Ceiling((_inlineWaitUntilUtc - nowForWait).TotalSeconds)
+                    : earliestNextAttemptUtc.HasValue
+                        ? (int)Math.Ceiling((earliestNextAttemptUtc.Value - nowForWait).TotalSeconds)
+                        : 0;
+                remainingSeconds = Math.Max(0, remainingSeconds);
+                LoopStateTextBlock.Text = remainingSeconds > 0
+                    ? $"State: waiting ({FormatCountdown(remainingSeconds)})"
+                    : "State: waiting";
+                LoopStateBadge.Background = new SolidColorBrush(Color.FromRgb(202, 138, 4));
+                ApplyStartLoopButtonVisual((loopRunning || _autoQueueRunning) ? "Pause bot" : "Start bot");
+                return;
+            }
+
+            if (functionExecutionRunning)
+            {
+                SetLoopStateBadge("function running", Color.FromRgb(37, 99, 235), "Pause bot");
+                return;
+            }
+
+            if (loopRunning)
+            {
+                SetLoopStateBadge("loop running", Color.FromRgb(22, 163, 74), "Pause bot");
+                return;
+            }
+
+            if (hasPausedQueueItems)
+            {
+                SetLoopStateBadge("paused", Color.FromRgb(217, 119, 6), "Start bot");
+                return;
+            }
+
+            SetLoopStateBadge("idle", Color.FromRgb(107, 114, 128), "Start bot");
+            return;
+        }
+
+        if ((continuousModeActive || hasInlineWait || hasDeferredQueueItems)
+            && !hasReadyQueueItems
+            && !functionExecutionRunning
+            && !hasRunningQueueItems
+            && !_uiBusy)
+        {
+            if (hasInlineWait || hasDeferredQueueItems)
+            {
+                int remainingSeconds;
+                if (hasInlineWait)
+                {
+                    remainingSeconds = (int)Math.Ceiling((_inlineWaitUntilUtc - nowForWait).TotalSeconds);
+                }
+                else
+                {
+                    remainingSeconds = earliestNextAttemptUtc.HasValue
+                        ? (int)Math.Ceiling((earliestNextAttemptUtc.Value - nowForWait).TotalSeconds)
+                        : 0;
+                }
+
+                _ = Math.Max(0, remainingSeconds);
+                SetLoopStateBadge("waiting", Color.FromRgb(202, 138, 4), (loopRunning || _autoQueueRunning) ? "Pause bot" : "Start bot");
+                return;
+            }
+
+            if (continuousModeActive)
+            {
+                SetLoopStateBadge("idle", Color.FromRgb(107, 114, 128), "Pause bot");
+                return;
+            }
+        }
+
+        if (continuousModeActive)
+        {
+            SetLoopStateBadge("running", Color.FromRgb(22, 163, 74), "Pause bot");
+            return;
+        }
+
+        if (functionExecutionRunning)
+        {
+            SetLoopStateBadge("running", Color.FromRgb(22, 163, 74), "Pause bot");
+            return;
+        }
+
+        if (loopRunning)
+        {
+            SetLoopStateBadge("running", Color.FromRgb(22, 163, 74), "Pause bot");
+            return;
+        }
+
+        if (hasPausedQueueItems)
+        {
+            SetLoopStateBadge("paused", Color.FromRgb(217, 119, 6), "Start bot");
+            return;
+        }
+
+        SetLoopStateBadge("idle", Color.FromRgb(107, 114, 128), "Start bot");
+    }
+
+    private void UpdateExecutionStateIndicatorOnUiThread()
+    {
+        if (Dispatcher.CheckAccess())
+        {
+            UpdateExecutionStateIndicator();
+            return;
+        }
+
+        _ = Dispatcher.BeginInvoke(() => UpdateExecutionStateIndicator());
+    }
+
+    private void UpdateBuildQueueStatusText()
+    {
+        if (_buildQueueActiveCount <= 0)
+        {
+            BuildQueueStatusTextBlock.Text = "Build queue: idle";
+            return;
+        }
+
+        if (_buildQueueRemainingSeconds >= 0)
+        {
+            BuildQueueStatusTextBlock.Text = $"Build queue: active={_buildQueueActiveCount}, remaining={FormatCountdown(_buildQueueRemainingSeconds)}";
+            return;
+        }
+
+        BuildQueueStatusTextBlock.Text = $"Build queue: active={_buildQueueActiveCount}, remaining=-";
+    }
+
+    private void TickBuildQueueCountdown()
+    {
+        if (_buildQueueRemainingSeconds > 0)
+        {
+            _buildQueueRemainingSeconds -= 1;
+            if (_buildQueueRemainingSeconds == 0)
+            {
+                _buildQueueReachedZeroPendingCompletion = true;
+            }
+        }
+
+        if (_buildQueueRemainingSeconds == 0 && _buildQueueActiveCount > 0)
+        {
+            if (_buildQueueReachedZeroPendingCompletion)
+            {
+                _buildQueueReachedZeroPendingCompletion = false;
+            }
+            else
+            {
+                _buildQueueActiveCount = Math.Max(0, _buildQueueActiveCount - 1);
+                if (_buildQueueActiveCount > 0)
+                {
+                    _buildQueueRemainingSeconds = -1;
+                }
+            }
+        }
+
+        UpdateBuildQueueStatusText();
+        UpdateAutomationLoopRunningIndicators();
+    }
+
+    private static string FormatCountdown(int seconds)
+    {
+        var value = Math.Max(0, seconds);
+        var time = TimeSpan.FromSeconds(value);
+        if (time.TotalHours >= 1)
+        {
+            return $"{(int)time.TotalHours:00}:{time.Minutes:00}:{time.Seconds:00}";
+        }
+
+        return $"{time.Minutes:00}:{time.Seconds:00}";
+    }
+}
