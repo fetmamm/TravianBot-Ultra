@@ -750,6 +750,13 @@ public partial class MainWindow
         {
             ClearBreweryBlockedState();
         }
+        else if (option.IsEnabled
+            && string.Equals(option.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Construction), StringComparison.OrdinalIgnoreCase))
+        {
+            // Toggling Construction off then on resets any resource-wait timer so the loop re-reads
+            // and restarts the function instead of waiting out the old timer.
+            ResetDeferredConstructionWaitsNow("construction group re-enabled");
+        }
 
         var continuousLoopWillHandle = option.IsEnabled
             && ContinuousRunToggleButton?.IsChecked == true

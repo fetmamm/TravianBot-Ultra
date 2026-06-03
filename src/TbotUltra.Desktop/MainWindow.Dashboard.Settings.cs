@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using System.Windows;
 using TbotUltra.Core.Configuration;
 
@@ -39,6 +40,13 @@ public partial class MainWindow
         var config = _botConfigStore.Load();
         config[BotOptionPayloadKeys.AutoCollectTasksEnabled] = AutoCollectTasksCheckBox.IsChecked == true;
         _botConfigStore.Save(config);
+
+        // Checked while the loop is already running → check/queue immediately instead of waiting
+        // for the next 16s refresh.
+        if (AutoCollectTasksCheckBox.IsChecked == true)
+        {
+            TriggerImmediateIfLoopRunning(options => TryQueueAutoCollectTasksAsync(options));
+        }
     }
 
     private void ApplyAutoCollectDailyQuestsConfigToUi(BotOptions options)
@@ -69,6 +77,12 @@ public partial class MainWindow
         var config = _botConfigStore.Load();
         config[BotOptionPayloadKeys.AutoCollectDailyQuestsEnabled] = AutoCollectDailyQuestsCheckBox.IsChecked == true;
         _botConfigStore.Save(config);
+
+        // Checked while the loop is already running → check/queue immediately.
+        if (AutoCollectDailyQuestsCheckBox.IsChecked == true)
+        {
+            TriggerImmediateIfLoopRunning(options => TryQueueAutoCollectDailyQuestsAsync(options));
+        }
     }
 
     private bool _suppressHeroResourceTransferConfigWrite;
@@ -101,6 +115,31 @@ public partial class MainWindow
         var config = _botConfigStore.Load();
         config[BotOptionPayloadKeys.HeroResourceTransferEnabled] = HeroResourceTransferCheckBox.IsChecked == true;
         _botConfigStore.Save(config);
+
+        // Checked → a construction that is waiting for resources might now be buildable using the
+        // hero's inventory resources. Reset the construction wait so the loop re-checks immediately
+        // instead of waiting out the timer.
+        if (HeroResourceTransferCheckBox.IsChecked == true)
+        {
+            ResetDeferredConstructionWaitsNow("hero resource transfer enabled");
+        }
+    }
+
+    // Fire the given immediate check only while the continuous loop is actually running and the
+    // browser session is usable. The action (the same one the 16s refresh runs) self-guards and
+    // de-duplicates, so this won't double-queue.
+    private void TriggerImmediateIfLoopRunning(Func<BotOptions, Task> action)
+    {
+        var loopRunning = ContinuousRunToggleButton?.IsChecked == true
+            && _loopTask is not null
+            && !_loopTask.IsCompleted;
+        if (!loopRunning || !_isLoggedIn || !_browserSessionLikelyOpen)
+        {
+            return;
+        }
+
+        var options = LoadBotOptions();
+        _ = action(options);
     }
 
     // Opens the Hero / Adventures tab so the user can reach the hero inventory settings.

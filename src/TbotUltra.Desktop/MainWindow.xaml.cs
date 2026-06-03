@@ -2702,6 +2702,34 @@ public partial class MainWindow : Window
         await Dispatcher.InvokeAsync(() => RefreshQueueUi());
     }
 
+    // Makes every pending (deferred) construction item ready to retry right now. Used when the user
+    // changes a setting that could let a blocked upgrade proceed immediately (e.g. enabling hero
+    // resource transfer, or toggling the Construction group off then on) so the loop re-reads
+    // instead of waiting out the existing timer.
+    private void ResetDeferredConstructionWaitsNow(string source)
+    {
+        var items = _botService.GetQueueItemsForDisplay()
+            .Where(item => item.Status == QueueStatus.Pending)
+            .Where(item => IsConstructionQueueTask(item.TaskName))
+            .ToList();
+
+        var resetCount = 0;
+        foreach (var item in items)
+        {
+            if (_botService.UpdateDeferredQueueItem(item.Id, item.Payload, TimeSpan.Zero))
+            {
+                resetCount++;
+            }
+        }
+
+        if (resetCount > 0)
+        {
+            AppendLog($"Construction waits reset ({source}): {resetCount} item(s) will retry now.");
+        }
+
+        RefreshQueueUi();
+    }
+
     private void TriggerDeferredTroopTrainingWaitRefresh(VillageStatus status, string source, bool force = false)
     {
         if (!force && status.Resources.Count == 0)
