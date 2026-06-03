@@ -1,5 +1,22 @@
 # Session pacing & action pacing
 
+## Status 2026-06-03
+
+Implemented:
+- `SessionPacer` service + `MainWindow.SessionPacing.cs` wiring.
+- Separate countdown panel to the left of the topbar, sleeping override button (`Run now`), and settings shortcut.
+- Controlled sleep flow: stop automation, logout without clearing saved browser state, sleep countdown, wake/login, restart continuous run when enabled.
+- `ActionPacer` + `PacingDefaults` in Core.
+- Action pacing config via `BotOptions`, factory, payload applier, and Settings UI.
+- Pacing points: before continuous-loop task, after `GotoAsync`, between manual farm sends, and loop-wait floor.
+- Settings popup section **Bot behavior** with info icons and pacing-only reset icon.
+- Build/test verified: `dotnet build TbotUltra.sln`, `dotnet test TbotUltra.sln --no-build`.
+
+Not live-verified yet:
+- 1 min run / 1 min sleep full cycle.
+- Sleeping override (`Run now`) against a real logged-in Travian session.
+- Official + SS smoke run for pacing regressions.
+
 ## Context
 Boten kan idag köra automation oavbrutet 24/7 (continuous loop + queue), vilket är
 aggressivt mot servern och mindre stabilt. Vi vill att programmet kör i kontrollerade
@@ -93,7 +110,7 @@ Pacing-fält (globala, ej i `AccountScopedKeys`):
   `session_pacing_sleep_minutes` (60), `session_pacing_variation_percent` (15).
 - Action: `action_pacing_enabled` (default true), `action_pacing_task_*`, `action_pacing_pageload_*`,
   `action_pacing_click_*`, `action_pacing_loop_*` (min/max sekunder per typ, rimliga defaults t.ex.
-  task 1–3s, pageload 0.5–1.5s, click 0.3–0.8s, loop 2–5s).
+  task 1–3s, pageload 0.3–1.0s, click 0.3–0.8s, loop 2–5s).
 
 Spegla **end-to-end** enligt ENGINEERING_NOTES §8 ("Dashboard-settings-mönster"):
 - [BotOptionPayloadKeys.cs](src/TbotUltra.Core/Configuration/BotOptionPayloadKeys.cs) — nya nyckel-konstanter.
