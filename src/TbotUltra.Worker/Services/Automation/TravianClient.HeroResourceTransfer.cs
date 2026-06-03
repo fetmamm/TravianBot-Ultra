@@ -160,6 +160,13 @@ public sealed partial class TravianClient
             // Logging / cache sync only — ignore failures reading the pre-filled amounts.
         }
 
+        var actualInventory = await ReadHeroInventoryFromTransferDialogAsync(cancellationToken);
+        if (actualInventory is not null)
+        {
+            Notify($"[hero-transfer] inventory resynced from dialog: wood={actualInventory.Wood} clay={actualInventory.Clay} iron={actualInventory.Iron} crop={actualInventory.Crop}");
+            UpdateHeroInventoryCache(actualInventory);
+        }
+
         bool confirmed;
         try
         {
@@ -241,6 +248,90 @@ public sealed partial class TravianClient
         }
 
         return true;
+    }
+
+    private async Task<HeroInventoryResources?> ReadHeroInventoryFromTransferDialogAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        string json;
+        try
+        {
+            json = await _page.EvaluateAsync<string>(
+                """
+                () => {
+                  const dialog = document.querySelector('div.resourceTransferDialog')
+                    || ((document.querySelector('#dialogContent h3')?.textContent || '').trim().toLowerCase() === 'transfer resources'
+                      ? document.querySelector('#dialogContent')
+                      : null);
+                  if (!dialog) return '';
+
+                  const parseCount = (text) => {
+                    const normalized = (text || '').replace(/[^0-9]/g, '');
+                    return normalized ? Number(normalized) || 0 : 0;
+                  };
+
+                  const findCountForInput = (name) => {
+                    const input = dialog.querySelector('input[name="' + name + '"]');
+                    if (!input) return null;
+
+                    let node = input;
+                    while (node && node !== dialog) {
+                      const count = node.querySelector?.('.count');
+                      const inputs = Array.from(node.querySelectorAll?.('input[name="lumber"], input[name="clay"], input[name="iron"], input[name="crop"]') || []);
+                      if (count && inputs.length <= 1) return parseCount(count.textContent);
+
+                      const previous = node.previousElementSibling;
+                      if (previous?.matches?.('.count')) return parseCount(previous.textContent);
+                      const next = node.nextElementSibling;
+                      if (next?.matches?.('.count')) return parseCount(next.textContent);
+
+                      node = node.parentElement;
+                    }
+
+                    return null;
+                  };
+
+                  const values = {
+                    wood: findCountForInput('lumber'),
+                    clay: findCountForInput('clay'),
+                    iron: findCountForInput('iron'),
+                    crop: findCountForInput('crop')
+                  };
+
+                  if (Object.values(values).every(value => value === null)) return '';
+
+                  return JSON.stringify({
+                    wood: values.wood ?? 0,
+                    clay: values.clay ?? 0,
+                    iron: values.iron ?? 0,
+                    crop: values.crop ?? 0
+                  });
+                }
+                """);
+        }
+        catch (PlaywrightException ex)
+        {
+            Notify($"[hero-transfer] inventory dialog resync skipped: {ex.Message}");
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<HeroInventoryResources>(
+                json,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (JsonException ex)
+        {
+            Notify($"[hero-transfer] inventory dialog resync parse failed: {ex.Message}");
+            return null;
+        }
     }
 
     // --- In-memory hero inventory cache (per account+server) -------------------------------------

@@ -1,5 +1,19 @@
 # Hero Inventory — auto-resynk från transfer-dialogen
 
+## Status
+
+- **Implemented 2026-06-03** in `src/TbotUltra.Worker/Services/Automation/TravianClient.HeroResourceTransfer.cs`.
+- The transfer dialog is now read for live hero inventory `.count` values before clicking
+  "Transfer selected".
+- Successful dialog reads call `UpdateHeroInventoryCache(actual)` and emit the existing
+  `HeroInventoryUpdated` event, so the Hero tab can update live.
+- The existing post-confirm `DeductFromHeroInventoryCache(transferred)` behavior remains in place,
+  now deducting from the freshly resynced dialog values.
+- `docs/ENGINEERING_NOTES.md` was updated with the dialog-resync decision and the corrected
+  `PostLoginAnalyzeHeroInventory` default.
+- Verified with `dotnet build TbotUltra.sln /p:UseAppHost=false` and
+  `dotnet test src\TbotUltra.Worker.Tests\TbotUltra.Worker.Tests.csproj`.
+
 ## Context
 
 Boten visar och använder hjältens inventarie-resurser (wood/clay/iron/crop) både i Hero-fliken

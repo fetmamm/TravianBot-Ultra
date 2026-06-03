@@ -47,6 +47,16 @@ already correctly gated by the per-feature settings and de-duplicated
 safe and desirable to run it promptly. The AutoQueue path is unaffected (it uses the store's
 `SelectNextQueueItem`, which is not group-gated).
 
+## Status
+
+- **Implemented 2026-06-03** in `src/TbotUltra.Desktop/MainWindow.ContinuousLoop.cs`.
+- Added `IsAlwaysOnUtilityTask(...)` for `collect_tasks` and `collect_daily_quests`.
+- `SelectNextQueueItemForContinuousLoop()` now picks ready collect utility tasks before checking
+  enabled automation-loop groups or `IsConstructionGroupReady()`.
+- Existing group assignment remains unchanged: both tasks still display/store as `Construction`.
+- Focused unit test not added: the selector is private and depends on `MainWindow` UI state; avoided
+  widening visibility for this narrow scheduling fix.
+
 ## Change
 
 All edits are in **one method file**: `src/TbotUltra.Desktop/MainWindow.ContinuousLoop.cs`.
@@ -90,6 +100,11 @@ All edits are in **one method file**: `src/TbotUltra.Desktop/MainWindow.Continuo
   Optionally adjust the verbose skip messaging if desired (not required).
 
 ## Verification
+
+Implementation note 2026-06-03: source changes are in place and verified with:
+
+- `dotnet test src\TbotUltra.Worker.Tests\TbotUltra.Worker.Tests.csproj --filter "QueueStoreAndSchedulerTests|TaskCatalog"`
+- `dotnet build TbotUltra.sln /p:UseAppHost=false`
 
 1. `dotnet build TbotUltra.sln` and `dotnet test` (queue/scheduler + task-catalog tests still pass; no
    group reassignment, so existing `InlineData` for `collect_*` → `Construction` remain valid).

@@ -375,7 +375,7 @@ public partial class MainWindow
     // de-duplicated so the same collection is never queued twice.
     private async Task TryQueueAutoCollectTasksAsync(BotOptions options)
     {
-        if (!options.AutoCollectTasksEnabled)
+        if (!IsAutoCollectTasksEnabledNow(options))
         {
             // Setting turned off — make sure nothing that was queued earlier keeps running.
             RemovePendingCollectTasks();
@@ -406,7 +406,7 @@ public partial class MainWindow
     // de-duplicated so the same collection is never queued twice.
     private async Task TryQueueAutoCollectDailyQuestsAsync(BotOptions options)
     {
-        if (!options.AutoCollectDailyQuestsEnabled)
+        if (!IsAutoCollectDailyQuestsEnabledNow(options))
         {
             RemovePendingCollectDailyQuests();
             return;
@@ -429,6 +429,69 @@ public partial class MainWindow
         {
             AppendLog($"Auto collect daily quests check skipped: {ex.Message}");
         }
+    }
+
+    private bool IsAutoCollectTasksEnabledNow(BotOptions options)
+    {
+        if (!options.AutoCollectTasksEnabled)
+        {
+            return false;
+        }
+
+        return ReadCheckBoxChecked(AutoCollectTasksCheckBox, fallback: options.AutoCollectTasksEnabled);
+    }
+
+    private bool IsAutoCollectDailyQuestsEnabledNow(BotOptions options)
+    {
+        if (!options.AutoCollectDailyQuestsEnabled)
+        {
+            return false;
+        }
+
+        return ReadCheckBoxChecked(AutoCollectDailyQuestsCheckBox, fallback: options.AutoCollectDailyQuestsEnabled);
+    }
+
+    private bool IsAutoCollectUtilityTaskEnabledNow(string? taskName, BotOptions options)
+    {
+        if (string.Equals(taskName, "collect_tasks", StringComparison.OrdinalIgnoreCase))
+        {
+            return IsAutoCollectTasksEnabledNow(options);
+        }
+
+        if (string.Equals(taskName, "collect_daily_quests", StringComparison.OrdinalIgnoreCase))
+        {
+            return IsAutoCollectDailyQuestsEnabledNow(options);
+        }
+
+        return true;
+    }
+
+    private void RemoveDisabledAutoCollectUtilityItems(BotOptions options)
+    {
+        if (!IsAutoCollectTasksEnabledNow(options))
+        {
+            RemovePendingCollectTasks();
+        }
+
+        if (!IsAutoCollectDailyQuestsEnabledNow(options))
+        {
+            RemovePendingCollectDailyQuests();
+        }
+    }
+
+    private bool ReadCheckBoxChecked(System.Windows.Controls.CheckBox? checkBox, bool fallback)
+    {
+        if (checkBox is null)
+        {
+            return fallback;
+        }
+
+        if (Dispatcher.CheckAccess())
+        {
+            return checkBox.IsChecked == true;
+        }
+
+        return Dispatcher.Invoke(() => checkBox.IsChecked == true);
     }
 
     private bool HasActiveCollectDailyQuestsTask()

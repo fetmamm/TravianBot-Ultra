@@ -358,6 +358,22 @@ public partial class MainWindow
 
     private QueueItem? SelectNextQueueItemForContinuousLoop()
     {
+        var options = LoadBotOptions();
+        RemoveDisabledAutoCollectUtilityItems(options);
+        var queueItems = _botService.GetQueueItemsForDisplay();
+        var now = DateTimeOffset.UtcNow;
+        var readyUtilityItem = OrderContinuousLoopGroupItems(
+                queueItems.Where(item =>
+                    IsAlwaysOnUtilityTask(item.TaskName) &&
+                    IsAutoCollectUtilityTaskEnabledNow(item.TaskName, options) &&
+                    item.Status == QueueStatus.Pending &&
+                    item.NextAttemptAt <= now))
+            .FirstOrDefault();
+        if (readyUtilityItem is not null)
+        {
+            return readyUtilityItem;
+        }
+
         var orderedGroups = GetContinuousLoopEnabledGroupsInOrder().ToList();
         if (orderedGroups.Count <= 0)
         {
@@ -367,8 +383,6 @@ public partial class MainWindow
             return null;
         }
 
-        var queueItems = _botService.GetQueueItemsForDisplay();
-        var now = DateTimeOffset.UtcNow;
         string? lastSkipReason = null;
         foreach (var group in orderedGroups)
         {
@@ -384,6 +398,7 @@ public partial class MainWindow
             var orderedGroupItems = OrderContinuousLoopGroupItems(
                 queueItems.Where(item =>
                     item.Group == group &&
+                    (!IsAlwaysOnUtilityTask(item.TaskName) || IsAutoCollectUtilityTaskEnabledNow(item.TaskName, options)) &&
                     item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused));
             if (group == QueueGroup.Construction)
             {
@@ -438,6 +453,10 @@ public partial class MainWindow
             $"no-selected:{orderedGroups.Count}:{BuildLoopPickSkipKey(lastSkipReason)}");
         return null;
     }
+
+    private static bool IsAlwaysOnUtilityTask(string? taskName) =>
+        string.Equals(taskName, "collect_tasks", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "collect_daily_quests", StringComparison.OrdinalIgnoreCase);
 
     private bool HasReadyContinuousConstructionItem()
     {

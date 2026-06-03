@@ -110,7 +110,7 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   NPC-trade när båda är på. Integrerat på samma 5 ställen som `TryNpcTradeForConstructionAsync`.
 - **2026-06-02** — Hero inventory-resurser (item145/146/147/148 → `.count`) läses från `/hero/inventory`
   via `ReadHeroInventoryResourcesAsync`. Visas i Hero-fliken (4 fält + Refresh), valbar post-login-läsning
-  (`PostLoginAnalyzeHeroInventory`, default OFF). Adventures-kortet flyttat upp i Settings-kortet.
+  (`PostLoginAnalyzeHeroInventory`, default ON). Adventures-kortet flyttat upp i Settings-kortet.
 - **2026-06-02** — Hero inventory cachas i minnet (statisk dict keyed `account|baseUrl`, som hero-attribut-
   snapshoten). Uppdateras vid varje full läsning och efter en transfer (drar av de auto-fyllda beloppen, ingen
   extra navigering). Statiskt event `TravianClient.HeroInventoryUpdated(account, resources)` → Desktop
@@ -140,6 +140,10 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
 - **2026-06-02** — Hero attribute priority default is flavor-aware: official servers default to
   `resources,fighting_strength,offence_bonus,defence_bonus`; SS/legacy keeps the old combat-first order.
   `hero_stat_priority` is account-scoped, so explicit user reordering is preserved per account.
+- **2026-06-03** — Hero resource-transfer dialog resyncs hero inventory cache from the dialog's live
+  `.count` values before clicking "Transfer selected", then deducts the transferred amounts after confirm.
+  This keeps Hero-tab inventory and the next proactive transfer decision closer to Travian's live state
+  without navigating to `/hero/inventory`.
 
 ---
 
