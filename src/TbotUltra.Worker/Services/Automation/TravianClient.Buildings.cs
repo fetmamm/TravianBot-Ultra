@@ -216,6 +216,12 @@ public sealed partial class TravianClient
             // Step 3: open the slot's build page.
             await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
             await PauseForManualStepIfVisibleAsync($"Manual verification on slot {slotId}.", cancellationToken);
+            // Wait for the build slot controls to render before reading/clicking. GotoAsync only waits
+            // for DOMContentLoaded, which does not guarantee the upgrade button is present yet (slow
+            // pages / official &reload=auto timer pages). Reuse the same readiness gate as the
+            // actionability analysis: it reloads once if not ready and returns immediately when already
+            // rendered, so we never read/click a half-loaded page without slowing the happy path.
+            await EnsureExpectedBuildSlotPageAsync(slotId, "upgrade", cancellationToken);
 
             // Step 4: read the upgrade duration so we know how long to wait.
             var durationSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken) ?? 0;
@@ -223,7 +229,7 @@ public sealed partial class TravianClient
             var populationDelta = await ReadUpgradePopulationDeltaOnCurrentPageAsync(cancellationToken);
 
             // Step 5: click the "Upgrade to level N" button.
-            var clicked = await ClickUpgradeToLevelButtonAsync(nextLevel, cancellationToken);
+            var clicked = await ClickUpgradeToLevelButtonAsync(slotId, nextLevel, cancellationToken);
             if (!clicked)
             {
                 var state = await DetectBuildPageStateAsync();
@@ -281,7 +287,12 @@ public sealed partial class TravianClient
                     await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
                     continue;
                 }
-                return $"Slot {slotId}: could not find 'Upgrade to level {nextLevel}' button. Reason: {actionability.Outcome} ({actionability.Reason}). Upgrades performed: {upgrades}.";
+                var flavorLabel = _config.IsPrivateServer ? "SsTravi" : "Official";
+                var candidateSummary = string.IsNullOrWhiteSpace(actionability.DebugSummary) ? "none" : actionability.DebugSummary;
+                return $"Slot {slotId}: could not find 'Upgrade to level {nextLevel}' button. "
+                    + $"Reason: {actionability.Outcome} ({actionability.Reason}). "
+                    + $"flavor={flavorLabel} url='{_page.Url}' candidates=[{candidateSummary}]. "
+                    + $"Upgrades performed: {upgrades}.";
             }
 
             upgrades += 1;
@@ -736,7 +747,7 @@ public sealed partial class TravianClient
         }
     }
 
-    private async Task<bool> ClickUpgradeToLevelButtonAsync(int nextLevel, CancellationToken cancellationToken)
+    private async Task<bool> ClickUpgradeToLevelButtonAsync(int slotId, int nextLevel, CancellationToken cancellationToken)
     {
         var pattern = new Regex($@"upgrade\s+to\s+level\s+{nextLevel}\b", RegexOptions.IgnoreCase);
         var anyPattern = new Regex(@"upgrade\s+to\s+level", RegexOptions.IgnoreCase);
@@ -791,9 +802,19 @@ public sealed partial class TravianClient
             }
         }
 
+        var flavor = _config.IsPrivateServer ? "SsTravi" : "Official";
         if (!string.IsNullOrWhiteSpace(lastError))
         {
-            Notify($"Could not click upgrade button for level {nextLevel}. Last click error: {lastError}");
+            Notify($"[build:verbose] could not click 'Upgrade to level {nextLevel}' button "
+                + $"(slot {slotId}, flavor {flavor}, url '{_page.Url}'). Last click error: {lastError}");
+        }
+        else
+        {
+            // No selector matched at all — distinguish this from a click error so logs show whether the
+            // button was simply absent (wrong/half-loaded page, resource-blocked state) vs present but
+            // not actionable. The caller falls back to actionability analysis for the candidate detail.
+            Notify($"[build:verbose] no 'Upgrade to level {nextLevel}' button matched any selector "
+                + $"(slot {slotId}, flavor {flavor}, url '{_page.Url}'). Falling back to actionability analysis.");
         }
 
         return false;
@@ -858,6 +879,8 @@ public sealed partial class TravianClient
             // Step 3: open the slot's build page.
             await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
             await PauseForManualStepIfVisibleAsync($"Manual verification on slot {slotId}.", cancellationToken);
+            // Wait for the build slot controls to render before reading/clicking (see UpgradeBuildingToLevelAsync).
+            await EnsureExpectedBuildSlotPageAsync(slotId, "upgrade-to-max", cancellationToken);
 
             // Step 4: read upgrade duration so we know how long to wait.
             var durationSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken) ?? 0;
@@ -865,7 +888,7 @@ public sealed partial class TravianClient
             var populationDelta = await ReadUpgradePopulationDeltaOnCurrentPageAsync(cancellationToken);
 
             // Step 5: click "Upgrade to level N".
-            var clicked = await ClickUpgradeToLevelButtonAsync(nextLevel, cancellationToken);
+            var clicked = await ClickUpgradeToLevelButtonAsync(slotId, nextLevel, cancellationToken);
             if (!clicked)
             {
                 var state = await DetectBuildPageStateAsync();
@@ -923,7 +946,12 @@ public sealed partial class TravianClient
                     await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
                     continue;
                 }
-                return $"Slot {slotId}: could not find 'Upgrade to level {nextLevel}' button. Reason: {actionability.Outcome} ({actionability.Reason}). Upgrades performed: {upgrades}.";
+                var flavorLabel = _config.IsPrivateServer ? "SsTravi" : "Official";
+                var candidateSummary = string.IsNullOrWhiteSpace(actionability.DebugSummary) ? "none" : actionability.DebugSummary;
+                return $"Slot {slotId}: could not find 'Upgrade to level {nextLevel}' button. "
+                    + $"Reason: {actionability.Outcome} ({actionability.Reason}). "
+                    + $"flavor={flavorLabel} url='{_page.Url}' candidates=[{candidateSummary}]. "
+                    + $"Upgrades performed: {upgrades}.";
             }
 
             upgrades += 1;

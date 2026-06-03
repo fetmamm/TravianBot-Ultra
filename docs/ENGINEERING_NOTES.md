@@ -210,6 +210,15 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   reads and a short IOException retry. bot.json/settings.json were read+written from many concurrent contexts (UI
   dispatcher, continuous loop, background `Task.Run` refreshes) with unsynchronized `File.ReadAllText`/`WriteAllText`,
   causing intermittent `The process cannot access the file ... because it is being used by another process`.
+- **2026-06-03** - Build/upgrade render-timing hardening. Both `UpgradeBuildingToLevelAsync` and
+  `UpgradeBuildingToMaxAsync` now call the existing `EnsureExpectedBuildSlotPageAsync` (slot-URL check +
+  `WaitForBuildSlotContextAsync` on `#build/#contract/.upgradeBuilding/...` with one reload retry) AFTER
+  `GotoAsync(BuildBySlot)` and BEFORE reading duration/clicking. GotoAsync only awaits DOMContentLoaded, which
+  did not guarantee the upgrade button was rendered (slow pages / official `&reload=auto` timer pages); the gate
+  is instant when the page is already ready, so the happy path is not slowed. Construct already gates inside
+  `ClickConstructBuildingButtonAsync` (left unchanged). Diagnostics: `ClickUpgradeToLevelButtonAsync` now logs
+  slot/flavor/url on failure and distinguishes "no selector matched" from a click error; the final
+  `could not find 'Upgrade to level N'` message includes `flavor`, `url`, and the analyzer candidate summary.
 - **2026-06-03** - Empty building slots no longer report the misleading `could not find 'Upgrade to level N' button.
   Reason: CanUpgrade (Detected candidate 'construct building ...')`. `DetectBuildPageStateAsync` now returns
   `EmptyConstructionSlot` (structural, language-independent: `[id^="contract_building"]` present and no
