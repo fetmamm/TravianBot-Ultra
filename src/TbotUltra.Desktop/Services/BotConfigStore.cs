@@ -176,6 +176,18 @@ public sealed class BotConfigStore
         return node;
     }
 
+    public void SaveGlobal(JsonObject config)
+    {
+        var globalConfig = config.DeepClone().AsObject();
+        RemoveDeprecatedTechnicalKeys(globalConfig);
+        foreach (var key in AccountScopedKeys)
+        {
+            globalConfig.Remove(key);
+        }
+
+        SaveJson(_configPath, globalConfig);
+    }
+
     public void Save(JsonObject config)
     {
         RemoveDeprecatedTechnicalKeys(config);

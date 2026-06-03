@@ -193,6 +193,7 @@ public static class LogClassifier
             "[nav]",
             "[ensure-logged-in",
             "[flavor]",
+            "[pacing]",
             // High-volume lifecycle/bookkeeping tags the user doesn't need in Clean mode.
             "[queue]",
             "[login]",

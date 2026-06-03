@@ -96,6 +96,37 @@ public sealed class BotConfigStoreTests : IDisposable
     }
 
     [Fact]
+    public void SaveGlobal_DoesNotWriteAccountScopedOverlayValues()
+    {
+        WriteJson(
+            _configPath,
+            new JsonObject
+            {
+                ["server_name"] = "Global",
+                ["base_url"] = "https://example.com",
+                ["headless"] = false,
+            });
+        WriteJson(
+            AccountStoragePaths.AccountSettingsPath(_root, "alice"),
+            new JsonObject
+            {
+                [BotOptionPayloadKeys.HeroHpRegenPerDayPercent] = 70,
+            });
+        var store = CreateStore();
+        var config = store.Load();
+        config["headless"] = true;
+
+        store.SaveGlobal(config);
+
+        var global = JsonNode.Parse(File.ReadAllText(_configPath))!.AsObject();
+        Assert.True(global["headless"]!.GetValue<bool>());
+        Assert.False(global.ContainsKey(BotOptionPayloadKeys.HeroHpRegenPerDayPercent));
+
+        var account = JsonNode.Parse(File.ReadAllText(AccountStoragePaths.AccountSettingsPath(_root, "alice")))!.AsObject();
+        Assert.Equal(70, account[BotOptionPayloadKeys.HeroHpRegenPerDayPercent]!.GetValue<int>());
+    }
+
+    [Fact]
     public void ResetSettingsToDefaults_KeepsServerAndClearsSavedSettings()
     {
         WriteJson(

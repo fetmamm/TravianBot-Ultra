@@ -2131,7 +2131,7 @@ public partial class MainWindow : Window
 
     private void UpdateClockText()
     {
-        ClockTextBlock.Text = $"Time: {GetServerNow():yyyy-MM-dd HH:mm:ss} server";
+        ClockTextBlock.Text = $"Time: {GetServerNow():yyyy-MM-dd HH:mm:ss}";
     }
 
     private string FormatQueueServerTime(DateTimeOffset utcTimestamp)
@@ -3447,6 +3447,12 @@ public partial class MainWindow : Window
         if (activeWorkStopping)
         {
             SetLoopStateBadge("pausing", Color.FromRgb(217, 119, 6), "Pausing...");
+            return;
+        }
+
+        if (pauseRequested)
+        {
+            SetLoopStateBadge("paused", Color.FromRgb(217, 119, 6), "Start bot");
             return;
         }
 

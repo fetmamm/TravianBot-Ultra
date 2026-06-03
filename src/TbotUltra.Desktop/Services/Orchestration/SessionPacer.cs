@@ -128,8 +128,7 @@ public sealed class SessionPacer
         _sleepStartRaised = false;
         _automationActive = false;
         _timer.Start();
-        Logger?.Invoke($"[pacing] session sleep starting{(manual ? " (manual)" : string.Empty)} (ran {Math.Max(0, ranFor.TotalMinutes):F1}m).");
-        Logger?.Invoke($"[pacing] sleeping for {Format(TimeUntilWake)}.");
+        Logger?.Invoke($"Session sleep starting{(manual ? " (manual)" : string.Empty)}; sleeping for {Format(TimeUntilWake)}.");
         RaiseTick();
     }
 
@@ -151,7 +150,7 @@ public sealed class SessionPacer
         _manualSleep = false;
         Phase = SessionPacerPhase.Disabled;
         _timer.Stop();
-        Logger?.Invoke("[pacing] waking - resuming.");
+        Logger?.Invoke("Session waking - resuming.");
         WakeRequested?.Invoke(this, EventArgs.Empty);
         RaiseTick();
     }

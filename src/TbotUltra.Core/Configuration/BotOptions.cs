@@ -374,7 +374,7 @@ public sealed class BotOptions
     /// <summary>How much hero HP regenerates per day, in percent (20–100). Used to compute how long
     /// to defer the hero group when HP is below the adventure threshold.</summary>
     [ConfigurationKeyName("hero_hp_regen_per_day_percent")]
-    public int HeroHpRegenPerDayPercent { get; init; } = 20;
+    public int HeroHpRegenPerDayPercent { get; init; } = 40;
 
     [ConfigurationKeyName("hero_auto_revive")]
     public bool HeroAutoRevive { get; init; } = true;

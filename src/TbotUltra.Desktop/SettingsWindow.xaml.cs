@@ -69,7 +69,7 @@ public partial class SettingsWindow : Window
             _config[BotOptionPayloadKeys.PostLoginAnalyzeBrewery] = PostLoginAnalyzeBreweryCheckBox.IsChecked == true;
             _config[BotOptionPayloadKeys.PostLoginAnalyzeHeroInventory] = PostLoginAnalyzeHeroInventoryCheckBox.IsChecked == true;
             _config["silver_limit"] = (int)Math.Round(SilverLimitSlider.Value);
-            _store.Save(_config);
+            _store.SaveGlobal(_config);
             return true;
         }
         catch (Exception ex)

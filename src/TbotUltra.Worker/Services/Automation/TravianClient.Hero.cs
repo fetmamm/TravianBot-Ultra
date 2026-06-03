@@ -8,6 +8,7 @@ namespace TbotUltra.Worker.Services;
 public sealed partial class TravianClient
 {
     private const int HeroLowHpRetrySeconds = 60;
+    private const int HeroLowHpMaxDeferSeconds = 30 * 60;
     private HeroOintmentRetryKey? _lastHeroOintmentMissKey;
     private bool? _lastHeroAutoUseOintmentsEnabled;
 
@@ -708,20 +709,29 @@ public sealed partial class TravianClient
             () => {
               const clean = (v) => (v || '').replace(/\s+/g, ' ').trim();
               const text = clean(document.body?.innerText || '');
-              const heroStateText = clean(document.querySelector('.heroState')?.textContent || '');
+              const heroState = document.querySelector('.heroState');
+              const heroStateText = clean(heroState?.textContent || '');
               const awayText = heroStateText || text;
               const isOutboundAdventure = /on its way to an adventure/i.test(awayText);
               const isReturningHome = /on its way back to the village/i.test(awayText);
               const multiplier = isOutboundAdventure && !isReturningHome ? 2 : 1;
               const pack = (value) => value ? JSON.stringify({ value, multiplier }) : null;
-              const match = text.match(/back\s*in[^\d]*(\d{1,2}:\d{2}(?::\d{2})?)/i)
-                || text.match(/arrival\s*in[^\d]*(\d{1,2}:\d{2}(?::\d{2})?)/i);
-              if (match) return pack(match[1]);
+              const findDuration = (value) => {
+                const match = value.match(/back\s*in[^\d]*(\d{1,2}:\d{2}(?::\d{2})?)/i)
+                  || value.match(/arrival\s*in[^\d]*(\d{1,2}:\d{2}(?::\d{2})?)/i);
+                return match?.[1] || null;
+              };
+              const heroStateTimer = heroState?.querySelector('.timerReact, .timer');
+              if (heroStateTimer) return pack(clean(heroStateTimer.textContent || ''));
+              const heroStateDuration = findDuration(heroStateText);
+              if (heroStateDuration) return pack(heroStateDuration);
               // Official Travian (T4.6): the hero return/arrival countdown is a span.timerReact.
               const timerReact = document.querySelector('span.timerReact, .timerReact');
               if (timerReact) return pack(clean(timerReact.textContent || ''));
               const timer = document.querySelector('.heroReturn .timer, [class*="return" i] [class*="timer" i]');
               if (timer) return pack(clean(timer.textContent || ''));
+              const match = findDuration(text);
+              if (match) return pack(match);
               return null;
             }
             """);
@@ -965,7 +975,7 @@ public sealed partial class TravianClient
     }
 
     // Estimate how long until the hero regenerates from its current HP back up to the threshold,
-    // based on the configured regen %/day. Falls back to 10 minutes when HP/regen are unknown.
+    // but re-check periodically because manual hero actions can change HP/status outside the bot.
     private static int ComputeHeroHpWaitSeconds(int? hpPercent, int thresholdPercent, int regenPerDayPercent)
     {
         const int Fallback = 600;
@@ -982,7 +992,7 @@ public sealed partial class TravianClient
 
         var hours = deficit * 24.0 / regenPerDayPercent;
         var seconds = (int)Math.Ceiling(hours * 3600.0);
-        return Math.Clamp(seconds, 60, 24 * 3600);
+        return Math.Clamp(seconds, 60, HeroLowHpMaxDeferSeconds);
     }
 
     public async Task<string> ManageHeroAsync(

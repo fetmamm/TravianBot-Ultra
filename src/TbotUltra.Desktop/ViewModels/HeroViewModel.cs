@@ -43,7 +43,7 @@ public sealed class HeroViewModel : BaseViewModel
     private string _heroInventoryStatusText = "Hero inventory not loaded.";
 
     private int _minHpForAdventure = 60;
-    private int _heroHpRegenPerDayPercent = 100;
+    private int _heroHpRegenPerDayPercent = 40;
     private bool _autoRevive = true;
     private bool _autoAssignPoints = true;
     private bool _autoUseOintments;

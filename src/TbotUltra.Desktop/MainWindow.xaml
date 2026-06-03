@@ -276,7 +276,8 @@
 
                 <Border Grid.Column="1" Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="8" Padding="10">
                     <DockPanel>
-                        <TextBlock x:Name="BrowserInfoTextBlock" Text="Browser: idle" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Left" />
+                        <TextBlock x:Name="BrowserInfoTextBlock" Text="Browser: idle" Visibility="Collapsed" />
+                        <TextBlock x:Name="ClockTextBlock" Text="Time: -" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Left" />
                         <TextBlock x:Name="TribeInfoTextBlock" Text="Tribe: -" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right" />
                         <TextBlock Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right">
                             <Run Text="Plus: " /><Run x:Name="PlusInfoTextBlock" Text="-" />
@@ -287,7 +288,6 @@
                         <TextBlock x:Name="ServerResourcesTextBlock" Text="Gold: - | Silver: -" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right" />
                         <TextBlock x:Name="CaptchaStatsTextBlock" Text="Captchas solved: 0/0" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right" />
                         <TextBlock x:Name="NpcTradeSessionStatsTextBlock" Text="Gold spent: 0" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right" />
-                        <TextBlock x:Name="ClockTextBlock" Text="Time: -" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Left" />
                         <TextBlock x:Name="StatusTextBlock" Text="Ready." Visibility="Collapsed" />
                     </DockPanel>
                 </Border>
@@ -849,7 +849,7 @@
                                                 <ContentControl.ToolTip>
                                                     <ToolTip MaxWidth="320">
                                                         <TextBlock TextWrapping="Wrap"
-                                                                   Text="Official servers only. When the Questmaster has claimable task rewards, the bot opens the Tasks page, collects the rewards on both the village and general tabs, and returns to the village. Checked by default." />
+                                                                   Text="Official servers only. When the Questmaster has claimable task rewards, the bot opens the Tasks page, collects the rewards on both the village and general tabs, and returns to the village." />
                                                     </ToolTip>
                                                 </ContentControl.ToolTip>
                                             </ContentControl>
@@ -862,7 +862,7 @@
                                                 <ContentControl.ToolTip>
                                                     <ToolTip MaxWidth="320">
                                                         <TextBlock TextWrapping="Wrap"
-                                                                   Text="Official servers only. When the daily quests icon shows an exclamation mark, the bot opens the dialog and collects available daily rewards. Off by default." />
+                                                                   Text="Official servers only. When the daily quests icon shows an exclamation mark, the bot opens the dialog and collects available daily rewards." />
                                                     </ToolTip>
                                                 </ContentControl.ToolTip>
                                             </ContentControl>
@@ -876,7 +876,7 @@
                                                 <ContentControl.ToolTip>
                                                     <ToolTip MaxWidth="320">
                                                         <TextBlock TextWrapping="Wrap"
-                                                                   Text="Official servers only. When an upgrade lacks resources, the bot pulls the missing wood/clay/iron/crop from the hero's inventory and then continues the upgrade. Off by default." />
+                                                                   Text="Official servers only. When an upgrade lacks resources, the bot pulls the missing wood/clay/iron/crop from the hero's inventory and then continues the upgrade." />
                                                     </ToolTip>
                                                 </ContentControl.ToolTip>
                                             </ContentControl>
@@ -903,7 +903,7 @@
                                                 <ContentControl.ToolTip>
                                                     <ToolTip MaxWidth="320">
                                                         <TextBlock TextWrapping="Wrap"
-                                                                   Text="Allows gold-spending features such as NPC trade. Spending still respects the gold limit configured on the NPC / Trade tab. Off by default." />
+                                                                   Text="Allows gold-spending features such as NPC trade. Spending still respects the gold limit configured on the NPC / Trade tab." />
                                                     </ToolTip>
                                                 </ContentControl.ToolTip>
                                             </ContentControl>

@@ -66,10 +66,9 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// Updates the adventure-count badge and the Hero blocked-state flag
-    /// based on the latest adventure count. Stays on MainWindow because
-    /// SetHeroBlockedState / ClearHeroBlockedState share state with the
-    /// other group-blocked indicators.
+    /// Updates the adventure-count badge. A zero count should not disable the Hero group:
+    /// if the user left it enabled, the continuous loop keeps polling and only queues work
+    /// when adventures appear.
     /// </summary>
     internal void ApplyHeroAdventureAvailability(int? count)
     {
@@ -86,9 +85,9 @@ public partial class MainWindow
             return;
         }
 
-        if (!string.Equals(_heroBlockedReasonKey, HeroBlockedReasonNoAdventures, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(_heroBlockedReasonKey, HeroBlockedReasonNoAdventures, StringComparison.OrdinalIgnoreCase))
         {
-            SetHeroBlockedState(HeroBlockedReasonNoAdventures, "No adventures");
+            ClearHeroBlockedState();
         }
     }
 

@@ -170,6 +170,25 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   in login-scenen: `#loginScene`/`body.login`/lösenordsfält) i stället för "frånvaro av inloggad-markörer"
   — en sida som fortfarande renderar lästes annars som falsk utloggning.
 
+- **2026-06-03** - Hero low-HP defer is capped to 30 minutes even when regen math estimates many hours.
+  Manual attacks/adventures can change HP/status outside the bot, so the loop must periodically re-read live
+  hero state instead of sleeping until the full theoretical regen time. Official hero-away ETA parsing now
+  prefers `.heroState .timerReact` before whole-page timer text so `Arrival in 00:21:15 at 13:45` uses the
+  countdown, not another page clock.
+- **2026-06-03** - Hero continuous loop treats `0` adventures as an idle polling state, not a blocked group.
+  If Hero is enabled, keep it enabled and only enqueue `hero_manage` after the early adventure-count refresh
+  reports `> 0`; this avoids spam without overriding the user's toggle.
+- **2026-06-03** - Pause state owns the Start/Pause button label. After a graceful pause request finishes,
+  keep the button as `Start bot` while `LoopStopRequested`/`QueueStopRequested` is still set, even if
+  continuous mode remains toggled on.
+- **2026-06-03** - `[pacing]` log lines are Clean-mode verbose noise. Keep important session sleep/wake
+  milestones readable without the `[pacing]` tag so Clean mode shows only those.
+- **2026-06-03** - Hero HP regen default is 40%/day. Hero settings are account-scoped and persist immediately
+  from the Hero panel; the global Settings popup must save only global keys so Cancel/Save/close cannot
+  overwrite account-scoped Hero values during the following config reload.
+- **2026-06-03** - Gold/silver read fallback with cached values is `[resources:verbose]`, not an alarm. A missing
+  cache still remains visible as an actionable alarm.
+
 ---
 
 ## 5. Kända fallgropar / regressions
@@ -195,6 +214,20 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
 - **Continuous construction + Plus:** Desktop UI-status kan vara stale precis när looppen startar.
   Blockera bara på en explicit inline-defer (`queue_wait_seconds`); låt Worker göra live slot/Plus-check
   för redo construction-items.
+- **Hero low HP:** regen estimates can be many hours at low HP (e.g. 18% with 20%/day). Keep the defer capped
+  so live state is rechecked after manual attacks, ointments, level-ups, or changed settings.
+- **Official hero away:** the adventures page can show both a countdown and an absolute arrival clock
+  (`Arrival in 00:21:15 at 13:45`). Read `.heroState .timerReact` first and only then fall back to page text.
+- **Hero 0 adventures:** do not disable the Hero automation group for this. The continuous loop already reads
+  the adventure count before queueing `hero_manage`; leave the toggle as the user set it.
+- **Pause button:** continuous mode can stay checked while the runner is paused. In that state the main button
+  must say `Start bot`; do not derive `Pause bot` only from the continuous toggle.
+- **Clean log + pacing:** tag diagnostic pacing lines with `[pacing]`; do not use that tag for user-important
+  sleep/wake milestones that should remain visible in Clean mode.
+- **Settings popup + account-scoped values:** use global-only save for SettingsWindow. It loads the merged
+  overlay for display, but must not write account-scoped keys such as hero regen back through global settings.
+- **Clean log + cached currency:** `Could not detect live gold/silver values ... Using cached values` is normal
+  on pages without visible currency values. Keep it verbose; only the no-cache case should alert.
 
 ---
 

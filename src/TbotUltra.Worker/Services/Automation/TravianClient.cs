@@ -3118,7 +3118,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             var ageSeconds = _cachedCurrencyAt == DateTimeOffset.MinValue
                 ? "unknown"
                 : Math.Max(0, (int)(DateTimeOffset.UtcNow - _cachedCurrencyAt).TotalSeconds).ToString(CultureInfo.InvariantCulture);
-            Notify($"Could not detect live gold/silver values on this page. Using cached values from {ageSeconds}s ago: gold={cached.Gold?.ToString() ?? "-"} silver={cached.Silver?.ToString() ?? "-"}.");
+            Notify($"[resources:verbose] Could not detect live gold/silver values on this page. Using cached values from {ageSeconds}s ago: gold={cached.Gold?.ToString() ?? "-"} silver={cached.Silver?.ToString() ?? "-"}.");
             return cached;
         }
 
