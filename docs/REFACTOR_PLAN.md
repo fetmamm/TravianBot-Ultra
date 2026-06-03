@@ -44,7 +44,10 @@ Mönster: flytta sammanhängande, helst rena/statiska metodkluster till nya tema
 - [x] **Steg 3d:** Flyttade 9 toolbar-/fönster-kommandohandlers (`StartLoopButton_Click`, `StopBotButton_Click`, `ContinuousRunToggleButton_Unchecked`, `OpenVerificationBrowserButton_Click`, `Help/Reload/Settings_Click`, `MainWindow_Closing`, `ClosePopupWindows`, ~216 rader) → `MainWindow.Toolbar.cs`. `xaml.cs`: 3184 → 2968.
 - [x] **Steg 3e:** Flyttade hela login/logout/konto-reset-klustret (18 metoder, `ExecuteLoginFlowAsync`, `Logout*`, `Accounts*`, `AccountComboBox_SelectionChanged`, `ResetProgram*`, `ResetForAccountSwitchAsync`, `ClearAccountScopedUiState`, busy-overlay, ~582 rader) → `MainWindow.Session.cs`. `xaml.cs`: 2968 → 2386. Kompilerar rent (0 varningar); tester **40/40** (det tidigare SessionPacer-felet var tidsberoende/flaky).
 
-**Rank 3 sammanfattning hittills:** `MainWindow.xaml.cs` **4042 → 2386 rader** (−1656, ~41%) fördelat på fem nya tematiska partials (`DeferredWaits`, `ServerAccount`, `LoopIndicators`, `Toolbar`, `Session`). Mönstret är etablerat; fler skivor kvar (t.ex. status-info, byläsning, deferred refresh).
+- [x] **Steg 3f:** Flyttade byläsning/status-merge (6 metoder: `ReadVillageStatusWithRetryAsync`, `ReadVillageStatusAsync`, `LoadBuildingsAfterLoginAsync`, `LoadCurrentVillageViewsAfterLoginAsync`, `DescribeBuildingScanIssue`, `IsLikelyOccupiedBuilding`, ~163 rader) → `MainWindow.VillageStatus.cs`.
+- [x] **Steg 3g:** Flyttade Gold Club/Plus-status-info (6 metoder + 4 `Regex`-fält + `TryGetStoredGoldClubEnabled`, ~187 rader) → `MainWindow.StatusInfo.cs`. `xaml.cs`: 2386 → 2036. Kompilerar rent (0 varningar); tester 40/40.
+
+**Rank 3 sammanfattning hittills:** `MainWindow.xaml.cs` **4042 → 2036 rader** (−2006, ~50%) fördelat på sju nya tematiska partials (`DeferredWaits`, `ServerAccount`, `LoopIndicators`, `Toolbar`, `Session`, `VillageStatus`, `StatusInfo`). Mönstret är etablerat; fler skivor kvar (warmups, manuell exekveringsspårning, server-klocka, deferred refresh-instans).
 
 ## Rekommenderade refaktoriseringar
 
