@@ -125,7 +125,7 @@ public sealed partial class TravianClient
                 """);
             if (clicked)
             {
-                await Task.Delay(250, cancellationToken);
+                await ApplyCollectStepDelayAsync(cancellationToken);
             }
 
             return clicked;
@@ -180,7 +180,7 @@ public sealed partial class TravianClient
             }
 
             collected += 1;
-            await Task.Delay(120, cancellationToken);
+            await ApplyCollectStepDelayAsync(cancellationToken);
         }
 
         return collected;

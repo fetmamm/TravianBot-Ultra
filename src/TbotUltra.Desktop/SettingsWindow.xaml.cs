@@ -128,7 +128,7 @@ public partial class SettingsWindow : Window
     {
         var confirm = AppDialog.Show(
             this,
-            "Reset all saved program settings to default? Accounts and the selected server are kept.",
+            "Reset saved settings to default for the current account? Other accounts and the selected server are kept.",
             "Reset settings",
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning);
@@ -177,6 +177,9 @@ public partial class SettingsWindow : Window
         ActionClickMaxTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingClickMaxSeconds, PacingDefaults.ActionPacingClickMaxSeconds));
         ActionLoopMinTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingLoopMinSeconds, PacingDefaults.ActionPacingLoopMinSeconds));
         ActionLoopMaxTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingLoopMaxSeconds, PacingDefaults.ActionPacingLoopMaxSeconds));
+
+        CollectStepDelayMinTextBox.Text = ReadInt(BotOptionPayloadKeys.CollectStepDelayMinMs, PacingDefaults.CollectStepDelayMinMs).ToString();
+        CollectStepDelayMaxTextBox.Text = ReadInt(BotOptionPayloadKeys.CollectStepDelayMaxMs, PacingDefaults.CollectStepDelayMaxMs).ToString();
     }
 
     private void SavePacingConfigFromUi()
@@ -191,6 +194,12 @@ public partial class SettingsWindow : Window
         WriteDelayRange(BotOptionPayloadKeys.ActionPacingPageLoadMinSeconds, BotOptionPayloadKeys.ActionPacingPageLoadMaxSeconds, ActionPageLoadMinTextBox, ActionPageLoadMaxTextBox, PacingDefaults.ActionPacingPageLoadMinSeconds, PacingDefaults.ActionPacingPageLoadMaxSeconds);
         WriteDelayRange(BotOptionPayloadKeys.ActionPacingClickMinSeconds, BotOptionPayloadKeys.ActionPacingClickMaxSeconds, ActionClickMinTextBox, ActionClickMaxTextBox, PacingDefaults.ActionPacingClickMinSeconds, PacingDefaults.ActionPacingClickMaxSeconds);
         WriteDelayRange(BotOptionPayloadKeys.ActionPacingLoopMinSeconds, BotOptionPayloadKeys.ActionPacingLoopMaxSeconds, ActionLoopMinTextBox, ActionLoopMaxTextBox, PacingDefaults.ActionPacingLoopMinSeconds, PacingDefaults.ActionPacingLoopMaxSeconds);
+
+        // Collect step delay (ms). Clamp and keep max >= min so the worker always has a valid window.
+        var collectMin = ReadIntText(CollectStepDelayMinTextBox, PacingDefaults.CollectStepDelayMinMs, 0, 5000);
+        var collectMax = Math.Max(collectMin, ReadIntText(CollectStepDelayMaxTextBox, PacingDefaults.CollectStepDelayMaxMs, 0, 5000));
+        _config[BotOptionPayloadKeys.CollectStepDelayMinMs] = collectMin;
+        _config[BotOptionPayloadKeys.CollectStepDelayMaxMs] = collectMax;
     }
 
     private void ApplyPacingDefaultsToUi()
@@ -208,6 +217,8 @@ public partial class SettingsWindow : Window
         ActionClickMaxTextBox.Text = FormatDelay(PacingDefaults.ActionPacingClickMaxSeconds);
         ActionLoopMinTextBox.Text = FormatDelay(PacingDefaults.ActionPacingLoopMinSeconds);
         ActionLoopMaxTextBox.Text = FormatDelay(PacingDefaults.ActionPacingLoopMaxSeconds);
+        CollectStepDelayMinTextBox.Text = PacingDefaults.CollectStepDelayMinMs.ToString();
+        CollectStepDelayMaxTextBox.Text = PacingDefaults.CollectStepDelayMaxMs.ToString();
     }
 
     private bool ReadBool(string key, bool defaultValue) => _config[key]?.GetValue<bool>() ?? defaultValue;

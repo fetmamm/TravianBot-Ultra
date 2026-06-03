@@ -48,6 +48,10 @@ public static class BotOptionPayloadKeys
     public const string HeroContinuousAdventures = "hero_continuous_adventures";
     public const string AutoCollectTasksEnabled = "auto_collect_tasks_enabled";
     public const string AutoCollectDailyQuestsEnabled = "auto_collect_daily_quests_enabled";
+    // Randomized delay (ms) between internal clicks/steps in the auto-collect tasks/daily-quests
+    // flows only. Min/max; set both to 0 to disable. Keeps these fast bursts from looking robotic.
+    public const string CollectStepDelayMinMs = "collect_step_delay_min_ms";
+    public const string CollectStepDelayMaxMs = "collect_step_delay_max_ms";
     public const string HeroResourceTransferEnabled = "hero_resource_transfer_enabled";
     public const string ContinuousFarmListNames = "continuous_farm_list_names";
     // Stable Travian farm-list ids (lid) for the selected lists. Persisted alongside the names so

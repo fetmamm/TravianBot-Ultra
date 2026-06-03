@@ -43,7 +43,7 @@ public sealed class SessionPacer
     public string StatusText => Phase switch
     {
         SessionPacerPhase.Running => $"Next sleep in: {Format(TimeUntilSleep)}",
-        SessionPacerPhase.Sleeping => "Sleeping",
+        SessionPacerPhase.Sleeping => $"Sleeping - {Format(TimeUntilWake)}",
         // Idle before the loop runs: stay neutral ("Session pacing"). Only show "off" once
         // automation is actually running but pacing is disabled in settings.
         _ => _automationActive ? "Session pacing off" : "Session pacing",

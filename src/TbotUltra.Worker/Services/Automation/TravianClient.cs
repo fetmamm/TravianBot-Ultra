@@ -2392,7 +2392,9 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                                 IsCapital = v.IsCapital ?? match.IsCapital,
                                 CoordX = match.CoordX,
                                 CoordY = match.CoordY,
-                                Population = match.Population,
+                                // Sidebar-derived population (active village, official) wins; fall
+                                // back to the cached value so non-active villages keep profile data.
+                                Population = v.Population ?? match.Population,
                                 CropFields = match.CropFields,
                             };
                         })
@@ -2434,6 +2436,12 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 const parsed = Number.parseInt(text, 10);
                 return Number.isFinite(parsed) ? parsed : null;
               };
+              const parseIntFromText = (value) => {
+                const text = clean(value).replace(/[^\d]/g, '');
+                if (!text) return null;
+                const parsed = Number.parseInt(text, 10);
+                return Number.isFinite(parsed) ? parsed : null;
+              };
               const rows = [];
               const seen = new Set();
               const selectors = [
@@ -2461,12 +2469,25 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                     container.querySelector('.coordinateY')?.textContent
                     || node.parentElement?.querySelector('.coordinateY')?.textContent
                     || '');
+                  // Official only: the active village's row carries its current population in
+                  // a "div.population > span". Only the active row exposes it; read it scoped to
+                  // the active container, falling back to the active sidebar entry on the page.
+                  const isActive = classText.includes('active');
+                  let population = null;
+                  if (isActive) {
+                    population = parseIntFromText(
+                      container.querySelector('.population span')?.textContent
+                      || document.querySelector('#sidebarBoxVillagelist .active .population span')?.textContent
+                      || '');
+                  }
                   rows.push({
                     name,
                     url,
                     isCapital: classText.includes('capital') ? true : null,
                     x,
-                    y
+                    y,
+                    population,
+                    isActive
                   });
                 }
 
@@ -2479,17 +2500,27 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             }
             """);
 
+        // Official only: trust the active village's population read from the sidebar. SS-Travi
+        // markup differs, so the sidebar population is ignored there and only profile data is used.
+        var useSidebarPopulation = !_config.IsPrivateServer;
         return raw
             .Where(item => !string.IsNullOrWhiteSpace(item.Name))
             .Select(item =>
             {
                 var (cachedX, cachedY) = TryGetCachedVillageCoords(item.Name!);
+                int? sidebarPopulation = null;
+                if (useSidebarPopulation && item.IsActive && item.Population is int pop)
+                {
+                    sidebarPopulation = pop;
+                    Notify($"[population] active village '{item.Name}' from sidebar = {pop}");
+                }
                 return new Village(
                     Name: item.Name!,
                     Url: item.Url,
                     IsCapital: item.IsCapital ?? TryGetCachedCapitalState(item.Name!),
                     CoordX: item.X ?? cachedX,
-                    CoordY: item.Y ?? cachedY);
+                    CoordY: item.Y ?? cachedY,
+                    Population: sidebarPopulation);
             })
             .ToList();
     }
@@ -5378,5 +5409,13 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
         [JsonPropertyName("y")]
         public int? Y { get; init; }
+
+        // Official only: population of the active village, read straight from the sidebar
+        // (div.population > span). Null for non-active rows and when the cell is absent.
+        [JsonPropertyName("population")]
+        public int? Population { get; init; }
+
+        [JsonPropertyName("isActive")]
+        public bool IsActive { get; init; }
     }
 }

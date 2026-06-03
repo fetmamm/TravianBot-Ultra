@@ -32,6 +32,8 @@ public static class BotOptionsPayloadApplier
         var heroContinuousAdventures = source.HeroContinuousAdventures;
         var autoCollectTasksEnabled = source.AutoCollectTasksEnabled;
         var autoCollectDailyQuestsEnabled = source.AutoCollectDailyQuestsEnabled;
+        var collectStepDelayMinMs = source.CollectStepDelayMinMs;
+        var collectStepDelayMaxMs = source.CollectStepDelayMaxMs;
         var heroResourceTransferEnabled = source.HeroResourceTransferEnabled;
         var upgradeSelectorProfile = source.UpgradeSelectorProfile;
         var natarVillageSelection = source.NatarVillageSelection;
@@ -296,6 +298,20 @@ public static class BotOptionsPayloadApplier
                     && bool.TryParse(value, out var autoCollectDailyQuests))
                 {
                     autoCollectDailyQuestsEnabled = autoCollectDailyQuests;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.CollectStepDelayMinMs, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var collectStepMin))
+                {
+                    collectStepDelayMinMs = Math.Clamp(collectStepMin, 0, 5000);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.CollectStepDelayMaxMs, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var collectStepMax))
+                {
+                    collectStepDelayMaxMs = Math.Clamp(collectStepMax, 0, 5000);
                     continue;
                 }
 
@@ -996,6 +1012,8 @@ public static class BotOptionsPayloadApplier
             HeroContinuousAdventures = heroContinuousAdventures,
             AutoCollectTasksEnabled = autoCollectTasksEnabled,
             AutoCollectDailyQuestsEnabled = autoCollectDailyQuestsEnabled,
+            CollectStepDelayMinMs = collectStepDelayMinMs,
+            CollectStepDelayMaxMs = collectStepDelayMaxMs,
             HeroResourceTransferEnabled = heroResourceTransferEnabled,
             UpgradeSelectorProfile = upgradeSelectorProfile,
             NatarVillageSelection = natarVillageSelection,

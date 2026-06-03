@@ -170,12 +170,28 @@ public sealed partial class TravianClient
             }
 
             collected += 1;
-            // Small gap so the React page registers the claim before the next click. Not long —
-            // ~50ms is enough to avoid the page glitching/dropping clicks.
-            await Task.Delay(50, cancellationToken);
+            // Small randomized gap so the React page registers the claim before the next click and
+            // the burst does not look robotic. Configurable via the collect step-delay setting.
+            await ApplyCollectStepDelayAsync(cancellationToken);
         }
 
         return collected;
+    }
+
+    // Randomized delay between internal clicks/steps in the auto-collect tasks/daily-quests flows
+    // only (configured by CollectStepDelayMinMs/MaxMs, default ~100-300ms). Set both to 0 to disable.
+    // Deliberately does not log per delay to avoid log noise in these tight click loops.
+    private Task ApplyCollectStepDelayAsync(CancellationToken cancellationToken)
+    {
+        var min = Math.Max(0, _config.CollectStepDelayMinMs);
+        var max = Math.Max(min, _config.CollectStepDelayMaxMs);
+        if (max <= 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        var delayMs = Random.Shared.Next(min, max + 1);
+        return delayMs > 0 ? Task.Delay(delayMs, cancellationToken) : Task.CompletedTask;
     }
 
     private async Task<bool> SwitchToGeneralTasksTabAsync(CancellationToken cancellationToken)

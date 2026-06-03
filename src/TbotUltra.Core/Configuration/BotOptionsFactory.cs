@@ -152,6 +152,8 @@ public static class BotOptionsFactory
             HeroContinuousAdventures = configuration.GetValue(BotOptionPayloadKeys.HeroContinuousAdventures, false),
             AutoCollectTasksEnabled = configuration.GetValue(BotOptionPayloadKeys.AutoCollectTasksEnabled, false),
             AutoCollectDailyQuestsEnabled = configuration.GetValue(BotOptionPayloadKeys.AutoCollectDailyQuestsEnabled, false),
+            CollectStepDelayMinMs = configuration.GetValue(BotOptionPayloadKeys.CollectStepDelayMinMs, PacingDefaults.CollectStepDelayMinMs),
+            CollectStepDelayMaxMs = configuration.GetValue(BotOptionPayloadKeys.CollectStepDelayMaxMs, PacingDefaults.CollectStepDelayMaxMs),
             HeroResourceTransferEnabled = configuration.GetValue(BotOptionPayloadKeys.HeroResourceTransferEnabled, false),
             UpgradeSelectorProfile = configuration[BotOptionPayloadKeys.UpgradeSelectorProfile] ?? "auto",
             NatarVillageSelection = configuration["natar_village_selection"] ?? "farm_villages",
@@ -289,6 +291,8 @@ public static class BotOptionsFactory
             HeroContinuousAdventures = source.HeroContinuousAdventures,
             AutoCollectTasksEnabled = source.AutoCollectTasksEnabled,
             AutoCollectDailyQuestsEnabled = source.AutoCollectDailyQuestsEnabled,
+            CollectStepDelayMinMs = source.CollectStepDelayMinMs,
+            CollectStepDelayMaxMs = source.CollectStepDelayMaxMs,
             UpgradeSelectorProfile = source.UpgradeSelectorProfile,
             NatarVillageSelection = string.IsNullOrWhiteSpace(natarVillageSelectionOverride)
                 ? source.NatarVillageSelection

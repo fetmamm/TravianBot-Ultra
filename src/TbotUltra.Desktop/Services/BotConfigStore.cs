@@ -127,6 +127,19 @@ public sealed class BotConfigStore
         BotOptionPayloadKeys.ReinforcementsSourceVillageNames,
         BotOptionPayloadKeys.ReinforcementsTroopRules,
         BotOptionPayloadKeys.UpgradeSelectorProfile,
+        BotOptionPayloadKeys.SessionPacingEnabled,
+        BotOptionPayloadKeys.SessionPacingMaxRunMinutes,
+        BotOptionPayloadKeys.SessionPacingSleepMinutes,
+        BotOptionPayloadKeys.SessionPacingVariationPercent,
+        BotOptionPayloadKeys.ActionPacingEnabled,
+        BotOptionPayloadKeys.ActionPacingTaskMinSeconds,
+        BotOptionPayloadKeys.ActionPacingTaskMaxSeconds,
+        BotOptionPayloadKeys.ActionPacingPageLoadMinSeconds,
+        BotOptionPayloadKeys.ActionPacingPageLoadMaxSeconds,
+        BotOptionPayloadKeys.ActionPacingClickMinSeconds,
+        BotOptionPayloadKeys.ActionPacingClickMaxSeconds,
+        BotOptionPayloadKeys.ActionPacingLoopMinSeconds,
+        BotOptionPayloadKeys.ActionPacingLoopMaxSeconds,
         "loop_tasks",
         "continuous_loop_groups",
         "continuous_loop_group_order",
@@ -224,6 +237,9 @@ public sealed class BotConfigStore
         SaveJson(_configPath, globalConfig);
     }
 
+    // Resets settings to defaults for the ACTIVE account only: global non-identity keys (shared program
+    // settings) plus the active account's own settings file. Other accounts' settings are left untouched
+    // so a reset on one account doesn't wipe the rest.
     public void ResetSettingsToDefaults()
     {
         var globalConfig = LoadGlobal();
@@ -237,7 +253,7 @@ public sealed class BotConfigStore
         }
 
         SaveJson(_configPath, resetGlobalConfig);
-        ClearAccountSettingsFiles();
+        ClearActiveAccountSettingsFile();
     }
 
     private void SaveAccountScopedValues(string accountName, JsonObject config)
@@ -287,29 +303,32 @@ public sealed class BotConfigStore
         }
     }
 
-    private void ClearAccountSettingsFiles()
+    private void ClearActiveAccountSettingsFile()
     {
         if (string.IsNullOrWhiteSpace(_projectRoot))
         {
             return;
         }
 
-        var accountsPath = Path.Combine(_projectRoot, AccountStoragePaths.AccountsRelativeDirectory);
-        if (!Directory.Exists(accountsPath))
+        var accountName = GetActiveAccountName();
+        if (string.IsNullOrWhiteSpace(accountName))
         {
             return;
         }
 
-        foreach (var settingsPath in Directory.EnumerateFiles(accountsPath, "settings.json", SearchOption.AllDirectories))
+        var path = AccountStoragePaths.AccountSettingsPath(_projectRoot, accountName);
+        if (!File.Exists(path))
         {
-            try
-            {
-                File.Delete(settingsPath);
-            }
-            catch
-            {
-                SaveJson(settingsPath, new JsonObject());
-            }
+            return;
+        }
+
+        try
+        {
+            File.Delete(path);
+        }
+        catch
+        {
+            SaveJson(path, new JsonObject());
         }
     }
 

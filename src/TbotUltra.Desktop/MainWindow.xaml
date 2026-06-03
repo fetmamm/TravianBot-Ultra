@@ -259,7 +259,9 @@
                         CornerRadius="8"
                         Padding="10"
                         Margin="0,0,8,0">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Fixed height keeps the box (and topbar) from growing taller when the Run now
+                         button appears during sleep; it can still grow wider via the Auto column. -->
+                    <StackPanel Orientation="Horizontal" Height="20" VerticalAlignment="Center">
                         <TextBlock x:Name="SessionPacingStatusTextBlock"
                                    Text="Session pacing"
                                    Foreground="#374151"
@@ -267,8 +269,11 @@
                         <Button x:Name="SessionPacingRunNowButton"
                                 Content="Run now"
                                 Margin="8,0,0,0"
-                                Padding="6,1"
-                                MinHeight="22"
+                                Padding="6,0"
+                                Height="20"
+                                MinHeight="0"
+                                FontSize="11"
+                                VerticalAlignment="Center"
                                 Visibility="Collapsed"
                                 Click="SessionPacingRunNowButton_Click" />
                     </StackPanel>
@@ -839,10 +844,10 @@
                                 <!-- Settings: separate box below the villages list. -->
                                 <Border Grid.Row="1" Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="9" Padding="12" Margin="0,10,0,0">
                                     <StackPanel>
-                                        <TextBlock Text="Settings" FontSize="16" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,6" />
+                                        <TextBlock Text="Auto settings" FontSize="16" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,6" />
                                         <!-- Each setting gets a trailing "i" info icon (SettingInfoIconStyle) describing it. -->
                                         <StackPanel Orientation="Horizontal">
-                                            <CheckBox x:Name="AutoCollectTasksCheckBox" Content="Auto collect tasks"
+                                            <CheckBox x:Name="AutoCollectTasksCheckBox" Content="Collect tasks"
                                                       Foreground="#374151"
                                                       Checked="AutoCollectTasksSetting_Changed" Unchecked="AutoCollectTasksSetting_Changed" />
                                             <ContentControl Style="{StaticResource SettingInfoIconStyle}">
@@ -855,7 +860,7 @@
                                             </ContentControl>
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                            <CheckBox x:Name="AutoCollectDailyQuestsCheckBox" Content="Auto collect daily quests"
+                                            <CheckBox x:Name="AutoCollectDailyQuestsCheckBox" Content="Collect daily quests"
                                                       Foreground="#374151"
                                                       Checked="AutoCollectDailyQuestsSetting_Changed" Unchecked="AutoCollectDailyQuestsSetting_Changed" />
                                             <ContentControl Style="{StaticResource SettingInfoIconStyle}">
