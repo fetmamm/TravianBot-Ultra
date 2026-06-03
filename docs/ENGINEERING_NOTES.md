@@ -144,6 +144,21 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   `.count` values before clicking "Transfer selected", then deducts the transferred amounts after confirm.
   This keeps Hero-tab inventory and the next proactive transfer decision closer to Travian's live state
   without navigating to `/hero/inventory`.
+- **2026-06-03** — Session/action pacing added. Session pacing is Desktop-only via `SessionPacer`
+  (`DispatcherTimer`, global `bot.json` keys, default ON) and controls continuous-run sleep/logout/wake.
+  Action pacing is shared through `BotOptions` + `ActionPacer` and is applied at central low-risk points:
+  before continuous-loop tasks, after `GotoAsync`, between manual farm sends, and as a floor for loop waits.
+  The Settings section is named "Bot behavior". The old visible "Act more human" checkbox was removed, but `human_like_enabled` remains in
+  `BotOptions`/Worker for backward compatibility with existing manual-farm delay behavior.
+- **2026-06-03** — Official hero HP on `/hero/attributes` is read from the rendered health
+  `attributeBox`; the percent text can contain bidi formatting marks between digits and `%`, so the
+  parser strips Unicode direction marks before parsing. Wait for a health row with a percent value,
+  not only a generic health icon.
+- **2026-06-03** — Continuous-loop construction scheduling no longer lets Desktop's cached build-queue
+  snapshot be final authority when a construction task is due now. If no inline `queue_wait_seconds`
+  defer is active, the ready task is allowed to reach Worker, where `CheckQueueOrDeferAsync` re-reads
+  live Travian Plus + active slots before clicking or deferring. This avoids stale/unknown Plus state
+  blocking the possible second construction slot.
 
 ---
 
@@ -165,6 +180,11 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
 - **Same-slot recheck efter hero transfer:** rätt `build.php?id=N` URL räcker inte alltid; official kan ha
   URL:en satt innan build-DOM är hydrerad. Vänta på `#build`/`#contract`/`.upgradeBuilding`; om det saknas,
   reloada samma build-sida en gång i stället för att kasta fel eller gå via `dorf1.php`.
+- **Official hero HP:** health-raden på `/hero/attributes` kan renderas med bidi-tecken runt siffror
+  (`‭78‬%`). Rensa direction marks före parse och läs från hela `.attributeBox`, inte närmaste `div.name`.
+- **Continuous construction + Plus:** Desktop UI-status kan vara stale precis när looppen startar.
+  Blockera bara på en explicit inline-defer (`queue_wait_seconds`); låt Worker göra live slot/Plus-check
+  för redo construction-items.
 
 ---
 
