@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Threading;
 using TbotUltra.Core.Accounts;
 using TbotUltra.Core.Configuration;
 
@@ -155,6 +156,12 @@ public sealed class BotConfigStore
         "village_overview_path",
     };
 
+    // Serializes all config file I/O. bot.json and the per-account settings.json are read and written
+    // from many concurrent contexts (UI dispatcher, continuous loop, and several background Task.Run
+    // refreshes). Unsynchronized File.ReadAllText/File.WriteAllText calls overlapped and produced
+    // "The process cannot access the file ... because it is being used by another process".
+    private static readonly object FileIoLock = new();
+
     private readonly string _configPath;
     private readonly string? _projectRoot;
     private readonly Func<string>? _activeAccountNameProvider;
@@ -192,7 +199,7 @@ public sealed class BotConfigStore
             throw new InvalidOperationException($"Config file not found: {_configPath}");
         }
 
-        var raw = File.ReadAllText(_configPath);
+        var raw = ReadAllTextShared(_configPath);
         var node = JsonNode.Parse(raw)?.AsObject();
         if (node is null)
         {
@@ -287,7 +294,7 @@ public sealed class BotConfigStore
 
         try
         {
-            var raw = File.ReadAllText(path);
+            var raw = ReadAllTextShared(path);
             var node = JsonNode.Parse(raw)?.AsObject();
             if (node is null)
             {
@@ -366,6 +373,49 @@ public sealed class BotConfigStore
         }
 
         var options = new JsonSerializerOptions { WriteIndented = true };
-        File.WriteAllText(path, config.ToJsonString(options));
+        WriteAllTextShared(path, config.ToJsonString(options));
+    }
+
+    private static string ReadAllTextShared(string path)
+    {
+        lock (FileIoLock)
+        {
+            return RetryFileIo(() =>
+            {
+                using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var reader = new StreamReader(stream);
+                return reader.ReadToEnd();
+            });
+        }
+    }
+
+    private static void WriteAllTextShared(string path, string content)
+    {
+        lock (FileIoLock)
+        {
+            RetryFileIo(() =>
+            {
+                File.WriteAllText(path, content);
+                return true;
+            });
+        }
+    }
+
+    // Small retry for transient sharing violations (e.g. antivirus/indexer briefly holding the file).
+    // The lock removes in-process contention; this covers the rare external locker.
+    private static T RetryFileIo<T>(Func<T> action)
+    {
+        const int maxAttempts = 5;
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return action();
+            }
+            catch (IOException) when (attempt < maxAttempts)
+            {
+                Thread.Sleep(40 * attempt);
+            }
+        }
     }
 }

@@ -237,6 +237,12 @@ public sealed partial class TravianClient
                     await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
                     continue;
                 }
+                if (state == BuildPageState.EmptyConstructionSlot)
+                {
+                    return $"Slot {slotId} is empty — construct the building before upgrading "
+                        + $"(page shows a construction menu, not an 'Upgrade to level {nextLevel}' button). "
+                        + $"Upgrades performed: {upgrades}.";
+                }
 
                 var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: false);
                 if (!heroTransferAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
@@ -671,7 +677,7 @@ public sealed partial class TravianClient
         return durationSeconds * 1000 + 300;
     }
 
-    private enum BuildPageState { Other, AtMaxLevel, WorkersBusy }
+    private enum BuildPageState { Other, AtMaxLevel, WorkersBusy, EmptyConstructionSlot }
 
     private sealed record UpgradeResourceWaitSnapshot(
         string BlockedLabel,
@@ -704,6 +710,15 @@ public sealed partial class TravianClient
                   if (/reached\s+(?:its|the)\s+maximum\s+level|maximum\s+level\s+has\s+been\s+reached|maximalst[uü]?fe\s+erreicht/.test(text)) {
                     return 'AtMaxLevel';
                   }
+                  // Empty building slot: Travian shows the construction-choice page (each constructable
+                  // building wrapped in #contract_building{gid}) with no upgrade affordance. Detected
+                  // structurally so it is language-independent.
+                  const hasConstructChoices = !!document.querySelector('[id^="contract_building"]');
+                  const hasUpgrade = !!document.querySelector('.upgradeButtonsContainer')
+                    || /upgrade\s+to\s+level/i.test(document.body.innerText || '');
+                  if (hasConstructChoices && !hasUpgrade) {
+                    return 'EmptyConstructionSlot';
+                  }
                   return 'Other';
                 }
                 """);
@@ -711,6 +726,7 @@ public sealed partial class TravianClient
             {
                 "AtMaxLevel" => BuildPageState.AtMaxLevel,
                 "WorkersBusy" => BuildPageState.WorkersBusy,
+                "EmptyConstructionSlot" => BuildPageState.EmptyConstructionSlot,
                 _ => BuildPageState.Other,
             };
         }
@@ -862,6 +878,12 @@ public sealed partial class TravianClient
                     Notify($"Slot {slotId}: workers busy, waiting 2s before retry. Upgrades so far: {upgrades}.");
                     await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
                     continue;
+                }
+                if (state == BuildPageState.EmptyConstructionSlot)
+                {
+                    return $"Slot {slotId} is empty — construct the building before upgrading "
+                        + $"(page shows a construction menu, not an 'Upgrade to level {nextLevel}' button). "
+                        + $"Upgrades performed: {upgrades}.";
                 }
 
                 var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: false);

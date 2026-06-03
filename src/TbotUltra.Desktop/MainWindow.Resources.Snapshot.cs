@@ -329,6 +329,13 @@ public partial class MainWindow
 
     private bool ShouldRunBackgroundResourceSnapshotRefresh()
     {
+        // Session sleep is an offline state: the background tick must never read/navigate the browser
+        // while sleeping, or it will auto-relogin and defeat the sleep (see ENGINEERING_NOTES §5).
+        if (IsSessionSleeping)
+        {
+            return false;
+        }
+
         if (!_isLoggedIn || !_browserSessionLikelyOpen || _resourceSnapshotRefreshRunning)
         {
             return false;

@@ -1460,18 +1460,22 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
     {
         try
         {
-            await TryDismissContinuePromptAsync();
-
-            if (await CaptchaOrManualStepVisibleAsync())
-            {
-                return "manual_step";
-            }
-
+            // Cheap logged-out check FIRST: on a logout redirect the page is on login.php and is
+            // actively navigating. Running the continue-prompt scan (which reads element text) against
+            // a navigating page can hang on the default action timeout, so confirm sign-out by URL
+            // before touching any element.
             var currentUrl = _page.Url.ToLowerInvariant();
             if (currentUrl.Contains("login.php", StringComparison.Ordinal))
             {
                 Notify("You are logged out");
                 return "logged_out";
+            }
+
+            await TryDismissContinuePromptAsync();
+
+            if (await CaptchaOrManualStepVisibleAsync())
+            {
+                return "manual_step";
             }
 
             // The page can still be settling right after a navigation/reload (especially the
@@ -1880,7 +1884,9 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                     string? text;
                     try
                     {
-                        text = (await candidate.InnerTextAsync())?.Trim();
+                        // Explicit short timeout: without it InnerText falls back to the 15s default
+                        // action timeout and hangs when the page is navigating (e.g. logout redirect).
+                        text = (await candidate.InnerTextAsync(new LocatorInnerTextOptions { Timeout = timeoutMs }))?.Trim();
                     }
                     catch (PlaywrightException)
                     {
@@ -1920,7 +1926,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                     string? value;
                     try
                     {
-                        value = await candidate.GetAttributeAsync("value");
+                        value = await candidate.GetAttributeAsync("value", new LocatorGetAttributeOptions { Timeout = timeoutMs });
                     }
                     catch (PlaywrightException)
                     {

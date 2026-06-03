@@ -114,6 +114,14 @@ public partial class MainWindow
             _loopController.CancelOperation();
             _loopController.CancelAutoQueueRun();
             _loopController.CancelLoop();
+
+            // Disable background session work BEFORE logout (mirrors ResetForAccountSwitchAsync). While
+            // these stay true, the ~16s resource-refresh tick can slip onto the session gate during/after
+            // logout and silently log the account back in — especially if logout throws before
+            // LogoutCoreAsync clears them. Flipping them here makes the background ticks bail immediately.
+            _isLoggedIn = false;
+            _browserSessionLikelyOpen = false;
+            _inboxAutoEnabled = false;
             await StopAllAutomationAndWaitAsync();
 
             var operationId = BeginOperation("Session sleep");

@@ -198,6 +198,24 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   16s refresh does not repeatedly queue stale 0-reward `collect_daily_quests` tasks.
 - **2026-06-03** - Questmaster `/tasks` auto-collect must wait for visible rendered tab/buttons before clicking.
   React may place task elements in the DOM before they are laid out; only visible enabled `Collect` buttons should be clicked.
+- **2026-06-03** - Session-sleep logout hardening. (1) The ~16s background resource-snapshot tick is now gated on
+  `IsSessionSleeping` (`ShouldRunBackgroundResourceSnapshotRefresh`), so sleep can no longer auto-relogin via
+  `ensure-logged-in`. (2) `HandleSessionPacingSleepStartingAsync` flips `_isLoggedIn/_browserSessionLikelyOpen/
+  _inboxAutoEnabled` false BEFORE logout (mirrors `ResetForAccountSwitchAsync`) so a thrown logout no longer leaves
+  the gates stale-true. (3) `LoginStateAsync` does the cheap `login.php` URL check before `TryDismissContinuePromptAsync`,
+  and `FindContinuePromptLocatorAsync` passes the capped `timeoutMs` to `InnerTextAsync`/`GetAttributeAsync`. Root cause
+  of the observed `session logout failed: Timeout 15000ms exceeded`: element-text reads fell back to the 15s default
+  action timeout while the page was navigating (logout redirect + a concurrent ungated background refresh).
+- **2026-06-03** - `BotConfigStore` file I/O is now serialized behind a static `FileIoLock` with FileShare.ReadWrite
+  reads and a short IOException retry. bot.json/settings.json were read+written from many concurrent contexts (UI
+  dispatcher, continuous loop, background `Task.Run` refreshes) with unsynchronized `File.ReadAllText`/`WriteAllText`,
+  causing intermittent `The process cannot access the file ... because it is being used by another process`.
+- **2026-06-03** - Empty building slots no longer report the misleading `could not find 'Upgrade to level N' button.
+  Reason: CanUpgrade (Detected candidate 'construct building ...')`. `DetectBuildPageStateAsync` now returns
+  `EmptyConstructionSlot` (structural, language-independent: `[id^="contract_building"]` present and no
+  `.upgradeButtonsContainer`/"upgrade to level"), and both `UpgradeBuildingToLevelAsync`/`UpgradeBuildingToMaxAsync`
+  return a clear "slot is empty — construct the building first" message. Root cause: `upgrade_building_to_level` was
+  queued for an unbuilt slot whose page shows a construction menu, not an upgrade button.
 
 ---
 
