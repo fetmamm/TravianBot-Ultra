@@ -1279,6 +1279,9 @@ public partial class MainWindow : Window
     }
 
     private async void AccountsButton_Click(object sender, RoutedEventArgs e)
+        => await AsyncUi.GuardAsync(AccountsButtonClickAsync, AppendLog);
+
+    private async Task AccountsButtonClickAsync()
     {
         var previouslyActiveAccount = _accountStore.ActiveAccountName();
         var options = ApplySelectedVillageToOptions(LoadBotOptions());

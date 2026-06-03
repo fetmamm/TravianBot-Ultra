@@ -16,7 +16,7 @@ Målet: stegvisa, beteendebevarande refaktoriseringar med låg risk och hög nyt
 | Rank | Status | Senast uppdaterad |
 |------|--------|-------------------|
 | 1 | 🟢 Klar | 2026-06-03 |
-| 2 | ⬜ Ej påbörjad | — |
+| 2 | 🟢 Klar (lätt variant) | 2026-06-03 |
 | 3 | ⬜ Ej påbörjad | — |
 | 4 | ⬜ Ej påbörjad | — |
 | 5 | ⬜ Ej påbörjad | — |
@@ -28,6 +28,12 @@ Målet: stegvisa, beteendebevarande refaktoriseringar med låg risk och hög nyt
 - [x] **Steg 1d:** Flyttade kvarvarande CTS-fält in i `LoopController`. `MainWindow` äger nu **inga** CTS-fält. Nya API:er: `StartLoop`/`CancelLoop`; `StartVillageSwitch`/`CancelVillageSwitch`/`DisposeVillageSwitch`; `QueueAutoRunRootToken` + `StartAutoQueueRun`/`CancelAutoQueueRun`/`DisposeAutoQueueRun` + `CancelQueueAutoRunRoot`. Alla CTS disposas nu i `LoopController.Dispose()`. Semantik oförändrad (länkad root→child bevarad; `_loopCts` disposas fortfarande aldrig under drift). Kompilerar rent (0 fel/varningar, verifierat via separat output-mapp då appen kördes live).
 
 **Rank 1 är därmed klar.** `LoopController` äger nu hela CTS-/loop-state-livscykeln; `MainWindow` driver den via metoder.
+
+### Rank 2 – async void-säkerhet (lätt variant)
+- **Upptäckt:** Det globala skyddsnätet finns redan i `App.xaml.cs` (`DispatcherUnhandledException` → loggar + `e.Handled = true`, plus `AppDomain`/`TaskScheduler`-handlers). `async void`-undantag kraschar alltså **inte** appen redan idag. Dessutom har nästan alla ~35 handlers redan loggande try/catch (direkt eller via Core-metoder). Premissen "async void kan krascha UI" var alltså redan åtgärdad.
+- [x] La till återanvändbar hjälpare `AsyncUi.GuardAsync(action, log)` (`src/TbotUltra.Desktop/AsyncUi.cs`) — loggar oväntade fel till **in-app-loggen** (`AppendLog`) med handler-namn istället för bara filen `logs/desktop-unhandled.log`; ignorerar `OperationCanceledException`.
+- [x] Applicerade på den enda klart oskyddade handlern: `AccountsButton_Click` (tidiga `await` före all try; inre try saknade catch). Extraherade kroppen till `AccountsButtonClickAsync()` och wrappade. Bygger rent; tester 39/40 (samma pre-existerande SessionPacer-fel).
+- _Full per-handler-wrapping bedömdes som låg marginalnytta och valdes bort medvetet — hjälparen finns nu för framtida handlers._
 
 ## Rekommenderade refaktoriseringar
 
