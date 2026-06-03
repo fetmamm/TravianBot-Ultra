@@ -47,7 +47,9 @@ Mönster: flytta sammanhängande, helst rena/statiska metodkluster till nya tema
 - [x] **Steg 3f:** Flyttade byläsning/status-merge (6 metoder: `ReadVillageStatusWithRetryAsync`, `ReadVillageStatusAsync`, `LoadBuildingsAfterLoginAsync`, `LoadCurrentVillageViewsAfterLoginAsync`, `DescribeBuildingScanIssue`, `IsLikelyOccupiedBuilding`, ~163 rader) → `MainWindow.VillageStatus.cs`.
 - [x] **Steg 3g:** Flyttade Gold Club/Plus-status-info (6 metoder + 4 `Regex`-fält + `TryGetStoredGoldClubEnabled`, ~187 rader) → `MainWindow.StatusInfo.cs`. `xaml.cs`: 2386 → 2036. Kompilerar rent (0 varningar); tester 40/40.
 
-**Rank 3 sammanfattning hittills:** `MainWindow.xaml.cs` **4042 → 2036 rader** (−2006, ~50%) fördelat på sju nya tematiska partials (`DeferredWaits`, `ServerAccount`, `LoopIndicators`, `Toolbar`, `Session`, `VillageStatus`, `StatusInfo`). Mönstret är etablerat; fler skivor kvar (warmups, manuell exekveringsspårning, server-klocka, deferred refresh-instans).
+- [x] **Steg 3h/3i/3j:** Tre mindre kluster: warmups (`StartBackgroundWarmups`, `Run*WarmupAsync`) → `MainWindow.Warmups.cs`; queue-clear-settings + server-klocka (`ShouldClearQueueOn*`, `ReadQueueClearSetting`, `ResolveQueueServerTimeOffset`, `GetServerNow`, `UpdateClockText`, `FormatQueueServerTime`) → `MainWindow.ServerClock.cs`; manuell exekveringsspårning (`EnsureManualExecutionTracking`, `CompleteManualExecutionTrackingIfNeeded`, `SetManualExecutionOutcome`, `BuildRuntimeManualTaskName`) → `MainWindow.ManualExecution.cs`. ~247 rader. `xaml.cs`: 2036 → 1789. Kompilerar rent; tester 40/40.
+
+**Rank 3 sammanfattning hittills:** `MainWindow.xaml.cs` **4042 → 1789 rader** (−2253, ~56%) fördelat på tio nya tematiska partials (`DeferredWaits`, `ServerAccount`, `LoopIndicators`, `Toolbar`, `Session`, `VillageStatus`, `StatusInfo`, `Warmups`, `ServerClock`, `ManualExecution`). Mönstret är etablerat; återstår bl.a. den utspridda deferred refresh-instansen (~350) samt diverse småmetoder.
 
 ## Rekommenderade refaktoriseringar
 
