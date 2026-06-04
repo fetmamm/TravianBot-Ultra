@@ -2,11 +2,9 @@
 
 [![Join the Discord](https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/qrge94p7TH)
 
-
-![Status](https://img.shields.io/badge/Status-Active%20Development-brightgreen?style=for-the-badge)
-![Maintained](https://img.shields.io/badge/Maintained-Yes-success?style=for-the-badge)
-
 ![Platform](https://img.shields.io/badge/Platform-Windows-blue?style=for-the-badge)
+![Maintained](https://img.shields.io/badge/Maintained-Yes-success?style=for-the-badge)
+![Status](https://img.shields.io/badge/Status-Active%20Development-brightgreen?style=for-the-badge)
 
 ---
 
