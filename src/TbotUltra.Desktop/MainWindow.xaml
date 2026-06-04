@@ -34,9 +34,17 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <StackPanel Grid.Row="0" Margin="0,0,0,8">
-                    <TextBlock Text="Tbot Ultra" FontSize="26" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                    <TextBlock x:Name="VersionTextBlock" Text="Version: -" Foreground="{DynamicResource TextSubtleBrush}" Margin="0,2,0,0" />
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                    <Image Source="/Assets/Tbot_ultra_appicon.png"
+                           Width="80"
+                           Height="80"
+                           VerticalAlignment="Center"
+                           Margin="0,0,10,0"
+                           RenderOptions.BitmapScalingMode="HighQuality" />
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Tbot Ultra" FontSize="26" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <TextBlock x:Name="VersionTextBlock" Text="Version: -" Foreground="{DynamicResource TextSubtleBrush}" Margin="0,2,0,0" />
+                    </StackPanel>
                 </StackPanel>
 
                 <Border Grid.Row="1" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
@@ -74,17 +82,17 @@
                                 Grid.Column="0"
                                 Margin="0,0,3,0"
                                 Content="Login"
-                                Background="{DynamicResource AccentBrush}"
-                                Foreground="White"
-                                BorderBrush="{DynamicResource AccentBrush}"
+                                Background="{DynamicResource SuccessBgBrush}"
+                                Foreground="{DynamicResource SuccessTextBrush}"
+                                BorderBrush="{DynamicResource SuccessBorderBrush}"
                                 Click="LoginButton_Click" />
                         <Button x:Name="LogoutButton"
                                 Grid.Column="1"
                                 Margin="3,0,0,0"
                                 Content="Logout"
-                                Background="{DynamicResource DangerStrongBrush}"
-                                Foreground="{DynamicResource OnAccentBrush}"
-                                BorderBrush="{DynamicResource DangerStrongBrush}"
+                                Background="{DynamicResource ControlBackgroundBrush}"
+                                Foreground="{DynamicResource TextSubtleBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}"
                                 Click="LogoutButton_Click" />
                     </Grid>
                 </Border>
@@ -297,11 +305,14 @@
                         <Setter Property="FontWeight" Value="SemiBold" />
                         <Setter Property="VerticalAlignment" Value="Center" />
                     </Style>
-                    <!-- Colored emoji icon shown before each value (Segoe UI Emoji renders in color). -->
+                    <!-- Icon before each value. Segoe MDL2 line glyphs (WPF renders color emoji as
+                         monochrome/blank), tinted per metric for a crisp colored look. -->
                     <Style x:Key="MetricIcon" TargetType="TextBlock">
-                        <Setter Property="FontSize" Value="14" />
+                        <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+                        <Setter Property="FontSize" Value="13" />
                         <Setter Property="Margin" Value="0,0,6,0" />
                         <Setter Property="VerticalAlignment" Value="Center" />
+                        <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
                     </Style>
                 </Grid.Resources>
                 <Grid.ColumnDefinitions>
@@ -317,7 +328,7 @@
                         <StackPanel>
                             <TextBlock Text="Session" Style="{StaticResource MetricLabel}" />
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#x231B;" Style="{StaticResource MetricIcon}" />
+                                <TextBlock Text="&#xE916;" Style="{StaticResource MetricIcon}" />
                                 <TextBlock x:Name="SessionPacingStatusTextBlock"
                                            Text="Session pacing"
                                            Style="{StaticResource MetricValue}"
@@ -341,7 +352,7 @@
                         <StackPanel>
                             <TextBlock Text="Time" Style="{StaticResource MetricLabel}" />
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#x1F551;" Style="{StaticResource MetricIcon}" />
+                                <TextBlock Text="&#xE823;" Style="{StaticResource MetricIcon}" />
                                 <TextBlock x:Name="ClockTextBlock" Text="-" Style="{StaticResource MetricValue}" FontSize="13" />
                             </StackPanel>
                         </StackPanel>
@@ -354,7 +365,6 @@
                         <StackPanel>
                             <TextBlock Text="Gold spent" Style="{StaticResource MetricLabel}" />
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#x1FA99;" Style="{StaticResource MetricIcon}" />
                                 <TextBlock x:Name="NpcTradeSessionStatsTextBlock" Text="0" Style="{StaticResource MetricValue}" />
                             </StackPanel>
                         </StackPanel>
@@ -365,7 +375,7 @@
                         <StackPanel>
                             <TextBlock Text="Captchas solved" Style="{StaticResource MetricLabel}" />
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#x1F6E1;" Style="{StaticResource MetricIcon}" />
+                                <TextBlock Text="&#xE72E;" Style="{StaticResource MetricIcon}" />
                                 <TextBlock x:Name="CaptchaStatsTextBlock" Text="0/0" Style="{StaticResource MetricValue}" />
                             </StackPanel>
                         </StackPanel>
@@ -375,7 +385,6 @@
                         <StackPanel>
                             <TextBlock Text="Gold" Style="{StaticResource MetricLabel}" />
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#x1FA99;" Style="{StaticResource MetricIcon}" />
                                 <TextBlock x:Name="ServerResourcesTextBlock" Text="-" Style="{StaticResource MetricValue}" />
                             </StackPanel>
                         </StackPanel>
@@ -385,7 +394,6 @@
                         <StackPanel>
                             <TextBlock Text="Silver" Style="{StaticResource MetricLabel}" />
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#x1F948;" Style="{StaticResource MetricIcon}" />
                                 <TextBlock x:Name="SilverInfoTextBlock" Text="-" Style="{StaticResource MetricValue}" />
                             </StackPanel>
                         </StackPanel>
@@ -395,7 +403,6 @@
                         <StackPanel>
                             <TextBlock Text="Goldclub" Style="{StaticResource MetricLabel}" />
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#x1F451;" Style="{StaticResource MetricIcon}" />
                                 <TextBlock x:Name="GoldClubInfoTextBlock" Text="-" Style="{StaticResource MetricValue}" />
                             </StackPanel>
                         </StackPanel>
@@ -405,7 +412,6 @@
                         <StackPanel>
                             <TextBlock Text="Plus" Style="{StaticResource MetricLabel}" />
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#x2795;" Style="{StaticResource MetricIcon}" />
                                 <TextBlock x:Name="PlusInfoTextBlock" Text="-" Style="{StaticResource MetricValue}" />
                             </StackPanel>
                         </StackPanel>
@@ -415,7 +421,6 @@
                         <StackPanel>
                             <TextBlock Text="Tribe" Style="{StaticResource MetricLabel}" />
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#x1FA96;" Style="{StaticResource MetricIcon}" />
                                 <TextBlock x:Name="TribeInfoTextBlock" Text="-" Style="{StaticResource MetricValue}" />
                             </StackPanel>
                         </StackPanel>
@@ -501,11 +506,6 @@
                                                 ToolTip="{Binding TooltipText}">
                                             <StackPanel>
                                                 <DockPanel LastChildFill="False">
-                                                    <TextBlock DockPanel.Dock="Left"
-                                                               Text="{Binding Glyph}"
-                                                               FontSize="14"
-                                                               Margin="0,0,6,0"
-                                                               VerticalAlignment="Center" />
                                                     <TextBlock DockPanel.Dock="Left"
                                                                Text="{Binding DisplayName}"
                                                                Foreground="{DynamicResource TextSecondaryBrush}"
@@ -970,7 +970,30 @@
                                                             <TextBlock Grid.Column="0" Text="{Binding Name}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" TextTrimming="CharacterEllipsis" />
                                                             <TextBlock Grid.Column="1" Text="{Binding PopText}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" Margin="8,0,0,0" />
                                                             <TextBlock Grid.Column="2" Text="{Binding CoordsText}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" Margin="8,0,0,0" />
-                                                            <TextBlock Grid.Column="4" Text="{Binding CapitalText}" Foreground="{DynamicResource CapitalBrush}" FontSize="13" FontWeight="SemiBold" Margin="8,0,0,0" HorizontalAlignment="Right" />
+                                                            <Border Grid.Column="4"
+                                                                    HorizontalAlignment="Right"
+                                                                    VerticalAlignment="Center"
+                                                                    Margin="8,0,0,0"
+                                                                    Padding="7,1"
+                                                                    CornerRadius="6"
+                                                                    BorderThickness="1"
+                                                                    Background="{DynamicResource WarningBgBrush}"
+                                                                    BorderBrush="{DynamicResource WarningBorderBrush}">
+                                                                <Border.Style>
+                                                                    <Style TargetType="Border">
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsCapital}" Value="False">
+                                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Border.Style>
+                                                                <TextBlock Text="Capital"
+                                                                           Foreground="{DynamicResource WarningTextBrush}"
+                                                                           FontSize="11"
+                                                                           FontWeight="SemiBold" />
+                                                            </Border>
                                                         </Grid>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
@@ -1172,13 +1195,9 @@
                                                         CornerRadius="6"
                                                         Background="{Binding TrackBrush}">
                                                     <StackPanel>
-                                                        <StackPanel Orientation="Horizontal">
-                                                            <TextBlock Text="{Binding Glyph}" FontSize="14" Margin="0,0,6,0" VerticalAlignment="Center" />
-                                                            <TextBlock Text="{Binding DisplayName}"
-                                                                       Foreground="{DynamicResource TextSecondaryBrush}"
-                                                                       FontWeight="SemiBold"
-                                                                       VerticalAlignment="Center" />
-                                                        </StackPanel>
+                                                        <TextBlock Text="{Binding DisplayName}"
+                                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                                   FontWeight="SemiBold" />
                                                         <TextBlock Text="{Binding ProductionText}"
                                                                    Foreground="{DynamicResource TextPrimaryBrush}"
                                                                    FontSize="16"

@@ -1292,23 +1292,31 @@ public partial class MainWindow : Window
     {
         StartLoopButton.IsEnabled = isLoggedIn;
 
+        // Both buttons use a soft/tinted style (like Start/Pause bot). Only the available action is
+        // colored: Login is green when logged out, Logout is red when logged in; the other is neutral.
         if (isLoggedIn)
         {
-            LoginButton.Background = new SolidColorBrush(ThemeColors.Get("ControlBackgroundBrush"));
-            LoginButton.BorderBrush = new SolidColorBrush(ThemeColors.Get("BorderBrush"));
-            LoginButton.Foreground = new SolidColorBrush(ThemeColors.Get("TextPrimaryBrush"));
-            LogoutButton.Background = new SolidColorBrush(ThemeColors.Get("AccentBrush"));
-            LogoutButton.BorderBrush = new SolidColorBrush(ThemeColors.Get("AccentBrush"));
-            LogoutButton.Foreground = Brushes.White;
+            ApplyNeutralButtonVisual(LoginButton);
+            ApplySoftButtonVisual(LogoutButton, "DangerBgBrush", "DangerBorderBrush", "DangerTextBrush");
             return;
         }
 
-        LoginButton.Background = new SolidColorBrush(ThemeColors.Get("AccentBrush"));
-        LoginButton.BorderBrush = new SolidColorBrush(ThemeColors.Get("AccentBrush"));
-        LoginButton.Foreground = Brushes.White;
-        LogoutButton.Background = new SolidColorBrush(ThemeColors.Get("ControlBackgroundBrush"));
-        LogoutButton.BorderBrush = new SolidColorBrush(ThemeColors.Get("BorderBrush"));
-        LogoutButton.Foreground = new SolidColorBrush(ThemeColors.Get("TextPrimaryBrush"));
+        ApplySoftButtonVisual(LoginButton, "SuccessBgBrush", "SuccessBorderBrush", "SuccessTextBrush");
+        ApplyNeutralButtonVisual(LogoutButton);
+    }
+
+    private static void ApplySoftButtonVisual(System.Windows.Controls.Button button, string bgKey, string borderKey, string foregroundKey)
+    {
+        button.Background = new SolidColorBrush(ThemeColors.Get(bgKey));
+        button.BorderBrush = new SolidColorBrush(ThemeColors.Get(borderKey));
+        button.Foreground = new SolidColorBrush(ThemeColors.Get(foregroundKey));
+    }
+
+    private static void ApplyNeutralButtonVisual(System.Windows.Controls.Button button)
+    {
+        button.Background = new SolidColorBrush(ThemeColors.Get("ControlBackgroundBrush"));
+        button.BorderBrush = new SolidColorBrush(ThemeColors.Get("BorderBrush"));
+        button.Foreground = new SolidColorBrush(ThemeColors.Get("TextSubtleBrush"));
     }
 
     private void HandleBrowserClosedSignal()

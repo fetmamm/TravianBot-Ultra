@@ -40,9 +40,11 @@ public partial class MainWindow
             return;
         }
 
-        StartLoopButton.Background = new SolidColorBrush(ThemeColors.Get("AccentBrush"));
-        StartLoopButton.BorderBrush = new SolidColorBrush(ThemeColors.Get("AccentBrush"));
-        StartLoopButton.Foreground = Brushes.White;
+        // Soft/tinted green (light bg + green border + green text), matching the tinted "Pause bot"
+        // look rather than a solid green fill.
+        StartLoopButton.Background = new SolidColorBrush(ThemeColors.Get("SuccessBgBrush"));
+        StartLoopButton.BorderBrush = new SolidColorBrush(ThemeColors.Get("SuccessBorderBrush"));
+        StartLoopButton.Foreground = new SolidColorBrush(ThemeColors.Get("SuccessTextBrush"));
     }
 
     private void SetLoopStateBadge(string stateText, Color color, string startButtonText)

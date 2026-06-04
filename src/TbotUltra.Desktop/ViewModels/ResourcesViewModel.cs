@@ -46,10 +46,10 @@ public sealed class ResourcesViewModel : BaseViewModel
     /// <summary>Always-visible storage bars and production cards.</summary>
     public ObservableCollection<ResourceStorageBarItem> StorageBars { get; } =
     [
-        CreateBar("wood", "Wood", "WoodTextBrush", "WoodCardBgBrush", "\U0001FAB5"),
-        CreateBar("clay", "Clay", "ClayTextBrush", "ClayCardBgBrush", "\U0001F9F1"),
-        CreateBar("iron", "Iron", "IronTextBrush", "IronCardBgBrush", "⛏️"),
-        CreateBar("crop", "Crop", "CropTextBrush", "CropCardBgBrush", "\U0001F33E"),
+        CreateBar("wood", "Wood", "WoodTextBrush", "WoodCardBgBrush"),
+        CreateBar("clay", "Clay", "ClayTextBrush", "ClayCardBgBrush"),
+        CreateBar("iron", "Iron", "IronTextBrush", "IronCardBgBrush"),
+        CreateBar("crop", "Crop", "CropTextBrush", "CropCardBgBrush"),
     ];
 
     public bool UseDenseCroplandLayout => CroplandFields.Count > 6;
@@ -318,13 +318,12 @@ public sealed class ResourcesViewModel : BaseViewModel
     /// <summary>Forgets all remembered pending targets (e.g. on village switch).</summary>
     public void ClearPendingTargets() => _pendingTargetBySlot.Clear();
 
-    private static ResourceStorageBarItem CreateBar(string key, string name, string barBrushKey, string trackBrushKey, string glyph)
+    private static ResourceStorageBarItem CreateBar(string key, string name, string barBrushKey, string trackBrushKey)
     {
         return new ResourceStorageBarItem
         {
             ResourceKey = key,
             DisplayName = name,
-            Glyph = glyph,
             BarBrush = ThemeColors.Brush(barBrushKey),
             TrackBrush = ThemeColors.Brush(trackBrushKey),
         };

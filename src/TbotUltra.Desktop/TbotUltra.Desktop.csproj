@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <Resource Include="..\..\assets\icons\icon_windows.ico" Link="Assets\icon_windows.ico" />
+    <Resource Include="..\..\assets\icons\Tbot_ultra_appicon.png" Link="Assets\Tbot_ultra_appicon.png" />
   </ItemGroup>
 
 </Project>
