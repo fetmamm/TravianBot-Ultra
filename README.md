@@ -1,4 +1,8 @@
-# Tbot_ultra_new
+# Tbot Ultra
+
+<p align="center">
+  <img src="assets/images/tbot_v032.png" alt="Tbot Ultra Dashboard">
+</p>
 
 [![Join the Discord](https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/qrge94p7TH)
 
