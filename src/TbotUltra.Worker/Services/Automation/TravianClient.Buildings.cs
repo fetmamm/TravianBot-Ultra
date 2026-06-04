@@ -1829,20 +1829,6 @@ public sealed partial class TravianClient
         return waitSeconds > thresholdSeconds;
     }
 
-    public async Task<IReadOnlyList<ServerBuildChoice>> ReadAvailableBuildingsForSlotAsync(int slotId, CancellationToken cancellationToken = default)
-    {
-        Notify("[build:verbose] ReadAvailableBuildingsForSlotAsync started");
-        if (slotId < 19)
-        {
-            throw new InvalidOperationException($"Building slot {slotId} is outside the building range.");
-        }
-
-        await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading build choices.", cancellationToken);
-        await EnsureLoggedInAsync();
-        return await ReadServerBuildChoicesOnCurrentPageAsync(cancellationToken);
-    }
-
     private static Building? ResolveTargetBuilding(VillageStatus status, string targetBuildingSlotOrName)
     {
         if (int.TryParse(targetBuildingSlotOrName.Trim(), out var slotId))
@@ -3731,96 +3717,6 @@ public sealed partial class TravianClient
         throw new InvalidOperationException($"{name} cannot be built yet. Missing requirements: {requirements}.");
     }
 
-    private async Task EnsureServerAllowsConstructionAsync(int slotId, int gid, string name, CancellationToken cancellationToken)
-    {
-        var choices = await ReadServerBuildChoicesOnCurrentPageAsync(cancellationToken);
-        if (choices.Count == 0)
-        {
-            return;
-        }
-
-        var match = choices.FirstOrDefault(choice => choice.Gid == gid);
-        if (match is null)
-        {
-            throw new InvalidOperationException($"{name} is not listed by the server for slot {slotId}.");
-        }
-
-        if (!match.Available)
-        {
-            var reason = string.IsNullOrWhiteSpace(match.Reason) ? string.Empty : $" Server reason: {match.Reason}";
-            throw new InvalidOperationException($"{name} cannot be built in slot {slotId} right now.{reason}");
-        }
-    }
-
-    private async Task<IReadOnlyList<ServerBuildChoice>> ReadServerBuildChoicesOnCurrentPageAsync(CancellationToken cancellationToken)
-    {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading build choices.", cancellationToken);
-
-        var rawJson = await _page.EvaluateAsync<string>(
-            """
-            () => {
-              const parseGid = (element) => {
-                const text = [
-                  element.getAttribute('href') || '',
-                  element.getAttribute('onclick') || '',
-                  element.getAttribute('class') || '',
-                  element.getAttribute('data-gid') || '',
-                  element.textContent || ''
-                ].join(' ');
-                const match = text.match(/(?:gid=|gid%3D|gid\s*)(\d+)/i) || text.match(/(?:^|\s)gid(\d+)(?:\s|$)/i);
-                return match ? Number(match[1]) : null;
-              };
-
-              const clean = (value) => (value || '').replace(/\s+/g, ' ').trim();
-              const rows = Array.from(document.querySelectorAll(
-                '.contract, .buildingWrapper, .build_details, .buildingList li, table tr, div'
-              ));
-              const seen = new Set();
-              const choices = [];
-
-              for (const row of rows) {
-                const gid = parseGid(row);
-                if (!gid || seen.has(gid)) continue;
-                seen.add(gid);
-
-                const button = row.querySelector('button, input[type="submit"], a[href*="gid"]') || row;
-                const classes = clean(`${row.className || ''} ${button.className || ''}`).toLowerCase();
-                const text = clean(row.textContent || '');
-                const lowerText = text.toLowerCase();
-                const disabled = button.disabled || classes.includes('disabled') || lowerText.includes('not enough')
-                  || lowerText.includes('requirements') || lowerText.includes('missing') || lowerText.includes('cannot');
-                const isGold = classes.includes('gold') || lowerText.includes('npc') || lowerText.includes('instant');
-                const available = !disabled && !isGold && (
-                  classes.includes('green') || lowerText.includes('build') || lowerText.includes('construct')
-                );
-                const heading = row.querySelector('h2, h3, .title, .name, img[alt]');
-                const name = clean(heading ? (heading.getAttribute('alt') || heading.textContent) : text.split('\n')[0]);
-                choices.push({
-                  gid,
-                  name: name || `gid ${gid}`,
-                  available,
-                  reason: available ? 'Server says available' : text
-                });
-              }
-
-              return JSON.stringify(choices);
-            }
-            """);
-
-        var raw = string.IsNullOrWhiteSpace(rawJson)
-            ? new List<ServerBuildChoiceJs>()
-            : JsonSerializer.Deserialize<List<ServerBuildChoiceJs>>(rawJson) ?? new List<ServerBuildChoiceJs>();
-
-        return raw
-            .Where(item => item.Gid is not null)
-            .Select(item => new ServerBuildChoice(
-                Gid: item.Gid!.Value,
-                Name: string.IsNullOrWhiteSpace(item.Name) ? $"gid {item.Gid}" : item.Name!,
-                Available: item.Available,
-                Reason: item.Reason ?? string.Empty))
-            .ToList();
-    }
-
     private static List<(string name, int level)> MissingBuildingRequirements(VillageStatus status, int gid)
     {
         var missing = new List<(string name, int level)>();
@@ -3859,6 +3755,11 @@ public sealed partial class TravianClient
             "granary / silo" => "granary",
             "silo" => "granary",
             "blacksmith" => "smithy",
+            // Server displays the full names; older catalog/config strings used the short forms.
+            "stonemason's lodge" => "stonemason",
+            "stonemasons lodge" => "stonemason",
+            "hero's mansion" => "hero mansion",
+            "heros mansion" => "hero mansion",
             "city wall" => "wall",
             "earth wall" => "wall",
             "palisade" => "wall",
@@ -4267,7 +4168,7 @@ public sealed partial class TravianClient
         ["g31"] = "City Wall",
         ["g32"] = "Earth Wall",
         ["g33"] = "Palisade",
-        ["g34"] = "Stonemason",
+        ["g34"] = "Stonemason's Lodge",
         ["g35"] = "Brewery",
         ["g36"] = "Trapper",
         ["g37"] = "Hero's Mansion",

@@ -83,8 +83,6 @@ public sealed record ConstructionSlotStatus(
     bool CanStartBuilding,
     int? ShortestWaitSeconds);
 
-public sealed record ServerBuildChoice(int Gid, string Name, bool Available, string Reason);
-
 public sealed record ResourceStorageForecast(
     string ResourceKey,
     long? Current,

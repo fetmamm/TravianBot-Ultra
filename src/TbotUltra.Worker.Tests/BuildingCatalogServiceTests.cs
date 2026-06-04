@@ -52,6 +52,24 @@ public sealed class BuildingCatalogServiceTests
     }
 
     [Fact]
+    public void CatalogNames_MatchServerDisplayNames()
+    {
+        // DOM dumps show the server's exact names; the catalog must agree so name-matching works.
+        var catalog = BuildingCatalogService.GetFullCatalog("Teutons");
+        Assert.Contains(catalog, item => item.Gid == 34 && item.Name == "Stonemason's Lodge");
+        Assert.Contains(catalog, item => item.Gid == 37 && item.Name == "Hero's Mansion");
+    }
+
+    [Theory]
+    [InlineData("Stonemason's Lodge", "Stonemason")]
+    [InlineData("Hero's Mansion", "Hero Mansion")]
+    [InlineData("Blacksmith", "Smithy")]
+    public void SameBuildingName_TreatsServerAndCatalogVariantsAsEqual(string serverName, string catalogName)
+    {
+        Assert.True(TravianClient.SameBuildingName(serverName, catalogName));
+    }
+
+    [Fact]
     public void FullCatalog_ContainsHospitalAsArmyBuilding()
     {
         var gauls = BuildingCatalogService.GetFullCatalog("Gauls");

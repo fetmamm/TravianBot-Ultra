@@ -6138,7 +6138,7 @@
       ]
     },
     "34": {
-      "name": "Stonemason",
+      "name": "Stonemason's Lodge",
       "category": "infrastructure",
       "tribe": null,
       "max_level": 20,
@@ -6693,7 +6693,7 @@
       ]
     },
     "37": {
-      "name": "Hero Mansion",
+      "name": "Hero's Mansion",
       "category": "army_buildings",
       "tribe": null,
       "max_level": 20,

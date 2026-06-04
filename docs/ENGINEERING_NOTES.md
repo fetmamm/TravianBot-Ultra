@@ -274,6 +274,9 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   construct att misslyckas (UI köade gid 12, serverns Construct-knapp var gid 13, och den gid-scopade
   klickningen vägrar "främmande" gid). Smithy ska vara 13 i `BuildingCatalogService` (BaseBuildings,
   requirements, SingleInstance), i `TravianBuildings`-parsekartan (`g13`) och i `config/buildings_catalog.json`.
+  Byggnadsnamn ska matcha serverns exakta visningsnamn (verifierat mot DOM-dumparna): `gid 34 =
+  "Stonemason's Lodge"`, `gid 37 = "Hero's Mansion"`. `NormalizeBuildingName` har alias så server- och
+  kortformer matchar (t.ex. "stonemason's lodge"→"stonemason", "hero's mansion"→"hero mansion").
 - **Hero transfer-dialog stängs inte av sig själv:** synthetiskt `button.click()` kan ignoreras av React /
   Travian kan lämna dialogen öppen. Lämna den ALDRIG öppen — kvarvarande `#dialogOverlay` blockerar nästa
   upgrade-/construct-klick (samma fel som "Open shop"-overlayen). `TryDismissResourceTransferDialogAsync`

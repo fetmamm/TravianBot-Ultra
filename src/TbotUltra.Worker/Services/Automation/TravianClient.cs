@@ -5336,21 +5336,6 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         public string? FinishAtText { get; init; }
     }
 
-    private sealed class ServerBuildChoiceJs
-    {
-        [JsonPropertyName("gid")]
-        public int? Gid { get; init; }
-
-        [JsonPropertyName("name")]
-        public string? Name { get; init; }
-
-        [JsonPropertyName("available")]
-        public bool Available { get; init; }
-
-        [JsonPropertyName("reason")]
-        public string? Reason { get; init; }
-    }
-
     private sealed class FarmListRowJs
     {
         [JsonPropertyName("name")]
