@@ -212,7 +212,7 @@ public partial class MainWindow
         var summaryText = new TextBlock
         {
             Text = BuildNatarsListSummaryText(rows, snapshot.SelectionMode),
-            Foreground = new SolidColorBrush(Color.FromRgb(75, 85, 99)),
+            Foreground = new SolidColorBrush(ThemeColors.Get("TextMutedBrush")),
             Margin = new Thickness(0, 0, 0, 10),
         };
 
@@ -567,8 +567,8 @@ public partial class MainWindow
             Value = true,
             Setters =
             {
-                new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromRgb(219, 234, 254))),
-                new Setter(Control.BorderBrushProperty, new SolidColorBrush(Color.FromRgb(96, 165, 250))),
+                new Setter(Control.BackgroundProperty, new SolidColorBrush(ThemeColors.Get("InfoBgBrush"))),
+                new Setter(Control.BorderBrushProperty, new SolidColorBrush(ThemeColors.Get("SlotSelectedBorderBrush"))),
             },
         });
         grid.RowStyle = rowStyle;
@@ -648,8 +648,8 @@ public partial class MainWindow
         if (NatarsProfileAnalyzedIndicator is not null)
         {
             NatarsProfileAnalyzedIndicator.Fill = analyzed
-                ? new SolidColorBrush(Color.FromRgb(22, 163, 74))
-                : new SolidColorBrush(Color.FromRgb(156, 163, 175));
+                ? new SolidColorBrush(ThemeColors.Get("SuccessBrush"))
+                : new SolidColorBrush(ThemeColors.Get("BorderMutedBrush"));
         }
 
         SetEnabled(ShowNatarsListButton, !_farmingOperationBusy && _farmingFeaturesAvailable && analyzed);

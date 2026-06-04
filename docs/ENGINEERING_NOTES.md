@@ -233,6 +233,75 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   `DynamicResource` till tokens. Mål: en enda plats för färg så ett mörkt tema senare kan vändas där.
   Inga visuella eller funktionella ändringar (DynamicResource resolvar upp till `Application.Resources`).
   Färger i `MainWindow.xaml`/övriga XAML + code-behind är **inte** tokeniserade ännu (Fas 1+).
+- **2026-06-03** — UI-tema Fas 1 klar (fortfarande utseendeneutralt). **Alla** färgliteraler i XAML är nu
+  flyttade till `Palette.xaml`-tokens via `DynamicResource` — `MainWindow.xaml` (0 kvar), alla `Views/*`
+  och alla dialogfönster. `Palette.xaml` är enda stället med hex. Tokens utökade med semantiska grupper
+  (success/warning/info/danger), terminal, resursfält-tinter och slate-accenter (Settings/Accounts).
+  Värden oförändrade → ingen visuell/funktionell skillnad. **Kvar till mörker-vändningen:** (1) sätt mörka
+  värden i `Palette.xaml`, (2) ~151 färgsättningar i **code-behind/VM** (`MainWindow.LoopIndicators.cs`,
+  `TroopTrainingViewModel.cs`, m.fl.) använder fortfarande literaler och måste läsa via `FindResource`.
+- **2026-06-03** — UI-tema Fas 2 klar (utseendeneutralt). Ny `Themes/ThemeColors.cs`-hjälpklass läser
+  palett-penslar/-färger per nyckel (`ThemeColors.Brush(key)` / `.Get(key)`, magenta-fallback vid typo).
+  Alla `Color.FromRgb(...)`/`BrushConverter`-literaler i code-behind/VM är nu ersatta med token-uppslag
+  (LoopIndicators, login/logout, nav-selektion, AutomationLoop-dot, Logging, SessionPacing, Farming,
+  QueueUi-popout, AppDialog, BuildingConstructChoice, CatapultWave, ResourcesViewModel, samt badge-
+  properties i `TroopTrainingViewModel`/`TroopTrainingBuildingOption` som nu returnerar `Brush` i stället
+  för hex-`string`). `Palette.xaml` utökad med code-behind-nyanser (amber/waiting/emerald/gold m.fl.).
+  Namngivna WPF-penslar (`Brushes.SeaGreen/DarkOrange/Green/Red/Gray/...`) lämnades — fungerar på
+  både ljus/mörk. Bygger rent, 40 Desktop-tester gröna, utseende oförändrat. **Allt är nu tokeniserat
+  (XAML + C#) — mörker-vändningen är ett en-fils-byte i `Palette.xaml`.**
+- **2026-06-03** — UI-tema Fas 3: **mörkt tema applicerat.** `Palette.xaml` vänd till mörka värden
+  (bakgrund #0D1117, kort #161B22, ljus text, **grön accent #238636** för login/start/toggles enligt
+  konceptbilden). Ny `Themes/BaseControls.xaml` med implicita bas-stilar (TextBlock/Label/CheckBox/
+  RadioButton/TextBox/PasswordBox/ComboBox/DataGrid/TabControl/TabItem/Window) ger mörka defaults där
+  explicit färg saknas — annars blir WPF:s svarta default-text osynlig mot mörk bakgrund. Registrerad i
+  `App.xaml` efter Palette. `ToggleSwitchStyle` fick en `Foreground`-setter (explicit Style ersätter den
+  implicita). För att återgå till ljust: återställ de ljusa hex-värdena i `Palette.xaml` (git-historik).
+  **Kvar/known limitations (kräver om-templating, ej gjort):** native WPF-chrome är inte fullt temad —
+  context-menyer och scrollbars använder fortfarande system-(ljus)färger; default-Button/TabItem-mallar
+  (Aero2) hedrar bara `Background` delvis så de kan se något ljusa ut. Detta är nästa polering om ett
+  komplett mörkt tema önskas.
+- **2026-06-03** — UI-tema: **ComboBox mörk-templatad.** Default Aero2-mallen renderade ljus ruta +
+  ljus popup med osynlig text. `BaseControls.xaml` har nu full `ComboBox`- + `ComboBoxItem`-mall (mörk
+  ruta, pil, mörk dropdown-popup `SurfaceBrush`, highlight `SelectedRowBgBrush`) via tokens. Stängd ruta
+  och lista är nu läsbara i mörkt läge.
+- **2026-06-03** — UI-tema: **native-chrome polerad mörk.** Platt mörk `Button`-mall i `Buttons.xaml`
+  (honererar per-knapp Background/BorderBrush via `TemplateBinding`; hover/press/disabled via opacity —
+  ersätter Aero2-gradienten). Mörk `TabItem`-mall i `BaseControls.xaml` (markerad flik = grön underlinje
+  + `SurfaceBrush`). Ny `Themes/ScrollBars.xaml` (flat mörk track + rundad thumb, inga pilknappar),
+  registrerad i `App.xaml`. Enkla mörka `ContextMenu`/`MenuItem`-defaults. Bygger rent, 40 tester gröna.
+  Mörka temat är nu i stort sett enhetligt (Slider/DatePicker o.d. om-templatas vid behov).
+- **2026-06-03** — UI-tema: **resterande inputs mörk-templatade.** Ny `Themes/Inputs.xaml` med mallar för
+  `ProgressBar` (token-bar/-track; storage-bars binder fortfarande egen Foreground/Background), `Slider`
+  (grön thumb), `CheckBox` (mörk ruta, grön bock) och `RadioButton` (grön prick). De enkla CheckBox/
+  RadioButton-stilarna flyttades från `BaseControls.xaml` hit. `ToggleSwitchStyle`-checkboxar behåller
+  sin egen stil. Registrerad i `App.xaml`. Bygger rent, 40 tester gröna. **Mörkt tema komplett.**
+- **2026-06-03** — UI-tema: dialog-/fönster-fixar. (1) Implicit `Window`-bakgrund slog inte igenom för
+  separata dialog-fönster (medan implicit TextBlock gjorde det) → klientytan blev vit. Lade därför
+  **explicit** `Background="{DynamicResource AppBackgroundBrush}"` på alla dialog-`Window`-rötter.
+  (2) `BusyOverlayControl` hade `Background="White"` (namngiven, missades av hex-passet) → `SurfaceBrush`.
+  (3) **Mörk OS-titelrad** för alla fönster via DWM: `App.OnStartup` registrerar en class-handler på
+  `Window.Loaded` som sätter `DWMWA_USE_IMMERSIVE_DARK_MODE` (attr 20, fallback 19) — kosmetiskt,
+  fel sväljs. Detta tar "ljus programram". Bygger rent, 40 tester gröna.
+- **2026-06-03** — UI-tema: **rotorsak till ljusa dialog-knappar** — `Buttons.xaml`/`Toggles.xaml`/
+  `Badges.xaml` var bara mergade i `MainWindow.xaml`s resurser, så separata dialog-fönster fick WPF:s
+  ljusa default-knappar. Flyttade dessa tre till `App.xaml` (app-brett); tog bort `Window.Resources`-
+  blocket i `MainWindow.xaml` (keyed-stilar resolvas via StaticResource upp till App). Nu är alla
+  dialog-knappar mörka (building-popups, test functions, settings, support, bekräftelser). Dessutom:
+  implicit `ListBox`/`ListBoxItem` (Accounts-listan var vit) och järn-stapeln ljusades upp
+  (`IronTextBrush` #94A3B8 → #8FB6E0) för bättre kontrast. Bygger rent, 40 tester gröna.
+- **2026-06-03** — UI-tema: fler dialog-/grid-fixar. App-brett mörkt `DataGrid` (+ `DataGridColumnHeader`,
+  `DataGridCell`: rader/alternering/headers/markering) i `BaseControls.xaml` — Server list-popupen hade
+  ljus grid. Queue "Pop out"-fönstret (skapas i kod) fick `Background = AppBackgroundBrush` + marginal.
+  Alarm-loggens bakgrund matchar nu Log-loggen (`AlarmBgBrush` #110D0D → #020617). Järn-kortets/-staplens
+  bakgrund ljusades (`IronCardBgBrush` #1A2230 → #243A52) så den inte blandar in i app-bakgrunden.
+  OBS: bygget kan bara slutföras när den körande appen är stängd (DLL-lås), kompileringen är ren.
+- **2026-06-03** — UI-tema: tre småfixar. (1) `ProgressBar` indeterminate-animationen (loading) slutade
+  röra sig — min custom-mall hade bara determinate. Tog bort mallen, behåller bara färg-setters så WPF:s
+  default-mall (med animation) används; storage/farmlist binder egen Foreground/Background. (2) Delete-
+  knappen i Server list klipptes (implicit `DataGridCell`-padding + knapp-marginal > kolumnbredd) →
+  kolumn 90→110, knapp `Margin=0 Height=26` centrerad. (3) Reset settings-knappen hade vit rand
+  (`BorderBrush=InkBrush`, ljus i mörkt tema) → `PrimaryButtonBrush` (grön, matchar bakgrund). Bygger rent, 40 tester gröna.
 
 ---
 

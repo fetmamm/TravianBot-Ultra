@@ -188,11 +188,11 @@ public partial class AppDialog : Window
     {
         var (glyph, fg, bg) = icon switch
         {
-            MessageBoxImage.Warning => ("!", Color.FromRgb(146, 64, 14), Color.FromRgb(254, 243, 199)),
-            MessageBoxImage.Error => ("x", Color.FromRgb(153, 27, 27), Color.FromRgb(254, 226, 226)),
-            MessageBoxImage.Question => ("?", Color.FromRgb(30, 64, 175), Color.FromRgb(219, 234, 254)),
-            MessageBoxImage.Information => ("i", Color.FromRgb(30, 64, 175), Color.FromRgb(219, 234, 254)),
-            _ => ("i", Color.FromRgb(31, 41, 55), Color.FromRgb(229, 231, 235)),
+            MessageBoxImage.Warning => ("!", ThemeColors.Get("WarningTextDeepBrush"), ThemeColors.Get("WarningBgBrush")),
+            MessageBoxImage.Error => ("x", ThemeColors.Get("DangerTextBrush"), ThemeColors.Get("DangerBgBrush")),
+            MessageBoxImage.Question => ("?", ThemeColors.Get("InfoTextStrongBrush"), ThemeColors.Get("InfoBgBrush")),
+            MessageBoxImage.Information => ("i", ThemeColors.Get("InfoTextStrongBrush"), ThemeColors.Get("InfoBgBrush")),
+            _ => ("i", ThemeColors.Get("DataGridCellTextBrush"), ThemeColors.Get("ControlBackgroundBrush")),
         };
 
         IconTextBlock.Text = glyph;

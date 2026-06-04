@@ -13,17 +13,7 @@
         MinHeight="700"
         MinWidth="980"
         ShowInTaskbar="True"
-        Background="#F3F4F6">
-    <Window.Resources>
-        <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="Themes/Buttons.xaml" />
-                <ResourceDictionary Source="Themes/Badges.xaml" />
-                <ResourceDictionary Source="Themes/Toggles.xaml" />
-            </ResourceDictionary.MergedDictionaries>
-        </ResourceDictionary>
-    </Window.Resources>
-
+        Background="{DynamicResource AppBackgroundBrush}">
     <Grid>
         <Grid.LayoutTransform>
             <ScaleTransform ScaleX="0.88" ScaleY="0.88" />
@@ -33,7 +23,7 @@
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
-        <Border Grid.Column="0" Background="#EFEFEF" BorderBrush="#D1D5DB" BorderThickness="0,0,1,0">
+        <Border Grid.Column="0" Background="{DynamicResource SidebarBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
             <Grid Margin="10,8,10,8">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -45,14 +35,14 @@
                 </Grid.RowDefinitions>
 
                 <StackPanel Grid.Row="0" Margin="0,0,0,8">
-                    <TextBlock Text="Tbot Ultra" FontSize="26" FontWeight="SemiBold" Foreground="#111827" />
-                    <TextBlock x:Name="VersionTextBlock" Text="Version: -" Foreground="#6B7280" Margin="0,2,0,0" />
+                    <TextBlock Text="Tbot Ultra" FontSize="26" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                    <TextBlock x:Name="VersionTextBlock" Text="Version: -" Foreground="{DynamicResource TextSubtleBrush}" Margin="0,2,0,0" />
                 </StackPanel>
 
-                <Border Grid.Row="1" Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
+                <Border Grid.Row="1" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
                     <StackPanel>
                         <DockPanel Margin="0,0,0,4">
-                            <TextBlock Text="Account" Foreground="#6B7280" VerticalAlignment="Center" />
+                            <TextBlock Text="Account" Foreground="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
                             <Button x:Name="AccountManageButton"
                                     DockPanel.Dock="Right"
                                     Content="Manage"
@@ -69,12 +59,12 @@
                                   SelectionChanged="AccountComboBox_SelectionChanged" />
                         <TextBlock x:Name="ActiveAccountInfoTextBlock"
                                    Margin="0,6,0,0"
-                                   Foreground="#4B5563"
+                                   Foreground="{DynamicResource TextMutedBrush}"
                                     Text="-" />
                     </StackPanel>
                 </Border>
 
-                <Border Grid.Row="2" Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
+                <Border Grid.Row="2" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -84,9 +74,9 @@
                                 Grid.Column="0"
                                 Margin="0,0,3,0"
                                 Content="Login"
-                                Background="#030826"
+                                Background="{DynamicResource AccentBrush}"
                                 Foreground="White"
-                                BorderBrush="#030826"
+                                BorderBrush="{DynamicResource AccentBrush}"
                                 Click="LoginButton_Click" />
                         <Button x:Name="LogoutButton"
                                 Grid.Column="1"
@@ -96,19 +86,19 @@
                     </Grid>
                 </Border>
 
-                <Border Grid.Row="3" Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
+                <Border Grid.Row="3" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
                     <StackPanel>
-                        <TextBlock Text="Village" Foreground="#6B7280" Margin="0,0,0,5" />
+                        <TextBlock Text="Village" Foreground="{DynamicResource TextSubtleBrush}" Margin="0,0,0,5" />
                         <ComboBox x:Name="VillageComboBox" Height="28">
                             <ComboBox.ItemTemplate>
                                 <DataTemplate>
                                     <TextBlock Text="{Binding NameWithCoords}">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
-                                                <Setter Property="Foreground" Value="#111827" />
+                                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding IsCapital}" Value="True">
-                                                        <Setter Property="Foreground" Value="#D97706" />
+                                                        <Setter Property="Foreground" Value="{DynamicResource CapitalBrush}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -137,7 +127,7 @@
                             <Style TargetType="Button" BasedOn="{StaticResource SidebarNavButtonStyle}">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding InboxVm.HasUnreadMessages, ElementName=RootWindow}" Value="True">
-                                        <Setter Property="Background" Value="#DC2626" />
+                                        <Setter Property="Background" Value="{DynamicResource UnreadBrush}" />
                                         <Setter Property="Foreground" Value="White" />
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -146,10 +136,10 @@
                     </Button>
                 </StackPanel>
 
-                <Border Grid.Row="5" Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="7">
+                <Border Grid.Row="5" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7">
                     <StackPanel>
                         <Border x:Name="LoopStateBadge"
-                                Background="#6B7280"
+                                Background="{DynamicResource StateIdleBrush}"
                                 CornerRadius="10"
                                 Padding="8,2,8,2"
                                 Margin="0,0,0,6"
@@ -163,7 +153,7 @@
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                                 <TextBlock Text="Continuous run"
                                            VerticalAlignment="Center"
-                                           Foreground="#374151"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
                                            FontWeight="SemiBold"
                                            Margin="0,0,8,0" />
 						        <ToggleButton x:Name="ContinuousRunToggleButton"
@@ -174,8 +164,8 @@
                                         Height="14"
                                         Margin="8,0,0,0"
                                         CornerRadius="7"
-                                        Background="#E5E7EB"
-                                        BorderBrush="#D1D5DB"
+                                        Background="{DynamicResource ControlBackgroundBrush}"
+                                        BorderBrush="{DynamicResource BorderBrush}"
                                         BorderThickness="1"
                                         VerticalAlignment="Center"
                                         ToolTipService.InitialShowDelay="0">
@@ -184,7 +174,7 @@
                                             <StackPanel Width="320">
                                                 <TextBlock Text="Continuous run"
                                                            FontWeight="SemiBold"
-                                                           Foreground="#F9FAFB"
+                                                           Foreground="{DynamicResource TooltipForegroundBrush}"
                                                            Margin="0,0,0,6" />
                                                 <TextBlock TextWrapping="Wrap"
                                                            Text="On: Start bot runs the enabled Automation Loop groups continuously. It waits between passes, keeps deferred tasks alive, and can be paused or stopped." />
@@ -197,7 +187,7 @@
                                     <TextBlock Text="i"
                                                FontSize="10"
                                                FontWeight="SemiBold"
-                                               Foreground="#4B5563"
+                                               Foreground="{DynamicResource TextMutedBrush}"
                                                HorizontalAlignment="Center"
                                                VerticalAlignment="Center"
                                                TextAlignment="Center" />
@@ -209,7 +199,7 @@
 								    <ColumnDefinition Width="*" />
 								    <ColumnDefinition Width="Auto" />
 							    </Grid.ColumnDefinitions>
-							    <Button x:Name="StartLoopButton" Grid.Column="0" Content="Start bot" Background="#030826" Foreground="White" BorderBrush="#030826" Click="StartLoopButton_Click" />
+							    <Button x:Name="StartLoopButton" Grid.Column="0" Content="Start bot" Background="{DynamicResource AccentBrush}" Foreground="White" BorderBrush="{DynamicResource AccentBrush}" Click="StartLoopButton_Click" />
 							    <Button x:Name="StopBotButton" Grid.Column="1" Content="&#9632;" Width="30" Padding="0" Margin="6,0,0,0" Click="StopBotButton_Click" ToolTip="Stop bot" />
 						    </Grid>
 
@@ -253,8 +243,8 @@
 
                 <Border Grid.Column="0"
                         x:Name="SessionPacingBorder"
-                        Background="#FFFFFF"
-                        BorderBrush="#D1D5DB"
+                        Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1"
                         CornerRadius="8"
                         Padding="10"
@@ -264,7 +254,7 @@
                     <StackPanel Orientation="Horizontal" Height="20" VerticalAlignment="Center">
                         <TextBlock x:Name="SessionPacingStatusTextBlock"
                                    Text="Session pacing"
-                                   Foreground="#374151"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                    VerticalAlignment="Center" />
                         <Button x:Name="SessionPacingRunNowButton"
                                 Content="Run now"
@@ -279,38 +269,38 @@
                     </StackPanel>
                 </Border>
 
-                <Border Grid.Column="1" Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="8" Padding="10">
+                <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="10">
                     <DockPanel>
                         <TextBlock x:Name="BrowserInfoTextBlock" Text="Browser: idle" Visibility="Collapsed" />
-                        <TextBlock x:Name="ClockTextBlock" Text="Time: -" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Left" />
-                        <TextBlock x:Name="TribeInfoTextBlock" Text="Tribe: -" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right" />
-                        <TextBlock Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right">
+                        <TextBlock x:Name="ClockTextBlock" Text="Time: -" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0" DockPanel.Dock="Left" />
+                        <TextBlock x:Name="TribeInfoTextBlock" Text="Tribe: -" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0" DockPanel.Dock="Right" />
+                        <TextBlock Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0" DockPanel.Dock="Right">
                             <Run Text="Plus: " /><Run x:Name="PlusInfoTextBlock" Text="-" />
                         </TextBlock>
-                        <TextBlock Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right">
+                        <TextBlock Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0" DockPanel.Dock="Right">
                             <Run Text="Goldclub: " /><Run x:Name="GoldClubInfoTextBlock" Text="-" />
                         </TextBlock>
-                        <TextBlock x:Name="ServerResourcesTextBlock" Text="Gold: - | Silver: -" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right" />
-                        <TextBlock x:Name="CaptchaStatsTextBlock" Text="Captchas solved: 0/0" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right" />
-                        <TextBlock x:Name="NpcTradeSessionStatsTextBlock" Text="Gold spent: 0" Foreground="#4B5563" Margin="0,0,16,0" DockPanel.Dock="Right" />
+                        <TextBlock x:Name="ServerResourcesTextBlock" Text="Gold: - | Silver: -" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0" DockPanel.Dock="Right" />
+                        <TextBlock x:Name="CaptchaStatsTextBlock" Text="Captchas solved: 0/0" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0" DockPanel.Dock="Right" />
+                        <TextBlock x:Name="NpcTradeSessionStatsTextBlock" Text="Gold spent: 0" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0" DockPanel.Dock="Right" />
                         <TextBlock x:Name="StatusTextBlock" Text="Ready." Visibility="Collapsed" />
                     </DockPanel>
                 </Border>
             </Grid>
 
-            <StatusBar Grid.Row="1" Margin="0,0,0,8" Background="#E5E7EB">
+            <StatusBar Grid.Row="1" Margin="0,0,0,8" Background="{DynamicResource ControlBackgroundBrush}">
                 <StatusBarItem>
                     <TextBlock Text="Status" FontWeight="SemiBold" />
                 </StatusBarItem>
                 <StatusBarItem>
-                    <TextBlock x:Name="StatusMiniLogTextBlock" Text="Ready." Foreground="#1F2937" />
+                    <TextBlock x:Name="StatusMiniLogTextBlock" Text="Ready." Foreground="{DynamicResource DataGridCellTextBrush}" />
                 </StatusBarItem>
             </StatusBar>
 
             <Border Grid.Row="2"
                     Margin="0,8,0,0"
-                    Background="#F9FAFB"
-                    BorderBrush="#E5E7EB"
+                    Background="{DynamicResource SurfaceAltBrush}"
+                    BorderBrush="{DynamicResource BorderSubtleBrush}"
                     BorderThickness="1"
                     CornerRadius="8"
                     Padding="8">
@@ -322,8 +312,8 @@
 
                     <Border Grid.Row="0"
                             DataContext="{Binding ResourcesVm, ElementName=RootWindow}"
-                            Background="#FFFFFF"
-                            BorderBrush="#E5E7EB"
+                            Background="{DynamicResource SurfaceBrush}"
+                            BorderBrush="{DynamicResource BorderSubtleBrush}"
                             BorderThickness="1"
                             CornerRadius="8"
                             Padding="10"
@@ -338,7 +328,7 @@
                                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                                 <TextBlock Text="Storage"
                                            FontWeight="SemiBold"
-                                           Foreground="#111827"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
                                            VerticalAlignment="Center" />
                                 <Button x:Name="StorageRefreshButton"
                                         Width="26"
@@ -362,8 +352,8 @@
                                         <Border Margin="0,0,8,0"
                                                 Padding="8"
                                                 CornerRadius="8"
-                                                Background="#F9FAFB"
-                                                BorderBrush="#E5E7EB"
+                                                Background="{DynamicResource SurfaceAltBrush}"
+                                                BorderBrush="{DynamicResource BorderSubtleBrush}"
                                                 BorderThickness="1"
                                                 ToolTipService.InitialShowDelay="500"
                                                 ToolTip="{Binding TooltipText}">
@@ -371,7 +361,7 @@
                                                 <DockPanel LastChildFill="False">
                                                     <TextBlock DockPanel.Dock="Left"
                                                                Text="{Binding DisplayName}"
-                                                               Foreground="#374151"
+                                                               Foreground="{DynamicResource TextSecondaryBrush}"
                                                                FontWeight="SemiBold" />
                                                     <TextBlock DockPanel.Dock="Right"
                                                                Text="{Binding PercentText}"
@@ -388,7 +378,7 @@
                                                 <DockPanel LastChildFill="False">
                                                     <TextBlock DockPanel.Dock="Left"
                                                                Text="{Binding CurrentMaxText}"
-                                                               Foreground="#4B5563"
+                                                               Foreground="{DynamicResource TextMutedBrush}"
                                                                FontSize="11" />
                                                     <TextBlock DockPanel.Dock="Right"
                                                                Text="{Binding TimeUntilFullText}"
@@ -421,8 +411,8 @@
                         </Grid.RowDefinitions>
 
                         <DockPanel Grid.Row="0" Margin="0,0,0,10" LastChildFill="False">
-                            <TextBlock DockPanel.Dock="Left" Text="Dashboard" FontSize="32" FontWeight="SemiBold" Foreground="#111827" VerticalAlignment="Center" />
-                            <Button DockPanel.Dock="Right" x:Name="ResetProgramButton" Height="32" Content="Reset program" Background="#FCD34D" Foreground="#1F2937" BorderBrush="#F59E0B" VerticalAlignment="Center" Margin="12,0,0,0" Click="ResetProgramButton_Click"
+                            <TextBlock DockPanel.Dock="Left" Text="Dashboard" FontSize="32" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                            <Button DockPanel.Dock="Right" x:Name="ResetProgramButton" Height="32" Content="Reset program" Background="{DynamicResource WarningButtonBgBrush}" Foreground="{DynamicResource OnWarningBrush}" BorderBrush="{DynamicResource WarningBorderBrush}" VerticalAlignment="Center" Margin="12,0,0,0" Click="ResetProgramButton_Click"
                                     ToolTip="Restart the program: stops all running tasks, clears the queue, closes the browser session, and resets to the just-started state. Your saved login is kept — just press Login to start a new session." />
                         </DockPanel>
 
@@ -437,7 +427,7 @@
                                 <ColumnDefinition Width="260" />
                             </Grid.ColumnDefinitions>
 
-                            <Border Grid.Column="0" Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="9" Padding="12" Margin="0,0,10,0">
+                            <Border Grid.Column="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9" Padding="12" Margin="0,0,10,0">
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
@@ -447,13 +437,13 @@
 
                                     <DockPanel Grid.Row="0" Margin="0,0,0,8">
                                         <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
-                                            <TextBlock Text="Automation Loop" FontSize="20" FontWeight="SemiBold" Foreground="#111827" />
+                                            <TextBlock Text="Automation Loop" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
                                             <Border Width="14"
                                                     Height="14"
                                                     Margin="8,0,0,0"
                                                     CornerRadius="7"
-                                                    Background="#E5E7EB"
-                                                    BorderBrush="#D1D5DB"
+                                                    Background="{DynamicResource ControlBackgroundBrush}"
+                                                    BorderBrush="{DynamicResource BorderBrush}"
                                                     BorderThickness="1"
                                                     VerticalAlignment="Center"
                                                     ToolTipService.InitialShowDelay="0">
@@ -462,7 +452,7 @@
                                                         <StackPanel Width="320">
                                                             <TextBlock Text="Automation Loop"
                                                                        FontWeight="SemiBold"
-                                                                       Foreground="#F9FAFB"
+                                                                       Foreground="{DynamicResource TooltipForegroundBrush}"
                                                                        Margin="0,0,0,6" />
                                                             <TextBlock TextWrapping="Wrap"
                                                                        Text="Runs the enabled task groups in the order shown. The loop checks the queue, runs ready tasks, and waits between passes while still reacting quickly to stop or pause." />
@@ -475,7 +465,7 @@
                                                 <TextBlock Text="i"
                                                            FontSize="10"
                                                            FontWeight="SemiBold"
-                                                           Foreground="#4B5563"
+                                                           Foreground="{DynamicResource TextMutedBrush}"
                                                            HorizontalAlignment="Center"
                                                            VerticalAlignment="Center"
                                                            TextAlignment="Center" />
@@ -488,7 +478,7 @@
                                                 MinWidth="70"
                                                 Click="DashboardFunctionListButton_Click" />
                                         <StackPanel DockPanel.Dock="Right" Visibility="Collapsed">
-                                            <Ellipse x:Name="AutomationLoopRunStateDot" Width="8" Height="8" Fill="#9CA3AF" />
+                                            <Ellipse x:Name="AutomationLoopRunStateDot" Width="8" Height="8" Fill="{DynamicResource BorderMutedBrush}" />
                                             <TextBlock x:Name="AutomationLoopRunStateTextBlock" Text="Idle" />
                                         </StackPanel>
                                     </DockPanel>
@@ -527,19 +517,19 @@
                                         </ListBox.ItemContainerStyle>
                                         <ListBox.ItemTemplate>
                                             <DataTemplate>
-                                                <Border BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="9" Padding="8" Background="#FFFFFF">
+                                                <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9" Padding="8" Background="{DynamicResource SurfaceBrush}">
                                                     <Border.Style>
                                                         <Style TargetType="Border">
-                                                            <Setter Property="Background" Value="#FFFFFF" />
-                                                            <Setter Property="BorderBrush" Value="#D1D5DB" />
+                                                            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
                                                             <Setter Property="BorderThickness" Value="1" />
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding IsEnabled}" Value="False">
-                                                                    <Setter Property="Background" Value="#F9FAFB" />
+                                                                    <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
                                                                 </DataTrigger>
                                                                 <DataTrigger Binding="{Binding IsRunning}" Value="True">
-                                                                    <Setter Property="Background" Value="#DCFCE7" />
-                                                                    <Setter Property="BorderBrush" Value="#16A34A" />
+                                                                    <Setter Property="Background" Value="{DynamicResource SuccessBgBrush}" />
+                                                                    <Setter Property="BorderBrush" Value="{DynamicResource SuccessBrush}" />
                                                                     <Setter Property="BorderThickness" Value="2" />
                                                                 </DataTrigger>
                                                             </Style.Triggers>
@@ -561,13 +551,13 @@
                                                                     Height="24"
                                                                     CornerRadius="12"
                                                                     Margin="0,0,0,6"
-                                                                    Background="#2563EB">
+                                                                    Background="{DynamicResource InfoBrush}">
                                                                 <Border.Style>
                                                                     <Style TargetType="Border">
-                                                                        <Setter Property="Background" Value="#2563EB" />
+                                                                        <Setter Property="Background" Value="{DynamicResource InfoBrush}" />
                                                                         <Style.Triggers>
                                                                             <DataTrigger Binding="{Binding IsRunning}" Value="True">
-                                                                                <Setter Property="Background" Value="#16A34A" />
+                                                                                <Setter Property="Background" Value="{DynamicResource SuccessBrush}" />
                                                                             </DataTrigger>
                                                                         </Style.Triggers>
                                                                     </Style>
@@ -580,16 +570,16 @@
                                                                           Click="AutomationLoopToggleButton_Click" />
                                                         </StackPanel>
 
-                                                        <Border Grid.Column="1" BorderBrush="#2563EB" BorderThickness="3,0,0,0" Padding="8,0,0,0">
+                                                        <Border Grid.Column="1" BorderBrush="{DynamicResource InfoBrush}" BorderThickness="3,0,0,0" Padding="8,0,0,0">
                                                             <Border.Style>
                                                                 <Style TargetType="Border">
-                                                                    <Setter Property="BorderBrush" Value="#2563EB" />
+                                                                    <Setter Property="BorderBrush" Value="{DynamicResource InfoBrush}" />
                                                                     <Style.Triggers>
                                                                         <DataTrigger Binding="{Binding IsRunning}" Value="True">
-                                                                            <Setter Property="BorderBrush" Value="#16A34A" />
+                                                                            <Setter Property="BorderBrush" Value="{DynamicResource SuccessBrush}" />
                                                                         </DataTrigger>
                                                                         <DataTrigger Binding="{Binding IsEnabled}" Value="False">
-                                                                            <Setter Property="BorderBrush" Value="#D1D5DB" />
+                                                                            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
                                                                         </DataTrigger>
                                                                     </Style.Triggers>
                                                                 </Style>
@@ -602,8 +592,8 @@
 
                                                                 <StackPanel Grid.Column="0">
                                                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" Foreground="#111827" TextTrimming="CharacterEllipsis" />
-                                                                        <TextBlock Text="Running" Margin="8,0,0,0" Foreground="#16A34A" FontSize="12" FontWeight="SemiBold">
+                                                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                                                                        <TextBlock Text="Running" Margin="8,0,0,0" Foreground="{DynamicResource SuccessBrush}" FontSize="12" FontWeight="SemiBold">
                                                                             <TextBlock.Style>
                                                                                 <Style TargetType="TextBlock">
                                                                                     <Setter Property="Visibility" Value="Collapsed" />
@@ -616,10 +606,10 @@
                                                                             </TextBlock.Style>
                                                                         </TextBlock>
                                                                     </StackPanel>
-                                                                    <TextBlock Text="{Binding Description}" Foreground="#4B5563" FontSize="11" Margin="0,1,0,0" TextTrimming="CharacterEllipsis" />
+                                                                    <TextBlock Text="{Binding Description}" Foreground="{DynamicResource TextMutedBrush}" FontSize="11" Margin="0,1,0,0" TextTrimming="CharacterEllipsis" />
                                                                     <StackPanel Orientation="Horizontal" Margin="0,3,0,0" VerticalAlignment="Center">
-                                                                        <TextBlock Text="{Binding StateText}" Foreground="#1D4ED8" FontSize="11" FontWeight="SemiBold" Margin="0,0,8,0" VerticalAlignment="Center" />
-                                                                        <TextBlock Text="{Binding QueuedCount, StringFormat=Queued: {0}}" Foreground="#4B5563" FontSize="11" VerticalAlignment="Center" />
+                                                                        <TextBlock Text="{Binding StateText}" Foreground="{DynamicResource InfoTextBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                                                        <TextBlock Text="{Binding QueuedCount, StringFormat=Queued: {0}}" Foreground="{DynamicResource TextMutedBrush}" FontSize="11" VerticalAlignment="Center" />
                                                                         <Border Margin="8,0,0,0"
                                                                                 Padding="6,1"
                                                                                 CornerRadius="5"
@@ -627,16 +617,16 @@
                                                                                 VerticalAlignment="Center">
                                                                             <Border.Style>
                                                                                 <Style TargetType="Border">
-                                                                                    <Setter Property="Background" Value="#F0FDF4" />
-                                                                                    <Setter Property="BorderBrush" Value="#BBF7D0" />
+                                                                                    <Setter Property="Background" Value="{DynamicResource HeroAdvBgBrush}" />
+                                                                                    <Setter Property="BorderBrush" Value="{DynamicResource HeroAdvBorderBrush}" />
                                                                                     <Setter Property="Visibility" Value="Collapsed" />
                                                                                     <Style.Triggers>
                                                                                         <DataTrigger Binding="{Binding TaskName}" Value="hero">
                                                                                             <Setter Property="Visibility" Value="Visible" />
                                                                                         </DataTrigger>
                                                                                         <DataTrigger Binding="{Binding HeroVm.AdventureCountText, ElementName=RootWindow}" Value="0">
-                                                                                            <Setter Property="Background" Value="#F3F4F6" />
-                                                                                            <Setter Property="BorderBrush" Value="#D1D5DB" />
+                                                                                            <Setter Property="Background" Value="{DynamicResource AppBackgroundBrush}" />
+                                                                                            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
                                                                                         </DataTrigger>
                                                                                     </Style.Triggers>
                                                                                 </Style>
@@ -645,10 +635,10 @@
                                                                                 <TextBlock Text="Adv:" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0">
                                                                                     <TextBlock.Style>
                                                                                         <Style TargetType="TextBlock">
-                                                                                            <Setter Property="Foreground" Value="#166534" />
+                                                                                            <Setter Property="Foreground" Value="{DynamicResource SuccessTextStrongBrush}" />
                                                                                             <Style.Triggers>
                                                                                                 <DataTrigger Binding="{Binding HeroVm.AdventureCountText, ElementName=RootWindow}" Value="0">
-                                                                                                    <Setter Property="Foreground" Value="#6B7280" />
+                                                                                                    <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
                                                                                                 </DataTrigger>
                                                                                             </Style.Triggers>
                                                                                         </Style>
@@ -660,10 +650,10 @@
                                                                                            VerticalAlignment="Center">
                                                                                     <TextBlock.Style>
                                                                                         <Style TargetType="TextBlock">
-                                                                                            <Setter Property="Foreground" Value="#166534" />
+                                                                                            <Setter Property="Foreground" Value="{DynamicResource SuccessTextStrongBrush}" />
                                                                                             <Style.Triggers>
                                                                                                 <DataTrigger Binding="{Binding HeroVm.AdventureCountText, ElementName=RootWindow}" Value="0">
-                                                                                                    <Setter Property="Foreground" Value="#6B7280" />
+                                                                                                    <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
                                                                                                 </DataTrigger>
                                                                                             </Style.Triggers>
                                                                                         </Style>
@@ -672,7 +662,7 @@
                                                                             </StackPanel>
                                                                         </Border>
                                                                     </StackPanel>
-                                                                    <TextBlock Text="{Binding DetailText}" Foreground="#6B7280" FontSize="11" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" />
+                                                                    <TextBlock Text="{Binding DetailText}" Foreground="{DynamicResource TextSubtleBrush}" FontSize="11" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" />
                                                                 </StackPanel>
 
                                                                 <ItemsControl Grid.Column="1"
@@ -701,7 +691,7 @@
                                                                                 <TextBlock Text="{Binding Title}"
                                                                                            FontSize="11"
                                                                                            FontWeight="SemiBold"
-                                                                                           Foreground="#111827"
+                                                                                           Foreground="{DynamicResource TextPrimaryBrush}"
                                                                                            HorizontalAlignment="Left"
                                                                                            TextAlignment="Left" />
                                                                                 <Border Margin="0,4,0,0"
@@ -737,21 +727,21 @@
                                                                             MinWidth="70">
                                                                 <Border.Style>
                                                                     <Style TargetType="Border">
-                                                                        <Setter Property="Background" Value="#DCFCE7" />
-                                                                        <Setter Property="BorderBrush" Value="#22C55E" />
+                                                                        <Setter Property="Background" Value="{DynamicResource SuccessBgBrush}" />
+                                                                        <Setter Property="BorderBrush" Value="{DynamicResource SuccessBorderBrush}" />
                                                                         <Setter Property="Visibility" Value="Visible" />
                                                                         <Style.Triggers>
                                                                             <DataTrigger Binding="{Binding IsBlocked}" Value="True">
-                                                                                <Setter Property="Background" Value="#E5E7EB" />
-                                                                                <Setter Property="BorderBrush" Value="#9CA3AF" />
+                                                                                <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+                                                                                <Setter Property="BorderBrush" Value="{DynamicResource BorderMutedBrush}" />
                                                                             </DataTrigger>
                                                                             <DataTrigger Binding="{Binding IsEnabled}" Value="False">
-                                                                                <Setter Property="Background" Value="#E5E7EB" />
-                                                                                <Setter Property="BorderBrush" Value="#9CA3AF" />
+                                                                                <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+                                                                                <Setter Property="BorderBrush" Value="{DynamicResource BorderMutedBrush}" />
                                                                             </DataTrigger>
                                                                             <DataTrigger Binding="{Binding HasTimer}" Value="True">
-                                                                                <Setter Property="Background" Value="#FEF3C7" />
-                                                                                <Setter Property="BorderBrush" Value="#F59E0B" />
+                                                                                <Setter Property="Background" Value="{DynamicResource WarningBgBrush}" />
+                                                                                <Setter Property="BorderBrush" Value="{DynamicResource WarningBorderBrush}" />
                                                                             </DataTrigger>
                                                                         </Style.Triggers>
                                                                     </Style>
@@ -760,19 +750,19 @@
                                                                     <TextBlock.Style>
                                                                         <Style TargetType="TextBlock">
                                                                             <Setter Property="Text" Value="{Binding BadgeText}" />
-                                                                            <Setter Property="Foreground" Value="#15803D" />
+                                                                            <Setter Property="Foreground" Value="{DynamicResource SuccessTextBrush}" />
                                                                             <Style.Triggers>
                                                                                 <DataTrigger Binding="{Binding IsBlocked}" Value="True">
                                                                                     <Setter Property="Text" Value="{Binding BlockedText}" />
-                                                                                    <Setter Property="Foreground" Value="#6B7280" />
+                                                                                    <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
                                                                                 </DataTrigger>
                                                                                 <DataTrigger Binding="{Binding IsEnabled}" Value="False">
                                                                                     <Setter Property="Text" Value="Disabled" />
-                                                                                    <Setter Property="Foreground" Value="#6B7280" />
+                                                                                    <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
                                                                                 </DataTrigger>
                                                                                 <DataTrigger Binding="{Binding HasTimer}" Value="True">
                                                                                     <Setter Property="Text" Value="{Binding TimerText}" />
-                                                                                    <Setter Property="Foreground" Value="#B45309" />
+                                                                                    <Setter Property="Foreground" Value="{DynamicResource WarningTextBrush}" />
                                                                                 </DataTrigger>
                                                                             </Style.Triggers>
                                                                         </Style>
@@ -791,7 +781,7 @@
                                                x:Name="AutomationLoopSummaryTextBlock"
                                                Text="Loop cycles through enabled tasks continuously."
                                                HorizontalAlignment="Center"
-                                               Foreground="#4B5563" />
+                                               Foreground="{DynamicResource TextMutedBrush}" />
                                 </Grid>
                             </Border>
 
@@ -802,9 +792,9 @@
                                 </Grid.RowDefinitions>
 
                                 <!-- Villages: own box, list scrolls when it grows long. -->
-                                <Border Grid.Row="0" Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="9" Padding="12">
+                                <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9" Padding="12">
                                     <DockPanel Grid.IsSharedSizeScope="True">
-                                        <TextBlock DockPanel.Dock="Top" Text="Villages" FontSize="16" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,6" />
+                                        <TextBlock DockPanel.Dock="Top" Text="Villages" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,6" />
                                         <Grid DockPanel.Dock="Top" Margin="0,0,0,4">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
@@ -813,9 +803,9 @@
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" SharedSizeGroup="VillageFlagColumn" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="Village" FontWeight="SemiBold" Foreground="#111827" />
-                                            <TextBlock Grid.Column="1" Text="Pop" FontWeight="SemiBold" Foreground="#111827" Margin="8,0,0,0" />
-                                            <TextBlock Grid.Column="2" Text="Coords" FontWeight="SemiBold" Foreground="#111827" Margin="8,0,0,0" />
+                                            <TextBlock Grid.Column="0" Text="Village" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                            <TextBlock Grid.Column="1" Text="Pop" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="8,0,0,0" />
+                                            <TextBlock Grid.Column="2" Text="Coords" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="8,0,0,0" />
                                         </Grid>
                                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                             <ItemsControl x:Name="DashboardVillageList">
@@ -829,10 +819,10 @@
                                                                 <ColumnDefinition Width="*" />
                                                                 <ColumnDefinition Width="Auto" SharedSizeGroup="VillageFlagColumn" />
                                                             </Grid.ColumnDefinitions>
-                                                            <TextBlock Grid.Column="0" Text="{Binding Name}" Foreground="#374151" FontSize="13" TextTrimming="CharacterEllipsis" />
-                                                            <TextBlock Grid.Column="1" Text="{Binding PopText}" Foreground="#374151" FontSize="13" Margin="8,0,0,0" />
-                                                            <TextBlock Grid.Column="2" Text="{Binding CoordsText}" Foreground="#374151" FontSize="13" Margin="8,0,0,0" />
-                                                            <TextBlock Grid.Column="4" Text="{Binding CapitalText}" Foreground="#D97706" FontSize="13" FontWeight="SemiBold" Margin="8,0,0,0" HorizontalAlignment="Right" />
+                                                            <TextBlock Grid.Column="0" Text="{Binding Name}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" TextTrimming="CharacterEllipsis" />
+                                                            <TextBlock Grid.Column="1" Text="{Binding PopText}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" Margin="8,0,0,0" />
+                                                            <TextBlock Grid.Column="2" Text="{Binding CoordsText}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" Margin="8,0,0,0" />
+                                                            <TextBlock Grid.Column="4" Text="{Binding CapitalText}" Foreground="{DynamicResource CapitalBrush}" FontSize="13" FontWeight="SemiBold" Margin="8,0,0,0" HorizontalAlignment="Right" />
                                                         </Grid>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
@@ -842,14 +832,14 @@
                                 </Border>
 
                                 <!-- Settings: separate box below the villages list. -->
-                                <Border Grid.Row="1" Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="9" Padding="12" Margin="0,10,0,0">
+                                <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9" Padding="12" Margin="0,10,0,0">
                                     <StackPanel>
-                                        <TextBlock Text="Auto settings" FontSize="16" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,6" />
+                                        <TextBlock Text="Auto settings" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,6" />
                                         <!-- Each setting gets a trailing "i" info icon (SettingInfoIconStyle) describing it. -->
                                         <StackPanel Orientation="Horizontal">
                                             <CheckBox x:Name="AutoCollectTasksCheckBox" Content="Collect tasks"
                                                       Style="{StaticResource ToggleSwitchStyle}"
-                                                      Foreground="#374151"
+                                                      Foreground="{DynamicResource TextSecondaryBrush}"
                                                       Checked="AutoCollectTasksSetting_Changed" Unchecked="AutoCollectTasksSetting_Changed" />
                                             <ContentControl Style="{StaticResource SettingInfoIconStyle}">
                                                 <ContentControl.ToolTip>
@@ -863,7 +853,7 @@
                                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                             <CheckBox x:Name="AutoCollectDailyQuestsCheckBox" Content="Collect daily quests"
                                                       Style="{StaticResource ToggleSwitchStyle}"
-                                                      Foreground="#374151"
+                                                      Foreground="{DynamicResource TextSecondaryBrush}"
                                                       Checked="AutoCollectDailyQuestsSetting_Changed" Unchecked="AutoCollectDailyQuestsSetting_Changed" />
                                             <ContentControl Style="{StaticResource SettingInfoIconStyle}">
                                                 <ContentControl.ToolTip>
@@ -877,7 +867,7 @@
                                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                             <CheckBox x:Name="HeroResourceTransferCheckBox" Content="Use hero resources"
                                                       Style="{StaticResource ToggleSwitchStyle}"
-                                                      Foreground="#374151"
+                                                      Foreground="{DynamicResource TextSecondaryBrush}"
                                                       VerticalAlignment="Center"
                                                       Checked="HeroResourceTransferSetting_Changed" Unchecked="HeroResourceTransferSetting_Changed" />
                                             <ContentControl Style="{StaticResource SettingInfoIconStyle}">
@@ -897,15 +887,15 @@
                                                     Padding="0"
                                                     Margin="6,0,0,0"
                                                     VerticalAlignment="Center"
-                                                    Background="#FFFFFF"
-                                                    BorderBrush="#D1D5DB"
+                                                    Background="{DynamicResource SurfaceBrush}"
+                                                    BorderBrush="{DynamicResource BorderBrush}"
                                                     ToolTip="Open hero inventory settings"
                                                     Click="HeroInventorySettingsButton_Click" />
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                             <CheckBox Content="Allow gold spending"
                                                       Style="{StaticResource ToggleSwitchStyle}"
-                                                      Foreground="#374151"
+                                                      Foreground="{DynamicResource TextSecondaryBrush}"
                                                       VerticalAlignment="Center"
                                                       IsChecked="{Binding TroopTrainingVm.AllowGoldSpending, ElementName=RootWindow, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             <ContentControl Style="{StaticResource SettingInfoIconStyle}">
@@ -925,8 +915,8 @@
                                                     Padding="0"
                                                     Margin="6,0,0,0"
                                                     VerticalAlignment="Center"
-                                                    Background="#FFFFFF"
-                                                    BorderBrush="#D1D5DB"
+                                                    Background="{DynamicResource SurfaceBrush}"
+                                                    BorderBrush="{DynamicResource BorderBrush}"
                                                     ToolTip="Open NPC trade settings"
                                                     Click="GoldSpendingSettingsButton_Click" />
                                         </StackPanel>
@@ -949,19 +939,19 @@
                             <TextBlock Text="Resources"
                                        FontSize="22"
                                        FontWeight="SemiBold"
-                                       Foreground="#111827"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
                                        Margin="0,0,0,12" />
                             <StackPanel Orientation="Horizontal">
                             <Button x:Name="LoadResourcesButton" Content="↻" Width="42" FontSize="16" Click="LoadResourcesButton_Click" ToolTip="Refresh resources" IsEnabled="{Binding ActionsEnabled}" />
                             <TextBlock Text="Target level" VerticalAlignment="Center" Margin="0,0,8,0" />
                             <ComboBox x:Name="ResourceTargetLevelComboBox" Width="90" Margin="0,0,8,0" ItemsSource="{Binding TargetLevelOptions}" SelectedItem="{Binding SelectedTargetLevel}" IsEnabled="{Binding ActionsEnabled}" />
-                            <Button x:Name="UpgradeAllResourcesButton" Content="Upgrade all to level" Width="160" Background="#030826" Foreground="White" BorderBrush="#030826" Click="UpgradeAllResourcesButton_Click" IsEnabled="{Binding ActionsEnabled}"
+                            <Button x:Name="UpgradeAllResourcesButton" Content="Upgrade all to level" Width="160" Background="{DynamicResource AccentBrush}" Foreground="White" BorderBrush="{DynamicResource AccentBrush}" Click="UpgradeAllResourcesButton_Click" IsEnabled="{Binding ActionsEnabled}"
                                     ToolTip="Queue upgrades for every resource field up to the target level selected on the left, following the chosen Build order (Lowest level first or Smart)." />
-                            <Button x:Name="UpgradeAllResourcesToMaxButton" Content="Upgrade to max" Width="140" Margin="8,0,0,0" Background="#FCD34D" Foreground="#1F2937" BorderBrush="#F59E0B" Click="UpgradeAllResourcesToMaxButton_Click" IsEnabled="{Binding ActionsEnabled}"
+                            <Button x:Name="UpgradeAllResourcesToMaxButton" Content="Upgrade to max" Width="140" Margin="8,0,0,0" Background="{DynamicResource WarningButtonBgBrush}" Foreground="{DynamicResource OnWarningBrush}" BorderBrush="{DynamicResource WarningBorderBrush}" Click="UpgradeAllResourcesToMaxButton_Click" IsEnabled="{Binding ActionsEnabled}"
                                     ToolTip="Queue upgrades for every resource field up to its maximum level, following the chosen Build order (Lowest level first or Smart)." />
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,10,0,0" VerticalAlignment="Center">
-                                <TextBlock Text="Build order:" VerticalAlignment="Center" Foreground="#374151" FontWeight="SemiBold" Margin="0,0,12,0" />
+                                <TextBlock Text="Build order:" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" FontWeight="SemiBold" Margin="0,0,12,0" />
                                 <RadioButton Content="Lowest level first"
                                              GroupName="ResourceBuildStrategy"
                                              VerticalAlignment="Center"
@@ -979,8 +969,8 @@
                                         Height="14"
                                         Margin="6,0,0,0"
                                         CornerRadius="7"
-                                        Background="#E5E7EB"
-                                        BorderBrush="#D1D5DB"
+                                        Background="{DynamicResource ControlBackgroundBrush}"
+                                        BorderBrush="{DynamicResource BorderBrush}"
                                         BorderThickness="1"
                                         VerticalAlignment="Center"
                                         ToolTipService.InitialShowDelay="0">
@@ -989,7 +979,7 @@
                                             <StackPanel Width="300">
                                                 <TextBlock Text="Build order"
                                                            FontWeight="SemiBold"
-                                                           Foreground="#F9FAFB"
+                                                           Foreground="{DynamicResource TooltipForegroundBrush}"
                                                            Margin="0,0,0,6" />
                                                 <TextBlock TextWrapping="Wrap"
                                                            Text="Lowest level first upgrades the resource field with the lowest level so fields rise evenly." />
@@ -1002,14 +992,14 @@
                                     <TextBlock Text="i"
                                                FontSize="10"
                                                FontWeight="SemiBold"
-                                               Foreground="#4B5563"
+                                               Foreground="{DynamicResource TextMutedBrush}"
                                                HorizontalAlignment="Center"
                                                VerticalAlignment="Center"
                                                TextAlignment="Center" />
                                 </Border>
                             </StackPanel>
-                            <Border Background="#FFFFFF"
-                                    BorderBrush="#D1D5DB"
+                            <Border Background="{DynamicResource SurfaceBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="1"
                                     CornerRadius="8"
                                     Padding="10"
@@ -1017,7 +1007,7 @@
                                 <StackPanel>
                                     <DockPanel Margin="0,0,0,8">
                                         <TextBlock Text="Production"
-                                                   Foreground="#111827"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
                                                    FontWeight="SemiBold"
                                                    VerticalAlignment="Center" />
                                     </DockPanel>
@@ -1035,10 +1025,10 @@
                                                         Background="{Binding TrackBrush}">
                                                     <StackPanel>
                                                         <TextBlock Text="{Binding DisplayName}"
-                                                                   Foreground="#374151"
+                                                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                                                    FontWeight="SemiBold" />
                                                         <TextBlock Text="{Binding ProductionText}"
-                                                                   Foreground="#111827"
+                                                                   Foreground="{DynamicResource TextPrimaryBrush}"
                                                                    FontSize="16"
                                                                    FontWeight="SemiBold"
                                                                    Margin="0,4,0,0" />
@@ -1050,7 +1040,7 @@
                                 </StackPanel>
                             </Border>
                         </StackPanel>
-                        <Border Grid.Row="1" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="10" Background="#FFFFFF" Padding="12">
+                        <Border Grid.Row="1" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="10" Background="{DynamicResource SurfaceBrush}" Padding="12">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
                             <Grid HorizontalAlignment="Left">
                                 <Grid.ColumnDefinitions>
@@ -1061,11 +1051,11 @@
                                 </Grid.ColumnDefinitions>
 
                                 <StackPanel Grid.Column="0" Width="190" Margin="0,0,8,0">
-                                    <TextBlock Text="Woodcutter" Foreground="#0F766E" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                    <TextBlock Text="Woodcutter" Foreground="{DynamicResource WoodTextBrush}" FontWeight="SemiBold" Margin="0,0,0,8" />
                                     <ItemsControl ItemsSource="{Binding WoodFields}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Border Background="#E4F2F1" CornerRadius="6" Padding="8" Margin="0,0,0,6" Width="170">
+                                                <Border Background="{DynamicResource WoodCardBgBrush}" CornerRadius="6" Padding="8" Margin="0,0,0,6" Width="170">
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="*" />
@@ -1076,9 +1066,9 @@
                                                                 Tag="{Binding}"
                                                                 Content="{Binding LevelLabel}"
                                                                 Style="{StaticResource ResourceLevelBadgeStyle}"
-                                                                Foreground="#134E4A"
-                                                                Background="#A5E1DA"
-                                                                BorderBrush="#74CCC2"
+                                                                Foreground="{DynamicResource WoodBadgeTextBrush}"
+                                                                Background="{DynamicResource WoodBadgeBgBrush}"
+                                                                BorderBrush="{DynamicResource WoodBadgeBorderBrush}"
                                                                 Click="ResourceLevelBadge_Click"
                                                                 ToolTip="Click to queue +1 level upgrade." />
                                                     </Grid>
@@ -1089,11 +1079,11 @@
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="1" Width="190" Margin="0,0,8,0">
-                                    <TextBlock Text="Clay Pit" Foreground="#DC4C1D" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                    <TextBlock Text="Clay Pit" Foreground="{DynamicResource ClayTextBrush}" FontWeight="SemiBold" Margin="0,0,0,8" />
                                     <ItemsControl ItemsSource="{Binding ClayFields}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Border Background="#FDECE5" CornerRadius="6" Padding="8" Margin="0,0,0,6" Width="170">
+                                                <Border Background="{DynamicResource ClayCardBgBrush}" CornerRadius="6" Padding="8" Margin="0,0,0,6" Width="170">
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="*" />
@@ -1104,9 +1094,9 @@
                                                                 Tag="{Binding}"
                                                                 Content="{Binding LevelLabel}"
                                                                 Style="{StaticResource ResourceLevelBadgeStyle}"
-                                                                Foreground="#7C2D12"
-                                                                Background="#F9C9AF"
-                                                                BorderBrush="#F2A57E"
+                                                                Foreground="{DynamicResource ClayBadgeTextBrush}"
+                                                                Background="{DynamicResource ClayBadgeBgBrush}"
+                                                                BorderBrush="{DynamicResource ClayBadgeBorderBrush}"
                                                                 Click="ResourceLevelBadge_Click"
                                                                 ToolTip="Click to queue +1 level upgrade." />
                                                     </Grid>
@@ -1117,11 +1107,11 @@
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="2" Width="190" Margin="0,0,8,0">
-                                    <TextBlock Text="Iron Mine" Foreground="#334155" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                    <TextBlock Text="Iron Mine" Foreground="{DynamicResource IronTextBrush}" FontWeight="SemiBold" Margin="0,0,0,8" />
                                     <ItemsControl ItemsSource="{Binding IronFields}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Border Background="#EAF0F4" CornerRadius="6" Padding="8" Margin="0,0,0,6" Width="170">
+                                                <Border Background="{DynamicResource IronCardBgBrush}" CornerRadius="6" Padding="8" Margin="0,0,0,6" Width="170">
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="*" />
@@ -1132,9 +1122,9 @@
                                                                 Tag="{Binding}"
                                                                 Content="{Binding LevelLabel}"
                                                                 Style="{StaticResource ResourceLevelBadgeStyle}"
-                                                                Foreground="#1E293B"
-                                                                Background="#B7C7D4"
-                                                                BorderBrush="#92ABC0"
+                                                                Foreground="{DynamicResource IronBadgeTextBrush}"
+                                                                Background="{DynamicResource IronBadgeBgBrush}"
+                                                                BorderBrush="{DynamicResource IronBadgeBorderBrush}"
                                                                 Click="ResourceLevelBadge_Click"
                                                                 ToolTip="Click to queue +1 level upgrade." />
                                                     </Grid>
@@ -1145,7 +1135,7 @@
                                 </StackPanel>
 
                                 <StackPanel x:Name="CroplandColumnPanel" Grid.Column="3" Width="190" Margin="0,0,0,0">
-                                    <TextBlock Text="Cropland" Foreground="#C47F00" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                    <TextBlock Text="Cropland" Foreground="{DynamicResource CropTextBrush}" FontWeight="SemiBold" Margin="0,0,0,8" />
                                     <ItemsControl x:Name="CroplandItemsControl" ItemsSource="{Binding CroplandFields}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
@@ -1154,7 +1144,7 @@
                                         </ItemsControl.ItemsPanel>
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Border Background="#FFF5DF" CornerRadius="6" Padding="8" Margin="0,0,0,6" Width="170">
+                                                <Border Background="{DynamicResource CropCardBgBrush}" CornerRadius="6" Padding="8" Margin="0,0,0,6" Width="170">
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="*" />
@@ -1165,9 +1155,9 @@
                                                                 Tag="{Binding}"
                                                                 Content="{Binding LevelLabel}"
                                                                 Style="{StaticResource ResourceLevelBadgeStyle}"
-                                                                Foreground="#7C5C0B"
-                                                                Background="#F7E3A3"
-                                                                BorderBrush="#EACD73"
+                                                                Foreground="{DynamicResource CropBadgeTextBrush}"
+                                                                Background="{DynamicResource CropBadgeBgBrush}"
+                                                                BorderBrush="{DynamicResource CropBadgeBorderBrush}"
                                                                 Click="ResourceLevelBadge_Click"
                                                                 ToolTip="Click to queue +1 level upgrade." />
                                                     </Grid>
@@ -1213,7 +1203,7 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Text="Farming" FontSize="24" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,10" />
+                        <TextBlock Grid.Row="0" Text="Farming" FontSize="24" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,10" />
                         <Grid Grid.Row="1">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -1222,8 +1212,8 @@
                                 </Grid.ColumnDefinitions>
 
                                 <Border Grid.Column="0"
-                                        Background="#FFFFFF"
-                                        BorderBrush="#D1D5DB"
+                                        Background="{DynamicResource SurfaceBrush}"
+                                        BorderBrush="{DynamicResource BorderBrush}"
                                         BorderThickness="1"
                                         CornerRadius="8"
                                         Padding="12"
@@ -1239,22 +1229,22 @@
                                                    Text="Farm List Management"
                                                    FontSize="22"
                                                    FontWeight="SemiBold"
-                                                   Foreground="#111827"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
                                                    Margin="0,0,0,12" />
 
                                         <WrapPanel Grid.Row="1" Margin="0,0,0,12">
                                             <Button x:Name="AnalyzeFarmListsButton"
                                                     Content="Analyze Farmlists"
-                                                    Background="#030826"
+                                                    Background="{DynamicResource AccentBrush}"
                                                     Foreground="White"
-                                                    BorderBrush="#030826"
+                                                    BorderBrush="{DynamicResource AccentBrush}"
                                                     MinWidth="150"
                                                     Click="AnalyzeFarmListsButton_Click" />
                                             <Button x:Name="AddFarmsToListButton"
                                                     Content="Add Farms to List"
-                                                    Background="#030826"
+                                                    Background="{DynamicResource AccentBrush}"
                                                     Foreground="White"
-                                                    BorderBrush="#030826"
+                                                    BorderBrush="{DynamicResource AccentBrush}"
                                                     MinWidth="140"
                                                     Click="AddFarmsToListButton_Click" />
                                             <Button x:Name="CreateFarmListButton"
@@ -1267,7 +1257,7 @@
                                             <StackPanel>
                                                 <TextBlock x:Name="FarmingStatusTextBlock"
                                                            Text="No farm lists loaded. Click Analyze Farmlists."
-                                                           Foreground="#4B5563"
+                                                           Foreground="{DynamicResource TextMutedBrush}"
                                                            Margin="0,0,0,8" />
 
                                                 <ItemsControl x:Name="FarmListsItemsControl">
@@ -1276,13 +1266,13 @@
                                                             <Border CornerRadius="9" Padding="10" Margin="0,0,0,10">
                                                                 <Border.Style>
                                                                     <Style TargetType="Border">
-                                                                        <Setter Property="Background" Value="#F9FAFB" />
-                                                                        <Setter Property="BorderBrush" Value="#D1D5DB" />
+                                                                        <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+                                                                        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
                                                                         <Setter Property="BorderThickness" Value="1" />
                                                                         <Style.Triggers>
                                                                             <DataTrigger Binding="{Binding IsProcessing}" Value="True">
-                                                                                <Setter Property="Background" Value="#DBEAFE" />
-                                                                                <Setter Property="BorderBrush" Value="#2563EB" />
+                                                                                <Setter Property="Background" Value="{DynamicResource InfoBgBrush}" />
+                                                                                <Setter Property="BorderBrush" Value="{DynamicResource InfoBrush}" />
                                                                                 <Setter Property="BorderThickness" Value="2" />
                                                                             </DataTrigger>
                                                                         </Style.Triggers>
@@ -1302,11 +1292,11 @@
                                                                                   Margin="0,0,10,0"
                                                                                   IsChecked="{Binding IsEnabled, Mode=TwoWay}" />
 
-                                                                    <Border Grid.Column="1" BorderBrush="#2563EB" BorderThickness="3,0,0,0" Padding="10,0,0,0">
+                                                                    <Border Grid.Column="1" BorderBrush="{DynamicResource InfoBrush}" BorderThickness="3,0,0,0" Padding="10,0,0,0">
                                                                         <StackPanel VerticalAlignment="Center">
-                                                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="#111827" />
+                                                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
                                                                             <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                                                                                <TextBlock Text="{Binding FarmCountText}" Foreground="#4B5563" FontSize="12" Margin="0,0,8,0" />
+                                                                                <TextBlock Text="{Binding FarmCountText}" Foreground="{DynamicResource TextMutedBrush}" FontSize="12" Margin="0,0,8,0" />
                                                                                 <ProgressBar Width="120"
                                                                                              Height="8"
                                                                                              VerticalAlignment="Center"
@@ -1325,12 +1315,12 @@
                                                                             BorderThickness="1">
                                                                         <Border.Style>
                                                                             <Style TargetType="Border">
-                                                                                <Setter Property="Background" Value="#DCFCE7" />
-                                                                                <Setter Property="BorderBrush" Value="#22C55E" />
+                                                                                <Setter Property="Background" Value="{DynamicResource SuccessBgBrush}" />
+                                                                                <Setter Property="BorderBrush" Value="{DynamicResource SuccessBorderBrush}" />
                                                                                 <Style.Triggers>
                                                                                     <DataTrigger Binding="{Binding HasTimer}" Value="True">
-                                                                                        <Setter Property="Background" Value="#FEF3C7" />
-                                                                                        <Setter Property="BorderBrush" Value="#F59E0B" />
+                                                                                        <Setter Property="Background" Value="{DynamicResource WarningBgBrush}" />
+                                                                                        <Setter Property="BorderBrush" Value="{DynamicResource WarningBorderBrush}" />
                                                                                     </DataTrigger>
                                                                                 </Style.Triggers>
                                                                             </Style>
@@ -1339,11 +1329,11 @@
                                                                             <TextBlock.Style>
                                                                                 <Style TargetType="TextBlock">
                                                                                     <Setter Property="Text" Value="{Binding ReadyText}" />
-                                                                                    <Setter Property="Foreground" Value="#15803D" />
+                                                                                    <Setter Property="Foreground" Value="{DynamicResource SuccessTextBrush}" />
                                                                                     <Style.Triggers>
                                                                                         <DataTrigger Binding="{Binding HasTimer}" Value="True">
                                                                                             <Setter Property="Text" Value="{Binding TimerText}" />
-                                                                                            <Setter Property="Foreground" Value="#B45309" />
+                                                                                            <Setter Property="Foreground" Value="{DynamicResource WarningTextBrush}" />
                                                                                         </DataTrigger>
                                                                                     </Style.Triggers>
                                                                                 </Style>
@@ -1355,9 +1345,9 @@
                                                                             Content="Send Now"
                                                                             MinWidth="90"
                                                                             Height="32"
-                                                                            Background="#030826"
+                                                                            Background="{DynamicResource AccentBrush}"
                                                                             Foreground="White"
-                                                                            BorderBrush="#030826"
+                                                                            BorderBrush="{DynamicResource AccentBrush}"
                                                                             VerticalAlignment="Center"
                                                                             Tag="{Binding}"
                                                                             IsEnabled="{Binding CanSendNow}"
@@ -1377,9 +1367,9 @@
                                         <Button x:Name="CancelFarmingOperationButton"
                                                 Grid.Row="2"
                                                 Content="Cancel"
-                                                Background="#B91C1C"
+                                                Background="{DynamicResource DangerStrongBrush}"
                                                 Foreground="White"
-                                                BorderBrush="#B91C1C"
+                                                BorderBrush="{DynamicResource DangerStrongBrush}"
                                                 MinWidth="110"
                                                 Height="36"
                                                 Padding="14,0"
@@ -1400,8 +1390,8 @@
                                     </Grid.RowDefinitions>
 
                                     <Border Grid.Row="0"
-                                            Background="#FFFFFF"
-                                            BorderBrush="#D1D5DB"
+                                            Background="{DynamicResource SurfaceBrush}"
+                                            BorderBrush="{DynamicResource BorderBrush}"
                                             BorderThickness="1"
                                             CornerRadius="8"
                                             Padding="12">
@@ -1415,17 +1405,17 @@
                                                            Text="Manual farming"
                                                            FontSize="22"
                                                            FontWeight="SemiBold"
-                                                           Foreground="#111827"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"
                                                            VerticalAlignment="Center" />
                                                 <StackPanel Grid.Column="1"
                                                             HorizontalAlignment="Right">
                                                     <TextBlock Text="Farmlist executions"
-                                                               Foreground="#6B7280"
+                                                               Foreground="{DynamicResource TextSubtleBrush}"
                                                                FontSize="12"
                                                                HorizontalAlignment="Right" />
                                                     <TextBlock x:Name="ManualFarmingExecutionCountTextBlock"
                                                                Text="0"
-                                                               Foreground="#111827"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}"
                                                                FontSize="18"
                                                                FontWeight="SemiBold"
                                                                HorizontalAlignment="Right" />
@@ -1475,13 +1465,13 @@
                                                             Margin="10,0,0,6">
                                                     <TextBlock Text="Analyzed:"
                                                                VerticalAlignment="Center"
-                                                               Foreground="#374151"
+                                                               Foreground="{DynamicResource TextSecondaryBrush}"
                                                                Margin="0,0,6,0" />
                                                     <Ellipse x:Name="NatarsProfileAnalyzedIndicator"
                                                              Width="14"
                                                              Height="14"
                                                              VerticalAlignment="Center"
-                                                             Fill="#9CA3AF" />
+                                                             Fill="{DynamicResource BorderMutedBrush}" />
                                                 </StackPanel>
 
                                                 <StackPanel Grid.Row="2"
@@ -1491,22 +1481,22 @@
                                                             Margin="10,0,0,0">
                                                     <TextBlock x:Name="ManualFarmingStateTextBlock"
                                                                Text="State:"
-                                                               Foreground="#6B7280"
+                                                               Foreground="{DynamicResource TextSubtleBrush}"
                                                                Margin="0,0,8,0"
                                                                VerticalAlignment="Center" />
                                                     <Ellipse x:Name="ManualFarmingStateDot"
                                                              Width="12"
                                                              Height="12"
                                                              VerticalAlignment="Center"
-                                                             Fill="#9CA3AF" />
+                                                             Fill="{DynamicResource BorderMutedBrush}" />
                                                 </StackPanel>
                                             </Grid>
                                         </StackPanel>
                                     </Border>
 
                                     <Border Grid.Row="2"
-                                            Background="#FFFFFF"
-                                            BorderBrush="#D1D5DB"
+                                            Background="{DynamicResource SurfaceBrush}"
+                                            BorderBrush="{DynamicResource BorderBrush}"
                                             BorderThickness="1"
                                             CornerRadius="8"
                                             Padding="12">
@@ -1514,7 +1504,7 @@
                                             <TextBlock Text="Settings"
                                                        FontSize="22"
                                                        FontWeight="SemiBold"
-                                                       Foreground="#111827"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"
                                                        Margin="0,0,0,8" />
                                         </StackPanel>
                                     </Border>
@@ -1532,11 +1522,11 @@
                 </TabItem>
 
                 <TabItem x:Name="ReinforcementsTabItem" Header="Send Troops">
-                    <Grid Background="#F3F4F6">
+                    <Grid Background="{DynamicResource AppBackgroundBrush}">
                         <Border VerticalAlignment="Stretch"
                                 HorizontalAlignment="Stretch"
-                                Background="#FFFFFF"
-                                BorderBrush="#D1D5DB"
+                                Background="{DynamicResource SurfaceBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="8"
                                 Padding="16">
@@ -1559,13 +1549,13 @@
                                         <TextBlock Text="Reinforcements"
                                                    FontSize="22"
                                                    FontWeight="SemiBold"
-                                                   Foreground="#111827" />
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
                                         <Border Width="14"
                                                 Height="14"
                                                 Margin="8,3,0,0"
                                                 CornerRadius="7"
-                                                Background="#E5E7EB"
-                                                BorderBrush="#D1D5DB"
+                                                Background="{DynamicResource ControlBackgroundBrush}"
+                                                BorderBrush="{DynamicResource BorderBrush}"
                                                 BorderThickness="1"
                                                 VerticalAlignment="Top"
                                                 ToolTipService.InitialShowDelay="0">
@@ -1574,7 +1564,7 @@
                                                     <StackPanel Width="320">
                                                         <TextBlock Text="Reinforcements"
                                                                    FontWeight="SemiBold"
-                                                                   Foreground="#F9FAFB"
+                                                                   Foreground="{DynamicResource TooltipForegroundBrush}"
                                                                    Margin="0,0,0,6" />
                                                         <TextBlock TextWrapping="Wrap"
                                                                    Text="Sends selected troops from chosen source villages to the selected target village as reinforcements." />
@@ -1587,7 +1577,7 @@
                                             <TextBlock Text="i"
                                                        FontSize="10"
                                                        FontWeight="SemiBold"
-                                                       Foreground="#4B5563"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
                                                        HorizontalAlignment="Center"
                                                        VerticalAlignment="Center"
                                                        TextAlignment="Center" />
@@ -1595,7 +1585,7 @@
                                     </StackPanel>
                                     <TextBlock Grid.Row="1"
                                                Text="Target village"
-                                               Foreground="#6B7280"
+                                               Foreground="{DynamicResource TextSubtleBrush}"
                                                FontSize="12"
                                                Margin="0,0,0,4" />
                                     <ComboBox Grid.Row="2"
@@ -1618,7 +1608,7 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="Source villages"
-                                                   Foreground="#6B7280"
+                                                   Foreground="{DynamicResource TextSubtleBrush}"
                                                    FontSize="12"
                                                    VerticalAlignment="Center" />
                                         <Button x:Name="ReinforcementMarkAllTroopsButton"
@@ -1628,7 +1618,7 @@
                                                 Click="MarkAllReinforcementTroopsButton_Click" />
                                         </Grid>
                                     <Border Grid.Row="1"
-                                            BorderBrush="#E5E7EB"
+                                            BorderBrush="{DynamicResource BorderSubtleBrush}"
                                             BorderThickness="1"
                                             CornerRadius="6"
                                             Padding="8"
@@ -1652,9 +1642,9 @@
                                                                         Margin="8,0,8,0"
                                                                         VerticalAlignment="Center">
                                                                 <TextBlock Text="{Binding DisplayName}"
-                                                                           Foreground="#111827" />
+                                                                           Foreground="{DynamicResource TextPrimaryBrush}" />
                                                                 <TextBlock Text="{Binding TroopSummaryText}"
-                                                                           Foreground="#6B7280"
+                                                                           Foreground="{DynamicResource TextSubtleBrush}"
                                                                            FontSize="11"
                                                                            TextTrimming="CharacterEllipsis" />
                                                             </StackPanel>
@@ -1665,7 +1655,7 @@
                                                                     Click="ChooseReinforcementVillageTroopsButton_Click" />
                                                             <TextBlock Grid.Column="3"
                                                                        Text="{Binding SourceStatusText}"
-                                                                       Foreground="#9CA3AF"
+                                                                       Foreground="{DynamicResource BorderMutedBrush}"
                                                                        FontSize="11"
                                                                        FontWeight="SemiBold"
                                                                        Margin="8,0,0,0"
@@ -1680,7 +1670,7 @@
                                     <TextBlock Grid.Row="4"
                                                x:Name="ReinforcementTroopsSummaryTextBlock"
                                                Text="No troops selected."
-                                               Foreground="#6B7280"
+                                               Foreground="{DynamicResource TextSubtleBrush}"
                                                FontSize="12"
                                                Margin="0,10,0,0"
                                                TextWrapping="Wrap" />
@@ -1690,17 +1680,17 @@
                                     <TextBlock Text="Setup"
                                                FontSize="22"
                                                FontWeight="SemiBold"
-                                               Foreground="#111827"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
                                                Margin="0,0,0,12" />
                                     <TextBlock x:Name="ReinforcementTroopsDetailTextBlock"
                                                Text="Login to load troop types, then choose what to send."
-                                               Foreground="#4B5563"
+                                               Foreground="{DynamicResource TextMutedBrush}"
                                                FontSize="12"
                                                TextWrapping="Wrap"
                                                Margin="0,0,0,12" />
                                     <TextBlock x:Name="ReinforcementStatusTextBlock"
                                                Text="Requires at least 2 villages."
-                                               Foreground="#B45309"
+                                               Foreground="{DynamicResource WarningTextBrush}"
                                                FontSize="12"
                                                Margin="0,12,0,8"
                                                TextWrapping="Wrap" />
@@ -1716,8 +1706,8 @@
                                                 Click="ReinforcementRefreshVillagesButton_Click" />
                                     </StackPanel>
 
-                                    <Border Background="#F9FAFB"
-                                            BorderBrush="#D1D5DB"
+                                    <Border Background="{DynamicResource SurfaceAltBrush}"
+                                            BorderBrush="{DynamicResource BorderBrush}"
                                             BorderThickness="1"
                                             CornerRadius="8"
                                             Padding="12"
@@ -1727,12 +1717,12 @@
                                                 <TextBlock Text="Catapult waves"
                                                            FontSize="22"
                                                            FontWeight="SemiBold"
-                                                           Foreground="#111827" />
+                                                           Foreground="{DynamicResource TextPrimaryBrush}" />
                                                 <Border Width="14"
                                                         Height="14"
                                                         CornerRadius="7"
-                                                        Background="#E5E7EB"
-                                                        BorderBrush="#D1D5DB"
+                                                        Background="{DynamicResource ControlBackgroundBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
                                                         BorderThickness="1"
                                                         Margin="8,5,0,0"
                                                         VerticalAlignment="Center"
@@ -1742,7 +1732,7 @@
                                                             <StackPanel Width="320">
                                                                 <TextBlock Text="Catapult waves"
                                                                            FontWeight="SemiBold"
-                                                                           Foreground="#F9FAFB"
+                                                                           Foreground="{DynamicResource TooltipForegroundBrush}"
                                                                            Margin="0,0,0,6" />
                                                                 <TextBlock TextWrapping="Wrap"
                                                                            Text="Reads available troops from Rally Point, prepares one first attack and multiple attack waves. Catapult targets use Random automatically when catapults are included." />
@@ -1752,7 +1742,7 @@
                                                     <TextBlock Text="i"
                                                                FontSize="10"
                                                                FontWeight="SemiBold"
-                                                               Foreground="#4B5563"
+                                                               Foreground="{DynamicResource TextMutedBrush}"
                                                                HorizontalAlignment="Center"
                                                                VerticalAlignment="Center"
                                                                TextAlignment="Center" />
@@ -1762,13 +1752,13 @@
                                                     Content="Start catapult waves"
                                                     Width="180"
                                                     HorizontalAlignment="Left"
-                                                    Background="#030826"
+                                                    Background="{DynamicResource AccentBrush}"
                                                     Foreground="White"
-                                                    BorderBrush="#030826"
+                                                    BorderBrush="{DynamicResource AccentBrush}"
                                                     Click="StartCatapultWavesButton_Click" />
                                             <TextBlock x:Name="CatapultWavesStatusTextBlock"
                                                        Text="No catapult waves running."
-                                                       Foreground="#4B5563"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
                                                        Margin="0,10,0,0"
                                                        TextWrapping="Wrap" />
                                         </StackPanel>
@@ -1781,7 +1771,7 @@
 
                 <TabItem x:Name="NpcTradeTabItem" Header="NPC / Trade"
                          DataContext="{Binding TroopTrainingVm, ElementName=RootWindow}">
-                    <Grid Background="#F3F4F6">
+                    <Grid Background="{DynamicResource AppBackgroundBrush}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="16" />
@@ -1790,8 +1780,8 @@
 
                         <StackPanel Grid.Column="0">
                             <Border VerticalAlignment="Top"
-                                    Background="#FFFFFF"
-                                    BorderBrush="#D1D5DB"
+                                    Background="{DynamicResource SurfaceBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="1"
                                     CornerRadius="8"
                                     Padding="16">
@@ -1799,31 +1789,31 @@
                                     <TextBlock Text="NPC Trade"
                                                FontSize="22"
                                                FontWeight="SemiBold"
-                                               Foreground="#111827"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
                                                Margin="0,0,0,12" />
                                     <TextBlock Text="Each NPC trade costs 3 gold. Allow gold spending must be enabled for NPC trade to run."
-                                               Foreground="#6B7280"
+                                               Foreground="{DynamicResource TextSubtleBrush}"
                                                FontSize="12"
                                                TextWrapping="Wrap"
                                                Margin="0,0,0,12" />
                                     <TextBlock x:Name="NpcTradeGoldSpentTextBlock"
                                                Text="Gold spent: 0"
-                                               Foreground="#111827"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
                                                FontWeight="SemiBold"
                                                Margin="0,0,0,6" />
                                     <TextBlock x:Name="NpcTradeTroopsTextBlock"
                                                Text="NPC Troops: 0"
-                                               Foreground="#111827"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
                                                FontWeight="SemiBold"
                                                Margin="0,0,0,6" />
                                     <TextBlock x:Name="NpcTradeBuildingsTextBlock"
                                                Text="NPC Buildings: 0"
-                                               Foreground="#111827"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
                                                FontWeight="SemiBold"
                                                Margin="0,0,0,12" />
                                     <TextBlock Text="Troops"
                                                FontWeight="SemiBold"
-                                               Foreground="#111827"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
                                                Margin="0,0,0,6" />
                                     <StackPanel Orientation="Horizontal">
                                         <CheckBox Content="Enable NPC trade while building troops"
@@ -1833,8 +1823,8 @@
                                                 Height="14"
                                                 Margin="6,0,0,0"
                                                 CornerRadius="7"
-                                                Background="#E5E7EB"
-                                                BorderBrush="#D1D5DB"
+                                                Background="{DynamicResource ControlBackgroundBrush}"
+                                                BorderBrush="{DynamicResource BorderBrush}"
                                                 BorderThickness="1"
                                                 VerticalAlignment="Center"
                                                 ToolTipService.InitialShowDelay="0">
@@ -1843,7 +1833,7 @@
                                                     <StackPanel Width="300">
                                                         <TextBlock Text="NPC trade for troops"
                                                                    FontWeight="SemiBold"
-                                                                   Foreground="#F9FAFB"
+                                                                   Foreground="{DynamicResource TooltipForegroundBrush}"
                                                                    Margin="0,0,0,6" />
                                                         <TextBlock TextWrapping="Wrap"
                                                                    Text="Allows NPC trade while training troops when a selected resource reaches the configured threshold. Each completed NPC trade costs 3 gold and still respects the gold limit." />
@@ -1853,14 +1843,14 @@
                                             <TextBlock Text="i"
                                                        FontSize="10"
                                                        FontWeight="SemiBold"
-                                                       Foreground="#4B5563"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
                                                        HorizontalAlignment="Center"
                                                        VerticalAlignment="Center"
                                                        TextAlignment="Center" />
                                         </Border>
                                     </StackPanel>
                                     <TextBlock Text="Trade when a selected resource is at/above"
-                                               Foreground="#6B7280"
+                                               Foreground="{DynamicResource TextSubtleBrush}"
                                                FontSize="12"
                                                TextWrapping="Wrap"
                                                Margin="0,8,0,4" />
@@ -1879,15 +1869,15 @@
                                     </ComboBox>
                                     <StackPanel Orientation="Horizontal" Margin="0,12,0,4">
                                         <TextBlock Text="Analyze resources"
-                                                   Foreground="#6B7280"
+                                                   Foreground="{DynamicResource TextSubtleBrush}"
                                                    FontSize="12"
                                                    VerticalAlignment="Center" />
                                         <Border Width="14"
                                                 Height="14"
                                                 Margin="6,0,0,0"
                                                 CornerRadius="7"
-                                                Background="#E5E7EB"
-                                                BorderBrush="#D1D5DB"
+                                                Background="{DynamicResource ControlBackgroundBrush}"
+                                                BorderBrush="{DynamicResource BorderBrush}"
                                                 BorderThickness="1"
                                                 VerticalAlignment="Center"
                                                 ToolTipService.InitialShowDelay="0">
@@ -1896,7 +1886,7 @@
                                                     <StackPanel Width="300">
                                                         <TextBlock Text="Analyze resources"
                                                                    FontWeight="SemiBold"
-                                                                   Foreground="#F9FAFB"
+                                                                   Foreground="{DynamicResource TooltipForegroundBrush}"
                                                                    Margin="0,0,0,6" />
                                                         <TextBlock TextWrapping="Wrap"
                                                                    Text="Only selected resources can trigger NPC trade. The bot checks their storage percentage against the configured threshold." />
@@ -1906,7 +1896,7 @@
                                             <TextBlock Text="i"
                                                        FontSize="10"
                                                        FontWeight="SemiBold"
-                                                       Foreground="#4B5563"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
                                                        HorizontalAlignment="Center"
                                                        VerticalAlignment="Center"
                                                        TextAlignment="Center" />
@@ -1934,12 +1924,12 @@
                                     </WrapPanel>
 
                                     <Border Height="1"
-                                            Background="#E5E7EB"
+                                            Background="{DynamicResource ControlBackgroundBrush}"
                                             Margin="0,14,0,14" />
 
                                     <TextBlock Text="Buildings and resource fields"
                                                FontWeight="SemiBold"
-                                               Foreground="#111827"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
                                                Margin="0,0,0,6" />
                                     <StackPanel Orientation="Horizontal">
                                         <CheckBox Content="Enable NPC trade while upgrading buildings and resource fields"
@@ -1949,8 +1939,8 @@
                                                 Height="14"
                                                 Margin="6,0,0,0"
                                                 CornerRadius="7"
-                                                Background="#E5E7EB"
-                                                BorderBrush="#D1D5DB"
+                                                Background="{DynamicResource ControlBackgroundBrush}"
+                                                BorderBrush="{DynamicResource BorderBrush}"
                                                 BorderThickness="1"
                                                 VerticalAlignment="Center"
                                                 ToolTipService.InitialShowDelay="0">
@@ -1959,7 +1949,7 @@
                                                     <StackPanel Width="300">
                                                         <TextBlock Text="NPC trade for upgrades"
                                                                    FontWeight="SemiBold"
-                                                                   Foreground="#F9FAFB"
+                                                                   Foreground="{DynamicResource TooltipForegroundBrush}"
                                                                    Margin="0,0,0,6" />
                                                         <TextBlock TextWrapping="Wrap"
                                                                    Text="Allows NPC trade only when a building or resource field upgrade page says there are not enough resources. Each completed NPC trade costs 3 gold and still respects the gold limit." />
@@ -1969,7 +1959,7 @@
                                             <TextBlock Text="i"
                                                        FontSize="10"
                                                        FontWeight="SemiBold"
-                                                       Foreground="#4B5563"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
                                                        HorizontalAlignment="Center"
                                                        VerticalAlignment="Center"
                                                        TextAlignment="Center" />
@@ -1995,8 +1985,8 @@
                                                 Height="14"
                                                 Margin="6,0,0,0"
                                                 CornerRadius="7"
-                                                Background="#E5E7EB"
-                                                BorderBrush="#D1D5DB"
+                                                Background="{DynamicResource ControlBackgroundBrush}"
+                                                BorderBrush="{DynamicResource BorderBrush}"
                                                 BorderThickness="1"
                                                 VerticalAlignment="Center"
                                                 ToolTipService.InitialShowDelay="0">
@@ -2005,7 +1995,7 @@
                                                     <StackPanel Width="300">
                                                         <TextBlock Text="NPC build time limit"
                                                                    FontWeight="SemiBold"
-                                                                   Foreground="#F9FAFB"
+                                                                   Foreground="{DynamicResource TooltipForegroundBrush}"
                                                                    Margin="0,0,0,6" />
                                                         <TextBlock TextWrapping="Wrap"
                                                                    Text="Skips NPC trade when missing resources will be available within the selected time limit." />
@@ -2015,7 +2005,7 @@
                                             <TextBlock Text="i"
                                                        FontSize="10"
                                                        FontWeight="SemiBold"
-                                                       Foreground="#4B5563"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
                                                        HorizontalAlignment="Center"
                                                        VerticalAlignment="Center"
                                                        TextAlignment="Center" />
@@ -2026,8 +2016,8 @@
 
                             <Border Margin="0,16,0,0"
                                     VerticalAlignment="Top"
-                                    Background="#FFFFFF"
-                                    BorderBrush="#D1D5DB"
+                                    Background="{DynamicResource SurfaceBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="1"
                                     CornerRadius="8"
                                     Padding="16">
@@ -2035,10 +2025,10 @@
                                     <TextBlock Text="Gold"
                                                FontSize="22"
                                                FontWeight="SemiBold"
-                                               Foreground="#111827"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
                                                Margin="0,0,0,12" />
                                     <TextBlock Text="{Binding GoldLimitText}"
-                                               Foreground="#111827"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
                                                Margin="0,0,0,4" />
                                     <Slider Minimum="0"
                                             Maximum="1000"
@@ -2054,8 +2044,8 @@
 
                         <StackPanel Grid.Column="2">
                             <Border VerticalAlignment="Top"
-                                    Background="#FFFFFF"
-                                    BorderBrush="#D1D5DB"
+                                    Background="{DynamicResource SurfaceBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="1"
                                     CornerRadius="8"
                                     Padding="16">
@@ -2064,20 +2054,20 @@
                                         <TextBlock Text="Resource Trading"
                                                    FontSize="22"
                                                    FontWeight="SemiBold"
-                                                   Foreground="#111827"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
                                                    VerticalAlignment="Center" />
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                                         <TextBlock Text="Target village"
-                                                   Foreground="#6B7280"
+                                                   Foreground="{DynamicResource TextSubtleBrush}"
                                                    FontSize="12"
                                                    VerticalAlignment="Center" />
                                         <Border Width="14"
                                                 Height="14"
                                                 Margin="6,0,0,0"
                                                 CornerRadius="7"
-                                                Background="#E5E7EB"
-                                                BorderBrush="#D1D5DB"
+                                                Background="{DynamicResource ControlBackgroundBrush}"
+                                                BorderBrush="{DynamicResource BorderBrush}"
                                                 BorderThickness="1"
                                                 VerticalAlignment="Center"
                                                 ToolTipService.InitialShowDelay="0">
@@ -2086,7 +2076,7 @@
                                                     <StackPanel Width="300">
                                                         <TextBlock Text="Target village"
                                                                    FontWeight="SemiBold"
-                                                                   Foreground="#F9FAFB"
+                                                                   Foreground="{DynamicResource TooltipForegroundBrush}"
                                                                    Margin="0,0,0,6" />
                                                         <TextBlock TextWrapping="Wrap"
                                                                    Text="This village receives resources from the selected source villages. It is greyed out in the source list because a village cannot send resources to itself." />
@@ -2096,7 +2086,7 @@
                                             <TextBlock Text="i"
                                                        FontSize="10"
                                                        FontWeight="SemiBold"
-                                                       Foreground="#4B5563"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
                                                        HorizontalAlignment="Center"
                                                        VerticalAlignment="Center"
                                                        TextAlignment="Center" />
@@ -2109,15 +2099,15 @@
                                               SelectionChanged="ResourceTransferSetting_SelectionChanged" />
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                                         <TextBlock Text="Source villages"
-                                                   Foreground="#6B7280"
+                                                   Foreground="{DynamicResource TextSubtleBrush}"
                                                    FontSize="12"
                                                    VerticalAlignment="Center" />
                                         <Border Width="14"
                                                 Height="14"
                                                 Margin="6,0,0,0"
                                                 CornerRadius="7"
-                                                Background="#E5E7EB"
-                                                BorderBrush="#D1D5DB"
+                                                Background="{DynamicResource ControlBackgroundBrush}"
+                                                BorderBrush="{DynamicResource BorderBrush}"
                                                 BorderThickness="1"
                                                 VerticalAlignment="Center"
                                                 ToolTipService.InitialShowDelay="0">
@@ -2126,7 +2116,7 @@
                                                     <StackPanel Width="300">
                                                         <TextBlock Text="Source villages"
                                                                    FontWeight="SemiBold"
-                                                                   Foreground="#F9FAFB"
+                                                                   Foreground="{DynamicResource TooltipForegroundBrush}"
                                                                    Margin="0,0,0,6" />
                                                         <TextBlock TextWrapping="Wrap"
                                                                    Text="These villages can send resources to the selected target." />
@@ -2139,13 +2129,13 @@
                                             <TextBlock Text="i"
                                                        FontSize="10"
                                                        FontWeight="SemiBold"
-                                                       Foreground="#4B5563"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
                                                        HorizontalAlignment="Center"
                                                        VerticalAlignment="Center"
                                                        TextAlignment="Center" />
                                         </Border>
                                     </StackPanel>
-                                    <Border BorderBrush="#E5E7EB"
+                                    <Border BorderBrush="{DynamicResource BorderSubtleBrush}"
                                             BorderThickness="1"
                                             CornerRadius="6"
                                             Padding="8"
@@ -2171,16 +2161,16 @@
                                                                 Margin="8,0,0,0"
                                                                 VerticalAlignment="Center">
                                                                 <TextBlock Foreground="{Binding WoodPercentBrush}" FontSize="11" FontWeight="Bold" Text="{Binding WoodPercentText}" />
-                                                                <TextBlock Foreground="#9CA3AF" FontSize="11" Margin="5,0" Text="|" />
+                                                                <TextBlock Foreground="{DynamicResource BorderMutedBrush}" FontSize="11" Margin="5,0" Text="|" />
                                                                 <TextBlock Foreground="{Binding ClayPercentBrush}" FontSize="11" FontWeight="Bold" Text="{Binding ClayPercentText}" />
-                                                                <TextBlock Foreground="#9CA3AF" FontSize="11" Margin="5,0" Text="|" />
+                                                                <TextBlock Foreground="{DynamicResource BorderMutedBrush}" FontSize="11" Margin="5,0" Text="|" />
                                                                 <TextBlock Foreground="{Binding IronPercentBrush}" FontSize="11" FontWeight="Bold" Text="{Binding IronPercentText}" />
-                                                                <TextBlock Foreground="#9CA3AF" FontSize="11" Margin="5,0" Text="|" />
+                                                                <TextBlock Foreground="{DynamicResource BorderMutedBrush}" FontSize="11" Margin="5,0" Text="|" />
                                                                 <TextBlock Foreground="{Binding CropPercentBrush}" FontSize="11" FontWeight="Bold" Text="{Binding CropPercentText}" />
                                                             </StackPanel>
                                                             <TextBlock Grid.Column="2"
                                                                        Text="{Binding SourceStatusText}"
-                                                                       Foreground="#9CA3AF"
+                                                                       Foreground="{DynamicResource BorderMutedBrush}"
                                                                        FontSize="11"
                                                                        FontWeight="SemiBold"
                                                                        Margin="8,0,0,0"
@@ -2200,15 +2190,15 @@
                                         <StackPanel Grid.Column="0" Margin="0,0,8,0">
                                             <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                                                 <TextBlock Text="Send from"
-                                                           Foreground="#6B7280"
+                                                           Foreground="{DynamicResource TextSubtleBrush}"
                                                            FontSize="12"
                                                            VerticalAlignment="Center" />
                                                 <Border Width="14"
                                                         Height="14"
                                                         Margin="6,0,0,0"
                                                         CornerRadius="7"
-                                                        Background="#E5E7EB"
-                                                        BorderBrush="#D1D5DB"
+                                                        Background="{DynamicResource ControlBackgroundBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
                                                         BorderThickness="1"
                                                         VerticalAlignment="Center"
                                                         ToolTipService.InitialShowDelay="0">
@@ -2217,7 +2207,7 @@
                                                             <StackPanel Width="280">
                                                                 <TextBlock Text="Send from"
                                                                            FontWeight="SemiBold"
-                                                                           Foreground="#F9FAFB"
+                                                                           Foreground="{DynamicResource TooltipForegroundBrush}"
                                                                            Margin="0,0,0,6" />
                                                                 <TextBlock TextWrapping="Wrap"
                                                                            Text="Source storage percent required before this resource can be sent." />
@@ -2227,7 +2217,7 @@
                                                     <TextBlock Text="i"
                                                                FontSize="10"
                                                                FontWeight="SemiBold"
-                                                               Foreground="#4B5563"
+                                                               Foreground="{DynamicResource TextMutedBrush}"
                                                                HorizontalAlignment="Center"
                                                                VerticalAlignment="Center"
                                                                TextAlignment="Center" />
@@ -2252,15 +2242,15 @@
                                         <StackPanel Grid.Column="1" Margin="0,0,8,0">
                                             <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                                                 <TextBlock Text="Keep"
-                                                           Foreground="#6B7280"
+                                                           Foreground="{DynamicResource TextSubtleBrush}"
                                                            FontSize="12"
                                                            VerticalAlignment="Center" />
                                                 <Border Width="14"
                                                         Height="14"
                                                         Margin="6,0,0,0"
                                                         CornerRadius="7"
-                                                        Background="#E5E7EB"
-                                                        BorderBrush="#D1D5DB"
+                                                        Background="{DynamicResource ControlBackgroundBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
                                                         BorderThickness="1"
                                                         VerticalAlignment="Center"
                                                         ToolTipService.InitialShowDelay="0">
@@ -2269,7 +2259,7 @@
                                                             <StackPanel Width="280">
                                                                 <TextBlock Text="Keep"
                                                                            FontWeight="SemiBold"
-                                                                           Foreground="#F9FAFB"
+                                                                           Foreground="{DynamicResource TooltipForegroundBrush}"
                                                                            Margin="0,0,0,6" />
                                                                 <TextBlock TextWrapping="Wrap"
                                                                            Text="Source storage percent left behind after sending." />
@@ -2279,7 +2269,7 @@
                                                     <TextBlock Text="i"
                                                                FontSize="10"
                                                                FontWeight="SemiBold"
-                                                               Foreground="#4B5563"
+                                                               Foreground="{DynamicResource TextMutedBrush}"
                                                                HorizontalAlignment="Center"
                                                                VerticalAlignment="Center"
                                                                TextAlignment="Center" />
@@ -2304,15 +2294,15 @@
                                         <StackPanel Grid.Column="2">
                                             <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                                                 <TextBlock Text="Fill target"
-                                                           Foreground="#6B7280"
+                                                           Foreground="{DynamicResource TextSubtleBrush}"
                                                            FontSize="12"
                                                            VerticalAlignment="Center" />
                                                 <Border Width="14"
                                                         Height="14"
                                                         Margin="6,0,0,0"
                                                         CornerRadius="7"
-                                                        Background="#E5E7EB"
-                                                        BorderBrush="#D1D5DB"
+                                                        Background="{DynamicResource ControlBackgroundBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
                                                         BorderThickness="1"
                                                         VerticalAlignment="Center"
                                                         ToolTipService.InitialShowDelay="0">
@@ -2321,7 +2311,7 @@
                                                             <StackPanel Width="280">
                                                                 <TextBlock Text="Fill target"
                                                                            FontWeight="SemiBold"
-                                                                           Foreground="#F9FAFB"
+                                                                           Foreground="{DynamicResource TooltipForegroundBrush}"
                                                                            Margin="0,0,0,6" />
                                                                 <TextBlock TextWrapping="Wrap"
                                                                            Text="Maximum target storage percent to fill to." />
@@ -2331,7 +2321,7 @@
                                                     <TextBlock Text="i"
                                                                FontSize="10"
                                                                FontWeight="SemiBold"
-                                                               Foreground="#4B5563"
+                                                               Foreground="{DynamicResource TextMutedBrush}"
                                                                HorizontalAlignment="Center"
                                                                VerticalAlignment="Center"
                                                                TextAlignment="Center" />
@@ -2356,15 +2346,15 @@
                                     </Grid>
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                                         <TextBlock Text="Resources"
-                                                   Foreground="#6B7280"
+                                                   Foreground="{DynamicResource TextSubtleBrush}"
                                                    FontSize="12"
                                                    VerticalAlignment="Center" />
                                         <Border Width="14"
                                                 Height="14"
                                                 Margin="6,0,0,0"
                                                 CornerRadius="7"
-                                                Background="#E5E7EB"
-                                                BorderBrush="#D1D5DB"
+                                                Background="{DynamicResource ControlBackgroundBrush}"
+                                                BorderBrush="{DynamicResource BorderBrush}"
                                                 BorderThickness="1"
                                                 VerticalAlignment="Center"
                                                 ToolTipService.InitialShowDelay="0">
@@ -2373,7 +2363,7 @@
                                                     <StackPanel Width="300">
                                                         <TextBlock Text="Resources"
                                                                    FontWeight="SemiBold"
-                                                                   Foreground="#F9FAFB"
+                                                                   Foreground="{DynamicResource TooltipForegroundBrush}"
                                                                    Margin="0,0,0,6" />
                                                         <TextBlock TextWrapping="Wrap"
                                                                    Text="Only selected resource types can be sent. A resource is still skipped if the source has no surplus or the target is already full enough." />
@@ -2383,7 +2373,7 @@
                                             <TextBlock Text="i"
                                                        FontSize="10"
                                                        FontWeight="SemiBold"
-                                                       Foreground="#4B5563"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
                                                        HorizontalAlignment="Center"
                                                        VerticalAlignment="Center"
                                                        TextAlignment="Center" />
@@ -2397,7 +2387,7 @@
                                     </WrapPanel>
                                     <TextBlock x:Name="ResourceTransferStatusTextBlock"
                                                Text="Requires at least 2 villages."
-                                               Foreground="#B45309"
+                                               Foreground="{DynamicResource WarningTextBrush}"
                                                FontSize="12"
                                                Margin="0,0,0,8"
                                                TextWrapping="Wrap" />
@@ -2419,7 +2409,7 @@
                 </TabItem>
 
                 <TabItem x:Name="QueueTabItem" Header="Queue">
-                    <Grid Background="#F3F4F6">
+                    <Grid Background="{DynamicResource AppBackgroundBrush}">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -2432,10 +2422,10 @@
                                 <TextBlock Text="Queue"
                                            FontSize="22"
                                            FontWeight="SemiBold"
-                                           Foreground="#111827" />
+                                           Foreground="{DynamicResource TextPrimaryBrush}" />
                                 <TextBlock x:Name="QueueInfoTextBlock"
                                            Text="Queue loaded."
-                                           Foreground="#6B7280"
+                                           Foreground="{DynamicResource TextSubtleBrush}"
                                            FontSize="12"
                                            Margin="0,4,0,0" />
                             </StackPanel>
@@ -2444,24 +2434,24 @@
                                     Content="Pop out"
                                     Width="92"
                                     Click="QueuePopoutButton_Click"
-                                    Background="#FFFFFF"
-                                    BorderBrush="#E5E7EB" />
+                                    Background="{DynamicResource SurfaceBrush}"
+                                    BorderBrush="{DynamicResource BorderSubtleBrush}" />
                             <Button x:Name="QueueClearButton"
                                     DockPanel.Dock="Right"
                                     Content="Clear active queue"
                                     Width="120"
                                     Margin="0,0,8,0"
                                     Click="QueueClearButton_Click"
-                                    Background="#FEE2E2"
-                                    BorderBrush="#FCA5A5"
-                                    Foreground="#991B1B" />
+                                    Background="{DynamicResource DangerBgBrush}"
+                                    BorderBrush="{DynamicResource DangerBorderBrush}"
+                                    Foreground="{DynamicResource DangerTextBrush}" />
                             <TextBlock />
                         </DockPanel>
 
                         <StackPanel Grid.Row="1" Margin="2,0,2,12">
                             <TextBlock x:Name="BuildQueueStatusTextBlock" Visibility="Collapsed" />
                             <TextBlock Text="All queue groups are shown together below."
-                                       Foreground="#6B7280"
+                                       Foreground="{DynamicResource TextSubtleBrush}"
                                        Margin="0,4,0,0" />
                         </StackPanel>
 
@@ -2470,8 +2460,8 @@
                                     Margin="2,0,2,2"
                                     SelectionChanged="QueueSectionTabControl_SelectionChanged">
                             <TabItem x:Name="ActiveQueueTabItem" Header="Active queue">
-                                <Border Background="#FFFFFF"
-                                        BorderBrush="#E5E7EB"
+                                <Border Background="{DynamicResource SurfaceBrush}"
+                                        BorderBrush="{DynamicResource BorderSubtleBrush}"
                                         BorderThickness="1"
                                         CornerRadius="8"
                                         Padding="12"
@@ -2484,20 +2474,20 @@
 
                                 <DockPanel Grid.Row="0" Margin="0,0,0,10">
                                     <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-                                        <Ellipse Width="8" Height="8" Fill="#16A34A" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <Ellipse Width="8" Height="8" Fill="{DynamicResource SuccessBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
                                         <TextBlock Text="Active queue"
                                                    FontSize="14"
                                                    FontWeight="SemiBold"
-                                                   Foreground="#111827"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
                                                    VerticalAlignment="Center" />
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                        <Button x:Name="QueueRemoveButton" Content="Remove" Width="76" Click="QueueRemoveButton_Click" Background="#FFFFFF" BorderBrush="#E5E7EB" />
-                                        <Rectangle Width="1" Fill="#E5E7EB" Margin="10,3,10,3" />
-                                        <Button x:Name="QueueMoveUpButton" Content="↑" Width="36" Click="QueueMoveUpButton_Click" Background="#FFFFFF" BorderBrush="#E5E7EB" ToolTip="Move up" />
-                                        <Button x:Name="QueueMoveDownButton" Content="↓" Width="36" Margin="6,0,0,0" Click="QueueMoveDownButton_Click" Background="#FFFFFF" BorderBrush="#E5E7EB" ToolTip="Move down" />
-                                        <Rectangle Width="1" Fill="#E5E7EB" Margin="10,3,10,3" />
-                                        <Button x:Name="QueueRefreshButton" Content="Refresh" Width="76" Click="QueueRefreshButton_Click" Background="#FFFFFF" BorderBrush="#E5E7EB" />
+                                        <Button x:Name="QueueRemoveButton" Content="Remove" Width="76" Click="QueueRemoveButton_Click" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" />
+                                        <Rectangle Width="1" Fill="{DynamicResource BorderSubtleBrush}" Margin="10,3,10,3" />
+                                        <Button x:Name="QueueMoveUpButton" Content="↑" Width="36" Click="QueueMoveUpButton_Click" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" ToolTip="Move up" />
+                                        <Button x:Name="QueueMoveDownButton" Content="↓" Width="36" Margin="6,0,0,0" Click="QueueMoveDownButton_Click" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" ToolTip="Move down" />
+                                        <Rectangle Width="1" Fill="{DynamicResource BorderSubtleBrush}" Margin="10,3,10,3" />
+                                        <Button x:Name="QueueRefreshButton" Content="Refresh" Width="76" Click="QueueRefreshButton_Click" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" />
                                     </StackPanel>
                                 </DockPanel>
 
@@ -2511,10 +2501,10 @@
                                           CanUserDeleteRows="False"
                                           CanUserReorderColumns="False"
                                           GridLinesVisibility="Horizontal"
-                                          HorizontalGridLinesBrush="#F3F4F6"
-                                          RowBackground="#FFFFFF"
-                                          AlternatingRowBackground="#FAFBFC"
-                                          BorderBrush="#E5E7EB"
+                                          HorizontalGridLinesBrush="{DynamicResource AppBackgroundBrush}"
+                                          RowBackground="{DynamicResource SurfaceBrush}"
+                                          AlternatingRowBackground="{DynamicResource RowAltBackgroundBrush}"
+                                          BorderBrush="{DynamicResource BorderSubtleBrush}"
                                           BorderThickness="1"
                                           HeadersVisibility="Column"
                                           ColumnHeaderHeight="32"
@@ -2522,12 +2512,12 @@
                                           FontSize="12">
                                     <DataGrid.ColumnHeaderStyle>
                                         <Style TargetType="DataGridColumnHeader">
-                                            <Setter Property="Background" Value="#F9FAFB" />
-                                            <Setter Property="Foreground" Value="#374151" />
+                                            <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+                                            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
                                             <Setter Property="FontWeight" Value="SemiBold" />
                                             <Setter Property="FontSize" Value="11" />
                                             <Setter Property="Padding" Value="10,6" />
-                                            <Setter Property="BorderBrush" Value="#E5E7EB" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource ControlBackgroundBrush}" />
                                             <Setter Property="BorderThickness" Value="0,0,1,1" />
                                             <Setter Property="HorizontalContentAlignment" Value="Left" />
                                         </Style>
@@ -2536,7 +2526,7 @@
                                         <Style TargetType="DataGridCell">
                                             <Setter Property="Padding" Value="10,4" />
                                             <Setter Property="BorderThickness" Value="0" />
-                                            <Setter Property="Foreground" Value="#1F2937" />
+                                            <Setter Property="Foreground" Value="{DynamicResource DataGridCellTextBrush}" />
                                             <Setter Property="Template">
                                                 <Setter.Value>
                                                     <ControlTemplate TargetType="DataGridCell">
@@ -2548,8 +2538,8 @@
                                             </Setter>
                                             <Style.Triggers>
                                                 <Trigger Property="IsSelected" Value="True">
-                                                    <Setter Property="Background" Value="#EEF2FF" />
-                                                    <Setter Property="Foreground" Value="#1F2937" />
+                                                    <Setter Property="Background" Value="{DynamicResource SelectedRowBgBrush}" />
+                                                    <Setter Property="Foreground" Value="{DynamicResource DataGridCellTextBrush}" />
                                                 </Trigger>
                                             </Style.Triggers>
                                         </Style>
@@ -2563,10 +2553,10 @@
                                                     <TextBlock Text="{Binding Status}">
                                                         <TextBlock.Style>
                                                             <Style TargetType="TextBlock">
-                                                                <Setter Property="Foreground" Value="#1F2937" />
+                                                                <Setter Property="Foreground" Value="{DynamicResource DataGridCellTextBrush}" />
                                                                 <Style.Triggers>
                                                                     <DataTrigger Binding="{Binding Status}" Value="Running">
-                                                                        <Setter Property="Foreground" Value="#16A34A" />
+                                                                        <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
                                                                         <Setter Property="FontWeight" Value="SemiBold" />
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
@@ -2585,8 +2575,8 @@
 
                             </TabItem>
                             <TabItem x:Name="HistoryQueueTabItem" Header="History">
-                                <Border Background="#FFFFFF"
-                                        BorderBrush="#E5E7EB"
+                                <Border Background="{DynamicResource SurfaceBrush}"
+                                        BorderBrush="{DynamicResource BorderSubtleBrush}"
                                         BorderThickness="1"
                                         CornerRadius="8"
                                         Padding="12"
@@ -2597,11 +2587,11 @@
                                     <RowDefinition Height="*" />
                                 </Grid.RowDefinitions>
                                 <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
-                                    <Ellipse Width="8" Height="8" Fill="#9CA3AF" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <Ellipse Width="8" Height="8" Fill="{DynamicResource BorderMutedBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
                                     <TextBlock Text="History"
                                                FontSize="14"
                                                FontWeight="SemiBold"
-                                               Foreground="#111827"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
                                                VerticalAlignment="Center" />
                                 </StackPanel>
                                 <DataGrid x:Name="QueueHistoryDataGrid"
@@ -2614,10 +2604,10 @@
                                           CanUserDeleteRows="False"
                                           CanUserReorderColumns="False"
                                           GridLinesVisibility="Horizontal"
-                                          HorizontalGridLinesBrush="#F3F4F6"
-                                          RowBackground="#FFFFFF"
-                                          AlternatingRowBackground="#FAFBFC"
-                                          BorderBrush="#E5E7EB"
+                                          HorizontalGridLinesBrush="{DynamicResource AppBackgroundBrush}"
+                                          RowBackground="{DynamicResource SurfaceBrush}"
+                                          AlternatingRowBackground="{DynamicResource RowAltBackgroundBrush}"
+                                          BorderBrush="{DynamicResource BorderSubtleBrush}"
                                           BorderThickness="1"
                                           HeadersVisibility="Column"
                                           ColumnHeaderHeight="32"
@@ -2625,12 +2615,12 @@
                                           FontSize="12">
                                     <DataGrid.ColumnHeaderStyle>
                                         <Style TargetType="DataGridColumnHeader">
-                                            <Setter Property="Background" Value="#F9FAFB" />
-                                            <Setter Property="Foreground" Value="#374151" />
+                                            <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+                                            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
                                             <Setter Property="FontWeight" Value="SemiBold" />
                                             <Setter Property="FontSize" Value="11" />
                                             <Setter Property="Padding" Value="10,6" />
-                                            <Setter Property="BorderBrush" Value="#E5E7EB" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource ControlBackgroundBrush}" />
                                             <Setter Property="BorderThickness" Value="0,0,1,1" />
                                             <Setter Property="HorizontalContentAlignment" Value="Left" />
                                         </Style>
@@ -2639,7 +2629,7 @@
                                         <Style TargetType="DataGridCell">
                                             <Setter Property="Padding" Value="10,4" />
                                             <Setter Property="BorderThickness" Value="0" />
-                                            <Setter Property="Foreground" Value="#4B5563" />
+                                            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
                                             <Setter Property="Template">
                                                 <Setter.Value>
                                                     <ControlTemplate TargetType="DataGridCell">
@@ -2651,7 +2641,7 @@
                                             </Setter>
                                             <Style.Triggers>
                                                 <Trigger Property="IsSelected" Value="True">
-                                                    <Setter Property="Background" Value="#F3F4F6" />
+                                                    <Setter Property="Background" Value="{DynamicResource AppBackgroundBrush}" />
                                                 </Trigger>
                                             </Style.Triggers>
                                         </Style>
@@ -2665,10 +2655,10 @@
                                                     <TextBlock Text="{Binding Status}">
                                                         <TextBlock.Style>
                                                             <Style TargetType="TextBlock">
-                                                                <Setter Property="Foreground" Value="#4B5563" />
+                                                                <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
                                                                 <Style.Triggers>
                                                                     <DataTrigger Binding="{Binding Status}" Value="Running">
-                                                                        <Setter Property="Foreground" Value="#16A34A" />
+                                                                        <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
                                                                         <Setter Property="FontWeight" Value="SemiBold" />
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
@@ -2698,7 +2688,7 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
                         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8" VerticalAlignment="Center">
-                            <TextBlock Text="Filter:" VerticalAlignment="Center" Foreground="#374151" FontWeight="SemiBold" Margin="0,0,8,0" />
+                            <TextBlock Text="Filter:" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" FontWeight="SemiBold" Margin="0,0,8,0" />
                             <ComboBox x:Name="LogCategoryFilterComboBox"
                                       Width="140"
                                       Margin="0,0,12,0"
@@ -2715,8 +2705,8 @@
                                     Height="14"
                                     Margin="8,0,0,0"
                                     CornerRadius="7"
-                                    Background="#E5E7EB"
-                                    BorderBrush="#D1D5DB"
+                                    Background="{DynamicResource ControlBackgroundBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="1"
                                     VerticalAlignment="Center"
                                     ToolTipService.InitialShowDelay="0">
@@ -2725,7 +2715,7 @@
                                         <StackPanel Width="320">
                                             <TextBlock Text="Clean log"
                                                        FontWeight="SemiBold"
-                                                       Foreground="#F9FAFB"
+                                                       Foreground="{DynamicResource TooltipForegroundBrush}"
                                                        Margin="0,0,0,6" />
                                             <TextBlock TextWrapping="Wrap"
                                                        Text="Hides high-volume technical lines from the visible log, such as routine login checks, UI sync, resource-production updates, and repeated internal scans." />
@@ -2738,7 +2728,7 @@
                                 <TextBlock Text="i"
                                            FontSize="10"
                                            FontWeight="SemiBold"
-                                           Foreground="#4B5563"
+                                           Foreground="{DynamicResource TextMutedBrush}"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center"
                                            TextAlignment="Center" />
@@ -2746,10 +2736,10 @@
                         </StackPanel>
                         <TabControl x:Name="TerminalAlarmTabControl" Grid.Row="1" Margin="0,0,0,8">
                             <TabItem Header="Log">
-                                <Border Background="#020617" Padding="8">
+                                <Border Background="{DynamicResource TerminalBgBrush}" Padding="8">
                                     <ListBox x:Name="TerminalListBox"
-                                             Background="#020617"
-                                             Foreground="#93C5FD"
+                                             Background="{DynamicResource TerminalBgBrush}"
+                                             Foreground="{DynamicResource TerminalFgBrush}"
                                              BorderThickness="0"
                                              FontFamily="Consolas"
                                              FontSize="13"
@@ -2767,8 +2757,8 @@
                                 <TabItem.Resources>
                                     <ControlTemplate x:Key="ActiveAlarmTabTemplate" TargetType="TabItem">
                                         <Border x:Name="AlarmTabBorder"
-                                                Background="#DC2626"
-                                                BorderBrush="#B91C1C"
+                                                Background="{DynamicResource DangerBrush}"
+                                                BorderBrush="{DynamicResource DangerStrongBrush}"
                                                 BorderThickness="1"
                                                 CornerRadius="3,3,0,0"
                                                 Padding="8,3"
@@ -2780,7 +2770,7 @@
                                         </Border>
                                         <ControlTemplate.Triggers>
                                             <Trigger Property="IsSelected" Value="True">
-                                                <Setter TargetName="AlarmTabBorder" Property="BorderBrush" Value="#7F1D1D" />
+                                                <Setter TargetName="AlarmTabBorder" Property="BorderBrush" Value="{DynamicResource DangerDarkBrush}" />
                                                 <Setter TargetName="AlarmTabBorder" Property="BorderThickness" Value="2,2,2,0" />
                                                 <Setter TargetName="AlarmTabBorder" Property="Padding" Value="7,3,7,4" />
                                                 <Setter Property="Panel.ZIndex" Value="100" />
@@ -2791,9 +2781,9 @@
                                         </ControlTemplate.Triggers>
                                     </ControlTemplate>
                                 </TabItem.Resources>
-                                <Border Background="#110D0D" Padding="8">
+                                <Border Background="{DynamicResource AlarmBgBrush}" Padding="8">
                                     <ListBox x:Name="AlarmListBox"
-                                             Background="#110D0D"
+                                             Background="{DynamicResource AlarmBgBrush}"
                                              BorderThickness="0"
                                              FontFamily="Consolas"
                                              FontSize="13"
@@ -2804,10 +2794,10 @@
                                                 <TextBlock Text="{Binding Text}" TextWrapping="Wrap">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
-                                                            <Setter Property="Foreground" Value="#FCA5A5" />
+                                                            <Setter Property="Foreground" Value="{DynamicResource AlarmTextBrush}" />
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding IsAcknowledged}" Value="True">
-                                                                    <Setter Property="Foreground" Value="#93C5FD" />
+                                                                    <Setter Property="Foreground" Value="{DynamicResource TerminalFgBrush}" />
                                                                 </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
@@ -2822,7 +2812,7 @@
                         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                             <TextBlock x:Name="CopyFeedbackTextBlock"
                                        Text=""
-                                       Foreground="#16A34A"
+                                       Foreground="{DynamicResource SuccessBrush}"
                                        FontWeight="SemiBold"
                                        VerticalAlignment="Center"
                                        Margin="0,0,10,0"

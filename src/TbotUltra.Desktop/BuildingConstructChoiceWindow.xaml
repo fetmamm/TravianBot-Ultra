@@ -1,6 +1,7 @@
 <Window x:Class="TbotUltra.Desktop.BuildingConstructChoiceWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Background="{DynamicResource AppBackgroundBrush}"
         Title="Choose building"
         Height="700"
         Width="980"
@@ -19,7 +20,7 @@
                    Grid.Row="0"
                    FontSize="16"
                    FontWeight="SemiBold"
-                   Foreground="#111827"
+                   Foreground="{DynamicResource TextPrimaryBrush}"
                    Margin="0,0,0,10" />
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
@@ -34,46 +35,46 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <Border Grid.Column="0" Background="#FFFFFF" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="10">
+                <Border Grid.Column="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="10">
                     <StackPanel>
-                        <TextBlock Text="Infrastructure" FontSize="14" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,8" />
-                        <TextBlock Text="Available" FontWeight="SemiBold" Foreground="#16A34A" FontSize="12" Margin="0,0,0,4" />
+                        <TextBlock Text="Infrastructure" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
+                        <TextBlock Text="Available" FontWeight="SemiBold" Foreground="{DynamicResource SuccessBrush}" FontSize="12" Margin="0,0,0,4" />
                         <StackPanel x:Name="InfrastructureAvailablePanel" Margin="0,0,0,10" />
-                        <TextBlock Text="Locked" FontWeight="SemiBold" Foreground="#D97706" FontSize="12" Margin="0,0,0,4" />
+                        <TextBlock Text="Locked" FontWeight="SemiBold" Foreground="{DynamicResource CapitalBrush}" FontSize="12" Margin="0,0,0,4" />
                         <StackPanel x:Name="InfrastructureLockedPanel" Margin="0,0,0,10" />
-                        <TextBlock Text="Already built" FontWeight="SemiBold" Foreground="#2563EB" FontSize="12" Margin="0,0,0,4" />
+                        <TextBlock Text="Already built" FontWeight="SemiBold" Foreground="{DynamicResource InfoBrush}" FontSize="12" Margin="0,0,0,4" />
                         <StackPanel x:Name="InfrastructureAlreadyBuiltPanel" />
                     </StackPanel>
                 </Border>
 
-                <Border Grid.Column="2" Background="#FFFFFF" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="10">
+                <Border Grid.Column="2" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="10">
                     <StackPanel>
-                        <TextBlock Text="Army" FontSize="14" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,8" />
-                        <TextBlock Text="Available" FontWeight="SemiBold" Foreground="#16A34A" FontSize="12" Margin="0,0,0,4" />
+                        <TextBlock Text="Army" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
+                        <TextBlock Text="Available" FontWeight="SemiBold" Foreground="{DynamicResource SuccessBrush}" FontSize="12" Margin="0,0,0,4" />
                         <StackPanel x:Name="ArmyAvailablePanel" Margin="0,0,0,10" />
-                        <TextBlock Text="Locked" FontWeight="SemiBold" Foreground="#D97706" FontSize="12" Margin="0,0,0,4" />
+                        <TextBlock Text="Locked" FontWeight="SemiBold" Foreground="{DynamicResource CapitalBrush}" FontSize="12" Margin="0,0,0,4" />
                         <StackPanel x:Name="ArmyLockedPanel" Margin="0,0,0,10" />
-                        <TextBlock Text="Already built" FontWeight="SemiBold" Foreground="#2563EB" FontSize="12" Margin="0,0,0,4" />
+                        <TextBlock Text="Already built" FontWeight="SemiBold" Foreground="{DynamicResource InfoBrush}" FontSize="12" Margin="0,0,0,4" />
                         <StackPanel x:Name="ArmyAlreadyBuiltPanel" />
                     </StackPanel>
                 </Border>
 
-                <Border Grid.Column="4" Background="#FFFFFF" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="10">
+                <Border Grid.Column="4" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="10">
                     <StackPanel>
-                        <TextBlock Text="Resources" FontSize="14" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,8" />
-                        <TextBlock Text="Available" FontWeight="SemiBold" Foreground="#16A34A" FontSize="12" Margin="0,0,0,4" />
+                        <TextBlock Text="Resources" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
+                        <TextBlock Text="Available" FontWeight="SemiBold" Foreground="{DynamicResource SuccessBrush}" FontSize="12" Margin="0,0,0,4" />
                         <StackPanel x:Name="ResourcesAvailablePanel" Margin="0,0,0,10" />
-                        <TextBlock Text="Locked" FontWeight="SemiBold" Foreground="#D97706" FontSize="12" Margin="0,0,0,4" />
+                        <TextBlock Text="Locked" FontWeight="SemiBold" Foreground="{DynamicResource CapitalBrush}" FontSize="12" Margin="0,0,0,4" />
                         <StackPanel x:Name="ResourcesLockedPanel" Margin="0,0,0,10" />
-                        <TextBlock Text="Already built" FontWeight="SemiBold" Foreground="#2563EB" FontSize="12" Margin="0,0,0,4" />
+                        <TextBlock Text="Already built" FontWeight="SemiBold" Foreground="{DynamicResource InfoBrush}" FontSize="12" Margin="0,0,0,4" />
                         <StackPanel x:Name="ResourcesAlreadyBuiltPanel" />
                     </StackPanel>
                 </Border>
 
-                <Border Grid.Column="6" Background="#FFFFFF" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="10">
+                <Border Grid.Column="6" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="10">
                     <StackPanel>
-                        <TextBlock Text="Unavailable" FontSize="14" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,8" />
-                        <TextBlock Text="Not possible here" FontWeight="SemiBold" Foreground="#9CA3AF" FontSize="12" Margin="0,0,0,4" />
+                        <TextBlock Text="Unavailable" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8" />
+                        <TextBlock Text="Not possible here" FontWeight="SemiBold" Foreground="{DynamicResource BorderMutedBrush}" FontSize="12" Margin="0,0,0,4" />
                         <StackPanel x:Name="UnavailablePanel" />
                     </StackPanel>
                 </Border>
@@ -81,8 +82,8 @@
         </ScrollViewer>
 
         <Border Grid.Row="2"
-                Background="#F9FAFB"
-                BorderBrush="#E5E7EB"
+                Background="{DynamicResource SurfaceAltBrush}"
+                BorderBrush="{DynamicResource BorderSubtleBrush}"
                 BorderThickness="1"
                 CornerRadius="6"
                 Padding="10"
@@ -90,10 +91,10 @@
             <StackPanel>
                 <TextBlock x:Name="SelectedNameTextBlock"
                            FontWeight="SemiBold"
-                           Foreground="#111827"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
                            Text="Select a building above" />
                 <TextBlock x:Name="SelectedDetailsTextBlock"
-                           Foreground="#6B7280"
+                           Foreground="{DynamicResource TextSubtleBrush}"
                            FontSize="11"
                            Margin="0,2,0,6" />
                 <DockPanel>
@@ -114,18 +115,18 @@
                     Width="110"
                     Content="Build max"
                     IsEnabled="False"
-                    Background="#D97706"
+                    Background="{DynamicResource CapitalBrush}"
                     Foreground="White"
-                    BorderBrush="#D97706"
+                    BorderBrush="{DynamicResource CapitalBrush}"
                     Margin="0,0,8,0"
                     Click="BuildMaxButton_Click" />
             <Button x:Name="BuildButton"
                     Width="110"
                     Content="Build"
                     IsEnabled="False"
-                    Background="#030826"
+                    Background="{DynamicResource AccentBrush}"
                     Foreground="White"
-                    BorderBrush="#030826"
+                    BorderBrush="{DynamicResource AccentBrush}"
                     Margin="0,0,8,0"
                     Click="BuildButton_Click" />
             <Button Width="100"

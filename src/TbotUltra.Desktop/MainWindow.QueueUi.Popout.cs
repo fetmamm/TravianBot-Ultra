@@ -22,7 +22,7 @@ public partial class MainWindow
             CanUserAddRows = false,
             CanUserDeleteRows = false,
             CanUserReorderColumns = false,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(209, 213, 219)),
+            BorderBrush = new SolidColorBrush(ThemeColors.Get("BorderBrush")),
             BorderThickness = new Thickness(1),
             Margin = new Thickness(0, 0, 0, 8),
             ItemsSource = QueueDataGrid.ItemsSource,
@@ -39,7 +39,7 @@ public partial class MainWindow
             CanUserAddRows = false,
             CanUserDeleteRows = false,
             CanUserReorderColumns = false,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(209, 213, 219)),
+            BorderBrush = new SolidColorBrush(ThemeColors.Get("BorderBrush")),
             BorderThickness = new Thickness(1),
             ItemsSource = QueueHistoryDataGrid.ItemsSource,
         };
@@ -56,7 +56,7 @@ public partial class MainWindow
             Margin = new Thickness(0, 8, 0, 0),
         };
 
-        var root = new Grid();
+        var root = new Grid { Margin = new Thickness(12) };
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -74,6 +74,7 @@ public partial class MainWindow
             MinWidth = 580,
             MinHeight = 320,
             Content = root,
+            Background = ThemeColors.Brush("AppBackgroundBrush"),
             WindowStartupLocation = WindowStartupLocation.Manual,
             Left = Left + Width + 10,
             Top = Top + 30,

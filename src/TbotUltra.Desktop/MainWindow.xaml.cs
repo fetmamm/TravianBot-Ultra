@@ -1293,21 +1293,21 @@ public partial class MainWindow : Window
 
         if (isLoggedIn)
         {
-            LoginButton.Background = new SolidColorBrush(Color.FromRgb(229, 231, 235));
-            LoginButton.BorderBrush = new SolidColorBrush(Color.FromRgb(209, 213, 219));
-            LoginButton.Foreground = new SolidColorBrush(Color.FromRgb(17, 24, 39));
-            LogoutButton.Background = new SolidColorBrush(Color.FromRgb(3, 8, 38));
-            LogoutButton.BorderBrush = new SolidColorBrush(Color.FromRgb(3, 8, 38));
+            LoginButton.Background = new SolidColorBrush(ThemeColors.Get("ControlBackgroundBrush"));
+            LoginButton.BorderBrush = new SolidColorBrush(ThemeColors.Get("BorderBrush"));
+            LoginButton.Foreground = new SolidColorBrush(ThemeColors.Get("TextPrimaryBrush"));
+            LogoutButton.Background = new SolidColorBrush(ThemeColors.Get("AccentBrush"));
+            LogoutButton.BorderBrush = new SolidColorBrush(ThemeColors.Get("AccentBrush"));
             LogoutButton.Foreground = Brushes.White;
             return;
         }
 
-        LoginButton.Background = new SolidColorBrush(Color.FromRgb(3, 8, 38));
-        LoginButton.BorderBrush = new SolidColorBrush(Color.FromRgb(3, 8, 38));
+        LoginButton.Background = new SolidColorBrush(ThemeColors.Get("AccentBrush"));
+        LoginButton.BorderBrush = new SolidColorBrush(ThemeColors.Get("AccentBrush"));
         LoginButton.Foreground = Brushes.White;
-        LogoutButton.Background = new SolidColorBrush(Color.FromRgb(229, 231, 235));
-        LogoutButton.BorderBrush = new SolidColorBrush(Color.FromRgb(209, 213, 219));
-        LogoutButton.Foreground = new SolidColorBrush(Color.FromRgb(17, 24, 39));
+        LogoutButton.Background = new SolidColorBrush(ThemeColors.Get("ControlBackgroundBrush"));
+        LogoutButton.BorderBrush = new SolidColorBrush(ThemeColors.Get("BorderBrush"));
+        LogoutButton.Foreground = new SolidColorBrush(ThemeColors.Get("TextPrimaryBrush"));
     }
 
     private void HandleBrowserClosedSignal()

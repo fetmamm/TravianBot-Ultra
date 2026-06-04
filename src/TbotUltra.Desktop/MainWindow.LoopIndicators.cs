@@ -26,22 +26,22 @@ public partial class MainWindow
         var highlightPauseState = string.Equals(startButtonText, "Pause bot", StringComparison.Ordinal);
         if (highlightPauseState)
         {
-            StartLoopButton.Background = new SolidColorBrush(Color.FromRgb(253, 230, 138));
-            StartLoopButton.BorderBrush = new SolidColorBrush(Color.FromRgb(245, 158, 11));
-            StartLoopButton.Foreground = new SolidColorBrush(Color.FromRgb(120, 53, 15));
+            StartLoopButton.Background = new SolidColorBrush(ThemeColors.Get("AmberBg200Brush"));
+            StartLoopButton.BorderBrush = new SolidColorBrush(ThemeColors.Get("WarningBorderBrush"));
+            StartLoopButton.Foreground = new SolidColorBrush(ThemeColors.Get("WarningText2Brush"));
             return;
         }
 
         if (string.Equals(startButtonText, "Pausing...", StringComparison.Ordinal))
         {
-            StartLoopButton.Background = new SolidColorBrush(Color.FromRgb(254, 243, 199));
-            StartLoopButton.BorderBrush = new SolidColorBrush(Color.FromRgb(245, 158, 11));
-            StartLoopButton.Foreground = new SolidColorBrush(Color.FromRgb(120, 53, 15));
+            StartLoopButton.Background = new SolidColorBrush(ThemeColors.Get("WarningBgBrush"));
+            StartLoopButton.BorderBrush = new SolidColorBrush(ThemeColors.Get("WarningBorderBrush"));
+            StartLoopButton.Foreground = new SolidColorBrush(ThemeColors.Get("WarningText2Brush"));
             return;
         }
 
-        StartLoopButton.Background = new SolidColorBrush(Color.FromRgb(3, 8, 38));
-        StartLoopButton.BorderBrush = new SolidColorBrush(Color.FromRgb(3, 8, 38));
+        StartLoopButton.Background = new SolidColorBrush(ThemeColors.Get("AccentBrush"));
+        StartLoopButton.BorderBrush = new SolidColorBrush(ThemeColors.Get("AccentBrush"));
         StartLoopButton.Foreground = Brushes.White;
     }
 
@@ -106,13 +106,13 @@ public partial class MainWindow
 
         if (activeWorkStopping)
         {
-            SetLoopStateBadge("pausing", Color.FromRgb(217, 119, 6), "Pausing...");
+            SetLoopStateBadge("pausing", ThemeColors.Get("AmberBrush"), "Pausing...");
             return;
         }
 
         if (pauseRequested)
         {
-            SetLoopStateBadge("paused", Color.FromRgb(217, 119, 6), "Start bot");
+            SetLoopStateBadge("paused", ThemeColors.Get("AmberBrush"), "Start bot");
             return;
         }
 
@@ -129,30 +129,30 @@ public partial class MainWindow
                 LoopStateTextBlock.Text = remainingSeconds > 0
                     ? $"State: waiting ({FormatCountdown(remainingSeconds)})"
                     : "State: waiting";
-                LoopStateBadge.Background = new SolidColorBrush(Color.FromRgb(202, 138, 4));
+                LoopStateBadge.Background = new SolidColorBrush(ThemeColors.Get("WaitingBrush"));
                 ApplyStartLoopButtonVisual((loopRunning || _autoQueueRunning) ? "Pause bot" : "Start bot");
                 return;
             }
 
             if (functionExecutionRunning)
             {
-                SetLoopStateBadge("function running", Color.FromRgb(37, 99, 235), "Pause bot");
+                SetLoopStateBadge("function running", ThemeColors.Get("InfoBrush"), "Pause bot");
                 return;
             }
 
             if (loopRunning)
             {
-                SetLoopStateBadge("loop running", Color.FromRgb(22, 163, 74), "Pause bot");
+                SetLoopStateBadge("loop running", ThemeColors.Get("SuccessBrush"), "Pause bot");
                 return;
             }
 
             if (hasPausedQueueItems)
             {
-                SetLoopStateBadge("paused", Color.FromRgb(217, 119, 6), "Start bot");
+                SetLoopStateBadge("paused", ThemeColors.Get("AmberBrush"), "Start bot");
                 return;
             }
 
-            SetLoopStateBadge("idle", Color.FromRgb(107, 114, 128), "Start bot");
+            SetLoopStateBadge("idle", ThemeColors.Get("TextSubtleBrush"), "Start bot");
             return;
         }
 
@@ -177,42 +177,42 @@ public partial class MainWindow
                 }
 
                 _ = Math.Max(0, remainingSeconds);
-                SetLoopStateBadge("waiting", Color.FromRgb(202, 138, 4), (loopRunning || _autoQueueRunning) ? "Pause bot" : "Start bot");
+                SetLoopStateBadge("waiting", ThemeColors.Get("WaitingBrush"), (loopRunning || _autoQueueRunning) ? "Pause bot" : "Start bot");
                 return;
             }
 
             if (continuousModeActive)
             {
-                SetLoopStateBadge("idle", Color.FromRgb(107, 114, 128), "Pause bot");
+                SetLoopStateBadge("idle", ThemeColors.Get("TextSubtleBrush"), "Pause bot");
                 return;
             }
         }
 
         if (continuousModeActive)
         {
-            SetLoopStateBadge("running", Color.FromRgb(22, 163, 74), "Pause bot");
+            SetLoopStateBadge("running", ThemeColors.Get("SuccessBrush"), "Pause bot");
             return;
         }
 
         if (functionExecutionRunning)
         {
-            SetLoopStateBadge("running", Color.FromRgb(22, 163, 74), "Pause bot");
+            SetLoopStateBadge("running", ThemeColors.Get("SuccessBrush"), "Pause bot");
             return;
         }
 
         if (loopRunning)
         {
-            SetLoopStateBadge("running", Color.FromRgb(22, 163, 74), "Pause bot");
+            SetLoopStateBadge("running", ThemeColors.Get("SuccessBrush"), "Pause bot");
             return;
         }
 
         if (hasPausedQueueItems)
         {
-            SetLoopStateBadge("paused", Color.FromRgb(217, 119, 6), "Start bot");
+            SetLoopStateBadge("paused", ThemeColors.Get("AmberBrush"), "Start bot");
             return;
         }
 
-        SetLoopStateBadge("idle", Color.FromRgb(107, 114, 128), "Start bot");
+        SetLoopStateBadge("idle", ThemeColors.Get("TextSubtleBrush"), "Start bot");
     }
 
     private void UpdateExecutionStateIndicatorOnUiThread()

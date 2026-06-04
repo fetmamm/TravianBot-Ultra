@@ -1,6 +1,7 @@
 <Window x:Class="TbotUltra.Desktop.BuildingSlotActionsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Background="{DynamicResource AppBackgroundBrush}"
         Title="Building slot actions"
         Width="260"
         SizeToContent="Height"
@@ -19,12 +20,12 @@
                    Grid.Row="0"
                    FontSize="16"
                    FontWeight="SemiBold"
-                   Foreground="#111827"
+                   Foreground="{DynamicResource TextPrimaryBrush}"
                    Margin="0,0,0,6" />
 
         <TextBlock x:Name="SubtitleTextBlock"
                    Grid.Row="1"
-                   Foreground="#6B7280"
+                   Foreground="{DynamicResource TextSubtleBrush}"
                    Margin="0,0,0,12"
                    TextWrapping="Wrap" />
 
@@ -51,12 +52,12 @@
                     Click="UpgradeToMaxButton_Click">
                 <Button.Style>
                     <Style TargetType="Button">
-                        <Setter Property="Background" Value="#FCD34D" />
-                        <Setter Property="Foreground" Value="#1F2937" />
-                        <Setter Property="BorderBrush" Value="#F59E0B" />
+                        <Setter Property="Background" Value="{DynamicResource WarningButtonBgBrush}" />
+                        <Setter Property="Foreground" Value="{DynamicResource DataGridCellTextBrush}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource WarningBorderBrush}" />
                         <Style.Triggers>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Foreground" Value="#6B7280" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
                             </Trigger>
                         </Style.Triggers>
                     </Style>
@@ -68,7 +69,7 @@
                     Margin="0,0,0,3"
                     Click="DemolishButton_Click" />
             <TextBlock x:Name="DemolishRequirementTextBlock"
-                       Foreground="#C2410C"
+                       Foreground="{DynamicResource BurntOrangeTextBrush}"
                        FontSize="11"
                        TextWrapping="Wrap"
                        Margin="2,0,0,6"

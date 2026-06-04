@@ -1,6 +1,7 @@
 <Window x:Class="TbotUltra.Desktop.SavePageHtmlWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Background="{DynamicResource AppBackgroundBrush}"
         Title="Save page HTML"
         Height="400"
         Width="460"
@@ -23,12 +24,12 @@
                    Text="Save current page HTML"
                    FontSize="16"
                    FontWeight="SemiBold"
-                   Foreground="#111827"
+                   Foreground="{DynamicResource TextPrimaryBrush}"
                    Margin="0,0,0,8" />
 
         <TextBlock Grid.Row="1"
                    TextWrapping="Wrap"
-                   Foreground="#374151"
+                   Foreground="{DynamicResource TextSecondaryBrush}"
                    Margin="0,0,0,12"
                    Text="Copies the raw HTML of the page the browser is currently on and saves it to a file in the DOM folder. The notes and the page address are written at the top of the file. Use it to capture pages for later analysis when building or changing functions." />
 
@@ -47,7 +48,7 @@
                 <TextBlock Grid.Column="1"
                            Text=".txt"
                            VerticalAlignment="Center"
-                           Foreground="#6B7280"
+                           Foreground="{DynamicResource TextSubtleBrush}"
                            Margin="6,0,0,0" />
             </Grid>
         </StackPanel>
@@ -80,7 +81,7 @@
                     Click="ClearFolderButton_Click" />
             <TextBlock x:Name="StatusTextBlock"
                        VerticalAlignment="Center"
-                       Foreground="#2563EB"
+                       Foreground="{DynamicResource InfoBrush}"
                        Margin="10,0,0,0" />
         </StackPanel>
 
@@ -91,8 +92,8 @@
             <Button x:Name="SaveButton"
                     Width="100"
                     Margin="0,0,8,0"
-                    Background="#030826"
-                    BorderBrush="#030826"
+                    Background="{DynamicResource AccentBrush}"
+                    BorderBrush="{DynamicResource AccentBrush}"
                     Foreground="White"
                     FontWeight="SemiBold"
                     Content="Save HTML"

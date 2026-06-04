@@ -9,9 +9,9 @@ namespace TbotUltra.Desktop.Models;
 public sealed class ResourceTransferVillageItem : INotifyPropertyChanged
 {
     private static readonly string[] ResourceKeys = ["wood", "clay", "iron", "crop"];
-    private static readonly Brush NeutralPercentBrush = new SolidColorBrush(Color.FromRgb(17, 24, 39));
-    private static readonly Brush WarningPercentBrush = new SolidColorBrush(Color.FromRgb(180, 83, 9));
-    private static readonly Brush FullPercentBrush = new SolidColorBrush(Color.FromRgb(185, 28, 28));
+    private static readonly Brush NeutralPercentBrush = new SolidColorBrush(ThemeColors.Get("TextPrimaryBrush"));
+    private static readonly Brush WarningPercentBrush = new SolidColorBrush(ThemeColors.Get("WarningTextBrush"));
+    private static readonly Brush FullPercentBrush = new SolidColorBrush(ThemeColors.Get("DangerStrongBrush"));
 
     private bool _isSource;
     private bool _isTarget;

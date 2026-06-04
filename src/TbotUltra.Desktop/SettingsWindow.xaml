@@ -1,6 +1,7 @@
 <Window x:Class="TbotUltra.Desktop.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Background="{DynamicResource AppBackgroundBrush}"
         Title="Settings"
         Height="680"
         Width="640"
@@ -21,32 +22,32 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Background="#F8FAFC" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="8" Padding="12">
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceMutedBrush}" BorderBrush="{DynamicResource ToggleTrackBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel>
-                    <TextBlock Text="Bot Settings" FontSize="20" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,0,0,4" />
+                    <TextBlock Text="Bot Settings" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource InkBrush}" Margin="0,0,0,4" />
                     <TextBlock Text="Configure execution, automation, and spending behavior."
-                               Foreground="#64748B"
+                               Foreground="{DynamicResource MutedSlateBrush}"
                                Margin="0,0,0,14" />
 
-                    <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,10">
+                    <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource SlateBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,10">
                         <StackPanel>
                             <TextBlock Text="General"
                                        FontSize="15"
                                        FontWeight="SemiBold"
-                                       Foreground="#111827"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
                                        Margin="0,0,0,10" />
                             <CheckBox x:Name="HeadlessCheckBox" Margin="0,0,0,8" Content="Headless" />
                         </StackPanel>
                     </Border>
 
-                    <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,10">
+                    <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource SlateBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,10">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                                 <TextBlock Text="Bot behavior"
                                            FontSize="15"
                                            FontWeight="SemiBold"
-                                           Foreground="#111827"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
                                            VerticalAlignment="Center" />
                                 <Button x:Name="ResetPacingButton"
                                         Width="26"
@@ -119,7 +120,7 @@
                             </Grid>
 
                             <StackPanel Orientation="Horizontal" Margin="0,12,0,8">
-                                <TextBlock Text="Collect tasks/daily delay" FontWeight="SemiBold" Foreground="#111827" VerticalAlignment="Center" />
+                                <TextBlock Text="Collect tasks/daily delay" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
                                 <ContentControl Style="{StaticResource SettingInfoIconStyle}"
                                                 ToolTip="Randomized delay between internal clicks/steps in the Auto collect tasks and Auto collect daily quests flows only. Keeps these fast bursts from looking robotic. Set both to 0 to disable." />
                             </StackPanel>
@@ -142,12 +143,12 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,10">
+                    <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource SlateBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,10">
                         <StackPanel>
                             <TextBlock Text="Automation"
                                        FontSize="15"
                                        FontWeight="SemiBold"
-                                       Foreground="#111827"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
                                        Margin="0,0,0,10" />
 
                             <Grid Margin="0,0,0,10">
@@ -156,9 +157,9 @@
                                     <ColumnDefinition Width="160" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" Margin="0,0,12,0">
-                                    <TextBlock Text="Queue wait threshold" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,4" />
+                                    <TextBlock Text="Queue wait threshold" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4" />
                                     <TextBlock Text="Controls when long waits are deferred back to the smart queues."
-                                               Foreground="#64748B"
+                                               Foreground="{DynamicResource MutedSlateBrush}"
                                                TextWrapping="Wrap" />
                                 </StackPanel>
                                 <ComboBox x:Name="QueueWaitThresholdComboBox"
@@ -180,9 +181,9 @@
                                     <ColumnDefinition Width="160" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" Margin="0,0,12,0">
-                                    <TextBlock Text="Delay between farm sends" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,4" />
+                                    <TextBlock Text="Delay between farm sends" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4" />
                                     <TextBlock Text="Adds spacing between continuous farmlist sends."
-                                               Foreground="#64748B"
+                                               Foreground="{DynamicResource MutedSlateBrush}"
                                                TextWrapping="Wrap" />
                                 </StackPanel>
                                 <ComboBox x:Name="FarmDispatchDelayComboBox"
@@ -200,10 +201,10 @@
 
                             <TextBlock Text="After login"
                                        FontWeight="SemiBold"
-                                       Foreground="#111827"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
                                        Margin="0,14,0,6" />
                             <TextBlock Text="Optional extra reads to run after login. Existing post-login actions are always kept."
-                                       Foreground="#64748B"
+                                       Foreground="{DynamicResource MutedSlateBrush}"
                                        TextWrapping="Wrap"
                                        Margin="0,0,0,8" />
                             <CheckBox x:Name="PostLoginAnalyzeFarmlistsCheckBox"
@@ -223,12 +224,12 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,10">
+                    <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource SlateBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,10">
                         <StackPanel>
                             <TextBlock Text="Spending"
                                        FontSize="15"
                                        FontWeight="SemiBold"
-                                       Foreground="#111827"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
                                        Margin="0,0,0,10" />
                             <CheckBox x:Name="AllowSilverSpendingCheckBox" Margin="0,0,0,12" Content="Allow silver spending" />
 
@@ -252,9 +253,9 @@
                         Width="140"
                         Height="32"
                         Content="Reset settings"
-                        Background="#111827"
-                        Foreground="#FFFFFF"
-                        BorderBrush="#0F172A"
+                        Background="{DynamicResource PrimaryButtonBrush}"
+                        Foreground="{DynamicResource OnAccentBrush}"
+                        BorderBrush="{DynamicResource PrimaryButtonBrush}"
                         Click="ResetSettingsButton_Click" />
                 <Button x:Name="SleepNowButton"
                         Width="110"

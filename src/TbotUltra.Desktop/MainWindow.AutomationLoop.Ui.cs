@@ -461,25 +461,25 @@ public partial class MainWindow
         if (isRunning)
         {
             SetAutomationLoopRunState(
-                Color.FromRgb(22, 163, 74),
+                ThemeColors.Get("SuccessBrush"),
                 "Running",
-                Color.FromRgb(22, 163, 74));
+                ThemeColors.Get("SuccessBrush"));
             return;
         }
 
         if (hasPausedQueueItems)
         {
             SetAutomationLoopRunState(
-                Color.FromRgb(217, 119, 6),
+                ThemeColors.Get("AmberBrush"),
                 "Paused",
-                Color.FromRgb(217, 119, 6));
+                ThemeColors.Get("AmberBrush"));
             return;
         }
 
         SetAutomationLoopRunState(
-            Color.FromRgb(156, 163, 175),
+            ThemeColors.Get("BorderMutedBrush"),
             "Idle",
-            Color.FromRgb(107, 114, 128));
+            ThemeColors.Get("TextSubtleBrush"));
     }
 
     private void SetAutomationLoopRunState(Color dotColor, string stateText, Color textColor)

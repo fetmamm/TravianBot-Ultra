@@ -17,7 +17,7 @@
         <TextBlock Text="Troops"
                    FontSize="22"
                    FontWeight="SemiBold"
-                   Foreground="#111827"
+                   Foreground="{DynamicResource TextPrimaryBrush}"
                    Margin="0,0,0,12" />
 
         <Grid Grid.Row="1">
@@ -36,8 +36,8 @@
                 </Grid.RowDefinitions>
 
                 <Border Grid.Row="0"
-                        Background="#FFFFFF"
-                        BorderBrush="#D1D5DB"
+                        Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1"
                         CornerRadius="8"
                         Padding="12">
@@ -45,22 +45,22 @@
                         <TextBlock Text="Upgrade"
                                    FontSize="18"
                                    FontWeight="SemiBold"
-                                   Foreground="#111827"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
                                    Margin="0,0,0,8" />
                         <Button Content="Upgrade troops"
                                 Width="150"
                                 HorizontalAlignment="Left"
                                 Click="UpgradeTroopsButton_Click" />
                         <TextBlock Text="Smithy upgrades stay separate from troop building."
-                                   Foreground="#6B7280"
+                                   Foreground="{DynamicResource TextSubtleBrush}"
                                    TextWrapping="Wrap"
                                    Margin="0,8,0,0" />
                     </StackPanel>
                 </Border>
 
                 <Border Grid.Row="2"
-                        Background="#FFFFFF"
-                        BorderBrush="#D1D5DB"
+                        Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1"
                         CornerRadius="8"
                         Padding="12">
@@ -69,14 +69,14 @@
                             <TextBlock Text="Celebration"
                                        FontSize="18"
                                        FontWeight="SemiBold"
-                                       Foreground="#111827"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
                                        VerticalAlignment="Center" />
                             <Border Width="14"
                                     Height="14"
                                     Margin="6,0,0,0"
                                     CornerRadius="7"
-                                    Background="#E5E7EB"
-                                    BorderBrush="#D1D5DB"
+                                    Background="{DynamicResource ControlBackgroundBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="1"
                                     VerticalAlignment="Center"
                                     ToolTipService.InitialShowDelay="0">
@@ -85,7 +85,7 @@
                                         <StackPanel Width="300">
                                             <TextBlock Text="Celebration"
                                                        FontWeight="SemiBold"
-                                                       Foreground="#F9FAFB"
+                                                       Foreground="{DynamicResource TooltipForegroundBrush}"
                                                        Margin="0,0,0,6" />
                                             <TextBlock TextWrapping="Wrap"
                                                        Text="Automatically starts brewery celebrations when available. This is only available for Teutons." />
@@ -95,7 +95,7 @@
                                 <TextBlock Text="i"
                                            FontSize="10"
                                            FontWeight="SemiBold"
-                                           Foreground="#4B5563"
+                                           Foreground="{DynamicResource TextMutedBrush}"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center"
                                            TextAlignment="Center" />
@@ -109,7 +109,7 @@
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0"
                                        Text="Celebration status:"
-                                       Foreground="#374151"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
                                        FontSize="12"
                                        VerticalAlignment="Center" />
                             <Border Grid.Column="2"
@@ -135,7 +135,7 @@
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0"
                                        Text="Brewery found:"
-                                       Foreground="#374151"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
                                        FontSize="12"
                                        VerticalAlignment="Center" />
                             <Border Grid.Column="2"
@@ -169,8 +169,8 @@
             </Grid>
 
             <Border Grid.Column="2"
-                    Background="#FFFFFF"
-                    BorderBrush="#D1D5DB"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="1"
                     CornerRadius="8"
                     Padding="12">
@@ -185,7 +185,7 @@
                                    Text="Build troops"
                                    FontSize="18"
                                    FontWeight="SemiBold"
-                                   Foreground="#111827" />
+                                   Foreground="{DynamicResource TextPrimaryBrush}" />
                         <StackPanel Grid.Column="2"
                                     Orientation="Horizontal"
                                     HorizontalAlignment="Right"
@@ -202,22 +202,22 @@
                     </Grid>
 
                     <TextBlock Text="{Binding InfoText}"
-                               Foreground="#6B7280"
+                               Foreground="{DynamicResource TextSubtleBrush}"
                                TextWrapping="Wrap"
                                Margin="0,0,0,10" />
 
                     <StackPanel Margin="0,0,0,10">
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                             <TextBlock Text="Resources to check for % resources"
-                                       Foreground="#6B7280"
+                                       Foreground="{DynamicResource TextSubtleBrush}"
                                        FontSize="11"
                                        VerticalAlignment="Center" />
                             <Border Width="14"
                                     Height="14"
                                     Margin="6,0,0,0"
                                     CornerRadius="7"
-                                    Background="#E5E7EB"
-                                    BorderBrush="#D1D5DB"
+                                    Background="{DynamicResource ControlBackgroundBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="1"
                                     VerticalAlignment="Center"
                                     ToolTipService.InitialShowDelay="0">
@@ -226,7 +226,7 @@
                                         <StackPanel Width="300">
                                             <TextBlock Text="Resources to check"
                                                        FontWeight="SemiBold"
-                                                       Foreground="#F9FAFB"
+                                                       Foreground="{DynamicResource TooltipForegroundBrush}"
                                                        Margin="0,0,0,6" />
                                             <TextBlock TextWrapping="Wrap"
                                                        Text="Only selected resources are checked when Run trigger is set to % resources." />
@@ -236,7 +236,7 @@
                                 <TextBlock Text="i"
                                            FontSize="10"
                                            FontWeight="SemiBold"
-                                           Foreground="#4B5563"
+                                           Foreground="{DynamicResource TextMutedBrush}"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center"
                                            TextAlignment="Center" />
@@ -260,15 +260,15 @@
                     <StackPanel Margin="0,0,0,10">
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                             <TextBlock Text="Fallback wait when no exact troop ETA exists"
-                                       Foreground="#6B7280"
+                                       Foreground="{DynamicResource TextSubtleBrush}"
                                        FontSize="11"
                                        VerticalAlignment="Center" />
                             <Border Width="14"
                                     Height="14"
                                     Margin="6,0,0,0"
                                     CornerRadius="7"
-                                    Background="#E5E7EB"
-                                    BorderBrush="#D1D5DB"
+                                    Background="{DynamicResource ControlBackgroundBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="1"
                                     VerticalAlignment="Center"
                                     ToolTipService.InitialShowDelay="0">
@@ -277,7 +277,7 @@
                                         <StackPanel Width="300">
                                             <TextBlock Text="Fallback wait"
                                                        FontWeight="SemiBold"
-                                                       Foreground="#F9FAFB"
+                                                       Foreground="{DynamicResource TooltipForegroundBrush}"
                                                        Margin="0,0,0,6" />
                                             <TextBlock TextWrapping="Wrap"
                                                        Text="Used when the bot cannot read an exact troop queue ETA. It waits this long before checking again." />
@@ -287,7 +287,7 @@
                                 <TextBlock Text="i"
                                            FontSize="10"
                                            FontWeight="SemiBold"
-                                           Foreground="#4B5563"
+                                           Foreground="{DynamicResource TextMutedBrush}"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center"
                                            TextAlignment="Center" />
@@ -315,17 +315,17 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border BorderBrush="#E5E7EB"
+                                <Border BorderBrush="{DynamicResource BorderSubtleBrush}"
                                         BorderThickness="1"
                                         CornerRadius="8"
                                         Padding="10"
                                         Margin="0,0,8,0"
-                                        Background="#FFFFFF">
+                                        Background="{DynamicResource SurfaceBrush}">
                                     <StackPanel>
                                         <TextBlock Text="{Binding Title}"
                                                    FontSize="13"
                                                    FontWeight="SemiBold"
-                                                   Foreground="#111827"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
                                                    HorizontalAlignment="Center"
                                                    TextAlignment="Center" />
                                         <Border Margin="0,8,0,0"
@@ -351,12 +351,12 @@
                     <ItemsControl ItemsSource="{Binding Buildings}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border BorderBrush="#E5E7EB"
+                                <Border BorderBrush="{DynamicResource BorderSubtleBrush}"
                                         BorderThickness="1"
                                         CornerRadius="8"
                                         Padding="10"
                                         Margin="0,0,0,10"
-                                        Background="#F9FAFB">
+                                        Background="{DynamicResource SurfaceAltBrush}">
                                     <StackPanel>
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions>
@@ -371,11 +371,11 @@
                                                 <TextBlock Text="{Binding Title}"
                                                            FontSize="15"
                                                            FontWeight="SemiBold"
-                                                           Foreground="#111827" />
+                                                           Foreground="{DynamicResource TextPrimaryBrush}" />
                                             </StackPanel>
                                             <TextBlock Grid.Column="1"
                                                        Text="Troop"
-                                                       Foreground="#6B7280"
+                                                       Foreground="{DynamicResource TextSubtleBrush}"
                                                        FontSize="11"
                                                        Margin="8,4,0,0"
                                                        VerticalAlignment="Bottom" />
@@ -384,15 +384,15 @@
                                                         Margin="0,4,0,0"
                                                         VerticalAlignment="Bottom">
                                                 <TextBlock Text="Max build queue"
-                                                           Foreground="#6B7280"
+                                                           Foreground="{DynamicResource TextSubtleBrush}"
                                                            FontSize="11"
                                                            VerticalAlignment="Center" />
                                                 <Border Width="14"
                                                         Height="14"
                                                         Margin="6,0,0,0"
                                                         CornerRadius="7"
-                                                        Background="#E5E7EB"
-                                                        BorderBrush="#D1D5DB"
+                                                        Background="{DynamicResource ControlBackgroundBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
                                                         BorderThickness="1"
                                                         VerticalAlignment="Center"
                                                         ToolTipService.InitialShowDelay="0">
@@ -401,7 +401,7 @@
                                                             <StackPanel Width="300">
                                                                 <TextBlock Text="Max build queue"
                                                                            FontWeight="SemiBold"
-                                                                           Foreground="#F9FAFB"
+                                                                           Foreground="{DynamicResource TooltipForegroundBrush}"
                                                                            Margin="0,0,0,6" />
                                                                 <TextBlock TextWrapping="Wrap"
                                                                            Text="Limits how much training time may already be queued for this troop building before the bot skips adding more troops." />
@@ -411,7 +411,7 @@
                                                     <TextBlock Text="i"
                                                                FontSize="10"
                                                                FontWeight="SemiBold"
-                                                               Foreground="#4B5563"
+                                                               Foreground="{DynamicResource TextMutedBrush}"
                                                                HorizontalAlignment="Center"
                                                                VerticalAlignment="Center"
                                                                TextAlignment="Center" />
@@ -422,15 +422,15 @@
                                                         Margin="0,4,0,0"
                                                         VerticalAlignment="Bottom">
                                                 <TextBlock Text="Amount mode"
-                                                           Foreground="#6B7280"
+                                                           Foreground="{DynamicResource TextSubtleBrush}"
                                                            FontSize="11"
                                                            VerticalAlignment="Center" />
                                                 <Border Width="14"
                                                         Height="14"
                                                         Margin="6,0,0,0"
                                                         CornerRadius="7"
-                                                        Background="#E5E7EB"
-                                                        BorderBrush="#D1D5DB"
+                                                        Background="{DynamicResource ControlBackgroundBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
                                                         BorderThickness="1"
                                                         VerticalAlignment="Center"
                                                         ToolTipService.InitialShowDelay="0">
@@ -439,7 +439,7 @@
                                                             <StackPanel Width="300">
                                                                 <TextBlock Text="Amount mode"
                                                                            FontWeight="SemiBold"
-                                                                           Foreground="#F9FAFB"
+                                                                           Foreground="{DynamicResource TooltipForegroundBrush}"
                                                                            Margin="0,0,0,6" />
                                                                 <TextBlock TextWrapping="Wrap"
                                                                            Text="Maximum spends available resources on as many troops as possible. Keep resources reserves the selected percent before training." />
@@ -449,7 +449,7 @@
                                                     <TextBlock Text="i"
                                                                FontSize="10"
                                                                FontWeight="SemiBold"
-                                                               Foreground="#4B5563"
+                                                               Foreground="{DynamicResource TextMutedBrush}"
                                                                HorizontalAlignment="Center"
                                                                VerticalAlignment="Center"
                                                                TextAlignment="Center" />
@@ -460,15 +460,15 @@
                                                         Margin="0,4,0,0"
                                                         VerticalAlignment="Bottom">
                                                 <TextBlock Text="Keep %"
-                                                           Foreground="#6B7280"
+                                                           Foreground="{DynamicResource TextSubtleBrush}"
                                                            FontSize="11"
                                                            VerticalAlignment="Bottom" />
                                                 <Border Width="14"
                                                         Height="14"
                                                         Margin="6,0,0,0"
                                                         CornerRadius="7"
-                                                        Background="#E5E7EB"
-                                                        BorderBrush="#D1D5DB"
+                                                        Background="{DynamicResource ControlBackgroundBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
                                                         BorderThickness="1"
                                                         VerticalAlignment="Center"
                                                         ToolTipService.InitialShowDelay="0">
@@ -477,7 +477,7 @@
                                                             <StackPanel Width="280">
                                                                 <TextBlock Text="Keep %"
                                                                            FontWeight="SemiBold"
-                                                                           Foreground="#F9FAFB"
+                                                                           Foreground="{DynamicResource TooltipForegroundBrush}"
                                                                            Margin="0,0,0,6" />
                                                                 <TextBlock TextWrapping="Wrap"
                                                                            Text="Only used when Amount mode is set to Keep resources." />
@@ -490,7 +490,7 @@
                                                     <TextBlock Text="i"
                                                                FontSize="10"
                                                                FontWeight="SemiBold"
-                                                               Foreground="#4B5563"
+                                                               Foreground="{DynamicResource TextMutedBrush}"
                                                                HorizontalAlignment="Center"
                                                                VerticalAlignment="Center"
                                                                TextAlignment="Center" />
@@ -583,15 +583,15 @@
                                                         Orientation="Horizontal"
                                                         VerticalAlignment="Center">
                                                 <TextBlock Text="Run trigger"
-                                                           Foreground="#6B7280"
+                                                           Foreground="{DynamicResource TextSubtleBrush}"
                                                            FontSize="11"
                                                            VerticalAlignment="Center" />
                                                 <Border Width="14"
                                                         Height="14"
                                                         Margin="6,0,0,0"
                                                         CornerRadius="7"
-                                                        Background="#E5E7EB"
-                                                        BorderBrush="#D1D5DB"
+                                                        Background="{DynamicResource ControlBackgroundBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
                                                         BorderThickness="1"
                                                         VerticalAlignment="Center"
                                                         ToolTipService.InitialShowDelay="0">
@@ -600,7 +600,7 @@
                                                             <StackPanel Width="300">
                                                                 <TextBlock Text="Run trigger"
                                                                            FontWeight="SemiBold"
-                                                                           Foreground="#F9FAFB"
+                                                                           Foreground="{DynamicResource TooltipForegroundBrush}"
                                                                            Margin="0,0,0,6" />
                                                                 <TextBlock TextWrapping="Wrap"
                                                                            Text="Min troops starts training when the current troop count drops below the value to the right." />
@@ -613,7 +613,7 @@
                                                     <TextBlock Text="i"
                                                                FontSize="10"
                                                                FontWeight="SemiBold"
-                                                               Foreground="#4B5563"
+                                                               Foreground="{DynamicResource TextMutedBrush}"
                                                                HorizontalAlignment="Center"
                                                                VerticalAlignment="Center"
                                                                TextAlignment="Center" />
@@ -669,7 +669,7 @@
                                                     <TextBlock Text="{Binding MinimumResourcesPercent, StringFormat={}{0}%}"
                                                                Margin="10,0,0,0"
                                                                VerticalAlignment="Center"
-                                                               Foreground="#374151"
+                                                               Foreground="{DynamicResource TextSecondaryBrush}"
                                                                FontWeight="SemiBold" />
                                                 </StackPanel>
                                             </Grid>

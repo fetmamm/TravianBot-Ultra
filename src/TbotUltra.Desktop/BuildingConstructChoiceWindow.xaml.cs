@@ -78,7 +78,7 @@ public partial class BuildingConstructChoiceWindow : Window
         panel.Children.Add(new TextBlock
         {
             Text = text,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x9C, 0xA3, 0xAF)),
+            Foreground = new SolidColorBrush(ThemeColors.Get("BorderMutedBrush")),
             FontStyle = FontStyles.Italic,
             FontSize = 11,
             Margin = new Thickness(4, 0, 0, 0),
@@ -98,11 +98,11 @@ public partial class BuildingConstructChoiceWindow : Window
 
         var nameForeground = option.Availability switch
         {
-            BuildingConstructAvailability.Available => Color.FromRgb(0x11, 0x18, 0x27),
-            BuildingConstructAvailability.Locked => Color.FromRgb(0x6B, 0x72, 0x80),
-            BuildingConstructAvailability.AlreadyBuilt => Color.FromRgb(0x25, 0x63, 0xEB),
-            BuildingConstructAvailability.Unavailable => Color.FromRgb(0x9C, 0xA3, 0xAF),
-            _ => Color.FromRgb(0x11, 0x18, 0x27),
+            BuildingConstructAvailability.Available => ThemeColors.Get("TextPrimaryBrush"),
+            BuildingConstructAvailability.Locked => ThemeColors.Get("TextSubtleBrush"),
+            BuildingConstructAvailability.AlreadyBuilt => ThemeColors.Get("InfoBrush"),
+            BuildingConstructAvailability.Unavailable => ThemeColors.Get("BorderMutedBrush"),
+            _ => ThemeColors.Get("TextPrimaryBrush"),
         };
 
         var stack = new StackPanel();
@@ -116,7 +116,7 @@ public partial class BuildingConstructChoiceWindow : Window
         {
             Text = detail,
             FontSize = 11,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x6B, 0x72, 0x80)),
+            Foreground = new SolidColorBrush(ThemeColors.Get("TextSubtleBrush")),
             TextWrapping = TextWrapping.Wrap,
         });
 
@@ -130,8 +130,8 @@ public partial class BuildingConstructChoiceWindow : Window
                 Padding = new Thickness(8, 6, 8, 6),
                 Margin = new Thickness(0, 0, 0, 4),
                 Tag = option,
-                Background = new SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0xD1, 0xD5, 0xDB)),
+                Background = new SolidColorBrush(ThemeColors.Get("SurfaceBrush")),
+                BorderBrush = new SolidColorBrush(ThemeColors.Get("BorderBrush")),
             };
             button.Click += OptionButton_Click;
             return button;
@@ -139,8 +139,8 @@ public partial class BuildingConstructChoiceWindow : Window
 
         return new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0xF9, 0xFA, 0xFB)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0xE5, 0xE7, 0xEB)),
+            Background = new SolidColorBrush(ThemeColors.Get("SurfaceAltBrush")),
+            BorderBrush = new SolidColorBrush(ThemeColors.Get("ControlBackgroundBrush")),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(4),
             Padding = new Thickness(8, 6, 8, 6),

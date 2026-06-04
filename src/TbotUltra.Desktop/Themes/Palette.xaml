@@ -1,0 +1,150 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Central design-token layer — DARK theme.
+        Single source of truth for color. All XAML uses DynamicResource and all code-behind reads
+        these via ThemeColors.Get/Brush, so the whole app's palette is defined here. To return to the
+        old light look, restore the previous light hex values (see git history / ENGINEERING_NOTES).
+
+        Reference these with DynamicResource so lookups resolve up to Application.Resources from any
+        merged dictionary or control. Do not hardcode new hex elsewhere.
+    -->
+
+    <!-- ===== Surfaces / backgrounds ===== -->
+    <SolidColorBrush x:Key="AppBackgroundBrush" Color="#0D1117" />        <!-- window background -->
+    <SolidColorBrush x:Key="SidebarBackgroundBrush" Color="#10151D" />    <!-- left sidebar -->
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#161B22" />              <!-- card / panel -->
+    <SolidColorBrush x:Key="SurfaceAltBrush" Color="#1C2230" />           <!-- inset / subtle card -->
+    <SolidColorBrush x:Key="ControlBackgroundBrush" Color="#21262D" />    <!-- default button / toggle track / chip bg -->
+
+    <!-- ===== Borders ===== -->
+    <SolidColorBrush x:Key="BorderBrush" Color="#30363D" />               <!-- standard border -->
+    <SolidColorBrush x:Key="BorderSubtleBrush" Color="#262C36" />         <!-- faint card border -->
+    <SolidColorBrush x:Key="BorderMutedBrush" Color="#484F58" />          <!-- disabled-state border / idle dot -->
+    <SolidColorBrush x:Key="BorderHoverBrush" Color="#6E7681" />          <!-- hover border -->
+    <SolidColorBrush x:Key="ToggleTrackBorderBrush" Color="#30363D" />    <!-- toggle track outline -->
+    <SolidColorBrush x:Key="FocusBorderBrush" Color="#58A6FF" />          <!-- keyboard-focus outline -->
+
+    <!-- ===== Text ===== -->
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#E6EDF3" />          <!-- primary text -->
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#ADBAC7" />        <!-- secondary text -->
+    <SolidColorBrush x:Key="TextMutedBrush" Color="#909DAB" />            <!-- muted text / info glyph -->
+    <SolidColorBrush x:Key="TextSubtleBrush" Color="#768390" />           <!-- subtle labels / idle badge text -->
+    <SolidColorBrush x:Key="TextDisabledBrush" Color="#5B636D" />         <!-- disabled foreground -->
+
+    <!-- ===== Accent (green: login / start / toggle-on — matches concept) ===== -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#238636" />
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="#2EA043" />
+    <SolidColorBrush x:Key="AccentPressedBrush" Color="#1A6E2B" />
+    <SolidColorBrush x:Key="OnAccentBrush" Color="#FFFFFF" />             <!-- text on accent surfaces -->
+
+    <!-- ===== Thumb / toggle detail ===== -->
+    <SolidColorBrush x:Key="ThumbBrush" Color="#F0F3F6" />                <!-- toggle thumb fill -->
+    <SolidColorBrush x:Key="ThumbStrokeBrush" Color="#6E7681" />          <!-- toggle thumb stroke (off) -->
+    <SolidColorBrush x:Key="ThumbStrokeOnBrush" Color="#2EA043" />        <!-- toggle thumb stroke (on) -->
+    <SolidColorBrush x:Key="PressedTrackBrush" Color="#30363D" />         <!-- toggle pressed track (off) -->
+
+    <!-- ===== Semantic / status ===== -->
+    <SolidColorBrush x:Key="StateIdleBrush" Color="#6E7681" />            <!-- idle loop badge -->
+    <SolidColorBrush x:Key="UnreadBrush" Color="#DA3633" />               <!-- unread inbox -->
+    <SolidColorBrush x:Key="CapitalBrush" Color="#E3B341" />              <!-- capital village -->
+
+    <!-- ===== Tooltip ===== -->
+    <SolidColorBrush x:Key="TooltipBackgroundBrush" Color="#1F2530" />
+    <SolidColorBrush x:Key="TooltipForegroundBrush" Color="#E6EDF3" />
+    <SolidColorBrush x:Key="TooltipBorderBrush" Color="#30363D" />
+
+    <!-- ===== Status: success / running (green) ===== -->
+    <SolidColorBrush x:Key="SuccessBrush" Color="#3FB950" />
+    <SolidColorBrush x:Key="SuccessBgBrush" Color="#12261A" />
+    <SolidColorBrush x:Key="SuccessBorderBrush" Color="#2EA043" />
+    <SolidColorBrush x:Key="SuccessTextBrush" Color="#56D364" />
+    <SolidColorBrush x:Key="SuccessTextStrongBrush" Color="#56D364" />
+    <SolidColorBrush x:Key="HeroAdvBgBrush" Color="#11261B" />
+    <SolidColorBrush x:Key="HeroAdvBorderBrush" Color="#238636" />
+
+    <!-- ===== Status: warning / timer (amber) ===== -->
+    <SolidColorBrush x:Key="WarningButtonBgBrush" Color="#BB8009" />
+    <SolidColorBrush x:Key="WarningBorderBrush" Color="#D29922" />
+    <SolidColorBrush x:Key="WarningBgBrush" Color="#2A2008" />
+    <SolidColorBrush x:Key="WarningTextBrush" Color="#E3B341" />
+    <SolidColorBrush x:Key="OnWarningBrush" Color="#0D1117" />            <!-- dark text on amber controls -->
+
+    <!-- ===== Status: info / active (blue) ===== -->
+    <SolidColorBrush x:Key="InfoBrush" Color="#58A6FF" />
+    <SolidColorBrush x:Key="InfoBgBrush" Color="#0D2847" />
+    <SolidColorBrush x:Key="InfoTextBrush" Color="#79C0FF" />
+    <SolidColorBrush x:Key="SelectedRowBgBrush" Color="#1F2D3D" />
+
+    <!-- ===== Status: danger / error (red) ===== -->
+    <SolidColorBrush x:Key="DangerBrush" Color="#DA3633" />
+    <SolidColorBrush x:Key="DangerStrongBrush" Color="#F85149" />
+    <SolidColorBrush x:Key="DangerDarkBrush" Color="#8E1519" />
+    <SolidColorBrush x:Key="DangerBgBrush" Color="#2D1213" />
+    <SolidColorBrush x:Key="DangerBorderBrush" Color="#B62324" />
+    <SolidColorBrush x:Key="DangerTextBrush" Color="#FF7B72" />
+
+    <!-- ===== DataGrid ===== -->
+    <SolidColorBrush x:Key="DataGridCellTextBrush" Color="#C9D1D9" />     <!-- active cell / mini-log text -->
+    <SolidColorBrush x:Key="RowAltBackgroundBrush" Color="#1A2029" />     <!-- alternating row bg -->
+
+    <!-- ===== Terminal / logs (kept near-black) ===== -->
+    <SolidColorBrush x:Key="TerminalBgBrush" Color="#020617" />
+    <SolidColorBrush x:Key="TerminalFgBrush" Color="#93C5FD" />
+    <SolidColorBrush x:Key="AlarmBgBrush" Color="#020617" />
+    <SolidColorBrush x:Key="AlarmTextBrush" Color="#FCA5A5" />
+
+    <!-- ===== Resource fields (decorative tints) ===== -->
+    <SolidColorBrush x:Key="WoodTextBrush" Color="#2DD4BF" />
+    <SolidColorBrush x:Key="WoodCardBgBrush" Color="#0F2A28" />
+    <SolidColorBrush x:Key="WoodBadgeTextBrush" Color="#5EEAD4" />
+    <SolidColorBrush x:Key="WoodBadgeBgBrush" Color="#134E48" />
+    <SolidColorBrush x:Key="WoodBadgeBorderBrush" Color="#1C6B63" />
+    <SolidColorBrush x:Key="ClayTextBrush" Color="#F97316" />
+    <SolidColorBrush x:Key="ClayCardBgBrush" Color="#2A1610" />
+    <SolidColorBrush x:Key="ClayBadgeTextBrush" Color="#FDBA8C" />
+    <SolidColorBrush x:Key="ClayBadgeBgBrush" Color="#6B2E18" />
+    <SolidColorBrush x:Key="ClayBadgeBorderBrush" Color="#9A4423" />
+    <SolidColorBrush x:Key="IronTextBrush" Color="#8FB6E0" />
+    <SolidColorBrush x:Key="IronCardBgBrush" Color="#243A52" />
+    <SolidColorBrush x:Key="IronBadgeTextBrush" Color="#CBD5E1" />
+    <SolidColorBrush x:Key="IronBadgeBgBrush" Color="#334155" />
+    <SolidColorBrush x:Key="IronBadgeBorderBrush" Color="#475569" />
+    <SolidColorBrush x:Key="CropTextBrush" Color="#EAB308" />
+    <SolidColorBrush x:Key="CropCardBgBrush" Color="#2A2208" />
+    <SolidColorBrush x:Key="CropBadgeTextBrush" Color="#FDE047" />
+    <SolidColorBrush x:Key="CropBadgeBgBrush" Color="#6B5310" />
+    <SolidColorBrush x:Key="CropBadgeBorderBrush" Color="#9A7B16" />
+
+    <!-- ===== Misc / window-specific ===== -->
+    <SolidColorBrush x:Key="SlotSelectedBgBrush" Color="#1F2D3D" />       <!-- building slot selected bg -->
+    <SolidColorBrush x:Key="SlotSelectedBorderBrush" Color="#58A6FF" />   <!-- building slot selected border -->
+    <SolidColorBrush x:Key="OverlayScrimBrush" Color="#CC0D1117" />       <!-- busy overlay scrim (alpha) -->
+    <SolidColorBrush x:Key="PrimaryButtonBrush" Color="#238636" />        <!-- primary action button -->
+    <SolidColorBrush x:Key="BurntOrangeTextBrush" Color="#F0883E" />      <!-- slot action warning text -->
+    <!-- Slate accents (Settings/Accounts windows) -->
+    <SolidColorBrush x:Key="SurfaceMutedBrush" Color="#1C2230" />
+    <SolidColorBrush x:Key="InkBrush" Color="#E6EDF3" />
+    <SolidColorBrush x:Key="MutedSlateBrush" Color="#8B949E" />
+    <SolidColorBrush x:Key="SlateBorderBrush" Color="#30363D" />
+    <SolidColorBrush x:Key="SlateTextBrush" Color="#9DA7B3" />
+
+    <!-- ===== Extra shades used from code-behind ===== -->
+    <SolidColorBrush x:Key="AmberBrush" Color="#D29922" />               <!-- pausing/waiting accents -->
+    <SolidColorBrush x:Key="AmberBg200Brush" Color="#3A2D08" />          <!-- pausing button bg -->
+    <SolidColorBrush x:Key="WaitingBrush" Color="#D29922" />             <!-- waiting badge -->
+    <SolidColorBrush x:Key="WarningText2Brush" Color="#F0C674" />        <!-- amber button text -->
+    <SolidColorBrush x:Key="WarningTextDeepBrush" Color="#E3B341" />     <!-- dialog warning text -->
+    <SolidColorBrush x:Key="InfoTextStrongBrush" Color="#79C0FF" />      <!-- dialog info text -->
+    <SolidColorBrush x:Key="EmeraldBrush" Color="#3FB950" />             <!-- catapult fill ok -->
+    <SolidColorBrush x:Key="RedBrush" Color="#F85149" />                 <!-- troop training shortage -->
+    <SolidColorBrush x:Key="GoldHighlightBrush" Color="#D4AF37" />       <!-- log gold highlight -->
+    <SolidColorBrush x:Key="YellowHighlightBrush" Color="#EAB308" />     <!-- log yellow highlight -->
+    <SolidColorBrush x:Key="MintPulseBrush" Color="#12261A" />           <!-- session pacing static -->
+    <SolidColorBrush x:Key="AmberPulseBrush" Color="#D29922" />          <!-- session pacing pulse -->
+
+    <!-- ===== Effect colors (Color, not Brush) ===== -->
+    <Color x:Key="ShadowColor">#010409</Color>
+
+</ResourceDictionary>

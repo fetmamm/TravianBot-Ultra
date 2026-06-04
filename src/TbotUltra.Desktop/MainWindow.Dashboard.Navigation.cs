@@ -71,10 +71,10 @@ public partial class MainWindow
         foreach (var nav in navButtons)
         {
             nav.BorderThickness = new Thickness(1);
-            nav.BorderBrush = new SolidColorBrush(Color.FromRgb(243, 244, 246));
+            nav.BorderBrush = new SolidColorBrush(ThemeColors.Get("AppBackgroundBrush"));
         }
 
         _activeSidebarButton = selectedButton;
-        selectedButton.BorderBrush = new SolidColorBrush(Color.FromRgb(15, 23, 42));
+        selectedButton.BorderBrush = new SolidColorBrush(ThemeColors.Get("InkBrush"));
     }
 }

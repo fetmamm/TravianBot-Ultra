@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Windows.Media;
 using TbotUltra.Core.Travian;
 
 namespace TbotUltra.Desktop.Models;
@@ -315,23 +316,23 @@ public sealed class TroopTrainingBuildingOption : INotifyPropertyChanged
         }
     }
 
-    public string QueueBadgeBackground => !Exists
-        ? "#E5E7EB"
+    public Brush QueueBadgeBackground => !Exists
+        ? ThemeColors.Brush("ControlBackgroundBrush")
         : IsQueueReadyToRun
-            ? "#DCFCE7"
-            : "#FEF3C7";
+            ? ThemeColors.Brush("SuccessBgBrush")
+            : ThemeColors.Brush("WarningBgBrush");
 
-    public string QueueBadgeBorderBrush => !Exists
-        ? "#9CA3AF"
+    public Brush QueueBadgeBorderBrush => !Exists
+        ? ThemeColors.Brush("BorderMutedBrush")
         : IsQueueReadyToRun
-            ? "#22C55E"
-            : "#F59E0B";
+            ? ThemeColors.Brush("SuccessBorderBrush")
+            : ThemeColors.Brush("WarningBorderBrush");
 
-    public string QueueBadgeForeground => !Exists
-        ? "#4B5563"
+    public Brush QueueBadgeForeground => !Exists
+        ? ThemeColors.Brush("TextMutedBrush")
         : IsQueueReadyToRun
-            ? "#15803D"
-            : "#B45309";
+            ? ThemeColors.Brush("SuccessTextBrush")
+            : ThemeColors.Brush("WarningTextBrush");
 
     public bool IsQueueReadyToRun
     {

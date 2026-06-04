@@ -203,14 +203,14 @@ public partial class MainWindow
         if (ManualFarmingStateTextBlock is not null)
         {
             ManualFarmingStateTextBlock.Text = "State:";
-            ManualFarmingStateTextBlock.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(107, 114, 128));
+            ManualFarmingStateTextBlock.Foreground = new SolidColorBrush(ThemeColors.Get("TextSubtleBrush"));
         }
 
         if (ManualFarmingStateDot is not null)
         {
             ManualFarmingStateDot.Fill = _farmingOperationBusy
-                ? new SolidColorBrush(System.Windows.Media.Color.FromRgb(22, 163, 74))
-                : new SolidColorBrush(System.Windows.Media.Color.FromRgb(156, 163, 175));
+                ? new SolidColorBrush(ThemeColors.Get("SuccessBrush"))
+                : new SolidColorBrush(ThemeColors.Get("BorderMutedBrush"));
         }
     }
 

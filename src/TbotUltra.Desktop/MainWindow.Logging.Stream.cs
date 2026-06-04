@@ -962,10 +962,10 @@ public partial class MainWindow
     }
 
     // Travian-ish metallic gold. Reused for gold counts and non-zero gold-spent values.
-    private static readonly SolidColorBrush GoldHighlightBrush = MakeFrozen(Color.FromRgb(0xD4, 0xAF, 0x37));
-    private static readonly SolidColorBrush GreenHighlightBrush = MakeFrozen(Color.FromRgb(0x16, 0xA3, 0x4A));
-    private static readonly SolidColorBrush YellowHighlightBrush = MakeFrozen(Color.FromRgb(0xEA, 0xB3, 0x08));
-    private static readonly SolidColorBrush NeutralStatsBrush = MakeFrozen(Color.FromRgb(0x4B, 0x55, 0x63));
+    private static readonly SolidColorBrush GoldHighlightBrush = MakeFrozen(ThemeColors.Get("GoldHighlightBrush"));
+    private static readonly SolidColorBrush GreenHighlightBrush = MakeFrozen(ThemeColors.Get("SuccessBrush"));
+    private static readonly SolidColorBrush YellowHighlightBrush = MakeFrozen(ThemeColors.Get("YellowHighlightBrush"));
+    private static readonly SolidColorBrush NeutralStatsBrush = MakeFrozen(ThemeColors.Get("TextMutedBrush"));
 
     private static SolidColorBrush MakeFrozen(Color color)
     {

@@ -5,18 +5,53 @@
         <Setter Property="Height" Value="30" />
         <Setter Property="Padding" Value="9,3" />
         <Setter Property="Margin" Value="0,0,6,0" />
-        <Setter Property="Background" Value="#E5E7EB" />
-        <Setter Property="Foreground" Value="#111827" />
-        <Setter Property="BorderBrush" Value="#D1D5DB" />
+        <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <!-- Flat dark template that honors per-button Background/BorderBrush/Foreground (set inline for
+             accent/warning/danger buttons) so those keep working; hover/press use opacity so the effect
+             is uniform across any button color. WPF's default Aero2 template adds a light gradient. -->
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="4"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                          Margin="{TemplateBinding Padding}"
+                                          RecognizesAccessKey="True" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.90" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.80" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <Style x:Key="SidebarNavButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
         <Setter Property="HorizontalContentAlignment" Value="Left" />
         <Setter Property="Height" Value="32" />
         <Setter Property="Margin" Value="0,0,0,4" />
-        <Setter Property="Background" Value="#F3F4F6" />
-        <Setter Property="BorderBrush" Value="#F3F4F6" />
+        <Setter Property="Background" Value="{DynamicResource AppBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppBackgroundBrush}" />
         <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 

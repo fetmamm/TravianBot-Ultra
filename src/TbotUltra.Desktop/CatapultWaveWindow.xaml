@@ -1,6 +1,7 @@
 <Window x:Class="TbotUltra.Desktop.CatapultWaveWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Background="{DynamicResource AppBackgroundBrush}"
         xmlns:views="clr-namespace:TbotUltra.Desktop.Views"
         Title="Catapult Waves"
         Height="650"
@@ -25,12 +26,12 @@
                 <TextBlock Text="Catapult waves"
                            FontSize="18"
                            FontWeight="SemiBold"
-                           Foreground="#111827" />
+                           Foreground="{DynamicResource TextPrimaryBrush}" />
                 <Border Width="14"
                         Height="14"
                         CornerRadius="7"
-                        Background="#E5E7EB"
-                        BorderBrush="#D1D5DB"
+                        Background="{DynamicResource ControlBackgroundBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1"
                         Margin="8,3,0,0"
                         VerticalAlignment="Center"
@@ -40,7 +41,7 @@
                             <StackPanel Width="320">
                                 <TextBlock Text="Catapult waves"
                                            FontWeight="SemiBold"
-                                           Foreground="#F9FAFB"
+                                           Foreground="{DynamicResource TooltipForegroundBrush}"
                                            Margin="0,0,0,6" />
                                 <TextBlock TextWrapping="Wrap"
                                            Text="Prepares one first attack and multiple normal attack waves. Catapult targets use Random automatically when catapults are included." />
@@ -50,7 +51,7 @@
                     <TextBlock Text="i"
                                FontSize="10"
                                FontWeight="SemiBold"
-                               Foreground="#4B5563"
+                               Foreground="{DynamicResource TextMutedBrush}"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center"
                                TextAlignment="Center" />
@@ -59,16 +60,16 @@
             <TextBlock x:Name="RallyPointLevelTextBlock"
                        Grid.Column="1"
                        VerticalAlignment="Center"
-                       Foreground="#4B5563"
+                       Foreground="{DynamicResource TextMutedBrush}"
                        FontWeight="SemiBold"
                        Text="Rallypoint level: -" />
         </Grid>
 
         <Border Grid.Row="1"
-                BorderBrush="#D1D5DB"
+                BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1"
                 CornerRadius="8"
-                Background="#FFFFFF"
+                Background="{DynamicResource SurfaceBrush}"
                 Padding="12">
             <ScrollViewer VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
@@ -118,16 +119,16 @@
                         </Grid.ColumnDefinitions>
 
                         <Border Grid.Column="0"
-                                BorderBrush="#D1D5DB"
+                                BorderBrush="{DynamicResource BorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="8"
-                                Background="#F9FAFB"
+                                Background="{DynamicResource SurfaceAltBrush}"
                                 Padding="10">
                             <StackPanel>
                                 <TextBlock Text="First attack"
                                            FontSize="16"
                                            FontWeight="SemiBold"
-                                           Foreground="#111827"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
                                            Margin="0,0,0,8" />
                                 <Grid x:Name="FirstAttackTroopsGrid" />
                                 <StackPanel Margin="0,10,0,0">
@@ -144,16 +145,16 @@
                         </Border>
 
                         <Border Grid.Column="2"
-                                BorderBrush="#D1D5DB"
+                                BorderBrush="{DynamicResource BorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="8"
-                                Background="#F9FAFB"
+                                Background="{DynamicResource SurfaceAltBrush}"
                                 Padding="10">
                             <StackPanel>
                                 <TextBlock Text="Waves"
                                            FontSize="16"
                                            FontWeight="SemiBold"
-                                           Foreground="#111827"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
                                            Margin="0,0,0,8" />
                                 <Grid x:Name="WaveTroopsGrid" />
                                 <StackPanel Margin="0,10,0,0">
@@ -172,12 +173,12 @@
 
                     <Border Margin="0,16,0,0"
                             Padding="10"
-                            BorderBrush="#D1D5DB"
+                            BorderBrush="{DynamicResource BorderBrush}"
                             BorderThickness="1"
                             CornerRadius="8"
-                            Background="#F9FAFB">
+                            Background="{DynamicResource SurfaceAltBrush}">
                         <TextBlock x:Name="StatusTextBlock"
-                                   Foreground="#374151"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                    TextWrapping="Wrap"
                                    Text="Troops loaded from Rally Point. Click a first attack amount in parentheses to fill the remaining available amount." />
                     </Border>
@@ -192,9 +193,9 @@
             <Button x:Name="StartButton"
                     Width="100"
                     Margin="0,0,8,0"
-                    Background="#111827"
-                    BorderBrush="#111827"
-                    Foreground="#F9FAFB"
+                    Background="{DynamicResource PrimaryButtonBrush}"
+                    BorderBrush="{DynamicResource PrimaryButtonBrush}"
+                    Foreground="{DynamicResource TooltipForegroundBrush}"
                     FontWeight="SemiBold"
                     Content="Start"
                     Click="StartButton_Click" />

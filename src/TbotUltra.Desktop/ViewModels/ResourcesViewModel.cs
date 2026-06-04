@@ -24,8 +24,8 @@ namespace TbotUltra.Desktop.ViewModels;
 public sealed class ResourcesViewModel : BaseViewModel
 {
     private const string NotFillingText = "Not filling";
-    private static readonly Brush FullBrush = (Brush)new BrushConverter().ConvertFromString("#B91C1C")!;
-    private static readonly Brush DefaultBrush = (Brush)new BrushConverter().ConvertFromString("#111827")!;
+    private static readonly Brush FullBrush = ThemeColors.Brush("DangerStrongBrush");
+    private static readonly Brush DefaultBrush = ThemeColors.Brush("TextPrimaryBrush");
     private Dictionary<string, ResourceStorageForecast> _baseForecasts = new(StringComparer.OrdinalIgnoreCase);
     private DateTimeOffset? _baseForecastCapturedAtUtc;
     private readonly Dictionary<int, int> _pendingTargetBySlot = new();
@@ -46,10 +46,10 @@ public sealed class ResourcesViewModel : BaseViewModel
     /// <summary>Always-visible storage bars and production cards.</summary>
     public ObservableCollection<ResourceStorageBarItem> StorageBars { get; } =
     [
-        CreateBar("wood", "Wood", "#0F766E", "#E4F2F1"),
-        CreateBar("clay", "Clay", "#DC4C1D", "#FDECE5"),
-        CreateBar("iron", "Iron", "#334155", "#EAF0F4"),
-        CreateBar("crop", "Crop", "#C47F00", "#FFF5DF"),
+        CreateBar("wood", "Wood", "WoodTextBrush", "WoodCardBgBrush"),
+        CreateBar("clay", "Clay", "ClayTextBrush", "ClayCardBgBrush"),
+        CreateBar("iron", "Iron", "IronTextBrush", "IronCardBgBrush"),
+        CreateBar("crop", "Crop", "CropTextBrush", "CropCardBgBrush"),
     ];
 
     public bool UseDenseCroplandLayout => CroplandFields.Count > 6;
@@ -318,14 +318,14 @@ public sealed class ResourcesViewModel : BaseViewModel
     /// <summary>Forgets all remembered pending targets (e.g. on village switch).</summary>
     public void ClearPendingTargets() => _pendingTargetBySlot.Clear();
 
-    private static ResourceStorageBarItem CreateBar(string key, string name, string barColor, string trackColor)
+    private static ResourceStorageBarItem CreateBar(string key, string name, string barBrushKey, string trackBrushKey)
     {
         return new ResourceStorageBarItem
         {
             ResourceKey = key,
             DisplayName = name,
-            BarBrush = (Brush)new BrushConverter().ConvertFromString(barColor)!,
-            TrackBrush = (Brush)new BrushConverter().ConvertFromString(trackColor)!,
+            BarBrush = ThemeColors.Brush(barBrushKey),
+            TrackBrush = ThemeColors.Brush(trackBrushKey),
         };
     }
 

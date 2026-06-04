@@ -37,7 +37,7 @@ public partial class MainWindow
         // Use a mutable brush so the pacing box background can be animated (XAML's literal brush is frozen).
         if (SessionPacingBorder is not null)
         {
-            _pacingBrush = new SolidColorBrush(Colors.White);
+            _pacingBrush = new SolidColorBrush(ThemeColors.Get("SurfaceBrush"));
             SessionPacingBorder.Background = _pacingBrush;
             ToolTipService.SetInitialShowDelay(SessionPacingBorder, 700);
         }
@@ -324,16 +324,16 @@ public partial class MainWindow
         switch (state)
         {
             case PacingVisual.Sleeping:
-                StartPacingPulse(Color.FromRgb(0xDB, 0xEA, 0xFE), Color.FromRgb(0x60, 0xA5, 0xFA));
+                StartPacingPulse(ThemeColors.Get("InfoBgBrush"), ThemeColors.Get("SlotSelectedBorderBrush"));
                 break;
             case PacingVisual.Approaching:
-                StartPacingPulse(Color.FromRgb(0xFE, 0xF3, 0xC7), Color.FromRgb(0xFB, 0xBF, 0x24));
+                StartPacingPulse(ThemeColors.Get("WarningBgBrush"), ThemeColors.Get("AmberPulseBrush"));
                 break;
             case PacingVisual.Running:
-                SetPacingStaticColor(Color.FromRgb(0xEC, 0xFD, 0xF5));
+                SetPacingStaticColor(ThemeColors.Get("MintPulseBrush"));
                 break;
             default:
-                SetPacingStaticColor(Colors.White);
+                SetPacingStaticColor(ThemeColors.Get("SurfaceBrush"));
                 break;
         }
     }

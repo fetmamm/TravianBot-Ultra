@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Text.Json.Nodes;
+using System.Windows.Media;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Travian;
 using TbotUltra.Desktop.Common;
@@ -989,23 +990,23 @@ public sealed class TroopTrainingViewModel : BaseViewModel
         }
     }
 
-    public string BreweryFoundBadgeBackground => !IsAutoCelebrationAvailableForCurrentTribe
-        ? "#E5E7EB"
+    public Brush BreweryFoundBadgeBackground => !IsAutoCelebrationAvailableForCurrentTribe
+        ? ThemeColors.Brush("ControlBackgroundBrush")
         : (BreweryExists || AutoCelebrationRemainingSeconds is > 0)
-            ? "#DCFCE7"
-            : "#FEE2E2";
+            ? ThemeColors.Brush("SuccessBgBrush")
+            : ThemeColors.Brush("DangerBgBrush");
 
-    public string BreweryFoundBadgeBorderBrush => !IsAutoCelebrationAvailableForCurrentTribe
-        ? "#9CA3AF"
+    public Brush BreweryFoundBadgeBorderBrush => !IsAutoCelebrationAvailableForCurrentTribe
+        ? ThemeColors.Brush("BorderMutedBrush")
         : (BreweryExists || AutoCelebrationRemainingSeconds is > 0)
-            ? "#22C55E"
-            : "#EF4444";
+            ? ThemeColors.Brush("SuccessBorderBrush")
+            : ThemeColors.Brush("RedBrush");
 
-    public string BreweryFoundBadgeForeground => !IsAutoCelebrationAvailableForCurrentTribe
-        ? "#4B5563"
+    public Brush BreweryFoundBadgeForeground => !IsAutoCelebrationAvailableForCurrentTribe
+        ? ThemeColors.Brush("TextMutedBrush")
         : (BreweryExists || AutoCelebrationRemainingSeconds is > 0)
-            ? "#15803D"
-            : "#B91C1C";
+            ? ThemeColors.Brush("SuccessTextBrush")
+            : ThemeColors.Brush("DangerStrongBrush");
 
     public string AutoCelebrationStatusText
     {
@@ -1034,29 +1035,29 @@ public sealed class TroopTrainingViewModel : BaseViewModel
         }
     }
 
-    public string AutoCelebrationBadgeBackground => !IsAutoCelebrationAvailableForCurrentTribe
-        ? "#E5E7EB"
+    public Brush AutoCelebrationBadgeBackground => !IsAutoCelebrationAvailableForCurrentTribe
+        ? ThemeColors.Brush("ControlBackgroundBrush")
         : AutoCelebrationRemainingSeconds is > 0
-            ? "#FEF3C7"
+            ? ThemeColors.Brush("WarningBgBrush")
             : AutoCelebrationCanStart
-                ? "#DCFCE7"
-                : "#E5E7EB";
+                ? ThemeColors.Brush("SuccessBgBrush")
+                : ThemeColors.Brush("ControlBackgroundBrush");
 
-    public string AutoCelebrationBadgeBorderBrush => !IsAutoCelebrationAvailableForCurrentTribe
-        ? "#9CA3AF"
+    public Brush AutoCelebrationBadgeBorderBrush => !IsAutoCelebrationAvailableForCurrentTribe
+        ? ThemeColors.Brush("BorderMutedBrush")
         : AutoCelebrationRemainingSeconds is > 0
-            ? "#F59E0B"
+            ? ThemeColors.Brush("WarningBorderBrush")
             : AutoCelebrationCanStart
-                ? "#22C55E"
-                : "#9CA3AF";
+                ? ThemeColors.Brush("SuccessBorderBrush")
+                : ThemeColors.Brush("BorderMutedBrush");
 
-    public string AutoCelebrationBadgeForeground => !IsAutoCelebrationAvailableForCurrentTribe
-        ? "#4B5563"
+    public Brush AutoCelebrationBadgeForeground => !IsAutoCelebrationAvailableForCurrentTribe
+        ? ThemeColors.Brush("TextMutedBrush")
         : AutoCelebrationRemainingSeconds is > 0
-            ? "#B45309"
+            ? ThemeColors.Brush("WarningTextBrush")
             : AutoCelebrationCanStart
-                ? "#15803D"
-                : "#4B5563";
+                ? ThemeColors.Brush("SuccessTextBrush")
+                : ThemeColors.Brush("TextMutedBrush");
 
     private void OnOptionPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {

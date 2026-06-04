@@ -16,8 +16,8 @@
 
         <DataTemplate x:Key="BuildingSlotButtonTemplate">
             <Button Margin="1"
-                    Background="#FFFFFF"
-                    BorderBrush="#D1D5DB"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="1"
                     Padding="8,7"
                     Width="110"
@@ -40,20 +40,20 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <DataTrigger Binding="{Binding HasPendingUpgrade}" Value="True">
-                                <Setter TargetName="SlotCardBorder" Property="BorderBrush" Value="#D97706" />
-                                <Setter TargetName="SlotCardBorder" Property="Background" Value="#FFFBEB" />
+                                <Setter TargetName="SlotCardBorder" Property="BorderBrush" Value="{DynamicResource CapitalBrush}" />
+                                <Setter TargetName="SlotCardBorder" Property="Background" Value="{DynamicResource SlotSelectedBgBrush}" />
                             </DataTrigger>
                             <DataTrigger Binding="{Binding HasPendingConstruct}" Value="True">
-                                <Setter TargetName="SlotCardBorder" Property="BorderBrush" Value="#16A34A" />
-                                <Setter TargetName="SlotCardBorder" Property="Background" Value="#F0FDF4" />
+                                <Setter TargetName="SlotCardBorder" Property="BorderBrush" Value="{DynamicResource SuccessBrush}" />
+                                <Setter TargetName="SlotCardBorder" Property="Background" Value="{DynamicResource HeroAdvBgBrush}" />
                             </DataTrigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="SlotCardBorder" Property="Background" Value="#F9FAFB" />
-                                <Setter TargetName="SlotCardBorder" Property="BorderBrush" Value="#93C5FD" />
+                                <Setter TargetName="SlotCardBorder" Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+                                <Setter TargetName="SlotCardBorder" Property="BorderBrush" Value="{DynamicResource TerminalFgBrush}" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="SlotCardBorder" Property="Background" Value="#DBEAFE" />
-                                <Setter TargetName="SlotCardBorder" Property="BorderBrush" Value="#60A5FA" />
+                                <Setter TargetName="SlotCardBorder" Property="Background" Value="{DynamicResource InfoBgBrush}" />
+                                <Setter TargetName="SlotCardBorder" Property="BorderBrush" Value="{DynamicResource SlotSelectedBorderBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -61,7 +61,7 @@
                 <StackPanel>
                     <TextBlock Text="{Binding SlotLabel}"
                                FontSize="11"
-                               Foreground="#9CA3AF"
+                               Foreground="{DynamicResource BorderMutedBrush}"
                                HorizontalAlignment="Left" />
                     <TextBlock Text="{Binding NameLabel}"
                                FontSize="11"
@@ -72,10 +72,10 @@
                                Margin="0,3,0,0">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
-                                <Setter Property="Foreground" Value="#111827" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsOccupied}" Value="False">
-                                        <Setter Property="Foreground" Value="#2563EB" />
+                                        <Setter Property="Foreground" Value="{DynamicResource InfoBrush}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -86,13 +86,13 @@
                                Margin="0,3,0,0">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
-                                <Setter Property="Foreground" Value="#6B7280" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsMaxLevel}" Value="True">
-                                        <Setter Property="Foreground" Value="#D97706" />
+                                        <Setter Property="Foreground" Value="{DynamicResource CapitalBrush}" />
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding IsDemolishing}" Value="True">
-                                        <Setter Property="Foreground" Value="#DC2626" />
+                                        <Setter Property="Foreground" Value="{DynamicResource UnreadBrush}" />
                                         <Setter Property="FontWeight" Value="SemiBold" />
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -118,27 +118,27 @@
             </Grid.RowDefinitions>
 
             <StackPanel Grid.Row="0" Margin="0,0,0,4">
-                <TextBlock Text="Buildings" FontSize="24" FontWeight="SemiBold" Foreground="#111827" />
+                <TextBlock Text="Buildings" FontSize="24" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
                 <TextBlock Text="Manage your village buildings. Click a slot to view and manage building details."
-                           Foreground="#6B7280" Margin="0,2,0,8" />
+                           Foreground="{DynamicResource TextSubtleBrush}" Margin="0,2,0,8" />
             </StackPanel>
 
             <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
                 <Button Content="Load buildings"
                         Width="118"
                         Height="28"
-                        Background="#030826"
+                        Background="{DynamicResource AccentBrush}"
                         Foreground="White"
-                        BorderBrush="#030826"
+                        BorderBrush="{DynamicResource AccentBrush}"
                         Click="LoadBuildingsButton_Click"
                         ToolTip="Read the current buildings from the village and refresh the buildings list with their slots and levels." />
                 <Button Content="Upgrade all to max"
                         Width="136"
                         Height="28"
                         Margin="6,0,0,0"
-                        Background="#FCD34D"
-                        Foreground="#1F2937"
-                        BorderBrush="#F59E0B"
+                        Background="{DynamicResource WarningButtonBgBrush}"
+                        Foreground="{DynamicResource OnWarningBrush}"
+                        BorderBrush="{DynamicResource WarningBorderBrush}"
                         ToolTip="Queues upgrades for all buildings until each one reaches its maximum level."
                         Click="UpgradeAllBuildingsToMaxButton_Click" />
             </StackPanel>

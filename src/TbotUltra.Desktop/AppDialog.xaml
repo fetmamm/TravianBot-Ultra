@@ -1,6 +1,7 @@
 <Window x:Class="TbotUltra.Desktop.AppDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Background="{DynamicResource AppBackgroundBrush}"
         Title="Dialog"
         SizeToContent="Height"
         Width="460"
@@ -30,14 +31,14 @@
                     Height="34"
                     CornerRadius="17"
                     VerticalAlignment="Top"
-                    Background="#E5E7EB">
+                    Background="{DynamicResource ControlBackgroundBrush}">
                 <TextBlock x:Name="IconTextBlock"
                            Text="i"
                            FontSize="18"
                            FontWeight="Bold"
                            VerticalAlignment="Center"
                            HorizontalAlignment="Center"
-                           Foreground="#1F2937" />
+                           Foreground="{DynamicResource OnWarningBrush}" />
             </Border>
 
             <ContentControl Grid.Column="2"
@@ -45,7 +46,7 @@
                             VerticalAlignment="Top">
                 <TextBlock x:Name="MessageTextBlock"
                            TextWrapping="Wrap"
-                           Foreground="#111827"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
                            FontSize="14" />
             </ContentControl>
         </Grid>

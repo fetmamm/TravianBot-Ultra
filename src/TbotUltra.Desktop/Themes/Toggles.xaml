@@ -7,7 +7,7 @@
         <Setter Property="Padding" Value="0" />
         <Setter Property="Margin" Value="0" />
         <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="Background" Value="#E5E7EB" />
+        <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Template">
@@ -17,14 +17,14 @@
                         <Border x:Name="Track"
                                 Background="{TemplateBinding Background}"
                                 CornerRadius="12"
-                                BorderBrush="#CBD5E1"
+                                BorderBrush="{DynamicResource ToggleTrackBorderBrush}"
                                 BorderThickness="1" />
                         <Ellipse x:Name="Thumb"
                                  Width="18"
                                  Height="18"
                                  Margin="2"
-                                 Fill="#FFFFFF"
-                                 Stroke="#D1D5DB"
+                                 Fill="{DynamicResource ThumbBrush}"
+                                 Stroke="{DynamicResource ThumbStrokeBrush}"
                                  StrokeThickness="1"
                                  HorizontalAlignment="Left">
                             <Ellipse.Effect>
@@ -37,35 +37,35 @@
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Track" Property="Background" Value="#030826" />
-                            <Setter TargetName="Track" Property="BorderBrush" Value="#030826" />
+                            <Setter TargetName="Track" Property="Background" Value="{DynamicResource AccentBrush}" />
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                             <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right" />
-                            <Setter TargetName="Thumb" Property="Stroke" Value="#E5E7EB" />
+                            <Setter TargetName="Thumb" Property="Stroke" Value="{DynamicResource ThumbStrokeOnBrush}" />
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Track" Property="BorderBrush" Value="#94A3B8" />
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource BorderHoverBrush}" />
                         </Trigger>
                         <MultiTrigger>
                             <MultiTrigger.Conditions>
                                 <Condition Property="IsMouseOver" Value="True" />
                                 <Condition Property="IsChecked" Value="True" />
                             </MultiTrigger.Conditions>
-                            <Setter TargetName="Track" Property="Background" Value="#111827" />
-                            <Setter TargetName="Track" Property="BorderBrush" Value="#111827" />
+                            <Setter TargetName="Track" Property="Background" Value="{DynamicResource AccentHoverBrush}" />
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource AccentHoverBrush}" />
                         </MultiTrigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Track" Property="Background" Value="#D1D5DB" />
+                            <Setter TargetName="Track" Property="Background" Value="{DynamicResource PressedTrackBrush}" />
                         </Trigger>
                         <MultiTrigger>
                             <MultiTrigger.Conditions>
                                 <Condition Property="IsPressed" Value="True" />
                                 <Condition Property="IsChecked" Value="True" />
                             </MultiTrigger.Conditions>
-                            <Setter TargetName="Track" Property="Background" Value="#1F2937" />
-                            <Setter TargetName="Track" Property="BorderBrush" Value="#1F2937" />
+                            <Setter TargetName="Track" Property="Background" Value="{DynamicResource AccentPressedBrush}" />
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource AccentPressedBrush}" />
                         </MultiTrigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Track" Property="BorderBrush" Value="#2563EB" />
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource FocusBorderBrush}" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Track" Property="Opacity" Value="0.55" />
@@ -84,7 +84,8 @@
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
-        <Setter Property="Background" Value="#E5E7EB" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="CheckBox">
@@ -93,14 +94,14 @@
                             <Border x:Name="Track"
                                     Background="{TemplateBinding Background}"
                                     CornerRadius="10"
-                                    BorderBrush="#CBD5E1"
+                                    BorderBrush="{DynamicResource ToggleTrackBorderBrush}"
                                     BorderThickness="1" />
                             <Ellipse x:Name="Thumb"
                                      Width="14"
                                      Height="14"
                                      Margin="3"
-                                     Fill="#FFFFFF"
-                                     Stroke="#D1D5DB"
+                                     Fill="{DynamicResource ThumbBrush}"
+                                     Stroke="{DynamicResource ThumbStrokeBrush}"
                                      StrokeThickness="1"
                                      HorizontalAlignment="Left">
                                 <Ellipse.Effect>
@@ -119,24 +120,24 @@
                     </StackPanel>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Track" Property="Background" Value="#030826" />
-                            <Setter TargetName="Track" Property="BorderBrush" Value="#030826" />
+                            <Setter TargetName="Track" Property="Background" Value="{DynamicResource AccentBrush}" />
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                             <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right" />
-                            <Setter TargetName="Thumb" Property="Stroke" Value="#E5E7EB" />
+                            <Setter TargetName="Thumb" Property="Stroke" Value="{DynamicResource ThumbStrokeOnBrush}" />
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Track" Property="BorderBrush" Value="#94A3B8" />
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource BorderHoverBrush}" />
                         </Trigger>
                         <MultiTrigger>
                             <MultiTrigger.Conditions>
                                 <Condition Property="IsMouseOver" Value="True" />
                                 <Condition Property="IsChecked" Value="True" />
                             </MultiTrigger.Conditions>
-                            <Setter TargetName="Track" Property="Background" Value="#111827" />
-                            <Setter TargetName="Track" Property="BorderBrush" Value="#111827" />
+                            <Setter TargetName="Track" Property="Background" Value="{DynamicResource AccentHoverBrush}" />
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource AccentHoverBrush}" />
                         </MultiTrigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Track" Property="BorderBrush" Value="#2563EB" />
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource FocusBorderBrush}" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Track" Property="Opacity" Value="0.55" />

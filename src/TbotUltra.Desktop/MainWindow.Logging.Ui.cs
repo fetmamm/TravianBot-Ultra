@@ -149,7 +149,7 @@ public partial class MainWindow
 
         if (hasAlarms)
         {
-            LogsNavButton.Background = new SolidColorBrush(Color.FromRgb(220, 38, 38));
+            LogsNavButton.Background = new SolidColorBrush(ThemeColors.Get("DangerBrush"));
             LogsNavButton.Foreground = Brushes.White;
             LogsNavButton.ToolTip = $"Logs ({_unacknowledgedAlarmCount} alarms)";
             AlarmTabItem.Foreground = Brushes.White;
@@ -159,8 +159,8 @@ public partial class MainWindow
         }
         else
         {
-            LogsNavButton.Background = new SolidColorBrush(Color.FromRgb(243, 244, 246));
-            LogsNavButton.Foreground = new SolidColorBrush(Color.FromRgb(17, 24, 39));
+            LogsNavButton.Background = new SolidColorBrush(ThemeColors.Get("AppBackgroundBrush"));
+            LogsNavButton.Foreground = new SolidColorBrush(ThemeColors.Get("TextPrimaryBrush"));
             LogsNavButton.ToolTip = "Logs";
             AlarmTabItem.ClearValue(Control.ForegroundProperty);
             AlarmTabItem.ClearValue(Control.FontWeightProperty);
@@ -182,9 +182,9 @@ public partial class MainWindow
     {
         if (highlighted)
         {
-            AcknowledgeAlarmButton.Background = new SolidColorBrush(Color.FromRgb(220, 38, 38));
+            AcknowledgeAlarmButton.Background = new SolidColorBrush(ThemeColors.Get("DangerBrush"));
             AcknowledgeAlarmButton.Foreground = Brushes.White;
-            AcknowledgeAlarmButton.BorderBrush = new SolidColorBrush(Color.FromRgb(185, 28, 28));
+            AcknowledgeAlarmButton.BorderBrush = new SolidColorBrush(ThemeColors.Get("DangerStrongBrush"));
             return;
         }
 
@@ -472,8 +472,8 @@ public partial class MainWindow
         var popupTab = new TabControl();
         var popupLogList = new ListBox
         {
-            Background = new SolidColorBrush(Color.FromRgb(2, 6, 23)),
-            Foreground = new SolidColorBrush(Color.FromRgb(147, 197, 253)),
+            Background = new SolidColorBrush(ThemeColors.Get("TerminalBgBrush")),
+            Foreground = new SolidColorBrush(ThemeColors.Get("TerminalFgBrush")),
             BorderThickness = new Thickness(0),
             FontFamily = new FontFamily("Consolas"),
             FontSize = 13,
@@ -489,7 +489,7 @@ public partial class MainWindow
         popupLogList.ItemTemplate.VisualTree.SetValue(TextBlock.TextWrappingProperty, TextWrapping.Wrap);
         var popupAlarmList = new ListBox
         {
-            Background = new SolidColorBrush(Color.FromRgb(17, 13, 13)),
+            Background = new SolidColorBrush(ThemeColors.Get("AlarmBgBrush")),
             BorderThickness = new Thickness(0),
             FontFamily = new FontFamily("Consolas"),
             FontSize = 13,
@@ -506,14 +506,14 @@ public partial class MainWindow
         popupAlarmList.ItemTemplate.VisualTree.SetBinding(TextBlock.TextProperty, new Binding(nameof(AlarmEntryRow.Text)));
         popupAlarmList.ItemTemplate.VisualTree.SetValue(TextBlock.TextWrappingProperty, TextWrapping.Wrap);
         var popupAlarmStyle = new Style(typeof(TextBlock));
-        popupAlarmStyle.Setters.Add(new Setter(TextBlock.ForegroundProperty, new SolidColorBrush(Color.FromRgb(252, 165, 165))));
+        popupAlarmStyle.Setters.Add(new Setter(TextBlock.ForegroundProperty, new SolidColorBrush(ThemeColors.Get("AlarmTextBrush"))));
         popupAlarmStyle.Triggers.Add(new DataTrigger
         {
             Binding = new Binding(nameof(AlarmEntryRow.IsAcknowledged)),
             Value = true,
             Setters =
             {
-                new Setter(TextBlock.ForegroundProperty, new SolidColorBrush(Color.FromRgb(147, 197, 253))),
+                new Setter(TextBlock.ForegroundProperty, new SolidColorBrush(ThemeColors.Get("TerminalFgBrush"))),
             }
         });
         popupAlarmList.ItemTemplate.VisualTree.SetValue(TextBlock.StyleProperty, popupAlarmStyle);

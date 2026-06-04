@@ -1,6 +1,7 @@
 <Window x:Class="TbotUltra.Desktop.BulkSavePageHtmlWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Background="{DynamicResource AppBackgroundBrush}"
         xmlns:views="clr-namespace:TbotUltra.Desktop.Views"
         Title="Bulk save HTML"
         Height="520"
@@ -24,12 +25,12 @@
                        Text="Bulk save page HTML"
                        FontSize="16"
                        FontWeight="SemiBold"
-                       Foreground="#111827"
+                       Foreground="{DynamicResource TextPrimaryBrush}"
                        Margin="0,0,0,8" />
 
             <TextBlock Grid.Row="1"
                        TextWrapping="Wrap"
-                       Foreground="#374151"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
                        Margin="0,0,0,12"
                        Text="Select pages to visit and save. Each selected row is opened in order and saved to the DOM folder using the page name." />
 
@@ -89,7 +90,7 @@
                             Click="ClearFolderButton_Click" />
                     <TextBlock x:Name="StatusTextBlock"
                                VerticalAlignment="Center"
-                               Foreground="#2563EB"
+                               Foreground="{DynamicResource InfoBrush}"
                                Margin="10,0,0,0" />
                 </StackPanel>
             </StackPanel>
@@ -101,8 +102,8 @@
                 <Button x:Name="SaveButton"
                         Width="100"
                         Margin="0,0,8,0"
-                        Background="#030826"
-                        BorderBrush="#030826"
+                        Background="{DynamicResource AccentBrush}"
+                        BorderBrush="{DynamicResource AccentBrush}"
                         Foreground="White"
                         FontWeight="SemiBold"
                         Content="Bulk save HTML"

@@ -104,7 +104,7 @@ public partial class CatapultWaveWindow : Window
                 Text = troopType,
                 Margin = new Thickness(0, i == 0 ? 0 : 6, 8, 0),
                 VerticalAlignment = VerticalAlignment.Center,
-                Foreground = new SolidColorBrush(Color.FromRgb(17, 24, 39)),
+                Foreground = new SolidColorBrush(ThemeColors.Get("TextPrimaryBrush")),
             };
 
             label.Inlines.Clear();
@@ -223,7 +223,7 @@ public partial class CatapultWaveWindow : Window
         {
             Text = "Start catapult waves?",
             FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(17, 24, 39)),
+            Foreground = new SolidColorBrush(ThemeColors.Get("TextPrimaryBrush")),
             Margin = new Thickness(0, 0, 0, 10),
         });
         content.Children.Add(CreateSummaryText($"Target: ({request.X}|{request.Y})"));
@@ -248,7 +248,7 @@ public partial class CatapultWaveWindow : Window
         {
             Text = text,
             TextWrapping = TextWrapping.Wrap,
-            Foreground = new SolidColorBrush(Color.FromRgb(17, 24, 39)),
+            Foreground = new SolidColorBrush(ThemeColors.Get("TextPrimaryBrush")),
             Margin = new Thickness(0, 0, 0, 6),
         };
     }
@@ -378,13 +378,13 @@ public partial class CatapultWaveWindow : Window
     private void RefreshRallyPointLevelText()
     {
         RallyPointLevelTextBlock.Inlines.Clear();
-        RallyPointLevelTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(75, 85, 99));
+        RallyPointLevelTextBlock.Foreground = new SolidColorBrush(ThemeColors.Get("TextMutedBrush"));
         RallyPointLevelTextBlock.Inlines.Add(new Run("Rallypoint level: "));
         RallyPointLevelTextBlock.Inlines.Add(new Run(_rallyPointLevel?.ToString() ?? "-")
         {
             Foreground = new SolidColorBrush(_rallyPointLevel == 20
-                ? Color.FromRgb(217, 119, 6)
-                : Color.FromRgb(75, 85, 99)),
+                ? ThemeColors.Get("AmberBrush")
+                : ThemeColors.Get("TextMutedBrush")),
         });
     }
 
@@ -434,8 +434,8 @@ public partial class CatapultWaveWindow : Window
                 var canFillMore = remaining > current;
                 firstAmountRun.Text = $"({FormatLargeCount(remaining)})";
                 firstAmountRun.Foreground = new SolidColorBrush(canFillMore
-                    ? Color.FromRgb(5, 150, 105)
-                    : Color.FromRgb(107, 114, 128));
+                    ? ThemeColors.Get("EmeraldBrush")
+                    : ThemeColors.Get("TextSubtleBrush"));
                 firstAmountRun.FontWeight = remaining > 0 ? FontWeights.SemiBold : FontWeights.Normal;
 
                 if (_firstAttackAmountLinks.TryGetValue(troopType, out var link))
@@ -451,8 +451,8 @@ public partial class CatapultWaveWindow : Window
                 var hasWaveTroops = waveTotal > 0;
                 waveAmountRun.Text = $"({FormatLargeCount(waveTotal)})";
                 waveAmountRun.Foreground = new SolidColorBrush(hasWaveTroops
-                    ? Color.FromRgb(5, 150, 105)
-                    : Color.FromRgb(107, 114, 128));
+                    ? ThemeColors.Get("EmeraldBrush")
+                    : ThemeColors.Get("TextSubtleBrush"));
                 waveAmountRun.FontWeight = hasWaveTroops ? FontWeights.SemiBold : FontWeights.Normal;
             }
         }
@@ -659,8 +659,8 @@ public partial class CatapultWaveWindow : Window
     private static void UpdateZeroDefaultTextBoxForeground(TextBox input)
     {
         input.Foreground = !input.IsKeyboardFocusWithin && input.Text.Trim() == "0"
-            ? new SolidColorBrush(Color.FromRgb(156, 163, 175))
-            : new SolidColorBrush(Color.FromRgb(17, 24, 39));
+            ? new SolidColorBrush(ThemeColors.Get("BorderMutedBrush"))
+            : new SolidColorBrush(ThemeColors.Get("TextPrimaryBrush"));
     }
 
     #endregion
@@ -700,8 +700,8 @@ public partial class CatapultWaveWindow : Window
 
         StatusTextBlock.Text = status;
         StatusTextBlock.Foreground = isAlarm
-            ? new SolidColorBrush(Color.FromRgb(153, 27, 27))
-            : new SolidColorBrush(Color.FromRgb(55, 65, 81));
+            ? new SolidColorBrush(ThemeColors.Get("DangerTextBrush"))
+            : new SolidColorBrush(ThemeColors.Get("TextSecondaryBrush"));
 
         // Mirror live progress into the busy overlay so the user sees what's happening there too.
         if (!isAlarm && BusyOverlay.IsBusy)

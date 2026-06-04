@@ -13,8 +13,10 @@
     </UserControl.Resources>
 
     <!-- Dark scrim captures all clicks so the only available action during the operation is Cancel. -->
-    <Border Background="#CC111827">
-        <Border Background="White"
+    <Border Background="{DynamicResource OverlayScrimBrush}">
+        <Border Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1"
                 CornerRadius="10"
                 Padding="30,26"
                 HorizontalAlignment="Center"
@@ -24,13 +26,13 @@
                 <TextBlock Text="{Binding Title, ElementName=RootControl}"
                            FontSize="16"
                            FontWeight="SemiBold"
-                           Foreground="#111827"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
                            HorizontalAlignment="Center"
                            Margin="0,0,0,12" />
                 <ProgressBar IsIndeterminate="True" Width="260" Height="6" Margin="0,0,0,14" />
                 <TextBlock Text="{Binding Text, ElementName=RootControl}"
                            FontSize="13"
-                           Foreground="#374151"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
                            TextWrapping="Wrap"
                            TextAlignment="Center"
                            MaxWidth="360"

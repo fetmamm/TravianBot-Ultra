@@ -6,6 +6,13 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Themes/Palette.xaml" />
+                <ResourceDictionary Source="Themes/BaseControls.xaml" />
+                <ResourceDictionary Source="Themes/Inputs.xaml" />
+                <ResourceDictionary Source="Themes/ScrollBars.xaml" />
+                <ResourceDictionary Source="Themes/Buttons.xaml" />
+                <ResourceDictionary Source="Themes/Toggles.xaml" />
+                <ResourceDictionary Source="Themes/Badges.xaml" />
                 <ResourceDictionary Source="Themes/Tooltips.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>

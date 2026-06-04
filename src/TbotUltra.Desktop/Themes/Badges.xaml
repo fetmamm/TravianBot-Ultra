@@ -7,9 +7,9 @@
         <Style.Triggers>
             <DataTrigger Binding="{Binding IsMaxLevel}" Value="True">
                 <Setter Property="IsEnabled" Value="False" />
-                <Setter Property="Foreground" Value="#6B7280" />
-                <Setter Property="Background" Value="#E5E7EB" />
-                <Setter Property="BorderBrush" Value="#9CA3AF" />
+                <Setter Property="Foreground" Value="{DynamicResource TextDisabledBrush}" />
+                <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource BorderMutedBrush}" />
                 <Setter Property="Opacity" Value="0.85" />
             </DataTrigger>
         </Style.Triggers>
@@ -29,13 +29,13 @@
                     <Border Width="14"
                             Height="14"
                             CornerRadius="7"
-                            Background="#E5E7EB"
-                            BorderBrush="#D1D5DB"
+                            Background="{DynamicResource ControlBackgroundBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
                             BorderThickness="1">
                         <TextBlock Text="i"
                                    FontSize="10"
                                    FontWeight="SemiBold"
-                                   Foreground="#4B5563"
+                                   Foreground="{DynamicResource TextMutedBrush}"
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center"
                                    TextAlignment="Center" />
