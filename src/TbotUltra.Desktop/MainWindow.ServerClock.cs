@@ -57,7 +57,7 @@ public partial class MainWindow
 
     private void UpdateClockText()
     {
-        ClockTextBlock.Text = $"Time: {GetServerNow():yyyy-MM-dd HH:mm:ss}";
+        ClockTextBlock.Text = $"{GetServerNow():yyyy-MM-dd HH:mm:ss}";
     }
 
     private string FormatQueueServerTime(DateTimeOffset utcTimestamp)

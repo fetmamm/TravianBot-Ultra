@@ -586,6 +586,7 @@ public partial class MainWindow : Window
         UpdateClockText();
         RefreshAccountPicker();
         SyncServerFromActiveAccount();
+        UpdateCaptchaCardVisibility();
 
         var options = ApplySelectedVillageToOptions(LoadBotOptions());
         var storedAutoCelebration = TryGetStoredAutoCelebrationPreference();
@@ -805,7 +806,7 @@ public partial class MainWindow : Window
         PopulateBuildingsTab(status);
 
         BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"active village '{status.ActiveVillage}'");
-        TribeInfoTextBlock.Text = $"Tribe: {status.Tribe}";
+        TribeInfoTextBlock.Text = $"{status.Tribe}";
         VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
         SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage);
         UpdateInboxButtons(snapshot.InboxStatus.UnreadMessages, snapshot.InboxStatus.UnreadReports);
@@ -1242,13 +1243,13 @@ public partial class MainWindow : Window
         UpdateActiveVillageResourceMaxLevel(status);
         _resourcesViewModel.ApplyStorageForecasts(status);
         VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
-        TribeInfoTextBlock.Text = $"Tribe: {status.Tribe}";
+        TribeInfoTextBlock.Text = $"{status.Tribe}";
         ApplyTroopTrainingTribeState(status.Tribe);
         LastScanInfoTextBlock.Text = $"Last scan: {GetServerNow():HH:mm:ss}";
         var capitalText = status.IsCapital == true ? "Yes" : status.IsCapital == false ? "No" : "Unknown";
         var goldText = status.Gold?.ToString() ?? "-";
         var silverText = status.Silver?.ToString() ?? "-";
-        SetGoldSilverStatusText(ServerResourcesTextBlock, goldText, silverText);
+        SetGoldSilverStatusText(ServerResourcesTextBlock, SilverInfoTextBlock, goldText, silverText);
 
         _buildQueueActiveCount = status.ActiveBuildCount;
         _buildQueueRemainingSeconds = status.BuildQueueRemainingSeconds ?? -1;

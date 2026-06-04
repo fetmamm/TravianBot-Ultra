@@ -235,57 +235,128 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
+            <!-- Topbar: each metric in its own card (label on top, value below).
+                 Session + Time stay left; the rest are right-aligned with a gap between. -->
             <Grid Grid.Row="0" Margin="0,0,0,8">
+                <Grid.Resources>
+                    <Style x:Key="MetricCard" TargetType="Border">
+                        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtleBrush}" />
+                        <Setter Property="BorderThickness" Value="1" />
+                        <Setter Property="CornerRadius" Value="8" />
+                        <Setter Property="Padding" Value="11,6" />
+                        <Setter Property="Margin" Value="0,0,8,0" />
+                        <Setter Property="MinWidth" Value="78" />
+                        <Setter Property="VerticalAlignment" Value="Stretch" />
+                    </Style>
+                    <Style x:Key="MetricLabel" TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
+                        <Setter Property="FontSize" Value="11" />
+                        <Setter Property="Margin" Value="0,0,0,3" />
+                    </Style>
+                    <Style x:Key="MetricValue" TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                        <Setter Property="FontSize" Value="15" />
+                        <Setter Property="FontWeight" Value="SemiBold" />
+                        <Setter Property="VerticalAlignment" Value="Center" />
+                    </Style>
+                </Grid.Resources>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <Border Grid.Column="0"
-                        x:Name="SessionPacingBorder"
-                        Background="{DynamicResource SurfaceBrush}"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="10"
-                        Margin="0,0,8,0">
-                    <!-- Fixed height keeps the box (and topbar) from growing taller when the Run now
-                         button appears during sleep; it can still grow wider via the Auto column. -->
-                    <StackPanel Orientation="Horizontal" Height="20" VerticalAlignment="Center">
-                        <TextBlock x:Name="SessionPacingStatusTextBlock"
-                                   Text="Session pacing"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                   VerticalAlignment="Center" />
-                        <Button x:Name="SessionPacingRunNowButton"
-                                Content="Run now"
-                                Margin="8,0,0,0"
-                                Padding="6,0"
-                                Height="20"
-                                MinHeight="0"
-                                FontSize="11"
-                                VerticalAlignment="Center"
-                                Visibility="Collapsed"
-                                Click="SessionPacingRunNowButton_Click" />
-                    </StackPanel>
-                </Border>
+                <!-- Left group: Session + Time -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <!-- Session pacing / Next sleep (background pulses via code) -->
+                    <Border x:Name="SessionPacingBorder" Style="{StaticResource MetricCard}" MinWidth="150">
+                        <StackPanel>
+                            <TextBlock Text="Session" Style="{StaticResource MetricLabel}" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock x:Name="SessionPacingStatusTextBlock"
+                                           Text="Session pacing"
+                                           Style="{StaticResource MetricValue}"
+                                           FontSize="13"
+                                           VerticalAlignment="Center" />
+                                <Button x:Name="SessionPacingRunNowButton"
+                                        Content="Run now"
+                                        Margin="8,0,0,0"
+                                        Padding="6,0"
+                                        Height="20"
+                                        MinHeight="0"
+                                        FontSize="11"
+                                        VerticalAlignment="Center"
+                                        Visibility="Collapsed"
+                                        Click="SessionPacingRunNowButton_Click" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
 
-                <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="10">
-                    <DockPanel>
-                        <TextBlock x:Name="BrowserInfoTextBlock" Text="Browser: idle" Visibility="Collapsed" />
-                        <TextBlock x:Name="ClockTextBlock" Text="Time: -" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0" DockPanel.Dock="Left" />
-                        <TextBlock x:Name="TribeInfoTextBlock" Text="Tribe: -" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0" DockPanel.Dock="Right" />
-                        <TextBlock Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0" DockPanel.Dock="Right">
-                            <Run Text="Plus: " /><Run x:Name="PlusInfoTextBlock" Text="-" />
-                        </TextBlock>
-                        <TextBlock Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0" DockPanel.Dock="Right">
-                            <Run Text="Goldclub: " /><Run x:Name="GoldClubInfoTextBlock" Text="-" />
-                        </TextBlock>
-                        <TextBlock x:Name="ServerResourcesTextBlock" Text="Gold: - | Silver: -" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0" DockPanel.Dock="Right" />
-                        <TextBlock x:Name="CaptchaStatsTextBlock" Text="Captchas solved: 0/0" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0" DockPanel.Dock="Right" />
-                        <TextBlock x:Name="NpcTradeSessionStatsTextBlock" Text="Gold spent: 0" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0" DockPanel.Dock="Right" />
-                        <TextBlock x:Name="StatusTextBlock" Text="Ready." Visibility="Collapsed" />
-                    </DockPanel>
-                </Border>
+                    <Border Style="{StaticResource MetricCard}" MinWidth="150">
+                        <StackPanel>
+                            <TextBlock Text="Time" Style="{StaticResource MetricLabel}" />
+                            <TextBlock x:Name="ClockTextBlock" Text="-" Style="{StaticResource MetricValue}" FontSize="13" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Right group: everything else, right-aligned -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Border Style="{StaticResource MetricCard}">
+                        <StackPanel>
+                            <TextBlock Text="Gold spent" Style="{StaticResource MetricLabel}" />
+                            <TextBlock x:Name="NpcTradeSessionStatsTextBlock" Text="0" Style="{StaticResource MetricValue}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Captchas only relevant on SS-Travi; shown/hidden in code via UpdateCaptchaCardVisibility. -->
+                    <Border x:Name="CaptchaStatsCard" Style="{StaticResource MetricCard}" Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock Text="Captchas solved" Style="{StaticResource MetricLabel}" />
+                            <TextBlock x:Name="CaptchaStatsTextBlock" Text="0/0" Style="{StaticResource MetricValue}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource MetricCard}">
+                        <StackPanel>
+                            <TextBlock Text="Gold" Style="{StaticResource MetricLabel}" />
+                            <TextBlock x:Name="ServerResourcesTextBlock" Text="-" Style="{StaticResource MetricValue}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource MetricCard}">
+                        <StackPanel>
+                            <TextBlock Text="Silver" Style="{StaticResource MetricLabel}" />
+                            <TextBlock x:Name="SilverInfoTextBlock" Text="-" Style="{StaticResource MetricValue}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource MetricCard}">
+                        <StackPanel>
+                            <TextBlock Text="Goldclub" Style="{StaticResource MetricLabel}" />
+                            <TextBlock x:Name="GoldClubInfoTextBlock" Text="-" Style="{StaticResource MetricValue}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource MetricCard}">
+                        <StackPanel>
+                            <TextBlock Text="Plus" Style="{StaticResource MetricLabel}" />
+                            <TextBlock x:Name="PlusInfoTextBlock" Text="-" Style="{StaticResource MetricValue}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource MetricCard}" Margin="0">
+                        <StackPanel>
+                            <TextBlock Text="Tribe" Style="{StaticResource MetricLabel}" />
+                            <TextBlock x:Name="TribeInfoTextBlock" Text="-" Style="{StaticResource MetricValue}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Hidden compatibility controls referenced by existing code-behind. -->
+                    <TextBlock x:Name="BrowserInfoTextBlock" Text="Browser: idle" Visibility="Collapsed" />
+                    <TextBlock x:Name="StatusTextBlock" Text="Ready." Visibility="Collapsed" />
+                </StackPanel>
             </Grid>
 
             <StatusBar Grid.Row="1" Margin="0,0,0,8" Background="{DynamicResource ControlBackgroundBrush}">

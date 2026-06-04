@@ -357,6 +357,7 @@ public partial class MainWindow
             AppendLog($"Active account changed to '{selected.Name}'. Previous session closed and state reset.");
             ResetVillageSelectionUi();
             SyncServerFromActiveAccount();
+            UpdateCaptchaCardVisibility();
             LoadConfigToUi();
 
             if (previousLoggedIn)

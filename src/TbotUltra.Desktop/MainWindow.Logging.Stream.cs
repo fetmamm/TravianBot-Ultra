@@ -933,7 +933,7 @@ public partial class MainWindow
 
     private void UpdateCaptchaStatsUi()
     {
-        CaptchaStatsTextBlock.Text = $"Captchas solved: {_captchaSessionSolvedCount}/{_captchaSessionSeenCount} |";
+        CaptchaStatsTextBlock.Text = $"{_captchaSessionSolvedCount}/{_captchaSessionSeenCount}";
         var solved = _captchaSessionSolvedCount;
         var seen = _captchaSessionSeenCount;
         if (solved > 0 && solved == seen)
@@ -953,7 +953,7 @@ public partial class MainWindow
     private void UpdateNpcTradeStatsUi()
     {
         var goldSpent = _npcTradeSessionCount * NpcTradeGoldCost;
-        SetGoldHighlightedValueText(NpcTradeSessionStatsTextBlock, "Gold spent: ", goldSpent, neutralLabelBrush: NeutralStatsBrush);
+        SetGoldHighlightedValueText(NpcTradeSessionStatsTextBlock, "", goldSpent, neutralLabelBrush: NeutralStatsBrush);
         // The detail-panel TextBlock has its own dark base color (#111827) — preserve that for the
         // label and only swap the value color when it's worth highlighting.
         SetGoldHighlightedValueText(NpcTradeGoldSpentTextBlock, "Gold spent: ", goldSpent, neutralLabelBrush: null);
@@ -966,6 +966,7 @@ public partial class MainWindow
     private static readonly SolidColorBrush GreenHighlightBrush = MakeFrozen(ThemeColors.Get("SuccessBrush"));
     private static readonly SolidColorBrush YellowHighlightBrush = MakeFrozen(ThemeColors.Get("YellowHighlightBrush"));
     private static readonly SolidColorBrush NeutralStatsBrush = MakeFrozen(ThemeColors.Get("TextMutedBrush"));
+    private static readonly SolidColorBrush PrimaryStatsBrush = MakeFrozen(ThemeColors.Get("TextPrimaryBrush"));
 
     private static SolidColorBrush MakeFrozen(Color color)
     {
@@ -1005,20 +1006,26 @@ public partial class MainWindow
     /// Renders "Gold: {goldText} | Silver: {silverText}" with the gold number in gold color when
     /// it's a meaningful positive value.
     /// </summary>
-    internal static void SetGoldSilverStatusText(TextBlock target, string goldText, string silverText)
+    // Topbar Gold and Silver are now separate metric cards, so each value gets its own TextBlock.
+    // Gold turns metallic gold when meaningful; silver uses the primary text color when meaningful.
+    internal static void SetGoldSilverStatusText(TextBlock goldTarget, TextBlock silverTarget, string goldText, string silverText)
+    {
+        SetCurrencyValueText(goldTarget, goldText, GoldHighlightBrush);
+        SetCurrencyValueText(silverTarget, silverText, PrimaryStatsBrush);
+    }
+
+    private static void SetCurrencyValueText(TextBlock target, string text, SolidColorBrush meaningfulBrush)
     {
         target.Inlines.Clear();
-        target.Inlines.Add(new Run("Gold: ") { Foreground = NeutralStatsBrush });
-
-        var goldValueRun = new Run(goldText);
-        var goldIsMeaningful = goldText is not ("-" or "0") && !string.IsNullOrWhiteSpace(goldText);
-        goldValueRun.Foreground = goldIsMeaningful ? GoldHighlightBrush : NeutralStatsBrush;
-        if (goldIsMeaningful)
+        var isMeaningful = text is not ("-" or "0") && !string.IsNullOrWhiteSpace(text);
+        var valueRun = new Run(string.IsNullOrWhiteSpace(text) ? "-" : text)
         {
-            goldValueRun.FontWeight = FontWeights.SemiBold;
+            Foreground = isMeaningful ? meaningfulBrush : NeutralStatsBrush,
+        };
+        if (isMeaningful)
+        {
+            valueRun.FontWeight = FontWeights.SemiBold;
         }
-        target.Inlines.Add(goldValueRun);
-
-        target.Inlines.Add(new Run($" | Silver: {silverText}") { Foreground = NeutralStatsBrush });
+        target.Inlines.Add(valueRun);
     }
 }

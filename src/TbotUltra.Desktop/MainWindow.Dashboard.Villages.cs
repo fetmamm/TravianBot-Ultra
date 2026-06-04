@@ -318,7 +318,7 @@ public partial class MainWindow
 
             BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"selected village '{selectedVillage.Name}'");
 
-            TribeInfoTextBlock.Text = $"Tribe: {status.Tribe}";
+            TribeInfoTextBlock.Text = $"{status.Tribe}";
             VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
             SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage, selectedVillage.Name);
             await RefreshResourceSnapshotForUiAsync(options, operationToken);

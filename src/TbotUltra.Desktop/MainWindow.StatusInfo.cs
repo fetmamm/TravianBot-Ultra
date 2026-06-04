@@ -116,7 +116,7 @@ public partial class MainWindow
         if (tribeMatch.Success)
         {
             var tribe = tribeMatch.Groups[1].Value;
-            TribeInfoTextBlock.Text = $"Tribe: {tribe}";
+            TribeInfoTextBlock.Text = $"{tribe}";
             ApplyTroopTrainingTribeState(tribe);
         }
 
@@ -139,7 +139,7 @@ public partial class MainWindow
 
             var goldText = payload.Gold?.ToString() ?? "-";
             var silverText = payload.Silver?.ToString() ?? "-";
-            SetGoldSilverStatusText(ServerResourcesTextBlock, goldText, silverText);
+            SetGoldSilverStatusText(ServerResourcesTextBlock, SilverInfoTextBlock, goldText, silverText);
 
             if (payload.Villages is { Count: > 0 })
             {

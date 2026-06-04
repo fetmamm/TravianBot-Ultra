@@ -228,6 +228,23 @@ public partial class MainWindow
         }
     }
 
+    // Captchas only happen on SS-Travi servers, so the topbar "Captchas solved" card is shown only
+    // when the active account points at an SS-Travi URL and stays hidden for official servers.
+    private void UpdateCaptchaCardVisibility()
+    {
+        if (CaptchaStatsCard is null)
+        {
+            return;
+        }
+
+        var url = GetActiveAccountServerUrl();
+        var isSsTravi = !string.IsNullOrWhiteSpace(url)
+            && ServerFlavorDetector.FromBaseUrl(url) == ServerFlavor.SsTravi;
+        CaptchaStatsCard.Visibility = isSsTravi
+            ? System.Windows.Visibility.Visible
+            : System.Windows.Visibility.Collapsed;
+    }
+
     private string ExtractServerSpeedLabel()
     {
         try
