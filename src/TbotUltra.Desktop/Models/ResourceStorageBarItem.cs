@@ -16,6 +16,7 @@ public sealed class ResourceStorageBarItem : BaseViewModel
 
     public string ResourceKey { get; init; } = string.Empty;
     public string DisplayName { get; init; } = string.Empty;
+    public string Glyph { get; init; } = string.Empty;
     public Brush BarBrush { get; init; } = Brushes.Gray;
     public Brush TrackBrush { get; init; } = Brushes.LightGray;
 

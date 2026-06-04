@@ -82,6 +82,9 @@
                                 Grid.Column="1"
                                 Margin="3,0,0,0"
                                 Content="Logout"
+                                Background="{DynamicResource DangerStrongBrush}"
+                                Foreground="{DynamicResource OnAccentBrush}"
+                                BorderBrush="{DynamicResource DangerStrongBrush}"
                                 Click="LogoutButton_Click" />
                     </Grid>
                 </Border>
@@ -111,17 +114,50 @@
                 </Border>
 
                 <StackPanel Grid.Row="4">
-                    <Button x:Name="DashboardNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Dashboard" Tag="dashboard" Click="SidebarNavButton_Click" />
-                    <Button x:Name="ResourcesNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Resources" Tag="resources" Click="SidebarNavButton_Click" />
-                    <Button x:Name="BuildingsNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Building" Tag="buildings" Click="SidebarNavButton_Click" />
-                    <Button x:Name="HeroNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Hero / Adventures" Tag="hero" Click="SidebarNavButton_Click" />
-                    <Button x:Name="FarmingNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Farming" Tag="farming" Click="SidebarNavButton_Click" />
-                    <Button x:Name="TroopsNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Troops" Tag="troops" Click="SidebarNavButton_Click" />
-                    <Button x:Name="ReinforcementsNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Send Troops" Tag="reinforcements" Click="SidebarNavButton_Click" />
-                    <Button x:Name="NpcTradeNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="NPC / Trade" Tag="npc_trade" Click="SidebarNavButton_Click" />
-                    <Button x:Name="QueueNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Queue" Tag="queue" Click="SidebarNavButton_Click" />
-                    <Button x:Name="LogsNavButton" Style="{StaticResource SidebarNavButtonStyle}" Content="Logs" Tag="logs" Click="SidebarNavButton_Click" />
-                    <Button x:Name="InboxNavButton" Content="Messages / Reports" Tag="inbox" Click="SidebarNavButton_Click"
+                    <!-- Monochrome line icons (Segoe MDL2 Assets) per the reference; tinted with the
+                         button's own foreground. Glyph codepoints can be swapped freely if one looks off. -->
+                    <StackPanel.Resources>
+                        <Style x:Key="NavIcon" TargetType="TextBlock">
+                            <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+                            <Setter Property="FontSize" Value="15" />
+                            <Setter Property="Width" Value="24" />
+                            <Setter Property="VerticalAlignment" Value="Center" />
+                        </Style>
+                        <Style x:Key="NavText" TargetType="TextBlock">
+                            <Setter Property="VerticalAlignment" Value="Center" />
+                        </Style>
+                    </StackPanel.Resources>
+                    <Button x:Name="DashboardNavButton" Style="{StaticResource SidebarNavButtonStyle}" Tag="dashboard" Click="SidebarNavButton_Click">
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource NavIcon}" Text="&#xE80F;" /><TextBlock Style="{StaticResource NavText}" Text="Dashboard" /></StackPanel>
+                    </Button>
+                    <Button x:Name="ResourcesNavButton" Style="{StaticResource SidebarNavButtonStyle}" Tag="resources" Click="SidebarNavButton_Click">
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource NavIcon}" Text="&#xE8F1;" /><TextBlock Style="{StaticResource NavText}" Text="Resources" /></StackPanel>
+                    </Button>
+                    <Button x:Name="BuildingsNavButton" Style="{StaticResource SidebarNavButtonStyle}" Tag="buildings" Click="SidebarNavButton_Click">
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource NavIcon}" Text="&#xE825;" /><TextBlock Style="{StaticResource NavText}" Text="Building" /></StackPanel>
+                    </Button>
+                    <Button x:Name="HeroNavButton" Style="{StaticResource SidebarNavButtonStyle}" Tag="hero" Click="SidebarNavButton_Click">
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource NavIcon}" Text="&#xE77B;" /><TextBlock Style="{StaticResource NavText}" Text="Hero / Adventures" /></StackPanel>
+                    </Button>
+                    <Button x:Name="FarmingNavButton" Style="{StaticResource SidebarNavButtonStyle}" Tag="farming" Click="SidebarNavButton_Click">
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource NavIcon}" Text="&#xE7C1;" /><TextBlock Style="{StaticResource NavText}" Text="Farming" /></StackPanel>
+                    </Button>
+                    <Button x:Name="TroopsNavButton" Style="{StaticResource SidebarNavButtonStyle}" Tag="troops" Click="SidebarNavButton_Click">
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource NavIcon}" Text="&#xE716;" /><TextBlock Style="{StaticResource NavText}" Text="Troops" /></StackPanel>
+                    </Button>
+                    <Button x:Name="ReinforcementsNavButton" Style="{StaticResource SidebarNavButtonStyle}" Tag="reinforcements" Click="SidebarNavButton_Click">
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource NavIcon}" Text="&#xE724;" /><TextBlock Style="{StaticResource NavText}" Text="Send Troops" /></StackPanel>
+                    </Button>
+                    <Button x:Name="NpcTradeNavButton" Style="{StaticResource SidebarNavButtonStyle}" Tag="npc_trade" Click="SidebarNavButton_Click">
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource NavIcon}" Text="&#xE719;" /><TextBlock Style="{StaticResource NavText}" Text="NPC / Trade" /></StackPanel>
+                    </Button>
+                    <Button x:Name="QueueNavButton" Style="{StaticResource SidebarNavButtonStyle}" Tag="queue" Click="SidebarNavButton_Click">
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource NavIcon}" Text="&#xE8FD;" /><TextBlock Style="{StaticResource NavText}" Text="Queue" /></StackPanel>
+                    </Button>
+                    <Button x:Name="LogsNavButton" Style="{StaticResource SidebarNavButtonStyle}" Tag="logs" Click="SidebarNavButton_Click">
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource NavIcon}" Text="&#xE7C3;" /><TextBlock Style="{StaticResource NavText}" Text="Logs" /></StackPanel>
+                    </Button>
+                    <Button x:Name="InboxNavButton" Tag="inbox" Click="SidebarNavButton_Click"
                             ToolTip="{Binding InboxVm.NavTooltip, ElementName=RootWindow}">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource SidebarNavButtonStyle}">
@@ -133,6 +169,7 @@
                                 </Style.Triggers>
                             </Style>
                         </Button.Style>
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource NavIcon}" Text="&#xE715;" /><TextBlock Style="{StaticResource NavText}" Text="Messages / Reports" /></StackPanel>
                     </Button>
                 </StackPanel>
 
@@ -260,6 +297,12 @@
                         <Setter Property="FontWeight" Value="SemiBold" />
                         <Setter Property="VerticalAlignment" Value="Center" />
                     </Style>
+                    <!-- Colored emoji icon shown before each value (Segoe UI Emoji renders in color). -->
+                    <Style x:Key="MetricIcon" TargetType="TextBlock">
+                        <Setter Property="FontSize" Value="14" />
+                        <Setter Property="Margin" Value="0,0,6,0" />
+                        <Setter Property="VerticalAlignment" Value="Center" />
+                    </Style>
                 </Grid.Resources>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -274,6 +317,7 @@
                         <StackPanel>
                             <TextBlock Text="Session" Style="{StaticResource MetricLabel}" />
                             <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x231B;" Style="{StaticResource MetricIcon}" />
                                 <TextBlock x:Name="SessionPacingStatusTextBlock"
                                            Text="Session pacing"
                                            Style="{StaticResource MetricValue}"
@@ -296,7 +340,10 @@
                     <Border Style="{StaticResource MetricCard}" MinWidth="150">
                         <StackPanel>
                             <TextBlock Text="Time" Style="{StaticResource MetricLabel}" />
-                            <TextBlock x:Name="ClockTextBlock" Text="-" Style="{StaticResource MetricValue}" FontSize="13" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x1F551;" Style="{StaticResource MetricIcon}" />
+                                <TextBlock x:Name="ClockTextBlock" Text="-" Style="{StaticResource MetricValue}" FontSize="13" />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
                 </StackPanel>
@@ -306,7 +353,10 @@
                     <Border Style="{StaticResource MetricCard}">
                         <StackPanel>
                             <TextBlock Text="Gold spent" Style="{StaticResource MetricLabel}" />
-                            <TextBlock x:Name="NpcTradeSessionStatsTextBlock" Text="0" Style="{StaticResource MetricValue}" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x1FA99;" Style="{StaticResource MetricIcon}" />
+                                <TextBlock x:Name="NpcTradeSessionStatsTextBlock" Text="0" Style="{StaticResource MetricValue}" />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 
@@ -314,42 +364,60 @@
                     <Border x:Name="CaptchaStatsCard" Style="{StaticResource MetricCard}" Visibility="Collapsed">
                         <StackPanel>
                             <TextBlock Text="Captchas solved" Style="{StaticResource MetricLabel}" />
-                            <TextBlock x:Name="CaptchaStatsTextBlock" Text="0/0" Style="{StaticResource MetricValue}" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x1F6E1;" Style="{StaticResource MetricIcon}" />
+                                <TextBlock x:Name="CaptchaStatsTextBlock" Text="0/0" Style="{StaticResource MetricValue}" />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 
                     <Border Style="{StaticResource MetricCard}">
                         <StackPanel>
                             <TextBlock Text="Gold" Style="{StaticResource MetricLabel}" />
-                            <TextBlock x:Name="ServerResourcesTextBlock" Text="-" Style="{StaticResource MetricValue}" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x1FA99;" Style="{StaticResource MetricIcon}" />
+                                <TextBlock x:Name="ServerResourcesTextBlock" Text="-" Style="{StaticResource MetricValue}" />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 
                     <Border Style="{StaticResource MetricCard}">
                         <StackPanel>
                             <TextBlock Text="Silver" Style="{StaticResource MetricLabel}" />
-                            <TextBlock x:Name="SilverInfoTextBlock" Text="-" Style="{StaticResource MetricValue}" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x1F948;" Style="{StaticResource MetricIcon}" />
+                                <TextBlock x:Name="SilverInfoTextBlock" Text="-" Style="{StaticResource MetricValue}" />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 
                     <Border Style="{StaticResource MetricCard}">
                         <StackPanel>
                             <TextBlock Text="Goldclub" Style="{StaticResource MetricLabel}" />
-                            <TextBlock x:Name="GoldClubInfoTextBlock" Text="-" Style="{StaticResource MetricValue}" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x1F451;" Style="{StaticResource MetricIcon}" />
+                                <TextBlock x:Name="GoldClubInfoTextBlock" Text="-" Style="{StaticResource MetricValue}" />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 
                     <Border Style="{StaticResource MetricCard}">
                         <StackPanel>
                             <TextBlock Text="Plus" Style="{StaticResource MetricLabel}" />
-                            <TextBlock x:Name="PlusInfoTextBlock" Text="-" Style="{StaticResource MetricValue}" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x2795;" Style="{StaticResource MetricIcon}" />
+                                <TextBlock x:Name="PlusInfoTextBlock" Text="-" Style="{StaticResource MetricValue}" />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 
                     <Border Style="{StaticResource MetricCard}" Margin="0">
                         <StackPanel>
                             <TextBlock Text="Tribe" Style="{StaticResource MetricLabel}" />
-                            <TextBlock x:Name="TribeInfoTextBlock" Text="-" Style="{StaticResource MetricValue}" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#x1FA96;" Style="{StaticResource MetricIcon}" />
+                                <TextBlock x:Name="TribeInfoTextBlock" Text="-" Style="{StaticResource MetricValue}" />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 
@@ -361,7 +429,10 @@
 
             <StatusBar Grid.Row="1" Margin="0,0,0,8" Background="{DynamicResource ControlBackgroundBrush}">
                 <StatusBarItem>
-                    <TextBlock Text="Status" FontWeight="SemiBold" />
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="8" Height="8" Fill="{DynamicResource SuccessBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock Text="Status" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    </StackPanel>
                 </StatusBarItem>
                 <StatusBarItem>
                     <TextBlock x:Name="StatusMiniLogTextBlock" Text="Ready." Foreground="{DynamicResource DataGridCellTextBrush}" />
@@ -431,9 +502,15 @@
                                             <StackPanel>
                                                 <DockPanel LastChildFill="False">
                                                     <TextBlock DockPanel.Dock="Left"
+                                                               Text="{Binding Glyph}"
+                                                               FontSize="14"
+                                                               Margin="0,0,6,0"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBlock DockPanel.Dock="Left"
                                                                Text="{Binding DisplayName}"
                                                                Foreground="{DynamicResource TextSecondaryBrush}"
-                                                               FontWeight="SemiBold" />
+                                                               FontWeight="SemiBold"
+                                                               VerticalAlignment="Center" />
                                                     <TextBlock DockPanel.Dock="Right"
                                                                Text="{Binding PercentText}"
                                                                Foreground="{Binding StatusBrush}"
@@ -1095,9 +1172,13 @@
                                                         CornerRadius="6"
                                                         Background="{Binding TrackBrush}">
                                                     <StackPanel>
-                                                        <TextBlock Text="{Binding DisplayName}"
-                                                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                                                   FontWeight="SemiBold" />
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding Glyph}" FontSize="14" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                                            <TextBlock Text="{Binding DisplayName}"
+                                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                                       FontWeight="SemiBold"
+                                                                       VerticalAlignment="Center" />
+                                                        </StackPanel>
                                                         <TextBlock Text="{Binding ProductionText}"
                                                                    Foreground="{DynamicResource TextPrimaryBrush}"
                                                                    FontSize="16"
