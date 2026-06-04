@@ -725,8 +725,10 @@ public sealed partial class TravianClient
                   // building wrapped in #contract_building{gid}) with no upgrade affordance. Detected
                   // structurally so it is language-independent.
                   const hasConstructChoices = !!document.querySelector('[id^="contract_building"]');
-                  const hasUpgrade = !!document.querySelector('.upgradeButtonsContainer')
-                    || /upgrade\s+to\s+level/i.test(document.body.innerText || '');
+                  // NOTE: do NOT treat `.upgradeButtonsContainer` as an upgrade signal — the construct-choice
+                  // page wraps every constructable building in its own `.upgradeButtonsContainer`, so its mere
+                  // presence is true on empty slots too. Only the real "Upgrade to level N" affordance counts.
+                  const hasUpgrade = /upgrade\s+to\s+level/i.test(document.body.innerText || '');
                   if (hasConstructChoices && !hasUpgrade) {
                     return 'EmptyConstructionSlot';
                   }
@@ -1105,6 +1107,22 @@ public sealed partial class TravianClient
                     return BuildUpgradeResourceBlockedResultMessage(snapshot);
                 }
 
+                // Prerequisites gate: a building that is not yet buildable (e.g. Smithy needs Main Building 3
+                // + Academy 1) has no 'Construct building' button at all — Official lists the missing
+                // prerequisites in span.buildingCondition.error inside this gid's wrapper. Read it from the
+                // already-loaded construct page (no extra navigation) and return a clear, temporary
+                // "cannot be built yet" message instead of a misleading "could not find button" + artifacts.
+                var missingRequirements = await ReadConstructRequirementErrorAsync(gid, cancellationToken);
+                if (!string.IsNullOrWhiteSpace(missingRequirements))
+                {
+                    // Temporary block: the building becomes available once the prerequisites are built.
+                    // Defer with a wait hint so the task re-checks later instead of burning retries or
+                    // being marked permanently blocked.
+                    var waitSeconds = ClampResourceWaitSeconds(null);
+                    Notify($"Slot {slotId}: {buildingName} not buildable yet — missing {missingRequirements}.");
+                    return $"Slot {slotId}: {buildingName} cannot be built yet. Missing requirements: {missingRequirements}. Upgrades performed: 0. queue_wait_seconds={waitSeconds}";
+                }
+
                 await CaptureFailureArtifactsAsync($"construct-slot-{slotId}-gid-{gid}-no-click", cancellationToken);
                 return $"Slot {slotId}: could not find 'Construct building' button for gid {gid}.";
             }
@@ -1301,6 +1319,39 @@ public sealed partial class TravianClient
         {
             Notify($"Could not click construct candidate for gid {gid}: {ex.Message}");
             return false;
+        }
+    }
+
+    /// <summary>
+    /// On the construct-choice page Official renders unmet prerequisites for a building as
+    /// <c>span.buildingCondition.error</c> elements (e.g. "Main Building Level 3") inside that gid's
+    /// <c>#contract_building{gid}</c> wrapper, with no 'Construct building' button. Returns the joined
+    /// requirement text (e.g. "Main Building Level 3, Academy Level 1") or null when none is present.
+    /// </summary>
+    private async Task<string?> ReadConstructRequirementErrorAsync(int gid, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var raw = await _page.EvaluateAsync<string>(
+                """
+                ({ gid }) => {
+                  const clean = (value) => (value || '').replace(/\s+/g, ' ').trim();
+                  const wrapper = document.querySelector(`#contract_building${gid}`);
+                  if (!wrapper) return '';
+                  // A real construct button means it IS buildable — no requirement error to report.
+                  if (wrapper.querySelector('button[value="Construct building"], button.green.new')) return '';
+                  const conditions = Array.from(wrapper.querySelectorAll('.buildingCondition.error'))
+                    .map((node) => clean(node.textContent))
+                    .filter((text) => text.length > 0);
+                  return conditions.join(', ');
+                }
+                """,
+                new { gid });
+            return string.IsNullOrWhiteSpace(raw) ? null : raw.Trim();
+        }
+        catch
+        {
+            return null;
         }
     }
 
@@ -3141,7 +3192,8 @@ public sealed partial class TravianClient
                         const control = element.closest('button, input[type="submit"], input[type="button"], a, div.addHoverClick');
                         const controlText = control ? textOf(control).toLowerCase() : '';
                         const controlClasses = control ? clean(control.className || '').toLowerCase() : '';
-                        const combined = `${text} ${classes} ${controlText} ${controlClasses} ${href} ${formAction}`;
+                        const onclick = `${(element.getAttribute('onclick') || '')} ${(control ? control.getAttribute('onclick') || '' : '')}`.toLowerCase();
+                        const combined = `${text} ${classes} ${controlText} ${controlClasses} ${href} ${formAction} ${onclick}`;
                         const displayText = text || controlText;
                         const disabled = !!(
                           element.disabled
@@ -3155,6 +3207,18 @@ public sealed partial class TravianClient
                         const inOfficialSpeedupSection = !!element.closest('.upgradeButtonsContainer .section2');
                         const isMasterBuilder = combined.includes('master builder') || combined.includes('buildmaster');
                         const isGold = isMasterBuilder || combined.includes('gold') || combined.includes('npc') || combined.includes('instant') || combined.includes('exchange') || combined.includes('sharing resources') || combined.includes('share resources');
+                        // Official payment-wizard decoy: the green "Open shop" button (onclick=openPaymentWizard)
+                        // is not a build control but matches the bare 'green' signal below. Clicking it opens a
+                        // modal whose #dialogOverlay then intercepts all later clicks → upgrade-click timeout loop.
+                        // Match the locale-independent onclick first, then the English text/value as a fallback.
+                        const isPaymentShop = combined.includes('openpaymentwizard') || combined.includes('paymentwizard') || combined.includes('open shop');
+                        // This scanner runs only for upgrades. A "Construct building" control means the slot is
+                        // empty / shows the construction-choice page — never a valid upgrade candidate. Its text
+                        // contains "build", so without this guard it leaks through as a false CanUpgrade. Match on
+                        // the button TEXT only: both construct and upgrade buttons share onclick `action=build`,
+                        // so the action keyword cannot distinguish them — the text ("Construct building" vs
+                        // "Upgrade to level N") is the reliable signal.
+                        const isConstruct = /construct\s+building/i.test(displayText);
                         const isSpeedup = inOfficialSpeedupSection || classes.includes('purple') || controlClasses.includes('purple') || classes.includes('videofeaturebutton') || controlClasses.includes('videofeaturebutton') || combined.includes('videoFeature') || combined.includes('videofeature') || combined.includes('faster');
                         const inUpgradeContainer = !!element.closest('.upgradeBuilding, .contract, .contractWrapper, .build_details, .buildingWrapper, #contract, form[action*="build.php"]');
                         const hasUpgradeSignals =
@@ -3183,7 +3247,7 @@ public sealed partial class TravianClient
                           && !href.includes('action=build')
                           && !formAction.includes('build.php');
 
-                        if (!hasUpgradeSignals || isGold || isSpeedup || looksLikePrimaryNoise || displayText.length === 0) {
+                        if (!hasUpgradeSignals || isGold || isPaymentShop || isConstruct || isSpeedup || looksLikePrimaryNoise || displayText.length === 0) {
                           continue;
                         }
 
@@ -3888,6 +3952,52 @@ public sealed partial class TravianClient
         return ExtractButtonCandidates(html);
     }
 
+    /// <summary>
+    /// C# mirror of the empty-construction-slot heuristic in <see cref="DetectBuildPageStateAsync"/>.
+    /// A slot is empty when the page lists construction choices (<c>id="contract_building*"</c>) but has no
+    /// real "Upgrade to level N" affordance. The construct-choice page reuses <c>.upgradeButtonsContainer</c>
+    /// per building, so that container's presence must NOT count as an upgrade signal.
+    /// </summary>
+    internal static bool IsEmptyConstructionSlotHtmlForTests(string html)
+    {
+        var source = html ?? string.Empty;
+        var hasConstructChoices = Regex.IsMatch(source, @"id=[""']contract_building", RegexOptions.IgnoreCase);
+        var hasUpgrade = Regex.IsMatch(source, @"upgrade\s+to\s+level", RegexOptions.IgnoreCase);
+        return hasConstructChoices && !hasUpgrade;
+    }
+
+    /// <summary>
+    /// C# mirror of <see cref="ReadConstructRequirementErrorAsync"/>. Returns the missing-requirement text
+    /// listed in a building's <c>#contract_building{gid}</c> wrapper (Official's span.buildingCondition.error),
+    /// or null when the building is buildable (has a 'Construct building' button) or has no requirement error.
+    /// </summary>
+    internal static string? ReadConstructRequirementErrorFromHtmlForTests(string html, int gid)
+    {
+        var source = html ?? string.Empty;
+        var startIdx = source.IndexOf($"id=\"contract_building{gid}\"", StringComparison.OrdinalIgnoreCase);
+        if (startIdx < 0)
+        {
+            return null;
+        }
+
+        var nextIdx = source.IndexOf("id=\"contract_building", startIdx + 21, StringComparison.OrdinalIgnoreCase);
+        var wrapper = nextIdx < 0 ? source[startIdx..] : source[startIdx..nextIdx];
+        if (Regex.IsMatch(wrapper, @"value=[""']Construct building[""']", RegexOptions.IgnoreCase))
+        {
+            return null;
+        }
+
+        if (!Regex.IsMatch(wrapper, @"buildingCondition\s+error", RegexOptions.IgnoreCase))
+        {
+            return null;
+        }
+
+        var containerIdx = wrapper.IndexOf("upgradeButtonsContainer", StringComparison.OrdinalIgnoreCase);
+        var conditionsHtml = containerIdx < 0 ? wrapper : wrapper[containerIdx..];
+        var text = CleanHtmlText(Regex.Replace(conditionsHtml, "<[^>]+>", " "));
+        return string.IsNullOrWhiteSpace(text) ? null : text;
+    }
+
     internal static HtmlButtonCandidate? SelectConstructButtonCandidateFromHtmlForTests(string html, int gid)
     {
         var gidText = gid.ToString(CultureInfo.InvariantCulture);
@@ -3981,7 +4091,8 @@ public sealed partial class TravianClient
                 onclick,
                 wrapperGid,
                 HasDisabledAttribute(attrs) || classes.Contains("disabled", StringComparison.OrdinalIgnoreCase),
-                lowerCombined.Contains("gold") || lowerCombined.Contains("npc") || lowerCombined.Contains("instant"),
+                lowerCombined.Contains("gold") || lowerCombined.Contains("npc") || lowerCombined.Contains("instant")
+                    || lowerCombined.Contains("openpaymentwizard") || lowerCombined.Contains("paymentwizard") || lowerCombined.Contains("open shop"),
                 lastSection2 > lastSection1 || lowerCombined.Contains("purple") || lowerCombined.Contains("videofeature") || lowerCombined.Contains("faster"),
                 inPrimary));
         }

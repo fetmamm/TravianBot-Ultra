@@ -87,6 +87,81 @@ public sealed class TravianOfficialConstructionDomTests
             && item.Level == 2);
     }
 
+    [Fact]
+    public void OfficialUpgradeDom_ExcludesGreenOpenShopPaymentDecoy_AndKeepsRealUpgradeButton()
+    {
+        // Regression: on a resource-blocked field the only green control can be the payment-wizard
+        // "Open shop" button. It previously matched the bare 'green' signal, got clicked, opened a
+        // modal whose #dialogOverlay then blocked every later click → upgrade-click timeout loop.
+        // The exact decoy markup is taken from the failing session's Playwright call log (slot 10).
+        const string html = """
+            <div class="upgradeButtonsContainer "><div class="section1">
+              <button type="button" value="Upgrade to level 7" class="textButtonV1 green build" onclick="this.disabled=true; window.location.href='/dorf1.php?a=10&amp;c=33bd4d'; return false;">Upgrade to level 7</button>
+            </div></div>
+            <button type="button" value="Open shop" version="textButtonV1" class="textButtonV1 green " onclick="Travian.React.openPaymentWizard({activeTab: 'advantages'}); return false;">Open shop</button>
+            """;
+
+        var candidates = TravianClient.ExtractButtonCandidatesFromHtmlForTests(html);
+        var openShop = candidates.Single(candidate => candidate.Text.Contains("Open shop", StringComparison.OrdinalIgnoreCase));
+        var selected = TravianClient.SelectUpgradeButtonCandidateFromHtmlForTests(html, nextLevel: 7);
+
+        Assert.True(openShop.IsGold, $"Open shop payment decoy must be excluded. {DescribeCandidates(html)}");
+        Assert.True(selected is not null, DescribeCandidates(html));
+        Assert.Equal("Upgrade to level 7", selected.Text);
+    }
+
+    [Theory]
+    [InlineData("buildingpage_infrastructure.txt")]
+    [InlineData("buildingpage_military.txt")]
+    [InlineData("buildingpage_resources.txt")]
+    [InlineData("construct_new_building_infrastructure.txt")]
+    public void OfficialConstructChoiceDom_IsDetectedAsEmptySlot(string fixture)
+    {
+        // Regression: the construct-choice page wraps every building in its own .upgradeButtonsContainer,
+        // so the old heuristic wrongly saw an "upgrade affordance" and fell through to the upgrade scanner,
+        // which then matched a "Construct building" button as a false CanUpgrade (slot 21 in the session log).
+        var html = ReadDomFixture(fixture);
+
+        Assert.True(TravianClient.IsEmptyConstructionSlotHtmlForTests(html), DescribeCandidates(html));
+        // No genuine "Upgrade to level N" button must be selectable on a construct-choice page.
+        Assert.Null(TravianClient.SelectUpgradeButtonCandidateFromHtmlForTests(html, nextLevel: 1));
+    }
+
+    [Theory]
+    [InlineData("upgrade_building.txt")]
+    [InlineData("upgrade_resourcefield.txt")]
+    public void OfficialUpgradeDom_IsNotDetectedAsEmptySlot(string fixture)
+    {
+        var html = ReadDomFixture(fixture);
+
+        Assert.False(TravianClient.IsEmptyConstructionSlotHtmlForTests(html), DescribeCandidates(html));
+    }
+
+    [Fact]
+    public void OfficialConstructDom_ReadsMissingRequirementsForUnbuildableBuilding()
+    {
+        // Regression (P2b): an unbuildable building (no 'Construct building' button) should yield a clear
+        // "Missing requirements" message from span.buildingCondition.error instead of "could not find button".
+        var html = ReadDomFixture("buildingpage_resources.txt");
+
+        // Sawmill (gid 5) requires Woodcutter 10 + Main Building 5 → not buildable on this fixture.
+        var requirements = TravianClient.ReadConstructRequirementErrorFromHtmlForTests(html, gid: 5);
+
+        Assert.False(string.IsNullOrWhiteSpace(requirements));
+        Assert.Contains("Woodcutter", requirements, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Main Building", requirements, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Level 10", requirements, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void OfficialConstructDom_ReturnsNullRequirementsForBuildableBuilding()
+    {
+        // Warehouse (gid 10) is buildable on this fixture (has a 'Construct building' button) → no error text.
+        var html = ReadDomFixture("buildingpage_infrastructure.txt");
+
+        Assert.Null(TravianClient.ReadConstructRequirementErrorFromHtmlForTests(html, gid: 10));
+    }
+
     private static string ReadDomFixture(string fileName)
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);

@@ -226,6 +226,14 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   return a clear "slot is empty — construct the building first" message. Root cause: `upgrade_building_to_level` was
   queued for an unbuilt slot whose page shows a construction menu, not an upgrade button.
 
+- **2026-06-03** — UI-tema Fas 0 (förberedande, utseendeneutralt). Ny `Themes/Palette.xaml` med namngivna
+  `SolidColorBrush`-tokens satta till **exakt dagens ljusa hex** (surfaces/borders/text/accent/semantik/
+  tooltip + `ShadowColor`). Registrerad i `App.xaml` före `Tooltips.xaml`. De fyra befintliga
+  `Themes/`-ordböckerna (`Buttons`, `Toggles`, `Badges`, `Tooltips`) pekar nu om sina färger via
+  `DynamicResource` till tokens. Mål: en enda plats för färg så ett mörkt tema senare kan vändas där.
+  Inga visuella eller funktionella ändringar (DynamicResource resolvar upp till `Application.Resources`).
+  Färger i `MainWindow.xaml`/övriga XAML + code-behind är **inte** tokeniserade ännu (Fas 1+).
+
 ---
 
 ## 5. Kända fallgropar / regressions
@@ -238,6 +246,24 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
 - **Resource upgrade-all + resursbrist:** när Travian visar `upgradeBlocked`/`not enough resources yet`
   ska tasken returnera `queue_wait_seconds` direkt. Att fortsätta scanna andra fält kan skapa en minut-loop
   med upprepade build.php-navigeringar och loggspam.
+- **"Open shop" payment-decoy i upgrade-kandidatscan:** den gröna `button[value="Open shop"]`
+  (`onclick=Travian.React.openPaymentWizard`) matchar bara på `green`-klassen och får inte väljas som
+  upgrade-/construct-kandidat. Klick öppnar en modal vars `#dialogOverlay` sen blockerar alla klick →
+  `click detected upgrade candidate … Timeout 15000ms`-loop. Exkluderas via `openPaymentWizard`/`open shop`
+  (se `isPaymentShop` i JS-scannern + `IsGold` i `ExtractButtonCandidates`). Riktig knapp ligger alltid i
+  `.upgradeButtonsContainer`/`.upgradeBuilding` med `value="Construct building"`/`"Upgrade to level N"`.
+- **Tom slot vs upgrade-sida (Official):** construct-choice-sidan wrappar *varje* byggnad i en egen
+  `.upgradeButtonsContainer` + `#contract_building{gid}`. Använd därför INTE `.upgradeButtonsContainer`-närvaro
+  som "upgrade finns"-signal — då feldetekteras tomma slots som upgrade-bara och scannern matchar
+  "Construct building" som falsk upgrade-kandidat. Tom slot = `#contract_building*` finns men ingen
+  "Upgrade to level N"-text (se `DetectBuildPageStateAsync` + `IsEmptyConstructionSlotHtmlForTests`).
+  Både construct- och upgrade-knappen delar onclick `action=build`, så skilj dem på TEXTEN, inte action.
+- **Construct: byggnad ej byggbar än (krav):** saknas förkrav finns ingen "Construct building"-knapp, bara
+  `span.buildingCondition.error` i `#contract_building{gid}`. `ConstructBuildingAsync` läser den
+  (`ReadConstructRequirementErrorAsync`, ingen extra navigering) och returnerar
+  `"... cannot be built yet. Missing requirements: … queue_wait_seconds=N"` → temporär defer (inte permanent
+  block, inte retry-bränning, inga failure-artefakter). Skilj från resursbrist (`upgradeBlocked`) som hanteras
+  separat före denna gren.
 - **Hero transfer-dialog:** official React kan visa dialoginnehållet som `#dialogContent` utan synlig
   `div.resourceTransferDialog` wrapper i sparad HTML. Klicka bekräftelseknappen via `.actionButton.preSelected`
   eller texten "Transfer selected".
