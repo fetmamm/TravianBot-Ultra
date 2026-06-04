@@ -10,7 +10,7 @@ namespace TbotUltra.Desktop;
 
 public partial class SupportWindow : Window
 {
-    private const string DiscordUrl = "https://discord.gg/qrge94p7TH";
+    private const string DiscordUrl = "https://discord.gg/7bgzKy9sHK";
     private const string GithubUrl = "https://github.com/fetmamm/Tbot_ultra_new";
 
     private readonly string _projectRoot;
