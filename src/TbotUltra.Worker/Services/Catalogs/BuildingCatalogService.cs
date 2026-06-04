@@ -14,7 +14,7 @@ public static class BuildingCatalogService
         [9] = ("Bakery", "resource_buildings"),
         [10] = ("Warehouse", "infrastructure"),
         [11] = ("Granary", "infrastructure"),
-        [12] = ("Smithy", "army_buildings"),
+        [13] = ("Smithy", "army_buildings"),
         [14] = ("Tournament Square", "army_buildings"),
         [15] = ("Main Building", "infrastructure"),
         [16] = ("Rally Point", "army_buildings"),
@@ -64,7 +64,7 @@ public static class BuildingCatalogService
         [18] = [new("Main Building", 1)],
         [19] = [new("Main Building", 3), new("Rally Point", 1)],
         [20] = [new("Academy", 5), new("Smithy", 3)],
-        [12] = [new("Main Building", 3), new("Academy", 1)],
+        [13] = [new("Main Building", 3), new("Academy", 1)],
         [14] = [new("Rally Point", 15), new("Academy", 10)],
         [21] = [new("Academy", 10), new("Main Building", 5)],
         [22] = [new("Barracks", 3), new("Main Building", 3)],
@@ -86,7 +86,7 @@ public static class BuildingCatalogService
 
     private static readonly HashSet<int> SingleInstanceGids =
     [
-        12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 25, 26, 27, 28, 29, 30, 34, 35, 36, 37, 40, 41, 44, 46,
+        13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 25, 26, 27, 28, 29, 30, 34, 35, 36, 37, 40, 41, 44, 46,
         31, 32, 33, 42, 43,
     ];
 

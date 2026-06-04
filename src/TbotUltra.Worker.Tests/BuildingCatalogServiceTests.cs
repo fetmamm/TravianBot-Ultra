@@ -28,8 +28,27 @@ public sealed class BuildingCatalogServiceTests
     public void FullCatalog_ContainsSmithyAndTournamentSquare()
     {
         var gauls = BuildingCatalogService.GetFullCatalog("Gauls");
-        Assert.Contains(gauls, item => item.Gid == 12 && item.Name == "Smithy");
+        Assert.Contains(gauls, item => item.Gid == 13 && item.Name == "Smithy");
         Assert.Contains(gauls, item => item.Gid == 14 && item.Name == "Tournament Square");
+    }
+
+    [Fact]
+    public void Smithy_IsGid13_WithCostData_AndNoPhantomGid12OrArmoury()
+    {
+        // The real Travian server (Official) uses gid 13 for Smithy; there is no gid 12 building and no
+        // "Armoury". Construct failed before because the catalog mapped Smithy to gid 12 while the server's
+        // Construct button was gid 13, so the gid-scoped click refused the "foreign" gid.
+        var catalog = BuildingCatalogService.GetFullCatalog("Gauls");
+
+        Assert.Contains(catalog, item => item.Gid == 13 && item.Name == "Smithy");
+        Assert.DoesNotContain(catalog, item => item.Gid == 12);
+        Assert.DoesNotContain(catalog, item => string.Equals(item.Name, "Armoury", System.StringComparison.OrdinalIgnoreCase));
+
+        // Cost/level data must resolve at gid 13 (the JSON Smithy block moved from key 12 -> 13).
+        Assert.True(BuildingCatalogService.MaxLevelFor(13) > 0);
+        Assert.NotNull(BuildingCatalogService.CostFor(13, 1));
+        Assert.True(BuildingCatalogService.IsSingleInstance(13));
+        Assert.Equal(2, BuildingCatalogService.CategoryIndexFor(13));
     }
 
     [Fact]

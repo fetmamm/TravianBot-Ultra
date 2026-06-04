@@ -1578,7 +1578,7 @@ public sealed partial class TravianClient
         return knownBuildings?
             .FirstOrDefault(item =>
                 item.SlotId is > 0
-                && (item.Gid == 12 || string.Equals(item.Name, "Smithy", StringComparison.OrdinalIgnoreCase)))
+                && (item.Gid == 13 || string.Equals(item.Name, "Smithy", StringComparison.OrdinalIgnoreCase)))
             ?.SlotId;
     }
 
@@ -4246,8 +4246,7 @@ public sealed partial class TravianClient
         ["g9"] = "Bakery",
         ["g10"] = "Warehouse",
         ["g11"] = "Granary",
-        ["g12"] = "Smithy",
-        ["g13"] = "Armoury",
+        ["g13"] = "Smithy",
         ["g14"] = "Tournament Square",
         ["g15"] = "Main Building",
         ["g16"] = "Rally Point",

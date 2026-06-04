@@ -328,7 +328,7 @@ public partial class MainWindow
     private static bool HasSmithyInVillageStatus(VillageStatus status)
     {
         return status.Buildings.Any(item =>
-            item.Gid == 12
+            item.Gid == 13
             || string.Equals(item.Name, "Smithy", StringComparison.OrdinalIgnoreCase)
             || string.Equals(item.Name, "Blacksmith", StringComparison.OrdinalIgnoreCase));
     }
