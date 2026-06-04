@@ -233,7 +233,18 @@ public sealed partial class TravianClient
         }
         catch (TimeoutException)
         {
-            Notify($"[hero-transfer] transfer dialog still visible after confirm at {label}; continuing with current page state.");
+            // The dialog did not close on its own (synthetic click can be ignored by React, or Travian
+            // keeps the dialog open after the transfer). Do NOT leave it open: a lingering #dialogOverlay
+            // intercepts pointer events and breaks the next upgrade/construct click (same failure class as
+            // the "Open shop" overlay). Actively dismiss it, then re-check.
+            if (await TryDismissResourceTransferDialogAsync(cancellationToken))
+            {
+                Notify($"[hero-transfer] transfer dialog dismissed after confirm at {label}.");
+            }
+            else
+            {
+                Notify($"[hero-transfer] transfer dialog still visible after confirm at {label}; continuing with current page state.");
+            }
         }
 
         await Task.Delay(350, cancellationToken);
@@ -248,6 +259,57 @@ public sealed partial class TravianClient
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Best-effort close of a resource-transfer dialog that stayed open after confirm. Tries the dialog
+    /// close button, then Escape, and waits briefly for the dialog (and its #dialogOverlay) to disappear so
+    /// it cannot intercept the next page click. Returns true once the dialog is gone.
+    /// </summary>
+    private async Task<bool> TryDismissResourceTransferDialogAsync(CancellationToken cancellationToken)
+    {
+        const string dialogGoneScript =
+            """
+            () => !document.querySelector('div.resourceTransferDialog')
+              && !((document.querySelector('#dialogContent h3')?.textContent || '').trim().toLowerCase() === 'transfer resources')
+            """;
+
+        try
+        {
+            var closeButton = _page.Locator("#dialogCancelButton, .dialogCancelButton, button[aria-label='Close']").First;
+            if (await closeButton.CountAsync() > 0)
+            {
+                try
+                {
+                    await closeButton.ClickAsync(new LocatorClickOptions { Timeout = 2000 });
+                }
+                catch
+                {
+                    // Fall through to Escape.
+                }
+            }
+
+            if (await _page.EvaluateAsync<bool>(dialogGoneScript))
+            {
+                return true;
+            }
+
+            await _page.Keyboard.PressAsync("Escape");
+
+            await _page.WaitForFunctionAsync(
+                dialogGoneScript,
+                null,
+                new PageWaitForFunctionOptions { Timeout = 3000 });
+            return true;
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            return false;
+        }
+        catch (TimeoutException)
+        {
+            return false;
+        }
     }
 
     private async Task<HeroInventoryResources?> ReadHeroInventoryFromTransferDialogAsync(CancellationToken cancellationToken)

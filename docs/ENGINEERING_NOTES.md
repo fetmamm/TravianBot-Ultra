@@ -269,6 +269,11 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   eller texten "Transfer selected".
 - **Hero transfer efter klick:** vänta kort på dialog-inputs, klickbar "Transfer selected", dialog-stängning
   och en liten settle-delay innan samma build-sida analyseras igen.
+- **Hero transfer-dialog stängs inte av sig själv:** synthetiskt `button.click()` kan ignoreras av React /
+  Travian kan lämna dialogen öppen. Lämna den ALDRIG öppen — kvarvarande `#dialogOverlay` blockerar nästa
+  upgrade-/construct-klick (samma fel som "Open shop"-overlayen). `TryDismissResourceTransferDialogAsync`
+  stänger aktivt via `#dialogCancelButton`/`button[aria-label="Close"]`, sedan Escape, och väntar in att
+  dialogen försvinner.
 - **Same-slot recheck efter hero transfer:** rätt `build.php?id=N` URL räcker inte alltid; official kan ha
   URL:en satt innan build-DOM är hydrerad. Vänta på `#build`/`#contract`/`.upgradeBuilding`; om det saknas,
   reloada samma build-sida en gång i stället för att kasta fel eller gå via `dorf1.php`.
