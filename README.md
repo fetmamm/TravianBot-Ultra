@@ -1,5 +1,7 @@
 # Tbot Ultra
 
+![Version](https://img.shields.io/badge/version-v0.3.2-green)
+
 <p align="center">
   <img src="assets/images/tbot_v032.png" alt="Tbot Ultra Dashboard">
 </p>
