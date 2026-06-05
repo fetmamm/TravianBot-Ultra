@@ -238,8 +238,6 @@ public sealed partial class TravianClient
                 if (loggedInAfterAutoSolve)
                 {
                     Notify($"[login] success ({_account.Name}) — captcha auto-solve cleared the block");
-                    // Behövs inte, göra senare.
-                    //await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
                     await RefreshAccountFeatureSignalsAsync(cancellationToken);
                     return;
                 }
@@ -267,8 +265,9 @@ public sealed partial class TravianClient
         // Vänta på att dorf1 sidan laddat färdigt.
         try
         {
-            await _page.WaitForURLAsync($"**{_config.VillageOverviewPath}**");
+            await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
             Notify("[login] page successfully loaded.");
+            await Task.Delay(Random.Shared.Next(100, 401), cancellationToken);
         }
         catch
         {
@@ -3382,6 +3381,21 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         var value = await _page.EvaluateAsync<string>(
             """
             () => {
+              // Strip Unicode bidi/direction marks (Travian wraps coords in them) + normalize the
+              // U+2212 minus, then collapse whitespace.
+              const clean = (raw) => (raw || '')
+                .replace(/[‪-‮⁦-⁩‎‏]/g, '')
+                .replace(/−/g, '-')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+              // Official T4.6: the active village is the highlighted sidebar entry. Read ONLY its name
+              // span so the result is the clean village name, not "GREZ(-27|-66)" (name + coordinates).
+              const nameSpan = document.querySelector(
+                '.listEntry.village.active .name, #sidebarBoxVillagelist .active .name, .villageList .active .name');
+              const spanText = clean(nameSpan ? nameSpan.textContent : '');
+              if (spanText) return spanText;
+
               const selectors = [
                 '#villageNameField',
                 '#villageNameField.boxTitle',
@@ -3395,7 +3409,8 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
               for (const selector of selectors) {
                 const element = document.querySelector(selector);
-                const text = element ? (element.textContent || '').replace(/\s+/g, ' ').trim() : '';
+                // Drop a trailing coordinate part "(x|y)" that some headers append after the name.
+                const text = clean(element ? element.textContent : '').replace(/\s*\([^)]*\)\s*$/, '').trim();
                 if (text) return text;
               }
 

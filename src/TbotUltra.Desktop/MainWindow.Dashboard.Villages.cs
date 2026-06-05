@@ -90,6 +90,9 @@ public partial class MainWindow
         {
             _suppressVillageSelectionChange = false;
         }
+
+        // Mirror the picker into the Queue tab's village dropdown so both stay in sync.
+        SyncQueueVillagePicker(VillageComboBox.SelectedItem as VillageSelectionItem);
     }
 
     private void ApplyDashboardVillageListItems(IReadOnlyList<VillageSelectionItem> items)
@@ -108,6 +111,9 @@ public partial class MainWindow
             .ThenByDescending(item => item.Population ?? -1)
             .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+        // The list was rebuilt with fresh items; re-apply the active-village border.
+        ApplyActiveVillageHighlight();
     }
 
     // A list is "real" when it contains at least one named village that isn't the "-" placeholder.
@@ -449,90 +455,13 @@ public partial class MainWindow
         }
 
         StatusTextBlock.Text = $"Selected village: {selected.Name}";
-        if (BlockIfSessionSleeping("Village switch"))
-        {
-            return;
-        }
 
-        _ = SwitchToSelectedVillageAndRefreshAsync(selected);
+        // Selecting a village is a view/queue-context change only — it must NOT navigate the browser or
+        // touch the running bot. Show this village's cached buildings/resources and filter the queue to
+        // it. Use the "Switch village" button to actually move the bot to this village.
+        ShowSelectedVillageFromCache(selected);
     }
 
-    private async Task SwitchToSelectedVillageAndRefreshAsync(VillageSelectionItem selectedVillage)
-    {
-        if (selectedVillage is null)
-        {
-            return;
-        }
-
-        if (BlockIfSessionSleeping("Village switch"))
-        {
-            return;
-        }
-
-        var switchKey = $"{selectedVillage.Name}|{selectedVillage.Url}";
-        var now = DateTimeOffset.UtcNow;
-        if (string.Equals(_lastVillageSwitchRefreshKey, switchKey, StringComparison.OrdinalIgnoreCase)
-            && (now - _lastVillageSwitchRefreshAt).TotalSeconds < 2)
-        {
-            return;
-        }
-
-        _lastVillageSwitchRefreshKey = switchKey;
-        _lastVillageSwitchRefreshAt = now;
-
-        if (IsExecutionActiveForVillageChange())
-        {
-            await StopForVillageChangeAsync(selectedVillage.Name);
-        }
-
-        if (_uiBusy || _autoQueueRunning || (_loopTask is not null && !_loopTask.IsCompleted))
-        {
-            AppendLog($"Village switch to '{selectedVillage.Name}' skipped because bot is still stopping.");
-            return;
-        }
-
-        if (!_isLoggedIn || !_browserSessionLikelyOpen)
-        {
-            return;
-        }
-
-        var operationToken = _loopController.StartVillageSwitch("village-switch");
-        var operationId = BeginOperation("SwitchVillage");
-        var operationSw = Stopwatch.StartNew();
-        ToggleUiBusy(true);
-        try
-        {
-            var options = ApplySelectedVillageToOptions(LoadBotOptions());
-            AppendLog($"[{operationId}] INFO switch village to '{selectedVillage.Name}'");
-
-            var status = await ReadVillageStatusWithRetryAsync(options, operationToken, resourceOnly: false, forceCurrentVillage: false);
-
-            ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: true);
-            _lastBuildingStatus = status;
-            PopulateBuildingsTab(status);
-
-            BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"selected village '{selectedVillage.Name}'");
-
-            TribeInfoTextBlock.Text = $"{status.Tribe}";
-            VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
-            SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage, selectedVillage.Name);
-            await RefreshResourceSnapshotForUiAsync(options, operationToken);
-
-            CompleteOperation(operationId, operationSw, $"Village switched to '{selectedVillage.Name}' and UI refreshed.");
-        }
-        catch (OperationCanceledException)
-        {
-            AppendLog($"[{operationId}] INFO canceled.");
-        }
-        catch (Exception ex)
-        {
-            FailOperation(operationId, operationSw, ex);
-        }
-        finally
-        {
-            ToggleUiBusy(false);
-        }
-    }
 
     private bool IsExecutionActiveForVillageChange()
     {

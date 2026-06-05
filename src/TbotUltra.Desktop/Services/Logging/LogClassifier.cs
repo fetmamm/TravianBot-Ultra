@@ -181,7 +181,6 @@ public static class LogClassifier
             "[resource-ui]",
             "resource status",
             "[plus]",
-            "you are logged in",
             "logged in confirmed",
             "ui sync snapshot",
             "current resource production for ui",

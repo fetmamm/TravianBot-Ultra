@@ -193,6 +193,7 @@ public partial class MainWindow
                     Group = item.Group,
                     GroupName = QueueGroupCatalog.GetTitle(item.Group),
                     VillageName = GetQueueItemVillageName(item) ?? "-",
+                    VillageKey = GetQueueItemVillageKey(item) ?? string.Empty,
                     DisplayName = BuildQueueDisplayName(item),
                     TaskName = item.TaskName,
                     Status = item.Id == displayRunningId ? QueueStatus.Running : item.Status,
@@ -223,8 +224,14 @@ public partial class MainWindow
             var hasPausedQueueItems = ordered.Any(item => item.Status == QueueStatus.Paused);
             var hasInlineWait = _inlineWaitUntilUtc > nowUtc;
 
-            QueueDataGrid.ItemsSource = activeRows;
-            QueueHistoryDataGrid.ItemsSource = historyRows;
+            // Filter the displayed rows to the village selected in the dropdown so the Queue tab shows
+            // that village's queue. Village-less (global) tasks are always shown. State flags above use
+            // the unfiltered list so execution status stays account-wide.
+            var displayedActiveRows = FilterQueueRowsForSelectedVillage(activeRows);
+            var displayedHistoryRows = FilterQueueRowsForSelectedVillage(historyRows);
+
+            QueueDataGrid.ItemsSource = displayedActiveRows;
+            QueueHistoryDataGrid.ItemsSource = displayedHistoryRows;
             SyncPendingResourceTargetsInUi();
             if (_lastBuildingStatus is not null)
             {
@@ -233,25 +240,25 @@ public partial class MainWindow
 
             if (selectId.HasValue)
             {
-                var selected = activeRows.FirstOrDefault(item => item.Id == selectId.Value);
+                var selected = displayedActiveRows.FirstOrDefault(item => item.Id == selectId.Value);
                 if (selected is not null)
                 {
                     QueueDataGrid.SelectedItem = selected;
                 }
             }
 
-            QueueInfoTextBlock.Text = $"Queue active: {activeRows.Count()} | done: {historyRows.Count()}";
+            QueueInfoTextBlock.Text = $"Queue active: {displayedActiveRows.Count} | done: {displayedHistoryRows.Count}";
             UpdateQueueClearButtonContent();
             if (_queuePopupWindow?.Content is Grid queuePopupRoot && queuePopupRoot.Children.Count >= 2)
             {
                 if (queuePopupRoot.Children[0] is DataGrid popupActiveGrid)
                 {
-                    popupActiveGrid.ItemsSource = activeRows;
+                    popupActiveGrid.ItemsSource = displayedActiveRows;
                 }
 
                 if (queuePopupRoot.Children[1] is DataGrid popupHistoryGrid)
                 {
-                    popupHistoryGrid.ItemsSource = historyRows;
+                    popupHistoryGrid.ItemsSource = displayedHistoryRows;
                 }
             }
             UpdateExecutionStateIndicator();
@@ -288,7 +295,7 @@ public partial class MainWindow
 
         QueueClearButton.Content = ReferenceEquals(QueueSectionTabControl?.SelectedItem, HistoryQueueTabItem)
             ? "Clear history"
-            : "Clear active queue";
+            : "Clear account queue";
     }
 
     private void RefreshQueueUiOnUiThread(Guid? selectId = null)

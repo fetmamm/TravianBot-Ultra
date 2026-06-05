@@ -43,7 +43,11 @@ public partial class MainWindow
         ShowBusyOverlay("Logging in", "Logging in and loading account data…");
         try
         {
-            var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            // Login must NOT auto-switch villages: read where Travian actually lands and mark that as the
+            // active working village. Injecting the (possibly stale) selected village here made the bot
+            // navigate away from the landing village to the capital/selected one. The dropdown is synced
+            // to the real landing village after the snapshot; use "Switch village" to move on purpose.
+            var options = LoadBotOptions();
             AppendLog($"[{operationId}] INFO server={options.ServerName}, headless={options.Headless}");
             BrowserInfoTextBlock.Text = "Browser: starting";
 
@@ -73,6 +77,9 @@ public partial class MainWindow
             UpdateLoginButtonsVisual(true);
             _isLoggedIn = true;
             _inboxAutoEnabled = true;
+            // Bring in any village buildings/fields remembered from a previous session so the dropdown can
+            // show them immediately; the fresh post-login read then updates the landing village.
+            LoadVillageCacheForActiveAccount();
             RefreshNatarsProfileAnalyzedFromCache();
             var officialServer = IsOfficialTravianServer(options);
             ApplyPostLoginSnapshot(snapshot);
@@ -503,6 +510,9 @@ public partial class MainWindow
         // Drop the cached village enabled-state so the next account reloads its own villages.json
         // (the file itself is kept — it is exactly the per-account memory we want to persist).
         _villageSettingsStore.InvalidateCache();
+        // Drop the in-memory per-village buildings/fields cache so the next account doesn't show the
+        // previous account's villages. The on-disk village_cache.json per account is kept.
+        _villageStatusCacheByName.Clear();
         _buildingRows.Clear();
         _demolishableBuildings.Clear();
         ForceClearVillageSelectionUi();

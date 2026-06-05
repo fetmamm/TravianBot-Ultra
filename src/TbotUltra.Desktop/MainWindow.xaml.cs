@@ -142,6 +142,7 @@ public partial class MainWindow : Window
     private readonly string _sessionLogPath;
     private readonly BotConfigStore _botConfigStore;
     private readonly VillageSettingsStore _villageSettingsStore;
+    private readonly VillageCacheStore _villageCacheStore;
     private readonly IAccountProvider _accountProvider;
     private readonly EnvAccountStore _accountStore;
     private readonly AccountAnalysisStore _accountAnalysisStore;
@@ -330,8 +331,6 @@ public partial class MainWindow : Window
     private bool _farmingOperationBusy;
     private bool _natarsProfileAnalyzed;
     private DateTimeOffset _lastFarmListsAnalysisAt = DateTimeOffset.MinValue;
-    private string _lastVillageSwitchRefreshKey = string.Empty;
-    private DateTimeOffset _lastVillageSwitchRefreshAt = DateTimeOffset.MinValue;
     private VillageStatus? _lastBuildingStatus;
     private VillageStatus? _lastResourceStatusForUi;
     private readonly object _pendingLogSync = new();
@@ -405,6 +404,7 @@ public partial class MainWindow : Window
         _accountStore = new EnvAccountStore(_envPath);
         _botConfigStore = new BotConfigStore(_botConfigPath, _projectRoot, () => _accountStore.ActiveAccountName());
         _villageSettingsStore = new VillageSettingsStore(_projectRoot, () => _accountStore.ActiveAccountName(), AppendLog);
+        _villageCacheStore = new VillageCacheStore(_projectRoot, () => _accountStore.ActiveAccountName(), AppendLog);
         InitializeSessionPacing();
         _accountAnalysisStore = new AccountAnalysisStore(_projectRoot);
         _natarFarmCacheStore = new NatarFarmCacheStore(_projectRoot);
@@ -812,7 +812,15 @@ public partial class MainWindow : Window
         BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"active village '{status.ActiveVillage}'");
         TribeInfoTextBlock.Text = $"{status.Tribe}";
         VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
-        SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage);
+        // Select the village the browser actually landed in (active village), not a stale prior selection,
+        // so the dropdown matches the browser and Start bot works in the landing village.
+        SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage, status.ActiveVillage);
+
+        // Cache this full read and mark the village the browser actually logged into as the active
+        // working village, so the green border is correct and visible immediately after login (not only
+        // after the first task runs). This full status carries the village list needed to resolve the key.
+        CacheVillageStatus(status);
+        SetActiveWorkingVillageFromStatus(status);
         UpdateInboxButtons(snapshot.InboxStatus.UnreadMessages, snapshot.InboxStatus.UnreadReports);
         ApplyFarmingAvailabilityFromGoldClubStatus(TryGetStoredGoldClubEnabled(_accountStore.ActiveAccountName()));
 

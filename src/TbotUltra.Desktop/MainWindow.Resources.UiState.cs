@@ -75,6 +75,7 @@ public partial class MainWindow
         removedCount = RemoveCoalescedQueueItems(relatedItems.Select(item => item.Item));
 
         payload[BotOptionPayloadKeys.ResourceUpgradeTargetLevel] = effectiveTargetLevel.ToString();
+        ApplySelectedVillageToPayload(payload);
         var created = _botService.Enqueue("upgrade_resource_to_level", payload, priority: 0, maxRetries: 3);
         enqueued = true;
         return created;

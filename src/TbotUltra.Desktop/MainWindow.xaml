@@ -569,8 +569,10 @@
                             <TextBlock DockPanel.Dock="Left" Text="Dashboard" FontSize="32" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
                             <Button DockPanel.Dock="Right" x:Name="ResetProgramButton" Height="32" Content="Reset program" Background="{DynamicResource WarningButtonBgBrush}" Foreground="{DynamicResource OnWarningBrush}" BorderBrush="{DynamicResource WarningBorderBrush}" VerticalAlignment="Center" Margin="12,0,0,0" Click="ResetProgramButton_Click"
                                     ToolTip="Restart the program: stops all running tasks, clears the queue, closes the browser session, and resets to the just-started state. Your saved login is kept — just press Login to start a new session." />
-                            <Button DockPanel.Dock="Right" x:Name="VillageSettingsButton" Height="32" Content="Village settings" VerticalAlignment="Center" Click="VillageSettingsButton_Click"
+                            <Button DockPanel.Dock="Right" x:Name="VillageSettingsButton" Height="32" Content="Village settings" VerticalAlignment="Center" Margin="12,0,0,0" Click="VillageSettingsButton_Click"
                                     ToolTip="Open per-village settings (hero resources, NPC, build/upgrade troops, farming)." />
+                            <Button DockPanel.Dock="Right" x:Name="SwitchVillageButton" Height="32" Content="Switch village" VerticalAlignment="Center" Margin="12,0,0,0" Click="SwitchVillageButton_Click"
+                                    ToolTip="Make the bot work in the village selected in the dropdown. Selecting a village in the list only changes the view/queue target; this button actually moves the bot there." />
                         </DockPanel>
 
                         <Grid Grid.Row="1" Margin="0,0,0,10" Visibility="Collapsed">
@@ -961,7 +963,22 @@
                                             <ItemsControl x:Name="DashboardVillageList">
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
-                                                        <Grid Margin="0,2">
+                                                      <!-- Colored border marks the village the bot is currently working in
+                                                           (the one open in the browser), distinct from the selected/viewed village. -->
+                                                      <Border Margin="0,1" Padding="4,1" CornerRadius="6" BorderThickness="1">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="Background" Value="Transparent" />
+                                                                <Setter Property="BorderBrush" Value="Transparent" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsActiveWorkingVillage}" Value="True">
+                                                                        <Setter Property="Background" Value="{DynamicResource SuccessBgBrush}" />
+                                                                        <Setter Property="BorderBrush" Value="{DynamicResource SuccessBrush}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <Grid>
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="*" />
                                                                 <ColumnDefinition Width="64" />
@@ -1007,6 +1024,7 @@
                                                             <TextBlock Grid.Column="1" Text="{Binding PopText}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" Margin="8,0,0,0" VerticalAlignment="Center" />
                                                             <TextBlock Grid.Column="2" Text="{Binding CoordsText}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" Margin="8,0,0,0" VerticalAlignment="Center" />
                                                         </Grid>
+                                                      </Border>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
@@ -2638,10 +2656,20 @@
                                     BorderBrush="{DynamicResource BorderSubtleBrush}" />
                             <Button x:Name="QueueClearButton"
                                     DockPanel.Dock="Right"
-                                    Content="Clear active queue"
-                                    Width="120"
+                                    Content="Clear account queue"
+                                    Width="140"
                                     Margin="0,0,8,0"
                                     Click="QueueClearButton_Click"
+                                    Background="{DynamicResource DangerBgBrush}"
+                                    BorderBrush="{DynamicResource DangerBorderBrush}"
+                                    Foreground="{DynamicResource DangerTextBrush}" />
+                            <Button x:Name="ClearVillageQueueButton"
+                                    DockPanel.Dock="Right"
+                                    Content="Clear village queue"
+                                    Width="140"
+                                    Margin="0,0,8,0"
+                                    Click="ClearVillageQueueButton_Click"
+                                    ToolTip="Clears only the queued tasks for the village selected in the Dashboard dropdown."
                                     Background="{DynamicResource DangerBgBrush}"
                                     BorderBrush="{DynamicResource DangerBorderBrush}"
                                     Foreground="{DynamicResource DangerTextBrush}" />
@@ -2650,9 +2678,10 @@
 
                         <StackPanel Grid.Row="1" Margin="2,0,2,12">
                             <TextBlock x:Name="BuildQueueStatusTextBlock" Visibility="Collapsed" />
-                            <TextBlock Text="All queue groups are shown together below."
+                            <TextBlock x:Name="QueueSelectedVillageTextBlock"
+                                       Text="Selected village: -"
                                        Foreground="{DynamicResource TextSubtleBrush}"
-                                       Margin="0,4,0,0" />
+                                       ToolTip="The queue below is shown for this village. Choose a village with the dropdown on the Dashboard." />
                         </StackPanel>
 
                         <TabControl x:Name="QueueSectionTabControl"

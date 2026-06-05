@@ -82,6 +82,13 @@ public static class AccountStoragePaths
         return Path.Combine(projectRoot, "config", "queue.json");
     }
 
+    // Per-account cache of each village's last-read buildings + resource fields, so a village scan is
+    // remembered across restarts (something to work on without re-scanning everything every launch).
+    public static string VillageCachePath(string projectRoot, string accountName)
+    {
+        return Path.Combine(AccountDirectory(projectRoot, accountName), "village_cache.json");
+    }
+
     public static string LegacyBrowserStatePath(string projectRoot, string accountName)
     {
         return Path.Combine(projectRoot, "playwright", ".auth", $"{NormalizeAccountKey(accountName)}.json");

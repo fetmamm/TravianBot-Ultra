@@ -96,6 +96,58 @@ public sealed class QueueVillageRotationTests
         Assert.Equal("B", rotation);
     }
 
+    // Simple per-village selector for SelectByVillageRotation tests: first ready (due, Pending) item.
+    private static QueueItem? FirstReady(IReadOnlyList<QueueItem> items)
+        => items.FirstOrDefault(i => i.Status == QueueStatus.Pending && i.NextAttemptAt <= Now);
+
+    [Fact]
+    public void SelectByVillageRotation_DrainsVillageThenRotates()
+    {
+        var a1 = Item("A");
+        var a2 = Item("A");
+        var b1 = Item("B");
+        string? rotation = null;
+
+        var first = QueueVillageRotation.SelectByVillageRotation(new[] { a1, a2, b1 }, VillageKey, FirstReady, ref rotation);
+        Assert.Equal(a1.Id, first!.Id);
+        Assert.Equal("A", rotation);
+
+        var second = QueueVillageRotation.SelectByVillageRotation(new[] { a2, b1 }, VillageKey, FirstReady, ref rotation);
+        Assert.Equal(a2.Id, second!.Id);
+        Assert.Equal("A", rotation);
+
+        var third = QueueVillageRotation.SelectByVillageRotation(new[] { b1 }, VillageKey, FirstReady, ref rotation);
+        Assert.Equal(b1.Id, third!.Id);
+        Assert.Equal("B", rotation);
+    }
+
+    [Fact]
+    public void SelectByVillageRotation_RotatesWhenCurrentVillageHasNoSelectableItem()
+    {
+        // Village A is current but its only item is deferred → the per-village selector yields nothing,
+        // so rotation advances to B which has a ready item.
+        var aDeferred = Item("A", secondsUntilReady: 600);
+        var bReady = Item("B");
+        string? rotation = "A";
+
+        var pick = QueueVillageRotation.SelectByVillageRotation(new[] { aDeferred, bReady }, VillageKey, FirstReady, ref rotation);
+
+        Assert.Equal(bReady.Id, pick!.Id);
+        Assert.Equal("B", rotation);
+    }
+
+    [Fact]
+    public void SelectByVillageRotation_ReturnsNull_WhenNoVillageHasSelectableItem()
+    {
+        var aDeferred = Item("A", secondsUntilReady: 600);
+        var bDeferred = Item("B", secondsUntilReady: 600);
+        string? rotation = null;
+
+        var pick = QueueVillageRotation.SelectByVillageRotation(new[] { aDeferred, bDeferred }, VillageKey, FirstReady, ref rotation);
+
+        Assert.Null(pick);
+    }
+
     [Fact]
     public void SelectNext_TreatsItemsWithoutVillage_AsOneDefaultGroup()
     {

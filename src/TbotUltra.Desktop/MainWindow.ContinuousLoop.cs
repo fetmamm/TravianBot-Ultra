@@ -23,6 +23,12 @@ public partial class MainWindow
     // tasks before advancing to the next; reset at the start of each run so a fresh run starts cleanly.
     private string? _autoQueueRotationVillageKey;
 
+    // The village the continuous loop is currently draining construction for. Same rotation rule as the
+    // AutoQueue path: finish one village's construction (in strict order) before moving to the next; if
+    // the current village's next construction is deferred (e.g. waiting for resources), rotate onward so
+    // a stalled village never blocks the others. Reset when the loop starts.
+    private string? _continuousConstructionRotationVillageKey;
+
     private async Task TriggerQueueAutoRunAsync()
     {
         if (IsSessionSleeping)
@@ -312,6 +318,7 @@ public partial class MainWindow
             var status = await ReadVillageStatusWithRetryAsync(options, cancellationToken, resourceOnly: false);
             await Dispatcher.InvokeAsync(() =>
             {
+                CacheVillageStatus(status);
                 _lastBuildingStatus = status;
                 ApplyVillageStatusToUi(status);
                 PopulateBuildingsTab(status);
@@ -410,7 +417,17 @@ public partial class MainWindow
                     item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused));
             if (group == QueueGroup.Construction)
             {
-                var constructionCandidate = SelectNextConstructionQueueItem(orderedGroupItems, now, out var constructionSkipReason);
+                // Rotate construction across enabled villages: drain the current village's construction in
+                // strict order, but if its next item is deferred move on to another village rather than
+                // holding the whole group (the user's per-village rotation rule).
+                var rotationKey = _continuousConstructionRotationVillageKey;
+                string? constructionSkipReason = null;
+                var constructionCandidate = QueueVillageRotation.SelectByVillageRotation(
+                    orderedGroupItems,
+                    GetQueueItemVillageKey,
+                    villageItems => SelectNextConstructionQueueItem(villageItems, now, out _),
+                    ref rotationKey);
+                _continuousConstructionRotationVillageKey = rotationKey;
                 if (constructionCandidate is not null)
                 {
                     if (!IsConstructionGroupReady(allowWorkerValidationForReadyItem: true))
@@ -482,8 +499,15 @@ public partial class MainWindow
             _botService.GetQueueItemsForDisplay()
                 .Where(item =>
                     item.Group == QueueGroup.Construction &&
+                    IsQueueItemVillageEnabled(item) &&
                     item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused));
-        return SelectNextConstructionQueueItem(items, now, out _) is not null;
+        // Ready when any enabled village has a ready construction item (rotation key ignored here).
+        string? rotationKey = null;
+        return QueueVillageRotation.SelectByVillageRotation(
+            items,
+            GetQueueItemVillageKey,
+            villageItems => SelectNextConstructionQueueItem(villageItems, now, out _),
+            ref rotationKey) is not null;
     }
 
     private static QueueItem? SelectNextConstructionQueueItem(
@@ -645,6 +669,8 @@ public partial class MainWindow
 
     private async Task RunContinuousLoopAsync(CancellationToken token)
     {
+        // Start a fresh construction village rotation each time the loop starts.
+        _continuousConstructionRotationVillageKey = null;
         while (!token.IsCancellationRequested)
         {
             if (_loopController.LoopStopRequested)
@@ -661,6 +687,7 @@ public partial class MainWindow
             {
                 AppendLog($"[LOOP {tickId}] START interval={loopDelaySeconds}s, headless={options.Headless}");
                 await EnsureChromiumInstalledAsync();
+                await HonorPendingVillageSwitchAsync(options, token);
                 await EnsureContinuousLoopConstructionStatusAsync(options, token);
                 await EnsureContinuousLoopRuntimeItemsAsync(options);
                 await MaybeCheckInboxDuringContinuousLoopAsync();
@@ -830,6 +857,9 @@ public partial class MainWindow
                 AppendLog($"[AUTOQ {runId}] STOPPED (loop is running).");
                 return;
             }
+
+            // Honor a Switch-village request made while the queue is running (between items, safe).
+            await HonorPendingVillageSwitchAsync(ApplySelectedVillageToOptions(LoadBotOptions()), cancellationToken);
 
             QueueItem? next;
             try

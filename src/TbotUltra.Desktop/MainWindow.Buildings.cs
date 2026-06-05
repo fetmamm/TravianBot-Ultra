@@ -1000,6 +1000,14 @@ public partial class MainWindow
 
     private void PopulateBuildingsTab(VillageStatus status)
     {
+        // Keep the Buildings tab locked to the village the user is viewing in the dropdown. A background
+        // read for a different (active) village must not blow away the selected village's building view
+        // that the user is queueing from. Indeterminate village → repaint (never blank defensively).
+        if (!IsStatusForSelectedVillage(status))
+        {
+            return;
+        }
+
         _buildingRows.Clear();
         _demolishableBuildings.Clear();
         var queueItems = GetActiveQueueItems();

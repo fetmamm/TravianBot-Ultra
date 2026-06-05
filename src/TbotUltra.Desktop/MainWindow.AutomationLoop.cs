@@ -367,11 +367,11 @@ public partial class MainWindow
 
     private bool IsConstructionGroupReady(bool allowWorkerValidationForReadyItem = false)
     {
-        if (_constructionInlineWaitUntilUtc > DateTimeOffset.UtcNow)
-        {
-            return false;
-        }
-
+        // NOTE: the construction inline-wait is intentionally NOT a gate here anymore. With multi-village
+        // rotation, blocking the whole Construction group on one village's resource wait would stall the
+        // other villages. The deferred item already carries a future NextAttemptAt (set by
+        // MarkQueueItemDeferred), so the per-village selection skips it and rotation moves on; the inline
+        // wait remains only as the dashboard countdown (ResolveConstructionGroupRemainingSeconds).
         if (_buildQueueRemainingSeconds <= 0)
         {
             return true;

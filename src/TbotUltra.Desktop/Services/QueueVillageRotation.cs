@@ -59,6 +59,65 @@ public static class QueueVillageRotation
         return pick;
     }
 
+    /// <summary>
+    /// Generic per-village rotation: groups the items by village (preserving the incoming order), then
+    /// drains the current rotation village before advancing to the next. The per-village selection is
+    /// delegated to <paramref name="perVillageSelector"/> so callers can apply their own ready/ordering
+    /// rules within a village (e.g. the construction group's strict in-order, slot-aware selection).
+    /// When the current village yields nothing, rotation advances to the first village (in order) whose
+    /// selector returns an item — so a village waiting for resources never blocks the others.
+    /// </summary>
+    public static QueueItem? SelectByVillageRotation(
+        IReadOnlyList<QueueItem> orderedItems,
+        Func<QueueItem, string?> villageKeyOf,
+        Func<IReadOnlyList<QueueItem>, QueueItem?> perVillageSelector,
+        ref string? rotationVillageKey)
+    {
+        if (orderedItems.Count == 0)
+        {
+            return null;
+        }
+
+        var villageOrder = new List<string>();
+        var byVillage = new Dictionary<string, List<QueueItem>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in orderedItems)
+        {
+            var key = NormalizeKey(villageKeyOf(item));
+            if (!byVillage.TryGetValue(key, out var list))
+            {
+                list = new List<QueueItem>();
+                byVillage[key] = list;
+                villageOrder.Add(key);
+            }
+
+            list.Add(item);
+        }
+
+        // Stay on the current rotation village as long as its selector still yields an item.
+        if (rotationVillageKey is not null
+            && byVillage.TryGetValue(NormalizeKey(rotationVillageKey), out var currentItems))
+        {
+            var sticky = perVillageSelector(currentItems);
+            if (sticky is not null)
+            {
+                return sticky;
+            }
+        }
+
+        // Otherwise advance to the first village (in queue order) that has something to run.
+        foreach (var key in villageOrder)
+        {
+            var candidate = perVillageSelector(byVillage[key]);
+            if (candidate is not null)
+            {
+                rotationVillageKey = key;
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
     private static bool KeyEquals(string? a, string? b)
     {
         return string.Equals(NormalizeKey(a), NormalizeKey(b), StringComparison.OrdinalIgnoreCase);

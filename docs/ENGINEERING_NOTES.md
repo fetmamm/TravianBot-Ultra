@@ -453,6 +453,147 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   `IsQueueItemVillageEnabled`. Effekt: en inaktiverad by:s köade tasks körs inte (manuell kö + continuous);
   by-lösa/legacy-tasks opåverkade. Build rent, Worker 324 + Desktop 56 tester gröna.
 
+- **2026-06-05** — Multi-village steg 4b: **by-rotation för continuous-loopens Construction-grupp**
+  (autonomt läge). Tidigare höll loopen hela Construction-gruppen i strikt köordning — väntade en by:s
+  bygge på resurser blockerades **alla** byars bygge. Nu roterar den per by: ny generisk
+  `QueueVillageRotation.SelectByVillageRotation(items, villageKeyOf, perVillageSelector, ref key)`
+  grupperar per by (bevarad ordning), dränerar nuvarande by och går vidare till nästa by när den
+  inte ger något. Construction-grenen i `SelectNextQueueItemForContinuousLoop` använder den med
+  `SelectNextConstructionQueueItem` som per-by-väljare (strikt ordning + slot-regler kvar inom byn);
+  nytt fält `_continuousConstructionRotationVillageKey` (nollas vid loopstart). `HasReadyContinuous
+  ConstructionItem` använder samma (+ `IsQueueItemVillageEnabled`-filter). **Rotorsak till att det
+  fungerar utan per-by inline-wait-dict:** en construction-defer kör redan `MarkQueueItemDeferred`
+  (sätter item-NextAttemptAt per item) → per-by-väljaren hoppar över den deferred byn. Det enda som
+  blockerade andra byar var den **globala** inline-wait-gaten i `IsConstructionGroupReady` — den är nu
+  **borttagen som gate** (fältet `_constructionInlineWaitUntilUtc` behålls **bara** för dashboard-
+  nedräkningen `ResolveConstructionGroupRemainingSeconds`). Enkel-by-beteende oförändrat. Troop-
+  training/smithy/brewery per by = **ej** gjort (replikerar global config över byar → separat
+  produktbeslut). Build rent, Worker 324 + Desktop 59 tester gröna.
+
+- **2026-06-05** — Multi-village: **vald by (vy) frikopplad från aktiv by (där boten jobbar)** + Switch
+  village-knapp + kö-filter per by. (branch `multiple_villages`). Tidigare navigerade dropdown-val
+  browsern och kunde stoppa körningen. Nu: **dropdown-val = ren vy/kö-kontext** (`VillageComboBox_
+  SelectionChanged` → `ShowSelectedVillageFromCache`, ingen navigering, ingen stop/clear). Ny partial
+  `MainWindow.VillageWorking.cs`: per-by-status-cache (`_villageStatusCacheByKey`, fylls vid login/Switch/
+  continuous-construction-läsning) så Buildings/resurser för vald by visas utan att navigera; "aktiv
+  arbetsby" (`_activeWorkingVillageKey/Name`) = byn i browsern, sätts vid login, vid Switch village, och
+  **live när en kö-task börjar köra** (`MarkActiveWorkingVillageFromQueueItem` i `ExecuteSingleQueueItem
+  Async`) + från 16s-refreshens `status.ActiveVillage`. Gates så live-refresh inte skriver över vald bys
+  vy: `PopulateBuildingsTab` och `ApplyResourceStatusToUi` returnerar tidigt om statusens by ≠ vald by
+  (obestämd by → måla, blanka aldrig defensivt). `VillageSelectionItem.IsActiveWorkingVillage` (notify)
+  → grön ram runt aktiv by i Dashboard-listan (`SuccessBrush`/`SuccessBgBrush`), återställs vid
+  list-ombyggnad (`ApplyActiveVillageHighlight`). Ny **Switch village**-knapp (Dashboard-topbaren,
+  vänster om Village settings) → `SwitchToActiveVillageAsync`: när idle navigerar+läser+sätter aktiv;
+  när körning pågår seedar den rotationsnycklarna (`_autoQueueRotationVillageKey`/
+  `_continuousConstructionRotationVillageKey`) så loopen prioriterar byn (browsern ägs av loopen, ingen
+  UI-navigering då). **Queue-tabben** fick en by-dropdown (`QueueVillageComboBox`) synkad med
+  huvuddropdownen (`SyncQueueVillagePicker`, suppress-flagga mot loop); `RefreshQueueUi` filtrerar visade
+  rader till vald by (`FilterQueueRowsForSelectedVillage`; by-lösa/globala tasks visas alltid; exekverings-
+  state-flaggor använder fortf. ofiltrerade listan). Gamla auto-switch-on-select (`SwitchToSelected
+  VillageAndRefreshAsync` + debounce-fälten) borttagen. OBS: kompilerar rent men full build/Desktop-tester
+  kräver att appen stängs (DLL-lås). Live-verifiering krävs (official + SS).
+
+- **2026-06-05** — Multi-village UX-fixar (branch `multiple_villages`). (1) **Login auto-switchade by**
+  (rotorsak till "loggade in på grez men programmet stod på slav"): `ExecuteLoginAndLoadPostLoginSnapshot
+  Async` kör `TrySwitchToTargetVillageAsync` på `options.TargetVillageName`, och login byggde options med
+  `ApplySelectedVillageToOptions` (ofta stale capital) → browsern navigerade bort från landningsbyn. Fix:
+  login använder nu **bas-options** (`LoadBotOptions()`, ingen target) → ingen auto-switch; läser byn
+  Travian landar på och sätter dropdownen till den. (2) **Grön ram syns nu direkt efter login**:
+  `ApplyPostLoginSnapshot` anropar nu `CacheVillageStatus` + `SetActiveWorkingVillageFromStatus` (full
+  status har bylistan så nyckeln kan resolvas). Tidigare sattes aktiv by först när första tasken kördes
+  (då från SELECTED, inte browserns by). (3) Aktiv-by-detektering robustare: `SetActiveWorkingVillage`
+  resolvar nyckel från namn (`ResolveVillageKeyByName`) när explicit nyckel saknas; `ApplyActiveVillage
+  Highlight` matchar på nyckel ELLER namn (resursläsning utan bylista blankar inte ramen). (4) **Switch
+  village-knappen lyser grönt** (Start bot-stil, `AccentBrush`) när vald by ≠ aktiv arbetsby
+  (`UpdateSwitchVillageButtonHighlight`). (5) Mellanrum mellan Switch village & Village settings
+  (`Margin`). (6) Queue-tabbens by-dropdown **borttagen** → ersatt av en "Selected village: xxx"-text
+  (`QueueSelectedVillageTextBlock`) synkad med Dashboard-dropdownen; filtret använder fortf. vald by.
+  Build rent, Worker 324 + Desktop 59 tester gröna. Live-verifiering krävs.
+
+- **2026-06-05** — Multi-village aktiv-by-fixar (branch `multiple_villages`). (1) **Aktiv by matchas nu
+  på NAMN** (primärt) i stället för nyckel — nyckeln kunde skilja mellan dropdown-item och läst status
+  (url/newdid-skillnader) vilket gjorde att (a) ingen by blev grön efter login och (b) Switch village var
+  *permanent* grön. `ApplyActiveVillageHighlight` matchar namn || nyckel; `UpdateSwitchVillage
+  ButtonHighlight` jämför namn. `SetActiveWorkingVillage` ignorerar tomt/"Unknown village" så en dålig
+  läsning aldrig nollar markeringen. (2) Switch village lyser grönt (`AccentBrush`) **bara** när vald by
+  ≠ aktiv by; töms (ClearValue) annars. (3) **Switch village fungerar nu under körning**: loopen äger
+  browsern, så UI:t sätter en *pending switch* som loopen utför mellan tasks via
+  `HonorPendingVillageSwitchAsync` (`NavigateToVillageResourceFieldsAsync`) — anropas överst i både
+  continuous-loopen och AutoQueue-draineringen. Idle → navigerar direkt (som förut). (4) Grön ram syns
+  direkt efter login (kvarstår från förra batchen: `ApplyPostLoginSnapshot` sätter aktiv by). Build rent,
+  Worker 324 + Desktop 59 tester gröna. Live-verifiering krävs (särskilt att `ReadActiveVillageNameAsync`
+  läser rätt landningsby).
+
+- **2026-06-05** — Multi-village: resurs-uppgraderingar taggades inte med by → "-" i Queue-tabbens
+  Village-kolumn. `QueueUpgradeAllResources` (`upgrade_all_resources_to_level`) och
+  `EnqueueResourceUpgradeTaskCoalesced` (`upgrade_resource_to_level`) saknade `ApplySelectedVillage
+  ToPayload(payload)` före `Enqueue` (byggnads-köandet hade det redan). Tillagt på båda. **Känd
+  kvarvarande risk (ej fixad):** upgrade-koalescering (både resurs och byggnad) matchar befintliga
+  köposter på slot-id **utan** by-filter → att köa samma slot i två byar kan koalescera fel by. Bör
+  scopas till vald by i ett senare steg. Build rent.
+
+- **2026-06-05** — Multi-village login/switch-fixar (branch `multiple_villages`). Symptom: efter login
+  visade dropdownen den stale capital (SLAV) i stället för landningsbyn (GREZ), ingen grön ram, och
+  Start bot navigerade till den valda (fel) byn. Rotorsaker: (a) post-login-snapshoten läser byar via
+  profilsidan (`ReadAccountSnapshotAsync`) → `villageStatus.ActiveVillage` opålitlig; (b)
+  `ApplyPostLoginSnapshot` lät `SyncDashboardVillageUiFromVillages` prioritera **nuvarande** dropdown-val
+  (stale) före aktiv by. Fix: ny `ApplyCurrentVillageToUiAsync(options, token)` gör en **pålitlig**
+  `ReadVillageStatusWithRetryAsync(forceCurrentVillage:true)`-läsning av byn browsern står i och driver
+  dropdown (preferred=ActiveVillage), grön ram, buildings, resurser, tribe, count. Anropas (1) efter
+  login (i `ExecuteLoginFlowAsync` direkt efter `ApplyPostLoginSnapshot`) och (2) av
+  `HonorPendingVillageSwitchAsync` efter en switch under körning → UI uppdateras nu (buildings/resurser/
+  lager/ram) när boten bytt by. Switch village under körning väcker dessutom continuous-loopen direkt
+  (`_continuousLoopWakeRequested=1`) så bytet sker så snabbt som möjligt (fortf. mellan tasks, aldrig
+  mitt i en). Build rent, Worker 324 + Desktop 59 gröna. Kvar att verifiera live att forceCurrentVillage-
+  läsningen plockar rätt landningsby (om inte → `ReadActiveVillageNameAsync`-selektorerna i Worker).
+
+- **2026-06-05** — Multi-village login: **rotorsak hittad i DOM-dump** (`temp_build_out/DOM/dorf1_DOM_100X.txt`).
+  Official T4.6 (TS100) har **inget** `#villageNameField`; aktiv by ligger i sidebar-entryn
+  `div.listEntry.village.active` med `<span class="name">GREZ</span>` + en separat `.coordinatesGrid`
+  med bidi-wrappade koordinater. `ReadActiveVillageNameAsync` matchade `.villageList .active` och tog
+  **hela entryns** textContent → `"GREZ‭(‭−27‬|‭−66‬)"` (namn + koords + U+202x-marks), som aldrig
+  matchade den rena bylistan ("GREZ") → ingen grön ram, dropdown föll tillbaka till stale capital (SLAV),
+  Start bot gick till SLAV. Fix (rätt ställe, ingen ny funktion): `ReadActiveVillageNameAsync` läser nu
+  **`.listEntry.village.active .name`** först (ren namn-span) + en `clean()` som strippar bidi-marks
+  (`‪-‮⁦-⁩‎‏`), normaliserar U+2212-minus och tar bort ev. avslutande
+  `"(x|y)"`. Desktop: `ApplyPostLoginSnapshot` sätter nu dropdownen till **aktiv by** (preferred=
+  ActiveVillage) i stället för stale val. Den tidigare extra långsamma post-login-läsningen
+  (`ApplyCurrentVillageToUiAsync` i login-flödet, ~50s) **borttagen** — snapshotens nu rena ActiveVillage
+  räcker. `ApplyCurrentVillageToUiAsync` finns kvar enbart för UI-refresh efter switch under körning.
+  Build rent, Worker 324 + Desktop 59 gröna.
+
+- **2026-06-05** — Multi-village: per-by-data + kö-vy robustare (namn-baserad). Symptom: efter en körning
+  visade båda byar **samma** byggnader/resurser ("skrevs över"), och kön "försvann" i UI. Rotorsaker:
+  (1) per-by-cachen nycklades på `GetVillageKey` (did/coords/namn) — url/newdid-skillnader mellan läsningar
+  kunde splittra/krocka poster; (2) vid cache-miss (by aldrig läst) **rensades inte** detaljvyn → förra
+  byns buildings/resurser låg kvar (= "samma status"); (3) kö-filtret matchade på by-NYCKEL som kunde
+  skilja sig från radens → dolde poster. Fix: hela per-by-cachen nycklas nu på **bynamn**
+  (`_villageStatusCacheByName`, `NormalizeVillageName` ignorerar tomt/"Unknown village"/"-"); `Cache
+  VillageStatus` **merge:ar** så en resurs-bara-läsning behåller byggnader/resursfält från en tidigare
+  full läsning; 16s-refreshen (`ApplyResourceStatusToUi`) cachar nu aktiv by varje tick (så byar "kommas
+  ihåg" allt eftersom boten besöker dem); `ShowSelectedVillageFromCache` **rensar** detaljvyn vid
+  cache-miss (`ClearVillageDetailUiForUncachedSelection`) i stället för att visa en annan bys data;
+  `IsStatusForSelectedVillage` + `FilterQueueRowsForSelectedVillage` jämför nu på namn. OBS: den tomma
+  `queue.json` efter testet kom från `queue_clear_on_shutdown` (default true) när appen stängdes — inte en
+  bugg; deferred-poster fanns kvar under sessionen (loggen slutar med DEFER, inget Clear). Vill man behålla
+  kön mellan omstarter: sätt `queue_clear_on_startup`/`_on_shutdown=false`. Build rent, Worker 324 +
+  Desktop 59 gröna.
+
+- **2026-06-05** — Multi-village persistens mellan sessioner. (1) **Byggkön sparas nu mellan omstarter**:
+  `queue_clear_on_startup`/`queue_clear_on_shutdown` default ändrat `true`→`false` (`MainWindow.ServerClock`).
+  Per-konto `queue.json` överlever stängning; rensas fortf. av Stop (med bekräftelse) och Clear-knapparna.
+  (2) **Per-by buildings/resursfält cachas på disk**: ny `VillageCacheStore` (`config/accounts/<account>/
+  village_cache.json`, helper `AccountStoragePaths.VillageCachePath`). Sparar bara durabel struktur
+  (buildings, resource fields, bylista, tribe, capital) — volatila värden (resursmängder, lager, kö-timers,
+  guld) **strippas** (`StripVolatile`) och uppdateras live efter start. `CacheVillageStatus` sparar bara
+  vid **full läsning** (buildings/fält finns) så filen inte thrashas var 16:e sek. Laddas vid login
+  (`LoadVillageCacheForActiveAccount` → fyller `_villageStatusCacheByName`) så en by skannad i en tidigare
+  session minns sina byggnader direkt; rensas in-memory vid kontobyte (filen behålls per konto).
+  Round-trip av `VillageStatus` via System.Text.Json verifierad i test. (3) **Kö-rensningsknappar**:
+  "Clear active queue" → **"Clear account queue"** (bekräftelsepopup likt Stop, rensar hela kontots kö).
+  Ny **"Clear village queue"** rensar bara den i dropdownen valda byns köposter (matchar på bynamn, rör ej
+  globala/andra byar, ingen popup). Build rent, Worker 324 + Desktop 62 gröna.
+
 ---
 
 ## 5. Kända fallgropar / regressions

@@ -32,6 +32,25 @@ public sealed class VillageSelectionItem : INotifyPropertyChanged
         }
     }
 
+    // Whether this is the village the program is currently working in (the one open in the browser).
+    // Distinct from being the selected/viewed village. Drives the colored "active" border on the
+    // Dashboard village list so the user can see where the bot is working right now.
+    private bool _isActiveWorkingVillage;
+    public bool IsActiveWorkingVillage
+    {
+        get => _isActiveWorkingVillage;
+        set
+        {
+            if (_isActiveWorkingVillage == value)
+            {
+                return;
+            }
+
+            _isActiveWorkingVillage = value;
+            OnPropertyChanged();
+        }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
