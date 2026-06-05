@@ -539,6 +539,7 @@ public partial class MainWindow
             var status = await ReadVillageStatusWithRetryAsync(options, operationToken, resourceOnly: false, forceCurrentVillage: false);
 
             ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: true);
+            _resourcesViewModel.ApplyStorageForecasts(status);
             _lastBuildingStatus = status;
             PopulateBuildingsTab(status);
             CacheVillageStatus(status, selected.Name);
@@ -548,6 +549,7 @@ public partial class MainWindow
             VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
             SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage, selected.Name);
             SetActiveWorkingVillage(key, selected.Name);
+            ApplyAutomationLoopGroupsForSelectedVillage();
             await RefreshResourceSnapshotForUiAsync(options, operationToken);
 
             CompleteOperation(operationId, operationSw, $"Switched to '{selected.Name}' and UI refreshed.");

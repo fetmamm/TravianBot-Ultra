@@ -622,6 +622,17 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   när A är vald), (2) per-by **timers** i auto-loop-grupperna (construction-timer skiljer per by — visas
   ännu från aktiv/senast lästa by). Build rent, Worker 324 + Desktop 62 gröna.
 
+- **2026-06-05** — Multi-village: bybyte navigerade fortf. till profilsidan + resurser fylldes ibland inte.
+  Rotorsak (verifierad i logg): `SwitchToVillageAsync` anropade `RefreshCapitalStateForActiveVillage
+  Async` efter varje switch → `ReadIsCapitalAsync` navigerar till **spieler.php** (profil). Det var den
+  extra (långsamma) profil-navigeringen, och dess sid-churn gjorde att den efterföljande resurs-läsningen
+  ibland landade mitt i en navigering (resurser/storage "not filling"). Fix: **tog bort capital-checken i
+  bybyte** (capital tas från cache + fast-detection: resursfält > nivå 10, samt login-analys) — switchen
+  läser nu bara dorf1/dorf2 av målbyn. Idle-switch-grenen (`SwitchToActiveVillageAsync`) anropar nu också
+  `ApplyStorageForecasts` + `ApplyAutomationLoopGroupsForSelectedVillage` (paritet med running-switch via
+  `ApplyCurrentVillageToUiAsync`). `RefreshCapitalStateForActiveVillageAsync` finns kvar för login-analys
+  (`ReadAccountAnalysisSnapshotAsync`). Build rent, Worker 324 + Desktop 62 gröna.
+
 ---
 
 ## 5. Kända fallgropar / regressions

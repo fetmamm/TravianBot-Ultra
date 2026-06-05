@@ -1087,11 +1087,14 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         if (!IsSameVillageName(activeVillageBeforeSwitch, activeVillageAfterSwitch))
         {
             Notify($"[village-switch] now on '{activeVillageAfterSwitch ?? "(unknown)"}' (was '{activeVillageBeforeSwitch ?? "(unknown)"}')");
-            // Force the next villages read to navigate to spieler.php so the UI village list
-            // reflects up-to-date population after a switch (e.g. after building elsewhere).
+            // Allow population to refresh from the sidebar on the next read.
             _cachedVillagesPopulationAt = DateTimeOffset.MinValue;
             _populationBaselineRead = false;
-            await RefreshCapitalStateForActiveVillageAsync(cancellationToken);
+            // NOTE: no capital re-check here. RefreshCapitalStateForActiveVillageAsync navigates to
+            // spieler.php (profile), which added a slow extra navigation on every switch and caused the
+            // resource read to occasionally land mid-navigation (resources/storage not filling). Capital
+            // is resolved from cache + fast-detection (resource field > level 10) on the resource read,
+            // and at login analysis — so the switch only needs dorf1/dorf2 of the target village.
         }
         else
         {
