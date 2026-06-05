@@ -255,7 +255,12 @@ public partial class MainWindow
                 continue;
             }
 
-            var groupItems = queueItems.Where(entry => entry.Group == group).ToList();
+            // Filter to the selected village (keeping village-less/global items) so each group card shows
+            // THIS village's queued count, deferred timer and state — different villages have different
+            // construction timers etc.
+            var groupItems = queueItems
+                .Where(entry => entry.Group == group && IsQueueItemForSelectedVillageOrGlobal(entry))
+                .ToList();
             var pendingCount = groupItems.Count(entry => entry.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused);
             var deferred = groupItems
                 .Where(entry => entry.Status == QueueStatus.Pending && entry.NextAttemptAt > DateTimeOffset.UtcNow)

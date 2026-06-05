@@ -106,6 +106,7 @@ public partial class MainWindow
             TribeInfoTextBlock.Text = $"{status.Tribe}";
             VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
             ApplyAutomationLoopGroupsForSelectedVillage();
+            ApplyConstructionTimerFromStatus(status);
         });
     }
 
@@ -169,6 +170,31 @@ public partial class MainWindow
         }
 
         return BuildVillageKeyInfo(selected);
+    }
+
+    // Whether a queue item belongs to the selected village or is a village-less/global task (shown for
+    // every village). Used to make the auto-loop group cards (timer/queued count/state) per village.
+    private bool IsQueueItemForSelectedVillageOrGlobal(QueueItem item)
+    {
+        var selectedName = NormalizeVillageName(GetSelectedVillageName());
+        if (selectedName is null)
+        {
+            return true;
+        }
+
+        var villageName = NormalizeVillageName(GetQueueItemVillageName(item));
+        return villageName is null
+            || string.Equals(villageName, selectedName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // Updates the auto-loop construction timer (build-queue remaining) to reflect a specific village's
+    // status, then refreshes the group indicators. Used on village switch/view so the Construction
+    // group's timer shows the selected village (timers differ per village). Pass null to clear (unknown).
+    private void ApplyConstructionTimerFromStatus(VillageStatus? status)
+    {
+        _buildQueueActiveCount = status?.ActiveBuildCount ?? 0;
+        _buildQueueRemainingSeconds = status?.BuildQueueRemainingSeconds ?? -1;
+        UpdateAutomationLoopRunningIndicators();
     }
 
     // Loads the selected village's per-village auto-loop group toggles into the Dashboard list (or the
@@ -461,8 +487,10 @@ public partial class MainWindow
         // Keep the queue view in sync with the selected village.
         SyncQueueVillagePicker(selected);
         RefreshQueueUi();
-        // Show this village's auto-loop group toggles.
+        // Show this village's auto-loop group toggles + construction timer.
         ApplyAutomationLoopGroupsForSelectedVillage();
+        ApplyConstructionTimerFromStatus(
+            name is not null && _villageStatusCacheByName.TryGetValue(name, out var timerStatus) ? timerStatus : null);
         // Light up Switch village when the selected village differs from the one the bot works in.
         UpdateSwitchVillageButtonHighlight();
     }
@@ -550,6 +578,7 @@ public partial class MainWindow
             SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage, selected.Name);
             SetActiveWorkingVillage(key, selected.Name);
             ApplyAutomationLoopGroupsForSelectedVillage();
+            ApplyConstructionTimerFromStatus(status);
             await RefreshResourceSnapshotForUiAsync(options, operationToken);
 
             CompleteOperation(operationId, operationSw, $"Switched to '{selected.Name}' and UI refreshed.");

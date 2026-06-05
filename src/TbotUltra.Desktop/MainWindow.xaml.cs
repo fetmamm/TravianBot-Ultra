@@ -296,7 +296,6 @@ public partial class MainWindow : Window
     private TextBlock? _captchaAutoSolveElapsedTextBlock;
     private DateTimeOffset _lastVerificationPopupAt = DateTimeOffset.MinValue;
     private DateTimeOffset _inlineWaitUntilUtc = DateTimeOffset.MinValue;
-    private DateTimeOffset _constructionInlineWaitUntilUtc = DateTimeOffset.MinValue;
     private int _manualFarmSessionExecutionCount;
     private string? _activeAutomationTaskName;
     private string? _activeFunctionDisplayName;
@@ -1265,27 +1264,6 @@ public partial class MainWindow : Window
 
         _buildQueueActiveCount = status.ActiveBuildCount;
         _buildQueueRemainingSeconds = status.BuildQueueRemainingSeconds ?? -1;
-        var hasDeferredConstructionQueueItem = false;
-        try
-        {
-            var nowUtc = DateTimeOffset.UtcNow;
-            hasDeferredConstructionQueueItem = _botService
-                .GetQueueItemsForDisplay()
-                .Any(item =>
-                    item.Group == QueueGroup.Construction
-                    && item.Status == QueueStatus.Pending
-                    && item.NextAttemptAt > nowUtc);
-        }
-        catch
-        {
-            // Ignore temporary queue read failures and keep the current inline wait state.
-        }
-
-        if (_buildQueueRemainingSeconds > 0 || (_buildQueueActiveCount <= 0 && !hasDeferredConstructionQueueItem))
-        {
-            _constructionInlineWaitUntilUtc = DateTimeOffset.MinValue;
-        }
-
         _buildQueueReachedZeroPendingCompletion = false;
         ApplyTroopsAvailabilityFromVillageStatus(status);
         _troopTrainingViewModel.ApplyStatus(status, _lastBuildingStatus?.TroopTrainingQueues);

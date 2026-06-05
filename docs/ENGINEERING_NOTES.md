@@ -633,6 +633,35 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   `ApplyCurrentVillageToUiAsync`). `RefreshCapitalStateForActiveVillageAsync` finns kvar för login-analys
   (`ReadAccountAnalysisSnapshotAsync`). Build rent, Worker 324 + Desktop 62 gröna.
 
+- **2026-06-05** — Multi-village steg #2b: per-task by-gating + per-by construction-timer. (1) **Per-task
+  grupp-gating:** ny `IsQueueItemGroupEnabledForItsVillage(QueueItem)` (item:s by-nyckel → byns
+  `EnabledGroups` annars `_defaultEnabledGroupKeys` → innehåller item:s grupp-nyckel). Lagd i continuous-
+  loopens urval (`SelectNextQueueItemForContinuousLoop` grupp-where + `HasReadyContinuousConstruction
+  Item`) så en grupp avstängd på by B blockerar B:s tasks även när A är vald (rotationen hoppar över B).
+  OBS: top-level grupp-set kommer fortf. från vald by — om VALD by har en grupp av men en annan by har
+  den på täcks det inte (mindre vanligt fall; union-grupp lämnat). (2) **Per-by construction-timer:** ny
+  `ApplyConstructionTimerFromStatus(status)` sätter `_buildQueueActiveCount/_buildQueueRemainingSeconds`
+  från vald bys status + `UpdateAutomationLoopRunningIndicators`; anropas i `ShowSelectedVillageFromCache`
+  (cachad status; "-" vid miss), `ApplyCurrentVillageToUiAsync` och idle-switch. Build rent, Worker 324 +
+  Desktop 62 gröna.
+
+- **2026-06-05** — Multi-village fix: construction-timern var **samma för alla byar**. Rotorsak:
+  `ResolveConstructionGroupRemainingSeconds` läste det **globala** `_constructionInlineWaitUntilUtc`
+  (sattes till längsta deferred-wait över alla byar). Fix: timern beräknas nu från den **valda byns**
+  deferred construction-köposter (deras `NextAttemptAt`, matchat på bynamn via `GetQueueItemVillageName`)
+  — tidigaste wait, kombinerat med byns bygg-kö-timer. Det globala `_constructionInlineWaitUntilUtc`-
+  fältet **borttaget** helt (skrevs men gav fel per-by-värde); `ApplyConstructionInlineWait` refreshar nu
+  bara indikatorerna. Olika byar visar nu olika timers, och dropdown-byte visar vald bys timer (eller "-"
+  om ingen). Build rent, Worker 324 + Desktop 62 gröna.
+
+- **2026-06-05** — Multi-village fix (forts.): timern var FORTF. samma för alla byar. Riktig rotorsak:
+  `UpdateAutomationLoopRunningIndicators` byggde varje grupp-korts `RemainingSeconds`/`QueuedCount`/state
+  från `groupItems = queueItems.Where(Group==group)` — **ofiltrerat på by** → `deferred`-posten (raden som
+  visas) var den globalt tidigaste, samma för alla byar. Fix: `groupItems` filtreras nu på **vald by**
+  (`IsQueueItemForSelectedVillageOrGlobal` — by-lösa/globala grupper som hero/farm visas alltid). Nu visar
+  varje grupp-kort vald bys timer/antal/state, och dropdown-byte uppdaterar dem (anropas via
+  `UpdateAutomationLoopRunningIndicators` i switch/val-vägarna). Build rent, Worker 324 + Desktop 62 gröna.
+
 ---
 
 ## 5. Kända fallgropar / regressions

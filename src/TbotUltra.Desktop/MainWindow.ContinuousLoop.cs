@@ -414,6 +414,7 @@ public partial class MainWindow
                     item.Group == group &&
                     (!IsAlwaysOnUtilityTask(item.TaskName) || IsAutoCollectUtilityTaskEnabledNow(item.TaskName, options)) &&
                     IsQueueItemVillageEnabled(item) &&
+                    IsQueueItemGroupEnabledForItsVillage(item) &&
                     item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused));
             if (group == QueueGroup.Construction)
             {
@@ -488,6 +489,18 @@ public partial class MainWindow
         return null;
     }
 
+    // Whether a queue item's automation group is enabled for ITS OWN village. Lets a group turned off on
+    // village B block B's tasks even while another village is selected/worked. Village-less (global)
+    // tasks and unknown villages fall back to the account default group set.
+    private bool IsQueueItemGroupEnabledForItsVillage(QueueItem item)
+    {
+        var villageKey = GetQueueItemVillageKey(item);
+        var groups = villageKey is null
+            ? _defaultEnabledGroupKeys
+            : (_villageSettingsStore.GetEnabledGroups(villageKey) ?? _defaultEnabledGroupKeys);
+        return groups.Contains(QueueGroupCatalog.GetKey(item.Group), StringComparer.OrdinalIgnoreCase);
+    }
+
     private static bool IsAlwaysOnUtilityTask(string? taskName) =>
         string.Equals(taskName, "collect_tasks", StringComparison.OrdinalIgnoreCase)
         || string.Equals(taskName, "collect_daily_quests", StringComparison.OrdinalIgnoreCase);
@@ -500,6 +513,7 @@ public partial class MainWindow
                 .Where(item =>
                     item.Group == QueueGroup.Construction &&
                     IsQueueItemVillageEnabled(item) &&
+                    IsQueueItemGroupEnabledForItsVillage(item) &&
                     item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused));
         // Ready when any enabled village has a ready construction item (rotation key ignored here).
         string? rotationKey = null;

@@ -273,7 +273,6 @@ public partial class MainWindow
         _buildQueueActiveCount = 0;
         _buildQueueRemainingSeconds = 0;
         _buildQueueReachedZeroPendingCompletion = false;
-        _constructionInlineWaitUntilUtc = DateTimeOffset.MinValue;
         _continuousLoopConstructionStatusNeedsSync = true;
 
         UpdateBuildQueueStatusText();
