@@ -445,9 +445,10 @@ public partial class MainWindow
 
         if (differs)
         {
-            SwitchVillageButton.Background = ThemeColors.Brush("AccentBrush");
-            SwitchVillageButton.BorderBrush = ThemeColors.Brush("AccentBrush");
-            SwitchVillageButton.Foreground = System.Windows.Media.Brushes.White;
+            // Soft/tinted green, matching the Start bot button (not a solid green fill).
+            SwitchVillageButton.Background = new System.Windows.Media.SolidColorBrush(ThemeColors.Get("SuccessBgBrush"));
+            SwitchVillageButton.BorderBrush = new System.Windows.Media.SolidColorBrush(ThemeColors.Get("SuccessBorderBrush"));
+            SwitchVillageButton.Foreground = new System.Windows.Media.SolidColorBrush(ThemeColors.Get("SuccessTextBrush"));
         }
         else
         {

@@ -191,10 +191,17 @@ public partial class MainWindow
     {
         var currentResources = ReadCurrentResourcesFromStatus(status);
         var productionByHour = ReadCurrentProductionByHourFromStatus(status);
+        // Only re-evaluate deferred items for the village this status was read for. The resources read
+        // belong to ONE village, so judging another village's deferred upgrade against them is wrong and
+        // caused other villages' construction timers to briefly flash "Ready" (reset) then re-defer.
+        var statusVillage = NormalizeVillageName(status.ActiveVillage);
         var deferredItems = _botService
             .GetQueueItemsForDisplay()
             .Where(item => item.Status == QueueStatus.Pending)
             .Where(item => IsConstructionQueueTask(item.TaskName))
+            .Where(item => statusVillage is null
+                || NormalizeVillageName(GetQueueItemVillageName(item)) is not string itemVillage
+                || string.Equals(itemVillage, statusVillage, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
         foreach (var item in deferredItems)

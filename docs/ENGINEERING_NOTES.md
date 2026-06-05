@@ -662,6 +662,16 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   varje grupp-kort vald bys timer/antal/state, och dropdown-byte uppdaterar dem (anropas via
   `UpdateAutomationLoopRunningIndicators` i switch/val-vägarna). Build rent, Worker 324 + Desktop 62 gröna.
 
+- **2026-06-05** — Multi-village småfixar. (1) **Switch village-knappen** grön = nu mjuk/tonad (Start bot-
+  stil: `SuccessBgBrush`/`SuccessBorderBrush`/`SuccessTextBrush`) i stället för solid `AccentBrush`.
+  (2) **Construction "Ready"-flash vid bybyte (cross-village del):** `RefreshDeferredConstructionWaitsAsync`
+  utvärderade ALLA byars deferred construction-items mot den lästa byns resurser och kunde nolla deras
+  timer ("Ready") → re-defer. Nu filtreras den på den lästa byns (`status.ActiveVillage`) egna items
+  (by-lösa inkluderade) så andra byars timers inte rörs. (Kvar/känt: en QUEUE-FULL-deferred post för
+  SAMMA by kan fortf. kortvarigt visa "Ready" när dess resurser räcker — resurs-checken vet inte att
+  blockeringen var bygg-kö-platser; self-correctar på nästa läsning. Kräver en defer-reason-flagga för
+  att helt undvika.) Build rent, Worker 324 + Desktop 62 gröna.
+
 ---
 
 ## 5. Kända fallgropar / regressions
