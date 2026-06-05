@@ -7,6 +7,7 @@
 ---
 
 Join our `Discord!`
+
 Here you can ask questions, report bugs and come with suggestions for new features.
 
 [![Join the Discord](https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/7bgzKy9sHK)
