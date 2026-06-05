@@ -7,6 +7,7 @@
 ---
 
 Join our `Discord!`
+Here you can ask questions, report bugs and come with suggestions for new features.
 
 [![Join the Discord](https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/7bgzKy9sHK)
 
@@ -28,7 +29,7 @@ The optional captcha solver is a small separate Python module.
 
 ## Download
 
-Each version on the [Releases](../../releases) page ships two options:
+Each version on the [Releases](../../releases) page ships two options (`Recommended`: Use the `Portable` option`):
 
 - **Installer** (`TbotUltra-Setup-...exe`) – run the setup file to install the app.
 - **Portable** (`tbot-ultra-win-x64-...-portable.zip`) – no installation: extract the
