@@ -707,6 +707,49 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   nyckel = "") kollapsar till samma strikta head-ordning som förut. Compile rent (Desktop-exe copy-lock
   när appen kör = inte kompileringsfel), Worker 324 gröna.
 
+- **2026-06-06** — **Dashboard-omdesign: överblick per by.** (1) **Layout:** rad 3 delas nu i en fast
+  vänsterkolumn (360px) = Automation Loop (nu **listformat**, en rad/grupp: Order-cirkel · Toggle ·
+  Namn+beskrivning+StateText/Queued · Status-badge) ovanpå **Auto settings** (flyttad hit från höger),
+  och en `*`-högerkolumn = **Villages** i full höjd. Automation-ListBoxens `ItemsPanel` bytte från
+  `VerticalFirstUniformGrid Columns=2` till vertikal `StackPanel`; korttemplaten bantades (tog bort den
+  inline hero-adv-badgen och troop_training-3-timer-`ItemsControl` — den infon finns nu per by i
+  Villages-listan). (2) **Villages-kolumner:** Name, Pop, Coords (behållna) + **Buildings** (2 slots, 3
+  för Romare), **Troops** (Barracks/Stable/Workshop), **Hero**. Ikoner = mörka (idle) / gröna (aktiva).
+  Källa: per-by-cachen `_villageStatusCacheByName` (icke-aktiva byar = senast inläst). `VillageSelectionItem`
+  fick `BuildingSlots`/`TroopSlots` (`VillageActivitySlot`) + `IsHeroHome`; fylls i `ApplyVillageActivity
+  Indicators` (kallas i `BuildMergedVillageSelectionItems` + efter varje `CacheVillageStatus`). Romare-koll
+  = `status.Tribe` innehåller "Roman". (3) **Hero-hemmaby:** `HeroAttributeSnapshot.HomeVillageName` (nytt
+  fält) läses från attributsidan (vid login) — `ReadHeroHomeVillageNameAsync` plockar `.heroState a[href*=
+  "karte.php"]` ur "Home village is village X". `ApplyHeroSnapshotToUi` → `SetHeroHomeVillageName` → repaint.
+  Compile rent (endast exe copy-lock när appen kör), Worker 324 gröna; Desktop-tester kräver stängd app.
+
+- **2026-06-06** — **Dashboard-omdesign uppföljning (fixar efter visuell granskning).** (1) **Auto loop =
+  äkta listrader:** korttemplaten ersatt med en rad `Toggle | Namn (+beskrivning) | Status-badge` (tog bort
+  order-cirkeln och vänster-accentkanten) så allt får plats i 360px-kolumnen. (2) **Villages: Pop & Coords
+  flyttade längst till höger** (kolumnordning Name · Buildings · Troops · Hero · Pop · Coords i både header
+  och radmall). (3) **Buildings för icke-skannade byar (t.ex. GREZ):** den persistade cachen strippar
+  `ActiveBuildCount`/`BuildQueue`, så en by boten inte skannat denna session saknade bygg-signal. Ny
+  `BuildQueueFullConstructionCountByVillage` räknar construction-kö-items deferrade med reason `queue_full`
+  per by (= server-bygg-kön upptagen → bygger) och lyser Buildings-slots även utan färsk skanning;
+  kombineras med cachens `ActiveBuildCount` (max). (4) **Hero-hemmaby:** `.heroState` säger "Hero is
+  currently in village X" (hemma) ELLER "Home village is village X" (borta på räd) — den gamla selektorn
+  matchade bara "home village" och missade hemma-fallet. `ReadHeroHomeVillageNameAsync` tar nu **första
+  `a[href*="karte.php"]`** i `.heroState` (täcker båda). På äventyr finns ingen by-länk → null → behåller
+  senast kända. Build rent, Worker 324 + Desktop 62 gröna.
+
+- **2026-06-06** — **Villages-överblick: hero 3-läge + Queue- och Smithy-kolumner.** (1) **Hero-ikon
+  tre lägen:** grön = hjälten är hemma i byn, gul (`WarningBrush`) = hemmaby men hjälten är borta
+  (äventyr/attack), mörk = ingen hjälte. Drivs av `VillageSelectionItem.IsHeroHome` + ny `IsHeroAway`.
+  Worker: `ReadHeroHomeVillageInfoAsync` returnerar nu `(Name, Away)` — hemma upptäcks via
+  "currently in village"/`i.statusHome`; nytt snapshot-fält `HomeVillageHeroAway`; desktop
+  `SetHeroHomeVillageName(name, away)`. (2) **Queue-kolumn:** grön ikon när byn har köad construction,
+  mindre grön (`SuccessBgBrush`/`SuccessTextBrush`) när tom — så användaren snabbt ser var de bör köa
+  mer (`HasQueue` via `BuildVillagesWithConstructionQueue`). (3) **Smithy-kolumn:** två slots (två
+  samtidiga uppgraderingar), samma stil som övriga; **UI-only** (ej inkopplad mot data ännu —
+  `BuildSmithyActivitySlots` ger två idle-slots). Kolumnordning nu: Name · Buildings · Queue · Smithy ·
+  Troops · Hero · Pop · Coords. (4) **Auto loop** nu äkta listrader (Toggle | Namn | Status). Build rent,
+  Worker 324 + Desktop 62 gröna.
+
 ---
 
 ## 5. Kända fallgropar / regressions

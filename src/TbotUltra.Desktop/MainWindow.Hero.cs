@@ -95,6 +95,10 @@ public partial class MainWindow
     {
         _heroViewModel.ApplyAttributeSnapshot(snapshot);
         ApplyHeroHideModeSnapshotToUi(snapshot.HideMode);
+        if (!string.IsNullOrWhiteSpace(snapshot.HomeVillageName))
+        {
+            SetHeroHomeVillageName(snapshot.HomeVillageName, snapshot.HomeVillageHeroAway);
+        }
         if (snapshot.AdventureCount is not null)
         {
             ApplyHeroAdventureAvailability(snapshot.AdventureCount.Value);

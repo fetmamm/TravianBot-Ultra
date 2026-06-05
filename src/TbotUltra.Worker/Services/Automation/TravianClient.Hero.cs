@@ -1389,10 +1389,65 @@ public sealed partial class TravianClient
 
         var snapshot = await ReadHeroInventorySnapshotAsync(cancellationToken);
         snapshot = snapshot with { AdventureCount = adventureCount };
+
+        // The attributes page names the hero's village ("Hero is currently in village X" when home, or
+        // "Home village is village X" when away). Capture name + away-state so the dashboard can show the
+        // green (home) vs yellow (away) hero icon. Best-effort: name null when on an adventure (no anchor).
+        var heroHome = await ReadHeroHomeVillageInfoAsync(cancellationToken);
+        if (!string.IsNullOrWhiteSpace(heroHome.Name))
+        {
+            snapshot = snapshot with { HomeVillageName = heroHome.Name, HomeVillageHeroAway = heroHome.Away };
+        }
+
         SaveCachedHeroAttributeSnapshot(snapshot);
         Notify(
             $"Hero inventory snapshot: free points={snapshot.FreePoints}, fighting strength={snapshot.FightingStrength}, offence bonus={snapshot.OffenceBonus}, defence bonus={snapshot.DefenceBonus}, resources={snapshot.Resources}, adventures={(snapshot.AdventureCount?.ToString() ?? "?")}, hideMode={snapshot.HideMode ?? "?"}.");
         return snapshot;
+    }
+
+    // Reads the hero's home village name + whether the hero is away, from the attributes page hero-state
+    // box ("Hero is currently in village X" when home; "Home village is village X" when away on a raid).
+    // Both phrasings link the village via karte.php. Returns (null, false) when no village anchor is present
+    // (e.g. on an adventure), so callers keep the previously known value.
+    private async Task<(string? Name, bool Away)> ReadHeroHomeVillageInfoAsync(CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+        try
+        {
+            var raw = await _page.EvaluateAsync<string?>(
+                """
+                () => {
+                  const clean = (v) => (v || '').replace(/\s+/g, ' ').trim();
+                  const boxes = Array.from(document.querySelectorAll('.heroState, .attributeBox .heroState, .attributeBox'));
+                  for (const box of boxes) {
+                    const link = box.querySelector('a[href*="karte.php"], a[href*="position_details"]');
+                    if (!link) continue;
+                    const name = clean(link.textContent);
+                    if (!name) continue;
+                    const txt = clean(box.textContent).toLowerCase();
+                    // "currently in village" or a statusHome icon => hero is standing in the village (home).
+                    const home = txt.includes('currently in village')
+                      || !!box.querySelector('i[class*="statusHome" i], i[class*="heroHome" i]');
+                    return JSON.stringify({ name: name, away: !home });
+                  }
+                  return null;
+                }
+                """);
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return (null, false);
+            }
+
+            using var doc = System.Text.Json.JsonDocument.Parse(raw);
+            var root = doc.RootElement;
+            var name = root.TryGetProperty("name", out var n) ? n.GetString() : null;
+            var away = root.TryGetProperty("away", out var a) && a.GetBoolean();
+            return (string.IsNullOrWhiteSpace(name) ? null : name!.Trim(), away);
+        }
+        catch
+        {
+            return (null, false);
+        }
     }
 
     private async Task<HeroStatus> ReadHeroStatusAsync(CancellationToken cancellationToken)

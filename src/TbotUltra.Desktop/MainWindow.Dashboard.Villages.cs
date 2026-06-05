@@ -262,6 +262,7 @@ public partial class MainWindow
             .ToList();
 
         ApplyVillageEnabledState(items);
+        ApplyVillageActivityIndicators(items);
         return items;
     }
 
@@ -290,6 +291,7 @@ public partial class MainWindow
             .ToList();
 
         ApplyVillageEnabledState(items);
+        ApplyVillageActivityIndicators(items);
         return items;
     }
 

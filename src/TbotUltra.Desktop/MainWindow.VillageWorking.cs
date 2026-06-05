@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Travian;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Domain;
@@ -34,6 +35,217 @@ public partial class MainWindow
             || string.Equals(trimmed, "-", StringComparison.Ordinal)
             ? null
             : trimmed;
+    }
+
+    // The hero's home village name, captured from the hero attributes read at login (one home village at
+    // a time). Drives the green/yellow/dark Hero icon in the Dashboard village list.
+    private string? _heroHomeVillageName;
+
+    // Whether the hero is currently away from its home village (adventure/attack/etc). With the home
+    // village name this gives the hero icon three states: dark (not hero village), green (home), yellow (away).
+    private bool _heroIsAway;
+
+    // Records the hero home village + away-state and repaints the Dashboard hero indicators. No-op when unchanged.
+    private void SetHeroHomeVillageName(string? name, bool isAway)
+    {
+        var normalized = NormalizeVillageName(name);
+        if (string.Equals(_heroHomeVillageName, normalized, StringComparison.OrdinalIgnoreCase) && _heroIsAway == isAway)
+        {
+            return;
+        }
+
+        _heroHomeVillageName = normalized;
+        _heroIsAway = isAway;
+        RefreshVillageActivityIndicatorsOnDashboard();
+    }
+
+    private bool ResolveIsRomansTribe()
+    {
+        foreach (var status in _villageStatusCacheByName.Values)
+        {
+            if (!string.IsNullOrWhiteSpace(status.Tribe)
+                && status.Tribe.Contains("Roman", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Fills the Buildings/Troops/Hero overview indicators on each village item from the per-village status
+    // cache. Non-active villages show their last-scanned state (the bot reads one village at a time).
+    private void ApplyVillageActivityIndicators(IReadOnlyList<VillageSelectionItem> items)
+    {
+        if (items is null || items.Count == 0)
+        {
+            return;
+        }
+
+        var buildingSlotCount = ResolveIsRomansTribe() ? 3 : 2;
+        var heroHome = NormalizeVillageName(_heroHomeVillageName);
+        // Per-village "build queue is occupied" signal from the queue: a construction item deferred with
+        // reason queue_full means the server build queue is full → something IS building there. This lights
+        // the Buildings slots for villages the bot isn't currently scanning (their cached status has no
+        // live build count).
+        var queueFullByVillage = BuildQueueFullConstructionCountByVillage();
+        var queuedVillages = BuildVillagesWithConstructionQueue();
+        foreach (var item in items)
+        {
+            var name = NormalizeVillageName(item.Name);
+            VillageStatus? status = null;
+            if (name is not null)
+            {
+                _villageStatusCacheByName.TryGetValue(name, out status);
+            }
+
+            var queueActive = name is not null && queueFullByVillage.TryGetValue(name, out var count) ? count : 0;
+            item.BuildingSlots = BuildBuildingActivitySlots(status, buildingSlotCount, queueActive);
+            item.TroopSlots = BuildTroopActivitySlots(status);
+            item.SmithySlots = BuildSmithyActivitySlots();
+            item.HasQueue = name is not null && queuedVillages.Contains(name);
+
+            var isHeroVillage = name is not null
+                && heroHome is not null
+                && string.Equals(name, heroHome, StringComparison.OrdinalIgnoreCase);
+            item.IsHeroHome = isHeroVillage;
+            item.IsHeroAway = isHeroVillage && _heroIsAway;
+        }
+    }
+
+    // Village names that currently have at least one pending construction item queued. Drives the green
+    // (has queue) vs muted (empty) queue icon so the user sees which villages need more queued.
+    private HashSet<string> BuildVillagesWithConstructionQueue()
+    {
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            foreach (var item in _botService.GetQueueItemsForDisplay())
+            {
+                if (item.Status != QueueStatus.Pending || !IsConstructionQueueTask(item.TaskName))
+                {
+                    continue;
+                }
+
+                var villageName = NormalizeVillageName(GetQueueItemVillageName(item));
+                if (villageName is not null)
+                {
+                    set.Add(villageName);
+                }
+            }
+        }
+        catch
+        {
+            // Non-fatal for an overview indicator.
+        }
+
+        return set;
+    }
+
+    // Two idle smithy upgrade slots (two simultaneous upgrades). UI placeholder — not yet wired to live data.
+    private static IReadOnlyList<VillageActivitySlot> BuildSmithyActivitySlots()
+    {
+        return new[]
+        {
+            new VillageActivitySlot { IsActive = false, Label = "", Tooltip = "Smithy upgrade slot (not connected yet)" },
+            new VillageActivitySlot { IsActive = false, Label = "", Tooltip = "Smithy upgrade slot (not connected yet)" },
+        };
+    }
+
+    private void RefreshVillageActivityIndicatorsOnDashboard()
+    {
+        if (DashboardVillageList.ItemsSource is IEnumerable<VillageSelectionItem> items)
+        {
+            ApplyVillageActivityIndicators(items.ToList());
+        }
+    }
+
+    // Counts, per village name, construction queue items deferred because the build queue was full. Those
+    // imply the server build queue is occupied, so the Buildings slots can light up even for a village the
+    // bot isn't actively scanning.
+    private Dictionary<string, int> BuildQueueFullConstructionCountByVillage()
+    {
+        var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            foreach (var item in _botService.GetQueueItemsForDisplay())
+            {
+                if (item.Status != QueueStatus.Pending || !IsConstructionQueueTask(item.TaskName))
+                {
+                    continue;
+                }
+
+                if (item.Payload is null
+                    || !item.Payload.TryGetValue(BotOptionPayloadKeys.UpgradeDeferReason, out var reason)
+                    || !string.Equals(reason, BotOptionPayloadKeys.UpgradeDeferReasonQueueFull, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var villageName = NormalizeVillageName(GetQueueItemVillageName(item));
+                if (villageName is null)
+                {
+                    continue;
+                }
+
+                map[villageName] = (map.TryGetValue(villageName, out var current) ? current : 0) + 1;
+            }
+        }
+        catch
+        {
+            // Queue read failures are non-fatal for an overview indicator.
+        }
+
+        return map;
+    }
+
+    private static IReadOnlyList<VillageActivitySlot> BuildBuildingActivitySlots(VillageStatus? status, int slotCount, int queueActiveCount = 0)
+    {
+        var active = Math.Clamp(Math.Max(status?.ActiveBuildCount ?? 0, queueActiveCount), 0, slotCount);
+        var slots = new List<VillageActivitySlot>(slotCount);
+        for (var i = 0; i < slotCount; i++)
+        {
+            var isActive = i < active;
+            slots.Add(new VillageActivitySlot
+            {
+                IsActive = isActive,
+                Label = "", // hammer glyph set in XAML; Label unused for build slots — represents a construction slot.
+                Tooltip = isActive ? "Construction in progress" : "Build slot free",
+            });
+        }
+
+        return slots;
+    }
+
+    private static IReadOnlyList<VillageActivitySlot> BuildTroopActivitySlots(VillageStatus? status)
+    {
+        var defs = new (TroopTrainingBuildingType Type, string Letter, string Label)[]
+        {
+            (TroopTrainingBuildingType.Barracks, "B", "Barracks"),
+            (TroopTrainingBuildingType.Stable, "S", "Stable"),
+            (TroopTrainingBuildingType.Workshop, "W", "Workshop"),
+        };
+
+        var queues = status?.TroopTrainingQueues;
+        var slots = new List<VillageActivitySlot>(defs.Length);
+        foreach (var (type, letter, label) in defs)
+        {
+            var queue = queues?.FirstOrDefault(q => q.BuildingType == type);
+            var isActive = queue is { RemainingSeconds: > 0 };
+            string tooltip;
+            if (queue is null || !queue.Exists)
+            {
+                tooltip = $"{label}: not built";
+            }
+            else
+            {
+                tooltip = isActive ? $"{label}: training ({queue.RemainingText})" : $"{label}: idle";
+            }
+
+            slots.Add(new VillageActivitySlot { IsActive = isActive, Label = letter, Tooltip = tooltip });
+        }
+
+        return slots;
     }
 
     // The village the bot is currently working in (browser's village). Shown with a colored border on
@@ -286,6 +498,16 @@ public partial class MainWindow
         if (isFullRead)
         {
             _villageCacheStore.Save(_villageStatusCacheByName);
+        }
+
+        // Repaint the Dashboard village-list overview (Buildings/Troops slots) from the refreshed cache.
+        if (Dispatcher.CheckAccess())
+        {
+            RefreshVillageActivityIndicatorsOnDashboard();
+        }
+        else
+        {
+            _ = Dispatcher.BeginInvoke(RefreshVillageActivityIndicatorsOnDashboard);
         }
     }
 

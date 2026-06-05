@@ -582,11 +582,18 @@
 
                         <Grid Grid.Row="3">
                             <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="360" />
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="260" />
                             </Grid.ColumnDefinitions>
 
-                            <Border Grid.Column="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9" Padding="12" Margin="0,0,10,0">
+                            <!-- LEFT column: Automation Loop (list) on top, Auto settings below. -->
+                            <Grid Grid.Column="0" Margin="0,0,10,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                            <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9" Padding="12">
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
@@ -657,7 +664,7 @@
                                              Drop="AutomationLoopListBox_Drop">
                                         <ListBox.ItemsPanel>
                                             <ItemsPanelTemplate>
-                                                <local:VerticalFirstUniformGrid Columns="2" />
+                                                <StackPanel Orientation="Vertical" />
                                             </ItemsPanelTemplate>
                                         </ListBox.ItemsPanel>
                                         <ListBox.ItemContainerStyle>
@@ -676,7 +683,7 @@
                                         </ListBox.ItemContainerStyle>
                                         <ListBox.ItemTemplate>
                                             <DataTemplate>
-                                                <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9" Padding="8" Background="{DynamicResource SurfaceBrush}">
+                                                <Border CornerRadius="8" Padding="8,5" Margin="0,0,0,4">
                                                     <Border.Style>
                                                         <Style TargetType="Border">
                                                             <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
@@ -689,7 +696,6 @@
                                                                 <DataTrigger Binding="{Binding IsRunning}" Value="True">
                                                                     <Setter Property="Background" Value="{DynamicResource SuccessBgBrush}" />
                                                                     <Setter Property="BorderBrush" Value="{DynamicResource SuccessBrush}" />
-                                                                    <Setter Property="BorderThickness" Value="2" />
                                                                 </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
@@ -701,235 +707,70 @@
                                                             <ColumnDefinition Width="Auto" />
                                                         </Grid.ColumnDefinitions>
 
-                                                        <StackPanel Grid.Column="0"
-                                                                    Orientation="Vertical"
-                                                                    VerticalAlignment="Center"
-                                                                    HorizontalAlignment="Center"
-                                                                    Margin="0,0,8,0">
-                                                            <Border Width="24"
-                                                                    Height="24"
-                                                                    CornerRadius="12"
-                                                                    Margin="0,0,0,6"
-                                                                    Background="{DynamicResource InfoBrush}">
-                                                                <Border.Style>
-                                                                    <Style TargetType="Border">
-                                                                        <Setter Property="Background" Value="{DynamicResource InfoBrush}" />
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding IsRunning}" Value="True">
-                                                                                <Setter Property="Background" Value="{DynamicResource SuccessBrush}" />
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </Border.Style>
-                                                                <TextBlock Text="{Binding Order}" Foreground="White" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                                            </Border>
-                                                            <ToggleButton Style="{StaticResource ContinuousRunToggleStyle}"
-                                                                          HorizontalAlignment="Center"
-                                                                          IsChecked="{Binding IsEnabled, Mode=TwoWay}"
-                                                                          Click="AutomationLoopToggleButton_Click" />
+                                                        <!-- Toggle -->
+                                                        <ToggleButton Grid.Column="0"
+                                                                      Style="{StaticResource ContinuousRunToggleStyle}"
+                                                                      VerticalAlignment="Center"
+                                                                      Margin="0,0,10,0"
+                                                                      IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                                                      Click="AutomationLoopToggleButton_Click" />
+
+                                                        <!-- Name (+ description) -->
+                                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                                                            <TextBlock Text="{Binding Description}" Foreground="{DynamicResource TextMutedBrush}" FontSize="11" TextTrimming="CharacterEllipsis" />
                                                         </StackPanel>
 
-                                                        <Border Grid.Column="1" BorderBrush="{DynamicResource InfoBrush}" BorderThickness="3,0,0,0" Padding="8,0,0,0">
+                                                        <!-- Status -->
+                                                        <Border Grid.Column="2"
+                                                                Padding="8,3"
+                                                                CornerRadius="8"
+                                                                VerticalAlignment="Center"
+                                                                BorderThickness="1"
+                                                                MinWidth="64">
                                                             <Border.Style>
                                                                 <Style TargetType="Border">
-                                                                    <Setter Property="BorderBrush" Value="{DynamicResource InfoBrush}" />
+                                                                    <Setter Property="Background" Value="{DynamicResource SuccessBgBrush}" />
+                                                                    <Setter Property="BorderBrush" Value="{DynamicResource SuccessBorderBrush}" />
                                                                     <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding IsRunning}" Value="True">
-                                                                            <Setter Property="BorderBrush" Value="{DynamicResource SuccessBrush}" />
+                                                                        <DataTrigger Binding="{Binding IsBlocked}" Value="True">
+                                                                            <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+                                                                            <Setter Property="BorderBrush" Value="{DynamicResource BorderMutedBrush}" />
                                                                         </DataTrigger>
                                                                         <DataTrigger Binding="{Binding IsEnabled}" Value="False">
-                                                                            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+                                                                            <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+                                                                            <Setter Property="BorderBrush" Value="{DynamicResource BorderMutedBrush}" />
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding HasTimer}" Value="True">
+                                                                            <Setter Property="Background" Value="{DynamicResource WarningBgBrush}" />
+                                                                            <Setter Property="BorderBrush" Value="{DynamicResource WarningBorderBrush}" />
                                                                         </DataTrigger>
                                                                     </Style.Triggers>
                                                                 </Style>
                                                             </Border.Style>
-                                                            <Grid VerticalAlignment="Center">
-                                                                <Grid.ColumnDefinitions>
-                                                                    <ColumnDefinition Width="*" />
-                                                                    <ColumnDefinition Width="Auto" />
-                                                                </Grid.ColumnDefinitions>
-
-                                                                <StackPanel Grid.Column="0">
-                                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis" />
-                                                                        <TextBlock Text="Running" Margin="8,0,0,0" Foreground="{DynamicResource SuccessBrush}" FontSize="12" FontWeight="SemiBold">
-                                                                            <TextBlock.Style>
-                                                                                <Style TargetType="TextBlock">
-                                                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                                                    <Style.Triggers>
-                                                                                        <DataTrigger Binding="{Binding IsRunning}" Value="True">
-                                                                                            <Setter Property="Visibility" Value="Visible" />
-                                                                                        </DataTrigger>
-                                                                                    </Style.Triggers>
-                                                                                </Style>
-                                                                            </TextBlock.Style>
-                                                                        </TextBlock>
-                                                                    </StackPanel>
-                                                                    <TextBlock Text="{Binding Description}" Foreground="{DynamicResource TextMutedBrush}" FontSize="11" Margin="0,1,0,0" TextTrimming="CharacterEllipsis" />
-                                                                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0" VerticalAlignment="Center">
-                                                                        <TextBlock Text="{Binding StateText}" Foreground="{DynamicResource InfoTextBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,0,8,0" VerticalAlignment="Center" />
-                                                                        <TextBlock Text="{Binding QueuedCount, StringFormat=Queued: {0}}" Foreground="{DynamicResource TextMutedBrush}" FontSize="11" VerticalAlignment="Center" />
-                                                                        <Border Margin="8,0,0,0"
-                                                                                Padding="6,1"
-                                                                                CornerRadius="5"
-                                                                                BorderThickness="1"
-                                                                                VerticalAlignment="Center">
-                                                                            <Border.Style>
-                                                                                <Style TargetType="Border">
-                                                                                    <Setter Property="Background" Value="{DynamicResource HeroAdvBgBrush}" />
-                                                                                    <Setter Property="BorderBrush" Value="{DynamicResource HeroAdvBorderBrush}" />
-                                                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                                                    <Style.Triggers>
-                                                                                        <DataTrigger Binding="{Binding TaskName}" Value="hero">
-                                                                                            <Setter Property="Visibility" Value="Visible" />
-                                                                                        </DataTrigger>
-                                                                                        <DataTrigger Binding="{Binding HeroVm.AdventureCountText, ElementName=RootWindow}" Value="0">
-                                                                                            <Setter Property="Background" Value="{DynamicResource AppBackgroundBrush}" />
-                                                                                            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-                                                                                        </DataTrigger>
-                                                                                    </Style.Triggers>
-                                                                                </Style>
-                                                                            </Border.Style>
-                                                                            <StackPanel Orientation="Horizontal">
-                                                                                <TextBlock Text="Adv:" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0">
-                                                                                    <TextBlock.Style>
-                                                                                        <Style TargetType="TextBlock">
-                                                                                            <Setter Property="Foreground" Value="{DynamicResource SuccessTextStrongBrush}" />
-                                                                                            <Style.Triggers>
-                                                                                                <DataTrigger Binding="{Binding HeroVm.AdventureCountText, ElementName=RootWindow}" Value="0">
-                                                                                                    <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
-                                                                                                </DataTrigger>
-                                                                                            </Style.Triggers>
-                                                                                        </Style>
-                                                                                    </TextBlock.Style>
-                                                                                </TextBlock>
-                                                                                <TextBlock Text="{Binding HeroVm.AdventureCountText, ElementName=RootWindow}"
-                                                                                           FontWeight="SemiBold"
-                                                                                           FontSize="12"
-                                                                                           VerticalAlignment="Center">
-                                                                                    <TextBlock.Style>
-                                                                                        <Style TargetType="TextBlock">
-                                                                                            <Setter Property="Foreground" Value="{DynamicResource SuccessTextStrongBrush}" />
-                                                                                            <Style.Triggers>
-                                                                                                <DataTrigger Binding="{Binding HeroVm.AdventureCountText, ElementName=RootWindow}" Value="0">
-                                                                                                    <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
-                                                                                                </DataTrigger>
-                                                                                            </Style.Triggers>
-                                                                                        </Style>
-                                                                                    </TextBlock.Style>
-                                                                                </TextBlock>
-                                                                            </StackPanel>
-                                                                        </Border>
-                                                                    </StackPanel>
-                                                                    <TextBlock Text="{Binding DetailText}" Foreground="{DynamicResource TextSubtleBrush}" FontSize="11" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" />
-                                                                </StackPanel>
-
-                                                                <ItemsControl Grid.Column="1"
-                                                                              ItemsSource="{Binding TroopTrainingVm.Buildings, ElementName=RootWindow}"
-                                                                              Margin="8,0,0,0"
-                                                                              HorizontalAlignment="Left"
-                                                                              VerticalAlignment="Center">
-                                                                    <ItemsControl.Style>
-                                                                        <Style TargetType="ItemsControl">
-                                                                            <Setter Property="Visibility" Value="Collapsed" />
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding TaskName}" Value="troop_training">
-                                                                                    <Setter Property="Visibility" Value="Visible" />
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </ItemsControl.Style>
-                                                                    <ItemsControl.ItemsPanel>
-                                                                        <ItemsPanelTemplate>
-                                                                            <UniformGrid Columns="3" />
-                                                                        </ItemsPanelTemplate>
-                                                                    </ItemsControl.ItemsPanel>
-                                                                    <ItemsControl.ItemTemplate>
-                                                                        <DataTemplate>
-                                                                            <StackPanel Margin="0,0,4,0">
-                                                                                <TextBlock Text="{Binding Title}"
-                                                                                           FontSize="11"
-                                                                                           FontWeight="SemiBold"
-                                                                                           Foreground="{DynamicResource TextPrimaryBrush}"
-                                                                                           HorizontalAlignment="Left"
-                                                                                           TextAlignment="Left" />
-                                                                                <Border Margin="0,4,0,0"
-                                                                                        HorizontalAlignment="Left"
-                                                                                        Width="58"
-                                                                                        Padding="5,2"
-                                                                                        CornerRadius="6"
-                                                                                        Background="{Binding QueueBadgeBackground}"
-                                                                                        BorderBrush="{Binding QueueBadgeBorderBrush}"
-                                                                                        BorderThickness="1">
-                                                                                    <TextBlock Text="{Binding QueueTimerText}"
-                                                                                               Foreground="{Binding QueueBadgeForeground}"
-                                                                                               FontWeight="SemiBold"
-                                                                                               FontSize="11"
-                                                                                               HorizontalAlignment="Center"
-                                                                                               TextAlignment="Center" />
-                                                                                </Border>
-                                                                            </StackPanel>
-                                                                        </DataTemplate>
-                                                                    </ItemsControl.ItemTemplate>
-                                                                </ItemsControl>
-                                                            </Grid>
-                                                        </Border>
-
-                                                        <StackPanel Grid.Column="2"
-                                                                    Orientation="Vertical"
-                                                                    VerticalAlignment="Center"
-                                                                    HorizontalAlignment="Center">
-                                                                    <Border Padding="8,3"
-                                                                            CornerRadius="8"
-                                                                            VerticalAlignment="Center"
-                                                                            BorderThickness="1"
-                                                                            MinWidth="70">
-                                                                <Border.Style>
-                                                                    <Style TargetType="Border">
-                                                                        <Setter Property="Background" Value="{DynamicResource SuccessBgBrush}" />
-                                                                        <Setter Property="BorderBrush" Value="{DynamicResource SuccessBorderBrush}" />
-                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold" FontSize="12">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Text" Value="{Binding BadgeText}" />
+                                                                        <Setter Property="Foreground" Value="{DynamicResource SuccessTextBrush}" />
                                                                         <Style.Triggers>
                                                                             <DataTrigger Binding="{Binding IsBlocked}" Value="True">
-                                                                                <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
-                                                                                <Setter Property="BorderBrush" Value="{DynamicResource BorderMutedBrush}" />
+                                                                                <Setter Property="Text" Value="{Binding BlockedText}" />
+                                                                                <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
                                                                             </DataTrigger>
                                                                             <DataTrigger Binding="{Binding IsEnabled}" Value="False">
-                                                                                <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
-                                                                                <Setter Property="BorderBrush" Value="{DynamicResource BorderMutedBrush}" />
+                                                                                <Setter Property="Text" Value="Disabled" />
+                                                                                <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
                                                                             </DataTrigger>
                                                                             <DataTrigger Binding="{Binding HasTimer}" Value="True">
-                                                                                <Setter Property="Background" Value="{DynamicResource WarningBgBrush}" />
-                                                                                <Setter Property="BorderBrush" Value="{DynamicResource WarningBorderBrush}" />
+                                                                                <Setter Property="Text" Value="{Binding TimerText}" />
+                                                                                <Setter Property="Foreground" Value="{DynamicResource WarningTextBrush}" />
                                                                             </DataTrigger>
                                                                         </Style.Triggers>
                                                                     </Style>
-                                                                </Border.Style>
-                                                                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold">
-                                                                    <TextBlock.Style>
-                                                                        <Style TargetType="TextBlock">
-                                                                            <Setter Property="Text" Value="{Binding BadgeText}" />
-                                                                            <Setter Property="Foreground" Value="{DynamicResource SuccessTextBrush}" />
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding IsBlocked}" Value="True">
-                                                                                    <Setter Property="Text" Value="{Binding BlockedText}" />
-                                                                                    <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
-                                                                                </DataTrigger>
-                                                                                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
-                                                                                    <Setter Property="Text" Value="Disabled" />
-                                                                                    <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
-                                                                                </DataTrigger>
-                                                                                <DataTrigger Binding="{Binding HasTimer}" Value="True">
-                                                                                    <Setter Property="Text" Value="{Binding TimerText}" />
-                                                                                    <Setter Property="Foreground" Value="{DynamicResource WarningTextBrush}" />
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </TextBlock.Style>
-                                                                </TextBlock>
-                                                            </Border>
-
-                                                        </StackPanel>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </Border>
                                                     </Grid>
                                                 </Border>
                                             </DataTemplate>
@@ -938,26 +779,140 @@
                                 </Grid>
                             </Border>
 
-                            <Grid Grid.Column="1">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="*" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
+                            <!-- Auto settings: moved to the left column, below the Automation Loop. -->
+                            <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9" Padding="12" Margin="0,10,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="Auto settings" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,6" />
+                                    <!-- Each setting gets a trailing "i" info icon (SettingInfoIconStyle) describing it. -->
+                                    <StackPanel Orientation="Horizontal">
+                                        <CheckBox x:Name="AutoCollectTasksCheckBox" Content="Collect tasks"
+                                                  Style="{StaticResource ToggleSwitchStyle}"
+                                                  Foreground="{DynamicResource TextSecondaryBrush}"
+                                                  Checked="AutoCollectTasksSetting_Changed" Unchecked="AutoCollectTasksSetting_Changed" />
+                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}">
+                                            <ContentControl.ToolTip>
+                                                <ToolTip MaxWidth="320">
+                                                    <TextBlock TextWrapping="Wrap"
+                                                               Text="Official servers only. When the Questmaster has claimable task rewards, the bot opens the Tasks page, collects the rewards on both the village and general tabs, and returns to the village." />
+                                                </ToolTip>
+                                            </ContentControl.ToolTip>
+                                        </ContentControl>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                        <CheckBox x:Name="AutoCollectDailyQuestsCheckBox" Content="Collect daily quests"
+                                                  Style="{StaticResource ToggleSwitchStyle}"
+                                                  Foreground="{DynamicResource TextSecondaryBrush}"
+                                                  Checked="AutoCollectDailyQuestsSetting_Changed" Unchecked="AutoCollectDailyQuestsSetting_Changed" />
+                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}">
+                                            <ContentControl.ToolTip>
+                                                <ToolTip MaxWidth="320">
+                                                    <TextBlock TextWrapping="Wrap"
+                                                               Text="Official servers only. When the daily quests icon shows an exclamation mark, the bot opens the dialog and collects available daily rewards." />
+                                                </ToolTip>
+                                            </ContentControl.ToolTip>
+                                        </ContentControl>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                        <CheckBox x:Name="HeroResourceTransferCheckBox" Content="Use hero resources"
+                                                  Style="{StaticResource ToggleSwitchStyle}"
+                                                  Foreground="{DynamicResource TextSecondaryBrush}"
+                                                  VerticalAlignment="Center"
+                                                  Checked="HeroResourceTransferSetting_Changed" Unchecked="HeroResourceTransferSetting_Changed" />
+                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}">
+                                            <ContentControl.ToolTip>
+                                                <ToolTip MaxWidth="320">
+                                                    <TextBlock TextWrapping="Wrap"
+                                                               Text="Official servers only. When an upgrade lacks resources, the bot pulls the missing wood/clay/iron/crop from the hero's inventory and then continues the upgrade." />
+                                                </ToolTip>
+                                            </ContentControl.ToolTip>
+                                        </ContentControl>
+                                        <Button x:Name="HeroInventorySettingsButton"
+                                                Content="&#xE713;"
+                                                FontFamily="Segoe MDL2 Assets"
+                                                FontSize="13"
+                                                Width="26"
+                                                Height="22"
+                                                Padding="0"
+                                                Margin="6,0,0,0"
+                                                VerticalAlignment="Center"
+                                                Background="{DynamicResource SurfaceBrush}"
+                                                BorderBrush="{DynamicResource BorderBrush}"
+                                                ToolTip="Open hero inventory settings"
+                                                Click="HeroInventorySettingsButton_Click" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                        <CheckBox Content="Allow gold spending"
+                                                  Style="{StaticResource ToggleSwitchStyle}"
+                                                  Foreground="{DynamicResource TextSecondaryBrush}"
+                                                  VerticalAlignment="Center"
+                                                  IsChecked="{Binding TroopTrainingVm.AllowGoldSpending, ElementName=RootWindow, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}">
+                                            <ContentControl.ToolTip>
+                                                <ToolTip MaxWidth="320">
+                                                    <TextBlock TextWrapping="Wrap"
+                                                               Text="Allows gold-spending features such as NPC trade. Spending still respects the gold limit configured on the NPC / Trade tab." />
+                                                </ToolTip>
+                                            </ContentControl.ToolTip>
+                                        </ContentControl>
+                                    </StackPanel>
+                                    <!-- NPC trade master on/off. Detailed per-feature toggles and thresholds
+                                         stay on the NPC / Trade tab, reachable via the gear button. -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                        <CheckBox Content="NPC trade"
+                                                  Style="{StaticResource ToggleSwitchStyle}"
+                                                  Foreground="{DynamicResource TextSecondaryBrush}"
+                                                  VerticalAlignment="Center"
+                                                  IsChecked="{Binding TroopTrainingVm.NpcTradeMasterEnabled, ElementName=RootWindow, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}">
+                                            <ContentControl.ToolTip>
+                                                <ToolTip MaxWidth="320">
+                                                    <TextBlock TextWrapping="Wrap"
+                                                               Text="Enables NPC trade for both troop training and building/resource-field upgrades. Each NPC trade costs 3 gold and requires Allow gold spending. Open the settings for per-feature toggles, resources, and thresholds." />
+                                                </ToolTip>
+                                            </ContentControl.ToolTip>
+                                        </ContentControl>
+                                        <Button x:Name="GoldSpendingSettingsButton"
+                                                Content="&#xE713;"
+                                                FontFamily="Segoe MDL2 Assets"
+                                                FontSize="13"
+                                                Width="26"
+                                                Height="22"
+                                                Padding="0"
+                                                Margin="6,0,0,0"
+                                                VerticalAlignment="Center"
+                                                Background="{DynamicResource SurfaceBrush}"
+                                                BorderBrush="{DynamicResource BorderBrush}"
+                                                ToolTip="Open NPC trade settings"
+                                                Click="GoldSpendingSettingsButton_Click" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                            </Grid>
 
-                                <!-- Villages: own box, list scrolls when it grows long. -->
-                                <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9" Padding="12">
+                            <!-- RIGHT column: Villages overview, full height. Columns: Name, Pop, Coords,
+                                 Buildings (2 slots, 3 for Romans), Troops (Barracks/Stable/Workshop), Hero. -->
+                            <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9" Padding="12">
                                     <DockPanel>
-                                        <!-- Title row doubles as the column header: "Villages" on the left, Pop/Coords
-                                             at fixed side positions that line up with the fixed-width data columns below. -->
+                                        <!-- Title row doubles as the column header, aligned with the fixed-width data columns below. -->
                                         <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="64" />
-                                                <ColumnDefinition Width="96" />
+                                                <ColumnDefinition Width="72" />
+                                                <ColumnDefinition Width="40" />
+                                                <ColumnDefinition Width="56" />
+                                                <ColumnDefinition Width="92" />
+                                                <ColumnDefinition Width="44" />
+                                                <ColumnDefinition Width="56" />
+                                                <ColumnDefinition Width="84" />
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0" Text="Villages" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="8,0,0,0" />
-                                            <TextBlock Grid.Column="1" Text="Pop" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="8,0,0,0" />
-                                            <TextBlock Grid.Column="2" Text="Coords" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                            <TextBlock Grid.Column="1" Text="Buildings" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="4,0,0,0" />
+                                            <TextBlock Grid.Column="2" Text="Queue" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="2,0,0,0" />
+                                            <TextBlock Grid.Column="3" Text="Smithy" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="4,0,0,0" />
+                                            <TextBlock Grid.Column="4" Text="Troops" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="4,0,0,0" />
+                                            <TextBlock Grid.Column="5" Text="Hero" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="2,0,0,0" />
+                                            <TextBlock Grid.Column="6" Text="Pop" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                            <TextBlock Grid.Column="7" Text="Coords" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="8,0,0,0" />
                                         </Grid>
                                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                             <ItemsControl x:Name="DashboardVillageList">
@@ -981,8 +936,13 @@
                                                         <Grid>
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="*" />
-                                                                <ColumnDefinition Width="64" />
-                                                                <ColumnDefinition Width="96" />
+                                                                <ColumnDefinition Width="72" />
+                                                                <ColumnDefinition Width="40" />
+                                                                <ColumnDefinition Width="56" />
+                                                                <ColumnDefinition Width="92" />
+                                                                <ColumnDefinition Width="44" />
+                                                                <ColumnDefinition Width="56" />
+                                                                <ColumnDefinition Width="84" />
                                                             </Grid.ColumnDefinitions>
                                                             <!-- Capital villages get a gold box around the name instead of a
                                                                  separate "Capital" badge. Padding is kept on non-capital rows
@@ -1021,8 +981,196 @@
                                                                     </TextBlock.Style>
                                                                 </TextBlock>
                                                             </Border>
-                                                            <TextBlock Grid.Column="1" Text="{Binding PopText}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" Margin="8,0,0,0" VerticalAlignment="Center" />
-                                                            <TextBlock Grid.Column="2" Text="{Binding CoordsText}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" Margin="8,0,0,0" VerticalAlignment="Center" />
+                                                            <TextBlock Grid.Column="6" Text="{Binding PopText}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" Margin="8,0,0,0" VerticalAlignment="Center" />
+                                                            <TextBlock Grid.Column="7" Text="{Binding CoordsText}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" Margin="8,0,0,0" VerticalAlignment="Center" />
+
+                                                            <!-- Buildings: one slot per construction queue position (2 normally, 3 for Romans).
+                                                                 Dark = idle, green = building. -->
+                                                            <ItemsControl Grid.Column="1" ItemsSource="{Binding BuildingSlots}" VerticalAlignment="Center" Margin="4,0,0,0">
+                                                                <ItemsControl.ItemsPanel>
+                                                                    <ItemsPanelTemplate>
+                                                                        <StackPanel Orientation="Horizontal" />
+                                                                    </ItemsPanelTemplate>
+                                                                </ItemsControl.ItemsPanel>
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Border Width="18" Height="18" CornerRadius="4" Margin="2,0" ToolTip="{Binding Tooltip}">
+                                                                            <Border.Style>
+                                                                                <Style TargetType="Border">
+                                                                                    <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+                                                                                    <Setter Property="BorderBrush" Value="{DynamicResource BorderMutedBrush}" />
+                                                                                    <Setter Property="BorderThickness" Value="1" />
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                                            <Setter Property="Background" Value="{DynamicResource SuccessBrush}" />
+                                                                                            <Setter Property="BorderBrush" Value="{DynamicResource SuccessBorderBrush}" />
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </Border.Style>
+                                                                            <TextBlock Text="&#xE90F;" FontFamily="Segoe MDL2 Assets" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                                                <TextBlock.Style>
+                                                                                    <Style TargetType="TextBlock">
+                                                                                        <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
+                                                                                        <Style.Triggers>
+                                                                                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                                                <Setter Property="Foreground" Value="White" />
+                                                                                            </DataTrigger>
+                                                                                        </Style.Triggers>
+                                                                                    </Style>
+                                                                                </TextBlock.Style>
+                                                                            </TextBlock>
+                                                                        </Border>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+
+                                                            <!-- Troops: Barracks/Stable/Workshop. Dark = idle, green = training. -->
+                                                            <ItemsControl Grid.Column="4" ItemsSource="{Binding TroopSlots}" VerticalAlignment="Center" Margin="4,0,0,0">
+                                                                <ItemsControl.ItemsPanel>
+                                                                    <ItemsPanelTemplate>
+                                                                        <StackPanel Orientation="Horizontal" />
+                                                                    </ItemsPanelTemplate>
+                                                                </ItemsControl.ItemsPanel>
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Border Width="18" Height="18" CornerRadius="4" Margin="2,0" ToolTip="{Binding Tooltip}">
+                                                                            <Border.Style>
+                                                                                <Style TargetType="Border">
+                                                                                    <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+                                                                                    <Setter Property="BorderBrush" Value="{DynamicResource BorderMutedBrush}" />
+                                                                                    <Setter Property="BorderThickness" Value="1" />
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                                            <Setter Property="Background" Value="{DynamicResource SuccessBrush}" />
+                                                                                            <Setter Property="BorderBrush" Value="{DynamicResource SuccessBorderBrush}" />
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </Border.Style>
+                                                                            <TextBlock Text="{Binding Label}" FontSize="10" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                                                <TextBlock.Style>
+                                                                                    <Style TargetType="TextBlock">
+                                                                                        <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
+                                                                                        <Style.Triggers>
+                                                                                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                                                <Setter Property="Foreground" Value="White" />
+                                                                                            </DataTrigger>
+                                                                                        </Style.Triggers>
+                                                                                    </Style>
+                                                                                </TextBlock.Style>
+                                                                            </TextBlock>
+                                                                        </Border>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+
+                                                            <!-- Queue: green when the village has construction queued, muted green when empty. -->
+                                                            <Border Grid.Column="2" Width="18" Height="18" CornerRadius="4" Margin="2,0,0,0" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                                                <Border.Style>
+                                                                    <Style TargetType="Border">
+                                                                        <Setter Property="Background" Value="{DynamicResource SuccessBgBrush}" />
+                                                                        <Setter Property="BorderBrush" Value="{DynamicResource SuccessBorderBrush}" />
+                                                                        <Setter Property="BorderThickness" Value="1" />
+                                                                        <Setter Property="ToolTip" Value="No construction queued here — consider queuing more" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding HasQueue}" Value="True">
+                                                                                <Setter Property="Background" Value="{DynamicResource SuccessBrush}" />
+                                                                                <Setter Property="BorderBrush" Value="{DynamicResource SuccessBorderBrush}" />
+                                                                                <Setter Property="ToolTip" Value="Construction queued in this village" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Border.Style>
+                                                                <TextBlock Text="&#xE8FD;" FontFamily="Segoe MDL2 Assets" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Foreground" Value="{DynamicResource SuccessTextBrush}" />
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding HasQueue}" Value="True">
+                                                                                    <Setter Property="Foreground" Value="White" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                            </Border>
+
+                                                            <!-- Smithy: two upgrade slots (UI only for now; not wired to live data). -->
+                                                            <ItemsControl Grid.Column="3" ItemsSource="{Binding SmithySlots}" VerticalAlignment="Center" Margin="4,0,0,0">
+                                                                <ItemsControl.ItemsPanel>
+                                                                    <ItemsPanelTemplate>
+                                                                        <StackPanel Orientation="Horizontal" />
+                                                                    </ItemsPanelTemplate>
+                                                                </ItemsControl.ItemsPanel>
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Border Width="18" Height="18" CornerRadius="4" Margin="2,0" ToolTip="{Binding Tooltip}">
+                                                                            <Border.Style>
+                                                                                <Style TargetType="Border">
+                                                                                    <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+                                                                                    <Setter Property="BorderBrush" Value="{DynamicResource BorderMutedBrush}" />
+                                                                                    <Setter Property="BorderThickness" Value="1" />
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                                            <Setter Property="Background" Value="{DynamicResource SuccessBrush}" />
+                                                                                            <Setter Property="BorderBrush" Value="{DynamicResource SuccessBorderBrush}" />
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </Border.Style>
+                                                                            <TextBlock Text="&#xE70E;" FontFamily="Segoe MDL2 Assets" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                                                <TextBlock.Style>
+                                                                                    <Style TargetType="TextBlock">
+                                                                                        <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
+                                                                                        <Style.Triggers>
+                                                                                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                                                <Setter Property="Foreground" Value="White" />
+                                                                                            </DataTrigger>
+                                                                                        </Style.Triggers>
+                                                                                    </Style>
+                                                                                </TextBlock.Style>
+                                                                            </TextBlock>
+                                                                        </Border>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+
+                                                            <!-- Hero: green = hero home in this village, yellow = home village but hero is away, dark = no hero. -->
+                                                            <Border Grid.Column="5" Width="18" Height="18" CornerRadius="4" Margin="2,0,0,0" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                                                <Border.Style>
+                                                                    <Style TargetType="Border">
+                                                                        <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+                                                                        <Setter Property="BorderBrush" Value="{DynamicResource BorderMutedBrush}" />
+                                                                        <Setter Property="BorderThickness" Value="1" />
+                                                                        <Setter Property="ToolTip" Value="Hero is not based here" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsHeroHome}" Value="True">
+                                                                                <Setter Property="Background" Value="{DynamicResource SuccessBrush}" />
+                                                                                <Setter Property="BorderBrush" Value="{DynamicResource SuccessBorderBrush}" />
+                                                                                <Setter Property="ToolTip" Value="Hero home village (hero is here)" />
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding IsHeroAway}" Value="True">
+                                                                                <Setter Property="Background" Value="{DynamicResource WarningBrush}" />
+                                                                                <Setter Property="BorderBrush" Value="{DynamicResource WarningBorderBrush}" />
+                                                                                <Setter Property="ToolTip" Value="Hero home village (hero is away)" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Border.Style>
+                                                                <TextBlock Text="&#xE77B;" FontFamily="Segoe MDL2 Assets" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsHeroHome}" Value="True">
+                                                                                    <Setter Property="Foreground" Value="White" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                            </Border>
                                                         </Grid>
                                                       </Border>
                                                     </DataTemplate>
@@ -1031,116 +1179,6 @@
                                         </ScrollViewer>
                                     </DockPanel>
                                 </Border>
-
-                                <!-- Settings: separate box below the villages list. -->
-                                <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9" Padding="12" Margin="0,10,0,0">
-                                    <StackPanel>
-                                        <TextBlock Text="Auto settings" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,6" />
-                                        <!-- Each setting gets a trailing "i" info icon (SettingInfoIconStyle) describing it. -->
-                                        <StackPanel Orientation="Horizontal">
-                                            <CheckBox x:Name="AutoCollectTasksCheckBox" Content="Collect tasks"
-                                                      Style="{StaticResource ToggleSwitchStyle}"
-                                                      Foreground="{DynamicResource TextSecondaryBrush}"
-                                                      Checked="AutoCollectTasksSetting_Changed" Unchecked="AutoCollectTasksSetting_Changed" />
-                                            <ContentControl Style="{StaticResource SettingInfoIconStyle}">
-                                                <ContentControl.ToolTip>
-                                                    <ToolTip MaxWidth="320">
-                                                        <TextBlock TextWrapping="Wrap"
-                                                                   Text="Official servers only. When the Questmaster has claimable task rewards, the bot opens the Tasks page, collects the rewards on both the village and general tabs, and returns to the village." />
-                                                    </ToolTip>
-                                                </ContentControl.ToolTip>
-                                            </ContentControl>
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                            <CheckBox x:Name="AutoCollectDailyQuestsCheckBox" Content="Collect daily quests"
-                                                      Style="{StaticResource ToggleSwitchStyle}"
-                                                      Foreground="{DynamicResource TextSecondaryBrush}"
-                                                      Checked="AutoCollectDailyQuestsSetting_Changed" Unchecked="AutoCollectDailyQuestsSetting_Changed" />
-                                            <ContentControl Style="{StaticResource SettingInfoIconStyle}">
-                                                <ContentControl.ToolTip>
-                                                    <ToolTip MaxWidth="320">
-                                                        <TextBlock TextWrapping="Wrap"
-                                                                   Text="Official servers only. When the daily quests icon shows an exclamation mark, the bot opens the dialog and collects available daily rewards." />
-                                                    </ToolTip>
-                                                </ContentControl.ToolTip>
-                                            </ContentControl>
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                            <CheckBox x:Name="HeroResourceTransferCheckBox" Content="Use hero resources"
-                                                      Style="{StaticResource ToggleSwitchStyle}"
-                                                      Foreground="{DynamicResource TextSecondaryBrush}"
-                                                      VerticalAlignment="Center"
-                                                      Checked="HeroResourceTransferSetting_Changed" Unchecked="HeroResourceTransferSetting_Changed" />
-                                            <ContentControl Style="{StaticResource SettingInfoIconStyle}">
-                                                <ContentControl.ToolTip>
-                                                    <ToolTip MaxWidth="320">
-                                                        <TextBlock TextWrapping="Wrap"
-                                                                   Text="Official servers only. When an upgrade lacks resources, the bot pulls the missing wood/clay/iron/crop from the hero's inventory and then continues the upgrade." />
-                                                    </ToolTip>
-                                                </ContentControl.ToolTip>
-                                            </ContentControl>
-                                            <Button x:Name="HeroInventorySettingsButton"
-                                                    Content="&#xE713;"
-                                                    FontFamily="Segoe MDL2 Assets"
-                                                    FontSize="13"
-                                                    Width="26"
-                                                    Height="22"
-                                                    Padding="0"
-                                                    Margin="6,0,0,0"
-                                                    VerticalAlignment="Center"
-                                                    Background="{DynamicResource SurfaceBrush}"
-                                                    BorderBrush="{DynamicResource BorderBrush}"
-                                                    ToolTip="Open hero inventory settings"
-                                                    Click="HeroInventorySettingsButton_Click" />
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                            <CheckBox Content="Allow gold spending"
-                                                      Style="{StaticResource ToggleSwitchStyle}"
-                                                      Foreground="{DynamicResource TextSecondaryBrush}"
-                                                      VerticalAlignment="Center"
-                                                      IsChecked="{Binding TroopTrainingVm.AllowGoldSpending, ElementName=RootWindow, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                            <ContentControl Style="{StaticResource SettingInfoIconStyle}">
-                                                <ContentControl.ToolTip>
-                                                    <ToolTip MaxWidth="320">
-                                                        <TextBlock TextWrapping="Wrap"
-                                                                   Text="Allows gold-spending features such as NPC trade. Spending still respects the gold limit configured on the NPC / Trade tab." />
-                                                    </ToolTip>
-                                                </ContentControl.ToolTip>
-                                            </ContentControl>
-                                        </StackPanel>
-                                        <!-- NPC trade master on/off. Detailed per-feature toggles and thresholds
-                                             stay on the NPC / Trade tab, reachable via the gear button. -->
-                                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                            <CheckBox Content="NPC trade"
-                                                      Style="{StaticResource ToggleSwitchStyle}"
-                                                      Foreground="{DynamicResource TextSecondaryBrush}"
-                                                      VerticalAlignment="Center"
-                                                      IsChecked="{Binding TroopTrainingVm.NpcTradeMasterEnabled, ElementName=RootWindow, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                            <ContentControl Style="{StaticResource SettingInfoIconStyle}">
-                                                <ContentControl.ToolTip>
-                                                    <ToolTip MaxWidth="320">
-                                                        <TextBlock TextWrapping="Wrap"
-                                                                   Text="Enables NPC trade for both troop training and building/resource-field upgrades. Each NPC trade costs 3 gold and requires Allow gold spending. Open the settings for per-feature toggles, resources, and thresholds." />
-                                                    </ToolTip>
-                                                </ContentControl.ToolTip>
-                                            </ContentControl>
-                                            <Button x:Name="GoldSpendingSettingsButton"
-                                                    Content="&#xE713;"
-                                                    FontFamily="Segoe MDL2 Assets"
-                                                    FontSize="13"
-                                                    Width="26"
-                                                    Height="22"
-                                                    Padding="0"
-                                                    Margin="6,0,0,0"
-                                                    VerticalAlignment="Center"
-                                                    Background="{DynamicResource SurfaceBrush}"
-                                                    BorderBrush="{DynamicResource BorderBrush}"
-                                                    ToolTip="Open NPC trade settings"
-                                                    Click="GoldSpendingSettingsButton_Click" />
-                                        </StackPanel>
-                                    </StackPanel>
-                                </Border>
-                            </Grid>
                         </Grid>
                     </Grid>
                 </TabItem>
