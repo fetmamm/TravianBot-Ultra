@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Tasks;
+using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
 using TbotUltra.Worker;
 using TbotUltra.Worker.Domain;
@@ -28,6 +29,17 @@ public partial class MainWindow
     // the current village's next construction is deferred (e.g. waiting for resources), rotate onward so
     // a stalled village never blocks the others. Reset when the loop starts.
     private string? _continuousConstructionRotationVillageKey;
+
+    // Per-village rotation key for the OTHER continuous-loop groups (troop-training, smithy, and the
+    // global groups). Same drain-then-rotate rule as construction, but kept per group so each group
+    // rotates independently. Construction keeps its dedicated field above. Reset when the loop starts.
+    private readonly Dictionary<QueueGroup, string?> _continuousGroupRotationVillageKeys = new();
+
+    private string? GetContinuousGroupRotationVillageKey(QueueGroup group)
+        => _continuousGroupRotationVillageKeys.TryGetValue(group, out var key) ? key : null;
+
+    private void SetContinuousGroupRotationVillageKey(QueueGroup group, string? key)
+        => _continuousGroupRotationVillageKeys[group] = key;
 
     private async Task TriggerQueueAutoRunAsync()
     {
@@ -189,8 +201,12 @@ public partial class MainWindow
     private async Task EnsureContinuousLoopRuntimeItemsAsync(BotOptions options)
     {
         var enabledGroups = GetContinuousLoopEnabledGroupsInOrder();
+        // Troop-training, smithy and brewery are generated PER VILLAGE (see below), so the loop must keep
+        // running when only a non-selected village has those groups on. Hero/farming/transfer/reinforcements
+        // stay account-global and keep gating on the selected village's toggles via `enabledGroups`.
+        var consideredGroups = GetContinuousLoopConsideredGroupsInOrder();
         var heroPollingEnabled = enabledGroups.Contains(QueueGroup.Hero) || ShouldKeepHeroAdventurePolling();
-        if (enabledGroups.Count <= 0 && !heroPollingEnabled)
+        if (consideredGroups.Count <= 0 && !heroPollingEnabled)
         {
             return;
         }
@@ -205,6 +221,17 @@ public partial class MainWindow
                 string.Equals(item.TaskName, taskName, StringComparison.OrdinalIgnoreCase));
         }
 
+        // Per-village variant: an item only counts as active for a village when its payload targets that
+        // same village (by name). Lets each enabled village get its own troop-training/smithy task.
+        bool HasActiveTaskForVillage(string taskName, string villageName)
+        {
+            return activeItems.Any(item =>
+                string.Equals(item.TaskName, taskName, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(GetQueueItemVillageName(item) ?? string.Empty, villageName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var automationVillages = GetEnabledAutomationVillages();
+
         if (heroPollingEnabled && !HasActiveTask("hero_manage"))
         {
             var adventureCount = await _botService.RefreshAdventureCountAsync(options, AppendLog, CancellationToken.None);
@@ -216,22 +243,47 @@ public partial class MainWindow
             }
         }
 
-        if (enabledGroups.Contains(QueueGroup.Troops) && !IsTroopsGroupBlocked() && !HasActiveTask("upgrade_troops_at_smithy"))
+        // Smithy troop upgrades — generated per enabled village whose Troops group is on. Each item is
+        // tagged with its village so the worker switches there before running (BotTaskRunner).
+        if (!IsTroopsGroupBlocked())
         {
-            _botService.EnqueueRuntime("upgrade_troops_at_smithy", "Troop upgrades", null, priority: -50, maxRetries: 0);
+            foreach (var village in automationVillages)
+            {
+                if (!IsGroupEnabledForVillage(GetVillageKey(village), QueueGroup.Troops)
+                    || HasActiveTaskForVillage("upgrade_troops_at_smithy", village.Name))
+                {
+                    continue;
+                }
+
+                _botService.EnqueueRuntime("upgrade_troops_at_smithy", "Troop upgrades", BuildVillageRuntimePayload(village), priority: -50, maxRetries: 0);
+            }
         }
 
-        if (enabledGroups.Contains(QueueGroup.TroopTraining) && !HasActiveTask("build_troops"))
+        // Troop training (Barracks/Stable/Workshop) — generated per enabled village whose Build Troops
+        // group is on. Per village by design (each village trains independently).
+        foreach (var village in automationVillages)
         {
-            _botService.EnqueueRuntime("build_troops", "Build troops", null, priority: -50, maxRetries: 0);
+            if (!IsGroupEnabledForVillage(GetVillageKey(village), QueueGroup.TroopTraining)
+                || HasActiveTaskForVillage("build_troops", village.Name))
+            {
+                continue;
+            }
+
+            _botService.EnqueueRuntime("build_troops", "Build troops", BuildVillageRuntimePayload(village), priority: -50, maxRetries: 0);
         }
 
-        if (enabledGroups.Contains(QueueGroup.BreweryCelebration)
-            && _troopTrainingViewModel.IsAutoCelebrationAvailableForCurrentTribe
-            && _troopTrainingViewModel.AutoCelebrationEnabled
-            && !HasActiveTask("run_brewery_celebration"))
+        // Brewery celebration — capital only (the brewery exists only in the capital). Generated for the
+        // capital when it is enabled, its Auto Celebration group is on, and the tribe supports it.
+        if (_troopTrainingViewModel.IsAutoCelebrationAvailableForCurrentTribe
+            && _troopTrainingViewModel.AutoCelebrationEnabled)
         {
-            _botService.EnqueueRuntime("run_brewery_celebration", "Auto celebration", null, priority: -50, maxRetries: 0);
+            var capital = automationVillages.FirstOrDefault(v => v.IsCapital);
+            if (capital is not null
+                && IsGroupEnabledForVillage(GetVillageKey(capital), QueueGroup.BreweryCelebration)
+                && !HasActiveTaskForVillage("run_brewery_celebration", capital.Name))
+            {
+                _botService.EnqueueRuntime("run_brewery_celebration", "Auto celebration", BuildVillageRuntimePayload(capital), priority: -50, maxRetries: 0);
+            }
         }
 
         if (enabledGroups.Contains(QueueGroup.Farming) && !IsFarmingGroupBlocked() && !HasActiveTask("send_farmlists"))
@@ -483,36 +535,26 @@ public partial class MainWindow
                 continue;
             }
 
-            var head = orderedGroupItems.FirstOrDefault();
-            if (head is null)
+            // Rotate non-construction groups across villages too: troop-training/smithy items are now
+            // tagged per village, so a village whose head item is waiting must not block another village's
+            // ready item. For global/village-less groups (hero, farming, …) all items share one village
+            // key, so this collapses to the original strict in-order head selection.
+            var groupRotationKey = GetContinuousGroupRotationVillageKey(group);
+            var candidate = QueueVillageRotation.SelectByVillageRotation(
+                orderedGroupItems,
+                GetQueueItemVillageKey,
+                villageItems => SelectNextReadyGroupHead(villageItems, now),
+                ref groupRotationKey);
+            SetContinuousGroupRotationVillageKey(group, groupRotationKey);
+            if (candidate is not null)
             {
-                lastSkipReason = $"group={group} skipped (no pending/running/paused items)";
-                AppendLoopPickVerbose(
-                    $"[loop-pick:verbose] {lastSkipReason}",
-                    $"group:{group}:empty");
-                continue;
+                return candidate;
             }
 
-            if (head.Status != QueueStatus.Pending)
-            {
-                lastSkipReason = $"group={group} head task='{head.TaskName}' is {head.Status} (not Pending)";
-                AppendLoopPickVerbose(
-                    $"[loop-pick:verbose] {lastSkipReason}",
-                    $"group:{group}:task:{head.Id}:status:{head.Status}");
-                continue;
-            }
-
-            if (head.NextAttemptAt > now)
-            {
-                var waitSec = (head.NextAttemptAt - now).TotalSeconds;
-                lastSkipReason = $"group={group} head task='{head.TaskName}' waiting {waitSec:F0}s (NextAttemptAt in future)";
-                AppendLoopPickVerbose(
-                    $"[loop-pick:verbose] {lastSkipReason}",
-                    $"group:{group}:task:{head.Id}:waiting");
-                continue;
-            }
-
-            return head;
+            lastSkipReason = $"group={group} skipped (no ready item across villages)";
+            AppendLoopPickVerbose(
+                $"[loop-pick:verbose] {lastSkipReason}",
+                $"group:{group}:{BuildLoopPickSkipKey(lastSkipReason)}");
         }
 
         AppendLoopPickVerbose(
@@ -527,11 +569,56 @@ public partial class MainWindow
     // tasks and unknown villages fall back to the account default group set.
     private bool IsQueueItemGroupEnabledForItsVillage(QueueItem item)
     {
-        var villageKey = GetQueueItemVillageKey(item);
+        return IsGroupEnabledForVillage(GetQueueItemVillageKey(item), item.Group);
+    }
+
+    // Whether an automation group is enabled for a specific village key (null/unknown villages fall back
+    // to the account default group set). Shared by per-item gating and per-village runtime generation.
+    private bool IsGroupEnabledForVillage(string? villageKey, QueueGroup group)
+    {
         var groups = villageKey is null
             ? _defaultEnabledGroupKeys
             : (_villageSettingsStore.GetEnabledGroups(villageKey) ?? _defaultEnabledGroupKeys);
-        return groups.Contains(QueueGroupCatalog.GetKey(item.Group), StringComparer.OrdinalIgnoreCase);
+        return groups.Contains(QueueGroupCatalog.GetKey(group), StringComparer.OrdinalIgnoreCase);
+    }
+
+    // Villages currently enabled for automation, deduplicated by village key. Read from the Dashboard
+    // village list (falls back to the dropdown), filtered against the persisted enabled state so it
+    // matches what the user sees and what the queue rotation honors. Marshals to the UI thread.
+    private List<VillageSelectionItem> GetEnabledAutomationVillages()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            return Dispatcher.Invoke(GetEnabledAutomationVillages);
+        }
+
+        var source = (DashboardVillageList.ItemsSource as IEnumerable<VillageSelectionItem>)
+            ?? (VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem>)
+            ?? Enumerable.Empty<VillageSelectionItem>();
+
+        return source
+            .Where(v => !string.IsNullOrWhiteSpace(v.Name) && !string.Equals(v.Name, "-", StringComparison.Ordinal))
+            .GroupBy(GetVillageKey, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .Where(v => _villageSettingsStore.IsEnabledByKey(GetVillageKey(v), defaultIfUnknown: v.IsCapital))
+            .ToList();
+    }
+
+    // Tags a runtime item with its target village so the worker switches there before executing.
+    private static Dictionary<string, string> BuildVillageRuntimePayload(VillageSelectionItem village)
+    {
+        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(village.Name))
+        {
+            payload[BotOptionPayloadKeys.TargetVillageName] = village.Name;
+        }
+
+        if (!string.IsNullOrWhiteSpace(village.Url))
+        {
+            payload[BotOptionPayloadKeys.TargetVillageUrl] = village.Url;
+        }
+
+        return payload;
     }
 
     private static bool IsAlwaysOnUtilityTask(string? taskName) =>
@@ -555,6 +642,20 @@ public partial class MainWindow
             GetQueueItemVillageKey,
             villageItems => SelectNextConstructionQueueItem(villageItems, now, out _),
             ref rotationKey) is not null;
+    }
+
+    // Per-village head selection for non-construction groups: returns this village's first item when it
+    // is Pending and due, otherwise null (so rotation moves on to another village). Preserves the strict
+    // in-order behavior within a village that the old single-head logic had.
+    private static QueueItem? SelectNextReadyGroupHead(IReadOnlyList<QueueItem> villageItems, DateTimeOffset now)
+    {
+        var head = villageItems.FirstOrDefault();
+        if (head is null || head.Status != QueueStatus.Pending || head.NextAttemptAt > now)
+        {
+            return null;
+        }
+
+        return head;
     }
 
     private static QueueItem? SelectNextConstructionQueueItem(
@@ -718,6 +819,7 @@ public partial class MainWindow
     {
         // Start a fresh construction village rotation each time the loop starts.
         _continuousConstructionRotationVillageKey = null;
+        _continuousGroupRotationVillageKeys.Clear();
         while (!token.IsCancellationRequested)
         {
             if (_loopController.LoopStopRequested)

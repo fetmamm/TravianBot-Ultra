@@ -688,6 +688,25 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   `IsQueueItemGroupEnabledForItsVillage` gatear fortf. varje item till sin egen bys inställning. Build rent,
   Worker 324 + Desktop 62 gröna.
 
+- **2026-06-05** — **Steg 4c klart: per-by runtime-generering för trupp-träning/smithy + brewery capital-
+  only.** `EnsureContinuousLoopRuntimeItemsAsync` genererade tidigare `build_troops`/`upgrade_troops_at_smithy`/
+  `run_brewery_celebration` **by-löst** (kördes i aktiv by) gatat på **vald bys** grupp-toggles. Nu:
+  (a) `build_troops` (TroopTraining) och `upgrade_troops_at_smithy` (Troops) genereras **per enabled by**
+  (`GetEnabledAutomationVillages` läser Dashboard-listan + `IsEnabledByKey`), gatat per by via
+  `IsGroupEnabledForVillage(key, group)`, taggat med `TargetVillageName/Url` (`BuildVillageRuntimePayload`)
+  så workern växlar dit (BotTaskRunner). Dubbelgenerering förhindras av `HasActiveTaskForVillage(task, by)`.
+  Replikerar global trupp-config över byar (per-by distinkta inställningar = framtida UI, ej begärt).
+  (b) **Brewery = endast capital** (bryggeriet finns bara i capital): genereras för capital-byn när den är
+  enabled + dess Auto Celebration-grupp på + stammen stödjer det. (c) Tidig-retur-gaten använder nu
+  `consideredGroups` (unionen) så loopen kör även när bara en icke-vald by har trupp-grupper på. Hero/
+  farming/resource-transfer/reinforcements förblir kontot-globala (vald-by-gatade, oförändrat).
+  (d) **Rotation för icke-construction-grupper:** `SelectNextQueueItemForContinuousLoop` roterar nu även
+  TroopTraining/Troops över byar (`QueueVillageRotation.SelectByVillageRotation` +
+  `SelectNextReadyGroupHead`, ny per-grupp-nyckel-dict `_continuousGroupRotationVillageKeys`, nollas vid
+  loopstart) så en bys väntande item inte blockerar en annan bys redo item. Globala grupper (en village-
+  nyckel = "") kollapsar till samma strikta head-ordning som förut. Compile rent (Desktop-exe copy-lock
+  när appen kör = inte kompileringsfel), Worker 324 gröna.
+
 ---
 
 ## 5. Kända fallgropar / regressions
