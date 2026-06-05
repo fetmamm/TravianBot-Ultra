@@ -645,6 +645,13 @@ public sealed partial class TravianClient
         await PauseForManualStepIfVisibleAsync("Manual verification appeared before reading resource status.", cancellationToken);
         var villages = await ReadVillagesPreferCacheAsync(cancellationToken);
         var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
+        // Read the hero adventure indicator from the current page (cheap, no navigation) so the
+        // periodic refresh keeps the dashboard/hero adventure count in sync with the live game.
+        var heroSidebar = await ReadHeroSidebarStatusAsync(cancellationToken);
+        int? adventureCount = heroSidebar.AdventureFound ? Math.Max(0, heroSidebar.AdventureCount) : null;
+        // Read Travian's own in-progress construction list from the current page so the buildings /
+        // resources UI keeps showing upgrades started outside the program (target level in parentheses).
+        var activeConstructions = await ReadActiveConstructionsAsync(cancellationToken, allowNavigationToBuildings: false);
         var buildQueue = await ReadBuildQueueAsync(cancellationToken);
         var remaining = ResolveShortestQueueDurationSeconds(buildQueue);
         var currency = await ReadCurrencyAsync(cancellationToken);
@@ -717,7 +724,9 @@ public sealed partial class TravianClient
             UnreadReports: unreadInbox.UnreadReports,
             WarehouseCapacity: capacities.Warehouse,
             GranaryCapacity: capacities.Granary,
-            ResourceStorageForecasts: forecasts);
+            ResourceStorageForecasts: forecasts,
+            AdventureCount: adventureCount,
+            ActiveConstructions: activeConstructions);
     }
 
     private async Task<(

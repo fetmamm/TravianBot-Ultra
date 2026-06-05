@@ -189,17 +189,8 @@ public partial class MainWindow
 
     private void UpdateAutomationLoopSummaryText()
     {
-        var enabledCount = _automationLoopTasks.Count(item => item.IsEnabled);
-        var visibleCount = _automationLoopTasks.Count(item => item.IsVisible);
-        var summaryText = enabledCount <= 0
-            ? $"No group enabled. Visible on dashboard: {visibleCount}."
-            : $"Continuous loop uses {enabledCount} enabled group(s). Visible on dashboard: {visibleCount}.";
-        SetAutomationLoopSummaryText(summaryText);
-    }
-
-    private void SetAutomationLoopSummaryText(string summaryText)
-    {
-        AutomationLoopSummaryTextBlock.Text = summaryText;
+        // The summary text was removed from the Auto loop box; keep the column layout in sync
+        // since callers still expect this to refresh the loop list after group changes.
         UpdateAutomationLoopColumns();
     }
 

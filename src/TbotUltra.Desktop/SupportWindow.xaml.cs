@@ -21,7 +21,6 @@ public partial class SupportWindow : Window
         InitializeComponent();
         _projectRoot = projectRoot;
         _terminalEntries = terminalEntries;
-        InfoTextBlock.Text = "Use Send to open your mail client. If mail client is unavailable, message content is copied to clipboard.";
     }
 
     private void DiscordButton_Click(object sender, RoutedEventArgs e)
@@ -91,50 +90,6 @@ public partial class SupportWindow : Window
         catch (Exception ex)
         {
             InfoTextBlock.Text = $"Could not create diagnostics: {ex.Message}";
-        }
-    }
-
-    private void SendButton_Click(object sender, RoutedEventArgs e)
-    {
-        var name = NameTextBox.Text.Trim();
-        var email = EmailTextBox.Text.Trim();
-        var message = MessageTextBox.Text.Trim();
-        if (message.Length == 0)
-        {
-            InfoTextBlock.Text = "Message is required.";
-            return;
-        }
-
-        var subject = Uri.EscapeDataString($"Tbot Ultra support from {name}");
-        var body = Uri.EscapeDataString($"Name: {name}\nEmail: {email}\n\n{message}");
-        var mailto = $"mailto:?subject={subject}&body={body}";
-
-        try
-        {
-            var domain = email.Contains('@') ? email.Split('@').Last().Trim().ToLowerInvariant() : string.Empty;
-            var webmailUrl = domain switch
-            {
-                "gmail.com" => $"https://mail.google.com/mail/?view=cm&fs=1&su={subject}&body={body}",
-                "outlook.com" or "hotmail.com" or "live.com" or "msn.com" => $"https://outlook.live.com/mail/0/deeplink/compose?subject={subject}&body={body}",
-                _ => string.Empty,
-            };
-
-            if (!string.IsNullOrWhiteSpace(webmailUrl))
-            {
-                OpenUrl(webmailUrl);
-                InfoTextBlock.Text = "Webmail compose opened in browser.";
-            }
-            else
-            {
-                OpenUrl(mailto);
-                InfoTextBlock.Text = "Mail client opened.";
-            }
-        }
-        catch
-        {
-            var fallback = $"Name: {name}{Environment.NewLine}Email: {email}{Environment.NewLine}{Environment.NewLine}{message}";
-            Clipboard.SetText(fallback);
-            InfoTextBlock.Text = "No mail client detected. Message copied to clipboard.";
         }
     }
 

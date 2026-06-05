@@ -922,6 +922,82 @@ public partial class MainWindow
         int? Level,
         string? Url);
 
+    // Matches Travian's in-progress construction list (upgrades started outside the program) to known
+    // slots by normalized name + (target level - 1), returning slot -> target level. Only UNAMBIGUOUS
+    // matches are returned: if a construction could map to more than one slot (e.g. several croplands at
+    // the same level), it is dropped rather than guessing the wrong field. Construct (new building)
+    // entries are ignored — only upgrades of an existing slot are surfaced.
+    private static Dictionary<int, int> BuildExternalUpgradeTargetsBySlot(
+        IReadOnlyList<ActiveConstruction>? activeConstructions,
+        ConstructionKind kind,
+        IEnumerable<(int Slot, string? Name, int? Level)> slots)
+    {
+        var result = new Dictionary<int, int>();
+        if (activeConstructions is null || activeConstructions.Count == 0)
+        {
+            return result;
+        }
+
+        var slotList = slots.ToList();
+        var ambiguousSlots = new HashSet<int>();
+        foreach (var construction in activeConstructions)
+        {
+            if (construction.Kind != kind || construction.Level is not int target || target < 1)
+            {
+                continue;
+            }
+
+            var name = NormalizeConstructionName(construction.Name);
+            if (name.Length == 0)
+            {
+                continue;
+            }
+
+            var candidateSlots = slotList
+                .Where(slot => (slot.Level ?? 0) == target - 1
+                    && string.Equals(NormalizeConstructionName(slot.Name), name, StringComparison.Ordinal))
+                .Select(slot => slot.Slot)
+                .ToList();
+
+            // Skip when we cannot tell exactly which field/building is being upgraded.
+            if (candidateSlots.Count != 1)
+            {
+                continue;
+            }
+
+            var slotId = candidateSlots[0];
+            if (result.ContainsKey(slotId))
+            {
+                // Two constructions resolve to the same slot — ambiguous, drop it.
+                ambiguousSlots.Add(slotId);
+                continue;
+            }
+
+            result[slotId] = target;
+        }
+
+        foreach (var slotId in ambiguousSlots)
+        {
+            result.Remove(slotId);
+        }
+
+        return result;
+    }
+
+    private static string NormalizeConstructionName(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var cleaned = value.Trim().ToLowerInvariant()
+            .Replace("'", string.Empty)
+            .Replace("’", string.Empty)
+            .Replace(".", string.Empty);
+        return System.Text.RegularExpressions.Regex.Replace(cleaned, @"\s+", " ");
+    }
+
     private void PopulateBuildingsTab(VillageStatus status)
     {
         _buildingRows.Clear();
@@ -942,6 +1018,13 @@ public partial class MainWindow
                 group => group
                     .OrderByDescending(item => item.Level ?? 0)
                     .First());
+
+        // Upgrades started outside the program (Travian's own build list) so they show the target
+        // level in parentheses just like program-queued upgrades.
+        var externalUpgradeTargetsBySlot = BuildExternalUpgradeTargetsBySlot(
+            status.ActiveConstructions,
+            ConstructionKind.Building,
+            buildingBySlot.Select(kv => (kv.Key, (string?)kv.Value.Name, kv.Value.Level)));
 
         var occupiedCount = 0;
         foreach (var slotId in Enumerable.Range(19, 22))
@@ -976,7 +1059,9 @@ public partial class MainWindow
                 ? queuedTarget
                 : _buildingLastQueuedTargetBySlot.TryGetValue(slotId, out var lastTarget)
                     ? lastTarget.Target
-                    : null;
+                    : externalUpgradeTargetsBySlot.TryGetValue(slotId, out var externalTarget)
+                        ? externalTarget
+                        : null;
             var pendingConstruct = queuedConstructsBySlot.TryGetValue(slotId, out var queuedConstruct)
                 ? queuedConstruct
                 : _buildingLastQueuedConstructBySlot.TryGetValue(slotId, out var lastConstruct)

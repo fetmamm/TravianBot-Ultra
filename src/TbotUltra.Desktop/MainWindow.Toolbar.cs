@@ -88,6 +88,25 @@ public partial class MainWindow
             return;
         }
 
+        // Confirm before the hard stop so an accidental click cannot wipe the active queue. The
+        // message is explicit that stopping clears the queue for all villages.
+        var choice = AppDialog.ShowCustom(
+            this,
+            "Stopping the bot will also clear the active queue for all villages. Are you sure you want to continue?",
+            "Stop bot",
+            new (string, MessageBoxResult)[]
+            {
+                ("Yes", MessageBoxResult.Yes),
+                ("Cancel", MessageBoxResult.Cancel),
+            },
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel,
+            MessageBoxResult.Cancel);
+        if (choice != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
         // Hard stop: abort whatever is running right now (including waits) and clear state.
         _loopController.RequestQueueStop();
         _loopController.CancelOperation();

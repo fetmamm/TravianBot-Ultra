@@ -1,6 +1,9 @@
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+
 namespace TbotUltra.Desktop.Models;
 
-public sealed class VillageSelectionItem
+public sealed class VillageSelectionItem : INotifyPropertyChanged
 {
     public string Name { get; init; } = string.Empty;
     public string Url { get; init; } = string.Empty;
@@ -9,6 +12,32 @@ public sealed class VillageSelectionItem
     public int? CoordY { get; init; }
     public int? Population { get; init; }
     public int? CropFields { get; init; }
+
+    // Whether this village is enabled for automation. Two-way bound to the Dashboard toggle; the
+    // toggle's Checked/Unchecked handler persists changes to VillageSettingsStore. Settable (unlike
+    // the identity fields) so the bound toggle reflects and updates the stored choice.
+    private bool _isEnabledForAutomation;
+    public bool IsEnabledForAutomation
+    {
+        get => _isEnabledForAutomation;
+        set
+        {
+            if (_isEnabledForAutomation == value)
+            {
+                return;
+            }
+
+            _isEnabledForAutomation = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
 
     public string CoordsText => (CoordX.HasValue && CoordY.HasValue)
         ? $"({CoordX} | {CoordY})"

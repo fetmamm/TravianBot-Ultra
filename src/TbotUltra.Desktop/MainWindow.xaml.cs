@@ -138,10 +138,10 @@ public partial class MainWindow : Window
     private readonly string _versionPath;
     private readonly string _botConfigPath;
     private readonly string _envPath;
-    private readonly string _queuePath;
     private readonly string _serverCatalogPath;
     private readonly string _sessionLogPath;
     private readonly BotConfigStore _botConfigStore;
+    private readonly VillageSettingsStore _villageSettingsStore;
     private readonly IAccountProvider _accountProvider;
     private readonly EnvAccountStore _accountStore;
     private readonly AccountAnalysisStore _accountAnalysisStore;
@@ -397,7 +397,6 @@ public partial class MainWindow : Window
         _versionPath = Path.Combine(_projectRoot, "VERSION");
         _botConfigPath = Path.Combine(_projectRoot, "config", "bot.json");
         _envPath = Path.Combine(_projectRoot, ".env");
-        _queuePath = Path.Combine(_projectRoot, "config", "queue.json");
         _serverCatalogPath = Path.Combine(_projectRoot, "config", "servers.user.json");
         _sessionLogPath = Path.Combine(_projectRoot, "logs", $"TbotUltra_Log_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
         InitializeSessionLogFile();
@@ -405,6 +404,7 @@ public partial class MainWindow : Window
         _accountProvider = new EnvAccountProvider(_envPath);
         _accountStore = new EnvAccountStore(_envPath);
         _botConfigStore = new BotConfigStore(_botConfigPath, _projectRoot, () => _accountStore.ActiveAccountName());
+        _villageSettingsStore = new VillageSettingsStore(_projectRoot, () => _accountStore.ActiveAccountName(), AppendLog);
         InitializeSessionPacing();
         _accountAnalysisStore = new AccountAnalysisStore(_projectRoot);
         _natarFarmCacheStore = new NatarFarmCacheStore(_projectRoot);
@@ -415,7 +415,11 @@ public partial class MainWindow : Window
         var captchaAutoSolver = new CaptchaAutoSolver(projectContext);
         _captchaAutoSolver = captchaAutoSolver;
         var taskRunner = new BotTaskRunner(_accountProvider, projectContext, captchaAutoSolver);
-        var queueStore = new JsonQueueStore(_queuePath);
+        // One-time migration of the old shared config/queue.json into the active account's per-account
+        // queue file. Runs before the store is used so the recover/clear logic below sees the migrated items.
+        QueueMigration.MigrateLegacyGlobalQueue(_projectRoot, _accountStore.ActiveAccountName(), AppendLog);
+        // The queue is now per account; the store resolves the active account's queue.json per operation.
+        var queueStore = new JsonQueueStore(() => AccountStoragePaths.AccountQueuePath(_projectRoot, _accountStore.ActiveAccountName()));
         _accountDeletionService = new AccountDeletionService(_projectRoot, _accountStore, _botConfigStore, queueStore);
         var queueScheduler = new PriorityFifoQueueScheduler();
         var queueExecutor = new QueueExecutor(taskRunner);

@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Tasks;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Worker;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
@@ -17,6 +18,10 @@ public partial class MainWindow
     private static readonly TimeSpan LoopPickVerboseThrottle = TimeSpan.FromSeconds(30);
     private readonly object _loopPickVerboseLogGate = new();
     private readonly Dictionary<string, DateTimeOffset> _loopPickVerboseLogAtByKey = new(StringComparer.Ordinal);
+
+    // The village the AutoQueue drain is currently working through. Rotation drains one village's ready
+    // tasks before advancing to the next; reset at the start of each run so a fresh run starts cleanly.
+    private string? _autoQueueRotationVillageKey;
 
     private async Task TriggerQueueAutoRunAsync()
     {
@@ -376,6 +381,7 @@ public partial class MainWindow
                 queueItems.Where(item =>
                     IsAlwaysOnUtilityTask(item.TaskName) &&
                     IsAutoCollectUtilityTaskEnabledNow(item.TaskName, options) &&
+                    IsQueueItemVillageEnabled(item) &&
                     item.Status == QueueStatus.Pending &&
                     item.NextAttemptAt <= now))
             .FirstOrDefault();
@@ -400,6 +406,7 @@ public partial class MainWindow
                 queueItems.Where(item =>
                     item.Group == group &&
                     (!IsAlwaysOnUtilityTask(item.TaskName) || IsAutoCollectUtilityTaskEnabledNow(item.TaskName, options)) &&
+                    IsQueueItemVillageEnabled(item) &&
                     item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused));
             if (group == QueueGroup.Construction)
             {
@@ -807,6 +814,8 @@ public partial class MainWindow
     private async Task ExecuteQueuedItemsNowAsync(CancellationToken cancellationToken)
     {
         var runId = System.Threading.Interlocked.Increment(ref _operationCounter);
+        // Each run starts a fresh village rotation so it does not resume mid-drain on a stale village.
+        _autoQueueRotationVillageKey = null;
         AppendLog($"[AUTOQ {runId}] START");
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -825,7 +834,24 @@ public partial class MainWindow
             QueueItem? next;
             try
             {
-                next = _botService.SelectNextQueueItem();
+                // Drain one village's ready tasks before rotating to the next enabled village. Each task
+                // still switches to its own village via BotTaskRunner; rotation just keeps the runner on
+                // one village at a time instead of interleaving villages by global priority/FIFO.
+                var previousRotationKey = _autoQueueRotationVillageKey;
+                var rotationKey = _autoQueueRotationVillageKey;
+                next = QueueVillageRotation.SelectNext(
+                    _botService.GetQueueItemsForDisplay(),
+                    DateTimeOffset.UtcNow,
+                    GetQueueItemVillageKey,
+                    IsQueueItemVillageEnabled,
+                    ref rotationKey);
+                _autoQueueRotationVillageKey = rotationKey;
+
+                if (next is not null && !string.Equals(previousRotationKey, rotationKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    var villageLabel = GetQueueItemVillageName(next);
+                    AppendLog($"[AUTOQ {runId}] ROTATE to village '{(string.IsNullOrWhiteSpace(villageLabel) ? "-" : villageLabel)}'");
+                }
             }
             catch (Exception ex)
             {

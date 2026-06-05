@@ -142,7 +142,7 @@
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource NavIcon}" Text="&#xE8F1;" /><TextBlock Style="{StaticResource NavText}" Text="Resources" /></StackPanel>
                     </Button>
                     <Button x:Name="BuildingsNavButton" Style="{StaticResource SidebarNavButtonStyle}" Tag="buildings" Click="SidebarNavButton_Click">
-                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource NavIcon}" Text="&#xE825;" /><TextBlock Style="{StaticResource NavText}" Text="Building" /></StackPanel>
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource NavIcon}" Text="&#xE825;" /><TextBlock Style="{StaticResource NavText}" Text="Buildings" /></StackPanel>
                     </Button>
                     <Button x:Name="HeroNavButton" Style="{StaticResource SidebarNavButtonStyle}" Tag="hero" Click="SidebarNavButton_Click">
                         <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource NavIcon}" Text="&#xE77B;" /><TextBlock Style="{StaticResource NavText}" Text="Hero / Adventures" /></StackPanel>
@@ -245,7 +245,7 @@
 								    <ColumnDefinition Width="Auto" />
 							    </Grid.ColumnDefinitions>
 							    <Button x:Name="StartLoopButton" Grid.Column="0" Content="Start bot" Background="{DynamicResource AccentBrush}" Foreground="White" BorderBrush="{DynamicResource AccentBrush}" Click="StartLoopButton_Click" />
-							    <Button x:Name="StopBotButton" Grid.Column="1" Content="&#9632;" Width="30" Padding="0" Margin="6,0,0,0" Click="StopBotButton_Click" ToolTip="Stop bot" />
+							    <Button x:Name="StopBotButton" Grid.Column="1" Content="&#9632;" Width="30" Padding="0" Margin="6,0,0,0" Background="{DynamicResource DangerBgBrush}" BorderBrush="{DynamicResource DangerBorderBrush}" Foreground="{DynamicResource DangerTextBrush}" Click="StopBotButton_Click" ToolTip="Stop bot" />
 						    </Grid>
 
                         <Grid Margin="0,0,0,0">
@@ -324,7 +324,8 @@
                 <!-- Left group: Session + Time -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
                     <!-- Session pacing / Next sleep (background pulses via code) -->
-                    <Border x:Name="SessionPacingBorder" Style="{StaticResource MetricCard}" MinWidth="150">
+                    <!-- Fixed width so the card does not resize as the status text/Run now button changes. -->
+                    <Border x:Name="SessionPacingBorder" Style="{StaticResource MetricCard}" Width="186">
                         <StackPanel>
                             <TextBlock Text="Session" Style="{StaticResource MetricLabel}" />
                             <StackPanel Orientation="Horizontal">
@@ -334,21 +335,27 @@
                                            Style="{StaticResource MetricValue}"
                                            FontSize="13"
                                            VerticalAlignment="Center" />
+                                <!-- Compact play-glyph button (tooltip "Run now") so the card can stay narrow
+                                     while still fitting the sleeping status text plus the wake action. -->
                                 <Button x:Name="SessionPacingRunNowButton"
-                                        Content="Run now"
-                                        Margin="8,0,0,0"
-                                        Padding="6,0"
+                                        Content="&#xE768;"
+                                        FontFamily="Segoe MDL2 Assets"
+                                        Margin="6,0,0,0"
+                                        Padding="0"
+                                        Width="22"
                                         Height="20"
                                         MinHeight="0"
                                         FontSize="11"
                                         VerticalAlignment="Center"
                                         Visibility="Collapsed"
+                                        ToolTip="Run now"
                                         Click="SessionPacingRunNowButton_Click" />
                             </StackPanel>
                         </StackPanel>
                     </Border>
 
-                    <Border Style="{StaticResource MetricCard}" MinWidth="150">
+                    <!-- Fixed width so the clock value does not jiggle the card as the time updates. -->
+                    <Border Style="{StaticResource MetricCard}" Width="180">
                         <StackPanel>
                             <TextBlock Text="Time" Style="{StaticResource MetricLabel}" />
                             <StackPanel Orientation="Horizontal">
@@ -562,6 +569,8 @@
                             <TextBlock DockPanel.Dock="Left" Text="Dashboard" FontSize="32" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
                             <Button DockPanel.Dock="Right" x:Name="ResetProgramButton" Height="32" Content="Reset program" Background="{DynamicResource WarningButtonBgBrush}" Foreground="{DynamicResource OnWarningBrush}" BorderBrush="{DynamicResource WarningBorderBrush}" VerticalAlignment="Center" Margin="12,0,0,0" Click="ResetProgramButton_Click"
                                     ToolTip="Restart the program: stops all running tasks, clears the queue, closes the browser session, and resets to the just-started state. Your saved login is kept — just press Login to start a new session." />
+                            <Button DockPanel.Dock="Right" x:Name="VillageSettingsButton" Height="32" Content="Village settings" VerticalAlignment="Center" Click="VillageSettingsButton_Click"
+                                    ToolTip="Open per-village settings (hero resources, NPC, build/upgrade troops, farming)." />
                         </DockPanel>
 
                         <Grid Grid.Row="1" Margin="0,0,0,10" Visibility="Collapsed">
@@ -924,12 +933,6 @@
                                             </DataTemplate>
                                         </ListBox.ItemTemplate>
                                     </ListBox>
-
-                                    <TextBlock Grid.Row="2"
-                                               x:Name="AutomationLoopSummaryTextBlock"
-                                               Text="Loop cycles through enabled tasks continuously."
-                                               HorizontalAlignment="Center"
-                                               Foreground="{DynamicResource TextMutedBrush}" />
                                 </Grid>
                             </Border>
 
@@ -941,19 +944,18 @@
 
                                 <!-- Villages: own box, list scrolls when it grows long. -->
                                 <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9" Padding="12">
-                                    <DockPanel Grid.IsSharedSizeScope="True">
-                                        <TextBlock DockPanel.Dock="Top" Text="Villages" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,6" />
-                                        <Grid DockPanel.Dock="Top" Margin="0,0,0,4">
+                                    <DockPanel>
+                                        <!-- Title row doubles as the column header: "Villages" on the left, Pop/Coords
+                                             at fixed side positions that line up with the fixed-width data columns below. -->
+                                        <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" SharedSizeGroup="VillagePopColumn" />
-                                                <ColumnDefinition Width="Auto" SharedSizeGroup="VillageCoordsColumn" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" SharedSizeGroup="VillageFlagColumn" />
+                                                <ColumnDefinition Width="64" />
+                                                <ColumnDefinition Width="96" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="Village" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                                            <TextBlock Grid.Column="1" Text="Pop" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="8,0,0,0" />
-                                            <TextBlock Grid.Column="2" Text="Coords" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="8,0,0,0" />
+                                            <TextBlock Grid.Column="0" Text="Villages" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                            <TextBlock Grid.Column="1" Text="Pop" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                            <TextBlock Grid.Column="2" Text="Coords" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="8,0,0,0" />
                                         </Grid>
                                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                             <ItemsControl x:Name="DashboardVillageList">
@@ -962,38 +964,48 @@
                                                         <Grid Margin="0,2">
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="*" />
-                                                                <ColumnDefinition Width="Auto" SharedSizeGroup="VillagePopColumn" />
-                                                                <ColumnDefinition Width="Auto" SharedSizeGroup="VillageCoordsColumn" />
-                                                                <ColumnDefinition Width="*" />
-                                                                <ColumnDefinition Width="Auto" SharedSizeGroup="VillageFlagColumn" />
+                                                                <ColumnDefinition Width="64" />
+                                                                <ColumnDefinition Width="96" />
                                                             </Grid.ColumnDefinitions>
-                                                            <TextBlock Grid.Column="0" Text="{Binding Name}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" TextTrimming="CharacterEllipsis" />
-                                                            <TextBlock Grid.Column="1" Text="{Binding PopText}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" Margin="8,0,0,0" />
-                                                            <TextBlock Grid.Column="2" Text="{Binding CoordsText}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" Margin="8,0,0,0" />
-                                                            <Border Grid.Column="4"
-                                                                    HorizontalAlignment="Right"
+                                                            <!-- Capital villages get a gold box around the name instead of a
+                                                                 separate "Capital" badge. Padding is kept on non-capital rows
+                                                                 too (transparent box) so names stay vertically aligned. -->
+                                                            <Border Grid.Column="0"
+                                                                    HorizontalAlignment="Left"
                                                                     VerticalAlignment="Center"
-                                                                    Margin="8,0,0,0"
                                                                     Padding="7,1"
                                                                     CornerRadius="6"
                                                                     BorderThickness="1"
-                                                                    Background="{DynamicResource WarningBgBrush}"
-                                                                    BorderBrush="{DynamicResource WarningBorderBrush}">
+                                                                    Background="Transparent"
+                                                                    BorderBrush="Transparent">
                                                                 <Border.Style>
                                                                     <Style TargetType="Border">
-                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                        <Setter Property="Background" Value="Transparent" />
+                                                                        <Setter Property="BorderBrush" Value="Transparent" />
                                                                         <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding IsCapital}" Value="False">
-                                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                            <DataTrigger Binding="{Binding IsCapital}" Value="True">
+                                                                                <Setter Property="Background" Value="{DynamicResource WarningBgBrush}" />
+                                                                                <Setter Property="BorderBrush" Value="{DynamicResource WarningBorderBrush}" />
                                                                             </DataTrigger>
                                                                         </Style.Triggers>
                                                                     </Style>
                                                                 </Border.Style>
-                                                                <TextBlock Text="Capital"
-                                                                           Foreground="{DynamicResource WarningTextBrush}"
-                                                                           FontSize="11"
-                                                                           FontWeight="SemiBold" />
+                                                                <TextBlock Text="{Binding Name}" FontSize="13" TextTrimming="CharacterEllipsis">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsCapital}" Value="True">
+                                                                                    <Setter Property="Foreground" Value="{DynamicResource WarningTextBrush}" />
+                                                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
                                                             </Border>
+                                                            <TextBlock Grid.Column="1" Text="{Binding PopText}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" Margin="8,0,0,0" VerticalAlignment="Center" />
+                                                            <TextBlock Grid.Column="2" Text="{Binding CoordsText}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" Margin="8,0,0,0" VerticalAlignment="Center" />
                                                         </Grid>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
@@ -1074,6 +1086,23 @@
                                                     <ToolTip MaxWidth="320">
                                                         <TextBlock TextWrapping="Wrap"
                                                                    Text="Allows gold-spending features such as NPC trade. Spending still respects the gold limit configured on the NPC / Trade tab." />
+                                                    </ToolTip>
+                                                </ContentControl.ToolTip>
+                                            </ContentControl>
+                                        </StackPanel>
+                                        <!-- NPC trade master on/off. Detailed per-feature toggles and thresholds
+                                             stay on the NPC / Trade tab, reachable via the gear button. -->
+                                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                            <CheckBox Content="NPC trade"
+                                                      Style="{StaticResource ToggleSwitchStyle}"
+                                                      Foreground="{DynamicResource TextSecondaryBrush}"
+                                                      VerticalAlignment="Center"
+                                                      IsChecked="{Binding TroopTrainingVm.NpcTradeMasterEnabled, ElementName=RootWindow, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            <ContentControl Style="{StaticResource SettingInfoIconStyle}">
+                                                <ContentControl.ToolTip>
+                                                    <ToolTip MaxWidth="320">
+                                                        <TextBlock TextWrapping="Wrap"
+                                                                   Text="Enables NPC trade for both troop training and building/resource-field upgrades. Each NPC trade costs 3 gold and requires Allow gold spending. Open the settings for per-feature toggles, resources, and thresholds." />
                                                     </ToolTip>
                                                 </ContentControl.ToolTip>
                                             </ContentControl>
@@ -2717,6 +2746,7 @@
                                     </DataGrid.CellStyle>
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Group" Width="1.15*" Binding="{Binding GroupName}" />
+                                        <DataGridTextColumn Header="Village" Width="1.2*" Binding="{Binding VillageName}" />
                                         <DataGridTextColumn Header="Task" Width="2.4*" Binding="{Binding DisplayName}" />
                                         <DataGridTemplateColumn Header="Status" Width="*">
                                             <DataGridTemplateColumn.CellTemplate>
@@ -2819,6 +2849,7 @@
                                     </DataGrid.CellStyle>
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Group" Width="1.15*" Binding="{Binding GroupName}" />
+                                        <DataGridTextColumn Header="Village" Width="1.2*" Binding="{Binding VillageName}" />
                                         <DataGridTextColumn Header="Completed task" Width="2.4*" Binding="{Binding DisplayName}" />
                                         <DataGridTemplateColumn Header="Status" Width="*">
                                             <DataGridTemplateColumn.CellTemplate>

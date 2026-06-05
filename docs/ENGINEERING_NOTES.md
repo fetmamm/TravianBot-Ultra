@@ -303,6 +303,156 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   kolumn 90→110, knapp `Margin=0 Height=26` centrerad. (3) Reset settings-knappen hade vit rand
   (`BorderBrush=InkBrush`, ljus i mörkt tema) → `PrimaryButtonBrush` (grön, matchar bakgrund). Bygger rent, 40 tester gröna.
 
+- **2026-06-04** — UI-cleanup (utseende/layout, inget bot-beteende ändrat). (1) Dashboard topbar-korten
+  Session/Time har nu fast `Width` (210/180) i stället för `MinWidth` så de inte hoppar när status/klocka
+  uppdateras. (2) Villages-listans mellersta spacer-kolumn `*`→`Auto` (header + rad) så Village-kolumnen får
+  all slack (längre bynamn, mindre klipp) och Pop/Coords/Capital trycks åt höger; shared size groups
+  oförändrade. (3) NPC trade exponeras som en master-toggle på Dashboard "Auto settings" (under Allow gold
+  spending) via ny `TroopTrainingViewModel.NpcTradeMasterEnabled` (get = `IsAnyNpcTradeEnabled`, set = sätter
+  både `NpcTradeEnabled` och `NpcTradeConstructionEnabled`). Per-feature-toggles/trösklar ligger kvar på
+  NPC/Trade-fliken, nåbar via kugghjuls-knappen som flyttades till NPC trade-raden. (4) Tog bort
+  "Continuous loop uses N enabled group(s)…"-texten i Auto loop-rutan; `UpdateAutomationLoopSummaryText`
+  uppdaterar nu bara kolumnlayouten. (5) Sidebar "Building"→"Buildings" (flik-headern var redan "Buildings").
+  (6) Buildings-fliken: ny tom platshållar-ruta "Construction settings" i högerkolumnen (260px) i
+  `BuildingsPanel.xaml`. Bygger rent, 40 Desktop-tester gröna.
+
+- **2026-06-04** — Status-state efter reset/kontobyte. `RequestLoopStop`/`RequestQueueStop` rensas bara
+  vid start av en ny körning, så en reset/kontobyte (som stoppar automation) lämnade flaggorna satta och
+  `UpdateExecutionStateIndicator` visade "State: paused" trots idle/utloggad. Fix: `ClearAccountScopedUiState()`
+  anropar nu `ClearLoopStopRequest()`/`ClearQueueStopRequest()` före `UpdateExecutionStateIndicator()`
+  (täcker både programreset och `ResetForAccountSwitchAsync`). Statenamn oförändrade. Den vanliga
+  pause-vyn (flaggor satta + pending köobjekt → "paused") påverkas inte eftersom kön finns kvar då.
+- **2026-06-04** — Stop-knappen är nu röd-tonad (`DangerBg/Border/Text`, samma princip som gula Pause) och
+  öppnar en bekräftelse via `AppDialog.ShowCustom` ("Cancel"/"Stop", default Cancel) innan hard-stop, med
+  texten att stopp även rensar aktiv kö för alla byar. Skyddar mot oavsiktligt stopp. `StopBotButton_Click`
+  kör stop endast vid Stop-valet.
+
+- **2026-06-04** — Village-identitet & refresh (rename-säkring). (1) Desktop-mergen
+  (`MainWindow.Dashboard.Villages.cs`) nycklar nu byar på stabilt id i stället för namn: `GetVillageKey`
+  parsar `newdid` ur switch-URL:en (fallback coords → namn). En omdöpt by mappar därför till sin tidigare
+  cache-post (behåller Url/coords/population) i stället för att dyka upp som en ny by. (2) Worker
+  `ReadVillagesPreferCacheAsync`-mergen matchar `prior` på `newdid` (ny `TryParseNewdid`) före namn, så
+  coords inte tappas och rename känns igen som samma by.
+
+- **2026-06-04** — 16s-refreshen plockar nu upp byändringar från sidan den står på (ingen extra navigering).
+  Rotorsak (verifierad mot `temp_build_out/DOM/dorf1_multiple_villages.txt`): den befintliga current-page-
+  avläsningen `ReadVillagesFromCurrentPageAsync` letade bara `a[href*="newdid="]`, men **official T4.6**
+  renderar bylistan som `div.listEntry.village[data-did]` med `href="#"` (id i `data-did`, inte i någon
+  newdid-länk). Därför hittade sidebar-läsningen 0 byar på official och föll tillbaka på cache → namnbyten/
+  nya byar syntes aldrig. Additivt tillägg (SS-newdid-grenen körs först, official som fallback): parsa
+  `.listEntry.village[data-did]` → bygg `dorf1.php?newdid=<did>`, läs `.name`, coords ur
+  `.coordinateX/.coordinateY` (ny `parseSignedInt` som strippar bidi-marks + normaliserar U+2212-minus),
+  aktiv-population ur `.population span`. `VillagesCacheTtl` 60→15s så prefer-cache-läsningen faktiskt läser
+  om den (navigeringsfria) sidebaren varje tick. Desktop: `RefreshResourceSnapshotForUiAsync` anropar nu
+  `TryUpdateDashboardVillagesFromStatus(status)` efter `ApplyResourceStatusToUi` — uppdaterar dropdown +
+  Dashboard **bara** när byset ändrats (signatur-jämförelse) och **aldrig** när sidan saknar läsbar by-info
+  (skriver inte över). Signaturen nollas vid kontobyte. Den tidigare manuella "Refresh villages"-knappen +
+  `RefreshAccountVillagesAsync`-plumbingen är borttagen (behövdes inte; befintliga avläsningar räcker när de
+  läser rätt markup). Worker bygger rent, 323 Worker-tester gröna; Desktop-bygget kräver att appen stängs
+  (DLL-lås), kompileringen är ren.
+
+- **2026-06-04** — 16s-refreshen uppdaterar nu **adventures** och **aktiv bys population**, plus UI-fixar.
+  (1) Adventures: `VillageStatus` fick `int? AdventureCount`; `ReadCurrentVillageResourceStatusAsync` läser
+  hero-indikatorn från current page via befintliga `ReadHeroSidebarStatusAsync` (billig, ingen navigering)
+  och sätter `AdventureCount` (null när indikatorn inte hittas → skriv inte över). Desktop applicerar i
+  `RefreshResourceSnapshotForUiAsync` via `ApplyHeroAdventureAvailability` så Dashboard `Adv:` och Hero-
+  fliken (båda binder `HeroVm.AdventureCountText`) hålls i synk i auto-loop. (2) Population: official renderar
+  aktiv bys population i `#sidebarBoxActiveVillage div.population > span` (ej i list-entryn) — official-grenen
+  i `ReadVillagesFromCurrentPageAsync` läser nu därifrån. Desktop `BuildMergedVillageSelectionItems` tar
+  `activeVillageName` och låter **aktiv** by använda inkommande (sanna) population (`preferExistingPopulation:
+  false`) så cache skrivs över; övriga byar behåller visat värde. By-signaturen inkluderar nu population så
+  ändringen triggar omritning. (3) Storage-text: `ResourcesViewModel.FormatCurrentMaxText` ger nu
+  "1 500 / 25 000" (mellanrum runt `/`). (4) `BuildingSlotActionsWindow` "Upgrade to max": ersatte den
+  template-ersättande `<Button.Style>` (saknade BasedOn → föll till Aero2-mallen med ljus hover) med direkta
+  Background/Foreground/BorderBrush-attribut (warning-tokens) så den ärver den platta mörka knappmallen.
+  (5) SupportWindow: mailformuläret borttaget (+`SendButton_Click`), "Create diagnostics file" är
+  `IsEnabled="False"` (ses över senare), Discord = blå (`Info*`-tokens) och GitHub = grön (`Success*`-tokens,
+  samma fade som Start bot). Worker bygger rent, 323 Worker-tester gröna; Desktop kompilerar rent
+  (full build/Desktop-tester kräver att appen stängs pga DLL-lås).
+
+- **2026-06-04** — Externt startade uppgraderingar visas nu i UI + ny Village settings-popup.
+  (1) `VillageStatus` fick `IReadOnlyList<ActiveConstruction>? ActiveConstructions`, populerad från Travians
+  egen bygg-lista via befintliga `ReadActiveConstructionsAsync(allowNavigationToBuildings:false)` i både
+  full-läsningen (`ReadCurrentVillageStatusAsync`, login/bybyte) och current-page-läsningen
+  (`ReadCurrentVillageResourceStatusAsync`, 16s-tick). Desktop matchar dem till slots på normaliserat
+  namn + (mål − 1) via `BuildExternalUpgradeTargetsBySlot` och sätter `PendingTargetLevel` — byggnader i
+  `PopulateBuildingsTab` ("Level X (Y)") och resursfält i `BuildResourceRows` ("(Y)"), samma format som
+  programmets egna köade uppgraderingar. Bara uppgraderingar av befintliga slots (construct/nya hoppas över).
+  Endast **entydiga** matchningar visas: kan en construction matcha fler än en slot (t.ex. flera croplands på
+  samma nivå) hoppas den över i stället för att gissa fel fält. (2) Ny **Village
+  settings**-knapp i Dashboard-headern (vänster om Reset program) öppnar `VillageSettingsWindow` — en DataGrid
+  med Village/Pop/Coords + checkbox-kolumner Hero res/NPC/Build troops/Upgrade troops/Farming
+  (`VillageSettingsRow`). Checkboxarna är ej kopplade till automation ännu; fönstret är grunden för
+  per-by-inställningar framåt. Worker bygger rent, 323 Worker-tester gröna; Desktop kompilerar rent
+  (full build/Desktop-tester kräver att appen stängs pga DLL-lås).
+
+- **2026-06-05** — Multi-village steg 1: per-by "enabled for automation" + persistens (ingen kö-/loop-
+  ändring ännu). Ny `VillageSettingsStore` (Desktop/Services, samma konto-scopade mönster som
+  `BotConfigStore`: projectRoot + active-account-provider + FileIoLock-retry) sparar per-konto i ny fil
+  `config/accounts/<account>/villages.json` (helper `AccountStoragePaths.VillageSettingsPath`). Post per by:
+  `{ key, name, coordX, coordY, isCapital, isEnabled, lastSeenUtc }`, nycklad på samma stabila by-nyckel som
+  Desktop redan använder (`GetVillageKey`, newdid→coords→namn) så rename behåller valet. `Merge` (nya byar:
+  capital ON, övriga OFF; kända byar behåller `isEnabled`, identitet uppdateras, tar **aldrig** bort byar som
+  saknas i en partiell sid-läsning, skriver bara vid faktisk ändring), `GetEnabled` (okänd by → default =
+  isCapital), `SetEnabled` (idempotent no-op när värdet är oförändrat → togglens Checked/Unchecked-handler
+  spammar inte filen vid varje listombygge), `InvalidateCache` (anropas i `ClearAccountScopedUiState`;
+  villages.json **raderas inte** vid kontobyte — det är just minnet vi vill behålla). `VillageSelectionItem`
+  fick settbar `IsEnabledForAutomation` (minimal INotifyPropertyChanged) som tvåvägsbinds mot en ny toggle-
+  kolumn ("Auto") i Dashboard Villages-listan (`ToggleSwitchStyle` + info-ikon). `BuildMergedVillageSelectionItems`
+  (båda overloads) anropar `ApplyVillageEnabledState` (merge + applicera). Toggle är **ännu inte** kopplad till
+  worker-loop/kö (steg 3–4). Skiljt från `VillageSettingsWindow`/`VillageSettingsRow` (per-feature-rutnät, också
+  oanslutet) — villages.json kan bli hemvist för de flaggorna senare. Build rent, 47 Desktop-tester gröna.
+
+- **2026-06-05** — Multi-village steg 2: **en köfil per konto** (lagring + migrering; ingen loop-/rotations-
+  ändring ännu). Tidigare global `config/queue.json` (delad av alla konton) flyttas till
+  `config/accounts/<account>/queue.json` (helper `AccountStoragePaths.AccountQueuePath` +
+  `LegacyGlobalQueuePath`). `JsonQueueStore` fick en `Func<string>`-konstruktor; `_queuePath`/`_lockPath`
+  är nu **computed properties** som resolvar providern per operation (storen har ingen minnescache av kön →
+  byte av aktivt konto pekar automatiskt om till rätt fil, inget att invalidera). Den gamla `string`-
+  konstruktorn delegerar till providern → Worker-DI (`Program.cs`, fortf. global, kontolöst fristående
+  runner) och tester oförändrade. Desktop konstruerar storen med `() => AccountQueuePath(root,
+  activeAccount)`. Ny `QueueMigration` (Desktop/Services) flyttar vid start ett ev. gammalt globalt
+  queue.json → aktiva kontots fil (klobbrar inte befintlig), gammal fil → `.bak`, körs före startup-
+  clear/recover. `AccountDeletionService` städar redan hela konto-katalogen (queue.json medräknad). Val
+  bekräftat med användaren (ändrat från tidigare "fil per by": en by är en payload-egenskap på tasken,
+  rensa-per-by = enkelt filter). UI-filtrering per by + sluta-rensa-kön-vid-bybyte ligger i steg 3 (när
+  loopen blir by-medveten). Build rent, Worker 324 + Desktop 50 tester gröna.
+
+- **2026-06-05** — Multi-village steg 3: by-rotation i den **manuella kön** + kö-vy per by (rör INTE
+  continuous-loopens bräckliga sekvenslogik; autonom rotation = steg 4). Ny `QueueVillageRotation`
+  (Desktop/Services, ren/testad): dränerar en bys redo-tasks innan rotation till nästa by; när nuvarande
+  by bara har deferred tasks → gå vidare till nästa by (användarens rotationsregel). Bevarar scheduler-
+  ordningen (priority/FIFO) inom byn — ändrar bara VILKEN by som töms först. By-nyckel ur task-payloadens
+  `TargetVillage*` via befintliga `GetVillageKey` (nya helpers `GetQueueItemVillageKey/Name` i
+  `MainWindow.Dashboard.Villages.cs`); tasks utan by = en "default"-grupp. `ExecuteQueuedItemsNowAsync`
+  (AutoQueue) använder selektorn via fält `_autoQueueRotationVillageKey` (nollas vid körningsstart, loggar
+  `ROTATE to village`); varje task växlar fortf. till sin egen by via `BotTaskRunner` — rotationen håller
+  bara runnern på en by i taget i stället för att interfoliera byar per global priority/FIFO. `StopAndClear
+  ForVillageChangeAsync` → `StopForVillageChangeAsync`: stoppar aktiv körning men rensar **inte** längre
+  kön (andra byars köade arbete överlever bybyte; med en kö/konto + by-taggade tasks ska de inte tappas).
+  Kö-UI fick en "Village"-kolumn (aktiv + historik + popout) från payloadens `TargetVillageName`
+  (`QueueItemRow.VillageName`). Enable-togglarna är **ännu inte** kopplade till exekvering (steg 4). Build
+  rent, Worker 324 + Desktop 54 tester gröna.
+
+- **2026-06-05** — Multi-village: Auto-toggeln **flyttad** från Dashboard till Village settings-popupen
+  (spara plats på Dashboard, användarens önskemål). Dashboard Villages-listan är tillbaka till
+  Villages/Pop/Coords (ingen toggle-kolumn). `VillageSettingsWindow` fick en **"Auto"-checkboxkolumn
+  längst till vänster** (vänster om Village) wired till `VillageSettingsStore`: `VillageSettingsRow`
+  bär nu `IsEnabledForAutomation` (INotifyPropertyChanged) + `KeyInfo` (stabil by-nyckel); fönstret tar
+  en `Action<VillageSettingsRow>`-callback och prenumererar på radens PropertyChanged → persist via
+  `PersistVillageEnabledFromSettingsRow` → `VillageSettingsStore.SetEnabled`. Seedas från
+  `GetEnabled(keyInfo)` när popupen öppnas. Övriga checkboxkolumner (Hero res/NPC/…) fortf. oanslutna.
+
+- **2026-06-05** — Multi-village steg 4a: enable-togglarna **kopplade till exekvering** (filter; per-by
+  runtime-generering/autonom loop-rotation = kvarvarande 4b, kräver ändring i bräcklig loop + live-test).
+  Ny `VillageSettingsStore.IsEnabledByKey(key, defaultIfUnknown)` (okänd/by-lös → default true). Ny
+  `IsQueueItemVillageEnabled(QueueItem)` (by-lösa tasks alltid tillåtna). `QueueVillageRotation.SelectNext`
+  tar nu en `isVillageEnabled`-predikat och hoppar över inaktiverade byars tasks; AutoQueue skickar
+  `IsQueueItemVillageEnabled`. Continuous-loop-selektorn (`SelectNextQueueItemForContinuousLoop`,
+  ren urvalslogik — ej sekvenslogiken) filtrerar både utility- och gruppitems på
+  `IsQueueItemVillageEnabled`. Effekt: en inaktiverad by:s köade tasks körs inte (manuell kö + continuous);
+  by-lösa/legacy-tasks opåverkade. Build rent, Worker 324 + Desktop 56 tester gröna.
+
 ---
 
 ## 5. Kända fallgropar / regressions

@@ -87,6 +87,28 @@ public partial class MainWindow
             : null;
         var resourceMaxLevel = ResolveResourceMaxLevelFromStatus(status);
 
+        // Resource-field upgrades started outside the program (Travian's own build list) so they show
+        // the target level in parentheses just like program-queued upgrades.
+        var externalTargetsBySlot = BuildExternalUpgradeTargetsBySlot(
+            status.ActiveConstructions,
+            ConstructionKind.Resource,
+            status.ResourceFields
+                .Where(field => field.SlotId is not null)
+                .Select(field => (field.SlotId!.Value, (string?)field.Name, field.Level)));
+
+        int? ResolvePendingTarget(int slotId, int currentLevel)
+        {
+            var programTarget = includeQueuedTargets
+                ? ResolveQueuedResourceTarget(slotId, currentLevel, queuedTargetsBySlot!)
+                : null;
+            if (programTarget is not null)
+            {
+                return programTarget;
+            }
+
+            return externalTargetsBySlot.TryGetValue(slotId, out var externalTarget) ? externalTarget : null;
+        }
+
         return status.ResourceFields
             .Where(item => item.SlotId is not null)
             .OrderBy(item => item.SlotId)
@@ -97,9 +119,7 @@ public partial class MainWindow
                 Name = item.Name,
                 Level = item.Level,
                 Url = item.Url ?? string.Empty,
-                PendingTargetLevel = includeQueuedTargets
-                    ? ResolveQueuedResourceTarget(item.SlotId ?? 0, item.Level ?? 0, queuedTargetsBySlot!)
-                    : null,
+                PendingTargetLevel = ResolvePendingTarget(item.SlotId ?? 0, item.Level ?? 0),
                 IsMaxLevel = (item.Level ?? 0) >= resourceMaxLevel,
             })
             .ToList();

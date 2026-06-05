@@ -192,6 +192,7 @@ public partial class MainWindow
                     Id = item.Id,
                     Group = item.Group,
                     GroupName = QueueGroupCatalog.GetTitle(item.Group),
+                    VillageName = GetQueueItemVillageName(item) ?? "-",
                     DisplayName = BuildQueueDisplayName(item),
                     TaskName = item.TaskName,
                     Status = item.Id == displayRunningId ? QueueStatus.Running : item.Status,

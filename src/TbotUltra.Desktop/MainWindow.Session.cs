@@ -499,6 +499,10 @@ public partial class MainWindow
 
         SetResourceRows([]);
         _resourcesViewModel.ResetStorageForecasts();
+        _lastDisplayedVillageSignature = null;
+        // Drop the cached village enabled-state so the next account reloads its own villages.json
+        // (the file itself is kept — it is exactly the per-account memory we want to persist).
+        _villageSettingsStore.InvalidateCache();
         _buildingRows.Clear();
         _demolishableBuildings.Clear();
         ForceClearVillageSelectionUi();
@@ -510,6 +514,13 @@ public partial class MainWindow
         _inboxAutoEnabled = false;
         UpdateLoginButtonsVisual(false);
         UpdateInboxButtons(0, 0);
+
+        // A reset/account switch stops automation via RequestLoopStop/RequestQueueStop. Those flags
+        // are only cleared when a NEW run starts, so without this the state indicator would keep
+        // reading "paused" even though nothing is running and the user is logged out. Clearing them
+        // here returns the idle/just-started state correctly.
+        _loopController.ClearLoopStopRequest();
+        _loopController.ClearQueueStopRequest();
 
         RefreshQueueUi();
         UpdateExecutionStateIndicator();

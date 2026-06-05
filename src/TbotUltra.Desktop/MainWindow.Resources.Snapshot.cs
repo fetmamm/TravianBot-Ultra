@@ -314,6 +314,15 @@ public partial class MainWindow
             await Dispatcher.InvokeAsync(() =>
             {
                 ApplyResourceStatusToUi(status);
+                // Pick up renamed/new villages read from the current page (guarded so it never blanks
+                // the list when the page had no readable village info).
+                TryUpdateDashboardVillagesFromStatus(status);
+                // Keep the hero/dashboard adventure count in sync each refresh when the indicator was
+                // readable on the current page (null = not found, so leave the last value untouched).
+                if (status.AdventureCount is int adventureCount)
+                {
+                    ApplyHeroAdventureAvailability(adventureCount);
+                }
             });
         }
         catch (Exception ex)
