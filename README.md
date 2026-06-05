@@ -1,6 +1,6 @@
 # Tbot Ultra
 
-`Preview of the program`
+`Preview` of the program
 
 ![Version](https://img.shields.io/badge/Version-v0.3.2-blue?style=for-the-badge)
 
