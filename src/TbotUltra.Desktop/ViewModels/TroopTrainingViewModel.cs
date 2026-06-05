@@ -189,6 +189,7 @@ public sealed class TroopTrainingViewModel : BaseViewModel
             }
 
             OnPropertyChanged(nameof(IsAnyNpcTradeEnabled));
+            OnPropertyChanged(nameof(NpcTradeMasterEnabled));
             OnPropertyChanged(nameof(NpcTradeStatusText));
             if (!_isConfigSuppressed)
             {
@@ -226,6 +227,7 @@ public sealed class TroopTrainingViewModel : BaseViewModel
             }
 
             OnPropertyChanged(nameof(IsAnyNpcTradeEnabled));
+            OnPropertyChanged(nameof(NpcTradeMasterEnabled));
             OnPropertyChanged(nameof(NpcTradeStatusText));
             if (!_isConfigSuppressed)
             {
@@ -343,6 +345,24 @@ public sealed class TroopTrainingViewModel : BaseViewModel
     }
 
     public bool IsAnyNpcTradeEnabled => NpcTradeEnabled || NpcTradeConstructionEnabled;
+
+    // Single on/off master used by the dashboard Auto settings row. On = enable NPC trade for both
+    // troops and building/resource-field upgrades; off = disable both. The per-feature toggles and
+    // detailed thresholds stay on the NPC / Trade tab.
+    public bool NpcTradeMasterEnabled
+    {
+        get => IsAnyNpcTradeEnabled;
+        set
+        {
+            if (NpcTradeEnabled == value && NpcTradeConstructionEnabled == value)
+            {
+                return;
+            }
+
+            NpcTradeEnabled = value;
+            NpcTradeConstructionEnabled = value;
+        }
+    }
 
     public string NpcTradeStatusText => (NpcTradeEnabled, NpcTradeConstructionEnabled) switch
     {

@@ -49,20 +49,10 @@
                     Content="Upgrade to max"
                     Height="28"
                     Margin="0,0,0,6"
-                    Click="UpgradeToMaxButton_Click">
-                <Button.Style>
-                    <Style TargetType="Button">
-                        <Setter Property="Background" Value="{DynamicResource WarningButtonBgBrush}" />
-                        <Setter Property="Foreground" Value="{DynamicResource DataGridCellTextBrush}" />
-                        <Setter Property="BorderBrush" Value="{DynamicResource WarningBorderBrush}" />
-                        <Style.Triggers>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
-                            </Trigger>
-                        </Style.Triggers>
-                    </Style>
-                </Button.Style>
-            </Button>
+                    Background="{DynamicResource WarningButtonBgBrush}"
+                    Foreground="{DynamicResource OnWarningBrush}"
+                    BorderBrush="{DynamicResource WarningBorderBrush}"
+                    Click="UpgradeToMaxButton_Click" />
             <Button x:Name="DemolishButton"
                     Content="Demolish"
                     Height="28"

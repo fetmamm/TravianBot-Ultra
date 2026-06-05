@@ -62,6 +62,12 @@ public partial class MainWindow
             }
 
             UpdateAutomationLoopOrders();
+            // Snapshot the loaded enabled set as the global default for villages with no per-village
+            // override yet (so a new village inherits the account's configured groups).
+            _defaultEnabledGroupKeys = _automationLoopTasks
+                .Where(item => item.IsEnabled)
+                .Select(item => item.TaskName)
+                .ToList();
             RefreshAutomationLoopDashboardUi();
             SyncTeutonsOnlyAutomationGroups(ResolveStoredTroopTrainingTribe());
         }
@@ -189,17 +195,8 @@ public partial class MainWindow
 
     private void UpdateAutomationLoopSummaryText()
     {
-        var enabledCount = _automationLoopTasks.Count(item => item.IsEnabled);
-        var visibleCount = _automationLoopTasks.Count(item => item.IsVisible);
-        var summaryText = enabledCount <= 0
-            ? $"No group enabled. Visible on dashboard: {visibleCount}."
-            : $"Continuous loop uses {enabledCount} enabled group(s). Visible on dashboard: {visibleCount}.";
-        SetAutomationLoopSummaryText(summaryText);
-    }
-
-    private void SetAutomationLoopSummaryText(string summaryText)
-    {
-        AutomationLoopSummaryTextBlock.Text = summaryText;
+        // The summary text was removed from the Auto loop box; keep the column layout in sync
+        // since callers still expect this to refresh the loop list after group changes.
         UpdateAutomationLoopColumns();
     }
 
@@ -258,7 +255,12 @@ public partial class MainWindow
                 continue;
             }
 
-            var groupItems = queueItems.Where(entry => entry.Group == group).ToList();
+            // Filter to the selected village (keeping village-less/global items) so each group card shows
+            // THIS village's queued count, deferred timer and state — different villages have different
+            // construction timers etc.
+            var groupItems = queueItems
+                .Where(entry => entry.Group == group && IsQueueItemForSelectedVillageOrGlobal(entry))
+                .ToList();
             var pendingCount = groupItems.Count(entry => entry.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused);
             var deferred = groupItems
                 .Where(entry => entry.Status == QueueStatus.Pending && entry.NextAttemptAt > DateTimeOffset.UtcNow)
@@ -790,6 +792,8 @@ public partial class MainWindow
 
         RefreshAutomationLoopDashboardUi();
         PersistAutomationLoopTasksToConfig();
+        // Save these group toggles as the selected village's per-village override.
+        SaveAutomationLoopGroupsForSelectedVillage();
     }
 
     private void TriggerBreweryCelebrationVerificationRefresh()

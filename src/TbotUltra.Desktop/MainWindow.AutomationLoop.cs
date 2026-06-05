@@ -355,11 +355,33 @@ public partial class MainWindow
 
     private int? ResolveConstructionGroupRemainingSeconds()
     {
+        var now = DateTimeOffset.UtcNow;
         var remainingSeconds = _buildQueueRemainingSeconds > 0 ? _buildQueueRemainingSeconds : 0;
-        if (_constructionInlineWaitUntilUtc > DateTimeOffset.UtcNow)
+
+        // Per-village timer: use the SELECTED village's deferred construction items (their NextAttemptAt
+        // is the real "next try" countdown). The old global inline-wait field was account-wide and showed
+        // the same value for every village. Take the earliest deferred item so the countdown reflects when
+        // this village's construction next proceeds.
+        try
         {
-            var inlineSeconds = (int)Math.Ceiling((_constructionInlineWaitUntilUtc - DateTimeOffset.UtcNow).TotalSeconds);
-            remainingSeconds = Math.Max(remainingSeconds, Math.Max(0, inlineSeconds));
+            var selectedName = NormalizeVillageName(GetSelectedVillageName());
+            var villageWait = _botService.GetQueueItemsForDisplay()
+                .Where(item => item.Group == QueueGroup.Construction
+                    && item.Status == QueueStatus.Pending
+                    && item.NextAttemptAt > now
+                    && (selectedName is null
+                        || string.Equals((GetQueueItemVillageName(item) ?? string.Empty).Trim(), selectedName, StringComparison.OrdinalIgnoreCase)))
+                .Select(item => (int)Math.Ceiling((item.NextAttemptAt - now).TotalSeconds))
+                .DefaultIfEmpty(0)
+                .Min();
+            if (villageWait > 0)
+            {
+                remainingSeconds = Math.Max(remainingSeconds, villageWait);
+            }
+        }
+        catch
+        {
+            // Fall back to the build-queue remaining if the queue read fails.
         }
 
         return remainingSeconds > 0 ? remainingSeconds : null;
@@ -367,11 +389,11 @@ public partial class MainWindow
 
     private bool IsConstructionGroupReady(bool allowWorkerValidationForReadyItem = false)
     {
-        if (_constructionInlineWaitUntilUtc > DateTimeOffset.UtcNow)
-        {
-            return false;
-        }
-
+        // NOTE: the construction inline-wait is intentionally NOT a gate here anymore. With multi-village
+        // rotation, blocking the whole Construction group on one village's resource wait would stall the
+        // other villages. The deferred item already carries a future NextAttemptAt (set by
+        // MarkQueueItemDeferred), so the per-village selection skips it and rotation moves on; the inline
+        // wait remains only as the dashboard countdown (ResolveConstructionGroupRemainingSeconds).
         if (_buildQueueRemainingSeconds <= 0)
         {
             return true;
@@ -400,20 +422,12 @@ public partial class MainWindow
         return false;
     }
 
+    // A construction task just deferred. The Construction group's timer is now derived per village from
+    // the deferred queue items (see ResolveConstructionGroupRemainingSeconds), so we only need to refresh
+    // the indicators here — no global inline-wait field anymore (it showed the same timer for every village).
     private void ApplyConstructionInlineWait(TimeSpan waitDelay)
     {
-        if (waitDelay <= TimeSpan.Zero)
-        {
-            return;
-        }
-
-        var waitUntilUtc = DateTimeOffset.UtcNow.Add(waitDelay);
-        if (waitUntilUtc <= _constructionInlineWaitUntilUtc)
-        {
-            return;
-        }
-
-        _constructionInlineWaitUntilUtc = waitUntilUtc;
+        _ = waitDelay;
         UpdateAutomationLoopRunningIndicators();
     }
 

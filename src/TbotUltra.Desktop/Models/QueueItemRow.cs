@@ -7,6 +7,9 @@ public sealed class QueueItemRow
     public Guid Id { get; init; }
     public QueueGroup Group { get; init; }
     public string GroupName { get; init; } = string.Empty;
+    public string VillageName { get; init; } = string.Empty;
+    // Stable village key (newdid-based) used to filter the queue per village; empty = no village.
+    public string VillageKey { get; init; } = string.Empty;
     public string DisplayName { get; init; } = string.Empty;
     public string TaskName { get; init; } = string.Empty;
     public QueueStatus Status { get; init; }

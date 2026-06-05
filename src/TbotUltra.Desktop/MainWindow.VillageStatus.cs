@@ -13,6 +13,8 @@ public partial class MainWindow
     private async Task LoadBuildingsAfterLoginAsync(BotOptions options, CancellationToken cancellationToken = default)
     {
         var status = await ReadVillageStatusWithRetryAsync(options, cancellationToken, resourceOnly: false);
+        CacheVillageStatus(status);
+        SetActiveWorkingVillageFromStatus(status);
         _lastBuildingStatus = status;
         PopulateBuildingsTab(status);
     }
@@ -20,6 +22,8 @@ public partial class MainWindow
     private async Task LoadCurrentVillageViewsAfterLoginAsync(BotOptions options, CancellationToken cancellationToken = default)
     {
         var status = await ReadVillageStatusWithRetryAsync(options, cancellationToken, resourceOnly: false, forceCurrentVillage: false);
+        CacheVillageStatus(status);
+        SetActiveWorkingVillageFromStatus(status);
         ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: true);
 
         _lastBuildingStatus = status;

@@ -171,5 +171,26 @@
                 </StackPanel>
             </ScrollViewer>
         </Grid>
+
+        <!-- Right column: placeholder card for upcoming construction settings. -->
+        <Border Grid.Column="1"
+                VerticalAlignment="Top"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="9"
+                Padding="12">
+            <StackPanel>
+                <TextBlock Text="Construction settings"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
+                           Margin="0,0,0,6" />
+                <TextBlock Text="Construction options will appear here."
+                           Foreground="{DynamicResource TextSubtleBrush}"
+                           FontSize="12"
+                           TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
     </Grid>
 </UserControl>

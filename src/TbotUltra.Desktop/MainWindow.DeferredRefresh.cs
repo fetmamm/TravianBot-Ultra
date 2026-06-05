@@ -191,14 +191,30 @@ public partial class MainWindow
     {
         var currentResources = ReadCurrentResourcesFromStatus(status);
         var productionByHour = ReadCurrentProductionByHourFromStatus(status);
+        // Only re-evaluate deferred items for the village this status was read for. The resources read
+        // belong to ONE village, so judging another village's deferred upgrade against them is wrong and
+        // caused other villages' construction timers to briefly flash "Ready" (reset) then re-defer.
+        var statusVillage = NormalizeVillageName(status.ActiveVillage);
         var deferredItems = _botService
             .GetQueueItemsForDisplay()
             .Where(item => item.Status == QueueStatus.Pending)
             .Where(item => IsConstructionQueueTask(item.TaskName))
+            .Where(item => statusVillage is null
+                || NormalizeVillageName(GetQueueItemVillageName(item)) is not string itemVillage
+                || string.Equals(itemVillage, statusVillage, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
         foreach (var item in deferredItems)
         {
+            // Skip items deferred because the build queue was full (not resources). Their timer reflects
+            // a build slot freeing up; resuming them just because resources look sufficient causes a brief
+            // "Ready" flash before the worker re-defers on the still-full build queue.
+            if (item.Payload.TryGetValue(BotOptionPayloadKeys.UpgradeDeferReason, out var deferReason)
+                && string.Equals(deferReason, BotOptionPayloadKeys.UpgradeDeferReasonQueueFull, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             if (!TryReadDeferredUpgradeRequirements(item.Payload, out var required))
             {
                 continue;
@@ -273,7 +289,6 @@ public partial class MainWindow
         _buildQueueActiveCount = 0;
         _buildQueueRemainingSeconds = 0;
         _buildQueueReachedZeroPendingCompletion = false;
-        _constructionInlineWaitUntilUtc = DateTimeOffset.MinValue;
         _continuousLoopConstructionStatusNeedsSync = true;
 
         UpdateBuildQueueStatusText();
@@ -414,5 +429,15 @@ public partial class MainWindow
     {
         return IsResourceUpgradeTask(taskName)
             || IsBuildingMutationTask(taskName);
+    }
+
+    // True when a construction defer message reflects a full build queue (no free slot) rather than
+    // missing resources. Used to tag the queue item so the resource-driven refresh leaves its timer
+    // alone instead of flashing "Ready" when resources happen to be sufficient.
+    private static bool IsBuildQueueFullDeferMessage(string? message)
+    {
+        return !string.IsNullOrWhiteSpace(message)
+            && (message.Contains("build queue full", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("blocked by queue", StringComparison.OrdinalIgnoreCase));
     }
 }

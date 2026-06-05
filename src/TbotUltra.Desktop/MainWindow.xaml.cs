@@ -138,10 +138,11 @@ public partial class MainWindow : Window
     private readonly string _versionPath;
     private readonly string _botConfigPath;
     private readonly string _envPath;
-    private readonly string _queuePath;
     private readonly string _serverCatalogPath;
     private readonly string _sessionLogPath;
     private readonly BotConfigStore _botConfigStore;
+    private readonly VillageSettingsStore _villageSettingsStore;
+    private readonly VillageCacheStore _villageCacheStore;
     private readonly IAccountProvider _accountProvider;
     private readonly EnvAccountStore _accountStore;
     private readonly AccountAnalysisStore _accountAnalysisStore;
@@ -295,7 +296,6 @@ public partial class MainWindow : Window
     private TextBlock? _captchaAutoSolveElapsedTextBlock;
     private DateTimeOffset _lastVerificationPopupAt = DateTimeOffset.MinValue;
     private DateTimeOffset _inlineWaitUntilUtc = DateTimeOffset.MinValue;
-    private DateTimeOffset _constructionInlineWaitUntilUtc = DateTimeOffset.MinValue;
     private int _manualFarmSessionExecutionCount;
     private string? _activeAutomationTaskName;
     private string? _activeFunctionDisplayName;
@@ -330,8 +330,6 @@ public partial class MainWindow : Window
     private bool _farmingOperationBusy;
     private bool _natarsProfileAnalyzed;
     private DateTimeOffset _lastFarmListsAnalysisAt = DateTimeOffset.MinValue;
-    private string _lastVillageSwitchRefreshKey = string.Empty;
-    private DateTimeOffset _lastVillageSwitchRefreshAt = DateTimeOffset.MinValue;
     private VillageStatus? _lastBuildingStatus;
     private VillageStatus? _lastResourceStatusForUi;
     private readonly object _pendingLogSync = new();
@@ -397,7 +395,6 @@ public partial class MainWindow : Window
         _versionPath = Path.Combine(_projectRoot, "VERSION");
         _botConfigPath = Path.Combine(_projectRoot, "config", "bot.json");
         _envPath = Path.Combine(_projectRoot, ".env");
-        _queuePath = Path.Combine(_projectRoot, "config", "queue.json");
         _serverCatalogPath = Path.Combine(_projectRoot, "config", "servers.user.json");
         _sessionLogPath = Path.Combine(_projectRoot, "logs", $"TbotUltra_Log_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
         InitializeSessionLogFile();
@@ -405,6 +402,8 @@ public partial class MainWindow : Window
         _accountProvider = new EnvAccountProvider(_envPath);
         _accountStore = new EnvAccountStore(_envPath);
         _botConfigStore = new BotConfigStore(_botConfigPath, _projectRoot, () => _accountStore.ActiveAccountName());
+        _villageSettingsStore = new VillageSettingsStore(_projectRoot, () => _accountStore.ActiveAccountName(), AppendLog);
+        _villageCacheStore = new VillageCacheStore(_projectRoot, () => _accountStore.ActiveAccountName(), AppendLog);
         InitializeSessionPacing();
         _accountAnalysisStore = new AccountAnalysisStore(_projectRoot);
         _natarFarmCacheStore = new NatarFarmCacheStore(_projectRoot);
@@ -415,7 +414,11 @@ public partial class MainWindow : Window
         var captchaAutoSolver = new CaptchaAutoSolver(projectContext);
         _captchaAutoSolver = captchaAutoSolver;
         var taskRunner = new BotTaskRunner(_accountProvider, projectContext, captchaAutoSolver);
-        var queueStore = new JsonQueueStore(_queuePath);
+        // One-time migration of the old shared config/queue.json into the active account's per-account
+        // queue file. Runs before the store is used so the recover/clear logic below sees the migrated items.
+        QueueMigration.MigrateLegacyGlobalQueue(_projectRoot, _accountStore.ActiveAccountName(), AppendLog);
+        // The queue is now per account; the store resolves the active account's queue.json per operation.
+        var queueStore = new JsonQueueStore(() => AccountStoragePaths.AccountQueuePath(_projectRoot, _accountStore.ActiveAccountName()));
         _accountDeletionService = new AccountDeletionService(_projectRoot, _accountStore, _botConfigStore, queueStore);
         var queueScheduler = new PriorityFifoQueueScheduler();
         var queueExecutor = new QueueExecutor(taskRunner);
@@ -646,6 +649,7 @@ public partial class MainWindow : Window
 
     private void RefreshNatarsProfileAnalyzedFromCache()
     {
+        AppendLog("[RefreshNatarsProfileAnalyzedFromCache] Started");
         try
         {
             var accountName = _accountStore.ActiveAccountName();
@@ -660,6 +664,7 @@ public partial class MainWindow : Window
         {
             SetNatarsProfileAnalyzed(false);
         }
+        AppendLog("[RefreshNatarsProfileAnalyzedFromCache] Completed");
     }
 
     private NatarFarmCacheSnapshot? TryLoadActiveNatarFarmSnapshot()
@@ -808,7 +813,15 @@ public partial class MainWindow : Window
         BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"active village '{status.ActiveVillage}'");
         TribeInfoTextBlock.Text = $"{status.Tribe}";
         VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
-        SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage);
+        // Select the village the browser actually landed in (active village), not a stale prior selection,
+        // so the dropdown matches the browser and Start bot works in the landing village.
+        SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage, status.ActiveVillage);
+
+        // Cache this full read and mark the village the browser actually logged into as the active
+        // working village, so the green border is correct and visible immediately after login (not only
+        // after the first task runs). This full status carries the village list needed to resolve the key.
+        CacheVillageStatus(status);
+        SetActiveWorkingVillageFromStatus(status);
         UpdateInboxButtons(snapshot.InboxStatus.UnreadMessages, snapshot.InboxStatus.UnreadReports);
         ApplyFarmingAvailabilityFromGoldClubStatus(TryGetStoredGoldClubEnabled(_accountStore.ActiveAccountName()));
 
@@ -1253,27 +1266,6 @@ public partial class MainWindow : Window
 
         _buildQueueActiveCount = status.ActiveBuildCount;
         _buildQueueRemainingSeconds = status.BuildQueueRemainingSeconds ?? -1;
-        var hasDeferredConstructionQueueItem = false;
-        try
-        {
-            var nowUtc = DateTimeOffset.UtcNow;
-            hasDeferredConstructionQueueItem = _botService
-                .GetQueueItemsForDisplay()
-                .Any(item =>
-                    item.Group == QueueGroup.Construction
-                    && item.Status == QueueStatus.Pending
-                    && item.NextAttemptAt > nowUtc);
-        }
-        catch
-        {
-            // Ignore temporary queue read failures and keep the current inline wait state.
-        }
-
-        if (_buildQueueRemainingSeconds > 0 || (_buildQueueActiveCount <= 0 && !hasDeferredConstructionQueueItem))
-        {
-            _constructionInlineWaitUntilUtc = DateTimeOffset.MinValue;
-        }
-
         _buildQueueReachedZeroPendingCompletion = false;
         ApplyTroopsAvailabilityFromVillageStatus(status);
         _troopTrainingViewModel.ApplyStatus(status, _lastBuildingStatus?.TroopTrainingQueues);

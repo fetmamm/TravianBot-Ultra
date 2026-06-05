@@ -42,7 +42,6 @@ jobs:
           "version=$version" >> $env:GITHUB_OUTPUT
           "tag=v$version" >> $env:GITHUB_OUTPUT
           "package_name=tbot-ultra-win-x64-v$version" >> $env:GITHUB_OUTPUT
-          "asset_name=TbotUltra-Setup-win-x64-v$version.exe" >> $env:GITHUB_OUTPUT
           "portable_name=tbot-ultra-win-x64-v$version-portable.zip" >> $env:GITHUB_OUTPUT
 
       - name: Restore
@@ -178,9 +177,19 @@ jobs:
 
           Copy-Item $browserRoot (Join-Path $packageRoot "ms-playwright") -Recurse -Force
 
-          $assetDir = Join-Path $packageRoot "Assets"
-          New-Item -ItemType Directory -Path $assetDir -Force | Out-Null
-          Copy-Item (Join-Path $PWD "assets\icons\icon_windows.ico") (Join-Path $assetDir "icon_windows.ico") -Force
+          # Ship the Playwright driver (node.exe + package) from the regular framework build output.
+          # The single-file publish embeds node.exe into the exe instead of leaving it loose under
+          # .playwright\node, so the published copy is incomplete and Playwright fails with
+          # "Driver not found". Overwrite it with the complete driver folder.
+          $driverRoot = Join-Path $PWD "src\TbotUltra.Desktop\bin\Release\net8.0-windows\win-x64\.playwright"
+          if (-not (Test-Path (Join-Path $driverRoot "node\win32_x64\node.exe"))) {
+            throw "Playwright driver (node.exe) is missing from build output: $driverRoot"
+          }
+          $packagedDriverRoot = Join-Path $packageRoot ".playwright"
+          if (Test-Path $packagedDriverRoot) {
+            Remove-Item $packagedDriverRoot -Recurse -Force
+          }
+          Copy-Item $driverRoot $packagedDriverRoot -Recurse -Force
 
           $captchaRoot = Join-Path $packageRoot "Captcha_solver\math_ai"
           New-Item -ItemType Directory -Path $captchaRoot -Force | Out-Null
@@ -233,58 +242,6 @@ jobs:
             throw "Packaged captcha runtime verification failed with exit code $LASTEXITCODE."
           }
 
-      - name: Install Inno Setup
-        shell: pwsh
-        run: choco install innosetup --no-progress -y
-
-      - name: Build installer
-        env:
-          ASSET_NAME: ${{ steps.version.outputs.asset_name }}
-          VERSION_NUMBER: ${{ steps.version.outputs.version }}
-          PACKAGE_NAME: ${{ steps.version.outputs.package_name }}
-        shell: pwsh
-        run: |
-          $stageRoot = Join-Path $PWD "temp_build_out\release"
-          $packageRoot = Join-Path $stageRoot $env:PACKAGE_NAME
-          $outputRoot = Join-Path $PWD "temp_build_out\installer"
-          $assetPath = Join-Path $outputRoot $env:ASSET_NAME
-          $sourceDrive = "X:"
-
-          if (Test-Path $outputRoot) {
-            Remove-Item $outputRoot -Recurse -Force
-          }
-
-          New-Item -ItemType Directory -Path $outputRoot | Out-Null
-
-          if (-not (Test-Path $packageRoot)) {
-            throw "Installer source folder is missing: $packageRoot"
-          }
-
-          if (Test-Path $sourceDrive) {
-            subst $sourceDrive /D
-          }
-
-          subst $sourceDrive $packageRoot
-          if ($LASTEXITCODE -ne 0) {
-            throw "Could not map installer source drive for: $packageRoot"
-          }
-
-          try {
-            & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
-              "/DAppVersion=$env:VERSION_NUMBER" `
-              "/DSourceDir=$sourceDrive\" `
-              "/DOutputDir=$outputRoot" `
-              "/DOutputBaseFilename=$([System.IO.Path]::GetFileNameWithoutExtension($env:ASSET_NAME))" `
-              "installer\TbotUltraSetup.iss"
-
-            if (-not (Test-Path $assetPath)) {
-              throw "Installer was not created: $assetPath"
-            }
-          }
-          finally {
-            subst $sourceDrive /D | Out-Null
-          }
-
       - name: Create portable zip
         env:
           PACKAGE_NAME: ${{ steps.version.outputs.package_name }}
@@ -292,7 +249,7 @@ jobs:
         shell: pwsh
         run: |
           $packageRoot = Join-Path $PWD ("temp_build_out\release\" + $env:PACKAGE_NAME)
-          $outputRoot = Join-Path $PWD "temp_build_out\installer"
+          $outputRoot = Join-Path $PWD "temp_build_out\dist"
           $zipPath = Join-Path $outputRoot $env:PORTABLE_NAME
 
           if (-not (Test-Path $packageRoot)) {
@@ -302,7 +259,6 @@ jobs:
           # Drop the verification test image so it does not ship in the portable build.
           Remove-Item (Join-Path $packageRoot "test.png") -ErrorAction SilentlyContinue
           Remove-Item (Join-Path $packageRoot "playwright.ps1") -ErrorAction SilentlyContinue
-          Remove-Item (Join-Path $packageRoot "Assets") -Recurse -Force -ErrorAction SilentlyContinue
 
           $appExe = Join-Path $packageRoot "Tbot Ultra.exe"
           if (-not (Test-Path $appExe)) {
@@ -337,12 +293,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ steps.version.outputs.tag }}
           VERSION_NUMBER: ${{ steps.version.outputs.version }}
-          ASSET_NAME: ${{ steps.version.outputs.asset_name }}
           PORTABLE_NAME: ${{ steps.version.outputs.portable_name }}
         shell: pwsh
         run: |
-          $assetPath = Join-Path $PWD "temp_build_out\installer\$env:ASSET_NAME"
-          $portablePath = Join-Path $PWD "temp_build_out\installer\$env:PORTABLE_NAME"
+          $portablePath = Join-Path $PWD "temp_build_out\dist\$env:PORTABLE_NAME"
 
           if (-not (Test-Path $portablePath)) {
             throw "Portable zip is missing: $portablePath"
@@ -351,16 +305,16 @@ jobs:
           $notes = @"
           Automated release for version $env:VERSION_NUMBER.
 
-          Two download options:
-          - Installer ($env:ASSET_NAME): run it to install the app, then start it.
-          - Portable ($env:PORTABLE_NAME): no installation. Extract the zip and run Tbot Ultra.exe inside the folder.
+          Portable ($env:PORTABLE_NAME): no installation needed. Extract the zip,
+          move or rename the folder wherever you like (e.g. your Desktop), then run
+          Tbot Ultra.exe inside it.
 
           Set up your account and server inside the app (Account -> Manage). No manual editing of .env or config files is needed.
 
           Tip: for multiple accounts, extract a separate copy of the portable folder per account and run them at the same time. Do not run two instances from the same folder.
           "@
 
-          gh release create $env:TAG_NAME $assetPath $portablePath `
+          gh release create $env:TAG_NAME $portablePath `
             --repo $env:GITHUB_REPOSITORY `
             --target $env:GITHUB_SHA `
             --title "Tbot Ultra $env:VERSION_NUMBER" `

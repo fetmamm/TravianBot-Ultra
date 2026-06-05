@@ -62,6 +62,33 @@ public static class AccountStoragePaths
         return Path.Combine(AccountDirectory(projectRoot, accountName), "settings.json");
     }
 
+    // Per-account structured village settings (which villages are enabled for automation, plus
+    // cached identity such as name/coords/capital). Kept as its own file because a per-village
+    // record does not map cleanly onto the flat key/value settings.json overlay.
+    public static string VillageSettingsPath(string projectRoot, string accountName)
+    {
+        return Path.Combine(AccountDirectory(projectRoot, accountName), "villages.json");
+    }
+
+    // Per-account task queue. The queue used to be a single global config/queue.json shared by every
+    // account; scoping it per account keeps one account's queued work from leaking into another.
+    public static string AccountQueuePath(string projectRoot, string accountName)
+    {
+        return Path.Combine(AccountDirectory(projectRoot, accountName), "queue.json");
+    }
+
+    public static string LegacyGlobalQueuePath(string projectRoot)
+    {
+        return Path.Combine(projectRoot, "config", "queue.json");
+    }
+
+    // Per-account cache of each village's last-read buildings + resource fields, so a village scan is
+    // remembered across restarts (something to work on without re-scanning everything every launch).
+    public static string VillageCachePath(string projectRoot, string accountName)
+    {
+        return Path.Combine(AccountDirectory(projectRoot, accountName), "village_cache.json");
+    }
+
     public static string LegacyBrowserStatePath(string projectRoot, string accountName)
     {
         return Path.Combine(projectRoot, "playwright", ".auth", $"{NormalizeAccountKey(accountName)}.json");

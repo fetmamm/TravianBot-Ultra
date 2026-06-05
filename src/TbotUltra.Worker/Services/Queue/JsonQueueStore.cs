@@ -6,9 +6,15 @@ namespace TbotUltra.Worker.Services;
 
 public sealed class JsonQueueStore : IQueueStore
 {
-    private readonly string _queuePath;
-    private readonly string _lockPath;
+    // The queue path is resolved per operation so it can follow the active account at runtime (the
+    // Desktop app points this at config/accounts/<account>/queue.json). The store keeps no in-memory
+    // copy of the queue — every call reads/writes the file — so re-resolving the path is enough to
+    // switch accounts; no cache to invalidate.
+    private readonly Func<string> _queuePathProvider;
     private readonly object _sync = new();
+
+    private string _queuePath => _queuePathProvider();
+    private string _lockPath => $"{_queuePath}.lock";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -17,10 +23,15 @@ public sealed class JsonQueueStore : IQueueStore
         Converters = { new JsonStringEnumConverter() },
     };
 
+    // Fixed-path constructor (Worker DI, tests). Delegates to the provider form.
     public JsonQueueStore(string queuePath)
+        : this(() => queuePath)
     {
-        _queuePath = queuePath;
-        _lockPath = $"{queuePath}.lock";
+    }
+
+    public JsonQueueStore(Func<string> queuePathProvider)
+    {
+        _queuePathProvider = queuePathProvider ?? throw new ArgumentNullException(nameof(queuePathProvider));
     }
 
     public IReadOnlyList<QueueItem> GetAll()

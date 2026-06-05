@@ -1,5 +1,9 @@
 # Tbot Ultra
 
+`Preview` of the program
+
+![Version](https://img.shields.io/badge/Version-v0.3.2-blue?style=for-the-badge)
+
 <p align="center">
   <img src="assets/images/tbot_v032.png" alt="Tbot Ultra Dashboard">
 </p>
@@ -7,6 +11,8 @@
 ---
 
 Join our `Discord!`
+
+Here you can ask questions, report bugs and come with suggestions for new features.
 
 [![Join the Discord](https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/7bgzKy9sHK)
 
@@ -28,7 +34,7 @@ The optional captcha solver is a small separate Python module.
 
 ## Download
 
-Each version on the [Releases](../../releases) page ships two options:
+Each version on the [Releases](../../releases) page ships two options (`Recommended`: Use the `Portable` option`):
 
 - **Installer** (`TbotUltra-Setup-...exe`) – run the setup file to install the app.
 - **Portable** (`tbot-ultra-win-x64-...-portable.zip`) – no installation: extract the
@@ -93,7 +99,6 @@ the others.
 
 Top-level files worth knowing:
 
-- `PROJECT_SPEC.md` — product spec (goals, MVP, queue rules, edge cases).
 - `AGENTS.md` — coding rules for AI assistants working in this repo.
 - `VERSION` — current version string, consumed by CI.
 - `Start_Tbot.bat` / `Start_Tbot_UI.vbs` — launchers.

@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Tasks;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Worker;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
@@ -17,6 +18,16 @@ public partial class MainWindow
     private static readonly TimeSpan LoopPickVerboseThrottle = TimeSpan.FromSeconds(30);
     private readonly object _loopPickVerboseLogGate = new();
     private readonly Dictionary<string, DateTimeOffset> _loopPickVerboseLogAtByKey = new(StringComparer.Ordinal);
+
+    // The village the AutoQueue drain is currently working through. Rotation drains one village's ready
+    // tasks before advancing to the next; reset at the start of each run so a fresh run starts cleanly.
+    private string? _autoQueueRotationVillageKey;
+
+    // The village the continuous loop is currently draining construction for. Same rotation rule as the
+    // AutoQueue path: finish one village's construction (in strict order) before moving to the next; if
+    // the current village's next construction is deferred (e.g. waiting for resources), rotate onward so
+    // a stalled village never blocks the others. Reset when the loop starts.
+    private string? _continuousConstructionRotationVillageKey;
 
     private async Task TriggerQueueAutoRunAsync()
     {
@@ -143,6 +154,36 @@ public partial class MainWindow
             .Where(group => group.HasValue)
             .Select(group => group!.Value)
             .ToList();
+    }
+
+    // Union of automation-loop groups enabled across the selected village (live UI toggles) plus every
+    // other enabled village (persisted per-village overrides, falling back to the account default). Used
+    // only to DECIDE WHICH ALREADY-QUEUED ITEMS to consider — never to GENERATE runtime items, which stay
+    // scoped to the selected village. The per-item IsQueueItemGroupEnabledForItsVillage filter still gates
+    // each item to its own village, so a group enabled only in village B won't run where it is off; this
+    // just stops a group being skipped entirely because the *selected* village happens to have it off.
+    private IReadOnlyList<QueueGroup> GetContinuousLoopConsideredGroupsInOrder()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            return Dispatcher.Invoke(GetContinuousLoopConsideredGroupsInOrder);
+        }
+
+        var ordered = new List<QueueGroup>(GetContinuousLoopEnabledGroupsInOrder());
+        var seen = ordered.ToHashSet();
+
+        foreach (var (_, enabledGroups) in _villageSettingsStore.GetEnabledVillagesGroups())
+        {
+            foreach (var key in enabledGroups ?? _defaultEnabledGroupKeys)
+            {
+                if (QueueGroupCatalog.TryParse(key, out var group) && seen.Add(group))
+                {
+                    ordered.Add(group);
+                }
+            }
+        }
+
+        return ordered;
     }
 
     private async Task EnsureContinuousLoopRuntimeItemsAsync(BotOptions options)
@@ -307,6 +348,7 @@ public partial class MainWindow
             var status = await ReadVillageStatusWithRetryAsync(options, cancellationToken, resourceOnly: false);
             await Dispatcher.InvokeAsync(() =>
             {
+                CacheVillageStatus(status);
                 _lastBuildingStatus = status;
                 ApplyVillageStatusToUi(status);
                 PopulateBuildingsTab(status);
@@ -376,6 +418,7 @@ public partial class MainWindow
                 queueItems.Where(item =>
                     IsAlwaysOnUtilityTask(item.TaskName) &&
                     IsAutoCollectUtilityTaskEnabledNow(item.TaskName, options) &&
+                    IsQueueItemVillageEnabled(item) &&
                     item.Status == QueueStatus.Pending &&
                     item.NextAttemptAt <= now))
             .FirstOrDefault();
@@ -384,7 +427,10 @@ public partial class MainWindow
             return readyUtilityItem;
         }
 
-        var orderedGroups = GetContinuousLoopEnabledGroupsInOrder().ToList();
+        // Consider the union of groups enabled across all active villages, not just the selected one,
+        // so e.g. construction queued for a non-selected village still runs. Per-item filtering below
+        // (IsQueueItemGroupEnabledForItsVillage) keeps each item gated to its own village's settings.
+        var orderedGroups = GetContinuousLoopConsideredGroupsInOrder().ToList();
         if (orderedGroups.Count <= 0)
         {
             AppendLoopPickVerbose(
@@ -400,10 +446,22 @@ public partial class MainWindow
                 queueItems.Where(item =>
                     item.Group == group &&
                     (!IsAlwaysOnUtilityTask(item.TaskName) || IsAutoCollectUtilityTaskEnabledNow(item.TaskName, options)) &&
+                    IsQueueItemVillageEnabled(item) &&
+                    IsQueueItemGroupEnabledForItsVillage(item) &&
                     item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused));
             if (group == QueueGroup.Construction)
             {
-                var constructionCandidate = SelectNextConstructionQueueItem(orderedGroupItems, now, out var constructionSkipReason);
+                // Rotate construction across enabled villages: drain the current village's construction in
+                // strict order, but if its next item is deferred move on to another village rather than
+                // holding the whole group (the user's per-village rotation rule).
+                var rotationKey = _continuousConstructionRotationVillageKey;
+                string? constructionSkipReason = null;
+                var constructionCandidate = QueueVillageRotation.SelectByVillageRotation(
+                    orderedGroupItems,
+                    GetQueueItemVillageKey,
+                    villageItems => SelectNextConstructionQueueItem(villageItems, now, out _),
+                    ref rotationKey);
+                _continuousConstructionRotationVillageKey = rotationKey;
                 if (constructionCandidate is not null)
                 {
                     if (!IsConstructionGroupReady(allowWorkerValidationForReadyItem: true))
@@ -464,6 +522,18 @@ public partial class MainWindow
         return null;
     }
 
+    // Whether a queue item's automation group is enabled for ITS OWN village. Lets a group turned off on
+    // village B block B's tasks even while another village is selected/worked. Village-less (global)
+    // tasks and unknown villages fall back to the account default group set.
+    private bool IsQueueItemGroupEnabledForItsVillage(QueueItem item)
+    {
+        var villageKey = GetQueueItemVillageKey(item);
+        var groups = villageKey is null
+            ? _defaultEnabledGroupKeys
+            : (_villageSettingsStore.GetEnabledGroups(villageKey) ?? _defaultEnabledGroupKeys);
+        return groups.Contains(QueueGroupCatalog.GetKey(item.Group), StringComparer.OrdinalIgnoreCase);
+    }
+
     private static bool IsAlwaysOnUtilityTask(string? taskName) =>
         string.Equals(taskName, "collect_tasks", StringComparison.OrdinalIgnoreCase)
         || string.Equals(taskName, "collect_daily_quests", StringComparison.OrdinalIgnoreCase);
@@ -475,8 +545,16 @@ public partial class MainWindow
             _botService.GetQueueItemsForDisplay()
                 .Where(item =>
                     item.Group == QueueGroup.Construction &&
+                    IsQueueItemVillageEnabled(item) &&
+                    IsQueueItemGroupEnabledForItsVillage(item) &&
                     item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused));
-        return SelectNextConstructionQueueItem(items, now, out _) is not null;
+        // Ready when any enabled village has a ready construction item (rotation key ignored here).
+        string? rotationKey = null;
+        return QueueVillageRotation.SelectByVillageRotation(
+            items,
+            GetQueueItemVillageKey,
+            villageItems => SelectNextConstructionQueueItem(villageItems, now, out _),
+            ref rotationKey) is not null;
     }
 
     private static QueueItem? SelectNextConstructionQueueItem(
@@ -638,6 +716,8 @@ public partial class MainWindow
 
     private async Task RunContinuousLoopAsync(CancellationToken token)
     {
+        // Start a fresh construction village rotation each time the loop starts.
+        _continuousConstructionRotationVillageKey = null;
         while (!token.IsCancellationRequested)
         {
             if (_loopController.LoopStopRequested)
@@ -654,6 +734,7 @@ public partial class MainWindow
             {
                 AppendLog($"[LOOP {tickId}] START interval={loopDelaySeconds}s, headless={options.Headless}");
                 await EnsureChromiumInstalledAsync();
+                await HonorPendingVillageSwitchAsync(options, token);
                 await EnsureContinuousLoopConstructionStatusAsync(options, token);
                 await EnsureContinuousLoopRuntimeItemsAsync(options);
                 await MaybeCheckInboxDuringContinuousLoopAsync();
@@ -807,6 +888,8 @@ public partial class MainWindow
     private async Task ExecuteQueuedItemsNowAsync(CancellationToken cancellationToken)
     {
         var runId = System.Threading.Interlocked.Increment(ref _operationCounter);
+        // Each run starts a fresh village rotation so it does not resume mid-drain on a stale village.
+        _autoQueueRotationVillageKey = null;
         AppendLog($"[AUTOQ {runId}] START");
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -822,10 +905,30 @@ public partial class MainWindow
                 return;
             }
 
+            // Honor a Switch-village request made while the queue is running (between items, safe).
+            await HonorPendingVillageSwitchAsync(ApplySelectedVillageToOptions(LoadBotOptions()), cancellationToken);
+
             QueueItem? next;
             try
             {
-                next = _botService.SelectNextQueueItem();
+                // Drain one village's ready tasks before rotating to the next enabled village. Each task
+                // still switches to its own village via BotTaskRunner; rotation just keeps the runner on
+                // one village at a time instead of interleaving villages by global priority/FIFO.
+                var previousRotationKey = _autoQueueRotationVillageKey;
+                var rotationKey = _autoQueueRotationVillageKey;
+                next = QueueVillageRotation.SelectNext(
+                    _botService.GetQueueItemsForDisplay(),
+                    DateTimeOffset.UtcNow,
+                    GetQueueItemVillageKey,
+                    IsQueueItemVillageEnabled,
+                    ref rotationKey);
+                _autoQueueRotationVillageKey = rotationKey;
+
+                if (next is not null && !string.Equals(previousRotationKey, rotationKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    var villageLabel = GetQueueItemVillageName(next);
+                    AppendLog($"[AUTOQ {runId}] ROTATE to village '{(string.IsNullOrWhiteSpace(villageLabel) ? "-" : villageLabel)}'");
+                }
             }
             catch (Exception ex)
             {

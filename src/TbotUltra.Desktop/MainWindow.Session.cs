@@ -15,13 +15,16 @@ namespace TbotUltra.Desktop;
 // behavior change.
 public partial class MainWindow
 {
+    // Login button clicked
     private async void LoginButton_Click(object sender, RoutedEventArgs e)
     {
         await ExecuteLoginFlowAsync();
     }
 
+    // Login function as the button is clicked
     private async Task ExecuteLoginFlowAsync()
     {
+        AppendLog("[login] ***** Login started. *****");
         if (BlockIfSessionSleeping("Login"))
         {
             return;
@@ -43,7 +46,11 @@ public partial class MainWindow
         ShowBusyOverlay("Logging in", "Logging in and loading account data…");
         try
         {
-            var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            // Login must NOT auto-switch villages: read where Travian actually lands and mark that as the
+            // active working village. Injecting the (possibly stale) selected village here made the bot
+            // navigate away from the landing village to the capital/selected one. The dropdown is synced
+            // to the real landing village after the snapshot; use "Switch village" to move on purpose.
+            var options = LoadBotOptions();
             AppendLog($"[{operationId}] INFO server={options.ServerName}, headless={options.Headless}");
             BrowserInfoTextBlock.Text = "Browser: starting";
 
@@ -53,7 +60,6 @@ public partial class MainWindow
             _ = RunCaptchaWarmupAsync();
 
             await EnsureChromiumInstalledAsync();
-            AppendLog("Login started.");
             // A visible browser opens as soon as login starts. Track that in a DEDICATED flag so a
             // captcha / manual-verification popup mid-login knows the window is already open (and doesn't
             // offer to open a second, conflicting verification browser). Do NOT flip
@@ -66,14 +72,17 @@ public partial class MainWindow
                 AppendLog,
                 keepBrowserOpenAfterLogin: !options.Headless,
                 cancellationToken: operationToken);
-            AppendLog("Login finished.");
 
             BrowserInfoTextBlock.Text = "Browser: idle";
             StatusTextBlock.Text = "Login completed.";
             UpdateLoginButtonsVisual(true);
             _isLoggedIn = true;
             _inboxAutoEnabled = true;
+            // Bring in any village buildings/fields remembered from a previous session so the dropdown can
+            // show them immediately; the fresh post-login read then updates the landing village.
+            LoadVillageCacheForActiveAccount();
             RefreshNatarsProfileAnalyzedFromCache();
+            // Check if server is official
             var officialServer = IsOfficialTravianServer(options);
             ApplyPostLoginSnapshot(snapshot);
             await RefreshResourceSnapshotForUiAsync(
@@ -166,6 +175,7 @@ public partial class MainWindow
             DisposeOperationCts();
             _loginInProgress = false;
         }
+        AppendLog("[login] ***** Login finished. *****");
     }
 
     // Full-window modal overlay shown while a login/logout runs (incl. account-switch auto-login). It
@@ -194,7 +204,7 @@ public partial class MainWindow
             // Operation already finished; nothing to cancel.
         }
     }
-
+// Logout knapp klickas
     private async void LogoutButton_Click(object sender, RoutedEventArgs e)
     {
         if (BlockIfSessionSleeping("Logout"))
@@ -499,6 +509,13 @@ public partial class MainWindow
 
         SetResourceRows([]);
         _resourcesViewModel.ResetStorageForecasts();
+        _lastDisplayedVillageSignature = null;
+        // Drop the cached village enabled-state so the next account reloads its own villages.json
+        // (the file itself is kept — it is exactly the per-account memory we want to persist).
+        _villageSettingsStore.InvalidateCache();
+        // Drop the in-memory per-village buildings/fields cache so the next account doesn't show the
+        // previous account's villages. The on-disk village_cache.json per account is kept.
+        _villageStatusCacheByName.Clear();
         _buildingRows.Clear();
         _demolishableBuildings.Clear();
         ForceClearVillageSelectionUi();
@@ -510,6 +527,13 @@ public partial class MainWindow
         _inboxAutoEnabled = false;
         UpdateLoginButtonsVisual(false);
         UpdateInboxButtons(0, 0);
+
+        // A reset/account switch stops automation via RequestLoopStop/RequestQueueStop. Those flags
+        // are only cleared when a NEW run starts, so without this the state indicator would keep
+        // reading "paused" even though nothing is running and the user is logged out. Clearing them
+        // here returns the idle/just-started state correctly.
+        _loopController.ClearLoopStopRequest();
+        _loopController.ClearQueueStopRequest();
 
         RefreshQueueUi();
         UpdateExecutionStateIndicator();

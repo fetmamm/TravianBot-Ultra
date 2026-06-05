@@ -2,11 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Controls;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Travian;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop;
@@ -22,7 +25,7 @@ public partial class MainWindow
             ? GetSelectedVillageName()
             : preferredVillageName;
 
-        var items = BuildMergedVillageSelectionItems(villages);
+        var items = BuildMergedVillageSelectionItems(villages, activeVillageName);
         SyncDashboardVillageUi(items, selectedVillageName, activeVillageName);
     }
 
@@ -87,6 +90,9 @@ public partial class MainWindow
         {
             _suppressVillageSelectionChange = false;
         }
+
+        // Mirror the picker into the Queue tab's village dropdown so both stay in sync.
+        SyncQueueVillagePicker(VillageComboBox.SelectedItem as VillageSelectionItem);
     }
 
     private void ApplyDashboardVillageListItems(IReadOnlyList<VillageSelectionItem> items)
@@ -105,6 +111,9 @@ public partial class MainWindow
             .ThenByDescending(item => item.Population ?? -1)
             .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+        // The list was rebuilt with fresh items; re-apply the active-village border.
+        ApplyActiveVillageHighlight();
     }
 
     // A list is "real" when it contains at least one named village that isn't the "-" placeholder.
@@ -125,15 +134,120 @@ public partial class MainWindow
             };
     }
 
-    private List<VillageSelectionItem> BuildMergedVillageSelectionItems(IReadOnlyList<Village> villages)
+    // Villages are identified by their stable id (newdid from the switch URL), not by name, so a
+    // village that is renamed on the server still maps to its previously cached entry instead of
+    // appearing as a brand-new village. Falls back to coordinates, then to the name, when no id is
+    // available (e.g. a placeholder or a row read without a switch URL).
+    private static readonly Regex NewdidRegex =
+        new(@"[?&]newdid=(\d+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static string GetVillageKey(string? url, int? coordX, int? coordY, string? name)
+    {
+        var match = string.IsNullOrWhiteSpace(url) ? Match.Empty : NewdidRegex.Match(url);
+        if (match.Success)
+        {
+            return $"did:{match.Groups[1].Value}";
+        }
+
+        if (coordX.HasValue && coordY.HasValue)
+        {
+            return $"xy:{coordX.Value}|{coordY.Value}";
+        }
+
+        return $"name:{(name ?? string.Empty).Trim().ToLowerInvariant()}";
+    }
+
+    private static string GetVillageKey(VillageSelectionItem item)
+        => GetVillageKey(item.Url, item.CoordX, item.CoordY, item.Name);
+
+    // A queue item's target village is carried in its payload (set by ApplySelectedVillageToPayload at
+    // enqueue time). Returns the stable village key, or null when the item is not tied to a village
+    // (legacy/global tasks) so rotation treats those as the default group.
+    private static string? GetQueueItemVillageKey(QueueItem item)
+    {
+        var name = GetQueueItemVillageName(item);
+        var url = GetQueueItemPayloadValue(item, BotOptionPayloadKeys.TargetVillageUrl);
+        if (string.IsNullOrWhiteSpace(name) && string.IsNullOrWhiteSpace(url))
+        {
+            return null;
+        }
+
+        return GetVillageKey(url, null, null, name);
+    }
+
+    private static string? GetQueueItemVillageName(QueueItem item)
+        => GetQueueItemPayloadValue(item, BotOptionPayloadKeys.TargetVillageName);
+
+    // Whether a queue item's target village is enabled for automation. Items without a village (legacy /
+    // global tasks) are always allowed. Unknown villages default to allowed so user-queued work for a
+    // not-yet-discovered village is never silently blocked.
+    private bool IsQueueItemVillageEnabled(QueueItem item)
+    {
+        var key = GetQueueItemVillageKey(item);
+        return key is null || _villageSettingsStore.IsEnabledByKey(key, defaultIfUnknown: true);
+    }
+
+    private static string? GetQueueItemPayloadValue(QueueItem item, string key)
+    {
+        if (item.Payload is null || !item.Payload.TryGetValue(key, out var value) || string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return value.Trim();
+    }
+
+    private string? _lastDisplayedVillageSignature;
+
+    // Applies a village list read during the periodic page refresh to the dropdown and the Dashboard
+    // list. Goal: every refresh can pick up renamed or newly founded villages. Two safety rules:
+    //   1. If the current page had no readable village info, do nothing (never blank what is shown).
+    //   2. Only re-apply when the village set actually changed, to avoid per-tick churn/flicker.
+    private void TryUpdateDashboardVillagesFromStatus(VillageStatus status)
+    {
+        var villages = status.Villages;
+        if (villages is null || !villages.Any(v => !string.IsNullOrWhiteSpace(v.Name)))
+        {
+            return;
+        }
+
+        var signature = BuildVillageSignature(villages);
+        if (string.Equals(signature, _lastDisplayedVillageSignature, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _lastDisplayedVillageSignature = signature;
+        VillagesInfoTextBlock.Text = $"Villages: {villages.Count}";
+        SyncDashboardVillageUiFromVillages(villages, status.ActiveVillage);
+    }
+
+    private static string BuildVillageSignature(IReadOnlyList<Village> villages)
+    {
+        return string.Join(";", villages
+            .Where(v => !string.IsNullOrWhiteSpace(v.Name))
+            .Select(v => $"{GetVillageKey(v.Url, v.CoordX, v.CoordY, v.Name)}|{v.Name}|{v.CoordX}|{v.CoordY}|{v.IsCapital}|{v.Population}")
+            .OrderBy(s => s, StringComparer.Ordinal));
+    }
+
+    private List<VillageSelectionItem> BuildMergedVillageSelectionItems(
+        IReadOnlyList<Village> villages,
+        string? activeVillageName = null)
     {
         var existingVillageData = BuildExistingVillageSelectionLookup();
 
-        return villages
+        var items = villages
             .Where(village => !string.IsNullOrWhiteSpace(village.Name))
             .Select(village =>
             {
-                existingVillageData.TryGetValue(village.Name!, out var existing);
+                existingVillageData.TryGetValue(
+                    GetVillageKey(village.Url, village.CoordX, village.CoordY, village.Name),
+                    out var existing);
+                // The active village's population is read live from the current page each refresh and
+                // is the true value, so let it overwrite any cached value. Other villages carry a
+                // frozen/stale population in status reads, so keep the currently displayed value.
+                var isActiveVillage = !string.IsNullOrWhiteSpace(activeVillageName)
+                    && string.Equals(village.Name, activeVillageName, StringComparison.OrdinalIgnoreCase);
                 return BuildVillageSelectionItem(
                     village.Name!,
                     village.Url,
@@ -143,21 +257,26 @@ public partial class MainWindow
                     village.Population,
                     village.CropFields,
                     existing,
-                    preferExistingPopulation: true);
+                    preferExistingPopulation: !isActiveVillage);
             })
             .ToList();
+
+        ApplyVillageEnabledState(items);
+        return items;
     }
 
     private List<VillageSelectionItem> BuildMergedVillageSelectionItems(IReadOnlyList<UiSyncVillagePayload> villages)
     {
         var existingVillageData = BuildExistingVillageSelectionLookup();
 
-        return villages
+        var items = villages
             .Where(village => !string.IsNullOrWhiteSpace(village.Name))
             .Select(village =>
             {
                 var name = village.Name!;
-                existingVillageData.TryGetValue(name, out var existing);
+                existingVillageData.TryGetValue(
+                    GetVillageKey(village.Url, village.CoordX, village.CoordY, name),
+                    out var existing);
                 return BuildVillageSelectionItem(
                     name,
                     village.Url,
@@ -169,6 +288,53 @@ public partial class MainWindow
                     existing);
             })
             .ToList();
+
+        ApplyVillageEnabledState(items);
+        return items;
+    }
+
+    // Persists newly discovered villages (capital enabled by default, others disabled) and applies the
+    // stored enabled choice onto each item so the Dashboard toggle reflects the saved per-account state
+    // across refreshes, restarts and renames.
+    private void ApplyVillageEnabledState(List<VillageSelectionItem> items)
+    {
+        if (items.Count == 0)
+        {
+            return;
+        }
+
+        var keyInfos = items
+            .Select(BuildVillageKeyInfo)
+            .ToList();
+
+        _villageSettingsStore.Merge(keyInfos);
+
+        for (var i = 0; i < items.Count; i++)
+        {
+            items[i].IsEnabledForAutomation = _villageSettingsStore.GetEnabled(keyInfos[i]);
+        }
+    }
+
+    private static VillageSettingsStore.VillageKeyInfo BuildVillageKeyInfo(VillageSelectionItem item)
+    {
+        return new VillageSettingsStore.VillageKeyInfo(
+            GetVillageKey(item),
+            item.Name,
+            item.CoordX,
+            item.CoordY,
+            item.IsCapital);
+    }
+
+    // Persists a village's automation toggle from the Village settings window. SetEnabled no-ops when the
+    // stored value already matches, so seeding the rows never causes redundant writes.
+    private void PersistVillageEnabledFromSettingsRow(VillageSettingsRow row)
+    {
+        if (row?.KeyInfo is null)
+        {
+            return;
+        }
+
+        _villageSettingsStore.SetEnabled(row.KeyInfo, row.IsEnabledForAutomation);
     }
 
     private Dictionary<string, VillageSelectionItem> BuildExistingVillageSelectionLookup()
@@ -177,7 +343,7 @@ public partial class MainWindow
             .Concat(VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem> ?? [])
             .Concat(DashboardVillageList.ItemsSource as IEnumerable<VillageSelectionItem> ?? [])
             .Where(item => !string.IsNullOrWhiteSpace(item.Name))
-            .GroupBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(GetVillageKey, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
     }
 
@@ -241,6 +407,41 @@ public partial class MainWindow
         }
     }
 
+    // Opens the central per-village settings window, seeded with the currently known villages
+    // (name/pop/coords). The "Auto" toggle is wired to VillageSettingsStore (capital on by default,
+    // new villages off); the remaining per-village toggle columns are placeholders for later.
+    private void VillageSettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        _ = sender;
+        _ = e;
+
+        var source = (DashboardVillageList.ItemsSource as IEnumerable<VillageSelectionItem>)
+            ?? (VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem>)
+            ?? Enumerable.Empty<VillageSelectionItem>();
+
+        var rows = source
+            .Where(v => !string.IsNullOrWhiteSpace(v.Name) && !string.Equals(v.Name, "-", StringComparison.Ordinal))
+            .Select(v =>
+            {
+                var keyInfo = BuildVillageKeyInfo(v);
+                return new VillageSettingsRow
+                {
+                    Name = v.Name,
+                    PopText = v.PopText,
+                    CoordsText = v.CoordsText,
+                    KeyInfo = keyInfo,
+                    IsEnabledForAutomation = _villageSettingsStore.GetEnabled(keyInfo),
+                };
+            })
+            .ToList();
+
+        var window = new VillageSettingsWindow(rows, PersistVillageEnabledFromSettingsRow)
+        {
+            Owner = this,
+        };
+        window.ShowDialog();
+    }
+
     private void VillageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_suppressVillageSelectionChange)
@@ -254,100 +455,26 @@ public partial class MainWindow
         }
 
         StatusTextBlock.Text = $"Selected village: {selected.Name}";
-        if (BlockIfSessionSleeping("Village switch"))
-        {
-            return;
-        }
 
-        _ = SwitchToSelectedVillageAndRefreshAsync(selected);
+        // Selecting a village is a view/queue-context change only — it must NOT navigate the browser or
+        // touch the running bot. Show this village's cached buildings/resources and filter the queue to
+        // it. Use the "Switch village" button to actually move the bot to this village.
+        ShowSelectedVillageFromCache(selected);
     }
 
-    private async Task SwitchToSelectedVillageAndRefreshAsync(VillageSelectionItem selectedVillage)
-    {
-        if (selectedVillage is null)
-        {
-            return;
-        }
-
-        if (BlockIfSessionSleeping("Village switch"))
-        {
-            return;
-        }
-
-        var switchKey = $"{selectedVillage.Name}|{selectedVillage.Url}";
-        var now = DateTimeOffset.UtcNow;
-        if (string.Equals(_lastVillageSwitchRefreshKey, switchKey, StringComparison.OrdinalIgnoreCase)
-            && (now - _lastVillageSwitchRefreshAt).TotalSeconds < 2)
-        {
-            return;
-        }
-
-        _lastVillageSwitchRefreshKey = switchKey;
-        _lastVillageSwitchRefreshAt = now;
-
-        if (IsExecutionActiveForVillageChange())
-        {
-            await StopAndClearForVillageChangeAsync(selectedVillage.Name);
-        }
-
-        if (_uiBusy || _autoQueueRunning || (_loopTask is not null && !_loopTask.IsCompleted))
-        {
-            AppendLog($"Village switch to '{selectedVillage.Name}' skipped because bot is still stopping.");
-            return;
-        }
-
-        if (!_isLoggedIn || !_browserSessionLikelyOpen)
-        {
-            return;
-        }
-
-        var operationToken = _loopController.StartVillageSwitch("village-switch");
-        var operationId = BeginOperation("SwitchVillage");
-        var operationSw = Stopwatch.StartNew();
-        ToggleUiBusy(true);
-        try
-        {
-            var options = ApplySelectedVillageToOptions(LoadBotOptions());
-            AppendLog($"[{operationId}] INFO switch village to '{selectedVillage.Name}'");
-
-            var status = await ReadVillageStatusWithRetryAsync(options, operationToken, resourceOnly: false, forceCurrentVillage: false);
-
-            ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: true);
-            _lastBuildingStatus = status;
-            PopulateBuildingsTab(status);
-
-            BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"selected village '{selectedVillage.Name}'");
-
-            TribeInfoTextBlock.Text = $"{status.Tribe}";
-            VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
-            SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage, selectedVillage.Name);
-            await RefreshResourceSnapshotForUiAsync(options, operationToken);
-
-            CompleteOperation(operationId, operationSw, $"Village switched to '{selectedVillage.Name}' and UI refreshed.");
-        }
-        catch (OperationCanceledException)
-        {
-            AppendLog($"[{operationId}] INFO canceled.");
-        }
-        catch (Exception ex)
-        {
-            FailOperation(operationId, operationSw, ex);
-        }
-        finally
-        {
-            ToggleUiBusy(false);
-        }
-    }
 
     private bool IsExecutionActiveForVillageChange()
     {
         return _uiBusy || _autoQueueRunning || (_loopTask is not null && !_loopTask.IsCompleted);
     }
 
-    private async Task StopAndClearForVillageChangeAsync(string? villageName)
+    // Switching the viewed village while the bot is running stops the active run, but no longer clears
+    // the queue: with one queue per account and each task tagged for its own village, other villages'
+    // queued work must survive a village switch. Press Start to resume; rotation drains per village.
+    private async Task StopForVillageChangeAsync(string? villageName)
     {
         var label = string.IsNullOrWhiteSpace(villageName) ? "-" : villageName;
-        AppendLog($"Village changed to '{label}' while bot is running. Stopping active work and clearing queue.");
+        AppendLog($"Village changed to '{label}' while bot is running. Stopping active work (queue kept).");
 
         _loopController.RequestLoopStop();
         _loopController.RequestQueueStop();
@@ -367,16 +494,7 @@ public partial class MainWindow
             await Task.Delay(120);
         }
 
-        try
-        {
-            _botService.ClearQueue();
-            RefreshQueueUi();
-            AppendLog($"Queue cleared due to village change to '{label}'.");
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Could not clear queue after village change: {ex.Message}");
-        }
+        RefreshQueueUi();
     }
 
     private string? GetSelectedVillageName()

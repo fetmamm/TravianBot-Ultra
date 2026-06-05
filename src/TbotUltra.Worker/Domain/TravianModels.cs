@@ -180,7 +180,9 @@ public sealed record VillageStatus(
     long? WarehouseCapacity = null,
     long? GranaryCapacity = null,
     IReadOnlyList<ResourceStorageForecast>? ResourceStorageForecasts = null,
-    IReadOnlyList<TroopTrainingQueueStatus>? TroopTrainingQueues = null);
+    IReadOnlyList<TroopTrainingQueueStatus>? TroopTrainingQueues = null,
+    int? AdventureCount = null,
+    IReadOnlyList<ActiveConstruction>? ActiveConstructions = null);
 
 public sealed record InboxStatus(
     int UnreadMessages = 0,

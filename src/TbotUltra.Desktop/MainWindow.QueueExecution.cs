@@ -25,6 +25,9 @@ public partial class MainWindow
         var tickSw = Stopwatch.StartNew();
         var terminalCountBefore = await Dispatcher.InvokeAsync(() => _terminalEntries.Count);
         _botService.MarkQueueItemRunning(item.Id);
+        // Keep the Dashboard "active village" border on the village this task runs in, so the user can
+        // see where the bot is working as it rotates between villages.
+        MarkActiveWorkingVillageFromQueueItem(item);
         RefreshQueueUiOnUiThread(item.Id);
         SetActiveAutomationTask(item.TaskName);
         SetActiveFunctionExecution(string.IsNullOrWhiteSpace(item.DisplayName) ? item.TaskName : item.DisplayName);
@@ -203,7 +206,20 @@ public partial class MainWindow
                 var constructionSuffix = IsConstructionQueueTask(item.TaskName)
                     ? FormatQueueDeferredConstructionSuffix(mode)
                     : string.Empty;
-                if (TryExtractDeferredUpgradePayload(ex.Message, item.Payload, out var updatedPayload))
+                var payloadChanged = TryExtractDeferredUpgradePayload(ex.Message, item.Payload, out var updatedPayload);
+                if (IsConstructionQueueTask(item.TaskName))
+                {
+                    // Record WHY this construction item deferred so the resource-driven refresh
+                    // (RefreshDeferredConstructionWaitsAsync) doesn't resume a queue-full deferral
+                    // the moment resources look sufficient, which caused a brief "Ready" flash
+                    // before the worker re-deferred on the still-full build queue.
+                    updatedPayload[BotOptionPayloadKeys.UpgradeDeferReason] = IsBuildQueueFullDeferMessage(ex.Message)
+                        ? BotOptionPayloadKeys.UpgradeDeferReasonQueueFull
+                        : BotOptionPayloadKeys.UpgradeDeferReasonResources;
+                    payloadChanged = true;
+                }
+
+                if (payloadChanged)
                 {
                     _botService.UpdateDeferredQueueItem(item.Id, updatedPayload);
                     item.Payload = updatedPayload;

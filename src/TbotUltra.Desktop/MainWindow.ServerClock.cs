@@ -7,14 +7,17 @@ namespace TbotUltra.Desktop;
 // relocation with no behavior change.
 public partial class MainWindow
 {
+    // Default OFF so the per-account build queue PERSISTS across restarts (a long multi-village queue
+    // survives an accidental close). The queue is still cleared by Stop (with confirmation) and the
+    // Clear account/village queue buttons. Users can opt back in via the bot.json keys.
     private bool ShouldClearQueueOnStartup()
     {
-        return ReadQueueClearSetting("queue_clear_on_startup", defaultValue: true);
+        return ReadQueueClearSetting("queue_clear_on_startup", defaultValue: false);
     }
 
     private bool ShouldClearQueueOnShutdown()
     {
-        return ReadQueueClearSetting("queue_clear_on_shutdown", defaultValue: true);
+        return ReadQueueClearSetting("queue_clear_on_shutdown", defaultValue: false);
     }
 
     private bool ReadQueueClearSetting(string key, bool defaultValue)

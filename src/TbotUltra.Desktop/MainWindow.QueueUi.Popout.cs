@@ -28,6 +28,7 @@ public partial class MainWindow
             ItemsSource = QueueDataGrid.ItemsSource,
         };
         activeGrid.Columns.Add(new DataGridTextColumn { Header = "Group", Binding = new Binding("GroupName"), Width = new DataGridLength(1.15, DataGridLengthUnitType.Star) });
+        activeGrid.Columns.Add(new DataGridTextColumn { Header = "Village", Binding = new Binding("VillageName"), Width = new DataGridLength(1.2, DataGridLengthUnitType.Star) });
         activeGrid.Columns.Add(new DataGridTextColumn { Header = "Task", Binding = new Binding("DisplayName"), Width = new DataGridLength(2, DataGridLengthUnitType.Star) });
         activeGrid.Columns.Add(new DataGridTextColumn { Header = "Status", Binding = new Binding("Status"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
         activeGrid.Columns.Add(new DataGridTextColumn { Header = "Retries", Binding = new Binding("RetriesText"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
@@ -44,6 +45,7 @@ public partial class MainWindow
             ItemsSource = QueueHistoryDataGrid.ItemsSource,
         };
         historyGrid.Columns.Add(new DataGridTextColumn { Header = "Group", Binding = new Binding("GroupName"), Width = new DataGridLength(1.15, DataGridLengthUnitType.Star) });
+        historyGrid.Columns.Add(new DataGridTextColumn { Header = "Village", Binding = new Binding("VillageName"), Width = new DataGridLength(1.2, DataGridLengthUnitType.Star) });
         historyGrid.Columns.Add(new DataGridTextColumn { Header = "Completed task", Binding = new Binding("DisplayName"), Width = new DataGridLength(2, DataGridLengthUnitType.Star) });
         historyGrid.Columns.Add(new DataGridTextColumn { Header = "Status", Binding = new Binding("Status"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
         historyGrid.Columns.Add(new DataGridTextColumn { Header = "Created", Binding = new Binding("CreatedAtServer"), Width = new DataGridLength(2, DataGridLengthUnitType.Star) });

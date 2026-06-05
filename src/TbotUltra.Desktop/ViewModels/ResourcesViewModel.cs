@@ -461,7 +461,7 @@ public sealed class ResourcesViewModel : BaseViewModel
     {
         var currentText = FormatGroupedNumber(current);
         var capacityText = FormatGroupedNumber(capacity);
-        return $"{currentText}/{capacityText}";
+        return $"{currentText} / {capacityText}";
     }
 
     private static string FormatProductionText(double? productionPerHour)

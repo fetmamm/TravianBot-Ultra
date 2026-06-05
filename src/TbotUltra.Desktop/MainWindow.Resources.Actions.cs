@@ -758,6 +758,7 @@ public partial class MainWindow
             [BotOptionPayloadKeys.ResourceBuildStrategy] = buildStrategy,
         };
 
+        ApplySelectedVillageToPayload(payload);
         var item = _botService.Enqueue("upgrade_all_resources_to_level", payload, priority: 0, maxRetries: 3);
         RequestQueueUiRefresh(selectId: item.Id);
         TriggerQueueAutoRunFromEnqueue();

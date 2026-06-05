@@ -108,6 +108,32 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
     }
 
     [Fact]
+    public void DynamicPathProvider_IsolatesQueuesPerResolvedPath()
+    {
+        // The Desktop app constructs the store with a path provider that follows the active account.
+        // Switching the resolved path must point the same store instance at a different queue file,
+        // with no bleed between them (mirrors switching accounts at runtime).
+        var account = "alice";
+        var store = new JsonQueueStore(() => Path.Combine(_root, $"{account}.queue.json"));
+
+        var aliceItem = store.Add("status", null, priority: 1, maxRetries: 3);
+
+        account = "bob";
+        Assert.Empty(store.GetAll());
+        var bobItem = store.Add("scan_all_villages", null, priority: 1, maxRetries: 3);
+        Assert.Single(store.GetAll());
+        Assert.Equal(bobItem.Id, store.GetAll()[0].Id);
+
+        account = "alice";
+        var aliceItems = store.GetAll();
+        Assert.Single(aliceItems);
+        Assert.Equal(aliceItem.Id, aliceItems[0].Id);
+
+        Assert.True(File.Exists(Path.Combine(_root, "alice.queue.json")));
+        Assert.True(File.Exists(Path.Combine(_root, "bob.queue.json")));
+    }
+
+    [Fact]
     public void TaskCatalog_AllowsKnownTasks_AndRejectsUnknown()
     {
         Assert.True(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("status"));

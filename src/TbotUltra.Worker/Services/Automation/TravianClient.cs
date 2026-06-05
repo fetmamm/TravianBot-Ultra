@@ -93,9 +93,11 @@ public sealed partial class TravianClient
         int? CropFields);
     private sealed record UiSyncSnapshot(int? Gold, int? Silver, string ActiveVillage, IReadOnlyList<UiSyncVillage> Villages);
 
-    // Session-level cache for the villages list. Spieler.php is expensive to load and the data
-    // changes rarely, so we share one read across LoginAsync, SwitchToVillageAsync and status reads.
-    private static readonly TimeSpan VillagesCacheTtl = TimeSpan.FromSeconds(60);
+    // Session-level cache for the villages list. Spieler.php is expensive to load, but the
+    // prefer-cache path only re-reads the lightweight current-page sidebar (no navigation), so a
+    // short TTL lets the ~16s background refresh pick up renamed/new villages promptly while still
+    // sharing one read across rapid successive calls.
+    private static readonly TimeSpan VillagesCacheTtl = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan EnsureLoggedInMinInterval = TimeSpan.FromSeconds(16);
     private static readonly TimeSpan UiSyncMinInterval = TimeSpan.FromSeconds(20);
     private static readonly object ResourceStatusCacheSync = new();
@@ -162,10 +164,12 @@ public sealed partial class TravianClient
     public string ServerUrl => _config.BaseUrl.TrimEnd('/');
     public string? KnownTribe => IsKnownTribe(_sessionTribe) ? _sessionTribe : IsKnownTribe(_cachedTribe) ? _cachedTribe : null;
     public bool? KnownGoldClubEnabled => _cachedGoldClubEnabled;
-
+    
+    // Login function
     public async Task LoginAsync(CancellationToken cancellationToken = default)
     {
-        Notify($"[login] account='{_account.Name}' server='{ServerUrl}' — starting");
+        Notify("[LoginAsync started]");
+        Notify($"[login] Account='{_account.Name}' server='{ServerUrl}' — starting");
         await PauseForManualStepIfVisibleAsync("Manual verification appeared before login.", cancellationToken);
         var state = await LoginStateAsync();
         if (state == "logged_in")
@@ -192,8 +196,6 @@ public sealed partial class TravianClient
         if (loggedInFromCurrentPage)
         {
             Notify($"[login] success ({_account.Name}) — used existing page form");
-            // Behövs inte, göra senare.
-            //await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
             await RefreshAccountFeatureSignalsAsync(cancellationToken);
             return;
         }
@@ -203,8 +205,6 @@ public sealed partial class TravianClient
         if (await IsLoggedInAsync())
         {
             Notify($"[login] success ({_account.Name}) — already authenticated after opening login page");
-            // Behövs inte, göra senare.
-            //await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
             await RefreshAccountFeatureSignalsAsync(cancellationToken);
             return;
         }
@@ -238,8 +238,6 @@ public sealed partial class TravianClient
                 if (loggedInAfterAutoSolve)
                 {
                     Notify($"[login] success ({_account.Name}) — captcha auto-solve cleared the block");
-                    // Behövs inte, göra senare.
-                    //await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
                     await RefreshAccountFeatureSignalsAsync(cancellationToken);
                     return;
                 }
@@ -264,9 +262,18 @@ public sealed partial class TravianClient
         {
             throw new InvalidOperationException("Login did not complete successfully.");
         }
+        // Vänta på att dorf1 sidan laddat färdigt.
+        try
+        {
+            await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+            Notify("[login] page successfully loaded.");
+            await Task.Delay(Random.Shared.Next(100, 401), cancellationToken);
+        }
+        catch
+        {
+            Notify("[login] Warning: timeout waiting for page after login.");
+        }
         Notify($"[login] success ({_account.Name}) — submitted credentials and confirmed");
-        // Behövs inte, göra senare.
-        //await RefreshCapitalStatesFromPlayerProfileAsync(cancellationToken);
         await RefreshAccountFeatureSignalsAsync(cancellationToken);
     }
 
@@ -1080,11 +1087,14 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         if (!IsSameVillageName(activeVillageBeforeSwitch, activeVillageAfterSwitch))
         {
             Notify($"[village-switch] now on '{activeVillageAfterSwitch ?? "(unknown)"}' (was '{activeVillageBeforeSwitch ?? "(unknown)"}')");
-            // Force the next villages read to navigate to spieler.php so the UI village list
-            // reflects up-to-date population after a switch (e.g. after building elsewhere).
+            // Allow population to refresh from the sidebar on the next read.
             _cachedVillagesPopulationAt = DateTimeOffset.MinValue;
             _populationBaselineRead = false;
-            await RefreshCapitalStateForActiveVillageAsync(cancellationToken);
+            // NOTE: no capital re-check here. RefreshCapitalStateForActiveVillageAsync navigates to
+            // spieler.php (profile), which added a slow extra navigation on every switch and caused the
+            // resource read to occasionally land mid-navigation (resources/storage not filling). Capital
+            // is resolved from cache + fast-detection (resource field > level 10) on the resource read,
+            // and at login analysis — so the switch only needs dorf1/dorf2 of the target village.
         }
         else
         {
@@ -1096,6 +1106,22 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             // Re-emit account signals so UI refreshes after a village switch (Plus/Gold can be unchanged but UI may not have them yet).
             await RefreshAccountFeatureSignalsAsync(cancellationToken);
         }
+    }
+
+    private static readonly Regex NewdidUrlRegex =
+        new(@"[?&]newdid=(\d+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    // Stable village id parsed from a switch URL (dorf1.php?newdid=X). Used to match villages across
+    // reads without depending on the (mutable) village name.
+    private static int? TryParseNewdid(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return null;
+        }
+
+        var match = NewdidUrlRegex.Match(url);
+        return match.Success && int.TryParse(match.Groups[1].Value, out var id) ? id : null;
     }
 
     private static bool IsSameVillageName(string? left, string? right)
@@ -1186,9 +1212,13 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         IReadOnlyList<Building>? knownBuildings = null)
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared before reading village status.", cancellationToken);
+        // Read the village list from the sidebar/cache instead of navigating to the profile (spieler.php).
+        // On a village switch we only need dorf1/dorf2 of the target village for status; the profile was
+        // only used to enumerate villages and re-check the capital — capital comes from cache here. This
+        // avoids the extra (slow) profile navigation on every switch/status read.
         var villages = knownVillages is { Count: > 0 }
             ? knownVillages
-            : await ReadVillagesAsync(cancellationToken);
+            : await ReadVillagesPreferCacheAsync(cancellationToken);
         var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
         var buildQueue = await ReadBuildQueueAsync(cancellationToken);
         var remaining = ResolveShortestQueueDurationSeconds(buildQueue);
@@ -1206,14 +1236,22 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         var usingCachedProduction = !HasAnyProduction(snapshot.ProductionByHour) && HasAnyProduction(cachedSnapshot?.ProductionByHour);
         Notify($"Resource read: storage wh={FormatResourceLogNumber(capacities.Warehouse)} gr={FormatResourceLogNumber(capacities.Granary)} | stock {BuildResourceValueLog(resources)} | prod {BuildProductionValueLog(productionByHour)}{(usingCachedProduction ? " (cached production)" : string.Empty)}");
 
+        var resourceFields = await ReadResourceFieldsAsync(cancellationToken);
+        var buildings = knownBuildings is { Count: > 0 }
+            ? knownBuildings
+            : await ReadBuildingsAsync(cancellationToken);
+        // Read Travian's own in-progress construction list so the UI can show upgrades that were
+        // started outside the program (e.g. manually before login) with the target level in
+        // parentheses. We are on dorf1/dorf2 after the reads above, both of which carry the list,
+        // so no extra navigation is needed.
+        var activeConstructions = await ReadActiveConstructionsAsync(cancellationToken, allowNavigationToBuildings: false);
+
         return new VillageStatus(
             ActiveVillage: activeVillage,
             Villages: villages,
             Resources: resources,
-            ResourceFields: await ReadResourceFieldsAsync(cancellationToken),
-            Buildings: knownBuildings is { Count: > 0 }
-                ? knownBuildings
-                : await ReadBuildingsAsync(cancellationToken),
+            ResourceFields: resourceFields,
+            Buildings: buildings,
             BuildQueue: buildQueue,
             Tribe: await ReadTribeAsync(cancellationToken),
             VillageCount: villages.Count,
@@ -1229,7 +1267,8 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             UnreadReports: unreadInbox.UnreadReports,
             WarehouseCapacity: capacities.Warehouse,
             GranaryCapacity: capacities.Granary,
-            ResourceStorageForecasts: forecasts);
+            ResourceStorageForecasts: forecasts,
+            ActiveConstructions: activeConstructions);
     }
 
     private async Task GotoAsync(string pathOrUrl, CancellationToken cancellationToken)
@@ -2388,7 +2427,15 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                     var merged = sidebar
                         .Select(v =>
                         {
-                            var match = prior.FirstOrDefault(p => string.Equals(p.Name, v.Name, StringComparison.Ordinal));
+                            // Match the prior cache by the stable village id (newdid) first so a
+                            // renamed village still merges with its cached coords/population instead
+                            // of being treated as a new village. Fall back to the name only when no
+                            // id is available on either side.
+                            var villageId = TryParseNewdid(v.Url);
+                            var match = villageId is not null
+                                ? prior.FirstOrDefault(p => TryParseNewdid(p.Url) == villageId)
+                                : null;
+                            match ??= prior.FirstOrDefault(p => string.Equals(p.Name, v.Name, StringComparison.Ordinal));
                             if (match is null)
                             {
                                 return v;
@@ -2448,6 +2495,17 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 const parsed = Number.parseInt(text, 10);
                 return Number.isFinite(parsed) ? parsed : null;
               };
+              // Official coordinate cells contain bidi direction marks and a Unicode minus (U+2212);
+              // strip/normalize them before parsing a signed integer.
+              const parseSignedInt = (value) => {
+                const text = clean(value)
+                  .replace(/[‪-‮‎‏]/g, '')
+                  .replace(/−/g, '-');
+                const match = text.match(/-?\d+/);
+                if (!match) return null;
+                const parsed = Number.parseInt(match[0], 10);
+                return Number.isFinite(parsed) ? parsed : null;
+              };
               const rows = [];
               const seen = new Set();
               const selectors = [
@@ -2500,6 +2558,42 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 if (rows.length > 0) {
                   return rows;
                 }
+              }
+
+              // Official T4.6: the village list renders each entry as
+              // div.listEntry.village[data-did] with a placeholder href="#" (no newdid anchor).
+              // Build the switch URL from data-did so renames/new villages are picked up here too.
+              for (const entry of document.querySelectorAll(
+                  '#sidebarBoxVillageList .listEntry.village[data-did], .villageList .listEntry.village[data-did], .listEntry.village[data-did]')) {
+                const did = (entry.getAttribute('data-did') || '').trim();
+                if (!did) continue;
+                const name = clean(entry.querySelector('.name')?.textContent || '');
+                if (!name) continue;
+                const key = `did:${did}`;
+                if (seen.has(key)) continue;
+                seen.add(key);
+                const classText = (entry.className || '').toLowerCase();
+                const isActive = classText.includes('active');
+                const x = parseSignedInt(entry.querySelector('.coordinateX')?.textContent || '');
+                const y = parseSignedInt(entry.querySelector('.coordinateY')?.textContent || '');
+                let population = null;
+                if (isActive) {
+                  // Official renders the active village's population in the active-village box
+                  // (#sidebarBoxActiveVillage div.population > span), not inside the list entry.
+                  population = parseIntFromText(
+                    document.querySelector('#sidebarBoxActiveVillage .population span, .villageInfobox .population span, div.population span')?.textContent
+                    || entry.querySelector('.population span, .population')?.textContent
+                    || '');
+                }
+                rows.push({
+                  name,
+                  url: `dorf1.php?newdid=${did}`,
+                  isCapital: classText.includes('capital') ? true : null,
+                  x,
+                  y,
+                  population,
+                  isActive
+                });
               }
 
               return rows;
@@ -3294,6 +3388,21 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         var value = await _page.EvaluateAsync<string>(
             """
             () => {
+              // Strip Unicode bidi/direction marks (Travian wraps coords in them) + normalize the
+              // U+2212 minus, then collapse whitespace.
+              const clean = (raw) => (raw || '')
+                .replace(/[‪-‮⁦-⁩‎‏]/g, '')
+                .replace(/−/g, '-')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+              // Official T4.6: the active village is the highlighted sidebar entry. Read ONLY its name
+              // span so the result is the clean village name, not "GREZ(-27|-66)" (name + coordinates).
+              const nameSpan = document.querySelector(
+                '.listEntry.village.active .name, #sidebarBoxVillagelist .active .name, .villageList .active .name');
+              const spanText = clean(nameSpan ? nameSpan.textContent : '');
+              if (spanText) return spanText;
+
               const selectors = [
                 '#villageNameField',
                 '#villageNameField.boxTitle',
@@ -3307,7 +3416,8 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
               for (const selector of selectors) {
                 const element = document.querySelector(selector);
-                const text = element ? (element.textContent || '').replace(/\s+/g, ' ').trim() : '';
+                // Drop a trailing coordinate part "(x|y)" that some headers append after the name.
+                const text = clean(element ? element.textContent : '').replace(/\s*\([^)]*\)\s*$/, '').trim();
                 if (text) return text;
               }
 
