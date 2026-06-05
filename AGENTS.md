@@ -13,6 +13,19 @@
 - Skriv kod som går att återanvända och är enkel att underhålla och felsöka
 - Skriv loggar i nya funktioner med mer så det enkelt går att felöka i framtiden
 
+## Hjälpfunktioner
+- Skapa inte hjälpfunktioner enbart för att minska antalet kodrader.
+- Skapa endast en ny hjälpfunktion om minst ett av följande gäller:
+  - Logiken används på flera ställen.
+  - Hjälpfunktionen representerar ett tydligt domänkoncept eller en affärsoperation.
+  - Hjälpfunktionen kapslar in komplex logik, felhantering, retry-logik eller tillståndshantering.
+- Undvik att skapa hjälpfunktioner som:
+  - Endast omsluter ett enskilt anrop till ett ramverk eller bibliotek.
+  - Bara sparar några få kodrader.
+  - Endast används på ett ställe och inte förbättrar läsbarheten.
+  - Skapar onödiga lager av abstraktion.
+- Prioritera läsbarhet där funktionen anropas framför överdriven abstraktion.
+
 ## Vid ändringar
 - Ändra inte befintliga funktioner i onödan.
 - Behåll befintligt beteende om jag inte uttryckligen ber om något annat.
@@ -41,3 +54,22 @@
 - Förklara ändringen kort (max 2–4 meningar).
 - Om svaret kan vara under 20 rader, ska det vara det.
 -- Om en plan ska presenteras kan svaret vara längre.
+
+
+Helper Methods
+
+Do not create helper methods solely to reduce line count.
+
+Create a new helper method only if at least one of the following is true:
+
+- The logic is used in multiple locations.
+- The helper represents a clear domain concept or business operation.
+- The helper encapsulates complex logic, error handling, retry logic, or state management.
+
+Avoid creating helpers that:
+- Only wrap a single framework call.
+- Save only a few lines of code.
+- Are used only once and do not improve readability.
+- Create unnecessary layers of indirection.
+
+Prefer readability at the call site over excessive abstraction.

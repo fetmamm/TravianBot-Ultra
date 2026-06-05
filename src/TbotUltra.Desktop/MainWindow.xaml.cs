@@ -649,6 +649,7 @@ public partial class MainWindow : Window
 
     private void RefreshNatarsProfileAnalyzedFromCache()
     {
+        AppendLog("[RefreshNatarsProfileAnalyzedFromCache] Started");
         try
         {
             var accountName = _accountStore.ActiveAccountName();
@@ -663,6 +664,7 @@ public partial class MainWindow : Window
         {
             SetNatarsProfileAnalyzed(false);
         }
+        AppendLog("[RefreshNatarsProfileAnalyzedFromCache] Completed");
     }
 
     private NatarFarmCacheSnapshot? TryLoadActiveNatarFarmSnapshot()

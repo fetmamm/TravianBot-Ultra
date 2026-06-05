@@ -294,6 +294,7 @@ public partial class MainWindow
     // fresh scan). Live refreshes then update both the UI and the saved file.
     private void LoadVillageCacheForActiveAccount()
     {
+        AppendLog("[LoadVillageCacheForActiveAccount] Started");       
         try
         {
             var loaded = _villageCacheStore.Load();
@@ -316,6 +317,7 @@ public partial class MainWindow
         {
             AppendLog($"Could not load village cache: {ex.Message}");
         }
+        AppendLog("[LoadVillageCacheForActiveAccount] Completed");
     }
 
     // True when a freshly read status belongs to the village the user currently has selected (or the

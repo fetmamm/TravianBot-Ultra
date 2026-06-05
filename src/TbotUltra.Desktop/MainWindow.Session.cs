@@ -15,13 +15,16 @@ namespace TbotUltra.Desktop;
 // behavior change.
 public partial class MainWindow
 {
+    // Login button clicked
     private async void LoginButton_Click(object sender, RoutedEventArgs e)
     {
         await ExecuteLoginFlowAsync();
     }
 
+    // Login function as the button is clicked
     private async Task ExecuteLoginFlowAsync()
     {
+        AppendLog("[login] ***** Login started. *****");
         if (BlockIfSessionSleeping("Login"))
         {
             return;
@@ -57,7 +60,6 @@ public partial class MainWindow
             _ = RunCaptchaWarmupAsync();
 
             await EnsureChromiumInstalledAsync();
-            AppendLog("Login started.");
             // A visible browser opens as soon as login starts. Track that in a DEDICATED flag so a
             // captcha / manual-verification popup mid-login knows the window is already open (and doesn't
             // offer to open a second, conflicting verification browser). Do NOT flip
@@ -70,7 +72,6 @@ public partial class MainWindow
                 AppendLog,
                 keepBrowserOpenAfterLogin: !options.Headless,
                 cancellationToken: operationToken);
-            AppendLog("Login finished.");
 
             BrowserInfoTextBlock.Text = "Browser: idle";
             StatusTextBlock.Text = "Login completed.";
@@ -81,6 +82,7 @@ public partial class MainWindow
             // show them immediately; the fresh post-login read then updates the landing village.
             LoadVillageCacheForActiveAccount();
             RefreshNatarsProfileAnalyzedFromCache();
+            // Check if server is official
             var officialServer = IsOfficialTravianServer(options);
             ApplyPostLoginSnapshot(snapshot);
             await RefreshResourceSnapshotForUiAsync(
@@ -173,6 +175,7 @@ public partial class MainWindow
             DisposeOperationCts();
             _loginInProgress = false;
         }
+        AppendLog("[login] ***** Login finished. *****");
     }
 
     // Full-window modal overlay shown while a login/logout runs (incl. account-switch auto-login). It
@@ -201,7 +204,7 @@ public partial class MainWindow
             // Operation already finished; nothing to cancel.
         }
     }
-
+// Logout knapp klickas
     private async void LogoutButton_Click(object sender, RoutedEventArgs e)
     {
         if (BlockIfSessionSleeping("Logout"))
