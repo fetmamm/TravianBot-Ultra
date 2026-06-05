@@ -25,6 +25,12 @@ public static class BotOptionPayloadKeys
     public const string UpgradeWaitSeconds = "upgrade_wait_seconds";
     public const string UpgradeWaitReason = "upgrade_wait_reason";
     public const string UpgradeBlockedLabel = "upgrade_blocked_label";
+    // Why a construction item last deferred: "queue_full" (no free build slot) or "resources"
+    // (waiting on resources). The resource-driven refresh only resumes "resources" defers, so a
+    // queue-full defer doesn't briefly flash "Ready" the moment resources look sufficient.
+    public const string UpgradeDeferReason = "upgrade_defer_reason";
+    public const string UpgradeDeferReasonQueueFull = "queue_full";
+    public const string UpgradeDeferReasonResources = "resources";
 
     public const string BuildingUpgradeSlotId = "building_upgrade_slot_id";
     public const string BuildingUpgradeTargetLevel = "building_upgrade_target_level";

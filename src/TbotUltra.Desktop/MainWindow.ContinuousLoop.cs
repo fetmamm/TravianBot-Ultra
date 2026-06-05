@@ -156,6 +156,36 @@ public partial class MainWindow
             .ToList();
     }
 
+    // Union of automation-loop groups enabled across the selected village (live UI toggles) plus every
+    // other enabled village (persisted per-village overrides, falling back to the account default). Used
+    // only to DECIDE WHICH ALREADY-QUEUED ITEMS to consider — never to GENERATE runtime items, which stay
+    // scoped to the selected village. The per-item IsQueueItemGroupEnabledForItsVillage filter still gates
+    // each item to its own village, so a group enabled only in village B won't run where it is off; this
+    // just stops a group being skipped entirely because the *selected* village happens to have it off.
+    private IReadOnlyList<QueueGroup> GetContinuousLoopConsideredGroupsInOrder()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            return Dispatcher.Invoke(GetContinuousLoopConsideredGroupsInOrder);
+        }
+
+        var ordered = new List<QueueGroup>(GetContinuousLoopEnabledGroupsInOrder());
+        var seen = ordered.ToHashSet();
+
+        foreach (var (_, enabledGroups) in _villageSettingsStore.GetEnabledVillagesGroups())
+        {
+            foreach (var key in enabledGroups ?? _defaultEnabledGroupKeys)
+            {
+                if (QueueGroupCatalog.TryParse(key, out var group) && seen.Add(group))
+                {
+                    ordered.Add(group);
+                }
+            }
+        }
+
+        return ordered;
+    }
+
     private async Task EnsureContinuousLoopRuntimeItemsAsync(BotOptions options)
     {
         var enabledGroups = GetContinuousLoopEnabledGroupsInOrder();
@@ -397,7 +427,10 @@ public partial class MainWindow
             return readyUtilityItem;
         }
 
-        var orderedGroups = GetContinuousLoopEnabledGroupsInOrder().ToList();
+        // Consider the union of groups enabled across all active villages, not just the selected one,
+        // so e.g. construction queued for a non-selected village still runs. Per-item filtering below
+        // (IsQueueItemGroupEnabledForItsVillage) keeps each item gated to its own village's settings.
+        var orderedGroups = GetContinuousLoopConsideredGroupsInOrder().ToList();
         if (orderedGroups.Count <= 0)
         {
             AppendLoopPickVerbose(

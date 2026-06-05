@@ -672,10 +672,33 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   blockeringen var bygg-kö-platser; self-correctar på nästa läsning. Kräver en defer-reason-flagga för
   att helt undvika.) Build rent, Worker 324 + Desktop 62 gröna.
 
+- **2026-06-05** — Multi-village småfixar (de två kvarvarande "småsakerna"). (1) **Construction "Ready"-
+  flash för SAMMA by (kö-full):** ny payload-flagga `upgrade_defer_reason` (`queue_full` | `resources`)
+  stämplas vid varje construction-defer (`HandleQueueItemFailureAsync`, via `IsBuildQueueFullDeferMessage`
+  som matchar "build queue full"/"blocked by queue"). `RefreshDeferredConstructionWaitsAsync` hoppar nu
+  över items med reason `queue_full` så de inte återupptas ("Ready") bara för att resurserna råkar räcka —
+  deras timer speglar en bygg-slot som frigörs, inte resurser. När kö-full-timern går ut omvärderar workern
+  och om-stämplar reason (→ `resources` om det då är resursbrist). (2) **Union av grupper över byar:** den
+  kontinuerliga loopens urval använde **vald bys** grupp-toggles som topp-gate, så en grupp som var av på
+  vald by men på på en annan by aldrig kördes. Ny `GetContinuousLoopConsideredGroupsInOrder()` =
+  union(vald bys live-toggles, alla enabled byars persisterade `EnabledGroups` ?? default) via ny
+  `VillageSettingsStore.GetEnabledVillagesGroups()`. Används **endast** i item-urvalet
+  (`SelectNextQueueItemForContinuousLoop`), INTE i runtime-genereringen (`EnsureContinuousLoopRuntimeItems`
+  förblir vald-by-scopad, annars skulle troops/smithy genereras för fel by). Per-item-filtret
+  `IsQueueItemGroupEnabledForItsVillage` gatear fortf. varje item till sin egen bys inställning. Build rent,
+  Worker 324 + Desktop 62 gröna.
+
 ---
 
 ## 5. Kända fallgropar / regressions
 
+- **Single-file + Playwright-driver (portable):** `PublishSingleFile=true` bäddar in
+  `.playwright\node\win32_x64\node.exe` i exe:n istället för att lägga den löst → portable-mappen
+  saknar drivern och Playwright kraschar med `Driver not found` (letar dessutom på fel plats, t.ex.
+  parent-mappen). Två saker krävs: (1) release-workflowen kopierar hela `.playwright` från
+  framework-bygget (`bin\Release\net8.0-windows\win-x64\.playwright`) in i paketet, och
+  (2) `BrowserSession.ConfigureLocalPlaywrightEnvironment` sätter `PLAYWRIGHT_DRIVER_PATH` till
+  `<projectRoot>\.playwright` före `Playwright.CreateAsync()`. `ms-playwright` (browsers) hanteras separat.
 - **Hero-loop → `/hero/login.php`** = flavor är fel (servern tolkas som Official på en SS-server).
   Kontrollera `[flavor]`-raden. Grundorsak historiskt: config-bunden flavor.
 - **Profil-koordinater:** selektor-omordning (prioritera `karte.php?x=`-länk) ändrade SS-beteende

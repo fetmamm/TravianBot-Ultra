@@ -9,6 +9,7 @@ namespace TbotUltra.Worker.Infrastructure;
 public sealed class BrowserSession : IAsyncDisposable
 {
     private const string LocalPlaywrightBrowsersDirectoryName = "ms-playwright";
+    private const string LocalPlaywrightDriverDirectoryName = ".playwright";
     private static readonly SemaphoreSlim WarmupGate = new(1, 1);
     private static readonly SemaphoreSlim StorageStateGate = new(1, 1);
     private static bool _warmupCompleted;
@@ -57,9 +58,7 @@ public sealed class BrowserSession : IAsyncDisposable
                 return false;
             }
 
-            var playwrightBrowsersPath = Path.Combine(projectRoot, LocalPlaywrightBrowsersDirectoryName);
-            Directory.CreateDirectory(playwrightBrowsersPath);
-            Environment.SetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH", playwrightBrowsersPath);
+            ConfigureLocalPlaywrightEnvironment(projectRoot);
 
             using var playwright = await Playwright.CreateAsync();
             var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
@@ -133,9 +132,7 @@ public sealed class BrowserSession : IAsyncDisposable
         }
 
         Directory.CreateDirectory(authDirectory);
-        Directory.CreateDirectory(PlaywrightBrowsersPath);
-
-        Environment.SetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH", PlaywrightBrowsersPath);
+        ConfigureLocalPlaywrightEnvironment(_projectRoot);
 
         _playwright = await Playwright.CreateAsync();
         _browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
@@ -520,6 +517,19 @@ public sealed class BrowserSession : IAsyncDisposable
         }
 
         _playwright?.Dispose();
+    }
+
+    // Pin Playwright to the driver and browsers shipped inside the app folder. PLAYWRIGHT_DRIVER_PATH
+    // is required for the single-file build: the bundled node.exe driver is not auto-discovered from the
+    // exe location (Playwright otherwise reports "Driver not found"). Browsers live under ms-playwright.
+    private static void ConfigureLocalPlaywrightEnvironment(string projectRoot)
+    {
+        var driverPath = Path.Combine(projectRoot, LocalPlaywrightDriverDirectoryName);
+        Environment.SetEnvironmentVariable("PLAYWRIGHT_DRIVER_PATH", driverPath);
+
+        var browsersPath = Path.Combine(projectRoot, LocalPlaywrightBrowsersDirectoryName);
+        Directory.CreateDirectory(browsersPath);
+        Environment.SetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH", browsersPath);
     }
 
     public static bool ChromiumAlreadyInstalled(string projectRoot)

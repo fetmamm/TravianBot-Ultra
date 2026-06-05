@@ -243,6 +243,24 @@ public sealed class VillageSettingsStore
         }
     }
 
+    /// <summary>
+    /// Returns, for every enabled village, its per-village enabled group keys (null = no override yet,
+    /// caller falls back to the global default). Used to compute the union of automation-loop groups
+    /// that should be considered across all active villages, so a group enabled only in a non-selected
+    /// village is still picked up. Read-only.
+    /// </summary>
+    public IReadOnlyList<(string Key, IReadOnlyList<string>? EnabledGroups)> GetEnabledVillagesGroups()
+    {
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+            return _cache.Values
+                .Where(v => v.IsEnabled)
+                .Select(v => (v.Key, (IReadOnlyList<string>?)v.EnabledGroups))
+                .ToList();
+        }
+    }
+
     /// <summary>Sets a village's enabled automation-loop group keys and persists it (upserts the record).</summary>
     public void SetEnabledGroups(VillageKeyInfo village, IReadOnlyList<string> groups)
     {

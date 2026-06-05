@@ -206,6 +206,15 @@ public partial class MainWindow
 
         foreach (var item in deferredItems)
         {
+            // Skip items deferred because the build queue was full (not resources). Their timer reflects
+            // a build slot freeing up; resuming them just because resources look sufficient causes a brief
+            // "Ready" flash before the worker re-defers on the still-full build queue.
+            if (item.Payload.TryGetValue(BotOptionPayloadKeys.UpgradeDeferReason, out var deferReason)
+                && string.Equals(deferReason, BotOptionPayloadKeys.UpgradeDeferReasonQueueFull, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             if (!TryReadDeferredUpgradeRequirements(item.Payload, out var required))
             {
                 continue;
@@ -420,5 +429,15 @@ public partial class MainWindow
     {
         return IsResourceUpgradeTask(taskName)
             || IsBuildingMutationTask(taskName);
+    }
+
+    // True when a construction defer message reflects a full build queue (no free slot) rather than
+    // missing resources. Used to tag the queue item so the resource-driven refresh leaves its timer
+    // alone instead of flashing "Ready" when resources happen to be sufficient.
+    private static bool IsBuildQueueFullDeferMessage(string? message)
+    {
+        return !string.IsNullOrWhiteSpace(message)
+            && (message.Contains("build queue full", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("blocked by queue", StringComparison.OrdinalIgnoreCase));
     }
 }
