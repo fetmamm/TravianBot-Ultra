@@ -99,7 +99,6 @@ the others.
 
 Top-level files worth knowing:
 
-- `PROJECT_SPEC.md` — product spec (goals, MVP, queue rules, edge cases).
 - `AGENTS.md` — coding rules for AI assistants working in this repo.
 - `VERSION` — current version string, consumed by CI.
 - `Start_Tbot.bat` / `Start_Tbot_UI.vbs` — launchers.
