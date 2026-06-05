@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop;
@@ -98,11 +99,13 @@ public partial class MainWindow
             SetActiveWorkingVillageFromStatus(status);
             CacheVillageStatus(status);
             ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: true);
+            _resourcesViewModel.ApplyStorageForecasts(status);
             _lastBuildingStatus = status;
             PopulateBuildingsTab(status);
             BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"active village '{status.ActiveVillage}'");
             TribeInfoTextBlock.Text = $"{status.Tribe}";
             VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
+            ApplyAutomationLoopGroupsForSelectedVillage();
         });
     }
 
@@ -150,6 +153,66 @@ public partial class MainWindow
         }
 
         _ = SwitchToActiveVillageAsync(selected);
+    }
+
+    // The account's configured auto-loop groups, used as the default for villages that have no
+    // per-village override yet. Captured when the automation loop is loaded.
+    private List<string> _defaultEnabledGroupKeys = new();
+
+    private VillageSettingsStore.VillageKeyInfo? GetSelectedVillageKeyInfoOrNull()
+    {
+        if (VillageComboBox.SelectedItem is not VillageSelectionItem selected
+            || string.IsNullOrWhiteSpace(selected.Name)
+            || string.Equals(selected.Name, "-", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        return BuildVillageKeyInfo(selected);
+    }
+
+    // Loads the selected village's per-village auto-loop group toggles into the Dashboard list (or the
+    // global default when the village has no override). Does not persist.
+    private void ApplyAutomationLoopGroupsForSelectedVillage()
+    {
+        var info = GetSelectedVillageKeyInfoOrNull();
+        if (info is null)
+        {
+            return;
+        }
+
+        var groups = _villageSettingsStore.GetEnabledGroups(info.Key) ?? _defaultEnabledGroupKeys;
+
+        _suppressAutomationLoopConfigWrite = true;
+        try
+        {
+            foreach (var option in _automationLoopTasks)
+            {
+                option.IsEnabled = groups.Contains(option.TaskName, StringComparer.OrdinalIgnoreCase);
+            }
+
+            RefreshAutomationLoopDashboardUi();
+        }
+        finally
+        {
+            _suppressAutomationLoopConfigWrite = false;
+        }
+    }
+
+    // Persists the current Dashboard group toggles as the selected village's per-village override.
+    private void SaveAutomationLoopGroupsForSelectedVillage()
+    {
+        var info = GetSelectedVillageKeyInfoOrNull();
+        if (info is null)
+        {
+            return;
+        }
+
+        var enabled = _automationLoopTasks
+            .Where(item => item.IsEnabled)
+            .Select(item => item.TaskName)
+            .ToList();
+        _villageSettingsStore.SetEnabledGroups(info, enabled);
     }
 
     private string? GetSelectedVillageKey()
@@ -382,6 +445,8 @@ public partial class MainWindow
         if (name is not null && _villageStatusCacheByName.TryGetValue(name, out var cached))
         {
             ApplyResourceRowsAndVillageStatus(cached, includeQueuedTargets: true);
+            // Storage bars must follow the selected village too (they were staying on the previous one).
+            _resourcesViewModel.ApplyStorageForecasts(cached);
             _lastBuildingStatus = cached;
             PopulateBuildingsTab(cached);
             BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"selected village '{selected.Name}'");
@@ -396,6 +461,8 @@ public partial class MainWindow
         // Keep the queue view in sync with the selected village.
         SyncQueueVillagePicker(selected);
         RefreshQueueUi();
+        // Show this village's auto-loop group toggles.
+        ApplyAutomationLoopGroupsForSelectedVillage();
         // Light up Switch village when the selected village differs from the one the bot works in.
         UpdateSwitchVillageButtonHighlight();
     }
@@ -407,6 +474,8 @@ public partial class MainWindow
         _lastBuildingStatus = null;
         _buildingRows.Clear();
         SetResourceRows([]);
+        // Empty the storage bars (show "-") rather than leaving another village's values up.
+        _resourcesViewModel.ResetStorageForecasts();
         BuildingsInfoTextBlock.Text = $"No data for '{villageName}' yet. Press \"Switch village\" to load it.";
     }
 

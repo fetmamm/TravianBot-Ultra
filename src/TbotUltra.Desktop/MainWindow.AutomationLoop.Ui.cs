@@ -62,6 +62,12 @@ public partial class MainWindow
             }
 
             UpdateAutomationLoopOrders();
+            // Snapshot the loaded enabled set as the global default for villages with no per-village
+            // override yet (so a new village inherits the account's configured groups).
+            _defaultEnabledGroupKeys = _automationLoopTasks
+                .Where(item => item.IsEnabled)
+                .Select(item => item.TaskName)
+                .ToList();
             RefreshAutomationLoopDashboardUi();
             SyncTeutonsOnlyAutomationGroups(ResolveStoredTroopTrainingTribe());
         }
@@ -781,6 +787,8 @@ public partial class MainWindow
 
         RefreshAutomationLoopDashboardUi();
         PersistAutomationLoopTasksToConfig();
+        // Save these group toggles as the selected village's per-village override.
+        SaveAutomationLoopGroupsForSelectedVillage();
     }
 
     private void TriggerBreweryCelebrationVerificationRefresh()

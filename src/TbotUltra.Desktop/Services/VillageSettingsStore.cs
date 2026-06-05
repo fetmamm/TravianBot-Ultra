@@ -31,6 +31,9 @@ public sealed class VillageSettingsStore
         public int? CoordY { get; set; }
         public bool IsCapital { get; set; }
         public bool IsEnabled { get; set; }
+        // Per-village automation-loop group keys that are enabled. null = no override yet (use the global
+        // default). An explicit empty list means "all groups disabled for this village".
+        public List<string>? EnabledGroups { get; set; }
         public DateTimeOffset LastSeenUtc { get; set; } = DateTimeOffset.UtcNow;
     }
 
@@ -219,6 +222,68 @@ public sealed class VillageSettingsStore
 
             Save();
             _log?.Invoke($"Village '{village.Name}' automation set to {(enabled ? "enabled" : "disabled")}.");
+        }
+    }
+
+    /// <summary>
+    /// Returns the per-village enabled automation-loop group keys, or null when the village has no
+    /// override yet (caller falls back to the global default).
+    /// </summary>
+    public IReadOnlyList<string>? GetEnabledGroups(string? key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return null;
+        }
+
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+            return _cache.TryGetValue(key, out var existing) ? existing.EnabledGroups : null;
+        }
+    }
+
+    /// <summary>Sets a village's enabled automation-loop group keys and persists it (upserts the record).</summary>
+    public void SetEnabledGroups(VillageKeyInfo village, IReadOnlyList<string> groups)
+    {
+        if (village is null || string.IsNullOrWhiteSpace(village.Key))
+        {
+            return;
+        }
+
+        var list = (groups ?? Array.Empty<string>()).ToList();
+
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+
+            if (_cache.TryGetValue(village.Key, out var existing))
+            {
+                if (existing.EnabledGroups is not null && existing.EnabledGroups.SequenceEqual(list, StringComparer.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                existing.EnabledGroups = list;
+                existing.Name = village.Name;
+                existing.LastSeenUtc = DateTimeOffset.UtcNow;
+            }
+            else
+            {
+                _cache[village.Key] = new VillageSettingRecord
+                {
+                    Key = village.Key,
+                    Name = village.Name,
+                    CoordX = village.CoordX,
+                    CoordY = village.CoordY,
+                    IsCapital = village.IsCapital,
+                    IsEnabled = village.IsCapital,
+                    EnabledGroups = list,
+                    LastSeenUtc = DateTimeOffset.UtcNow,
+                };
+            }
+
+            Save();
         }
     }
 

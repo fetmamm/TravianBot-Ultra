@@ -192,7 +192,14 @@ public partial class MainWindow
 
         if (continuousModeActive)
         {
-            SetLoopStateBadge("running", ThemeColors.Get("SuccessBrush"), "Pause bot");
+            // "Pause bot" must reflect ACTUAL execution, not merely "continuous toggle on + queued/deferred
+            // work exists". After a restart the persisted queue can have ready/deferred items while the loop
+            // is not running — that is idle ("Start bot"), not paused/running ("Pause bot").
+            var isExecuting = loopRunning || _autoQueueRunning || functionExecutionRunning || hasRunningQueueItems;
+            SetLoopStateBadge(
+                isExecuting ? "running" : "idle",
+                ThemeColors.Get(isExecuting ? "SuccessBrush" : "TextSubtleBrush"),
+                isExecuting ? "Pause bot" : "Start bot");
             return;
         }
 

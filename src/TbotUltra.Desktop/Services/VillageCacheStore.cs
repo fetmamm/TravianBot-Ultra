@@ -122,6 +122,8 @@ public sealed class VillageCacheStore
     // never shows misleading stale amounts (they refresh live after launch).
     private static VillageStatus StripVolatile(VillageStatus status)
     {
+        // Keep warehouse/granary capacity + the storage forecasts so storage is remembered per village
+        // across restarts (current amounts are stale until the first live refresh, which is fine).
         return status with
         {
             Resources = new Dictionary<string, string>(),
@@ -135,9 +137,6 @@ public sealed class VillageCacheStore
             ServerTimeUtc = null,
             UnreadMessages = 0,
             UnreadReports = 0,
-            WarehouseCapacity = null,
-            GranaryCapacity = null,
-            ResourceStorageForecasts = null,
             TroopTrainingQueues = null,
             AdventureCount = null,
             ActiveConstructions = null,

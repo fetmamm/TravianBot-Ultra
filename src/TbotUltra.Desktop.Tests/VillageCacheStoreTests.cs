@@ -59,7 +59,8 @@ public sealed class VillageCacheStoreTests : IDisposable
         Assert.Empty(grez.Resources);
         Assert.Empty(grez.BuildQueue);
         Assert.Null(grez.Gold);
-        Assert.Null(grez.WarehouseCapacity);
+        // Capacity is remembered (storage capacity is durable until the warehouse is upgraded).
+        Assert.Equal(4000, grez.WarehouseCapacity);
     }
 
     [Fact]

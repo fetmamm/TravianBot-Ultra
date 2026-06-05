@@ -594,6 +594,34 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   Ny **"Clear village queue"** rensar bara den i dropdownen valda byns köposter (matchar på bynamn, rör ej
   globala/andra byar, ingen popup). Build rent, Worker 324 + Desktop 62 gröna.
 
+- **2026-06-05** — Multi-village fixar: storage per by + ingen profil-läsning vid bybyte + state-knapp.
+  (1) **State/knapp:** `UpdateExecutionStateIndicator` visade "Pause bot" när continuous-toggeln var på +
+  kö fanns (persisterad efter omstart) trots att inget kördes. `continuousModeActive`-grenen visar nu
+  "Pause bot" endast om något **faktiskt körs** (`loopRunning || _autoQueueRunning || functionExecution
+  Running || hasRunningQueueItems`), annars "idle"/"Start bot". (2) **Storage följer vald by:**
+  `ShowSelectedVillageFromCache` + `ApplyCurrentVillageToUiAsync` anropar nu `_resourcesViewModel.Apply
+  StorageForecasts(...)`; cache-miss → `ResetStorageForecasts()` (tomma staplar "-"). `VillageCacheStore.
+  StripVolatile` behåller nu `WarehouseCapacity/GranaryCapacity/ResourceStorageForecasts` så kapacitet
+  minns mellan sessioner (current-mängder uppdateras live). (3) **Ingen profil-läsning vid bybyte:**
+  `ReadCurrentVillageStatusAsync` läser bylistan via `ReadVillagesPreferCacheAsync` (sidebar/cache) i
+  stället för `ReadVillagesAsync` (spieler.php). Bybyte läser nu bara dorf1/dorf2 av målbyn; capital tas
+  från cache. Snabbare switch, ingen profil-navigering. Kompilerar rent (full build kräver att appen
+  stängs). **KVAR (stort, eget pass):** per-by automation-loop-grupper (toggla Hero/Construction/… per by
+  + visa timers från vald by) — kräver per-by grupp-enable-persistens + wiring i loopen + per-by timer-UI.
+
+- **2026-06-05** — Multi-village steg #2a: **per-by auto-loop-grupp-toggles** (state + UI; användarens
+  val "alla grupper per by" + "stegvis"). `VillageSettingsStore`-posten fick `EnabledGroups: string[]?`
+  (null = ingen override → global default) + `GetEnabledGroups`/`SetEnabledGroups`. Dashboard auto-loop-
+  togglarna speglar nu **vald by**: `ApplyAutomationLoopGroupsForSelectedVillage` laddar `_automation
+  LoopTasks.IsEnabled` från byns override (annars `_defaultEnabledGroupKeys`, snapshot:ad vid
+  `LoadAutomationLoopTasks`), anropas i `ShowSelectedVillageFromCache` + `ApplyCurrentVillageToUiAsync`.
+  Toggling sparar per by (`SaveAutomationLoopGroupsForSelectedVillage` i slutet av `AutomationLoop
+  ToggleButton_Click`, utöver den globala `PersistAutomationLoopTasksToConfig` som blir mall för nya byar).
+  Loopen läser fortf. `_automationLoopTasks` → använder nu **vald/arbetande bys** grupper. **KVAR (steg
+  #2b):** (1) per-task by-gating i construction-rotationen (så grupp av på by B blockerar B:s tasks även
+  när A är vald), (2) per-by **timers** i auto-loop-grupperna (construction-timer skiljer per by — visas
+  ännu från aktiv/senast lästa by). Build rent, Worker 324 + Desktop 62 gröna.
+
 ---
 
 ## 5. Kända fallgropar / regressions

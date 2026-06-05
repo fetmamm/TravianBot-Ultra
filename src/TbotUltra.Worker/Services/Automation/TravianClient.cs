@@ -1209,9 +1209,13 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         IReadOnlyList<Building>? knownBuildings = null)
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared before reading village status.", cancellationToken);
+        // Read the village list from the sidebar/cache instead of navigating to the profile (spieler.php).
+        // On a village switch we only need dorf1/dorf2 of the target village for status; the profile was
+        // only used to enumerate villages and re-check the capital — capital comes from cache here. This
+        // avoids the extra (slow) profile navigation on every switch/status read.
         var villages = knownVillages is { Count: > 0 }
             ? knownVillages
-            : await ReadVillagesAsync(cancellationToken);
+            : await ReadVillagesPreferCacheAsync(cancellationToken);
         var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
         var buildQueue = await ReadBuildQueueAsync(cancellationToken);
         var remaining = ResolveShortestQueueDurationSeconds(buildQueue);
