@@ -2312,6 +2312,9 @@ public sealed partial class TravianClient
             await _page.WaitForFunctionAsync(
                 """
                 () => {
+                  // Modern hero V2 attributes page.
+                  if (document.querySelector('.heroAttributes input[name="power"], input[name="productionPoints"], .heroAttributes .pointsAvailable')) return true;
+                  // Legacy table layout.
                   const table = document.querySelector('#attributesOfHero');
                   if (!table) return false;
                   const ap = document.querySelector('#availablePoints');
@@ -2504,21 +2507,25 @@ public sealed partial class TravianClient
                   try {
                     const readDigit = (el) => {
                       if (!el) return 0;
-                      const m = (el.textContent || '').match(/(\d+)/);
-                      return m ? Number(m[1]) || 0 : 0;
+                      // Strip bidi marks/thousands separators before reading the number.
+                      const m = (el.textContent || '').replace(/[^\d-]/g, '');
+                      return m ? Number(m) || 0 : 0;
                     };
-                    // Each attribute row has a fixed id ("attributepower" etc.). Travian shows the
-                    // points either as <input value="N"> (when free points exist and are editable)
-                    // OR as plain text in <td class="points">N</td> (when no free points are
-                    // available). Read whichever is present, in that order.
-                    const rowPoints = (rowId) => {
-                      const row = document.getElementById(rowId);
+                    // Reads an attribute's allocated points. Modern hero V2: <input name="power"> etc.
+                    // (names: power/offBonus/defBonus/productionPoints). Legacy: row id ("attributepower")
+                    // with an <input name^="attribute"> or a <td class="points"> text. Try modern first.
+                    const attrPoints = (modernName, legacyRowId) => {
+                      const modern = document.querySelector('input[name="' + modernName + '"]');
+                      if (modern) return Number(modern.value) || 0;
+                      const row = document.getElementById(legacyRowId);
                       if (!row) return 0;
                       const input = row.querySelector('input[type="text"][name^="attribute"]');
                       if (input) return Number(input.value) || 0;
                       const td = row.querySelector('td.points');
                       return td ? readDigit(td) : 0;
                     };
+                    // Free points: modern ".pointsAvailable", legacy "#availablePoints".
+                    const freePointsEl = document.querySelector('.heroAttributes .pointsAvailable, .pointsAvailable, #availablePoints');
                     const parseTimer = (value) => {
                       const text = (value || '').replace(/\s+/g, ' ').trim();
                       if (!text) return null;
@@ -2528,7 +2535,7 @@ public sealed partial class TravianClient
                       if (parts.length === 2) return parts[0] * 60 + parts[1];
                       return null;
                     };
-                    const statusMessage = document.querySelector('.heroStatusMessage');
+                    const statusMessage = document.querySelector('.heroState, .heroStatusMessage');
                     const statusText = (statusMessage?.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
                     const reviving = /being\s+revived|remaining\s+time|reviv/i.test(statusText)
                       && !!statusMessage?.querySelector('.timer, [counting="down"], .heroStatus101Regenerate');
@@ -2543,11 +2550,11 @@ public sealed partial class TravianClient
                     return JSON.stringify({
                       ok: true,
                       levelUpAvailable: !!document.querySelector('.bigSpeechBubble.levelUp'),
-                      freePoints: readDigit(document.querySelector('#availablePoints')),
-                      fightingStrength: rowPoints('attributepower'),
-                      offenceBonus: rowPoints('attributeoffBonus'),
-                      defenceBonus: rowPoints('attributedefBonus'),
-                      resources: rowPoints('attributeproductionPoints'),
+                      freePoints: readDigit(freePointsEl),
+                      fightingStrength: attrPoints('power', 'attributepower'),
+                      offenceBonus: attrPoints('offBonus', 'attributeoffBonus'),
+                      defenceBonus: attrPoints('defBonus', 'attributedefBonus'),
+                      resources: attrPoints('productionPoints', 'attributeproductionPoints'),
                       heroState: reviving ? 'Reviving' : dead ? 'Dead' : 'Alive',
                       reviveRemainingSeconds: Number.isFinite(reviveTimer) ? Math.max(0, Math.trunc(reviveTimer)) : null,
                       hideMode: hideSwitch ? (hideSwitch.checked ? 'hide' : 'fight') : null

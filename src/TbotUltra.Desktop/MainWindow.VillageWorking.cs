@@ -41,22 +41,63 @@ public partial class MainWindow
     // a time). Drives the green/yellow/dark Hero icon in the Dashboard village list.
     private string? _heroHomeVillageName;
 
-    // Whether the hero is currently away from its home village (adventure/attack/etc). With the home
-    // village name this gives the hero icon three states: dark (not hero village), green (home), yellow (away).
+    // Hero icon state for the home village: away (yellow) and dead (red, overrides). Dark = not the hero
+    // village, green = hero home and alive.
     private bool _heroIsAway;
+    private bool _heroIsDead;
 
-    // Records the hero home village + away-state and repaints the Dashboard hero indicators. No-op when unchanged.
-    private void SetHeroHomeVillageName(string? name, bool isAway)
+    // Records the hero home village + away/dead state and repaints the Dashboard hero indicators. A null
+    // name keeps the last-known home village (e.g. when the hero is on an adventure and the page no longer
+    // names a village) so the dead/away flag can still color the right row. No-op when nothing changed.
+    private void SetHeroState(string? name, bool isAway, bool isDead)
     {
-        var normalized = NormalizeVillageName(name);
-        if (string.Equals(_heroHomeVillageName, normalized, StringComparison.OrdinalIgnoreCase) && _heroIsAway == isAway)
+        var normalized = NormalizeVillageName(name) ?? _heroHomeVillageName;
+        if (string.Equals(_heroHomeVillageName, normalized, StringComparison.OrdinalIgnoreCase)
+            && _heroIsAway == isAway
+            && _heroIsDead == isDead)
         {
             return;
         }
 
+        var homeChanged = !string.Equals(_heroHomeVillageName, normalized, StringComparison.OrdinalIgnoreCase);
         _heroHomeVillageName = normalized;
         _heroIsAway = isAway;
+        _heroIsDead = isDead;
+        AppendLog($"[hero] home village='{_heroHomeVillageName ?? "(unknown)"}' away={isAway} dead={isDead} — updating dashboard hero icons.");
+
+        // Remember the last-read home village across restarts (per account). Only persist a real name.
+        if (homeChanged && _heroHomeVillageName is not null)
+        {
+            try
+            {
+                _villageSettingsStore.SetHeroHomeVillageName(_heroHomeVillageName);
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"[hero] could not persist home village: {ex.Message}");
+            }
+        }
+
         RefreshVillageActivityIndicatorsOnDashboard();
+    }
+
+    // Seeds the remembered hero home village (from a previous session) so the dashboard icon shows on the
+    // right village immediately at login, before the first hero read. Assumes home/alive until a read updates.
+    private void LoadHeroHomeVillageForActiveAccount()
+    {
+        try
+        {
+            var saved = _villageSettingsStore.GetHeroHomeVillageName();
+            if (!string.IsNullOrWhiteSpace(saved) && _heroHomeVillageName is null)
+            {
+                _heroHomeVillageName = NormalizeVillageName(saved);
+                RefreshVillageActivityIndicatorsOnDashboard();
+            }
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"[hero] could not load remembered home village: {ex.Message}");
+        }
     }
 
     private bool ResolveIsRomansTribe()
@@ -109,7 +150,8 @@ public partial class MainWindow
                 && heroHome is not null
                 && string.Equals(name, heroHome, StringComparison.OrdinalIgnoreCase);
             item.IsHeroHome = isHeroVillage;
-            item.IsHeroAway = isHeroVillage && _heroIsAway;
+            item.IsHeroAway = isHeroVillage && _heroIsAway && !_heroIsDead;
+            item.IsHeroDead = isHeroVillage && _heroIsDead;
         }
     }
 
@@ -315,7 +357,7 @@ public partial class MainWindow
             _lastBuildingStatus = status;
             PopulateBuildingsTab(status);
             BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"active village '{status.ActiveVillage}'");
-            TribeInfoTextBlock.Text = $"{status.Tribe}";
+            SetTribeText(status.Tribe);
             VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
             ApplyAutomationLoopGroupsForSelectedVillage();
             ApplyConstructionTimerFromStatus(status);
@@ -798,7 +840,7 @@ public partial class MainWindow
             CacheVillageStatus(status, selected.Name);
 
             BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"active village '{selected.Name}'");
-            TribeInfoTextBlock.Text = $"{status.Tribe}";
+            SetTribeText(status.Tribe);
             VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
             SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage, selected.Name);
             SetActiveWorkingVillage(key, selected.Name);

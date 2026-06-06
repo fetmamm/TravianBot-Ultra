@@ -116,7 +116,7 @@ public partial class MainWindow
         if (tribeMatch.Success)
         {
             var tribe = tribeMatch.Groups[1].Value;
-            TribeInfoTextBlock.Text = $"{tribe}";
+            SetTribeText(tribe);
             ApplyTroopTrainingTribeState(tribe);
         }
 
@@ -124,6 +124,25 @@ public partial class MainWindow
         if (uiSyncMatch.Success)
         {
             TryApplyUiSyncPayload(uiSyncMatch.Groups[1].Value);
+        }
+    }
+
+    // Tribe is fixed per account, so once a real tribe is shown never let a later partial/unknown read
+    // blank it (status reads sometimes carry Tribe="Unknown"/empty and were blipping the topbar to "-").
+    private void SetTribeText(string? tribe)
+    {
+        var trimmed = tribe?.Trim();
+        var meaningful = !string.IsNullOrWhiteSpace(trimmed)
+            && !string.Equals(trimmed, "Unknown", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(trimmed, "-", StringComparison.Ordinal);
+        if (!meaningful)
+        {
+            return;
+        }
+
+        if (!string.Equals(TribeInfoTextBlock.Text?.Trim(), trimmed, StringComparison.OrdinalIgnoreCase))
+        {
+            TribeInfoTextBlock.Text = trimmed;
         }
     }
 

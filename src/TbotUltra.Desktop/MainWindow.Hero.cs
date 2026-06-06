@@ -95,10 +95,11 @@ public partial class MainWindow
     {
         _heroViewModel.ApplyAttributeSnapshot(snapshot);
         ApplyHeroHideModeSnapshotToUi(snapshot.HideMode);
-        if (!string.IsNullOrWhiteSpace(snapshot.HomeVillageName))
-        {
-            SetHeroHomeVillageName(snapshot.HomeVillageName, snapshot.HomeVillageHeroAway);
-        }
+        var heroDead = string.Equals(snapshot.HeroState, "Dead", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(snapshot.HeroState, "Reviving", StringComparison.OrdinalIgnoreCase);
+        // SetHeroState keeps the last-known home village when the name is null (hero away/dead pages may not
+        // name a village), so this safely updates away/dead colouring without a name.
+        SetHeroState(snapshot.HomeVillageName, snapshot.HomeVillageHeroAway, heroDead);
         if (snapshot.AdventureCount is not null)
         {
             ApplyHeroAdventureAvailability(snapshot.AdventureCount.Value);

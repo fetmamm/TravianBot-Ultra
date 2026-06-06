@@ -40,6 +40,10 @@ public sealed class VillageSettingsStore
     private sealed class VillageSettingsFile
     {
         public List<VillageSettingRecord> Villages { get; set; } = new();
+
+        // Last-read hero home village name (account-global). Remembered across restarts so the dashboard
+        // hero icon can show on the right village before the first hero read of a new session.
+        public string? HeroHomeVillageName { get; set; }
     }
 
     // Serializes villages.json I/O across the UI dispatcher and background refresh contexts, mirroring
@@ -60,6 +64,7 @@ public sealed class VillageSettingsStore
     // file on every village-list rebuild (which happens on each periodic refresh tick).
     private readonly Dictionary<string, VillageSettingRecord> _cache = new(StringComparer.OrdinalIgnoreCase);
     private string? _cacheAccount;
+    private string? _heroHomeVillageName;
 
     public VillageSettingsStore(string projectRoot, Func<string>? activeAccountNameProvider = null, Action<string>? log = null)
     {
@@ -261,6 +266,33 @@ public sealed class VillageSettingsStore
         }
     }
 
+    /// <summary>Returns the remembered hero home village name for the active account (null if none).</summary>
+    public string? GetHeroHomeVillageName()
+    {
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+            return _heroHomeVillageName;
+        }
+    }
+
+    /// <summary>Persists the last-read hero home village name. No-op (no write) when unchanged.</summary>
+    public void SetHeroHomeVillageName(string? name)
+    {
+        var trimmed = string.IsNullOrWhiteSpace(name) ? null : name.Trim();
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+            if (string.Equals(_heroHomeVillageName, trimmed, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            _heroHomeVillageName = trimmed;
+            Save();
+        }
+    }
+
     /// <summary>Sets a village's enabled automation-loop group keys and persists it (upserts the record).</summary>
     public void SetEnabledGroups(VillageKeyInfo village, IReadOnlyList<string> groups)
     {
@@ -315,6 +347,7 @@ public sealed class VillageSettingsStore
         {
             _cache.Clear();
             _cacheAccount = null;
+            _heroHomeVillageName = null;
         }
     }
 
@@ -327,6 +360,7 @@ public sealed class VillageSettingsStore
         }
 
         _cache.Clear();
+        _heroHomeVillageName = null;
         _cacheAccount = account;
 
         if (string.IsNullOrWhiteSpace(account))
@@ -348,6 +382,8 @@ public sealed class VillageSettingsStore
             {
                 return;
             }
+
+            _heroHomeVillageName = string.IsNullOrWhiteSpace(file.HeroHomeVillageName) ? null : file.HeroHomeVillageName.Trim();
 
             foreach (var record in file.Villages)
             {
@@ -385,6 +421,7 @@ public sealed class VillageSettingsStore
                 .OrderByDescending(v => v.IsCapital)
                 .ThenBy(v => v.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList(),
+            HeroHomeVillageName = _heroHomeVillageName,
         };
 
         WriteAllTextShared(path, JsonSerializer.Serialize(file, SerializerOptions));

@@ -2583,20 +2583,21 @@ public sealed partial class TravianClient
                 'table.buildingList tr'
               ];
 
-              const items = [];
-              const seen = new Set();
+              // Each matched element is one active construction. Count them per element (NOT deduped by
+              // text): two simultaneous upgrades of the same building/field have identical text and must
+              // still count as two. Return the first selector that yields any entries.
               for (const selector of selectors) {
+                const items = [];
                 for (const element of document.querySelectorAll(selector)) {
                   const text = (element.textContent || '').replace(/\s+/g, ' ').trim();
-                  if (!text || seen.has(text)) continue;
-                  seen.add(text);
+                  if (!text) continue;
                   const timeElement = element.querySelector('.timer, .countdown, .value, [counting="down"], [id^="timer"]');
                   const timeLeft = timeElement ? (timeElement.textContent || '').trim() : null;
                   items.push({ text, timeLeft });
                 }
                 if (items.length) return JSON.stringify(items);
               }
-              return JSON.stringify(items);
+              return JSON.stringify([]);
             }
             """);
 

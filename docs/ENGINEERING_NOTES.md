@@ -750,6 +750,54 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   Troops · Hero · Pop · Coords. (4) **Auto loop** nu äkta listrader (Toggle | Namn | Status). Build rent,
   Worker 324 + Desktop 62 gröna.
 
+- **2026-06-06** — **Fixar: hero 4-läge, sticky gold/silver/tribe.** (1) **Hero-ikon röd vid död:** nytt
+  `IsHeroDead` (röd, `DangerBrush`, vinner över grön/gul). Drivs av snapshot `HeroState` = Dead/Reviving.
+  Ny `SetHeroState(name, away, dead)` ersätter `SetHeroHomeVillageName`; behåller senast kända hemmaby när
+  namn saknas (hero borta/död-sidor namnger ibland ingen by) så färgen ändå hamnar rätt. Loggar
+  `[hero] home village=… away=… dead=…` för felsökning. Hero-läsning styrs fortf. av checkboxen
+  *Post-login: analyze hero* (+ hero-tasks i loopen) — ingen alltid-på-läsning tillagd. (2) **Gold/Silver
+  blippade till "-"** på partiella status-reads: `SetCurrencyValueText` skriver inte längre över ett redan
+  visat verkligt värde med "-"/tomt. (3) **Tribe blippade till "-"/Unknown:** ny `SetTribeText` ignorerar
+  tomt/"Unknown"/"-" när en riktig tribe redan visas (tribe är fast per konto); alla 6 sättnings-ställen
+  använder den. Build rent, Worker 324 + Desktop 62 gröna.
+
+- **2026-06-06** — **Dashboard-layout omflyttad igen.** Automation Loop ligger nu **ensam i vänster-
+  kolumnen i full höjd** (så alla grupp-rader får plats i en kolumn utan att en andra bildas). Höger-
+  kolumnen är ett `Grid` med rader `[*, Auto]`: **Villages** (Grid.Row 0, ej längre full höjd) och
+  **Auto settings** (Grid.Row 1, under Villages). Auto settings ligger kvar i dokument-ordningen FÖRE
+  villages-bordern men placeras via `Grid.Row=1` → renderas under (slipper flytta hela blocket). Compile
+  rent (endast exe copy-lock när appen kör). Hero-grön lämnad t.v. (programmet navigerar inte till
+  attributsidan efter login om checkboxen är av — användarens beslut att låta checkboxen styra).
+
+- **2026-06-06** — **Buildings-ikoner undercount + Auto loop tvåkolumn.** (1) **Build queue räknades fel:**
+  `ReadBuildQueueAsync` dedupade kö-poster på `text`, så två samtidiga uppgraderingar med identiskt namn
+  (t.ex. två fält till samma nivå) slogs ihop → bara en grön bygg-ikon. Nu räknas varje element i första
+  träffande selektorn (ingen text-dedup); `ActiveBuildCount = buildQueue.Count` blir därmed korrekt. (2)
+  **Auto loop bildade en andra kolumn vid >4 grupper:** `UpdateAutomationLoopColumns` satte 2 kolumner när
+  fler än 4 syntes. Nu alltid **1 kolumn** (`VerticalFirstUniformGrid Columns=1`) — grupperna fyller neråt
+  och scrollar vid behov, eftersom Auto loop-rutan numera är full höjd. Build rent, Worker 324 + Desktop 62
+  gröna.
+
+- **2026-06-06** — **Hero-attribut lästes fel på officiell (hero V2).** `ReadHeroInventorySnapshotAsync`
+  + `WaitForAttributesTableAsync` använde gamla selektorer (`#availablePoints`, row-id `attributepower`,
+  `input[name^="attribute"]`, `#attributesOfHero`, `.heroStatusMessage`) som inte finns på den moderna
+  hero V2-attributsidan → allt blev 0. Nu läses modern layout först: free points `.pointsAvailable`,
+  attribut via `input[name="power|offBonus|defBonus|productionPoints"]`, status via `.heroState`; legacy-
+  selektorerna kvar som fallback (SS-Travi). `readDigit` strippar bidi-märken/tusentalsavgränsare.
+  **Ordning vid login:** hero-attribut-analysen (`RefreshHeroStatsAsync`, styrd av *Post-login: analyze
+  hero*) körs redan EFTER hero-inventory-läsningen (inventory läses i post-login-snapshoten, attribut i
+  steg 4) — ingen ändring behövdes. Worker 324 gröna; Desktop-exe copy-lock när appen kör = ej kompfel.
+
+- **2026-06-06** — **Hero settings + persisterad hemmaby + login-ordning.** (1) Settings-popupen: checkboxen
+  "Analyze hero" → **"Analyze hero attributes"**, och **"Analyze hero inventory"** flyttad direkt under den.
+  (2) **Login-ordning:** hero-attribut-analysen körs nu **steg 2** (direkt efter hero-inventory i post-login-
+  snapshoten, FÖRE farmlists) i `MainWindow.Session.cs`. (3) **Persisterad hemmaby:** `VillageSettingsStore`
+  sparar/laddar `HeroHomeVillageName` i villages.json (per konto); `LoadHeroHomeVillageForActiveAccount`
+  seedar ikonen vid login innan första hero-läsningen, och `SetHeroState` persisterar varje gång hemmabyn
+  ändras. Hemmabyn uppdateras vid varje attribut-läsning (login-analys + efter varje `hero_manage`-körning
+  via `ReadHeroAttributesAsync`→`ApplyHeroSnapshotToUi`→`SetHeroState`). Build rent, Worker 324 + Desktop 62
+  gröna.
+
 ---
 
 ## 5. Kända fallgropar / regressions

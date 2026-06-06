@@ -31,7 +31,7 @@ public partial class MainWindow
 
         BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"active village '{status.ActiveVillage}'");
 
-        TribeInfoTextBlock.Text = $"{status.Tribe}";
+        SetTribeText(status.Tribe);
         VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
         SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage);
         await RefreshResourceSnapshotForUiAsync(options, cancellationToken);

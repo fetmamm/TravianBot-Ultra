@@ -1016,8 +1016,21 @@ public partial class MainWindow
 
     private static void SetCurrencyValueText(TextBlock target, string text, SolidColorBrush meaningfulBrush)
     {
-        target.Inlines.Clear();
         var isMeaningful = text is not ("-" or "0") && !string.IsNullOrWhiteSpace(text);
+
+        // Don't clobber a previously shown real value with "-"/empty: partial status reads carry no gold/
+        // silver and would otherwise blip the value to "-" between full reads.
+        if (!isMeaningful)
+        {
+            var existing = (target.Inlines.FirstInline as Run)?.Text;
+            var existingMeaningful = !string.IsNullOrWhiteSpace(existing) && existing is not ("-" or "0");
+            if (existingMeaningful)
+            {
+                return;
+            }
+        }
+
+        target.Inlines.Clear();
         var valueRun = new Run(string.IsNullOrWhiteSpace(text) ? "-" : text)
         {
             Foreground = isMeaningful ? meaningfulBrush : NeutralStatsBrush,

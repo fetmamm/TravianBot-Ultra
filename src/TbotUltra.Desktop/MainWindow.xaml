@@ -586,14 +586,8 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
-                            <!-- LEFT column: Automation Loop (list) on top, Auto settings below. -->
-                            <Grid Grid.Column="0" Margin="0,0,10,0">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="*" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-
-                            <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9" Padding="12">
+                            <!-- LEFT column: Automation Loop, full height (so all group rows fit in one column). -->
+                            <Border Grid.Column="0" Margin="0,0,10,0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9" Padding="12">
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
@@ -779,7 +773,15 @@
                                 </Grid>
                             </Border>
 
-                            <!-- Auto settings: moved to the left column, below the Automation Loop. -->
+                            <!-- RIGHT column: Villages (row 0) + Auto settings (row 1, below). Villages no
+                                 longer fills the whole height; the settings box sits beneath it. -->
+                            <Grid Grid.Column="1">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                            <!-- Auto settings: rendered below the villages box via Grid.Row 1. -->
                             <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9" Padding="12" Margin="0,10,0,0">
                                 <StackPanel>
                                     <TextBlock Text="Auto settings" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,6" />
@@ -887,11 +889,10 @@
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
-                            </Grid>
 
-                            <!-- RIGHT column: Villages overview, full height. Columns: Name, Pop, Coords,
-                                 Buildings (2 slots, 3 for Romans), Troops (Barracks/Stable/Workshop), Hero. -->
-                            <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9" Padding="12">
+                            <!-- Villages overview (top, row 0). Columns: Name, Buildings, Queue, Smithy,
+                                 Troops, Hero, Pop, Coords. -->
+                            <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9" Padding="12">
                                     <DockPanel>
                                         <!-- Title row doubles as the column header, aligned with the fixed-width data columns below. -->
                                         <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
@@ -1155,6 +1156,11 @@
                                                                                 <Setter Property="BorderBrush" Value="{DynamicResource WarningBorderBrush}" />
                                                                                 <Setter Property="ToolTip" Value="Hero home village (hero is away)" />
                                                                             </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding IsHeroDead}" Value="True">
+                                                                                <Setter Property="Background" Value="{DynamicResource DangerBrush}" />
+                                                                                <Setter Property="BorderBrush" Value="{DynamicResource DangerBorderBrush}" />
+                                                                                <Setter Property="ToolTip" Value="Hero home village (hero is dead)" />
+                                                                            </DataTrigger>
                                                                         </Style.Triggers>
                                                                     </Style>
                                                                 </Border.Style>
@@ -1179,6 +1185,7 @@
                                         </ScrollViewer>
                                     </DockPanel>
                                 </Border>
+                            </Grid>
                         </Grid>
                     </Grid>
                 </TabItem>

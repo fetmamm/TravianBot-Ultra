@@ -811,7 +811,7 @@ public partial class MainWindow : Window
         PopulateBuildingsTab(status);
 
         BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"active village '{status.ActiveVillage}'");
-        TribeInfoTextBlock.Text = $"{status.Tribe}";
+        SetTribeText(status.Tribe);
         VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
         // Select the village the browser actually landed in (active village), not a stale prior selection,
         // so the dropdown matches the browser and Start bot works in the landing village.
@@ -1256,7 +1256,7 @@ public partial class MainWindow : Window
         UpdateActiveVillageResourceMaxLevel(status);
         _resourcesViewModel.ApplyStorageForecasts(status);
         VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
-        TribeInfoTextBlock.Text = $"{status.Tribe}";
+        SetTribeText(status.Tribe);
         ApplyTroopTrainingTribeState(status.Tribe);
         LastScanInfoTextBlock.Text = $"Last scan: {GetServerNow():HH:mm:ss}";
         var capitalText = status.IsCapital == true ? "Yes" : status.IsCapital == false ? "No" : "Unknown";
