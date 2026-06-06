@@ -49,6 +49,13 @@ public partial class MainWindow
                     continue;
                 }
 
+                // NPC trade is controlled by the Auto settings master toggle + per-village choice, not as
+                // an Automation Loop group — never show it in the loop list or Function list.
+                if (group == QueueGroup.NpcTrade)
+                {
+                    continue;
+                }
+
                 _automationLoopTasks.Add(new LoopTaskOption
                 {
                     TaskName = groupKey,

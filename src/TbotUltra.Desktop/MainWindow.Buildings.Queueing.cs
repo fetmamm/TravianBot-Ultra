@@ -107,6 +107,14 @@ public partial class MainWindow
         {
             payload[BotOptionPayloadKeys.TargetVillageUrl] = selectedVillageUrl;
         }
+
+        // Gate NPC trade per village: enabled only when the account-wide master (Auto settings) AND this
+        // village's choice are both on. The worker honors this per-task override (BotOptionsPayloadApplier).
+        if (!string.IsNullOrWhiteSpace(selectedVillageName) || !string.IsNullOrWhiteSpace(selectedVillageUrl))
+        {
+            var key = GetVillageKey(selectedVillageUrl, null, null, selectedVillageName);
+            payload[BotOptionPayloadKeys.NpcTradeEnabled] = IsNpcTradeEnabledForVillageKey(key) ? "true" : "false";
+        }
     }
 
     private QueueItem? EnqueueBuildingConstructTaskCoalesced(

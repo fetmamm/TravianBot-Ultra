@@ -34,7 +34,24 @@ public sealed class VillageSettingsRow : INotifyPropertyChanged
     }
 
     public bool HeroResources { get; set; }
-    public bool NpcTrade { get; set; }
+
+    // NPC trade per village. Notifies so the window can persist the choice the moment it changes.
+    private bool _npcTrade;
+    public bool NpcTrade
+    {
+        get => _npcTrade;
+        set
+        {
+            if (_npcTrade == value)
+            {
+                return;
+            }
+
+            _npcTrade = value;
+            OnPropertyChanged();
+        }
+    }
+
     public bool BuildTroops { get; set; }
     public bool UpgradeTroops { get; set; }
     public bool Farming { get; set; }

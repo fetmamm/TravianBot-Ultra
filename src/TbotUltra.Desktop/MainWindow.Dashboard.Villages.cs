@@ -341,6 +341,23 @@ public partial class MainWindow
         RefreshVillageEnabledStateOnDashboard();
     }
 
+    // Effective NPC trade flag for a village: the account-wide master (Auto settings NPC toggle, stored as
+    // config NpcTradeEnabled) AND the per-village choice. So NPC runs only when both are on.
+    private bool IsNpcTradeEnabledForVillageKey(string? villageKey)
+    {
+        bool master;
+        try
+        {
+            master = LoadBotOptions().NpcTradeEnabled;
+        }
+        catch
+        {
+            master = false;
+        }
+
+        return master && _villageSettingsStore.IsNpcTradeEnabledByKey(villageKey, defaultIfUnknown: true);
+    }
+
     // Persists a village's per-village NPC trade choice from the Village settings window.
     private void PersistVillageNpcTradeFromSettingsRow(VillageSettingsRow row)
     {
@@ -466,7 +483,7 @@ public partial class MainWindow
             })
             .ToList();
 
-        var window = new VillageSettingsWindow(rows, PersistVillageEnabledFromSettingsRow)
+        var window = new VillageSettingsWindow(rows, PersistVillageEnabledFromSettingsRow, PersistVillageNpcTradeFromSettingsRow)
         {
             Owner = this,
         };

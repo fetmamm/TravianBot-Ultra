@@ -1073,7 +1073,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
         if (!string.IsNullOrWhiteSpace(url))
         {
-            await GotoAsync(url, cancellationToken);
+            await GotoAsync(CanonicalizeVillageSwitchUrl(url), cancellationToken);
         }
         else if (!string.IsNullOrWhiteSpace(villageName))
         {
@@ -1086,11 +1086,20 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 throw new InvalidOperationException($"Could not find village '{villageName}' in the village list.");
             }
 
-            await GotoAsync(match.Url!, cancellationToken);
+            await GotoAsync(CanonicalizeVillageSwitchUrl(match.Url!), cancellationToken);
         }
         else
         {
             return;
+        }
+
+        // A village switch must land on a logged-in game page. A contaminated/stale switch URL can hit
+        // the site root, which the server serves as the login page (looks like a logout). Detect that
+        // here and recover via the normal login flow instead of silently reading the wrong village.
+        if ((await LoginStateAsync()) != "logged_in")
+        {
+            Notify($"[village-switch] landed on a non-game page after switching to {requestedLabel} — recovering via login.");
+            await EnsureLoggedInAsync(force: true, cancellationToken);
         }
 
         await PauseForManualStepIfVisibleAsync($"Manual verification appeared while switching to village '{villageName}'.", cancellationToken);
@@ -1122,6 +1131,17 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
     private static readonly Regex NewdidUrlRegex =
         new(@"[?&]newdid=(\d+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    // Switching village is driven solely by the newdid. Stored/sidebar URLs can pick up extra query
+    // params from the page they were read on (e.g. a build slot's "id=10"), and a URL like
+    // "?newdid=25471&id=10" navigates to the site root, which the server serves as the LOGIN page —
+    // appearing as a logout and then reading the wrong village. Reduce any URL that carries a newdid
+    // to the canonical "dorf1.php?newdid={id}" so the switch always lands on the right village's overview.
+    internal static string CanonicalizeVillageSwitchUrl(string url)
+    {
+        var newdid = TryParseNewdid(url);
+        return newdid is int id ? $"dorf1.php?newdid={id}" : url;
+    }
 
     // Stable village id parsed from a switch URL (dorf1.php?newdid=X). Used to match villages across
     // reads without depending on the (mutable) village name.
@@ -1249,6 +1269,14 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         Notify($"Resource read: storage wh={FormatResourceLogNumber(capacities.Warehouse)} gr={FormatResourceLogNumber(capacities.Granary)} | stock {BuildResourceValueLog(resources)} | prod {BuildProductionValueLog(productionByHour)}{(usingCachedProduction ? " (cached production)" : string.Empty)}");
 
         var resourceFields = await ReadResourceFieldsAsync(cancellationToken);
+
+        // Persist the per-village resource snapshot here too. This full status read runs on dorf1 right
+        // after a village switch and is often the only place production is read for a freshly-switched
+        // village. Without saving it, later current-page reads (on dorf2/build pages, where production is
+        // not present) found an empty cache and showed "@-/h"/"not filling". SaveCached keeps existing
+        // values when the new read is empty, so it never overwrites good data with blanks.
+        SaveCachedVillageResourceSnapshot(activeVillage, resourceFields, capacities, productionByHour);
+
         var buildings = knownBuildings is { Count: > 0 }
             ? knownBuildings
             : await ReadBuildingsAsync(cancellationToken);

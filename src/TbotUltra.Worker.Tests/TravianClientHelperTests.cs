@@ -131,6 +131,20 @@ public sealed class TravianClientHelperTests
         Assert.Null(TravianClient.ResolveShortestQueueDurationSeconds(unparseable));
     }
 
+    [Theory]
+    // Contaminated/stale switch URLs (extra params from the page they were read on) must reduce to the
+    // canonical dorf1.php?newdid=X so the switch never hits the site root (served as the login page).
+    [InlineData("?newdid=25471&id=10", "dorf1.php?newdid=25471")]
+    [InlineData("dorf1.php?newdid=25471", "dorf1.php?newdid=25471")]
+    [InlineData("dorf2.php?newdid=33150", "dorf1.php?newdid=33150")]
+    [InlineData("https://ts100.x10.america.travian.com/dorf1.php?newdid=999&extra=1", "dorf1.php?newdid=999")]
+    // No newdid: leave the URL untouched (caller falls back to other resolution).
+    [InlineData("spieler.php?id=5", "spieler.php?id=5")]
+    public void CanonicalizeVillageSwitchUrl_ReducesToNewdidOverview(string input, string expected)
+    {
+        Assert.Equal(expected, TravianClient.CanonicalizeVillageSwitchUrl(input));
+    }
+
     [Fact]
     public void BuildQueueIdentityFingerprint_IsStableWhileCountdownTicks()
     {

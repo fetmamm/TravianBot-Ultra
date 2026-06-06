@@ -806,10 +806,43 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   → `SetHeroState`. Så hemmabyn/ikonen uppdateras vid varje adventure-poll utan extra navigering, även när
   attribut-checkboxen är av. Build rent, Worker 326 + Desktop 62 gröna.
 
+- **2026-06-06** — **Village overview-finputs + per-by NPC trade + README.** (1) Rubriken "Villages" →
+  **"Village overview"**; ny **grön/grå rund indikator** till vänster om bynamnet (grön = enabled, grå =
+  skippad) bunden till `IsEnabledForAutomation`. (2) Village settings-popupen: "Auto"-kolumnen är nu
+  **toggle-switchar** (DataGridTemplateColumn + `ToggleSwitchStyle`) i stället för checkboxes; styr vilka
+  byar boten kör. (3) **Per-by NPC trade:** `VillageSettingsStore` lagrar `NpcTrade` per by (default på);
+  popupens NPC-kolumn seedas/persisteras (`GetNpcTrade`/`SetNpcTrade`, ny notifierande `NpcTrade` i
+  `VillageSettingsRow` + andra callback i fönstret). Auto settings NPC-toggeln = **master** (config
+  `NpcTradeEnabled`). Effektiv NPC = master AND per-by, satt som per-task payload `npc_trade_enabled` i
+  `ApplySelectedVillageToPayload` + `BuildVillageRuntimePayload` (via `IsNpcTradeEnabledForVillageKey`);
+  workern honorerar overriden (BotOptionsPayloadApplier). Så master av → NPC körs ingenstans även om alla
+  byar är på. (4) README uppdaterad: ny "Multi-village support"-sektion + per-konto `accounts/<account>/`
+  config (queue.json/villages.json/village_cache.json). Build rent, Worker 326 + Desktop 62 gröna.
+
+- **2026-06-06** — **NPC trade borttagen som Automation Loop-grupp.** Eftersom NPC trade nu styrs av Auto
+  settings-master + per-by-val ska den inte längre visas som en loop-grupp. `LoadAutomationLoopTasks`
+  hoppar över `QueueGroup.NpcTrade` (visas ej i Auto loop-listan) och `DashboardFunctionListButton_Click`
+  filtrerar bort den från Function list-popupen (`AllGroups.Where(g => g != NpcTrade)`). Build rent,
+  Worker 331 + Desktop 62 gröna.
+
 ---
 
 ## 5. Kända fallgropar / regressions
 
+- **Full status-läsning måste cacha produktionen (annars tom resurs-UI efter by-byte).**
+  `ReadCurrentVillageStatusAsync` läste produktion på dorf1 men sparade den INTE i per-by-cachen
+  (`SaveCachedVillageResourceSnapshot`) — till skillnad från `ReadCurrentVillageResourceStatusAsync`. Vid
+  ett by-byte är den fulla läsningen ofta enda gången dorf1 (och därmed produktionen) läses för den nya
+  byn. Periodiska current-page-läsningar sker sedan på dorf2/build där produktion saknas → tom cache →
+  `@-/h` och "not filling". Fix: full status-läsning sparar nu också snapshotet. `SaveCached` behåller
+  befintliga värden när den nya läsningen är tom, så bra data skrivs aldrig över med blankt.
+- **Village-switch måste använda kanonisk `dorf1.php?newdid=X` + verifieras.** En lagrad/sidebar-URL kan
+  få med extra query-param från sidan den lästes på (t.ex. en byggslots `id=10`). URL:en
+  `?newdid=25471&id=10` navigerar till sajt-roten, som servern serverar som **login-sidan** → ser ut som
+  en utloggning och nästa läsning sker på fel/utloggad sida (fel värden/bygge i fel by). Fix:
+  `CanonicalizeVillageSwitchUrl` reducerar alla switch-URL:er med newdid till `dorf1.php?newdid={id}`, och
+  `SwitchToVillageAsync` verifierar efteråt att vi är `logged_in` (annars `EnsureLoggedInAsync(force)`).
+  Switch drivs alltid av newdid — släng aldrig in andra `id`-param i switch-URL:en.
 - **Login: vänta på full sidladdning + mänsklig pacing.** `LoginAsync`/`TryLoginUsingCurrentPageAsync`
   fyllde användarnamn+lösenord och submittade direkt utan paus, och väntade bara på `DOMContentLoaded`
   efter login → boten bytte sida på en halvladdad sida (såg omänskligt snabb ut) och nästa bakgrundstick

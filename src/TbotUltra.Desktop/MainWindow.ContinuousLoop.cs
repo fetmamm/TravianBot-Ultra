@@ -604,8 +604,9 @@ public partial class MainWindow
             .ToList();
     }
 
-    // Tags a runtime item with its target village so the worker switches there before executing.
-    private static Dictionary<string, string> BuildVillageRuntimePayload(VillageSelectionItem village)
+    // Tags a runtime item with its target village so the worker switches there before executing, and
+    // gates NPC trade per village (master AND per-village both on).
+    private Dictionary<string, string> BuildVillageRuntimePayload(VillageSelectionItem village)
     {
         var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (!string.IsNullOrWhiteSpace(village.Name))
@@ -618,6 +619,7 @@ public partial class MainWindow
             payload[BotOptionPayloadKeys.TargetVillageUrl] = village.Url;
         }
 
+        payload[BotOptionPayloadKeys.NpcTradeEnabled] = IsNpcTradeEnabledForVillageKey(GetVillageKey(village)) ? "true" : "false";
         return payload;
     }
 
