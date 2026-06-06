@@ -829,6 +829,20 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
 
 ## 5. Kända fallgropar / regressions
 
+- **Buildings-tabbens "queued"-färgning måste filtreras per by.** Kön är en-per-konto och varje item är
+  taggat med målby. `PopulateBuildingsTab` byggde pending/queued-per-slot från ALLA byars köitems
+  (`GetActiveQueueItems()` ofiltrerat) → en annan bys köade uppgraderingar färgade samma slotnummer (19-40
+  finns i varje by) och gjorde dem oklickbara. Fix: filtrera köitems med `IsQueueItemForSelectedVillageOrGlobal`
+  i `PopulateBuildingsTab`, och rensa de optimistiska `_buildingLastQueued*BySlot`-cacharna (slot-keyade,
+  ej by-keyade) i `ShowSelectedVillageFromCache` vid bybyte. OBS: resurs-tabbens
+  `GetQueuedResourceTargetsBySlot` har samma ofiltrerade mönster — fixa likadant om samma läckage dyker upp där.
+- **Hero-ikonens away-state (grön=hemma, gul=ute) läses på dorf1.** `NotifyHeroHomeFromDorf1Async`
+  detekterade "away" via en enda widget-ikons klass och tvingade `away=false` så snart klassen innehöll
+  `herohome`. På official Travian behåller ikonen en heroHome-liknande klass medan hjälten är på äventyr →
+  ikonen fastnade grön. Fix: away läses nu från de kanoniska signalerna `heroRunning`/`statusRunning` eller
+  en ankomst-countdown (`.heroStatus .timerReact`/`.heroState .timerReact`), och "home"-signalen
+  (`heroHome`) litar vi bara på när ingen travel-signal finns. Timer-selektorn är scope:ad till hero-boxar
+  så bygg-köns timers inte ger falsk away.
 - **Full status-läsning måste cacha produktionen (annars tom resurs-UI efter by-byte).**
   `ReadCurrentVillageStatusAsync` läste produktion på dorf1 men sparade den INTE i per-by-cachen
   (`SaveCachedVillageResourceSnapshot`) — till skillnad från `ReadCurrentVillageResourceStatusAsync`. Vid

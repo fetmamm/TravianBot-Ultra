@@ -1010,7 +1010,13 @@ public partial class MainWindow
 
         _buildingRows.Clear();
         _demolishableBuildings.Clear();
-        var queueItems = GetActiveQueueItems();
+        // Only this village's queued work may color/disable its slots. The queue is one-per-account with
+        // every item tagged for its target village, so without this filter another village's queued
+        // upgrades light up the same slot numbers here (slots 19-40 exist in every village) and the slot
+        // looks "already queued" so it can't be clicked. Global/untagged items still apply everywhere.
+        var queueItems = GetActiveQueueItems()
+            .Where(IsQueueItemForSelectedVillageOrGlobal)
+            .ToList();
         var queuedConstructsBySlot = GetQueuedBuildingConstructsBySlot(queueItems);
         var queuedConstructGidsBySlot = GetQueuedBuildingConstructGidsBySlot(queueItems);
         var queuedTargetsBySlot = GetQueuedBuildingTargetsBySlot(queueItems);

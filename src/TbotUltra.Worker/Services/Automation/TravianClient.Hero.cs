@@ -182,9 +182,19 @@ public sealed partial class TravianClient
                   const cls = icon ? (icon.className || '').toLowerCase() : '';
                   const m = (widget.getAttribute('href') || '').match(/newdid=(\d+)/);
                   const did = m ? m[1] : null;
-                  let away = /running|away|onadventure|status5/.test(cls);
-                  let dead = /dead|status101|reviv/.test(cls);
-                  if (cls.includes('herohome')) away = false;
+                  // Canonical state signals from the top-bar/sidebar hero status. A travelling hero
+                  // (adventure/attack/returning) shows a heroRunning/statusRunning icon or an arrival
+                  // countdown (.timerReact); a hero standing in its home village shows a heroHome icon.
+                  // These are more reliable than the single widget-icon class, which on official Travian
+                  // can keep a heroHome-like class even while the hero is away — which left the dashboard
+                  // icon stuck on green (home) during adventures.
+                  const runningSignal = !!document.querySelector('i.heroRunning, [class*="heroRunning"], [class*="statusRunning"]')
+                    || !!document.querySelector('.heroStatus .timerReact, .heroState .timerReact');
+                  const homeSignal = !!document.querySelector('i.heroHome, [class*="heroHome"]');
+                  let dead = /dead|status101|reviv/.test(cls) || !!document.querySelector('i.heroDead, [class*="heroDead"]');
+                  let away = runningSignal || /running|away|onadventure|status5/.test(cls);
+                  // Only trust the "home" signal when there is no active travel signal.
+                  if (homeSignal && !runningSignal) away = false;
                   let name = null;
                   if (did) {
                     const entry = document.querySelector('.listEntry.village[data-did="' + did + '"]')

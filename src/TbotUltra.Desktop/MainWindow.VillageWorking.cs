@@ -734,6 +734,12 @@ public partial class MainWindow
             return;
         }
 
+        // The optimistic "just queued" per-slot echoes are keyed by slot only and belong to the village
+        // they were queued from. Drop them when the viewed village changes so they don't paint the same
+        // slot numbers as pending in another village (the queue, filtered per village, remains the truth).
+        _buildingLastQueuedTargetBySlot.Clear();
+        _buildingLastQueuedConstructBySlot.Clear();
+
         var name = NormalizeVillageName(selected.Name);
         if (name is not null && _villageStatusCacheByName.TryGetValue(name, out var cached))
         {
