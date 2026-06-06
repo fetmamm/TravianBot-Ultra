@@ -34,6 +34,9 @@ public sealed class VillageSettingsStore
         // Per-village automation-loop group keys that are enabled. null = no override yet (use the global
         // default). An explicit empty list means "all groups disabled for this village".
         public List<string>? EnabledGroups { get; set; }
+        // Whether NPC trade may run in this village. null = default enabled (true). The account-wide NPC
+        // master toggle (Auto settings) still gates everything: NPC runs only when master AND this are on.
+        public bool? NpcTrade { get; set; }
         public DateTimeOffset LastSeenUtc { get; set; } = DateTimeOffset.UtcNow;
     }
 
@@ -263,6 +266,72 @@ public sealed class VillageSettingsStore
                 .Where(v => v.IsEnabled)
                 .Select(v => (v.Key, (IReadOnlyList<string>?)v.EnabledGroups))
                 .ToList();
+        }
+    }
+
+    /// <summary>
+    /// Whether NPC trade is enabled for a village key (per-village). Unknown keys return
+    /// <paramref name="defaultIfUnknown"/>; villages with no explicit choice default to enabled (true).
+    /// The account-wide NPC master toggle is applied separately by the caller.
+    /// </summary>
+    public bool IsNpcTradeEnabledByKey(string? key, bool defaultIfUnknown)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return defaultIfUnknown;
+        }
+
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+            return _cache.TryGetValue(key, out var existing) ? existing.NpcTrade ?? true : defaultIfUnknown;
+        }
+    }
+
+    /// <summary>Per-village NPC trade flag for the row (defaults to enabled when not yet stored).</summary>
+    public bool GetNpcTrade(VillageKeyInfo village)
+    {
+        return village is not null && !string.IsNullOrWhiteSpace(village.Key)
+            && IsNpcTradeEnabledByKey(village.Key, defaultIfUnknown: true);
+    }
+
+    /// <summary>Sets a village's NPC trade flag and persists it (upserts the record). No-op when unchanged.</summary>
+    public void SetNpcTrade(VillageKeyInfo village, bool enabled)
+    {
+        if (village is null || string.IsNullOrWhiteSpace(village.Key))
+        {
+            return;
+        }
+
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+            if (_cache.TryGetValue(village.Key, out var existing))
+            {
+                if ((existing.NpcTrade ?? true) == enabled)
+                {
+                    return;
+                }
+
+                existing.NpcTrade = enabled;
+                existing.LastSeenUtc = DateTimeOffset.UtcNow;
+            }
+            else
+            {
+                _cache[village.Key] = new VillageSettingRecord
+                {
+                    Key = village.Key,
+                    Name = village.Name,
+                    CoordX = village.CoordX,
+                    CoordY = village.CoordY,
+                    IsCapital = village.IsCapital,
+                    IsEnabled = village.IsCapital,
+                    NpcTrade = enabled,
+                    LastSeenUtc = DateTimeOffset.UtcNow,
+                };
+            }
+
+            Save();
         }
     }
 

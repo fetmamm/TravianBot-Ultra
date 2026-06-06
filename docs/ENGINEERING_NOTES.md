@@ -798,10 +798,39 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   via `ReadHeroAttributesAsync`→`ApplyHeroSnapshotToUi`→`SetHeroState`). Build rent, Worker 324 + Desktop 62
   gröna.
 
+- **2026-06-06** — **Snabb hemmaby-läsning i adventure/HP-pollen.** `client.RefreshAdventureCountAsync`
+  (körs på dorf1 under continuous-loop-polling) anropar nu `NotifyHeroHomeFromDorf1Async`: läser hjälte-
+  widgeten (`.heroStatus a[href*="build.php"][href*="id=39"]` → `newdid` = hemmaby; ikon-klass = state
+  heroHome/heroRunning/dead), mappar newdid→namn via sidomenyns `.listEntry.village[data-did]` och Notifyar
+  `[herohome] away=.. dead=.. name=..`. Desktop parsar raden (`HeroHomeRegex` i `TryApplyPlusStatusFromLog`)
+  → `SetHeroState`. Så hemmabyn/ikonen uppdateras vid varje adventure-poll utan extra navigering, även när
+  attribut-checkboxen är av. Build rent, Worker 326 + Desktop 62 gröna.
+
 ---
 
 ## 5. Kända fallgropar / regressions
 
+- **Login: vänta på full sidladdning + mänsklig pacing.** `LoginAsync`/`TryLoginUsingCurrentPageAsync`
+  fyllde användarnamn+lösenord och submittade direkt utan paus, och väntade bara på `DOMContentLoaded`
+  efter login → boten bytte sida på en halvladdad sida (såg omänskligt snabb ut) och nästa bakgrundstick
+  läste ofta login-state `unknown`. Fix: `FillLoginCredentialsWithPacingAsync` lägger click-pacing
+  (`ActionPacingClickMin/MaxSeconds`) mellan fälten och före submit, och efter login väntar vi på
+  `LoadState.Load` + page-load-pacing. Allt styrs av befintliga pacing-inställningar (av när action-pacing
+  är av).
+- **`unknown` login-state är en godartad ladd-race, inte ett larm.** En sida som läses mitt i en
+  navigering ger `LoginStateAsync()=="unknown"` → `EnsureLoggedInAsync` kastar "Not logged in. Current page
+  state is 'unknown'." Det självläker nästa tick. Bakgrunds-resurs-refreshen loggar nu detta specifika fall
+  som `[resource-refresh:verbose]` (icke-larm) via `IsTransientPageSettlingFailure`; captcha/manual_step/
+  logged_out förblir larm.
+
+- **Byggkö-fingerprint får inte innehålla nedräkningstimer:** `BuildQueueIdentityFingerprint` byggde
+  identiteten på `BuildQueueItem.Text`, som innehåller den live tickande timern (`0:08:12`). Då ändrades
+  fingeravtrycket vid varje läsning → `WaitForResourceLevelAdvanceAsync` tolkade det som "queue changed"
+  → falskt `queued=True` efter ett klick som inte gjorde något (kö full). Resultat: `upgrade_all_resources_
+  to_level` hoppade förbi defer-grenen och navigerade om till `build.php?id=N` i all oändlighet (spam var
+  ~5:e sek när bara ett fält återstod under mål). Fix: `StripQueueTimerTokens` tar bort tid/nedräkning ur
+  texten så identiteten bara speglar VILKA items som köar (namn+nivå). OBS: `BuildQueueFingerprint`
+  (byggnadsflödet) inkluderar fortfarande `TimeLeft` medvetet — rör inte utan att verifiera samma risk.
 - **Single-file + Playwright-driver (portable):** `PublishSingleFile=true` bäddar in
   `.playwright\node\win32_x64\node.exe` i exe:n istället för att lägga den löst → portable-mappen
   saknar drivern och Playwright kraschar med `Driver not found` (letar dessutom på fel plats, t.ex.

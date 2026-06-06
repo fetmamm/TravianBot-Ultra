@@ -3795,7 +3795,27 @@ public sealed partial class TravianClient
             " || ",
             queue
                 .Take(5)
-                .Select(item => item.Text.Trim()));
+                .Select(item => StripQueueTimerTokens(item.Text)));
+    }
+
+    // The build-queue row text contains a live countdown timer (e.g. "0:08:12") and/or a completion
+    // clock that change on every read. Including them made the queue fingerprint differ each poll,
+    // which WaitForResourceLevelAdvanceAsync misread as "queue changed" -> a false queued=True after a
+    // click that actually did nothing (queue full), spinning the upgrade loop. Strip time-like tokens
+    // so the fingerprint only reflects WHICH items are queued (name + level), not their remaining time.
+    private static readonly Regex QueueTimerTokenRegex = new(
+        @"\b\d{1,3}:\d{1,2}(?::\d{1,2})?\b|\b\d{1,4}\s*(?:h|hours?|m|min|mins?|minutes?|s|sec|secs?|seconds?)\b",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    internal static string StripQueueTimerTokens(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return string.Empty;
+        }
+
+        var stripped = QueueTimerTokenRegex.Replace(text, " ");
+        return Regex.Replace(stripped, @"\s+", " ").Trim();
     }
 
     internal static IReadOnlyList<Building> ParseBuildingOverviewHtmlForTests(string html)

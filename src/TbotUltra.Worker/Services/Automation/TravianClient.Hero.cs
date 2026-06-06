@@ -152,7 +152,73 @@ public sealed partial class TravianClient
         }
 
         Notify($"Adventures on current page: {sidebar.AdventureCount}.");
+        // We're on dorf1 here; cheaply read the hero home village + state from the hero widget (no extra
+        // navigation) and surface it so the dashboard hero icon updates during normal polling too.
+        await NotifyHeroHomeFromDorf1Async(cancellationToken);
         return sidebar.AdventureCount;
+    }
+
+    // Reads the hero home village + away/dead state from the dorf1 hero widget (the rally-point link in the
+    // hero box points to the hero's HOME village; the icon class shows the state). Emits a [herohome] log
+    // line the desktop parses. Best-effort: silent when the widget/village name isn't present.
+    private async Task NotifyHeroHomeFromDorf1Async(CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+        try
+        {
+            var raw = await _page.EvaluateAsync<string?>(
+                """
+                () => {
+                  const clean = (v) => (v || '')
+                    .replace(/[‪-‮⁦-⁩‎‏]/g, '')
+                    .replace(/−/g, '-')
+                    .replace(/\s+/g, ' ')
+                    .replace(/\s*\(?-?\d+\s*[|｜]\s*-?\d+\)?\s*$/, '')
+                    .trim();
+                  const widget = document.querySelector('.heroStatus a[href*="build.php"][href*="id=39"]')
+                              || document.querySelector('a[href*="build.php"][href*="id=39"]');
+                  if (!widget) return null;
+                  const icon = widget.querySelector('i') || document.querySelector('.heroStatus i');
+                  const cls = icon ? (icon.className || '').toLowerCase() : '';
+                  const m = (widget.getAttribute('href') || '').match(/newdid=(\d+)/);
+                  const did = m ? m[1] : null;
+                  let away = /running|away|onadventure|status5/.test(cls);
+                  let dead = /dead|status101|reviv/.test(cls);
+                  if (cls.includes('herohome')) away = false;
+                  let name = null;
+                  if (did) {
+                    const entry = document.querySelector('.listEntry.village[data-did="' + did + '"]')
+                               || document.querySelector('[data-did="' + did + '"]');
+                    if (entry) {
+                      const nameEl = entry.querySelector('.villageName .name, .name, .villageName');
+                      if (nameEl) name = clean(nameEl.textContent);
+                    }
+                  }
+                  if (!name) return null;
+                  return JSON.stringify({ name: name, away: away, dead: dead });
+                }
+                """);
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return;
+            }
+
+            using var doc = System.Text.Json.JsonDocument.Parse(raw);
+            var root = doc.RootElement;
+            var name = root.TryGetProperty("name", out var n) ? n.GetString() : null;
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return;
+            }
+
+            var away = root.TryGetProperty("away", out var a) && a.GetBoolean();
+            var dead = root.TryGetProperty("dead", out var d) && d.GetBoolean();
+            Notify($"[herohome] away={(away ? "true" : "false")} dead={(dead ? "true" : "false")} name={name.Trim()}");
+        }
+        catch
+        {
+            // Best-effort: the dashboard keeps the last-known home village.
+        }
     }
 
     private async Task<HeroQuickStatus> ReadHeroQuickStatusAsync(

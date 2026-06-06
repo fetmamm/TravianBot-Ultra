@@ -225,8 +225,7 @@ public sealed partial class TravianClient
             }
         }
 
-        await FillFirstAvailableAsync(Selectors.LoginUsernameField, _account.Username, cancellationToken);
-        await FillFirstAvailableAsync(Selectors.LoginPasswordField, _account.Password, cancellationToken);
+        await FillLoginCredentialsWithPacingAsync(cancellationToken);
 
         if (await CaptchaOrManualStepVisibleAsync())
         {
@@ -262,12 +261,26 @@ public sealed partial class TravianClient
         {
             throw new InvalidOperationException("Login did not complete successfully.");
         }
-        // Vänta på att dorf1 sidan laddat färdigt.
+        // Wait for the post-login landing page (dorf1) to fully render before any task navigates
+        // away. DOMContentLoaded alone fires before stylesheets/scripts finish, which made the bot
+        // switch pages on a half-loaded page and also produced transient 'unknown' login-state reads
+        // on the next tick. Wait for the full Load state, then apply the configurable page-load pace.
         try
         {
-            await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+            await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded, new PageWaitForLoadStateOptions
+            {
+                Timeout = _config.TimeoutMs,
+            });
+            await _page.WaitForLoadStateAsync(LoadState.Load, new PageWaitForLoadStateOptions
+            {
+                Timeout = _config.TimeoutMs,
+            });
             Notify("[login] page successfully loaded.");
-            await Task.Delay(Random.Shared.Next(100, 401), cancellationToken);
+            await ActionPacer.FromOptions(_config, Notify).DelayAsync(
+                _config.ActionPacingPageLoadMinSeconds,
+                _config.ActionPacingPageLoadMaxSeconds,
+                cancellationToken,
+                "login: after page load");
         }
         catch
         {
@@ -353,8 +366,7 @@ public sealed partial class TravianClient
 
         Notify($"[login] form already on current page — submitting inline for {_account.Name}");
 
-        await FillFirstAvailableAsync(Selectors.LoginUsernameField, _account.Username, cancellationToken);
-        await FillFirstAvailableAsync(Selectors.LoginPasswordField, _account.Password, cancellationToken);
+        await FillLoginCredentialsWithPacingAsync(cancellationToken);
 
         if (await CaptchaOrManualStepVisibleAsync())
         {
@@ -1558,6 +1570,19 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             Notify("Page navigated while checking login state. State is unknown.");
             return "unknown";
         }
+    }
+
+    // Fills the login form the way a person would: type the username, pause briefly, type the
+    // password, pause again before submitting. A short random 100-200ms wait between the steps is
+    // enough to avoid the instant fill+submit look. Shared by the dedicated login page flow and the
+    // inline "form already on page" flow.
+    private async Task FillLoginCredentialsWithPacingAsync(CancellationToken cancellationToken)
+    {
+        await FillFirstAvailableAsync(Selectors.LoginUsernameField, _account.Username, cancellationToken);
+        await Task.Delay(Random.Shared.Next(100, 201), cancellationToken);
+
+        await FillFirstAvailableAsync(Selectors.LoginPasswordField, _account.Password, cancellationToken);
+        await Task.Delay(Random.Shared.Next(100, 201), cancellationToken);
     }
 
     private async Task FillFirstAvailableAsync(IEnumerable<string> selectors, string value, CancellationToken cancellationToken)

@@ -906,7 +906,7 @@
                                                 <ColumnDefinition Width="56" />
                                                 <ColumnDefinition Width="84" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="Villages" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                            <TextBlock Grid.Column="0" Text="Village overview" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="8,0,0,0" />
                                             <TextBlock Grid.Column="1" Text="Buildings" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="4,0,0,0" />
                                             <TextBlock Grid.Column="2" Text="Queue" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="2,0,0,0" />
                                             <TextBlock Grid.Column="3" Text="Smithy" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="4,0,0,0" />
@@ -948,8 +948,24 @@
                                                             <!-- Capital villages get a gold box around the name instead of a
                                                                  separate "Capital" badge. Padding is kept on non-capital rows
                                                                  too (transparent box) so names stay vertically aligned. -->
-                                                            <Border Grid.Column="0"
-                                                                    HorizontalAlignment="Left"
+                                                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                                                <!-- Enabled indicator: green = village is processed by the bot, grey = skipped. -->
+                                                                <Ellipse Width="10" Height="10" Margin="2,0,6,0" VerticalAlignment="Center">
+                                                                    <Ellipse.Style>
+                                                                        <Style TargetType="Ellipse">
+                                                                            <Setter Property="Fill" Value="{DynamicResource BorderMutedBrush}" />
+                                                                            <Setter Property="ToolTip" Value="Village disabled (skipped by the bot)" />
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsEnabledForAutomation}" Value="True">
+                                                                                    <Setter Property="Fill" Value="{DynamicResource SuccessBrush}" />
+                                                                                    <Setter Property="ToolTip" Value="Village enabled (processed by the bot)" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Ellipse.Style>
+                                                                </Ellipse>
+                                                                <!-- Capital villages get a gold box around the name instead of a separate badge. -->
+                                                                <Border HorizontalAlignment="Left"
                                                                     VerticalAlignment="Center"
                                                                     Padding="7,1"
                                                                     CornerRadius="6"
@@ -981,7 +997,8 @@
                                                                         </Style>
                                                                     </TextBlock.Style>
                                                                 </TextBlock>
-                                                            </Border>
+                                                                </Border>
+                                                            </StackPanel>
                                                             <TextBlock Grid.Column="6" Text="{Binding PopText}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" Margin="8,0,0,0" VerticalAlignment="Center" />
                                                             <TextBlock Grid.Column="7" Text="{Binding CoordsText}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" Margin="8,0,0,0" VerticalAlignment="Center" />
 
