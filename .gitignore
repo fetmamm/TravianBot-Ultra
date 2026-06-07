@@ -35,3 +35,6 @@ artifacts/
 # --- Claude tooling ---
 /.claude
 .claude/worktrees/kind-cori-d469bc/
+
+# --- Other
+docs/CODING_FETMAMM.md

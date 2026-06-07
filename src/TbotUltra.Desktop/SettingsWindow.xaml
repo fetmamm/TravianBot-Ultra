@@ -199,28 +199,52 @@
                                 </ComboBox>
                             </Grid>
 
-                            <TextBlock Text="After login"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                       Margin="0,14,0,6" />
-                            <TextBlock Text="Optional extra reads to run after login. Existing post-login actions are always kept."
-                                       Foreground="{DynamicResource MutedSlateBrush}"
-                                       TextWrapping="Wrap"
-                                       Margin="0,0,0,8" />
-                            <CheckBox x:Name="PostLoginAnalyzeFarmlistsCheckBox"
-                                      Margin="0,0,0,8"
-                                      Content="Analyze farmlists" />
-                            <CheckBox x:Name="PostLoginAnalyzeHeroCheckBox"
-                                      Margin="0,0,0,8"
-                                      Content="Analyze hero attributes" />
-                            <CheckBox x:Name="PostLoginAnalyzeHeroInventoryCheckBox"
-                                      Margin="0,0,0,8"
-                                      Content="Analyze hero inventory" />
-                            <CheckBox x:Name="PostLoginReadTroopTrainingQueueCheckBox"
-                                      Margin="0,0,0,8"
-                                      Content="Read troop training queue (Barracks, Stable, Workshop)" />
-                            <CheckBox x:Name="PostLoginAnalyzeBreweryCheckBox"
-                                      Content="Analyze brewery" />
+                            <StackPanel Orientation="Horizontal" Margin="0,14,0,8">
+                                <TextBlock Text="After login"
+                                        FontWeight="SemiBold"
+                                        Foreground="{DynamicResource TextPrimaryBrush}"
+                                        VerticalAlignment="Center" />
+
+                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                Margin="6,0,0,0"
+                                                ToolTip="Optional extra analyzing-functions to run after login.
+                                                (This is optional)" />
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <CheckBox x:Name="PostLoginAnalyzeFarmlistsCheckBox"
+                                        Content="Analyze farmlists" />
+                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                ToolTip="Reads all configured farmlists and updates local data." />
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <CheckBox x:Name="PostLoginAnalyzeHeroCheckBox"
+                                        Content="Analyze hero attributes" />
+                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                ToolTip="Reads the hero attribute values and updates local data." />
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <CheckBox x:Name="PostLoginAnalyzeHeroInventoryCheckBox"
+                                        Content="Analyze hero inventory" />
+                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                ToolTip="Reads hero inventory resources and items." />
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <CheckBox x:Name="PostLoginReadTroopTrainingQueueCheckBox"
+                                        Content="Read troop training queue" />
+                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                ToolTip="Reads current troop training queues from: &#10;Barracks &#10;Stable &#10;Workshop"/>
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal">
+                                <CheckBox x:Name="PostLoginAnalyzeBreweryCheckBox"
+                                        Content="Analyze brewery" />
+                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                ToolTip="Reads brewery level and current bonus information/timer." />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 
