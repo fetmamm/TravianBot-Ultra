@@ -61,7 +61,7 @@ public partial class SettingsWindow : Window
     {
         try
         {
-            _config["headless"] = HeadlessCheckBox.IsChecked == true;
+            _config["headless"] = HeadlessCheckBox.IsChecked == false; // False tills vidare så det inte går starta i headless
             _config["allow_silver_spending"] = AllowSilverSpendingCheckBox.IsChecked == true;
             SavePacingConfigFromUi();
             _config[BotOptionPayloadKeys.QueueWaitThresholdMode] = GetSelectedQueueWaitThresholdMode();
