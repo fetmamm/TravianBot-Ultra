@@ -95,6 +95,21 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
 
 ## 4. Beslutslogg (ADR — append-only)
 
+- **2026-06-07** — **Byggnads-kö: sluta slå ihop nivå-uppgraderingar + krav-medveten kö + kaskad-borttagning.**
+  Rotorsak (rapporterad bugg): `EnqueueBuildingUpgradeTaskCoalesced` (`MainWindow.Buildings.Queueing.cs`)
+  slog ihop alla `upgrade_building_to_level` för samma slot till EN max-nivå och **skapade ett nytt item
+  sist i kön** → MB→3 hamnade efter byggnader som krävde MB3. Fix: (1) nivå-uppgraderingar slås **inte**
+  längre ihop — varje köas som eget item på sin köplats (samma byggnad kan köas flera gånger, t.ex. MB→3 nu,
+  MB→10 senare). Endast `upgrade_building_to_max` dedupliceras per slot (två max är meningslöst). Workerns
+  `UpgradeBuildingToLevelAsync` loopar redan upp till target, så MB→3 följt av MB→10 bygger 1→3 sedan 3→10.
+  (2) En köad (ej byggd) `construct_building` räknas nu som **nivå 1** mot krav i `MissingRequirements`
+  (ny `QueuedConstructProvidesRequirement`) — så en köad kravbyggnad låser upp den beroende byggnaden
+  (construct+upgrade-kedjor täcktes redan av projektionen). (3) Ny `CascadeRemoveUnsatisfiedBuildingQueueItems`
+  körs efter manuell köborttagning (`QueueRemoveButton_Click`): tar bort construct-items vars krav inte längre
+  uppfylls (built + kvarvarande kö) och föräldralösa uppgraderingar (tom slot utan köad construct), kaskadat
+  tills kön är stabil. Projektionen (`BuildProjectedBuildingStatus`) tar redan max-target över flera köade
+  upgrades per slot. Endast vald by + by-lösa items berörs (kräver `_lastBuildingStatus`).
+
 - **2026-06-07** — **Hero-inventory "Max use limit" (per resurs).** Ny toggle (default på) + fält (default
   5000) i Hero/Adventures inventory-kortet (`HeroViewModel.HeroResourceMaxUseEnabled/PerResource`,
   config-nycklar `hero_resource_max_use_*`). Worker: `TryHeroResourceTransferForConstructionAsync` läser

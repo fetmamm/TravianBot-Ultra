@@ -1230,7 +1230,12 @@ public partial class MainWindow
                 .DefaultIfEmpty(0)
                 .Max();
             var fromUiResourceRows = MaxLevelInUiResourceRows(requirement.Name);
-            var level = Math.Max(Math.Max(fromBuildings, fromResourceFields), fromUiResourceRows);
+            // A queued (not yet built) construct of the required building counts as level 1: constructing
+            // a building yields level 1 in-game, so queuing a prerequisite building should already unlock
+            // the dependent one. Construct+upgrade chains are covered by projectedStatus above (the upgrade
+            // projects the target level onto the constructed slot); this only adds the lone-construct case.
+            var fromQueuedConstructs = QueuedConstructProvidesRequirement(requirement.Name) ? 1 : 0;
+            var level = Math.Max(Math.Max(fromBuildings, fromResourceFields), Math.Max(fromUiResourceRows, fromQueuedConstructs));
             if (level < requirement.Level)
             {
                 missing.Add(requirement);
@@ -1238,6 +1243,21 @@ public partial class MainWindow
         }
 
         return missing;
+    }
+
+    private bool QueuedConstructProvidesRequirement(string requirementName)
+    {
+        if (string.IsNullOrWhiteSpace(requirementName))
+        {
+            return false;
+        }
+
+        return GetActiveQueueItems()
+            .Where(IsQueueItemForSelectedVillageOrGlobal)
+            .Where(item => string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase))
+            .Any(item => TryReadBuildingConstructPayload(item.Payload, out _, out _, out var name)
+                && !string.IsNullOrWhiteSpace(name)
+                && name.Contains(requirementName, StringComparison.OrdinalIgnoreCase));
     }
 
     private int MaxLevelInUiResourceRows(string requirementName)

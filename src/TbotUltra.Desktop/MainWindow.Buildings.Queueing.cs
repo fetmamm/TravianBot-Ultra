@@ -81,6 +81,104 @@ public partial class MainWindow
             && TryReadBuildingUpgradePayload(item.Payload, out slotId, out _);
     }
 
+    // After a queue item is removed, queued buildings can lose a prerequisite (e.g. removing Main
+    // Building level 3 leaves a queued Barracks construct that can no longer be built, or removing a
+    // construct orphans the upgrades queued for that empty slot). Re-validate the remaining building
+    // items for the selected village and remove the ones that are no longer buildable. Cascades: removing
+    // one prerequisite can invalidate others, so re-scan until the queue is stable.
+    private void CascadeRemoveUnsatisfiedBuildingQueueItems()
+    {
+        if (_lastBuildingStatus is null)
+        {
+            return;
+        }
+
+        var removedAny = false;
+        bool removedThisPass;
+        do
+        {
+            removedThisPass = false;
+            var items = GetActiveQueueItems()
+                .Where(IsQueueItemForSelectedVillageOrGlobal)
+                .ToList();
+
+            foreach (var item in items)
+            {
+                if (!TryGetUnsatisfiedBuildingRemovalReason(item, out var reason))
+                {
+                    continue;
+                }
+
+                if (_botService.RemoveQueueItem(item.Id))
+                {
+                    ForgetBuildingQueueCachesForItem(item);
+                    AppendLog($"Removed queued {item.TaskName}: {reason}");
+                    removedThisPass = true;
+                    removedAny = true;
+                    break; // queue changed — rebuild the projection and re-scan from the top.
+                }
+            }
+        }
+        while (removedThisPass);
+
+        if (removedAny)
+        {
+            RefreshQueueUi();
+        }
+    }
+
+    private bool TryGetUnsatisfiedBuildingRemovalReason(QueueItem item, out string reason)
+    {
+        reason = string.Empty;
+
+        // Construct: its catalog requirements must still be met (by built levels or remaining queued work).
+        if (string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase)
+            && TryReadBuildingConstructPayload(item.Payload, out var constructSlotId, out var gid, out _))
+        {
+            var requirements = BuildingCatalogService.RequirementsFor(gid);
+            if (requirements.Count == 0)
+            {
+                return false;
+            }
+
+            var missing = MissingRequirements(_lastBuildingStatus!, requirements);
+            if (missing.Count > 0)
+            {
+                reason = $"slot {constructSlotId} requirement no longer met ({string.Join(", ", missing.Select(req => $"{req.Name} {req.Level}+"))}).";
+                return true;
+            }
+
+            return false;
+        }
+
+        // Upgrade: only an orphaned upgrade (slot is empty AND no construct is queued for it) is removed.
+        // Upgrades of already-built buildings don't need their construction requirements re-checked.
+        if ((string.Equals(item.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(item.TaskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase))
+            && TryReadBuildingUpgradePayload(item.Payload, out var upgradeSlotId, out _))
+        {
+            var slotIsBuilt = _lastBuildingStatus!.Buildings
+                .Any(b => b.SlotId == upgradeSlotId && (b.Level ?? 0) > 0);
+            if (slotIsBuilt)
+            {
+                return false;
+            }
+
+            var constructQueuedForSlot = GetActiveQueueItems()
+                .Where(IsQueueItemForSelectedVillageOrGlobal)
+                .Any(other => string.Equals(other.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase)
+                    && TryReadBuildingConstructPayload(other.Payload, out var otherSlotId, out _, out _)
+                    && otherSlotId == upgradeSlotId);
+            if (!constructQueuedForSlot)
+            {
+                reason = $"slot {upgradeSlotId} is empty and no construct is queued for it.";
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private void ForgetBuildingQueueCachesForItem(QueueItem item)
     {
         if (TryReadBuildingUpgradePayload(item.Payload, out var upgradeSlotId, out _))
@@ -177,65 +275,28 @@ public partial class MainWindow
         out bool enqueued,
         out int removedCount)
     {
-        var relatedItems = _botService.GetQueueItemsForDisplay()
-            .Where(item =>
-                (string.Equals(item.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(item.TaskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase))
-                && IsActiveQueueStatus(item.Status))
-            .Select(item =>
-            {
-                var parsed = TryReadBuildingUpgradePayload(item.Payload, out var parsedSlotId, out var parsedTargetLevel);
-                return new
-                {
-                    Item = item,
-                    Parsed = parsed,
-                    SlotId = parsedSlotId,
-                    TargetLevel = parsedTargetLevel,
-                    IsMax = string.Equals(item.TaskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase),
-                };
-            })
-            // Coalesce only against the SAME village's queued items. The new item is tagged for the
-            // selected village (ApplySelectedVillageToPayload below), so without this filter another
-            // village's queued upgrade for the same slot number made highestExistingTarget block the
-            // enqueue ("already has a queued upgrade") and nothing was added — the slot looked dead.
-            .Where(item => item.Parsed && item.SlotId == slotId && IsQueueItemForSelectedVillageOrGlobal(item.Item))
-            .ToList();
-
-        var existingMax = relatedItems.FirstOrDefault(item => item.IsMax);
-        var highestExistingTarget = relatedItems
-            .Where(item => item.TargetLevel.HasValue)
-            .Select(item => item.TargetLevel!.Value)
-            .DefaultIfEmpty(0)
-            .Max();
-        effectiveTargetLevel = requestedTargetLevel.HasValue
-            ? Math.Max(requestedTargetLevel.Value, highestExistingTarget)
-            : highestExistingTarget > 0 ? highestExistingTarget : null;
+        // Regular "upgrade to level N" items are intentionally NOT merged: each keeps its own queue
+        // position so intermediate levels that later queued buildings depend on (e.g. Main Building
+        // level 3 before a Barracks) are built in order, and the same building can be queued several
+        // times (e.g. MB->3 now, MB->10 later). Only "upgrade to max" is deduplicated per slot, since a
+        // second max for the same slot would be redundant.
+        removedCount = 0;
+        effectiveTargetLevel = requestedTargetLevel;
 
         if (string.Equals(taskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase))
         {
+            var existingMax = _botService.GetQueueItemsForDisplay()
+                .Where(item => string.Equals(item.TaskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase)
+                    && IsActiveQueueStatus(item.Status)
+                    && IsQueueItemForSelectedVillageOrGlobal(item))
+                .FirstOrDefault(item => TryReadBuildingUpgradePayload(item.Payload, out var existingSlotId, out _)
+                    && existingSlotId == slotId);
             if (existingMax is not null)
             {
                 enqueued = false;
-                removedCount = 0;
-                return existingMax.Item;
+                return existingMax;
             }
         }
-        else if (requestedTargetLevel.HasValue)
-        {
-            if (existingMax is not null || highestExistingTarget >= requestedTargetLevel.Value)
-            {
-                enqueued = false;
-                removedCount = 0;
-                return relatedItems
-                    .OrderByDescending(item => item.IsMax)
-                    .ThenByDescending(item => item.TargetLevel ?? 0)
-                    .ThenBy(item => item.Item.CreatedAt)
-                    .Select(item => item.Item)
-                    .FirstOrDefault();
-            }
-        }
-
-        removedCount = RemoveCoalescedQueueItems(relatedItems.Select(item => item.Item), ForgetBuildingQueueCachesForItem);
 
         if (effectiveTargetLevel.HasValue)
         {

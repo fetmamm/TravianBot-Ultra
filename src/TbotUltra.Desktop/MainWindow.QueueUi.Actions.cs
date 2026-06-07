@@ -67,6 +67,9 @@ public partial class MainWindow
             }
 
             AppendLog($"Queue item removed: {selected.TaskName}.");
+            // Removing a prerequisite (e.g. a Main Building upgrade or a prerequisite construct) can leave
+            // dependent building tasks that can no longer be built — drop them too. Also refreshes the UI.
+            CascadeRemoveUnsatisfiedBuildingQueueItems();
             RefreshQueueUi();
             return;
         }
