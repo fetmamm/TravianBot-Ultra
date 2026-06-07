@@ -1170,6 +1170,7 @@
                                                                                 <MultiDataTrigger.Conditions>
                                                                                     <Condition Binding="{Binding IsHeroHome}" Value="True" />
                                                                                     <Condition Binding="{Binding IsHeroAway}" Value="False" />
+                                                                                    <Condition Binding="{Binding IsHeroReviving}" Value="False" />
                                                                                     <Condition Binding="{Binding IsHeroDead}" Value="False" />
                                                                                 </MultiDataTrigger.Conditions>
                                                                                 <Setter Property="Background" Value="{DynamicResource SuccessBrush}" />
@@ -1180,6 +1181,11 @@
                                                                                 <Setter Property="Background" Value="{DynamicResource WarningBrush}" />
                                                                                 <Setter Property="BorderBrush" Value="{DynamicResource WarningBorderBrush}" />
                                                                                 <Setter Property="ToolTip" Value="Hero home village (hero is away)" />
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding IsHeroReviving}" Value="True">
+                                                                                <Setter Property="Background" Value="{DynamicResource RevivingBrush}" />
+                                                                                <Setter Property="BorderBrush" Value="{DynamicResource RevivingBorderBrush}" />
+                                                                                <Setter Property="ToolTip" Value="Hero home village (hero is reviving)" />
                                                                             </DataTrigger>
                                                                             <DataTrigger Binding="{Binding IsHeroDead}" Value="True">
                                                                                 <Setter Property="Background" Value="{DynamicResource DangerBrush}" />

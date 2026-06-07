@@ -35,6 +35,8 @@ public static class BotOptionsPayloadApplier
         var collectStepDelayMinMs = source.CollectStepDelayMinMs;
         var collectStepDelayMaxMs = source.CollectStepDelayMaxMs;
         var heroResourceTransferEnabled = source.HeroResourceTransferEnabled;
+        var heroResourceMaxUseEnabled = source.HeroResourceMaxUseEnabled;
+        var heroResourceMaxUsePerResource = source.HeroResourceMaxUsePerResource;
         var upgradeSelectorProfile = source.UpgradeSelectorProfile;
         var natarVillageSelection = source.NatarVillageSelection;
         var continuousFarmListNames = source.ContinuousFarmListNames;
@@ -319,6 +321,20 @@ public static class BotOptionsPayloadApplier
                     && bool.TryParse(value, out var heroResourceTransfer))
                 {
                     heroResourceTransferEnabled = heroResourceTransfer;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.HeroResourceMaxUseEnabled, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var heroResourceMaxUse))
+                {
+                    heroResourceMaxUseEnabled = heroResourceMaxUse;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.HeroResourceMaxUsePerResource, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var heroResourceMaxUseAmount))
+                {
+                    heroResourceMaxUsePerResource = Math.Max(0, heroResourceMaxUseAmount);
                     continue;
                 }
 
@@ -1015,6 +1031,8 @@ public static class BotOptionsPayloadApplier
             CollectStepDelayMinMs = collectStepDelayMinMs,
             CollectStepDelayMaxMs = collectStepDelayMaxMs,
             HeroResourceTransferEnabled = heroResourceTransferEnabled,
+            HeroResourceMaxUseEnabled = heroResourceMaxUseEnabled,
+            HeroResourceMaxUsePerResource = heroResourceMaxUsePerResource,
             UpgradeSelectorProfile = upgradeSelectorProfile,
             NatarVillageSelection = natarVillageSelection,
         };

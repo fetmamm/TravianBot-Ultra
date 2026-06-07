@@ -65,11 +65,18 @@
     <SolidColorBrush x:Key="HeroAdvBorderBrush" Color="#238636" />
 
     <!-- ===== Status: warning / timer (amber) ===== -->
+    <!-- Solid amber fill (parallel to SuccessBrush). Used e.g. for the "hero away" icon background;
+         without it that DynamicResource lookup failed and the fill setter was a silent no-op. -->
+    <SolidColorBrush x:Key="WarningBrush" Color="#D29922" />
     <SolidColorBrush x:Key="WarningButtonBgBrush" Color="#BB8009" />
     <SolidColorBrush x:Key="WarningBorderBrush" Color="#D29922" />
     <SolidColorBrush x:Key="WarningBgBrush" Color="#2A2008" />
     <SolidColorBrush x:Key="WarningTextBrush" Color="#E3B341" />
     <SolidColorBrush x:Key="OnWarningBrush" Color="#0D1117" />            <!-- dark text on amber controls -->
+
+    <!-- ===== Status: reviving (orange) — hero icon while reviving, between away and dead ===== -->
+    <SolidColorBrush x:Key="RevivingBrush" Color="#DB6D28" />
+    <SolidColorBrush x:Key="RevivingBorderBrush" Color="#BD561D" />
 
     <!-- ===== Status: info / active (blue) ===== -->
     <SolidColorBrush x:Key="InfoBrush" Color="#58A6FF" />

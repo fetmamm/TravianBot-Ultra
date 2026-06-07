@@ -59,6 +59,11 @@ public static class BotOptionPayloadKeys
     public const string CollectStepDelayMinMs = "collect_step_delay_min_ms";
     public const string CollectStepDelayMaxMs = "collect_step_delay_max_ms";
     public const string HeroResourceTransferEnabled = "hero_resource_transfer_enabled";
+    // Caps how much may be pulled from the hero inventory per resource for a single construction
+    // top-up. When the needed amount for any resource exceeds the limit, the transfer is skipped and
+    // the build waits until the village has accumulated enough that the hero share fits the limit.
+    public const string HeroResourceMaxUseEnabled = "hero_resource_max_use_enabled";
+    public const string HeroResourceMaxUsePerResource = "hero_resource_max_use_per_resource";
     public const string ContinuousFarmListNames = "continuous_farm_list_names";
     // Stable Travian farm-list ids (lid) for the selected lists. Persisted alongside the names so
     // the selection survives a village/list rename: the name changes on Travian but the lid does not.

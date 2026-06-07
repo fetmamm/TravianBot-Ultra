@@ -88,6 +88,24 @@ public sealed class VillageSelectionItem : INotifyPropertyChanged
         }
     }
 
+    // True only for the hero's home village AND when the hero is reviving. Drives the orange hero icon
+    // (between away/yellow and dead/red).
+    private bool _isHeroReviving;
+    public bool IsHeroReviving
+    {
+        get => _isHeroReviving;
+        set
+        {
+            if (_isHeroReviving == value)
+            {
+                return;
+            }
+
+            _isHeroReviving = value;
+            OnPropertyChanged();
+        }
+    }
+
     // True only for the hero's home village AND when the hero is dead. Drives the red hero icon (overrides
     // the green/yellow states).
     private bool _isHeroDead;

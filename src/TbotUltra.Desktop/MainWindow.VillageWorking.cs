@@ -41,20 +41,22 @@ public partial class MainWindow
     // a time). Drives the green/yellow/dark Hero icon in the Dashboard village list.
     private string? _heroHomeVillageName;
 
-    // Hero icon state for the home village: away (yellow) and dead (red, overrides). Dark = not the hero
-    // village, green = hero home and alive.
+    // Hero icon state for the home village: away (yellow), reviving (orange), dead (red, overrides). Dark =
+    // not the hero village, green = hero home and alive.
     private bool _heroIsAway;
     private bool _heroIsDead;
+    private bool _heroIsReviving;
 
-    // Records the hero home village + away/dead state and repaints the Dashboard hero indicators. A null
-    // name keeps the last-known home village (e.g. when the hero is on an adventure and the page no longer
-    // names a village) so the dead/away flag can still color the right row. No-op when nothing changed.
-    private void SetHeroState(string? name, bool isAway, bool isDead)
+    // Records the hero home village + away/dead/reviving state and repaints the Dashboard hero indicators. A
+    // null name keeps the last-known home village (e.g. when the hero is on an adventure and the page no
+    // longer names a village) so the flags can still color the right row. No-op when nothing changed.
+    private void SetHeroState(string? name, bool isAway, bool isDead, bool isReviving = false)
     {
         var normalized = NormalizeVillageName(name) ?? _heroHomeVillageName;
         if (string.Equals(_heroHomeVillageName, normalized, StringComparison.OrdinalIgnoreCase)
             && _heroIsAway == isAway
-            && _heroIsDead == isDead)
+            && _heroIsDead == isDead
+            && _heroIsReviving == isReviving)
         {
             return;
         }
@@ -63,7 +65,8 @@ public partial class MainWindow
         _heroHomeVillageName = normalized;
         _heroIsAway = isAway;
         _heroIsDead = isDead;
-        AppendLog($"[hero] home village='{_heroHomeVillageName ?? "(unknown)"}' away={isAway} dead={isDead} — updating dashboard hero icons.");
+        _heroIsReviving = isReviving;
+        AppendLog($"[hero] home village='{_heroHomeVillageName ?? "(unknown)"}' away={isAway} dead={isDead} reviving={isReviving} — updating dashboard hero icons.");
 
         // Remember the last-read home village across restarts (per account). Only persist a real name.
         if (homeChanged && _heroHomeVillageName is not null)
@@ -150,8 +153,10 @@ public partial class MainWindow
                 && heroHome is not null
                 && string.Equals(name, heroHome, StringComparison.OrdinalIgnoreCase);
             item.IsHeroHome = isHeroVillage;
-            item.IsHeroAway = isHeroVillage && _heroIsAway && !_heroIsDead;
+            // Priority: dead (red) > reviving (orange) > away (yellow) > home (green).
             item.IsHeroDead = isHeroVillage && _heroIsDead;
+            item.IsHeroReviving = isHeroVillage && _heroIsReviving && !_heroIsDead;
+            item.IsHeroAway = isHeroVillage && _heroIsAway && !_heroIsDead && !_heroIsReviving;
         }
     }
 

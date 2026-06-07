@@ -95,6 +95,18 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
 
 ## 4. Beslutslogg (ADR — append-only)
 
+- **2026-06-07** — **Hero-inventory "Max use limit" (per resurs).** Ny toggle (default på) + fält (default
+  5000) i Hero/Adventures inventory-kortet (`HeroViewModel.HeroResourceMaxUseEnabled/PerResource`,
+  config-nycklar `hero_resource_max_use_*`). Worker: `TryHeroResourceTransferForConstructionAsync` läser
+  per-resurs-shortfall (cost − stock); om någon resurs skulle dra mer än limiten från hjälten skippas
+  överföringen och `ComputeHeroUseLimitDeferSecondsAsync` beräknar väntan tills byn producerat nog (stock
+  ≥ cost − limit). **Produktionen läses från cachen** (`ReadCachedProductionByHourForActiveVillageAsync`),
+  ALDRIG från build-sidan (den saknar `#production` → annars långsamma misslyckade retries). Väntan
+  vidarebefordras via `_heroTransferOverLimitWaitSeconds`; `ReadUpgradeResourceWaitSnapshotAsync`
+  **early-returnar** då direkt (inga sid-läsningar) med `queue_wait_seconds` som driver construction-
+  countdownen. Icke-blockerande, loggas en gång (ej spam). Per resurs, inte totalt. Tog bort "Hero
+  inventory updated."-texten.
+
 - **2026-06-01** — Officiell-server-stöd byggs som **lager i ett repo** med flavor-flagga,
   **inte** en fork eller `IServerAdapter`-refaktor. Skäl: undvik dubbel-underhåll (~80 % delad kod).
 - **2026-06-01** — `ServerFlavor` är en **computed property från `BaseUrl`**, aldrig config-bunden.

@@ -191,7 +191,9 @@ public sealed partial class TravianClient
                   const runningSignal = !!document.querySelector('i.heroRunning, [class*="heroRunning"], [class*="statusRunning"]')
                     || !!document.querySelector('.heroStatus .timerReact, .heroState .timerReact');
                   const homeSignal = !!document.querySelector('i.heroHome, [class*="heroHome"]');
-                  let dead = /dead|status101|reviv/.test(cls) || !!document.querySelector('i.heroDead, [class*="heroDead"]');
+                  // Reviving (<i class="heroReviving">) is its own state (orange), distinct from dead (red).
+                  const reviving = /reviv/.test(cls) || !!document.querySelector('i.heroReviving, [class*="heroReviving"]');
+                  const dead = !reviving && (/dead|status101/.test(cls) || !!document.querySelector('i.heroDead, [class*="heroDead"]'));
                   let away = runningSignal || /running|away|onadventure|status5/.test(cls);
                   // Only trust the "home" signal when there is no active travel signal.
                   if (homeSignal && !runningSignal) away = false;
@@ -205,7 +207,7 @@ public sealed partial class TravianClient
                     }
                   }
                   if (!name) return null;
-                  return JSON.stringify({ name: name, away: away, dead: dead });
+                  return JSON.stringify({ name: name, away: away, dead: dead, reviving: reviving });
                 }
                 """);
             if (string.IsNullOrWhiteSpace(raw))
@@ -223,7 +225,8 @@ public sealed partial class TravianClient
 
             var away = root.TryGetProperty("away", out var a) && a.GetBoolean();
             var dead = root.TryGetProperty("dead", out var d) && d.GetBoolean();
-            Notify($"[herohome] away={(away ? "true" : "false")} dead={(dead ? "true" : "false")} name={name.Trim()}");
+            var reviving = root.TryGetProperty("reviving", out var r) && r.GetBoolean();
+            Notify($"[herohome] away={(away ? "true" : "false")} dead={(dead ? "true" : "false")} reviving={(reviving ? "true" : "false")} name={name.Trim()}");
         }
         catch
         {
@@ -578,10 +581,11 @@ public sealed partial class TravianClient
 
     public async Task<bool> CheckAndReviveDeadHeroOnCurrentPageAsync(bool autoRevive, CancellationToken cancellationToken = default)
     {
-        // Lightweight check from whatever page we are currently on. The dead hero indicator
-        // (<div class="bigSpeechBubble dead">) is rendered in the hero sidebar on most pages.
+        // Lightweight check from whatever page we are currently on. The dead hero is shown either by the
+        // sidebar speech bubble (<div class="bigSpeechBubble dead">) or the top-bar hero status icon
+        // (<div class="heroStatus">...<i class="heroDead">), depending on the page — accept either.
         var isDead = await _page.EvaluateAsync<bool>(
-            "() => !!document.querySelector('.bigSpeechBubble.dead')");
+            "() => !!document.querySelector('.bigSpeechBubble.dead, .heroStatus i.heroDead, i.heroDead, [class*=\"heroDead\"]')");
         if (!isDead)
         {
             return false;
@@ -1574,9 +1578,18 @@ public sealed partial class TravianClient
               const awayText = heroStateText || bodyInnerText;
               const isOutboundAdventure = /on its way to an adventure/i.test(awayText);
               const isReturningHome = /on its way back to the village/i.test(awayText);
-              const reviving = /being\s+revived|remaining\s+time|reviv/i.test(statusText)
-                && !!statusMessage?.querySelector('.timer, [counting="down"], .heroStatus101Regenerate');
-              const dead = /\bdead\b|\btot\b|\bdeceased\b|\bdöd\b/.test(text);
+              // The top-bar/sidebar hero status shows a heroReviving icon while reviving
+              // (<div class="heroStatus">...<i class="heroReviving">) — treat it as reviving even when no
+              // status text/timer is present on the page.
+              const revivingIcon = !!document.querySelector('.heroStatus i.heroReviving, i.heroReviving, [class*="heroReviving"]');
+              const reviving = revivingIcon
+                || (/being\s+revived|remaining\s+time|reviv/i.test(statusText)
+                  && !!statusMessage?.querySelector('.timer, [counting="down"], .heroStatus101Regenerate'));
+              // The top-bar/sidebar hero status shows a heroDead icon when the hero is dead
+              // (<div class="heroStatus">...<i class="heroDead"></i>). This is more reliable than the
+              // localized body text, so treat it as a dead signal too.
+              const deadIcon = !!document.querySelector('.heroStatus i.heroDead, i.heroDead, [class*="heroDead"]');
+              const dead = deadIcon || /\bdead\b|\btot\b|\bdeceased\b|\bdöd\b/.test(text);
 
               const effectiveDead = !reviving && (dead || /hero\s+is\s+dead/i.test(statusText));
               const reviveTimerNode = statusMessage?.querySelector('.timer[value], [counting="down"][value], .timer');
@@ -2613,9 +2626,12 @@ public sealed partial class TravianClient
                     };
                     const statusMessage = document.querySelector('.heroState, .heroStatusMessage');
                     const statusText = (statusMessage?.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
-                    const reviving = /being\s+revived|remaining\s+time|reviv/i.test(statusText)
-                      && !!statusMessage?.querySelector('.timer, [counting="down"], .heroStatus101Regenerate');
-                    const dead = !reviving && /hero\s+is\s+dead|\bdead\b|\btot\b|\bdeceased\b/i.test(statusText);
+                    const revivingIcon = !!document.querySelector('.heroStatus i.heroReviving, i.heroReviving, [class*="heroReviving"]');
+                    const reviving = revivingIcon
+                      || (/being\s+revived|remaining\s+time|reviv/i.test(statusText)
+                        && !!statusMessage?.querySelector('.timer, [counting="down"], .heroStatus101Regenerate'));
+                    const deadIcon = !!document.querySelector('.heroStatus i.heroDead, i.heroDead, [class*="heroDead"]');
+                    const dead = !reviving && (deadIcon || /hero\s+is\s+dead|\bdead\b|\btot\b|\bdeceased\b/i.test(statusText));
                     const reviveTimerNode = statusMessage?.querySelector('.timer[value], [counting="down"][value], .timer')
                       || document.querySelector('.lineWrapper .inlineIcon.duration .value, .lineWrapper .duration .value');
                     const reviveTimer = reviveTimerNode?.getAttribute?.('value')

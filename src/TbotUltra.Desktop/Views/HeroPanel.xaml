@@ -497,17 +497,38 @@
                                    TextWrapping="Wrap"
                                    Margin="0,0,0,8" />
 
-                        <!-- Placeholder for upcoming hero resource-transfer settings. -->
+                        <!-- Per-resource cap on how much may be pulled from the hero inventory for a
+                             single construction top-up. When the needed amount for any resource exceeds
+                             the limit, the transfer is skipped and the build waits until the village has
+                             accumulated enough that the hero share fits the limit. -->
                         <Border BorderBrush="{DynamicResource AppBackgroundBrush}"
                                 BorderThickness="1"
                                 Background="{DynamicResource RowAltBackgroundBrush}"
                                 CornerRadius="6"
-                                Padding="10"
-                                MinHeight="60">
-                            <TextBlock Text="Hero resource-transfer settings will appear here."
-                                       Foreground="{DynamicResource BorderMutedBrush}"
-                                       FontSize="12"
-                                       TextWrapping="Wrap" />
+                                Padding="10">
+                            <StackPanel>
+                                <CheckBox Content="Max use limit"
+                                          IsChecked="{Binding HeroResourceMaxUseEnabled}"
+                                          Foreground="{DynamicResource TextPrimaryBrush}"
+                                          VerticalContentAlignment="Center" />
+                                <TextBlock Text="Max resources used from the hero inventory per resource, per building."
+                                           Foreground="{DynamicResource TextSubtleBrush}"
+                                           FontSize="11"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0" />
+                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
+                                            IsEnabled="{Binding HeroResourceMaxUseEnabled}">
+                                    <TextBlock Text="Limit"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               FontSize="12"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0" />
+                                    <TextBox Width="100"
+                                             Padding="6,4"
+                                             Text="{Binding HeroResourceMaxUsePerResource, UpdateSourceTrigger=LostFocus}"
+                                             BorderBrush="{DynamicResource BorderSubtleBrush}" />
+                                </StackPanel>
+                            </StackPanel>
                         </Border>
                     </StackPanel>
                 </Border>

@@ -94,10 +94,11 @@ public partial class MainWindow
         new(@"\[ui-sync\]\s*(\{.*\})",
             System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
-    // [herohome] away=<bool> dead=<bool> name=<village name to end of line> — emitted by the worker's quick
-    // dorf1 hero-widget read so the dashboard hero icon updates without a full attributes navigation.
+    // [herohome] away=<bool> dead=<bool> reviving=<bool> name=<village name to end of line> — emitted by the
+    // worker's quick dorf1 hero-widget read so the dashboard hero icon updates without a full attributes
+    // navigation.
     private static readonly System.Text.RegularExpressions.Regex HeroHomeRegex =
-        new(@"\[herohome\]\s*away=(true|false)\s+dead=(true|false)\s+name=(.+)$",
+        new(@"\[herohome\]\s*away=(true|false)\s+dead=(true|false)\s+reviving=(true|false)\s+name=(.+)$",
             System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     private void TryApplyPlusStatusFromLog(string line)
@@ -137,8 +138,9 @@ public partial class MainWindow
         {
             var away = string.Equals(heroHomeMatch.Groups[1].Value, "true", StringComparison.OrdinalIgnoreCase);
             var dead = string.Equals(heroHomeMatch.Groups[2].Value, "true", StringComparison.OrdinalIgnoreCase);
-            var name = heroHomeMatch.Groups[3].Value.Trim();
-            SetHeroState(name, away, dead);
+            var reviving = string.Equals(heroHomeMatch.Groups[3].Value, "true", StringComparison.OrdinalIgnoreCase);
+            var name = heroHomeMatch.Groups[4].Value.Trim();
+            SetHeroState(name, away, dead, reviving);
         }
     }
 

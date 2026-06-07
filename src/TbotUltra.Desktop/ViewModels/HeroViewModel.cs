@@ -42,6 +42,9 @@ public sealed class HeroViewModel : BaseViewModel
     private string _heroInventoryCrop = "-";
     private string _heroInventoryStatusText = "Hero inventory not loaded.";
 
+    private bool _heroResourceMaxUseEnabled = true;
+    private int _heroResourceMaxUsePerResource = 5000;
+
     private int _minHpForAdventure = 60;
     private int _heroHpRegenPerDayPercent = 40;
     private bool _autoRevive = true;
@@ -136,6 +139,22 @@ public sealed class HeroViewModel : BaseViewModel
         set => SetProperty(ref _heroInventoryStatusText, value);
     }
 
+    /// <summary>True to cap how much may be pulled from the hero inventory per resource for a single
+    /// construction top-up (the "Max use limit" toggle in the hero inventory card).</summary>
+    public bool HeroResourceMaxUseEnabled
+    {
+        get => _heroResourceMaxUseEnabled;
+        set => SetProperty(ref _heroResourceMaxUseEnabled, value);
+    }
+
+    /// <summary>Per-resource cap (in units) used when <see cref="HeroResourceMaxUseEnabled"/> is on.
+    /// Bound to the limit TextBox; persisted as an int.</summary>
+    public int HeroResourceMaxUsePerResource
+    {
+        get => _heroResourceMaxUsePerResource;
+        set => SetProperty(ref _heroResourceMaxUsePerResource, Math.Max(0, value));
+    }
+
     /// <summary>Applies a hero inventory read to the four resource fields.</summary>
     public void ApplyInventory(HeroInventoryResources resources)
     {
@@ -148,7 +167,9 @@ public sealed class HeroViewModel : BaseViewModel
         HeroInventoryClay = resources.Clay.ToString();
         HeroInventoryIron = resources.Iron.ToString();
         HeroInventoryCrop = resources.Crop.ToString();
-        HeroInventoryStatusText = "Hero inventory updated.";
+        // No "updated" status line — the values themselves show the state. Clear any prior message
+        // (e.g. the initial "not loaded") so a stale line doesn't linger after a successful read.
+        HeroInventoryStatusText = string.Empty;
     }
 
     /// <summary>
@@ -311,6 +332,8 @@ public sealed class HeroViewModel : BaseViewModel
         }
 
         ContinuousAdventures = options.HeroContinuousAdventures;
+        HeroResourceMaxUseEnabled = options.HeroResourceMaxUseEnabled;
+        HeroResourceMaxUsePerResource = options.HeroResourceMaxUsePerResource;
         LoadPriorityFromConfig(options.HeroStatPriority);
     }
 
