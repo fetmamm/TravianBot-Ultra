@@ -197,7 +197,7 @@ public partial class SettingsWindow : Window
 
         // Collect step delay (ms). Clamp and keep max >= min so the worker always has a valid window.
         var collectMin = ReadIntText(CollectStepDelayMinTextBox, PacingDefaults.CollectStepDelayMinMs, 0, 5000);
-        var collectMax = Math.Max(collectMin, ReadIntText(CollectStepDelayMaxTextBox, PacingDefaults.CollectStepDelayMaxMs, 0, 5000));
+        var collectMax = Math.Max(collectMin, ReadIntText(CollectStepDelayMaxTextBox, PacingDefaults.CollectStepDelayMaxMs, 0, 6000));
         _config[BotOptionPayloadKeys.CollectStepDelayMinMs] = collectMin;
         _config[BotOptionPayloadKeys.CollectStepDelayMaxMs] = collectMax;
     }

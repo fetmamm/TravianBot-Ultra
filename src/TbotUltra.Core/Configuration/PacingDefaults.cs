@@ -19,5 +19,5 @@ public static class PacingDefaults
 
     // Delay (ms) between internal clicks/steps in the auto-collect tasks/daily-quests flows only.
     public const int CollectStepDelayMinMs = 200;
-    public const int CollectStepDelayMaxMs = 400;
+    public const int CollectStepDelayMaxMs = 600;
 }
