@@ -165,6 +165,47 @@ public sealed partial class TravianClient
     public string? KnownTribe => IsKnownTribe(_sessionTribe) ? _sessionTribe : IsKnownTribe(_cachedTribe) ? _cachedTribe : null;
     public bool? KnownGoldClubEnabled => _cachedGoldClubEnabled;
     
+// Helper function for waiting on a page to fully load with retries, to mitigate transient timeouts on slow-loading pages.
+    private async Task WaitForPageReadyAsync(CancellationToken cancellationToken = default)
+    {
+        const int attempts = 3;
+        const int timeoutMs = 10000;
+
+        for (var attempt = 1; attempt <= attempts; attempt++)
+        {
+            try
+            {
+                await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded, new PageWaitForLoadStateOptions
+                {
+                    Timeout = timeoutMs,
+                }).WaitAsync(cancellationToken);
+
+                await _page.WaitForLoadStateAsync(LoadState.Load, new PageWaitForLoadStateOptions
+                {
+                    Timeout = timeoutMs,
+                }).WaitAsync(cancellationToken);
+
+                return;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (PlaywrightException ex)
+            {
+                if (attempt < attempts)
+                    Notify($"[WaitForPageReadyAsync] Page did not load, retry {attempt + 1}/{attempts}. Timeout: {timeoutMs} ms. Url='{_page.Url}'. {ex.Message}");
+            }
+            catch (TimeoutException ex)
+            {
+                if (attempt < attempts)
+                    Notify($"[WaitForPageReadyAsync] Page did not load, retry {attempt + 1}/{attempts}. Timeout: {timeoutMs} ms. Url='{_page.Url}'. {ex.Message}");
+            }
+        }
+
+        Notify($"[WaitForPageReadyAsync] Page did not load after {attempts} attempts. Url='{_page.Url}'.");
+    }
+
     // Login function
     public async Task LoginAsync(CancellationToken cancellationToken = default)
     {
