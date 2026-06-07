@@ -161,6 +161,51 @@ public sealed class BotOptionsPayloadApplierTests
     }
 
     [Fact]
+    public void FromConfiguration_DefaultsHeroResourceMaxUse_EnabledAt5000()
+    {
+        var values = new Dictionary<string, string?>
+        {
+            ["server_name"] = "srv",
+            ["base_url"] = "https://example.com",
+            ["login_path"] = "/login.php",
+            ["village_overview_path"] = "/dorf1.php",
+        };
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(values)
+            .Build();
+
+        var options = BotOptionsFactory.FromConfiguration(configuration);
+
+        Assert.True(options.HeroResourceMaxUseEnabled);
+        Assert.Equal(5000, options.HeroResourceMaxUsePerResource);
+    }
+
+    [Fact]
+    public void Apply_OverridesHeroResourceMaxUse_FromPayload()
+    {
+        var source = new BotOptions
+        {
+            ServerName = "srv",
+            BaseUrl = "https://example.com",
+            LoginPath = "/login.php",
+            VillageOverviewPath = "/dorf1.php",
+            HeroResourceMaxUseEnabled = true,
+            HeroResourceMaxUsePerResource = 5000,
+        };
+
+        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.HeroResourceMaxUseEnabled] = "false",
+            [BotOptionPayloadKeys.HeroResourceMaxUsePerResource] = "12000",
+        };
+
+        var result = BotOptionsPayloadApplier.Apply(source, payload);
+
+        Assert.False(result.HeroResourceMaxUseEnabled);
+        Assert.Equal(12000, result.HeroResourceMaxUsePerResource);
+    }
+
+    [Fact]
     public void FromConfiguration_UsesSafeOfficialGoldAndNpcDefaults()
     {
         var values = new Dictionary<string, string?>

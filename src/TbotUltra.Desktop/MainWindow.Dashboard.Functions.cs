@@ -13,7 +13,10 @@ public partial class MainWindow
     {
         var currentByGroup = _automationLoopTasks
             .ToDictionary(item => item.TaskName, item => item, StringComparer.OrdinalIgnoreCase);
+        // NPC trade is controlled by the Auto settings master toggle + per-village choice, not as an
+        // Automation Loop group — exclude it from the Function list.
         var orderedGroupKeys = QueueGroupCatalog.AllGroups
+            .Where(group => group != QueueGroup.NpcTrade)
             .Select(QueueGroupCatalog.GetKey)
             .ToList();
         var selectableGroupKeys = orderedGroupKeys

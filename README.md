@@ -2,10 +2,10 @@
 
 `Preview` of the program
 
-![Version](https://img.shields.io/badge/Version-v0.3.2-blue?style=for-the-badge)
+![Version](https://img.shields.io/badge/Version-v0.3.4-blue?style=for-the-badge)
 
 <p align="center">
-  <img src="assets/images/tbot_v032.png" alt="Tbot Ultra Dashboard">
+  <img src="assets/images/tbot_v034.png" alt="Tbot Ultra Dashboard">
 </p>
 
 ---
@@ -56,11 +56,33 @@ instances from the same folder.
 - Or run: `dotnet run --project src/TbotUltra.Desktop/TbotUltra.Desktop.csproj -c Debug`
 - Smoke check: `Smoke_Check.bat` (build + Worker tests)
 
-Config is read from `config/bot.json`, `config/queue.json` and `.env`.
+Config is read from `config/bot.json`, the per-account `config/accounts/<account>/queue.json` and `.env`.
 Dashboard settings can also save account-scoped opt-ins such as auto collect tasks and auto collect daily quests.
 Global runtime pacing is configured in **Settings -> Bot behavior**. Session pacing defaults to
 120 minutes running, 60 minutes sleeping, 15% variation; action pacing defaults to small randomized
 delays before tasks, after page loads, between farm sends, and between continuous-loop passes.
+
+---
+
+## Multi-village support
+
+The bot manages every village on the account from one **Dashboard → Village overview** list.
+
+- **Per-village on/off:** open **Village settings** and use the *Auto* toggle to choose which
+  villages the bot works in. Disabled villages are skipped entirely. The capital is on by default;
+  newly discovered villages start off. Choices are saved per account and survive restarts/renames.
+- **Village overview columns:** a green/grey dot left of the name shows if a village is enabled, plus
+  per-village indicators for **Buildings** (active construction slots — 2, or 3 for Romans), **Queue**
+  (green when something is queued), **Smithy**, **Troops** (Barracks/Stable/Workshop) and **Hero**
+  (green = hero home here, yellow = away, red = dead). A green border marks the village the browser is
+  currently working in.
+- **One queue per account:** each task carries its target village, and the bot rotates between enabled
+  villages (draining one, then moving on so a village waiting on resources never blocks the others).
+- **Per-village automation groups & NPC trade:** the Automation Loop groups (Construction, Build Troops,
+  …) can be enabled per village. NPC trade has an account-wide master toggle in **Auto settings** plus a
+  per-village choice in **Village settings** — it runs only when both are on.
+- **Switch village** moves the browser to the village selected in the dropdown; selecting a village in
+  the dropdown only changes the view/queue context (it does not navigate).
 
 ---
 
@@ -196,11 +218,13 @@ xUnit. Each test file targets one class (e.g.
 
 ```
 bot.json                   active bot options (UI writes here)
-queue.json                 persisted task queue
-queue.json.lock            file lock to serialize queue writes
 buildings_catalog.json     static building data
 servers.user.json          user's saved server list
-accounts/                  per-account profile data
+accounts/<account>/        per-account state:
+                             queue.json          persisted task queue (one per account)
+                             queue.json.lock     file lock to serialize queue writes
+                             villages.json       per-village enable / NPC / group choices + hero home
+                             village_cache.json  remembered buildings/fields/storage per village
 account-analysis/          cached account snapshots
 cache/                     capital-state, manual-farming prefs, natar-farms
 ```
@@ -233,7 +257,7 @@ needs solving.
 ## Status
 
 - Runtime + UI fully C# (`TbotUltra.Desktop` + `TbotUltra.Worker`).
-- Queue persists in `config/queue.json`, managed from the Queue tab.
+- Queue persists per account in `config/accounts/<account>/queue.json`, managed from the Queue tab.
 - Captcha solving handled by the Python module in `Captcha_solver/`.
 
 ---

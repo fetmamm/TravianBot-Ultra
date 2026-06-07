@@ -256,10 +256,21 @@ public sealed partial class TravianClient
                     heroTransferAttempted = true;
                     if (await TryHeroResourceTransferForConstructionAsync($"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}", cancellationToken))
                     {
-                        continue;
+                        // The transfer topped up resources and reloaded the build page — we are already on
+                        // build.php?id=slot. Wait for the controls to finish rendering, then apply the
+                        // configurable page-load pace, and click the upgrade directly. Avoids the extra
+                        // dorf2 → build.php round-trip that a plain `continue` would do (faster + cleaner).
+                        await EnsureExpectedBuildSlotPageAsync(slotId, "upgrade after hero transfer", cancellationToken);
+                        await ActionPacer.FromOptions(_config, Notify).DelayAsync(
+                            _config.ActionPacingPageLoadMinSeconds,
+                            _config.ActionPacingPageLoadMaxSeconds,
+                            cancellationToken,
+                            "after hero transfer reload");
+                        clicked = await ClickUpgradeToLevelButtonAsync(slotId, nextLevel, cancellationToken);
                     }
                 }
-                if (!constructionNpcTradeAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
+
+                if (!clicked && !constructionNpcTradeAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
                 {
                     constructionNpcTradeAttempted = true;
                     if (await TryNpcTradeForConstructionAsync($"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}", cancellationToken))
@@ -268,31 +279,35 @@ public sealed partial class TravianClient
                     }
                 }
 
-                if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources)
+                // Still not clicked (transfer/NPC didn't unblock it) → classify and defer.
+                if (!clicked)
                 {
-                    var snapshot = await ReadUpgradeResourceWaitSnapshotAsync(
-                        $"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}",
-                        ClampResourceWaitSeconds(actionability.QueueWaitSeconds),
-                        cancellationToken);
-                    return BuildUpgradeResourceBlockedResultMessage(snapshot);
-                }
-                if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByQueue)
-                {
-                    var waitSeconds = ClampResourceWaitSeconds(actionability.QueueWaitSeconds);
-                    if (ShouldDeferLongWait(waitSeconds))
+                    if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources)
                     {
-                        return $"Slot {slotId} blocked by queue. queue_wait_seconds={waitSeconds}";
+                        var snapshot = await ReadUpgradeResourceWaitSnapshotAsync(
+                            $"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}",
+                            ClampResourceWaitSeconds(actionability.QueueWaitSeconds),
+                            cancellationToken);
+                        return BuildUpgradeResourceBlockedResultMessage(snapshot);
                     }
-                    Notify($"Slot {slotId} blocked by queue. Waiting {waitSeconds}s. queue_wait_seconds={waitSeconds}");
-                    await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
-                    continue;
+                    if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByQueue)
+                    {
+                        var waitSeconds = ClampResourceWaitSeconds(actionability.QueueWaitSeconds);
+                        if (ShouldDeferLongWait(waitSeconds))
+                        {
+                            return $"Slot {slotId} blocked by queue. queue_wait_seconds={waitSeconds}";
+                        }
+                        Notify($"Slot {slotId} blocked by queue. Waiting {waitSeconds}s. queue_wait_seconds={waitSeconds}");
+                        await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
+                        continue;
+                    }
+                    var flavorLabel = _config.IsPrivateServer ? "SsTravi" : "Official";
+                    var candidateSummary = string.IsNullOrWhiteSpace(actionability.DebugSummary) ? "none" : actionability.DebugSummary;
+                    return $"Slot {slotId}: could not find 'Upgrade to level {nextLevel}' button. "
+                        + $"Reason: {actionability.Outcome} ({actionability.Reason}). "
+                        + $"flavor={flavorLabel} url='{_page.Url}' candidates=[{candidateSummary}]. "
+                        + $"Upgrades performed: {upgrades}.";
                 }
-                var flavorLabel = _config.IsPrivateServer ? "SsTravi" : "Official";
-                var candidateSummary = string.IsNullOrWhiteSpace(actionability.DebugSummary) ? "none" : actionability.DebugSummary;
-                return $"Slot {slotId}: could not find 'Upgrade to level {nextLevel}' button. "
-                    + $"Reason: {actionability.Outcome} ({actionability.Reason}). "
-                    + $"flavor={flavorLabel} url='{_page.Url}' candidates=[{candidateSummary}]. "
-                    + $"Upgrades performed: {upgrades}.";
             }
 
             upgrades += 1;
@@ -366,6 +381,23 @@ public sealed partial class TravianClient
         int fallbackWaitSeconds,
         CancellationToken cancellationToken)
     {
+        // A hero transfer skipped by the per-resource use limit already computed the exact wait from the
+        // cached/known production (time until the village accumulates enough that the hero share fits the
+        // limit). Return it directly without any page reads — on a build page the production/resource
+        // widgets aren't present, so reading them here would trigger slow failing retries. The construction
+        // defer (queue_wait_seconds) drives the countdown timer, and the build retries when it elapses.
+        if (_heroTransferOverLimitWaitSeconds is int heroUseLimitWait)
+        {
+            _heroTransferOverLimitWaitSeconds = null;
+            var heroLimitSnapshot = new UpgradeResourceWaitSnapshot(
+                blockedLabel,
+                new Dictionary<string, UpgradeResourceWaitValue>(StringComparer.OrdinalIgnoreCase),
+                Math.Max(1, heroUseLimitWait),
+                "hero_use_limit");
+            Notify(FormatUpgradeResourceWaitLog(heroLimitSnapshot));
+            return heroLimitSnapshot;
+        }
+
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading upgrade resource requirements.", cancellationToken);
         var required = await _page.EvaluateAsync<Dictionary<string, long?>>(
             """
@@ -570,7 +602,30 @@ public sealed partial class TravianClient
             parts.Add($"{key}: req={FormatValue(value.Required)}, cur={FormatValue(value.Current)}, miss={FormatValue(value.Missing)}, prod/h={FormatProduction(value.ProductionPerHour)}, wait_s={FormatWait(value.WaitSeconds)}, reason={value.WaitReason}");
         }
 
-        return $"{snapshot.BlockedLabel}: waiting for resources | {string.Join(" | ", parts)} | queue_wait_seconds={snapshot.WaitSeconds} | wait_reason={snapshot.WaitReason}";
+        // Clear human-readable headline first (e.g. "Not enough resources to build Warehouse level 5.
+        // Waiting 240s."), then the per-resource diagnostics for debugging.
+        var headline = $"Not enough resources to build {FriendlyUpgradeTarget(snapshot.BlockedLabel)}. Waiting {snapshot.WaitSeconds}s.";
+        var details = parts.Count > 0 ? $" | {string.Join(" | ", parts)}" : string.Empty;
+        return $"{headline}{details} | wait_reason={snapshot.WaitReason}";
+    }
+
+    // Turns an internal blocked label ("Building slot 19 (Warehouse) upgrade to level 7",
+    // "Resource slot 9 (Cropland) upgrade to level 10", "Building slot 31 construct Marketplace") into a
+    // short "Name level N" / "Name" phrase for the user-facing wait log.
+    private static string FriendlyUpgradeTarget(string blockedLabel)
+    {
+        if (string.IsNullOrWhiteSpace(blockedLabel))
+        {
+            return "the building";
+        }
+
+        var nameMatch = Regex.Match(blockedLabel, @"\(([^)]+)\)");
+        var name = nameMatch.Success
+            ? nameMatch.Groups[1].Value.Trim()
+            : blockedLabel.Trim();
+
+        var levelMatch = Regex.Match(blockedLabel, @"level\s+(\d+)", RegexOptions.IgnoreCase);
+        return levelMatch.Success ? $"{name} level {levelMatch.Groups[1].Value}" : name;
     }
 
     private static string BuildUpgradeResourceBlockedResultMessage(UpgradeResourceWaitSnapshot snapshot)
@@ -917,10 +972,21 @@ public sealed partial class TravianClient
                     heroTransferAttempted = true;
                     if (await TryHeroResourceTransferForConstructionAsync($"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}", cancellationToken))
                     {
-                        continue;
+                        // The transfer topped up resources and reloaded the build page — we are already on
+                        // build.php?id=slot. Wait for the controls to finish rendering, then apply the
+                        // configurable page-load pace, and click the upgrade directly. Avoids the extra
+                        // dorf2 → build.php round-trip that a plain `continue` would do (faster + cleaner).
+                        await EnsureExpectedBuildSlotPageAsync(slotId, "upgrade after hero transfer", cancellationToken);
+                        await ActionPacer.FromOptions(_config, Notify).DelayAsync(
+                            _config.ActionPacingPageLoadMinSeconds,
+                            _config.ActionPacingPageLoadMaxSeconds,
+                            cancellationToken,
+                            "after hero transfer reload");
+                        clicked = await ClickUpgradeToLevelButtonAsync(slotId, nextLevel, cancellationToken);
                     }
                 }
-                if (!constructionNpcTradeAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
+
+                if (!clicked && !constructionNpcTradeAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
                 {
                     constructionNpcTradeAttempted = true;
                     if (await TryNpcTradeForConstructionAsync($"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}", cancellationToken))
@@ -929,31 +995,35 @@ public sealed partial class TravianClient
                     }
                 }
 
-                if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources)
+                // Still not clicked (transfer/NPC didn't unblock it) → classify and defer.
+                if (!clicked)
                 {
-                    var snapshot = await ReadUpgradeResourceWaitSnapshotAsync(
-                        $"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}",
-                        ClampResourceWaitSeconds(actionability.QueueWaitSeconds),
-                        cancellationToken);
-                    return BuildUpgradeResourceBlockedResultMessage(snapshot);
-                }
-                if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByQueue)
-                {
-                    var waitSeconds = ClampResourceWaitSeconds(actionability.QueueWaitSeconds);
-                    if (ShouldDeferLongWait(waitSeconds))
+                    if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources)
                     {
-                        return $"Slot {slotId} blocked by queue. queue_wait_seconds={waitSeconds}";
+                        var snapshot = await ReadUpgradeResourceWaitSnapshotAsync(
+                            $"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}",
+                            ClampResourceWaitSeconds(actionability.QueueWaitSeconds),
+                            cancellationToken);
+                        return BuildUpgradeResourceBlockedResultMessage(snapshot);
                     }
-                    Notify($"Slot {slotId} blocked by queue. Waiting {waitSeconds}s. queue_wait_seconds={waitSeconds}");
-                    await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
-                    continue;
+                    if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByQueue)
+                    {
+                        var waitSeconds = ClampResourceWaitSeconds(actionability.QueueWaitSeconds);
+                        if (ShouldDeferLongWait(waitSeconds))
+                        {
+                            return $"Slot {slotId} blocked by queue. queue_wait_seconds={waitSeconds}";
+                        }
+                        Notify($"Slot {slotId} blocked by queue. Waiting {waitSeconds}s. queue_wait_seconds={waitSeconds}");
+                        await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
+                        continue;
+                    }
+                    var flavorLabel = _config.IsPrivateServer ? "SsTravi" : "Official";
+                    var candidateSummary = string.IsNullOrWhiteSpace(actionability.DebugSummary) ? "none" : actionability.DebugSummary;
+                    return $"Slot {slotId}: could not find 'Upgrade to level {nextLevel}' button. "
+                        + $"Reason: {actionability.Outcome} ({actionability.Reason}). "
+                        + $"flavor={flavorLabel} url='{_page.Url}' candidates=[{candidateSummary}]. "
+                        + $"Upgrades performed: {upgrades}.";
                 }
-                var flavorLabel = _config.IsPrivateServer ? "SsTravi" : "Official";
-                var candidateSummary = string.IsNullOrWhiteSpace(actionability.DebugSummary) ? "none" : actionability.DebugSummary;
-                return $"Slot {slotId}: could not find 'Upgrade to level {nextLevel}' button. "
-                    + $"Reason: {actionability.Outcome} ({actionability.Reason}). "
-                    + $"flavor={flavorLabel} url='{_page.Url}' candidates=[{candidateSummary}]. "
-                    + $"Upgrades performed: {upgrades}.";
             }
 
             upgrades += 1;
@@ -2583,20 +2653,21 @@ public sealed partial class TravianClient
                 'table.buildingList tr'
               ];
 
-              const items = [];
-              const seen = new Set();
+              // Each matched element is one active construction. Count them per element (NOT deduped by
+              // text): two simultaneous upgrades of the same building/field have identical text and must
+              // still count as two. Return the first selector that yields any entries.
               for (const selector of selectors) {
+                const items = [];
                 for (const element of document.querySelectorAll(selector)) {
                   const text = (element.textContent || '').replace(/\s+/g, ' ').trim();
-                  if (!text || seen.has(text)) continue;
-                  seen.add(text);
+                  if (!text) continue;
                   const timeElement = element.querySelector('.timer, .countdown, .value, [counting="down"], [id^="timer"]');
                   const timeLeft = timeElement ? (timeElement.textContent || '').trim() : null;
                   items.push({ text, timeLeft });
                 }
                 if (items.length) return JSON.stringify(items);
               }
-              return JSON.stringify(items);
+              return JSON.stringify([]);
             }
             """);
 
@@ -3794,7 +3865,27 @@ public sealed partial class TravianClient
             " || ",
             queue
                 .Take(5)
-                .Select(item => item.Text.Trim()));
+                .Select(item => StripQueueTimerTokens(item.Text)));
+    }
+
+    // The build-queue row text contains a live countdown timer (e.g. "0:08:12") and/or a completion
+    // clock that change on every read. Including them made the queue fingerprint differ each poll,
+    // which WaitForResourceLevelAdvanceAsync misread as "queue changed" -> a false queued=True after a
+    // click that actually did nothing (queue full), spinning the upgrade loop. Strip time-like tokens
+    // so the fingerprint only reflects WHICH items are queued (name + level), not their remaining time.
+    private static readonly Regex QueueTimerTokenRegex = new(
+        @"\b\d{1,3}:\d{1,2}(?::\d{1,2})?\b|\b\d{1,4}\s*(?:h|hours?|m|min|mins?|minutes?|s|sec|secs?|seconds?)\b",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    internal static string StripQueueTimerTokens(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return string.Empty;
+        }
+
+        var stripped = QueueTimerTokenRegex.Replace(text, " ");
+        return Regex.Replace(stripped, @"\s+", " ").Trim();
     }
 
     internal static IReadOnlyList<Building> ParseBuildingOverviewHtmlForTests(string html)

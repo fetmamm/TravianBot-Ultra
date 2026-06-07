@@ -152,7 +152,86 @@ public sealed partial class TravianClient
         }
 
         Notify($"Adventures on current page: {sidebar.AdventureCount}.");
+        // We're on dorf1 here; cheaply read the hero home village + state from the hero widget (no extra
+        // navigation) and surface it so the dashboard hero icon updates during normal polling too.
+        await NotifyHeroHomeFromDorf1Async(cancellationToken);
         return sidebar.AdventureCount;
+    }
+
+    // Reads the hero home village + away/dead state from the dorf1 hero widget (the rally-point link in the
+    // hero box points to the hero's HOME village; the icon class shows the state). Emits a [herohome] log
+    // line the desktop parses. Best-effort: silent when the widget/village name isn't present.
+    private async Task NotifyHeroHomeFromDorf1Async(CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+        try
+        {
+            var raw = await _page.EvaluateAsync<string?>(
+                """
+                () => {
+                  const clean = (v) => (v || '')
+                    .replace(/[‪-‮⁦-⁩‎‏]/g, '')
+                    .replace(/−/g, '-')
+                    .replace(/\s+/g, ' ')
+                    .replace(/\s*\(?-?\d+\s*[|｜]\s*-?\d+\)?\s*$/, '')
+                    .trim();
+                  const widget = document.querySelector('.heroStatus a[href*="build.php"][href*="id=39"]')
+                              || document.querySelector('a[href*="build.php"][href*="id=39"]');
+                  if (!widget) return null;
+                  const icon = widget.querySelector('i') || document.querySelector('.heroStatus i');
+                  const cls = icon ? (icon.className || '').toLowerCase() : '';
+                  const m = (widget.getAttribute('href') || '').match(/newdid=(\d+)/);
+                  const did = m ? m[1] : null;
+                  // Canonical state signals from the top-bar/sidebar hero status. A travelling hero
+                  // (adventure/attack/returning) shows a heroRunning/statusRunning icon or an arrival
+                  // countdown (.timerReact); a hero standing in its home village shows a heroHome icon.
+                  // These are more reliable than the single widget-icon class, which on official Travian
+                  // can keep a heroHome-like class even while the hero is away — which left the dashboard
+                  // icon stuck on green (home) during adventures.
+                  const runningSignal = !!document.querySelector('i.heroRunning, [class*="heroRunning"], [class*="statusRunning"]')
+                    || !!document.querySelector('.heroStatus .timerReact, .heroState .timerReact');
+                  const homeSignal = !!document.querySelector('i.heroHome, [class*="heroHome"]');
+                  // Reviving (<i class="heroReviving">) is its own state (orange), distinct from dead (red).
+                  const reviving = /reviv/.test(cls) || !!document.querySelector('i.heroReviving, [class*="heroReviving"]');
+                  const dead = !reviving && (/dead|status101/.test(cls) || !!document.querySelector('i.heroDead, [class*="heroDead"]'));
+                  let away = runningSignal || /running|away|onadventure|status5/.test(cls);
+                  // Only trust the "home" signal when there is no active travel signal.
+                  if (homeSignal && !runningSignal) away = false;
+                  let name = null;
+                  if (did) {
+                    const entry = document.querySelector('.listEntry.village[data-did="' + did + '"]')
+                               || document.querySelector('[data-did="' + did + '"]');
+                    if (entry) {
+                      const nameEl = entry.querySelector('.villageName .name, .name, .villageName');
+                      if (nameEl) name = clean(nameEl.textContent);
+                    }
+                  }
+                  if (!name) return null;
+                  return JSON.stringify({ name: name, away: away, dead: dead, reviving: reviving });
+                }
+                """);
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return;
+            }
+
+            using var doc = System.Text.Json.JsonDocument.Parse(raw);
+            var root = doc.RootElement;
+            var name = root.TryGetProperty("name", out var n) ? n.GetString() : null;
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return;
+            }
+
+            var away = root.TryGetProperty("away", out var a) && a.GetBoolean();
+            var dead = root.TryGetProperty("dead", out var d) && d.GetBoolean();
+            var reviving = root.TryGetProperty("reviving", out var r) && r.GetBoolean();
+            Notify($"[herohome] away={(away ? "true" : "false")} dead={(dead ? "true" : "false")} reviving={(reviving ? "true" : "false")} name={name.Trim()}");
+        }
+        catch
+        {
+            // Best-effort: the dashboard keeps the last-known home village.
+        }
     }
 
     private async Task<HeroQuickStatus> ReadHeroQuickStatusAsync(
@@ -502,10 +581,11 @@ public sealed partial class TravianClient
 
     public async Task<bool> CheckAndReviveDeadHeroOnCurrentPageAsync(bool autoRevive, CancellationToken cancellationToken = default)
     {
-        // Lightweight check from whatever page we are currently on. The dead hero indicator
-        // (<div class="bigSpeechBubble dead">) is rendered in the hero sidebar on most pages.
+        // Lightweight check from whatever page we are currently on. The dead hero is shown either by the
+        // sidebar speech bubble (<div class="bigSpeechBubble dead">) or the top-bar hero status icon
+        // (<div class="heroStatus">...<i class="heroDead">), depending on the page — accept either.
         var isDead = await _page.EvaluateAsync<bool>(
-            "() => !!document.querySelector('.bigSpeechBubble.dead')");
+            "() => !!document.querySelector('.bigSpeechBubble.dead, .heroStatus i.heroDead, i.heroDead, [class*=\"heroDead\"]')");
         if (!isDead)
         {
             return false;
@@ -1389,10 +1469,65 @@ public sealed partial class TravianClient
 
         var snapshot = await ReadHeroInventorySnapshotAsync(cancellationToken);
         snapshot = snapshot with { AdventureCount = adventureCount };
+
+        // The attributes page names the hero's village ("Hero is currently in village X" when home, or
+        // "Home village is village X" when away). Capture name + away-state so the dashboard can show the
+        // green (home) vs yellow (away) hero icon. Best-effort: name null when on an adventure (no anchor).
+        var heroHome = await ReadHeroHomeVillageInfoAsync(cancellationToken);
+        if (!string.IsNullOrWhiteSpace(heroHome.Name))
+        {
+            snapshot = snapshot with { HomeVillageName = heroHome.Name, HomeVillageHeroAway = heroHome.Away };
+        }
+
         SaveCachedHeroAttributeSnapshot(snapshot);
         Notify(
             $"Hero inventory snapshot: free points={snapshot.FreePoints}, fighting strength={snapshot.FightingStrength}, offence bonus={snapshot.OffenceBonus}, defence bonus={snapshot.DefenceBonus}, resources={snapshot.Resources}, adventures={(snapshot.AdventureCount?.ToString() ?? "?")}, hideMode={snapshot.HideMode ?? "?"}.");
         return snapshot;
+    }
+
+    // Reads the hero's home village name + whether the hero is away, from the attributes page hero-state
+    // box ("Hero is currently in village X" when home; "Home village is village X" when away on a raid).
+    // Both phrasings link the village via karte.php. Returns (null, false) when no village anchor is present
+    // (e.g. on an adventure), so callers keep the previously known value.
+    private async Task<(string? Name, bool Away)> ReadHeroHomeVillageInfoAsync(CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+        try
+        {
+            var raw = await _page.EvaluateAsync<string?>(
+                """
+                () => {
+                  const clean = (v) => (v || '').replace(/\s+/g, ' ').trim();
+                  const boxes = Array.from(document.querySelectorAll('.heroState, .attributeBox .heroState, .attributeBox'));
+                  for (const box of boxes) {
+                    const link = box.querySelector('a[href*="karte.php"], a[href*="position_details"]');
+                    if (!link) continue;
+                    const name = clean(link.textContent);
+                    if (!name) continue;
+                    const txt = clean(box.textContent).toLowerCase();
+                    // "currently in village" or a statusHome icon => hero is standing in the village (home).
+                    const home = txt.includes('currently in village')
+                      || !!box.querySelector('i[class*="statusHome" i], i[class*="heroHome" i]');
+                    return JSON.stringify({ name: name, away: !home });
+                  }
+                  return null;
+                }
+                """);
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return (null, false);
+            }
+
+            using var doc = System.Text.Json.JsonDocument.Parse(raw);
+            var root = doc.RootElement;
+            var name = root.TryGetProperty("name", out var n) ? n.GetString() : null;
+            var away = root.TryGetProperty("away", out var a) && a.GetBoolean();
+            return (string.IsNullOrWhiteSpace(name) ? null : name!.Trim(), away);
+        }
+        catch
+        {
+            return (null, false);
+        }
     }
 
     private async Task<HeroStatus> ReadHeroStatusAsync(CancellationToken cancellationToken)
@@ -1443,9 +1578,18 @@ public sealed partial class TravianClient
               const awayText = heroStateText || bodyInnerText;
               const isOutboundAdventure = /on its way to an adventure/i.test(awayText);
               const isReturningHome = /on its way back to the village/i.test(awayText);
-              const reviving = /being\s+revived|remaining\s+time|reviv/i.test(statusText)
-                && !!statusMessage?.querySelector('.timer, [counting="down"], .heroStatus101Regenerate');
-              const dead = /\bdead\b|\btot\b|\bdeceased\b|\bdöd\b/.test(text);
+              // The top-bar/sidebar hero status shows a heroReviving icon while reviving
+              // (<div class="heroStatus">...<i class="heroReviving">) — treat it as reviving even when no
+              // status text/timer is present on the page.
+              const revivingIcon = !!document.querySelector('.heroStatus i.heroReviving, i.heroReviving, [class*="heroReviving"]');
+              const reviving = revivingIcon
+                || (/being\s+revived|remaining\s+time|reviv/i.test(statusText)
+                  && !!statusMessage?.querySelector('.timer, [counting="down"], .heroStatus101Regenerate'));
+              // The top-bar/sidebar hero status shows a heroDead icon when the hero is dead
+              // (<div class="heroStatus">...<i class="heroDead"></i>). This is more reliable than the
+              // localized body text, so treat it as a dead signal too.
+              const deadIcon = !!document.querySelector('.heroStatus i.heroDead, i.heroDead, [class*="heroDead"]');
+              const dead = deadIcon || /\bdead\b|\btot\b|\bdeceased\b|\bdöd\b/.test(text);
 
               const effectiveDead = !reviving && (dead || /hero\s+is\s+dead/i.test(statusText));
               const reviveTimerNode = statusMessage?.querySelector('.timer[value], [counting="down"][value], .timer');
@@ -2257,6 +2401,9 @@ public sealed partial class TravianClient
             await _page.WaitForFunctionAsync(
                 """
                 () => {
+                  // Modern hero V2 attributes page.
+                  if (document.querySelector('.heroAttributes input[name="power"], input[name="productionPoints"], .heroAttributes .pointsAvailable')) return true;
+                  // Legacy table layout.
                   const table = document.querySelector('#attributesOfHero');
                   if (!table) return false;
                   const ap = document.querySelector('#availablePoints');
@@ -2449,21 +2596,25 @@ public sealed partial class TravianClient
                   try {
                     const readDigit = (el) => {
                       if (!el) return 0;
-                      const m = (el.textContent || '').match(/(\d+)/);
-                      return m ? Number(m[1]) || 0 : 0;
+                      // Strip bidi marks/thousands separators before reading the number.
+                      const m = (el.textContent || '').replace(/[^\d-]/g, '');
+                      return m ? Number(m) || 0 : 0;
                     };
-                    // Each attribute row has a fixed id ("attributepower" etc.). Travian shows the
-                    // points either as <input value="N"> (when free points exist and are editable)
-                    // OR as plain text in <td class="points">N</td> (when no free points are
-                    // available). Read whichever is present, in that order.
-                    const rowPoints = (rowId) => {
-                      const row = document.getElementById(rowId);
+                    // Reads an attribute's allocated points. Modern hero V2: <input name="power"> etc.
+                    // (names: power/offBonus/defBonus/productionPoints). Legacy: row id ("attributepower")
+                    // with an <input name^="attribute"> or a <td class="points"> text. Try modern first.
+                    const attrPoints = (modernName, legacyRowId) => {
+                      const modern = document.querySelector('input[name="' + modernName + '"]');
+                      if (modern) return Number(modern.value) || 0;
+                      const row = document.getElementById(legacyRowId);
                       if (!row) return 0;
                       const input = row.querySelector('input[type="text"][name^="attribute"]');
                       if (input) return Number(input.value) || 0;
                       const td = row.querySelector('td.points');
                       return td ? readDigit(td) : 0;
                     };
+                    // Free points: modern ".pointsAvailable", legacy "#availablePoints".
+                    const freePointsEl = document.querySelector('.heroAttributes .pointsAvailable, .pointsAvailable, #availablePoints');
                     const parseTimer = (value) => {
                       const text = (value || '').replace(/\s+/g, ' ').trim();
                       if (!text) return null;
@@ -2473,11 +2624,14 @@ public sealed partial class TravianClient
                       if (parts.length === 2) return parts[0] * 60 + parts[1];
                       return null;
                     };
-                    const statusMessage = document.querySelector('.heroStatusMessage');
+                    const statusMessage = document.querySelector('.heroState, .heroStatusMessage');
                     const statusText = (statusMessage?.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
-                    const reviving = /being\s+revived|remaining\s+time|reviv/i.test(statusText)
-                      && !!statusMessage?.querySelector('.timer, [counting="down"], .heroStatus101Regenerate');
-                    const dead = !reviving && /hero\s+is\s+dead|\bdead\b|\btot\b|\bdeceased\b/i.test(statusText);
+                    const revivingIcon = !!document.querySelector('.heroStatus i.heroReviving, i.heroReviving, [class*="heroReviving"]');
+                    const reviving = revivingIcon
+                      || (/being\s+revived|remaining\s+time|reviv/i.test(statusText)
+                        && !!statusMessage?.querySelector('.timer, [counting="down"], .heroStatus101Regenerate'));
+                    const deadIcon = !!document.querySelector('.heroStatus i.heroDead, i.heroDead, [class*="heroDead"]');
+                    const dead = !reviving && (deadIcon || /hero\s+is\s+dead|\bdead\b|\btot\b|\bdeceased\b/i.test(statusText));
                     const reviveTimerNode = statusMessage?.querySelector('.timer[value], [counting="down"][value], .timer')
                       || document.querySelector('.lineWrapper .inlineIcon.duration .value, .lineWrapper .duration .value');
                     const reviveTimer = reviveTimerNode?.getAttribute?.('value')
@@ -2488,11 +2642,11 @@ public sealed partial class TravianClient
                     return JSON.stringify({
                       ok: true,
                       levelUpAvailable: !!document.querySelector('.bigSpeechBubble.levelUp'),
-                      freePoints: readDigit(document.querySelector('#availablePoints')),
-                      fightingStrength: rowPoints('attributepower'),
-                      offenceBonus: rowPoints('attributeoffBonus'),
-                      defenceBonus: rowPoints('attributedefBonus'),
-                      resources: rowPoints('attributeproductionPoints'),
+                      freePoints: readDigit(freePointsEl),
+                      fightingStrength: attrPoints('power', 'attributepower'),
+                      offenceBonus: attrPoints('offBonus', 'attributeoffBonus'),
+                      defenceBonus: attrPoints('defBonus', 'attributedefBonus'),
+                      resources: attrPoints('productionPoints', 'attributeproductionPoints'),
                       heroState: reviving ? 'Reviving' : dead ? 'Dead' : 'Alive',
                       reviveRemainingSeconds: Number.isFinite(reviveTimer) ? Math.max(0, Math.trunc(reviveTimer)) : null,
                       hideMode: hideSwitch ? (hideSwitch.checked ? 'hide' : 'fight') : null

@@ -338,13 +338,32 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            AppendLog($"[resource-refresh] FAIL {ex.Message}");
+            // A page caught mid-navigation reports login state 'unknown' and self-heals on the next
+            // read. It is never user-actionable, so log it as a verbose (non-alarm) line instead of a
+            // red FAIL alarm. Real problems (captcha/manual step/logged out) keep alarming.
+            if (IsTransientPageSettlingFailure(ex))
+            {
+                AppendLog($"[resource-refresh:verbose] transient page-settling read skipped ({ex.Message})");
+            }
+            else
+            {
+                AppendLog($"[resource-refresh] FAIL {ex.Message}");
+            }
+
             throw;
         }
         finally
         {
             _resourceSnapshotRefreshRunning = false;
         }
+    }
+
+    // True for the benign "page still loading" read race: the page was probed between navigations so
+    // login state could not be classified yet. Distinct from captcha/manual-step/logged-out, which
+    // remain alarms.
+    private static bool IsTransientPageSettlingFailure(Exception ex)
+    {
+        return ex.Message.Contains("page state is 'unknown'", StringComparison.OrdinalIgnoreCase);
     }
 
     private bool ShouldRunBackgroundResourceSnapshotRefresh()
@@ -382,7 +401,14 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            AppendLog($"Background resource refresh skipped: {ex.Message}");
+            if (IsTransientPageSettlingFailure(ex))
+            {
+                AppendLog($"[resource-refresh:verbose] background refresh skipped — page still settling ({ex.Message})");
+            }
+            else
+            {
+                AppendLog($"Background resource refresh skipped: {ex.Message}");
+            }
         }
 
         if (officialServer)

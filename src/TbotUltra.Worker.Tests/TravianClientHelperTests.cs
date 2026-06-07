@@ -131,6 +131,60 @@ public sealed class TravianClientHelperTests
         Assert.Null(TravianClient.ResolveShortestQueueDurationSeconds(unparseable));
     }
 
+    [Theory]
+    // Contaminated/stale switch URLs (extra params from the page they were read on) must reduce to the
+    // canonical dorf1.php?newdid=X so the switch never hits the site root (served as the login page).
+    [InlineData("?newdid=25471&id=10", "dorf1.php?newdid=25471")]
+    [InlineData("dorf1.php?newdid=25471", "dorf1.php?newdid=25471")]
+    [InlineData("dorf2.php?newdid=33150", "dorf1.php?newdid=33150")]
+    [InlineData("https://ts100.x10.america.travian.com/dorf1.php?newdid=999&extra=1", "dorf1.php?newdid=999")]
+    // No newdid: leave the URL untouched (caller falls back to other resolution).
+    [InlineData("spieler.php?id=5", "spieler.php?id=5")]
+    public void CanonicalizeVillageSwitchUrl_ReducesToNewdidOverview(string input, string expected)
+    {
+        Assert.Equal(expected, TravianClient.CanonicalizeVillageSwitchUrl(input));
+    }
+
+    [Fact]
+    public void BuildQueueIdentityFingerprint_IsStableWhileCountdownTicks()
+    {
+        // The queue row text embeds a live countdown that changes on every read. The identity
+        // fingerprint must ignore it so a click that did nothing (queue full) is not misread as
+        // "queue changed" -> false queued=True, which previously spun the upgrade loop.
+        IReadOnlyList<BuildQueueItem> before =
+        [
+            new BuildQueueItem("Cropland Level 10 0:08:12", "0:08:12"),
+            new BuildQueueItem("Cropland Level 10 0:11:45", "0:11:45"),
+        ];
+        IReadOnlyList<BuildQueueItem> after =
+        [
+            new BuildQueueItem("Cropland Level 10 0:08:07", "0:08:07"),
+            new BuildQueueItem("Cropland Level 10 0:11:40", "0:11:40"),
+        ];
+
+        Assert.Equal(
+            TravianClient.BuildQueueIdentityFingerprint(before),
+            TravianClient.BuildQueueIdentityFingerprint(after));
+    }
+
+    [Fact]
+    public void BuildQueueIdentityFingerprint_ChangesWhenItemsChange()
+    {
+        IReadOnlyList<BuildQueueItem> twoItems =
+        [
+            new BuildQueueItem("Cropland Level 10 0:08:12", "0:08:12"),
+            new BuildQueueItem("Woodcutter Level 5 0:11:45", "0:11:45"),
+        ];
+        IReadOnlyList<BuildQueueItem> oneItem =
+        [
+            new BuildQueueItem("Cropland Level 10 0:08:12", "0:08:12"),
+        ];
+
+        Assert.NotEqual(
+            TravianClient.BuildQueueIdentityFingerprint(twoItems),
+            TravianClient.BuildQueueIdentityFingerprint(oneItem));
+    }
+
     [Fact]
     public void ResolveTroopTrainingQueueRemainingSeconds_ReturnsLongestOrZero()
     {

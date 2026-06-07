@@ -95,6 +95,18 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
 
 ## 4. Beslutslogg (ADR — append-only)
 
+- **2026-06-07** — **Hero-inventory "Max use limit" (per resurs).** Ny toggle (default på) + fält (default
+  5000) i Hero/Adventures inventory-kortet (`HeroViewModel.HeroResourceMaxUseEnabled/PerResource`,
+  config-nycklar `hero_resource_max_use_*`). Worker: `TryHeroResourceTransferForConstructionAsync` läser
+  per-resurs-shortfall (cost − stock); om någon resurs skulle dra mer än limiten från hjälten skippas
+  överföringen och `ComputeHeroUseLimitDeferSecondsAsync` beräknar väntan tills byn producerat nog (stock
+  ≥ cost − limit). **Produktionen läses från cachen** (`ReadCachedProductionByHourForActiveVillageAsync`),
+  ALDRIG från build-sidan (den saknar `#production` → annars långsamma misslyckade retries). Väntan
+  vidarebefordras via `_heroTransferOverLimitWaitSeconds`; `ReadUpgradeResourceWaitSnapshotAsync`
+  **early-returnar** då direkt (inga sid-läsningar) med `queue_wait_seconds` som driver construction-
+  countdownen. Icke-blockerande, loggas en gång (ej spam). Per resurs, inte totalt. Tog bort "Hero
+  inventory updated."-texten.
+
 - **2026-06-01** — Officiell-server-stöd byggs som **lager i ett repo** med flavor-flagga,
   **inte** en fork eller `IServerAdapter`-refaktor. Skäl: undvik dubbel-underhåll (~80 % delad kod).
 - **2026-06-01** — `ServerFlavor` är en **computed property från `BaseUrl`**, aldrig config-bunden.
@@ -688,10 +700,205 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   `IsQueueItemGroupEnabledForItsVillage` gatear fortf. varje item till sin egen bys inställning. Build rent,
   Worker 324 + Desktop 62 gröna.
 
+- **2026-06-05** — **Steg 4c klart: per-by runtime-generering för trupp-träning/smithy + brewery capital-
+  only.** `EnsureContinuousLoopRuntimeItemsAsync` genererade tidigare `build_troops`/`upgrade_troops_at_smithy`/
+  `run_brewery_celebration` **by-löst** (kördes i aktiv by) gatat på **vald bys** grupp-toggles. Nu:
+  (a) `build_troops` (TroopTraining) och `upgrade_troops_at_smithy` (Troops) genereras **per enabled by**
+  (`GetEnabledAutomationVillages` läser Dashboard-listan + `IsEnabledByKey`), gatat per by via
+  `IsGroupEnabledForVillage(key, group)`, taggat med `TargetVillageName/Url` (`BuildVillageRuntimePayload`)
+  så workern växlar dit (BotTaskRunner). Dubbelgenerering förhindras av `HasActiveTaskForVillage(task, by)`.
+  Replikerar global trupp-config över byar (per-by distinkta inställningar = framtida UI, ej begärt).
+  (b) **Brewery = endast capital** (bryggeriet finns bara i capital): genereras för capital-byn när den är
+  enabled + dess Auto Celebration-grupp på + stammen stödjer det. (c) Tidig-retur-gaten använder nu
+  `consideredGroups` (unionen) så loopen kör även när bara en icke-vald by har trupp-grupper på. Hero/
+  farming/resource-transfer/reinforcements förblir kontot-globala (vald-by-gatade, oförändrat).
+  (d) **Rotation för icke-construction-grupper:** `SelectNextQueueItemForContinuousLoop` roterar nu även
+  TroopTraining/Troops över byar (`QueueVillageRotation.SelectByVillageRotation` +
+  `SelectNextReadyGroupHead`, ny per-grupp-nyckel-dict `_continuousGroupRotationVillageKeys`, nollas vid
+  loopstart) så en bys väntande item inte blockerar en annan bys redo item. Globala grupper (en village-
+  nyckel = "") kollapsar till samma strikta head-ordning som förut. Compile rent (Desktop-exe copy-lock
+  när appen kör = inte kompileringsfel), Worker 324 gröna.
+
+- **2026-06-06** — **Dashboard-omdesign: överblick per by.** (1) **Layout:** rad 3 delas nu i en fast
+  vänsterkolumn (360px) = Automation Loop (nu **listformat**, en rad/grupp: Order-cirkel · Toggle ·
+  Namn+beskrivning+StateText/Queued · Status-badge) ovanpå **Auto settings** (flyttad hit från höger),
+  och en `*`-högerkolumn = **Villages** i full höjd. Automation-ListBoxens `ItemsPanel` bytte från
+  `VerticalFirstUniformGrid Columns=2` till vertikal `StackPanel`; korttemplaten bantades (tog bort den
+  inline hero-adv-badgen och troop_training-3-timer-`ItemsControl` — den infon finns nu per by i
+  Villages-listan). (2) **Villages-kolumner:** Name, Pop, Coords (behållna) + **Buildings** (2 slots, 3
+  för Romare), **Troops** (Barracks/Stable/Workshop), **Hero**. Ikoner = mörka (idle) / gröna (aktiva).
+  Källa: per-by-cachen `_villageStatusCacheByName` (icke-aktiva byar = senast inläst). `VillageSelectionItem`
+  fick `BuildingSlots`/`TroopSlots` (`VillageActivitySlot`) + `IsHeroHome`; fylls i `ApplyVillageActivity
+  Indicators` (kallas i `BuildMergedVillageSelectionItems` + efter varje `CacheVillageStatus`). Romare-koll
+  = `status.Tribe` innehåller "Roman". (3) **Hero-hemmaby:** `HeroAttributeSnapshot.HomeVillageName` (nytt
+  fält) läses från attributsidan (vid login) — `ReadHeroHomeVillageNameAsync` plockar `.heroState a[href*=
+  "karte.php"]` ur "Home village is village X". `ApplyHeroSnapshotToUi` → `SetHeroHomeVillageName` → repaint.
+  Compile rent (endast exe copy-lock när appen kör), Worker 324 gröna; Desktop-tester kräver stängd app.
+
+- **2026-06-06** — **Dashboard-omdesign uppföljning (fixar efter visuell granskning).** (1) **Auto loop =
+  äkta listrader:** korttemplaten ersatt med en rad `Toggle | Namn (+beskrivning) | Status-badge` (tog bort
+  order-cirkeln och vänster-accentkanten) så allt får plats i 360px-kolumnen. (2) **Villages: Pop & Coords
+  flyttade längst till höger** (kolumnordning Name · Buildings · Troops · Hero · Pop · Coords i både header
+  och radmall). (3) **Buildings för icke-skannade byar (t.ex. GREZ):** den persistade cachen strippar
+  `ActiveBuildCount`/`BuildQueue`, så en by boten inte skannat denna session saknade bygg-signal. Ny
+  `BuildQueueFullConstructionCountByVillage` räknar construction-kö-items deferrade med reason `queue_full`
+  per by (= server-bygg-kön upptagen → bygger) och lyser Buildings-slots även utan färsk skanning;
+  kombineras med cachens `ActiveBuildCount` (max). (4) **Hero-hemmaby:** `.heroState` säger "Hero is
+  currently in village X" (hemma) ELLER "Home village is village X" (borta på räd) — den gamla selektorn
+  matchade bara "home village" och missade hemma-fallet. `ReadHeroHomeVillageNameAsync` tar nu **första
+  `a[href*="karte.php"]`** i `.heroState` (täcker båda). På äventyr finns ingen by-länk → null → behåller
+  senast kända. Build rent, Worker 324 + Desktop 62 gröna.
+
+- **2026-06-06** — **Villages-överblick: hero 3-läge + Queue- och Smithy-kolumner.** (1) **Hero-ikon
+  tre lägen:** grön = hjälten är hemma i byn, gul (`WarningBrush`) = hemmaby men hjälten är borta
+  (äventyr/attack), mörk = ingen hjälte. Drivs av `VillageSelectionItem.IsHeroHome` + ny `IsHeroAway`.
+  Worker: `ReadHeroHomeVillageInfoAsync` returnerar nu `(Name, Away)` — hemma upptäcks via
+  "currently in village"/`i.statusHome`; nytt snapshot-fält `HomeVillageHeroAway`; desktop
+  `SetHeroHomeVillageName(name, away)`. (2) **Queue-kolumn:** grön ikon när byn har köad construction,
+  mindre grön (`SuccessBgBrush`/`SuccessTextBrush`) när tom — så användaren snabbt ser var de bör köa
+  mer (`HasQueue` via `BuildVillagesWithConstructionQueue`). (3) **Smithy-kolumn:** två slots (två
+  samtidiga uppgraderingar), samma stil som övriga; **UI-only** (ej inkopplad mot data ännu —
+  `BuildSmithyActivitySlots` ger två idle-slots). Kolumnordning nu: Name · Buildings · Queue · Smithy ·
+  Troops · Hero · Pop · Coords. (4) **Auto loop** nu äkta listrader (Toggle | Namn | Status). Build rent,
+  Worker 324 + Desktop 62 gröna.
+
+- **2026-06-06** — **Fixar: hero 4-läge, sticky gold/silver/tribe.** (1) **Hero-ikon röd vid död:** nytt
+  `IsHeroDead` (röd, `DangerBrush`, vinner över grön/gul). Drivs av snapshot `HeroState` = Dead/Reviving.
+  Ny `SetHeroState(name, away, dead)` ersätter `SetHeroHomeVillageName`; behåller senast kända hemmaby när
+  namn saknas (hero borta/död-sidor namnger ibland ingen by) så färgen ändå hamnar rätt. Loggar
+  `[hero] home village=… away=… dead=…` för felsökning. Hero-läsning styrs fortf. av checkboxen
+  *Post-login: analyze hero* (+ hero-tasks i loopen) — ingen alltid-på-läsning tillagd. (2) **Gold/Silver
+  blippade till "-"** på partiella status-reads: `SetCurrencyValueText` skriver inte längre över ett redan
+  visat verkligt värde med "-"/tomt. (3) **Tribe blippade till "-"/Unknown:** ny `SetTribeText` ignorerar
+  tomt/"Unknown"/"-" när en riktig tribe redan visas (tribe är fast per konto); alla 6 sättnings-ställen
+  använder den. Build rent, Worker 324 + Desktop 62 gröna.
+
+- **2026-06-06** — **Dashboard-layout omflyttad igen.** Automation Loop ligger nu **ensam i vänster-
+  kolumnen i full höjd** (så alla grupp-rader får plats i en kolumn utan att en andra bildas). Höger-
+  kolumnen är ett `Grid` med rader `[*, Auto]`: **Villages** (Grid.Row 0, ej längre full höjd) och
+  **Auto settings** (Grid.Row 1, under Villages). Auto settings ligger kvar i dokument-ordningen FÖRE
+  villages-bordern men placeras via `Grid.Row=1` → renderas under (slipper flytta hela blocket). Compile
+  rent (endast exe copy-lock när appen kör). Hero-grön lämnad t.v. (programmet navigerar inte till
+  attributsidan efter login om checkboxen är av — användarens beslut att låta checkboxen styra).
+
+- **2026-06-06** — **Buildings-ikoner undercount + Auto loop tvåkolumn.** (1) **Build queue räknades fel:**
+  `ReadBuildQueueAsync` dedupade kö-poster på `text`, så två samtidiga uppgraderingar med identiskt namn
+  (t.ex. två fält till samma nivå) slogs ihop → bara en grön bygg-ikon. Nu räknas varje element i första
+  träffande selektorn (ingen text-dedup); `ActiveBuildCount = buildQueue.Count` blir därmed korrekt. (2)
+  **Auto loop bildade en andra kolumn vid >4 grupper:** `UpdateAutomationLoopColumns` satte 2 kolumner när
+  fler än 4 syntes. Nu alltid **1 kolumn** (`VerticalFirstUniformGrid Columns=1`) — grupperna fyller neråt
+  och scrollar vid behov, eftersom Auto loop-rutan numera är full höjd. Build rent, Worker 324 + Desktop 62
+  gröna.
+
+- **2026-06-06** — **Hero-attribut lästes fel på officiell (hero V2).** `ReadHeroInventorySnapshotAsync`
+  + `WaitForAttributesTableAsync` använde gamla selektorer (`#availablePoints`, row-id `attributepower`,
+  `input[name^="attribute"]`, `#attributesOfHero`, `.heroStatusMessage`) som inte finns på den moderna
+  hero V2-attributsidan → allt blev 0. Nu läses modern layout först: free points `.pointsAvailable`,
+  attribut via `input[name="power|offBonus|defBonus|productionPoints"]`, status via `.heroState`; legacy-
+  selektorerna kvar som fallback (SS-Travi). `readDigit` strippar bidi-märken/tusentalsavgränsare.
+  **Ordning vid login:** hero-attribut-analysen (`RefreshHeroStatsAsync`, styrd av *Post-login: analyze
+  hero*) körs redan EFTER hero-inventory-läsningen (inventory läses i post-login-snapshoten, attribut i
+  steg 4) — ingen ändring behövdes. Worker 324 gröna; Desktop-exe copy-lock när appen kör = ej kompfel.
+
+- **2026-06-06** — **Hero settings + persisterad hemmaby + login-ordning.** (1) Settings-popupen: checkboxen
+  "Analyze hero" → **"Analyze hero attributes"**, och **"Analyze hero inventory"** flyttad direkt under den.
+  (2) **Login-ordning:** hero-attribut-analysen körs nu **steg 2** (direkt efter hero-inventory i post-login-
+  snapshoten, FÖRE farmlists) i `MainWindow.Session.cs`. (3) **Persisterad hemmaby:** `VillageSettingsStore`
+  sparar/laddar `HeroHomeVillageName` i villages.json (per konto); `LoadHeroHomeVillageForActiveAccount`
+  seedar ikonen vid login innan första hero-läsningen, och `SetHeroState` persisterar varje gång hemmabyn
+  ändras. Hemmabyn uppdateras vid varje attribut-läsning (login-analys + efter varje `hero_manage`-körning
+  via `ReadHeroAttributesAsync`→`ApplyHeroSnapshotToUi`→`SetHeroState`). Build rent, Worker 324 + Desktop 62
+  gröna.
+
+- **2026-06-06** — **Snabb hemmaby-läsning i adventure/HP-pollen.** `client.RefreshAdventureCountAsync`
+  (körs på dorf1 under continuous-loop-polling) anropar nu `NotifyHeroHomeFromDorf1Async`: läser hjälte-
+  widgeten (`.heroStatus a[href*="build.php"][href*="id=39"]` → `newdid` = hemmaby; ikon-klass = state
+  heroHome/heroRunning/dead), mappar newdid→namn via sidomenyns `.listEntry.village[data-did]` och Notifyar
+  `[herohome] away=.. dead=.. name=..`. Desktop parsar raden (`HeroHomeRegex` i `TryApplyPlusStatusFromLog`)
+  → `SetHeroState`. Så hemmabyn/ikonen uppdateras vid varje adventure-poll utan extra navigering, även när
+  attribut-checkboxen är av. Build rent, Worker 326 + Desktop 62 gröna.
+
+- **2026-06-06** — **Village overview-finputs + per-by NPC trade + README.** (1) Rubriken "Villages" →
+  **"Village overview"**; ny **grön/grå rund indikator** till vänster om bynamnet (grön = enabled, grå =
+  skippad) bunden till `IsEnabledForAutomation`. (2) Village settings-popupen: "Auto"-kolumnen är nu
+  **toggle-switchar** (DataGridTemplateColumn + `ToggleSwitchStyle`) i stället för checkboxes; styr vilka
+  byar boten kör. (3) **Per-by NPC trade:** `VillageSettingsStore` lagrar `NpcTrade` per by (default på);
+  popupens NPC-kolumn seedas/persisteras (`GetNpcTrade`/`SetNpcTrade`, ny notifierande `NpcTrade` i
+  `VillageSettingsRow` + andra callback i fönstret). Auto settings NPC-toggeln = **master** (config
+  `NpcTradeEnabled`). Effektiv NPC = master AND per-by, satt som per-task payload `npc_trade_enabled` i
+  `ApplySelectedVillageToPayload` + `BuildVillageRuntimePayload` (via `IsNpcTradeEnabledForVillageKey`);
+  workern honorerar overriden (BotOptionsPayloadApplier). Så master av → NPC körs ingenstans även om alla
+  byar är på. (4) README uppdaterad: ny "Multi-village support"-sektion + per-konto `accounts/<account>/`
+  config (queue.json/villages.json/village_cache.json). Build rent, Worker 326 + Desktop 62 gröna.
+
+- **2026-06-06** — **NPC trade borttagen som Automation Loop-grupp.** Eftersom NPC trade nu styrs av Auto
+  settings-master + per-by-val ska den inte längre visas som en loop-grupp. `LoadAutomationLoopTasks`
+  hoppar över `QueueGroup.NpcTrade` (visas ej i Auto loop-listan) och `DashboardFunctionListButton_Click`
+  filtrerar bort den från Function list-popupen (`AllGroups.Where(g => g != NpcTrade)`). Build rent,
+  Worker 331 + Desktop 62 gröna.
+
 ---
 
 ## 5. Kända fallgropar / regressions
 
+- **Buildings-tabbens "queued"-färgning måste filtreras per by.** Kön är en-per-konto och varje item är
+  taggat med målby. `PopulateBuildingsTab` byggde pending/queued-per-slot från ALLA byars köitems
+  (`GetActiveQueueItems()` ofiltrerat) → en annan bys köade uppgraderingar färgade samma slotnummer (19-40
+  finns i varje by) och gjorde dem oklickbara. Fix: filtrera köitems med `IsQueueItemForSelectedVillageOrGlobal`
+  i `PopulateBuildingsTab`, och rensa de optimistiska `_buildingLastQueued*BySlot`-cacharna (slot-keyade,
+  ej by-keyade) i `ShowSelectedVillageFromCache` vid bybyte. **Samma filter krävs i enqueue-vägen:**
+  `EnqueueBuildingUpgradeTaskCoalesced` och `EnqueueBuildingConstructTaskCoalesced` byggde `relatedItems`
+  enbart på slotId → en annan bys köade slot blockerade enqueue ("already has a queued upgrade", inget
+  lades till) och construct-coalescen kunde t.o.m. RADERA den andra byns köitems. Båda filtrerar nu med
+  `IsQueueItemForSelectedVillageOrGlobal`. Och `BuildProjectedBuildingStatus` defaultade till alla byars
+  köitems → en annan bys köade construct/upgrade projicerades på denna bys slots (tom slot såg upptagen ut,
+  eller en unik byggnad såg "already exists" ut) → construct-popupen visade "no buildings available".
+  Defaultar nu till by-filtrerade köitems. Resurs-tabbens `GetQueuedResourceTargetsBySlot`
+  (`MainWindow.Resources.UiState.cs`) hade samma ofiltrerade mönster för resursfält (slot 1-18) och
+  filtrerar nu också med `IsQueueItemForSelectedVillageOrGlobal`. Regel: all per-slot UI-härledning från
+  kön måste filtreras per vald by.
+- **Hero-ikonens away-state (grön=hemma, gul=ute) läses på dorf1.** `NotifyHeroHomeFromDorf1Async`
+  detekterade "away" via en enda widget-ikons klass och tvingade `away=false` så snart klassen innehöll
+  `herohome`. På official Travian behåller ikonen en heroHome-liknande klass medan hjälten är på äventyr →
+  ikonen fastnade grön. Fix: away läses nu från de kanoniska signalerna `heroRunning`/`statusRunning` eller
+  en ankomst-countdown (`.heroStatus .timerReact`/`.heroState .timerReact`), och "home"-signalen
+  (`heroHome`) litar vi bara på när ingen travel-signal finns. Timer-selektorn är scope:ad till hero-boxar
+  så bygg-köns timers inte ger falsk away.
+- **Full status-läsning måste cacha produktionen (annars tom resurs-UI efter by-byte).**
+  `ReadCurrentVillageStatusAsync` läste produktion på dorf1 men sparade den INTE i per-by-cachen
+  (`SaveCachedVillageResourceSnapshot`) — till skillnad från `ReadCurrentVillageResourceStatusAsync`. Vid
+  ett by-byte är den fulla läsningen ofta enda gången dorf1 (och därmed produktionen) läses för den nya
+  byn. Periodiska current-page-läsningar sker sedan på dorf2/build där produktion saknas → tom cache →
+  `@-/h` och "not filling". Fix: full status-läsning sparar nu också snapshotet. `SaveCached` behåller
+  befintliga värden när den nya läsningen är tom, så bra data skrivs aldrig över med blankt.
+- **Village-switch måste använda kanonisk `dorf1.php?newdid=X` + verifieras.** En lagrad/sidebar-URL kan
+  få med extra query-param från sidan den lästes på (t.ex. en byggslots `id=10`). URL:en
+  `?newdid=25471&id=10` navigerar till sajt-roten, som servern serverar som **login-sidan** → ser ut som
+  en utloggning och nästa läsning sker på fel/utloggad sida (fel värden/bygge i fel by). Fix:
+  `CanonicalizeVillageSwitchUrl` reducerar alla switch-URL:er med newdid till `dorf1.php?newdid={id}`, och
+  `SwitchToVillageAsync` verifierar efteråt att vi är `logged_in` (annars `EnsureLoggedInAsync(force)`).
+  Switch drivs alltid av newdid — släng aldrig in andra `id`-param i switch-URL:en.
+- **Login: vänta på full sidladdning + mänsklig pacing.** `LoginAsync`/`TryLoginUsingCurrentPageAsync`
+  fyllde användarnamn+lösenord och submittade direkt utan paus, och väntade bara på `DOMContentLoaded`
+  efter login → boten bytte sida på en halvladdad sida (såg omänskligt snabb ut) och nästa bakgrundstick
+  läste ofta login-state `unknown`. Fix: `FillLoginCredentialsWithPacingAsync` lägger click-pacing
+  (`ActionPacingClickMin/MaxSeconds`) mellan fälten och före submit, och efter login väntar vi på
+  `LoadState.Load` + page-load-pacing. Allt styrs av befintliga pacing-inställningar (av när action-pacing
+  är av).
+- **`unknown` login-state är en godartad ladd-race, inte ett larm.** En sida som läses mitt i en
+  navigering ger `LoginStateAsync()=="unknown"` → `EnsureLoggedInAsync` kastar "Not logged in. Current page
+  state is 'unknown'." Det självläker nästa tick. Bakgrunds-resurs-refreshen loggar nu detta specifika fall
+  som `[resource-refresh:verbose]` (icke-larm) via `IsTransientPageSettlingFailure`; captcha/manual_step/
+  logged_out förblir larm.
+
+- **Byggkö-fingerprint får inte innehålla nedräkningstimer:** `BuildQueueIdentityFingerprint` byggde
+  identiteten på `BuildQueueItem.Text`, som innehåller den live tickande timern (`0:08:12`). Då ändrades
+  fingeravtrycket vid varje läsning → `WaitForResourceLevelAdvanceAsync` tolkade det som "queue changed"
+  → falskt `queued=True` efter ett klick som inte gjorde något (kö full). Resultat: `upgrade_all_resources_
+  to_level` hoppade förbi defer-grenen och navigerade om till `build.php?id=N` i all oändlighet (spam var
+  ~5:e sek när bara ett fält återstod under mål). Fix: `StripQueueTimerTokens` tar bort tid/nedräkning ur
+  texten så identiteten bara speglar VILKA items som köar (namn+nivå). OBS: `BuildQueueFingerprint`
+  (byggnadsflödet) inkluderar fortfarande `TimeLeft` medvetet — rör inte utan att verifiera samma risk.
 - **Single-file + Playwright-driver (portable):** `PublishSingleFile=true` bäddar in
   `.playwright\node\win32_x64\node.exe` i exe:n istället för att lägga den löst → portable-mappen
   saknar drivern och Playwright kraschar med `Driver not found` (letar dessutom på fel plats, t.ex.

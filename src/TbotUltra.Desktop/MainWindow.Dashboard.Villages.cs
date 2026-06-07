@@ -262,6 +262,7 @@ public partial class MainWindow
             .ToList();
 
         ApplyVillageEnabledState(items);
+        ApplyVillageActivityIndicators(items);
         return items;
     }
 
@@ -290,6 +291,7 @@ public partial class MainWindow
             .ToList();
 
         ApplyVillageEnabledState(items);
+        ApplyVillageActivityIndicators(items);
         return items;
     }
 
@@ -335,6 +337,51 @@ public partial class MainWindow
         }
 
         _villageSettingsStore.SetEnabled(row.KeyInfo, row.IsEnabledForAutomation);
+        // Repaint the dashboard enabled indicator (green/grey dot) right away.
+        RefreshVillageEnabledStateOnDashboard();
+    }
+
+    // Effective NPC trade flag for a village: the account-wide master (Auto settings NPC toggle, stored as
+    // config NpcTradeEnabled) AND the per-village choice. So NPC runs only when both are on.
+    private bool IsNpcTradeEnabledForVillageKey(string? villageKey)
+    {
+        bool master;
+        try
+        {
+            master = LoadBotOptions().NpcTradeEnabled;
+        }
+        catch
+        {
+            master = false;
+        }
+
+        return master && _villageSettingsStore.IsNpcTradeEnabledByKey(villageKey, defaultIfUnknown: true);
+    }
+
+    // Persists a village's per-village NPC trade choice from the Village settings window.
+    private void PersistVillageNpcTradeFromSettingsRow(VillageSettingsRow row)
+    {
+        if (row?.KeyInfo is null)
+        {
+            return;
+        }
+
+        _villageSettingsStore.SetNpcTrade(row.KeyInfo, row.NpcTrade);
+    }
+
+    // Re-applies the persisted enabled state onto the current dashboard village items so the green/grey
+    // enabled dot updates immediately after a toggle in the Village settings window.
+    private void RefreshVillageEnabledStateOnDashboard()
+    {
+        if (DashboardVillageList.ItemsSource is not IEnumerable<VillageSelectionItem> items)
+        {
+            return;
+        }
+
+        foreach (var item in items)
+        {
+            item.IsEnabledForAutomation = _villageSettingsStore.IsEnabledByKey(GetVillageKey(item), defaultIfUnknown: item.IsCapital);
+        }
     }
 
     private Dictionary<string, VillageSelectionItem> BuildExistingVillageSelectionLookup()
@@ -431,11 +478,12 @@ public partial class MainWindow
                     CoordsText = v.CoordsText,
                     KeyInfo = keyInfo,
                     IsEnabledForAutomation = _villageSettingsStore.GetEnabled(keyInfo),
+                    NpcTrade = _villageSettingsStore.GetNpcTrade(keyInfo),
                 };
             })
             .ToList();
 
-        var window = new VillageSettingsWindow(rows, PersistVillageEnabledFromSettingsRow)
+        var window = new VillageSettingsWindow(rows, PersistVillageEnabledFromSettingsRow, PersistVillageNpcTradeFromSettingsRow)
         {
             Owner = this,
         };

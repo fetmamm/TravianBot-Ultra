@@ -415,6 +415,12 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.HeroResourceTransferEnabled)]
     public bool HeroResourceTransferEnabled { get; init; }
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.HeroResourceMaxUseEnabled)]
+    public bool HeroResourceMaxUseEnabled { get; init; } = true;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.HeroResourceMaxUsePerResource)]
+    public int HeroResourceMaxUsePerResource { get; init; } = 5000;
+
     [ConfigurationKeyName("upgrade_selector_profile")]
     public string UpgradeSelectorProfile { get; init; } = "auto";
 

@@ -49,6 +49,13 @@ public partial class MainWindow
                     continue;
                 }
 
+                // NPC trade is controlled by the Auto settings master toggle + per-village choice, not as
+                // an Automation Loop group — never show it in the loop list or Function list.
+                if (group == QueueGroup.NpcTrade)
+                {
+                    continue;
+                }
+
                 _automationLoopTasks.Add(new LoopTaskOption
                 {
                     TaskName = groupKey,
@@ -207,10 +214,10 @@ public partial class MainWindow
             return;
         }
 
-        var visibleCount = Math.Max(1, _automationLoopTasks.Count(item => item.IsVisible));
-        var columns = visibleCount <= 4 ? 1 : 2;
+        // Always a single vertical column now that the Auto loop box fills the column height: groups
+        // stack downward (and scroll if needed) instead of wrapping into a second column after 4.
         var factory = new FrameworkElementFactory(typeof(VerticalFirstUniformGrid));
-        factory.SetValue(VerticalFirstUniformGrid.ColumnsProperty, columns);
+        factory.SetValue(VerticalFirstUniformGrid.ColumnsProperty, 1);
         AutomationLoopListBox.ItemsPanel = new ItemsPanelTemplate(factory);
     }
 

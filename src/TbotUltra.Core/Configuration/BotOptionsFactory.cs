@@ -155,6 +155,8 @@ public static class BotOptionsFactory
             CollectStepDelayMinMs = configuration.GetValue(BotOptionPayloadKeys.CollectStepDelayMinMs, PacingDefaults.CollectStepDelayMinMs),
             CollectStepDelayMaxMs = configuration.GetValue(BotOptionPayloadKeys.CollectStepDelayMaxMs, PacingDefaults.CollectStepDelayMaxMs),
             HeroResourceTransferEnabled = configuration.GetValue(BotOptionPayloadKeys.HeroResourceTransferEnabled, false),
+            HeroResourceMaxUseEnabled = configuration.GetValue(BotOptionPayloadKeys.HeroResourceMaxUseEnabled, true),
+            HeroResourceMaxUsePerResource = configuration.GetValue(BotOptionPayloadKeys.HeroResourceMaxUsePerResource, 5000),
             UpgradeSelectorProfile = configuration[BotOptionPayloadKeys.UpgradeSelectorProfile] ?? "auto",
             NatarVillageSelection = configuration["natar_village_selection"] ?? "farm_villages",
         };
@@ -289,6 +291,9 @@ public static class BotOptionsFactory
             HeroHideModeEnabled = source.HeroHideModeEnabled,
             HeroHideMode = source.HeroHideMode,
             HeroContinuousAdventures = source.HeroContinuousAdventures,
+            HeroResourceTransferEnabled = source.HeroResourceTransferEnabled,
+            HeroResourceMaxUseEnabled = source.HeroResourceMaxUseEnabled,
+            HeroResourceMaxUsePerResource = source.HeroResourceMaxUsePerResource,
             AutoCollectTasksEnabled = source.AutoCollectTasksEnabled,
             AutoCollectDailyQuestsEnabled = source.AutoCollectDailyQuestsEnabled,
             CollectStepDelayMinMs = source.CollectStepDelayMinMs,

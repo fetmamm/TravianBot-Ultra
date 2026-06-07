@@ -898,7 +898,11 @@ public partial class MainWindow
                 && value.Contains("retrying"))
             || value.Contains("the calling thread cannot access this object because a different thread owns it")
             || (value.Contains("ui sync snapshot failed")
-                && value.Contains("execution context was destroyed"));
+                && value.Contains("execution context was destroyed"))
+            // Best-effort logout before session sleep; a timeout here is harmless (the next login still
+            // works) so it stays in the alarm list but is auto-acknowledged.
+            || (value.Contains("session logout failed")
+                && value.Contains("timeout"));
     }
 
     private static bool IsCleanModeHiddenAlarmMessage(string message)
@@ -1016,8 +1020,21 @@ public partial class MainWindow
 
     private static void SetCurrencyValueText(TextBlock target, string text, SolidColorBrush meaningfulBrush)
     {
-        target.Inlines.Clear();
         var isMeaningful = text is not ("-" or "0") && !string.IsNullOrWhiteSpace(text);
+
+        // Don't clobber a previously shown real value with "-"/empty: partial status reads carry no gold/
+        // silver and would otherwise blip the value to "-" between full reads.
+        if (!isMeaningful)
+        {
+            var existing = (target.Inlines.FirstInline as Run)?.Text;
+            var existingMeaningful = !string.IsNullOrWhiteSpace(existing) && existing is not ("-" or "0");
+            if (existingMeaningful)
+            {
+                return;
+            }
+        }
+
+        target.Inlines.Clear();
         var valueRun = new Run(string.IsNullOrWhiteSpace(text) ? "-" : text)
         {
             Foreground = isMeaningful ? meaningfulBrush : NeutralStatsBrush,

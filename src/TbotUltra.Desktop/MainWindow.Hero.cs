@@ -57,6 +57,8 @@ public partial class MainWindow
             config[BotOptionPayloadKeys.HeroHideModeEnabled] = _heroViewModel.HideModeControlEnabled;
             config[BotOptionPayloadKeys.HeroHideMode] = _heroViewModel.HideMode;
             config[BotOptionPayloadKeys.HeroContinuousAdventures] = _heroViewModel.ContinuousAdventures;
+            config[BotOptionPayloadKeys.HeroResourceMaxUseEnabled] = _heroViewModel.HeroResourceMaxUseEnabled;
+            config[BotOptionPayloadKeys.HeroResourceMaxUsePerResource] = _heroViewModel.HeroResourceMaxUsePerResource;
             _botConfigStore.Save(config);
         }
         catch (Exception ex)
@@ -95,6 +97,11 @@ public partial class MainWindow
     {
         _heroViewModel.ApplyAttributeSnapshot(snapshot);
         ApplyHeroHideModeSnapshotToUi(snapshot.HideMode);
+        var heroReviving = string.Equals(snapshot.HeroState, "Reviving", StringComparison.OrdinalIgnoreCase);
+        var heroDead = string.Equals(snapshot.HeroState, "Dead", StringComparison.OrdinalIgnoreCase);
+        // SetHeroState keeps the last-known home village when the name is null (hero away/dead pages may not
+        // name a village), so this safely updates away/dead/reviving colouring without a name.
+        SetHeroState(snapshot.HomeVillageName, snapshot.HomeVillageHeroAway, heroDead, heroReviving);
         if (snapshot.AdventureCount is not null)
         {
             ApplyHeroAdventureAvailability(snapshot.AdventureCount.Value);

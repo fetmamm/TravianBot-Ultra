@@ -17,10 +17,18 @@ public sealed partial class TravianClient
     // build page. Returns true when the transfer dialog was confirmed (page reloads afterwards), so
     // the caller should `continue` its loop and re-analyze whether the upgrade is now possible.
     // Official-only and opt-in; both gates fail fast so callers can call this unconditionally.
+    // Set when a transfer is skipped because topping up would exceed the per-resource hero-use limit.
+    // Holds the calculated seconds to wait until the village has accumulated enough that the hero share
+    // fits the limit; consumed by ReadUpgradeResourceWaitSnapshotAsync so the construction defer uses
+    // this targeted wait instead of the (longer) "until fully affordable" estimate. Reset each attempt.
+    private int? _heroTransferOverLimitWaitSeconds;
+
     private async Task<bool> TryHeroResourceTransferForConstructionAsync(
         string label,
         CancellationToken cancellationToken)
     {
+        _heroTransferOverLimitWaitSeconds = null;
+
         if (_config.IsPrivateServer)
         {
             return false;
@@ -50,15 +58,39 @@ public sealed partial class TravianClient
             return false;
         }
 
+        // Per-resource missing amount (cost minus current village stock) for this upgrade. Used by both
+        // the hero-use limit gate and the cached-inventory cover check below.
+        var shortfall = await ReadUpgradeShortfallOnBuildPageAsync(cancellationToken);
+
+        // Hero-use limit gate: if covering any single resource from the hero would pull more than the
+        // configured per-resource limit, skip the transfer and defer until the village has produced
+        // enough that the hero share fits the limit (then the transfer runs with the limited amount).
+        // Keeps the hero's resources from being drained on expensive buildings. Non-blocking: the defer
+        // is handled by the caller's resource-wait path, and it's logged once (no spam).
+        if (_config.HeroResourceMaxUseEnabled
+            && _config.HeroResourceMaxUsePerResource > 0
+            && shortfall is not null)
+        {
+            var overLimitWait = await ComputeHeroUseLimitDeferSecondsAsync(shortfall, cancellationToken);
+            if (overLimitWait is int waitSeconds)
+            {
+                _heroTransferOverLimitWaitSeconds = waitSeconds;
+                Notify($"[hero-transfer] skip at {label}. Per-resource hero-use limit "
+                    + $"({_config.HeroResourceMaxUsePerResource}) would be exceeded "
+                    + $"(need from hero: wood={shortfall.Wood} clay={shortfall.Clay} iron={shortfall.Iron} crop={shortfall.Crop}). "
+                    + $"Waiting ~{waitSeconds}s for the village to accumulate enough, then retrying.");
+                return false;
+            }
+        }
+
         // Proactive gate: if we already know (from the cached inventory) the hero cannot fully cover
         // the missing resources, skip without opening the dialog — a partial transfer would spend
         // hero resources without unblocking the upgrade. With no cache yet we fall through to the
         // reactive behaviour (open the dialog and let Travian decide).
         var cachedInventory = TryGetCachedHeroInventory();
-        if (cachedInventory is not null)
+        if (cachedInventory is not null && shortfall is not null)
         {
-            var shortfall = await ReadUpgradeShortfallOnBuildPageAsync(cancellationToken);
-            if (shortfall is not null && !HeroCoversShortfall(cachedInventory, shortfall))
+            if (!HeroCoversShortfall(cachedInventory, shortfall))
             {
                 Notify($"[hero-transfer] skip at {label}. Cached hero inventory cannot cover the shortfall "
                     + $"(need wood={shortfall.Wood} clay={shortfall.Clay} iron={shortfall.Iron} crop={shortfall.Crop}; "
@@ -167,6 +199,27 @@ public sealed partial class TravianClient
             UpdateHeroInventoryCache(actualInventory);
         }
 
+        // The dialog now reports what the hero actually carries. If that still cannot cover the shortfall
+        // (Travian greys out the inputs and the "Transfer selected" button stays disabled), a transfer
+        // would do nothing — so close the dialog and wait for the village to accumulate the rest. The
+        // wait is computed from cached production vs the shortfall the hero can't cover (no page reads).
+        if (actualInventory is not null && shortfall is not null && !HeroCoversShortfall(actualInventory, shortfall))
+        {
+            var waitSeconds = await ComputeAccumulationWaitSecondsAsync(
+                Math.Max(0, shortfall.Wood - actualInventory.Wood),
+                Math.Max(0, shortfall.Clay - actualInventory.Clay),
+                Math.Max(0, shortfall.Iron - actualInventory.Iron),
+                Math.Max(0, shortfall.Crop - actualInventory.Crop),
+                cancellationToken);
+            _heroTransferOverLimitWaitSeconds = waitSeconds;
+            Notify($"[hero-transfer] hero inventory cannot cover {label} "
+                + $"(need wood={shortfall.Wood} clay={shortfall.Clay} iron={shortfall.Iron} crop={shortfall.Crop}; "
+                + $"hero has wood={actualInventory.Wood} clay={actualInventory.Clay} iron={actualInventory.Iron} crop={actualInventory.Crop}). "
+                + $"Waiting ~{waitSeconds}s for the village to accumulate the rest.");
+            await TryDismissResourceTransferDialogAsync(cancellationToken);
+            return false;
+        }
+
         bool confirmed;
         try
         {
@@ -206,6 +259,13 @@ public sealed partial class TravianClient
                   return true;
                 }
                 """);
+        }
+        catch (TimeoutException)
+        {
+            // Button never became enabled (e.g. hero still can't cover after all) — don't transfer.
+            Notify($"[hero-transfer] 'Transfer selected' stayed disabled at {label}; closing dialog and skipping.");
+            await TryDismissResourceTransferDialogAsync(cancellationToken);
+            return false;
         }
         catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
         {
@@ -462,6 +522,74 @@ public sealed partial class TravianClient
         {
             return null;
         }
+    }
+
+    // When any resource would need more than the per-resource limit pulled from the hero, returns the
+    // seconds to wait until the most-constrained resource has produced enough locally that the hero
+    // share drops to the limit (stock reaches cost - limit). Returns null when no resource is over the
+    // limit (transfer may proceed). Falls back to a fixed wait when production can't be read, so the
+    // build still defers without spamming retries.
+    private async Task<int?> ComputeHeroUseLimitDeferSecondsAsync(
+        HeroInventoryResources shortfall,
+        CancellationToken cancellationToken)
+    {
+        var limit = _config.HeroResourceMaxUsePerResource;
+        var anyOverLimit = shortfall.Wood > limit
+            || shortfall.Clay > limit
+            || shortfall.Iron > limit
+            || shortfall.Crop > limit;
+        if (!anyOverLimit)
+        {
+            return null;
+        }
+
+        // The village must still produce whatever exceeds the limit for each over-limit resource.
+        return await ComputeAccumulationWaitSecondsAsync(
+            Math.Max(0, shortfall.Wood - limit),
+            Math.Max(0, shortfall.Clay - limit),
+            Math.Max(0, shortfall.Iron - limit),
+            Math.Max(0, shortfall.Crop - limit),
+            cancellationToken);
+    }
+
+    // Seconds until the village will have produced the given per-resource amounts, using the production
+    // the program already knows (cached from earlier reads) — never a build-page read, which would
+    // trigger slow failing retries. Returns a fixed fallback when production is unknown/non-positive for
+    // a needed resource, so the build defers (and retries later) instead of spamming.
+    private async Task<int> ComputeAccumulationWaitSecondsAsync(
+        long remainingWood,
+        long remainingClay,
+        long remainingIron,
+        long remainingCrop,
+        CancellationToken cancellationToken)
+    {
+        var productionByHour = await ReadCachedProductionByHourForActiveVillageAsync(cancellationToken);
+
+        var waitSeconds = 0;
+        var unknownProduction = false;
+        void Consider(long remaining, string key)
+        {
+            if (remaining <= 0)
+            {
+                return;
+            }
+
+            if (productionByHour.TryGetValue(key, out var perHour) && perHour is > 0)
+            {
+                waitSeconds = Math.Max(waitSeconds, (int)Math.Ceiling(remaining / perHour.Value * 3600d));
+            }
+            else
+            {
+                unknownProduction = true;
+            }
+        }
+
+        Consider(remainingWood, "wood");
+        Consider(remainingClay, "clay");
+        Consider(remainingIron, "iron");
+        Consider(remainingCrop, "crop");
+
+        return waitSeconds > 0 ? waitSeconds : (unknownProduction ? 600 : 1);
     }
 
     // True when the hero's cached amounts cover every resource that is short. Resources that are

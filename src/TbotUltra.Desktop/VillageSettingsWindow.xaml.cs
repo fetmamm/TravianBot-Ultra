@@ -14,12 +14,17 @@ public partial class VillageSettingsWindow : Window
 {
     private readonly IReadOnlyList<VillageSettingsRow> _rows;
     private readonly Action<VillageSettingsRow>? _onEnabledChanged;
+    private readonly Action<VillageSettingsRow>? _onNpcTradeChanged;
 
-    public VillageSettingsWindow(IReadOnlyList<VillageSettingsRow> rows, Action<VillageSettingsRow>? onEnabledChanged = null)
+    public VillageSettingsWindow(
+        IReadOnlyList<VillageSettingsRow> rows,
+        Action<VillageSettingsRow>? onEnabledChanged = null,
+        Action<VillageSettingsRow>? onNpcTradeChanged = null)
     {
         InitializeComponent();
         _rows = rows;
         _onEnabledChanged = onEnabledChanged;
+        _onNpcTradeChanged = onNpcTradeChanged;
         VillageSettingsDataGrid.ItemsSource = rows;
 
         foreach (var row in rows)
@@ -38,10 +43,18 @@ public partial class VillageSettingsWindow : Window
 
     private void OnRowPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(VillageSettingsRow.IsEnabledForAutomation)
-            && sender is VillageSettingsRow row)
+        if (sender is not VillageSettingsRow row)
+        {
+            return;
+        }
+
+        if (e.PropertyName == nameof(VillageSettingsRow.IsEnabledForAutomation))
         {
             _onEnabledChanged?.Invoke(row);
+        }
+        else if (e.PropertyName == nameof(VillageSettingsRow.NpcTrade))
+        {
+            _onNpcTradeChanged?.Invoke(row);
         }
     }
 

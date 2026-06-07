@@ -81,6 +81,7 @@ public partial class MainWindow
             // Bring in any village buildings/fields remembered from a previous session so the dropdown can
             // show them immediately; the fresh post-login read then updates the landing village.
             LoadVillageCacheForActiveAccount();
+            LoadHeroHomeVillageForActiveAccount();
             RefreshNatarsProfileAnalyzedFromCache();
             // Check if server is official
             var officialServer = IsOfficialTravianServer(options);
@@ -90,22 +91,9 @@ public partial class MainWindow
                 operationToken,
                 forceCurrentVillage: !officialServer,
                 currentPageOnly: officialServer);
-            if (options.PostLoginAnalyzeFarmlists)
-            {
-                try
-                {
-                    await RefreshFarmListsFromServerAsync(options, operationToken);
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    AppendLog($"Post-login farmlist analyze failed: {ex.Message}");
-                }
-            }
-
+            // Hero inventory is read during the post-login snapshot (step 1). Run the hero ATTRIBUTES
+            // analyze right after it (step 2) — before farmlists — so the hero panel + home-village marker
+            // update as early as possible.
             if (options.PostLoginAnalyzeHero)
             {
                 try
@@ -119,6 +107,22 @@ public partial class MainWindow
                 catch (Exception ex)
                 {
                     AppendLog($"Post-login hero analyze failed: {ex.Message}");
+                }
+            }
+
+            if (options.PostLoginAnalyzeFarmlists)
+            {
+                try
+                {
+                    await RefreshFarmListsFromServerAsync(options, operationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    AppendLog($"Post-login farmlist analyze failed: {ex.Message}");
                 }
             }
 
