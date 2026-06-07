@@ -186,10 +186,36 @@
                            FontWeight="SemiBold"
                            Foreground="{DynamicResource TextPrimaryBrush}"
                            Margin="0,0,0,6" />
-                <TextBlock Text="Construction options will appear here."
+                <TextBlock Text="These places is great for following buildings (optional)"
                            Foreground="{DynamicResource TextSubtleBrush}"
                            FontSize="12"
-                           TextWrapping="Wrap" />
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,10" />
+                <TextBlock Text="Slot 22 - Barracks"
+                           Foreground="{DynamicResource TextSubtleBrush}"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,10" />
+                <TextBlock Text="Slot 29 - Stable"
+                           Foreground="{DynamicResource TextSubtleBrush}"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,10" />
+                <TextBlock Text="Slot 31 - Marketplace"
+                           Foreground="{DynamicResource TextSubtleBrush}"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,10" />
+                <TextBlock Text="Slot 21 - Workshop"
+                           Foreground="{DynamicResource TextSubtleBrush}"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,10" />
+                <TextBlock Text="Slot 11 - Hospital"
+                           Foreground="{DynamicResource TextSubtleBrush}"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,10" />
             </StackPanel>
         </Border>
     </Grid>

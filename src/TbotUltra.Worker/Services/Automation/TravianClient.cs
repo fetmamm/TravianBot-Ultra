@@ -165,6 +165,18 @@ public sealed partial class TravianClient
     public string? KnownTribe => IsKnownTribe(_sessionTribe) ? _sessionTribe : IsKnownTribe(_cachedTribe) ? _cachedTribe : null;
     public bool? KnownGoldClubEnabled => _cachedGoldClubEnabled;
     
+// Helper för action pacing klick
+    private Task DelayBeforeClickAsync(
+        CancellationToken cancellationToken,
+        string? reason = null)
+    {
+        return ActionPacer.FromOptions(_config, Notify).DelayAsync(
+            _config.ActionPacingClickMinSeconds,
+            _config.ActionPacingClickMaxSeconds,
+            cancellationToken,
+            reason);
+    }
+
 // Helper function for waiting on a page to fully load with retries, to mitigate transient timeouts on slow-loading pages.
     private async Task WaitForPageReadyAsync(CancellationToken cancellationToken = default)
     {
@@ -175,6 +187,7 @@ public sealed partial class TravianClient
         {
             try
             {
+                await PauseForManualStepIfVisibleAsync("Manual verification appeared on the page.", cancellationToken);
                 await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded, new PageWaitForLoadStateOptions
                 {
                     Timeout = timeoutMs,
@@ -242,6 +255,7 @@ public sealed partial class TravianClient
         }
 
         await GotoAsync(_config.LoginPath, cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await PauseForManualStepIfVisibleAsync("Manual verification appeared on the login page.", cancellationToken);
         if (await IsLoggedInAsync())
         {
@@ -295,6 +309,7 @@ public sealed partial class TravianClient
         else
         {
             await ClickLoginButtonAsync(cancellationToken);
+            await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         }
 
         var loggedIn = await WaitUntilLoggedInAsync(cancellationToken);
@@ -965,16 +980,9 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 };
                 Notify($"{stepPrefix} Sent {(raidAttack ? "raid" : "normal attack")} to ({coordinate.X}|{coordinate.Y}) with {sendResult.SentTroopCount}/{troopCount}±{normalizedVariancePercent}% {troopType.Trim()} (Available: {FormatLargeCount(sendResult.AvailableTroopCount)}).");
                 if (_config.HumanLikeEnabled)
-                {
-                    var humanDelayMs = Random.Shared.Next(100, 1001);
-                    await Task.Delay(humanDelayMs, cancellationToken);
-                }
 
-                await ActionPacer.FromOptions(_config, Notify).DelayAsync(
-                    _config.ActionPacingClickMinSeconds,
-                    _config.ActionPacingClickMaxSeconds,
-                    cancellationToken,
-                    "between farm sends");
+                await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
+                
                 continue;
             }
 
@@ -1699,6 +1707,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
             await RetryAsync($"click login selector {selector}", async () =>
             {
+                await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
                 await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
             }, cancellationToken: cancellationToken);
             Notify("Clicked login button.");
@@ -1865,6 +1874,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             {
                 await RetryAsync($"click selector {selector}", async () =>
                 {
+                    await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
                     await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
                 }, cancellationToken: cancellationToken);
                 await PauseForManualStepIfVisibleAsync("Manual verification appeared after click.", cancellationToken);
@@ -1953,6 +1963,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                     break;
                 }
 
+                await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
                 await candidate.ClickAsync(new LocatorClickOptions { Timeout = clickTimeoutMs });
                 Notify("Detected update popup. Clicked 'Continue' automatically.");
                 await Task.Delay(220, cancellationToken);
@@ -4964,6 +4975,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
                     await RetryAsync($"click confirm selector {selector}", async () =>
                     {
+                        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
                         await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
                     }, cancellationToken: cancellationToken);
 
@@ -5094,6 +5106,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             {
                 await RetryAsync($"click official primary upgrade button '{selector}'", async () =>
                 {
+                    await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
                     await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
                 }, cancellationToken: cancellationToken);
                 await PauseForManualStepIfVisibleAsync("Manual verification appeared after clicking official upgrade button.", cancellationToken);

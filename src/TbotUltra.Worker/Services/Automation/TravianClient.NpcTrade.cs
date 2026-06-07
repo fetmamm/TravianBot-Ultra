@@ -88,6 +88,7 @@ public sealed partial class TravianClient
             }
         }
 
+        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         await exchangeButton.ClickAsync();
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening NPC trade.", cancellationToken);
 
@@ -172,6 +173,7 @@ public sealed partial class TravianClient
         }
 
         var exchangeButton = _page.Locator("button, input[type='submit'], input[type='button'], a, div.addHoverClick, div.button-container").Nth(candidateIndex.Value);
+        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         await exchangeButton.ClickAsync();
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening NPC trade.", cancellationToken);
 
@@ -538,6 +540,7 @@ public sealed partial class TravianClient
             return false;
         }
 
+        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         await button.ClickAsync();
         Notify($"NPC trade: clicked '{label}'.");
         return true;

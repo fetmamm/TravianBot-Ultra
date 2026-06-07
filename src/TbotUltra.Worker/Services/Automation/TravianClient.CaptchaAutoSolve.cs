@@ -405,6 +405,7 @@ public sealed partial class TravianClient
             {
                 await RetryAsync($"click captcha error dialog selector {selector}", async () =>
                 {
+                    await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
                     await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
                 }, cancellationToken: cancellationToken);
                 return;
@@ -437,6 +438,7 @@ public sealed partial class TravianClient
 
                 await RetryAsync($"click captcha success dialog selector {selector}", async () =>
                 {
+                    await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
                     await locator.ClickAsync(new LocatorClickOptions { Timeout = Math.Min(_config.TimeoutMs, 1500) });
                 }, cancellationToken: cancellationToken);
                 await Task.Delay(250, cancellationToken);

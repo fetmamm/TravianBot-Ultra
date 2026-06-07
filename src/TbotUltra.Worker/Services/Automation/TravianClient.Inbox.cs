@@ -192,6 +192,7 @@ public sealed partial class TravianClient
 
             try
             {
+                await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
                 await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
                 clicked = true;
                 break;

@@ -593,7 +593,7 @@ public sealed partial class TravianClient
             {
                 continue;
             }
-
+            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
             await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs, Force = true });
             return true;
         }

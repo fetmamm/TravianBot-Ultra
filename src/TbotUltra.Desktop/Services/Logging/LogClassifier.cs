@@ -164,6 +164,8 @@ public static class LogClassifier
             "evaluateconstructionslotsasync",
             "ensuring logged in",
             "checkloggedinasync",
+            "adventures on current page",
+            "[herohome",
             // Note: bare "loginasync" pattern intentionally removed — [login] milestones now
             // use the "[login] ..." prefix which is NOT verbose. Per-function "[LoginAsync] started"
             // is no longer emitted (replaced with explicit account/server context).

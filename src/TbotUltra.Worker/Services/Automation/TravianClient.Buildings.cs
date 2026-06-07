@@ -829,6 +829,7 @@ public sealed partial class TravianClient
             {
                 try
                 {
+                    await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
                     await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
                     return true;
                 }
@@ -848,6 +849,7 @@ public sealed partial class TravianClient
             {
                 try
                 {
+                    await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
                     await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
                     return true;
                 }
@@ -1379,6 +1381,7 @@ public sealed partial class TravianClient
             }
 
             var clickTarget = _page.Locator("button, input[type='submit'], input[type='button'], a, div.addHoverClick, div.button-container").Nth(clickIndex);
+            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
             await clickTarget.ClickAsync(new LocatorClickOptions
             {
                 Timeout = _config.TimeoutMs,

@@ -1305,6 +1305,7 @@ public sealed partial class TravianClient
                 return false;
             }
 
+            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
             await input.ClickAsync();
             await input.FillAsync(integerAmount.ToString());
             Notify($"[troops:verbose] submit:filled t{troopIndex} with '{integerAmount}'.");
@@ -1332,6 +1333,7 @@ public sealed partial class TravianClient
 
         var submitText = (await submitButton.InnerTextAsync()).Trim();
         Notify($"[troops:verbose] submit:Train button text='{submitText}' for t{troopIndex}.");
+        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         await submitButton.ClickAsync();
         Notify($"[troops:verbose] submit:clicked Train button for t{troopIndex} with parsedValue={parsedValue}.");
         Notify("[troops:verbose] submit: Train button clicked");

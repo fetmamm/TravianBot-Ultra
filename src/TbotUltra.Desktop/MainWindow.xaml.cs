@@ -828,18 +828,18 @@ public partial class MainWindow : Window
         if (snapshot.AdventureCount is null)
         {
             ApplyHeroAdventureAvailability(null);
-            AppendLog("Adventure count: not found on current page.");
+            AppendLog("[ApplyPostLoginSnapshot] Adventure count: not found on current page.");
         }
         else
         {
             ApplyHeroAdventureAvailability(snapshot.AdventureCount.Value);
-            AppendLog($"Adventure count after login: {snapshot.AdventureCount.Value}.");
+            AppendLog($"[ApplyPostLoginSnapshot] Adventure count after login: {snapshot.AdventureCount.Value}.");
         }
 
         if (snapshot.HeroInventory is { } heroInventory)
         {
             _heroViewModel.ApplyInventory(heroInventory);
-            AppendLog($"Hero inventory after login: wood={heroInventory.Wood}, clay={heroInventory.Clay}, iron={heroInventory.Iron}, crop={heroInventory.Crop}.");
+            AppendLog($"[ApplyPostLoginSnapshot] Hero inventory after login: wood={heroInventory.Wood}, clay={heroInventory.Clay}, iron={heroInventory.Iron}, crop={heroInventory.Crop}.");
         }
     }
 

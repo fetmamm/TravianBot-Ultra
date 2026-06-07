@@ -439,6 +439,7 @@ public sealed partial class TravianClient
                 continue;
             }
 
+            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
             await button.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
             return true;
         }
@@ -467,6 +468,7 @@ public sealed partial class TravianClient
                     continue;
                 }
 
+                await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
                 await button.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
                 await PauseForManualStepIfVisibleAsync("Manual verification appeared after sending resource transfer.", cancellationToken);
                 return true;
