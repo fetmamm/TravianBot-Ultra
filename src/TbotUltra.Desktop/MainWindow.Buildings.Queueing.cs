@@ -126,6 +126,9 @@ public partial class MainWindow
     {
         var relatedItems = _botService.GetQueueItemsForDisplay()
             .Where(item => IsActiveQueueStatus(item.Status))
+            // Same-village only: otherwise constructing a slot here would both be blocked by, and even
+            // remove (RemoveCoalescedQueueItems below), another village's queued work for the same slot.
+            .Where(IsQueueItemForSelectedVillageOrGlobal)
             .Where(item =>
             {
                 if (string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase)
@@ -191,7 +194,11 @@ public partial class MainWindow
                     IsMax = string.Equals(item.TaskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase),
                 };
             })
-            .Where(item => item.Parsed && item.SlotId == slotId)
+            // Coalesce only against the SAME village's queued items. The new item is tagged for the
+            // selected village (ApplySelectedVillageToPayload below), so without this filter another
+            // village's queued upgrade for the same slot number made highestExistingTarget block the
+            // enqueue ("already has a queued upgrade") and nothing was added — the slot looked dead.
+            .Where(item => item.Parsed && item.SlotId == slotId && IsQueueItemForSelectedVillageOrGlobal(item.Item))
             .ToList();
 
         var existingMax = relatedItems.FirstOrDefault(item => item.IsMax);
@@ -251,7 +258,12 @@ public partial class MainWindow
             .GroupBy(item => item.SlotId!.Value)
             .ToDictionary(group => group.Key, group => group.OrderByDescending(item => item.Level ?? 0).First());
 
-        foreach (var item in queueItems ?? GetActiveQueueItems())
+        // Only project THIS village's queued work onto its building slots. Otherwise another village's
+        // queued construct/upgrade for the same slot number made empty slots look occupied (or faked an
+        // "already exists" unique building), so the construct popup showed "no buildings available".
+        var effectiveQueueItems = queueItems
+            ?? GetActiveQueueItems().Where(IsQueueItemForSelectedVillageOrGlobal).ToList();
+        foreach (var item in effectiveQueueItems)
         {
             if (string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase)
                 && TryReadBuildingConstructPayload(item.Payload, out var constructSlotId, out var constructGid, out var constructName))

@@ -172,6 +172,14 @@ public partial class MainWindow
                 continue;
             }
 
+            // Only this village's queued upgrades may mark its resource slots (1-18) as pending. The queue
+            // is one-per-account with each item tagged for its target village, so without this filter a
+            // resource upgrade queued in another village shows as a pending target on the same slot here.
+            if (!IsQueueItemForSelectedVillageOrGlobal(item))
+            {
+                continue;
+            }
+
             if (!TryReadResourceUpgradePayload(item.Payload, out var slotId, out var targetLevel))
             {
                 continue;

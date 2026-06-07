@@ -898,7 +898,11 @@ public partial class MainWindow
                 && value.Contains("retrying"))
             || value.Contains("the calling thread cannot access this object because a different thread owns it")
             || (value.Contains("ui sync snapshot failed")
-                && value.Contains("execution context was destroyed"));
+                && value.Contains("execution context was destroyed"))
+            // Best-effort logout before session sleep; a timeout here is harmless (the next login still
+            // works) so it stays in the alarm list but is auto-acknowledged.
+            || (value.Contains("session logout failed")
+                && value.Contains("timeout"));
     }
 
     private static bool IsCleanModeHiddenAlarmMessage(string message)

@@ -834,8 +834,17 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   (`GetActiveQueueItems()` ofiltrerat) → en annan bys köade uppgraderingar färgade samma slotnummer (19-40
   finns i varje by) och gjorde dem oklickbara. Fix: filtrera köitems med `IsQueueItemForSelectedVillageOrGlobal`
   i `PopulateBuildingsTab`, och rensa de optimistiska `_buildingLastQueued*BySlot`-cacharna (slot-keyade,
-  ej by-keyade) i `ShowSelectedVillageFromCache` vid bybyte. OBS: resurs-tabbens
-  `GetQueuedResourceTargetsBySlot` har samma ofiltrerade mönster — fixa likadant om samma läckage dyker upp där.
+  ej by-keyade) i `ShowSelectedVillageFromCache` vid bybyte. **Samma filter krävs i enqueue-vägen:**
+  `EnqueueBuildingUpgradeTaskCoalesced` och `EnqueueBuildingConstructTaskCoalesced` byggde `relatedItems`
+  enbart på slotId → en annan bys köade slot blockerade enqueue ("already has a queued upgrade", inget
+  lades till) och construct-coalescen kunde t.o.m. RADERA den andra byns köitems. Båda filtrerar nu med
+  `IsQueueItemForSelectedVillageOrGlobal`. Och `BuildProjectedBuildingStatus` defaultade till alla byars
+  köitems → en annan bys köade construct/upgrade projicerades på denna bys slots (tom slot såg upptagen ut,
+  eller en unik byggnad såg "already exists" ut) → construct-popupen visade "no buildings available".
+  Defaultar nu till by-filtrerade köitems. Resurs-tabbens `GetQueuedResourceTargetsBySlot`
+  (`MainWindow.Resources.UiState.cs`) hade samma ofiltrerade mönster för resursfält (slot 1-18) och
+  filtrerar nu också med `IsQueueItemForSelectedVillageOrGlobal`. Regel: all per-slot UI-härledning från
+  kön måste filtreras per vald by.
 - **Hero-ikonens away-state (grön=hemma, gul=ute) läses på dorf1.** `NotifyHeroHomeFromDorf1Async`
   detekterade "away" via en enda widget-ikons klass och tvingade `away=false` så snart klassen innehöll
   `herohome`. På official Travian behåller ikonen en heroHome-liknande klass medan hjälten är på äventyr →

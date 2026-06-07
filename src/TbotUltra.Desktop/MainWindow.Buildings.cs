@@ -600,10 +600,15 @@ public partial class MainWindow
             return false;
         }
 
+        // Built copies of this building (level > 0) — drives the "duplicate after level N" thresholds.
         var existingSameGidLevels = projectedStatus.Buildings
             .Where(item => item.Gid == selectedBuilding.Gid && (item.Level ?? 0) > 0)
             .Select(item => item.Level ?? 0)
             .ToList();
+        // True when this building is already built OR currently queued as constructing in this village
+        // (a queued construct projects as level 0, so it is NOT in existingSameGidLevels). Used to block
+        // a second copy of a non-duplicatable building (e.g. Hero's Mansion) while one is in the queue.
+        var sameGidAlreadyPresent = projectedStatus.Buildings.Any(item => item.Gid == selectedBuilding.Gid);
         var duplicateAllowed = selectedBuilding.Gid is 23 or 38 or 39;
         var wallGid = selectedBuilding.Gid is 31 or 32 or 33 or 42 or 43;
         var rallyPointGid = IsRallyPointGid(selectedBuilding.Gid);
@@ -655,9 +660,9 @@ public partial class MainWindow
                 }
             }
         }
-        else if (existingSameGidLevels.Count > 0 && !duplicateAllowed && !wallGid)
+        else if (sameGidAlreadyPresent && !duplicateAllowed && !wallGid)
         {
-            reason = $"{selectedBuilding.Name} already exists in this village.";
+            reason = $"{selectedBuilding.Name} already exists or is queued in this village.";
             return false;
         }
 

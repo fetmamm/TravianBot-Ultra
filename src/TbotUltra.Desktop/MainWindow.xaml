@@ -1083,12 +1083,12 @@
                                                                 </ItemsControl.ItemTemplate>
                                                             </ItemsControl>
 
-                                                            <!-- Queue: green when the village has construction queued, muted green when empty. -->
+                                                            <!-- Queue: green when the village has construction queued, grey (like the other icons) when empty. -->
                                                             <Border Grid.Column="2" Width="18" Height="18" CornerRadius="4" Margin="2,0,0,0" VerticalAlignment="Center" HorizontalAlignment="Left">
                                                                 <Border.Style>
                                                                     <Style TargetType="Border">
-                                                                        <Setter Property="Background" Value="{DynamicResource SuccessBgBrush}" />
-                                                                        <Setter Property="BorderBrush" Value="{DynamicResource SuccessBorderBrush}" />
+                                                                        <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+                                                                        <Setter Property="BorderBrush" Value="{DynamicResource BorderMutedBrush}" />
                                                                         <Setter Property="BorderThickness" Value="1" />
                                                                         <Setter Property="ToolTip" Value="No construction queued here — consider queuing more" />
                                                                         <Style.Triggers>
@@ -1103,7 +1103,7 @@
                                                                 <TextBlock Text="&#xE8FD;" FontFamily="Segoe MDL2 Assets" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                                     <TextBlock.Style>
                                                                         <Style TargetType="TextBlock">
-                                                                            <Setter Property="Foreground" Value="{DynamicResource SuccessTextBrush}" />
+                                                                            <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
                                                                             <Style.Triggers>
                                                                                 <DataTrigger Binding="{Binding HasQueue}" Value="True">
                                                                                     <Setter Property="Foreground" Value="White" />
@@ -1163,11 +1163,19 @@
                                                                         <Setter Property="BorderThickness" Value="1" />
                                                                         <Setter Property="ToolTip" Value="Hero is not based here" />
                                                                         <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding IsHeroHome}" Value="True">
+                                                                            <!-- Green only when the hero is home AND present (not away, not dead). Using a
+                                                                                 MultiDataTrigger keeps the states mutually exclusive so green can never render
+                                                                                 on top of the away (yellow) / dead (red) states. -->
+                                                                            <MultiDataTrigger>
+                                                                                <MultiDataTrigger.Conditions>
+                                                                                    <Condition Binding="{Binding IsHeroHome}" Value="True" />
+                                                                                    <Condition Binding="{Binding IsHeroAway}" Value="False" />
+                                                                                    <Condition Binding="{Binding IsHeroDead}" Value="False" />
+                                                                                </MultiDataTrigger.Conditions>
                                                                                 <Setter Property="Background" Value="{DynamicResource SuccessBrush}" />
                                                                                 <Setter Property="BorderBrush" Value="{DynamicResource SuccessBorderBrush}" />
                                                                                 <Setter Property="ToolTip" Value="Hero home village (hero is here)" />
-                                                                            </DataTrigger>
+                                                                            </MultiDataTrigger>
                                                                             <DataTrigger Binding="{Binding IsHeroAway}" Value="True">
                                                                                 <Setter Property="Background" Value="{DynamicResource WarningBrush}" />
                                                                                 <Setter Property="BorderBrush" Value="{DynamicResource WarningBorderBrush}" />
