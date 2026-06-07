@@ -2,10 +2,10 @@
 
 `Preview` of the program
 
-![Version](https://img.shields.io/badge/Version-v0.3.4-blue?style=for-the-badge)
+![Version](https://img.shields.io/badge/Version-v0.3.5-blue?style=for-the-badge)
 
 <p align="center">
-  <img src="assets/images/tbot_v034.png" alt="Tbot Ultra Dashboard">
+  <img src="assets/images/tbot_v035.png" alt="Tbot Ultra Dashboard">
 </p>
 
 ---
