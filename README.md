@@ -38,70 +38,55 @@ Compatible with:
 
 `NOTE:` It is important that the language is set to `English` in the travian browser settings page.
 
+## Features:
+
 - Automatic building
   - Works for buildings and resources
   - Can choose from lowest level first
   - Resource priority first (smart)
-
 - Hero adventures
   - Send hero on adventures when available
-
 - Revive hero
   - Automatically revives the hero when dead
-
 - Spend hero attribute points
-
 - Use hero inventory resources for building
-
 - Collect daily quests
-
 - Collect tasks
-
 - Read messages and reports
-
 - Upgrade troops in smithy
-
 - Send resources between own villages
-
 - Send reinforcements between own villages
-
 - Farming
   - Add farms to farmlists
   - Create farmlists
   - Execute farmlists with configurable intervals
-
 - Send catapult waves
   - Configurable catapult wave sender
   - Choose target
   - Configure desired troops in the first attack
   - Configure follow-up wave attacks
-
 - Session pacing
   - More human-like behaviour
   - User configurable
   - Click delay
   - Task delay
   - Loop delay
-
 - Auto sleep
   - Logs out the user
   - Waits a configurable amount of time
   - Simulates inactivity
   - Fully configurable
-
 - Captcha solver (SS-Travi servers)
   - Automatically solves captchas
   - Enters the correct answer
   - Allows continuous operation
-
-- Read game status
+- Read game status such as:
   - Gold
   - Silver
   - Plus
   - Gold Club
   - Tribe status
-
-- Read village data
+- Read village data such as:
   - Production
   - Resources
   - Buildings
@@ -110,10 +95,8 @@ Compatible with:
   - Warehouse capacity
   - Granary capacity
   - And much more
-
 - Clean dark mode UI
   - Highly configurable
-
 - Multi-village support
   - Supports multiple villages
   - Individual settings per village
