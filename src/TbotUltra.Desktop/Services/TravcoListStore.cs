@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using TbotUltra.Core.Accounts;
 
@@ -13,6 +14,9 @@ public sealed class TravcoListStore
         public string Name { get; set; } = string.Empty;
         public DateTimeOffset CreatedUtc { get; set; } = DateTimeOffset.UtcNow;
         public List<TravcoSavedRow> Rows { get; set; } = [];
+
+        [JsonIgnore]
+        public string SavedDateText => CreatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
     }
 
     public sealed class TravcoSavedRow

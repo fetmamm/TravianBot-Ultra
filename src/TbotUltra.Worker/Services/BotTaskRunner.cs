@@ -1427,9 +1427,7 @@ public sealed class BotTaskRunner
 
     public async Task OpenTravcoAndSearchAsync(
         BotOptions options,
-        int x,
-        int y,
-        int daysInactive,
+        TravcoSearchRequest request,
         Action<string> log,
         CancellationToken cancellationToken)
     {
@@ -1459,9 +1457,10 @@ public sealed class BotTaskRunner
                 await TravcoInactiveSearch.RunSearchAsync(
                     _travcoPage,
                     new Uri(options.BaseUrl).Host,
-                    x,
-                    y,
-                    daysInactive,
+                    request.X,
+                    request.Y,
+                    request.DaysInactive,
+                    request.OrderBy,
                     resultsPerPage: 100,
                     log,
                     cancellationToken);
@@ -1491,6 +1490,31 @@ public sealed class BotTaskRunner
             }
 
             return await TravcoInactiveSearch.ScrapePageAsync(_travcoPage, log, cancellationToken);
+        }
+        finally
+        {
+            _sessionGate.Release();
+        }
+    }
+
+    public async Task<TravcoScrapeResult> ScrapeAllTravcoPagesAsync(
+        Action<string> log,
+        IProgress<(int CurrentPage, int TotalPages)> progress,
+        CancellationToken cancellationToken)
+    {
+        await _sessionGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (_travcoPage is null || _travcoPage.IsClosed)
+            {
+                throw new InvalidOperationException("Open and run a Travco inactive search first.");
+            }
+
+            return await TravcoInactiveSearch.ScrapeAllPagesAsync(
+                _travcoPage,
+                log,
+                progress,
+                cancellationToken);
         }
         finally
         {

@@ -37,9 +37,10 @@ public partial class MainWindow
             return;
         }
 
-        if (!TryGetCapitalCoordinates(out _, out _, out var coordinateError))
+        var villages = GetTravcoVillages();
+        if (villages.Count == 0)
         {
-            AppendLog(coordinateError);
+            AppendLog("Village coordinates are unavailable. Scan villages or refresh village status first.");
             return;
         }
 
@@ -48,10 +49,14 @@ public partial class MainWindow
         _travcoSuppressRestart = false;
         await PauseAutomationForTravcoAsync();
 
-        var window = new TravcoToolsWindow(_travcoListStore)
+        var window = new TravcoToolsWindow(_travcoListStore, villages, AppendLog)
         {
             Owner = this,
             SearchRequested = RunTravcoSearchAsync,
+            ScrapePageRequested = cancellationToken =>
+                _botService.ScrapeTravcoPageAsync(AppendLog, cancellationToken),
+            ScrapeAllPagesRequested = (progress, cancellationToken) =>
+                _botService.ScrapeAllTravcoPagesAsync(AppendLog, progress, cancellationToken),
             CloseRequested = () => _botService.CloseTravcoTabAsync(AppendLog),
         };
         window.Closed += TravcoToolsWindow_Closed;
@@ -59,7 +64,9 @@ public partial class MainWindow
         window.Show();
     }
 
-    private async Task<TravcoScrapeResult> RunTravcoSearchAsync(CancellationToken cancellationToken)
+    private async Task<TravcoScrapeResult> RunTravcoSearchAsync(
+        TravcoSearchRequest request,
+        CancellationToken cancellationToken)
     {
         var options = LoadBotOptions();
         if (options.IsPrivateServer)
@@ -67,12 +74,9 @@ public partial class MainWindow
             throw new InvalidOperationException("Travco inactive search supports official Travian servers only.");
         }
 
-        if (!TryGetCapitalCoordinates(out var x, out var y, out var error))
-        {
-            throw new InvalidOperationException(error);
-        }
-
-        await _botService.OpenTravcoAndSearchAsync(options, x, y, daysInactive: 2, AppendLog, cancellationToken);
+        AppendLog(
+            $"[travco-ui] analyze requested: coordinates=({request.X}|{request.Y}), days={request.DaysInactive}, order={request.OrderBy}.");
+        await _botService.OpenTravcoAndSearchAsync(options, request, AppendLog, cancellationToken);
         return await _botService.ScrapeTravcoPageAsync(AppendLog, cancellationToken);
     }
 
@@ -105,36 +109,33 @@ public partial class MainWindow
         _loopController.CancelLoop();
     }
 
-    private bool TryGetCapitalCoordinates(out int x, out int y, out string error)
+    private IReadOnlyList<VillageSelectionItem> GetTravcoVillages()
     {
         var source = (DashboardVillageList.ItemsSource as IEnumerable<VillageSelectionItem>)
             ?? (VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem>)
             ?? [];
-        var capital = source.FirstOrDefault(village =>
-            village.IsCapital && village.CoordX.HasValue && village.CoordY.HasValue);
-
-        if (capital is null)
+        var villages = source
+            .Where(village => village.CoordX.HasValue && village.CoordY.HasValue)
+            .ToList();
+        if (villages.Count > 0)
         {
-            var cachedCapital = _lastBuildingStatus?.Villages.FirstOrDefault(village =>
-                village.IsCapital == true && village.CoordX.HasValue && village.CoordY.HasValue);
-            if (cachedCapital is not null)
-            {
-                x = cachedCapital.CoordX!.Value;
-                y = cachedCapital.CoordY!.Value;
-                error = string.Empty;
-                return true;
-            }
-
-            x = 0;
-            y = 0;
-            error = "Capital coordinates are unavailable. Scan villages or refresh village status first.";
-            return false;
+            return villages;
         }
 
-        x = capital.CoordX!.Value;
-        y = capital.CoordY!.Value;
-        error = string.Empty;
-        return true;
+        return _lastBuildingStatus?.Villages
+            .Where(village => village.CoordX.HasValue && village.CoordY.HasValue)
+            .Select(village => new VillageSelectionItem
+            {
+                Name = village.Name,
+                Url = village.Url ?? string.Empty,
+                IsCapital = village.IsCapital == true,
+                CoordX = village.CoordX,
+                CoordY = village.CoordY,
+                Population = village.Population,
+                CropFields = village.CropFields,
+            })
+            .ToList()
+            ?? [];
     }
 
     private async void TravcoToolsWindow_Closed(object? sender, EventArgs e)

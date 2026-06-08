@@ -10,23 +10,38 @@ namespace TbotUltra.Desktop;
 public partial class TravcoToolsWindow : Window
 {
     private readonly TravcoListStore _store;
+    private readonly Action<string>? _log;
     private readonly CancellationTokenSource _windowCts = new();
     private readonly TravcoToolsViewModel _viewModel = new();
     private Guid? _openedSavedListId;
     private bool _allowClose;
     private bool _closeInProgress;
     private bool _busy;
+    private bool _travcoReady;
 
-    public Func<CancellationToken, Task<TravcoScrapeResult>>? SearchRequested { get; init; }
+    public Func<TravcoSearchRequest, CancellationToken, Task<TravcoScrapeResult>>? SearchRequested { get; init; }
+    public Func<CancellationToken, Task<TravcoScrapeResult>>? ScrapePageRequested { get; init; }
+    public Func<IProgress<(int CurrentPage, int TotalPages)>, CancellationToken, Task<TravcoScrapeResult>>? ScrapeAllPagesRequested { get; init; }
     public Func<Task>? CloseRequested { get; init; }
 
-    public TravcoToolsWindow(TravcoListStore store)
+    public TravcoToolsWindow(
+        TravcoListStore store,
+        IReadOnlyList<VillageSelectionItem> villages,
+        Action<string>? log)
     {
         _store = store;
+        _log = log;
         InitializeComponent();
         DataContext = _viewModel;
+        foreach (var village in villages)
+        {
+            _viewModel.Villages.Add(village);
+        }
+
+        _viewModel.SelectedVillage = villages.FirstOrDefault(village => village.IsCapital) ?? villages.FirstOrDefault();
         Closing += TravcoToolsWindow_Closing;
         ReloadSavedLists();
+        SetBusy(false);
     }
 
     public void CloseForShutdown()
@@ -57,25 +72,49 @@ public partial class TravcoToolsWindow : Window
         }
 
         SetBusy(true);
-        BusyOverlay.Show("Travco inactive search", "Opening Travco and loading inactive villages...");
+        var village = _viewModel.SelectedVillage;
+        if (village?.CoordX is null || village.CoordY is null)
+        {
+            SetStatus("Select a village with coordinates.");
+            SetBusy(false);
+            return;
+        }
+
+        if (!int.TryParse(_viewModel.DaysInactiveText, out var daysInactive)
+            || daysInactive is < 1 or > 7)
+        {
+            SetStatus("Active days must be a whole number between 1 and 7.");
+            SetBusy(false);
+            return;
+        }
+
+        var request = new TravcoSearchRequest(
+            village.CoordX.Value,
+            village.CoordY.Value,
+            daysInactive,
+            _viewModel.SelectedOrderBy);
+        SetStatus(
+            $"Analyzing Travco for {village.NameWithCoords}, {daysInactive} active day(s), order {_viewModel.SelectedOrderBy}.");
+        BusyOverlay.Show("Analyze Travco", "Opening Travco and loading inactive villages...");
         try
         {
-            var result = await SearchRequested(_windowCts.Token);
+            var result = await SearchRequested(request, _windowCts.Token);
+            _travcoReady = true;
             _openedSavedListId = null;
             ApplyRows(result.Rows.Select(TravcoListRow.FromWorker));
             _viewModel.ListName = $"Travco page {result.PageNumber}";
             _viewModel.SelectedSavedList = null;
-            _viewModel.StatusText = result.Rows.Count == 0
+            SetStatus(result.Rows.Count == 0
                 ? $"Travco search finished: {result.TotalPages} page(s) found, current page has no matching villages."
-                : $"Travco search finished: {result.TotalPages} page(s) found, page {result.PageNumber} has {result.Rows.Count} village(s).";
+                : $"Travco search finished: {result.TotalPages} page(s) found, page {result.PageNumber} has {result.Rows.Count} village(s).");
         }
         catch (OperationCanceledException)
         {
-            _viewModel.StatusText = "Travco search canceled.";
+            SetStatus("Travco search canceled.");
         }
         catch (Exception ex)
         {
-            _viewModel.StatusText = ex.Message;
+            SetStatus($"Travco search failed: {ex.Message}");
         }
         finally
         {
@@ -86,28 +125,97 @@ public partial class TravcoToolsWindow : Window
 
     private void SaveListButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_viewModel.Rows.Count == 0)
+        _ = SaveCurrentPageAsync();
+    }
+
+    private async Task SaveCurrentPageAsync()
+    {
+        if (_busy || !_travcoReady || ScrapePageRequested is null)
         {
-            _viewModel.StatusText = "There are no Travco rows to save.";
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(_viewModel.ListName))
+        SetBusy(true);
+        BusyOverlay.Show("Save Travco page", "Reading the current Travco result page...");
+        try
         {
-            _viewModel.StatusText = "Enter a list name.";
-            ListNameTextBox.Focus();
+            SetStatus("Reading the current Travco page.");
+            var result = await ScrapePageRequested(_windowCts.Token);
+            ApplyRows(result.Rows.Select(TravcoListRow.FromWorker));
+            SaveCurrentRows(_viewModel.ListName);
+            SetStatus($"Saved page {result.PageNumber}/{result.TotalPages}: {result.Rows.Count} row(s).");
+        }
+        catch (OperationCanceledException)
+        {
+            SetStatus("Saving the Travco page was canceled.");
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Could not save the Travco page: {ex.Message}");
+        }
+        finally
+        {
+            BusyOverlay.Hide();
+            SetBusy(false);
+        }
+    }
+
+    private void SaveAllPagesButton_Click(object sender, RoutedEventArgs e)
+    {
+        _ = SaveAllPagesAsync();
+    }
+
+    private async Task SaveAllPagesAsync()
+    {
+        if (_busy || !_travcoReady || ScrapeAllPagesRequested is null)
+        {
             return;
         }
 
-        var list = new TravcoListStore.TravcoSavedList
+        var confirm = AppDialog.ShowCustom(
+            this,
+            "Read every Travco result page and save all rows in one list?",
+            "Save all Travco pages",
+            [("Yes", MessageBoxResult.Yes), ("No", MessageBoxResult.No)],
+            MessageBoxImage.Question,
+            MessageBoxResult.No,
+            MessageBoxResult.No);
+        if (confirm != MessageBoxResult.Yes)
         {
-            Name = _viewModel.ListName.Trim(),
-            Rows = BuildSavedRows(),
-        };
-        _store.Save(list);
-        _openedSavedListId = list.Id;
-        ReloadSavedLists(list.Id);
-        _viewModel.StatusText = $"Saved '{list.Name}' with {list.Rows.Count} row(s).";
+            return;
+        }
+
+        SetBusy(true);
+        BusyOverlay.Show("Save all Travco pages", "Preparing page collection...");
+        try
+        {
+            SetStatus("Reading all Travco result pages.");
+            var progress = new Progress<(int CurrentPage, int TotalPages)>(value =>
+            {
+                BusyOverlay.Text = $"Reading page {value.CurrentPage} of {value.TotalPages}...";
+            });
+            var result = await ScrapeAllPagesRequested(progress, _windowCts.Token);
+            ApplyRows(result.Rows.Select(TravcoListRow.FromWorker));
+            var name = _viewModel.ListName.StartsWith("Travco page ", StringComparison.OrdinalIgnoreCase)
+                ? "Travco all pages"
+                : _viewModel.ListName;
+            _viewModel.ListName = name;
+            SaveCurrentRows(name);
+            SetStatus($"Saved all {result.TotalPages} page(s) as one list with {result.Rows.Count} row(s).");
+        }
+        catch (OperationCanceledException)
+        {
+            SetStatus("Saving all Travco pages was canceled.");
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Could not save all Travco pages: {ex.Message}");
+        }
+        finally
+        {
+            BusyOverlay.Hide();
+            SetBusy(false);
+        }
     }
 
     private void OpenListButton_Click(object sender, RoutedEventArgs e)
@@ -115,7 +223,7 @@ public partial class TravcoToolsWindow : Window
         var selected = _viewModel.SelectedSavedList;
         if (selected is null)
         {
-            _viewModel.StatusText = "Select a saved list first.";
+            SetStatus("Select a saved list first.");
             return;
         }
 
@@ -130,7 +238,7 @@ public partial class TravcoToolsWindow : Window
             Coordinates = row.Coordinates,
             Selected = row.Selected,
         }));
-        _viewModel.StatusText = $"Opened '{selected.Name}' with {selected.Rows.Count} row(s).";
+        SetStatus($"Opened '{selected.Name}' with {selected.Rows.Count} row(s).");
     }
 
     private void DeleteListButton_Click(object sender, RoutedEventArgs e)
@@ -138,7 +246,7 @@ public partial class TravcoToolsWindow : Window
         var selected = _viewModel.SelectedSavedList;
         if (selected is null)
         {
-            _viewModel.StatusText = "Select a saved list first.";
+            SetStatus("Select a saved list first.");
             return;
         }
 
@@ -163,7 +271,7 @@ public partial class TravcoToolsWindow : Window
         }
 
         ReloadSavedLists();
-        _viewModel.StatusText = $"Deleted '{selected.Name}'.";
+        SetStatus($"Deleted '{selected.Name}'.");
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e)
@@ -217,6 +325,29 @@ public partial class TravcoToolsWindow : Window
         }).ToList();
     }
 
+    private void SaveCurrentRows(string name)
+    {
+        if (_viewModel.Rows.Count == 0)
+        {
+            throw new InvalidOperationException("No Travco result rows were found on the current page.");
+        }
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new InvalidOperationException("Enter a list name.");
+        }
+
+        var list = new TravcoListStore.TravcoSavedList
+        {
+            Name = name.Trim(),
+            CreatedUtc = DateTimeOffset.UtcNow,
+            Rows = BuildSavedRows(),
+        };
+        _store.Save(list);
+        _openedSavedListId = list.Id;
+        ReloadSavedLists(list.Id);
+    }
+
     private void ReloadSavedLists(Guid? selectedId = null)
     {
         var desiredId = selectedId ?? _viewModel.SelectedSavedList?.Id;
@@ -268,7 +399,7 @@ public partial class TravcoToolsWindow : Window
         }
         catch (Exception ex)
         {
-            _viewModel.StatusText = $"Could not close Travco tab: {ex.Message}";
+            SetStatus($"Could not close Travco tab: {ex.Message}");
         }
         finally
         {
@@ -281,8 +412,15 @@ public partial class TravcoToolsWindow : Window
     {
         _busy = busy;
         InactiveSearchButton.IsEnabled = !busy;
-        SaveListButton.IsEnabled = !busy;
+        SaveListButton.IsEnabled = !busy && _travcoReady;
+        SaveAllPagesButton.IsEnabled = !busy && _travcoReady;
         SavedListsListBox.IsEnabled = !busy;
         ResultsDataGrid.IsEnabled = !busy;
+    }
+
+    private void SetStatus(string message)
+    {
+        _viewModel.StatusText = message;
+        _log?.Invoke($"[travco-ui] {message}");
     }
 }

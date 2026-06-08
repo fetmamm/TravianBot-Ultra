@@ -73,8 +73,9 @@ public interface IDesktopBotService
     Task<bool> HasClaimableDailyQuestsOnCurrentPageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<HeroAttributeSnapshot> ReadHeroAttributesAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<HeroInventoryResources> RefreshHeroInventoryAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
-    Task OpenTravcoAndSearchAsync(BotOptions options, int x, int y, int daysInactive, Action<string> log, CancellationToken cancellationToken);
+    Task OpenTravcoAndSearchAsync(BotOptions options, TravcoSearchRequest request, Action<string> log, CancellationToken cancellationToken);
     Task<TravcoScrapeResult> ScrapeTravcoPageAsync(Action<string> log, CancellationToken cancellationToken);
+    Task<TravcoScrapeResult> ScrapeAllTravcoPagesAsync(Action<string> log, IProgress<(int CurrentPage, int TotalPages)> progress, CancellationToken cancellationToken);
     Task CloseTravcoTabAsync(Action<string> log);
     bool ConsumeBrowserClosedByUserSignal();
     Task ShutdownAsync(Action<string> log);

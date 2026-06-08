@@ -22,31 +22,75 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="16" />
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <Button x:Name="InactiveSearchButton"
-                        Grid.Column="0"
-                        MinWidth="150"
-                        Content="Open Travco"
-                        Background="{DynamicResource AccentBrush}"
-                        BorderBrush="{DynamicResource AccentBrush}"
-                        Foreground="White"
-                        Click="InactiveSearchButton_Click" />
+                <StackPanel Grid.Column="0" HorizontalAlignment="Left">
+                    <Button x:Name="InactiveSearchButton"
+                            MinWidth="120"
+                            HorizontalAlignment="Left"
+                            Content="Analyze Travco"
+                            Background="{DynamicResource AccentBrush}"
+                            BorderBrush="{DynamicResource AccentBrush}"
+                            Foreground="White"
+                            Click="InactiveSearchButton_Click" />
+                    <Button x:Name="SaveListButton"
+                            Margin="0,8,0,0"
+                            MinWidth="135"
+                            HorizontalAlignment="Left"
+                            Content="Save page as list"
+                            Click="SaveListButton_Click" />
+                    <Button x:Name="SaveAllPagesButton"
+                            Margin="0,8,0,0"
+                            MinWidth="155"
+                            HorizontalAlignment="Left"
+                            Content="Save all pages as list"
+                            Click="SaveAllPagesButton_Click" />
+                </StackPanel>
 
-                <TextBox x:Name="ListNameTextBox"
-                         Grid.Column="2"
-                         MinWidth="220"
-                         MaxWidth="420"
-                         HorizontalAlignment="Left"
-                         VerticalContentAlignment="Center"
-                         Text="{Binding ListName, UpdateSourceTrigger=PropertyChanged}" />
+                <Grid Grid.Column="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="180" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="90" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="130" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
 
-                <Button x:Name="SaveListButton"
-                        Grid.Column="3"
-                        MinWidth="150"
-                        Content="Save page as list"
-                        Click="SaveListButton_Click" />
+                    <TextBlock Grid.Column="0" Text="Village" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,4" />
+                    <TextBlock Grid.Column="2" Text="Active days" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,4" />
+                    <TextBlock Grid.Column="4" Text="Order by" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,4" />
+                    <TextBlock Grid.Column="6" Text="List name" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,4" />
+
+                    <ComboBox Grid.Row="1"
+                              Grid.Column="0"
+                              ItemsSource="{Binding Villages}"
+                              SelectedItem="{Binding SelectedVillage}"
+                              DisplayMemberPath="NameWithCoords" />
+                    <TextBox Grid.Row="1"
+                             Grid.Column="2"
+                             VerticalContentAlignment="Center"
+                             Text="{Binding DaysInactiveText, UpdateSourceTrigger=PropertyChanged}" />
+                    <ComboBox Grid.Row="1"
+                              Grid.Column="4"
+                              ItemsSource="{Binding OrderByOptions}"
+                              SelectedValue="{Binding SelectedOrderBy}"
+                              SelectedValuePath="Value"
+                              DisplayMemberPath="Label" />
+                    <TextBox x:Name="ListNameTextBox"
+                             Grid.Row="1"
+                             Grid.Column="6"
+                             MinWidth="220"
+                             MaxWidth="420"
+                             HorizontalAlignment="Left"
+                             VerticalContentAlignment="Center"
+                             Text="{Binding ListName, UpdateSourceTrigger=PropertyChanged}" />
+                </Grid>
             </Grid>
 
             <Grid Grid.Row="1">
@@ -73,11 +117,21 @@
                                    FontWeight="SemiBold"
                                    Foreground="{DynamicResource TextPrimaryBrush}"
                                    Margin="0,0,0,8" />
-                        <ListBox x:Name="SavedListsListBox"
-                                 Grid.Row="1"
-                                 ItemsSource="{Binding SavedLists}"
-                                 SelectedItem="{Binding SelectedSavedList}"
-                                 DisplayMemberPath="Name" />
+                        <DataGrid x:Name="SavedListsListBox"
+                                  Grid.Row="1"
+                                  ItemsSource="{Binding SavedLists}"
+                                  SelectedItem="{Binding SelectedSavedList}"
+                                  AutoGenerateColumns="False"
+                                  CanUserAddRows="False"
+                                  CanUserDeleteRows="False"
+                                  IsReadOnly="True"
+                                  HeadersVisibility="Column"
+                                  GridLinesVisibility="Horizontal">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Name" Width="*" MinWidth="90" Binding="{Binding Name}" />
+                                <DataGridTextColumn Header="Saved date" Width="115" Binding="{Binding SavedDateText}" />
+                            </DataGrid.Columns>
+                        </DataGrid>
                         <Grid Grid.Row="2" Margin="0,10,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />

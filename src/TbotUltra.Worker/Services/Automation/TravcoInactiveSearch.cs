@@ -13,6 +13,7 @@ public static class TravcoInactiveSearch
         int x,
         int y,
         int daysInactive,
+        string orderBy,
         int resultsPerPage,
         Action<string>? log,
         CancellationToken cancellationToken)
@@ -61,11 +62,17 @@ public static class TravcoInactiveSearch
 
         log?.Invoke($"[travco] matched server '{normalizedHost}'.");
         await page.Locator("#id_travian_server").SelectOptionAsync(serverValue).WaitAsync(cancellationToken);
+        await WaitForValueAsync(page, "#id_travian_server", serverValue, cancellationToken);
         await page.Locator("#id_x").FillAsync(x.ToString()).WaitAsync(cancellationToken);
+        await WaitForValueAsync(page, "#id_x", x.ToString(), cancellationToken);
         await page.Locator("#id_y").FillAsync(y.ToString()).WaitAsync(cancellationToken);
+        await WaitForValueAsync(page, "#id_y", y.ToString(), cancellationToken);
         var days = Math.Clamp(daysInactive, 1, 7).ToString();
         await page.Locator("#id_days").SelectOptionAsync(days).WaitAsync(cancellationToken);
-        await page.Locator("#id_order_by").SelectOptionAsync("distance").WaitAsync(cancellationToken);
+        await WaitForValueAsync(page, "#id_days", days, cancellationToken);
+        var normalizedOrderBy = NormalizeOrderBy(orderBy);
+        await page.Locator("#id_order_by").SelectOptionAsync(normalizedOrderBy).WaitAsync(cancellationToken);
+        await WaitForValueAsync(page, "#id_order_by", normalizedOrderBy, cancellationToken);
 
         var formState = await page.EvaluateAsync<TravcoFormState>(
             """
@@ -82,13 +89,13 @@ public static class TravcoInactiveSearch
             || !string.Equals(formState.X, x.ToString(), StringComparison.Ordinal)
             || !string.Equals(formState.Y, y.ToString(), StringComparison.Ordinal)
             || !string.Equals(formState.Days, days, StringComparison.Ordinal)
-            || !string.Equals(formState.OrderBy, "distance", StringComparison.Ordinal)
+            || !string.Equals(formState.OrderBy, normalizedOrderBy, StringComparison.Ordinal)
             || !string.Equals(formState.PageSize, pageSize, StringComparison.Ordinal))
         {
             throw new InvalidOperationException("Travco search fields could not be filled correctly.");
         }
 
-        log?.Invoke($"[travco] fields ready: server={normalizedHost}, coordinates=({x}|{y}), days={days}, order=distance, pageSize={pageSize}.");
+        log?.Invoke($"[travco] fields ready: server={normalizedHost}, coordinates=({x}|{y}), days={days}, order={normalizedOrderBy}, pageSize={pageSize}.");
         await page.Locator("button.btn.btn-light.primary[type='submit']")
             .ClickAsync()
             .WaitAsync(cancellationToken);
@@ -102,6 +109,7 @@ public static class TravcoInactiveSearch
             State = WaitForSelectorState.Visible,
             Timeout = 20000,
         }).WaitAsync(cancellationToken);
+        await WaitForResultsSettledAsync(page, cancellationToken);
 
         log?.Invoke("[travco] inactive search results loaded.");
     }
@@ -118,7 +126,7 @@ public static class TravcoInactiveSearch
             throw new InvalidOperationException("The Travco browser tab is closed.");
         }
 
-        var rawPage = await page.EvaluateAsync<TravcoRawPage>(
+        var rawPageDto = await page.EvaluateAsync<TravcoRawPageDto>(
             """
             () => {
               const table = document.querySelector('main table');
@@ -126,22 +134,27 @@ public static class TravcoInactiveSearch
                 throw new Error('Travco result table was not found.');
               }
 
-              const headers = Array.from(table.querySelectorAll('thead th'))
-                .map(cell => (cell.textContent || '').trim());
+              const headers = ['Checkbox', 'Distance', 'Account', 'Village', 'Population'];
               const rows = Array.from(table.querySelectorAll('tbody tr')).map(row => {
-                const cells = Array.from(row.querySelectorAll('td'))
-                  .map(cell => (cell.textContent || '').trim());
-                const villageCell = row.querySelectorAll('td')[3] || row.querySelectorAll('td')[2] || null;
-                const villageLink = villageCell?.querySelector('a[href]') || null;
+                const cells = Array.from(row.querySelectorAll('td'));
+                const distance = (cells[1]?.textContent || '').trim();
+                const account = (cells[2]?.querySelector('.detail-button')?.textContent || '').trim();
+                const villageLink = cells[3]?.querySelector('a.js-travian_village_url, a[href*="karte.php"]') || null;
+                const village = (villageLink?.getAttribute('data-original-title')
+                  || villageLink?.getAttribute('title')
+                  || villageLink?.childNodes?.[0]?.textContent
+                  || '').trim();
+                const coordinates = (villageLink?.querySelector('.text-muted.small')?.textContent || '').trim();
+                const latestPopulation = (cells[4]?.textContent || '').trim();
                 return {
-                  cells,
-                  villageHref: villageLink?.href || null
+                  cells: ['', distance, account, village, latestPopulation],
+                  villageHref: coordinates || villageLink?.href || null
                 };
               });
 
-              const activePage = document.querySelector('.pagination .page-item.active .page-link, .pagination .active');
+              const activePage = document.querySelector('main a.btn.active[href*="page="]');
               const pageNumber = Number.parseInt((activePage?.textContent || '1').trim(), 10);
-              const pageCandidates = Array.from(document.querySelectorAll('.pagination a[href], .pagination .page-link'))
+              const pageCandidates = Array.from(document.querySelectorAll('main a[href*="page="]'))
                 .flatMap(node => {
                   const textValue = Number.parseInt((node.textContent || '').trim(), 10);
                   const href = node.getAttribute('href') || '';
@@ -161,9 +174,114 @@ public static class TravcoInactiveSearch
             }
             """).WaitAsync(cancellationToken);
 
+        var rawPage = rawPageDto.ToDomain();
         var result = TravcoInactiveSearchParser.Parse(rawPage);
         log?.Invoke($"[travco] scraped page {result.PageNumber}/{result.TotalPages}: {result.Rows.Count} row(s).");
         return result;
+    }
+
+    public static async Task<TravcoScrapeResult> ScrapeAllPagesAsync(
+        IPage page,
+        Action<string>? log,
+        IProgress<(int CurrentPage, int TotalPages)>? progress,
+        CancellationToken cancellationToken)
+    {
+        var totalPages = await ResolveTotalPagesAsync(page, log, cancellationToken);
+        var rows = new List<TravcoRow>();
+        try
+        {
+            for (var pageNumber = 1; pageNumber <= totalPages; pageNumber++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await NavigateToPageAsync(page, pageNumber, cancellationToken);
+                progress?.Report((pageNumber, totalPages));
+                var result = await ScrapePageAsync(page, log, cancellationToken);
+                rows.AddRange(result.Rows);
+            }
+        }
+        finally
+        {
+            try
+            {
+                await NavigateToPageAsync(page, 1, CancellationToken.None);
+                log?.Invoke("[travco] returned to result page 1.");
+            }
+            catch (Exception ex)
+            {
+                log?.Invoke($"[travco] could not return to result page 1: {ex.Message}");
+            }
+        }
+
+        log?.Invoke($"[travco] scraped all {totalPages} page(s): {rows.Count} row(s).");
+        return new TravcoScrapeResult(1, totalPages, rows);
+    }
+
+    private static async Task<int> ResolveTotalPagesAsync(
+        IPage page,
+        Action<string>? log,
+        CancellationToken cancellationToken)
+    {
+        var totalPages = await page.EvaluateAsync<int>(
+            """
+            () => Math.max(1, ...Array.from(document.querySelectorAll('main a[href*="page="]'))
+              .map(link => Number.parseInt(new URL(link.href, location.href).searchParams.get('page') || '0', 10))
+              .filter(Number.isFinite))
+            """).WaitAsync(cancellationToken);
+        log?.Invoke($"[travco] detected {totalPages} result page(s).");
+        return Math.Max(1, totalPages);
+    }
+
+    private static async Task NavigateToPageAsync(IPage page, int pageNumber, CancellationToken cancellationToken)
+    {
+        var currentPage = await page.EvaluateAsync<int>(
+            "() => Number.parseInt((document.querySelector('main a.btn.active[href*=\"page=\"]')?.textContent || '1').trim(), 10)")
+            .WaitAsync(cancellationToken);
+        if (currentPage == pageNumber)
+        {
+            return;
+        }
+
+        var link = page.Locator(
+            $"xpath=//main//a[contains(@href,'page=') and normalize-space(.)='{pageNumber}']").First;
+        await link.ClickAsync().WaitAsync(cancellationToken);
+        await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded).WaitAsync(cancellationToken);
+        await page.WaitForFunctionAsync(
+            "pageNumber => Number.parseInt((document.querySelector('main a.btn.active[href*=\"page=\"]')?.textContent || '0').trim(), 10) === pageNumber",
+            pageNumber,
+            new PageWaitForFunctionOptions { Timeout = 20000 }).WaitAsync(cancellationToken);
+        await WaitForResultsSettledAsync(page, cancellationToken);
+    }
+
+    private static Task WaitForValueAsync(
+        IPage page,
+        string selector,
+        string expectedValue,
+        CancellationToken cancellationToken)
+    {
+        return page.WaitForFunctionAsync(
+                "args => document.querySelector(args.selector)?.value === args.expectedValue",
+                new { selector, expectedValue },
+                new PageWaitForFunctionOptions { Timeout = 5000 })
+            .WaitAsync(cancellationToken);
+    }
+
+    private static async Task WaitForResultsSettledAsync(IPage page, CancellationToken cancellationToken)
+    {
+        await page.WaitForFunctionAsync(
+            "() => document.readyState === 'complete' && document.querySelector('main table tbody') !== null",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 20000 }).WaitAsync(cancellationToken);
+        await Task.Delay(150, cancellationToken);
+    }
+
+    private static string NormalizeOrderBy(string? value)
+    {
+        return value?.Trim().ToLowerInvariant() switch
+        {
+            "population" or "-population" => "-population",
+            "tribe" or "tid" => "tid",
+            _ => "distance",
+        };
     }
 
     private static string NormalizeHost(string? value)
@@ -185,5 +303,28 @@ public static class TravcoInactiveSearch
         public string Days { get; set; } = string.Empty;
         public string OrderBy { get; set; } = string.Empty;
         public string PageSize { get; set; } = string.Empty;
+    }
+
+    private sealed class TravcoRawPageDto
+    {
+        public int PageNumber { get; set; }
+        public int TotalPages { get; set; }
+        public List<string> Headers { get; set; } = [];
+        public List<TravcoRawRowDto> Rows { get; set; } = [];
+
+        public TravcoRawPage ToDomain()
+        {
+            return new TravcoRawPage(
+                PageNumber,
+                TotalPages,
+                Headers,
+                Rows.Select(row => new TravcoRawRow(row.Cells, row.VillageHref)).ToList());
+        }
+    }
+
+    private sealed class TravcoRawRowDto
+    {
+        public List<string> Cells { get; set; } = [];
+        public string? VillageHref { get; set; }
     }
 }

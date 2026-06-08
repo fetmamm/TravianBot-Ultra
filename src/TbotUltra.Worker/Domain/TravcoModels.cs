@@ -12,6 +12,12 @@ public sealed record TravcoScrapeResult(
     int TotalPages,
     IReadOnlyList<TravcoRow> Rows);
 
+public sealed record TravcoSearchRequest(
+    int X,
+    int Y,
+    int DaysInactive,
+    string OrderBy);
+
 public sealed record TravcoRawRow(
     IReadOnlyList<string> Cells,
     string? VillageHref);

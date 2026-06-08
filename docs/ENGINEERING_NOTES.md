@@ -95,6 +95,11 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
 
 ## 4. Beslutslogg (ADR — append-only)
 
+- **2026-06-08** — **Travco inactive search använder en separat tab och DTO-baserad DOM-läsning.**
+  Official-only-flödet återanvänder den synliga browser-contexten. Popupen väljer by, dagar och sortering;
+  sparning läser aktuell DOM eller samtliga resultatsidor och återgår till sida 1. Playwright-resultat
+  deserialiseras först till muterbara DTO-klasser för att undvika `return type mismatch` med records.
+
 - **2026-06-08** — **MainWindow-close avslutar WPF-applikationen explicit efter cleanup.**
   Shutdown-flödet behåller cancel, väntan på bakgrundsjobb och browser-cleanup med timeout, men avslutar
   därefter via `Application.Shutdown()` i stället för endast `MainWindow.Close()`. Ett kvarvarande dolt eller
