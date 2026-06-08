@@ -21,26 +21,22 @@ Here you can ask questions, report bugs and come with suggestions for new featur
 
 ---
 
-Travian bot for automating tasks, compatible with:
-- SS-Travi — T4.4 — Private server
-- Official Travian — Travian Legends 4.6+ — Official servers
-
-Runtime and UI are fully built in C# (.NET 8 / WPF).
-The optional captcha solver is a small separate Python module.
-
-`NOTE:` It is important that the language is set to `English` in the travian browser settings page.
-
----
-
 ## TBot Ultra - Advanced Travian Bot
-Advanced open-source Travian Bot for Travian Legends with automation, farming, building management, resource optimization and multi-village support.
+Advanced open-source `Travian Bot` for Travian Legends with automation, farming, building management, resource optimization and `multi-village support`.
 Also works for SS-Travian private server but the main goal forward is the official Travian servers.
 
 ## What can this program do?
 
-Tbot Ultra is an automation tool for Travian Legends. It helps players automate repetitive tasks such as village management, resource handling, farming, troops and construction.
+Tbot Ultra is an automation tool for Travian. It helps players automate repetitive tasks such as village management, resource handling, farming, troops and construction.
 
-## Features: 🔹 
+Compatible with:
+
+`SS-Travi` — T4.4 — Private server
+`Official Travian` — Travian Legends 4.6+ — Official servers
+
+`NOTE:` It is important that the language is set to `English` in the travian browser settings page.
+
+## Features: 
 - Automatic building
 Works for buildings and resources. Can choose from lowest level first and resource priority first (smart).
 - Hero adventures
@@ -82,6 +78,10 @@ The program is built so that it can handle multiple villages. The settings for e
 Add functionality so that the program can analyze inactive players from https://travcotools.com/en/inactive-search/
 Add these to lists inside the program that can be sorted and added to travian farm lists.
 Compare already scanned villages to new ones and adjust the lists. 
+
+## Known bugs:
+
+Please visit the [issues page](https://github.com/fetmamm/Tbot_ultra_new/issues) for known bugs or the [Discord channel](https://discord.gg/7bgzKy9sHK).
 
 ---
 
