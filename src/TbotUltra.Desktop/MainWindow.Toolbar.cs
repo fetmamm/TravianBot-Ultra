@@ -9,6 +9,9 @@ namespace TbotUltra.Desktop;
 // same class, so this is a pure relocation with no behavior change.
 public partial class MainWindow
 {
+    private bool _shutdownInProgress;
+    private bool _shutdownCompleted;
+
     private void OpenVerificationBrowserButton_Click(object sender, RoutedEventArgs e)
     {
         _ = sender;
@@ -196,8 +199,20 @@ public partial class MainWindow
         }
     }
 
-    private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    private async void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
+        if (_shutdownCompleted)
+        {
+            return;
+        }
+
+        e.Cancel = true;
+        if (_shutdownInProgress)
+        {
+            return;
+        }
+
+        _shutdownInProgress = true;
         try
         {
             _loopController.MarkClosing();
@@ -207,16 +222,24 @@ public partial class MainWindow
             _copyFeedbackTimer.Stop();
             _inboxRefreshTimer.Stop();
             _buildQueueCountdownTimer.Stop();
+            _resourceSnapshotRefreshTimer.Stop();
+            _troopTrainingDeferredRefreshDebounceTimer.Stop();
+            _queueUiRefreshTimer.Stop();
+            _captchaAutoSolveElapsedTimer?.Stop();
             _loopController.RequestLoopStop();
             _loopController.RequestQueueStop();
+            _loopController.CancelOperation();
+            _loopController.CancelAutoQueueRun();
             _loopController.CancelLoop();
             _loopController.CancelVillageSwitch();
             _loopController.CancelQueueAutoRunRoot();
             ClosePopupWindows();
 
-            // Do not block UI shutdown indefinitely; close shared browser best-effort.
-            var shutdownTask = _botService.ShutdownAsync(AppendLog);
-            if (!shutdownTask.Wait(TimeSpan.FromSeconds(3)))
+            try
+            {
+                await _botService.ShutdownAsync(AppendLog).WaitAsync(TimeSpan.FromSeconds(15));
+            }
+            catch (TimeoutException)
             {
                 AppendLog("Shutdown timeout while closing browser session. Continuing app exit.");
             }
@@ -225,11 +248,20 @@ public partial class MainWindow
             {
                 _botService.ClearQueue();
             }
+
+            _loopController.DisposeOperation();
+            _loopController.DisposeAutoQueueRun();
             _loopController.DisposeVillageSwitch();
         }
         catch (Exception ex)
         {
-            AppendLog($"Could not clear queue on shutdown: {ex.Message}");
+            AppendLog($"Shutdown cleanup failed: {ex.Message}");
+        }
+        finally
+        {
+            _shutdownCompleted = true;
+            _shutdownInProgress = false;
+            Close();
         }
     }
 

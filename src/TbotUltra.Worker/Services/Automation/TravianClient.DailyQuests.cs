@@ -229,6 +229,7 @@ public sealed partial class TravianClient
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
             bool clicked;
             try
             {
@@ -284,6 +285,7 @@ public sealed partial class TravianClient
     {
         try
         {
+            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
             var clicked = await _page.EvaluateAsync<bool>(
                 """
                 () => {

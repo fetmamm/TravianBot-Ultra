@@ -15,6 +15,8 @@ namespace TbotUltra.Desktop;
 /// </summary>
 public partial class App : Application
 {
+    private static ServiceProvider? _serviceProvider;
+
     /// <summary>
     /// Application-wide service provider. Populated in <see cref="OnStartup"/>
     /// before the StartupUri creates MainWindow. Use this from code that needs
@@ -28,7 +30,8 @@ public partial class App : Application
         AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
         TaskScheduler.UnobservedTaskException += TaskScheduler_UnobservedTaskException;
 
-        Services = ConfigureServices();
+        _serviceProvider = ConfigureServices();
+        Services = _serviceProvider;
 
         // Dark OS title bar for every window in the app (the WPF chrome we can't restyle in XAML).
         EventManager.RegisterClassHandler(typeof(Window), FrameworkElement.LoadedEvent,
@@ -75,7 +78,19 @@ public partial class App : Application
         }
     }
 
-    private static IServiceProvider ConfigureServices()
+    protected override void OnExit(ExitEventArgs e)
+    {
+        DispatcherUnhandledException -= App_DispatcherUnhandledException;
+        AppDomain.CurrentDomain.UnhandledException -= CurrentDomain_UnhandledException;
+        TaskScheduler.UnobservedTaskException -= TaskScheduler_UnobservedTaskException;
+
+        _serviceProvider?.Dispose();
+        _serviceProvider = null;
+
+        base.OnExit(e);
+    }
+
+    private static ServiceProvider ConfigureServices()
     {
         var services = new ServiceCollection();
 

@@ -122,6 +122,7 @@ public sealed partial class TravianClient
         // None is valid (e.g. the general tab may have nothing to claim) — just return 0 then.
         try
         {
+            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
             await _page.WaitForFunctionAsync(
                 """
                 () => {

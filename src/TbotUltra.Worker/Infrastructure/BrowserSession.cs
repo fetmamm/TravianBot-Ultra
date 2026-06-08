@@ -134,17 +134,19 @@ public sealed class BrowserSession : IAsyncDisposable
         Directory.CreateDirectory(authDirectory);
         ConfigureLocalPlaywrightEnvironment(_projectRoot);
 
-        _playwright = await Playwright.CreateAsync();
-        _browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+        try
         {
-            Headless = _headlessOverride ?? _config.Headless,
-        });
+            _playwright = await Playwright.CreateAsync();
+            _browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+            {
+                Headless = _headlessOverride ?? _config.Headless,
+            });
 
-        var contextOptions = new BrowserNewContextOptions
-        {
-            BaseURL = _config.BaseUrl,
-            ViewportSize = new ViewportSize { Width = 1366, Height = 900 },
-        };
+            var contextOptions = new BrowserNewContextOptions
+            {
+                BaseURL = _config.BaseUrl,
+                ViewportSize = new ViewportSize { Width = 1366, Height = 900 },
+            };
 
         MigrateLegacyStorageStateIfNeeded();
 
@@ -294,7 +296,21 @@ public sealed class BrowserSession : IAsyncDisposable
             }
         };
 
-        return page;
+            return page;
+        }
+        catch
+        {
+            try
+            {
+                await DisposeAsync();
+            }
+            catch (Exception cleanupEx)
+            {
+                _log?.Invoke($"[browser] cleanup after failed initialization also failed: {cleanupEx.Message}");
+            }
+
+            throw;
+        }
     }
 
     private async Task<bool> CloseBlockedPopupAsync(IPage popup, string source)
@@ -506,17 +522,54 @@ public sealed class BrowserSession : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        if (_context is not null)
+        var context = _context;
+        var browser = _browser;
+        var playwright = _playwright;
+        _context = null;
+        _browser = null;
+        _playwright = null;
+
+        Exception? cleanupFailure = null;
+        if (context is not null)
         {
-            await _context.CloseAsync();
+            try
+            {
+                await context.CloseAsync();
+            }
+            catch (Exception ex)
+            {
+                cleanupFailure = ex;
+            }
         }
 
-        if (_browser is not null)
+        if (browser is not null)
         {
-            await _browser.CloseAsync();
+            try
+            {
+                await browser.CloseAsync();
+            }
+            catch (Exception ex)
+            {
+                cleanupFailure ??= ex;
+            }
         }
 
-        _playwright?.Dispose();
+        if (playwright is not null)
+        {
+            try
+            {
+                playwright.Dispose();
+            }
+            catch (Exception ex)
+            {
+                cleanupFailure ??= ex;
+            }
+        }
+
+        if (cleanupFailure is not null)
+        {
+            throw new InvalidOperationException("Browser session cleanup did not complete cleanly.", cleanupFailure);
+        }
     }
 
     // Pin Playwright to the driver and browsers shipped inside the app folder. PLAYWRIGHT_DRIVER_PATH

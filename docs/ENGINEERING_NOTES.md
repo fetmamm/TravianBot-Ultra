@@ -95,6 +95,20 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
 
 ## 4. Beslutslogg (ADR — append-only)
 
+- **2026-06-08** — **Queue clear använder ofiltrerad konto-kö.**
+  `Clear account queue` utgick tidigare från `QueueDataGrid.ItemsSource`, som är filtrerad till vald by,
+  och rensade därför bara den by som visades. Account-clear läser nu alla aktiva poster direkt från den
+  konto-scopeade queue-storen och omfattar automatiskt samtliga nuvarande/framtida byar. `Clear village
+  queue` läser samma ofiltrerade store men tar endast poster vars target-village matchar vald by.
+
+- **2026-06-08** — **Shutdown steg 1–3: async browser-close, robust Playwright-dispose och komplett ägar-cleanup.**
+  `MainWindow_Closing` blockerar inte längre UI-tråden med `Task.Wait`; första close avbryts, timers och
+  loop-CTS stoppas, browser-shutdown inväntas asynkront (15 s timeout), därefter stängs fönstret igen.
+  Alla MainWindow-timers stoppas, inklusive resource/debounce/queue/captcha. DI-rootens `ServiceProvider`
+  disponeras i `App.OnExit`, vilket även disponerar singleton-`LoopController`. `BrowserSession.DisposeAsync`
+  städar context, browser och Playwright oberoende så ett fel inte hoppar över resterande cleanup, och
+  `OpenPageAsync` städar delvis skapade resurser om initiering misslyckas.
+
 - **2026-06-08** — **Kontobyte bevarar båda kontonas separata köer.**
   `JsonQueueStore` var redan dynamiskt konto-scopead, men `ResetForAccountSwitchAsync` anropade
   `ClearAccountScopedUiState`, som alltid körde `ClearQueue`. Vid dropdown-byte rensades gamla kontots fil;

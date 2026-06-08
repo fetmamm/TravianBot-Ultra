@@ -228,30 +228,29 @@ public partial class MainWindow
                 return;
             }
 
-            var rows = (QueueDataGrid.ItemsSource as IEnumerable<QueueItemRow>)?.ToList() ?? [];
-            var villageRows = rows
-                .Where(row => string.Equals((row.VillageName ?? string.Empty).Trim(), villageName, StringComparison.OrdinalIgnoreCase))
+            var villageItems = _botService
+                .GetQueueItemsForDisplay()
+                .Where(IsActiveQueueItem)
+                .Where(item => string.Equals(
+                    NormalizeVillageName(GetQueueItemVillageName(item)),
+                    villageName,
+                    StringComparison.OrdinalIgnoreCase))
                 .ToList();
-            if (villageRows.Count == 0)
+            if (villageItems.Count == 0)
             {
                 AppendLog($"Clear village queue: '{villageName}' has no queued tasks.");
                 return;
             }
 
             var removed = 0;
-            foreach (var row in villageRows)
+            foreach (var item in villageItems)
             {
-                var existingItem = _botService.GetQueueItemsForDisplay().FirstOrDefault(item => item.Id == row.Id);
-                if (!_botService.RemoveQueueItem(row.Id))
+                if (!_botService.RemoveQueueItem(item.Id))
                 {
                     continue;
                 }
 
-                if (existingItem is not null)
-                {
-                    ForgetBuildingQueueCachesForItem(existingItem);
-                }
-
+                ForgetBuildingQueueCachesForItem(item);
                 removed += 1;
             }
 
@@ -272,8 +271,13 @@ public partial class MainWindow
 
     private void ClearActiveQueueItems()
     {
-        var activeRows = (QueueDataGrid.ItemsSource as IEnumerable<QueueItemRow>)?.ToList() ?? [];
-        if (activeRows.Count == 0)
+        // QueueDataGrid is filtered to the selected village. Read the account-scoped store directly so
+        // this command always clears every village, including villages added after the UI was built.
+        var activeItems = _botService
+            .GetQueueItemsForDisplay()
+            .Where(IsActiveQueueItem)
+            .ToList();
+        if (activeItems.Count == 0)
         {
             AppendLog("Active queue is already empty.");
             return;
@@ -286,19 +290,14 @@ public partial class MainWindow
         _loopController.CancelLoop();
 
         var removed = 0;
-        foreach (var row in activeRows)
+        foreach (var item in activeItems)
         {
-            var existingItem = _botService.GetQueueItemsForDisplay().FirstOrDefault(item => item.Id == row.Id);
-            if (!_botService.RemoveQueueItem(row.Id))
+            if (!_botService.RemoveQueueItem(item.Id))
             {
                 continue;
             }
 
-            if (existingItem is not null)
-            {
-                ForgetBuildingQueueCachesForItem(existingItem);
-            }
-
+            ForgetBuildingQueueCachesForItem(item);
             removed += 1;
         }
 
@@ -309,6 +308,12 @@ public partial class MainWindow
         AppendLog(removed > 0
             ? "Active queue cleared and running actions stopped."
             : "Could not clear active queue.");
+    }
+
+    private static bool IsActiveQueueItem(QueueItem item)
+    {
+        return item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused
+            || (item.Status == QueueStatus.Failed && !item.IsRuntimeOnly);
     }
 
     private void ClearHistoryQueueItems()
