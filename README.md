@@ -32,66 +32,93 @@ Tbot Ultra is an automation tool for Travian. It helps players automate repetiti
 
 Compatible with:
 
-`SS-Travi` — T4.4 — Private server
+- `SS-Travi` — T4.4 — Private server
 
-`Official Travian` — Travian Legends 4.6+ — Official servers
+- `Official Travian` — Travian Legends 4.6+ — Official servers
 
 `NOTE:` It is important that the language is set to `English` in the travian browser settings page.
 
-## Features: 
 - Automatic building
-
-Works for buildings and resources. Can choose from lowest level first and resource priority first (smart).
+  - Works for buildings and resources
+  - Can choose from lowest level first
+  - Resource priority first (smart)
 
 - Hero adventures
-
-Send hero on adventures when available
+  - Send hero on adventures when available
 
 - Revive hero
+  - Automatically revives the hero when dead
 
-If dead, auto revive
+- Spend hero attribute points
 
-- Spend hero attributes points
-
-Use hero inventory resources for building
+- Use hero inventory resources for building
 
 - Collect daily quests
+
 - Collect tasks
+
 - Read messages and reports
+
 - Upgrade troops in smithy
+
 - Send resources between own villages
+
 - Send reinforcements between own villages
+
 - Farming
-
-Add farms to farmlists
-
-Create farmlists
-
-Execute farmlists with configurable intervals
+  - Add farms to farmlists
+  - Create farmlists
+  - Execute farmlists with configurable intervals
 
 - Send catapult waves
+  - Configurable catapult wave sender
+  - Choose target
+  - Configure desired troops in the first attack
+  - Configure follow-up wave attacks
 
-Configurable catapult wave sender. Can pick target, desired troops in first attack and wave attacks.
 - Session pacing
-
-More human-like behaviour that can be tweaked by the user.
-Click, task, loop delay.
+  - More human-like behaviour
+  - User configurable
+  - Click delay
+  - Task delay
+  - Loop delay
 
 - Auto sleep
+  - Logs out the user
+  - Waits a configurable amount of time
+  - Simulates inactivity
+  - Fully configurable
 
-Logs out the user and wait a set amount of time to simulate non activity.
-Can be configures as you like.
+- Captcha solver (SS-Travi servers)
+  - Automatically solves captchas
+  - Enters the correct answer
+  - Allows continuous operation
 
-- Captcha solver (for SS-Travi servers)
+- Read game status
+  - Gold
+  - Silver
+  - Plus
+  - Gold Club
+  - Tribe status
 
-Automatic captcha solver that can solve captchas and put in the correct value so that the program can run continuously.
+- Read village data
+  - Production
+  - Resources
+  - Buildings
+  - Hero home village
+  - Hero status
+  - Warehouse capacity
+  - Granary capacity
+  - And much more
 
-- Read gold, silver, plus, goldclub, tribe status
-- Read production, resources, buildings, hero home village, hero status, warehouse/granary capacity and many more
-- Clean dark mode UI that is highly configurable. 
-- Shows village status for all villages
+- Clean dark mode UI
+  - Highly configurable
 
-The program is built so that it can handle multiple villages. The settings for each village is configurable and individual.
+- Multi-village support
+  - Supports multiple villages
+  - Individual settings per village
+  - Village status overview
+  - Designed to handle growing accounts
 
 ## Future functions:
 
