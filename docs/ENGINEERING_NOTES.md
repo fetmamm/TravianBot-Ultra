@@ -95,6 +95,11 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
 
 ## 4. Beslutslogg (ADR — append-only)
 
+- **2026-06-08** — **MainWindow-close avslutar WPF-applikationen explicit efter cleanup.**
+  Shutdown-flödet behåller cancel, väntan på bakgrundsjobb och browser-cleanup med timeout, men avslutar
+  därefter via `Application.Shutdown()` i stället för endast `MainWindow.Close()`. Ett kvarvarande dolt eller
+  modellöst fönster kan därför inte hålla processen vid liv när huvudfönstret har stängts.
+
 - **2026-06-08** — **Hero-attribut sparas per konto/server och loggbrus filtreras.**
   Senast lästa `HeroAttributeSnapshot` sparas under kontots cache och laddas till Hero-UI vid start och
   kontobyte. Login-felet `Current page state is 'unknown'` ligger kvar i alarmhistoriken men auto-kvitteras.

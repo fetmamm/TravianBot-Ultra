@@ -268,7 +268,7 @@ public partial class MainWindow
             _backgroundTasks.Dispose();
             _shutdownCompleted = true;
             _shutdownInProgress = false;
-            Close();
+            Application.Current.Shutdown();
         }
     }
 
