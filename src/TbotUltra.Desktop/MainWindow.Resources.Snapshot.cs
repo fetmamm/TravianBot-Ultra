@@ -63,16 +63,16 @@ public partial class MainWindow
         _resourceProductionRefreshRunning = true;
         _resourceProductionRefreshPending = false;
         AppendLog($"[resource-production] queued from {source}");
-        _ = Task.Run(async () =>
+        _backgroundTasks.Run(async cancellationToken =>
         {
             try
             {
-                await TryRefreshResourceProductionOnlyAsync(CancellationToken.None);
+                await TryRefreshResourceProductionOnlyAsync(cancellationToken);
             }
             finally
             {
                 _resourceProductionRefreshRunning = false;
-                if (_resourceProductionRefreshPending)
+                if (!cancellationToken.IsCancellationRequested && _resourceProductionRefreshPending)
                 {
                     _resourceProductionRefreshPending = false;
                     QueueResourceProductionOnlyRefresh("pending_followup");

@@ -209,6 +209,7 @@ public partial class MainWindow : Window
     private long _operationCounter;
     private long _loopTickCounter;
     private readonly LoopController _loopController;
+    private readonly BackgroundTaskTracker _backgroundTasks = new();
     private readonly SessionPacer _sessionPacer = new();
 
     // Initialized in field initializers (i.e. before InitializeComponent runs)

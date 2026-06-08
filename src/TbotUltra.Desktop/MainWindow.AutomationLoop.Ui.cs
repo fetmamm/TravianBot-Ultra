@@ -813,12 +813,15 @@ public partial class MainWindow
         }
 
         AppendLog("Brewery celebration: group re-enabled, verifying status against server.");
-        _ = Task.Run(async () =>
+        _backgroundTasks.Run(async cancellationToken =>
         {
             try
             {
                 var options = ApplySelectedVillageToOptions(LoadBotOptions());
-                await RefreshBreweryCelebrationStatusAsync(options, _lastBuildingStatus, CancellationToken.None);
+                await RefreshBreweryCelebrationStatusAsync(options, _lastBuildingStatus, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
             }
             catch (Exception ex)
             {

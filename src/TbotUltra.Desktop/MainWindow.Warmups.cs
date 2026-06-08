@@ -12,19 +12,21 @@ public partial class MainWindow
 {
     private void StartBackgroundWarmups()
     {
-        _ = Task.Run(RunBackgroundWarmupsAsync);
+        _backgroundTasks.Run(
+            RunBackgroundWarmupsAsync,
+            ex => AppendLog($"Background warmup failed: {ex.Message}"));
     }
 
-    private async Task RunBackgroundWarmupsAsync()
+    private async Task RunBackgroundWarmupsAsync(CancellationToken cancellationToken)
     {
         // Captcha warmup is intentionally NOT done here — that captcha only exists on SS-Travi,
         // so warming it at startup just slows the program for official servers. It is triggered
         // lazily at login instead (see ExecuteLoginFlowAsync), where RunCaptchaWarmupAsync gates
         // on IsPrivateServer + CaptchaAutoSolveEnabled.
-        await RunChromiumWarmupAsync();
+        await RunChromiumWarmupAsync(cancellationToken);
     }
 
-    private async Task RunChromiumWarmupAsync()
+    private async Task RunChromiumWarmupAsync(CancellationToken cancellationToken)
     {
         if (!BrowserSession.ChromiumAlreadyInstalled(_projectRoot))
         {
@@ -44,7 +46,7 @@ public partial class MainWindow
         AppendLog("Chromium warmup started.");
         try
         {
-            var warmed = await BrowserSession.WarmupAsync(_projectRoot);
+            var warmed = await BrowserSession.WarmupAsync(_projectRoot, cancellationToken);
             sw.Stop();
             if (!warmed)
             {
@@ -54,6 +56,10 @@ public partial class MainWindow
 
             AppendLog($"Chromium warmup completed in {sw.Elapsed.TotalSeconds:F1}s.");
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            sw.Stop();
+        }
         catch (Exception ex)
         {
             sw.Stop();
@@ -61,7 +67,7 @@ public partial class MainWindow
         }
     }
 
-    private async Task RunCaptchaWarmupAsync()
+    private async Task RunCaptchaWarmupAsync(CancellationToken cancellationToken)
     {
         BotOptions options;
         try
@@ -90,7 +96,7 @@ public partial class MainWindow
         AppendLog("Captcha warmup started.");
         try
         {
-            var warmed = await _captchaAutoSolver.WarmupAsync(CancellationToken.None);
+            var warmed = await _captchaAutoSolver.WarmupAsync(cancellationToken);
             sw.Stop();
             if (!warmed)
             {
@@ -99,6 +105,10 @@ public partial class MainWindow
             }
 
             AppendLog($"Captcha warmup completed in {sw.Elapsed.TotalSeconds:F1}s.");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            sw.Stop();
         }
         catch (Exception ex)
         {

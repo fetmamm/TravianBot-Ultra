@@ -22,7 +22,7 @@ public partial class MainWindow
             return;
         }
 
-        _ = StartManualFarmingAsync();
+        _backgroundTasks.Track(StartManualFarmingAsync());
     }
 
     private async Task StartManualFarmingAsync()

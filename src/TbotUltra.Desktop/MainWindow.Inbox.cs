@@ -27,7 +27,7 @@ public partial class MainWindow
             return;
         }
 
-        _ = RefreshInboxIndicatorsAsync(logErrors: true, force: true);
+        _backgroundTasks.Track(RefreshInboxIndicatorsAsync(logErrors: true, force: true));
     }
 
     private async void MarkMessagesReadCore()

@@ -141,12 +141,12 @@ public sealed class CaptchaAutoSolver : ICaptchaAutoSolver
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            TryKill(process);
+            await TryKillAndWaitAsync(process);
             return new CaptchaSolverResult(false, "", "", 0d, $"Solver timed out after {timeoutSeconds} seconds.");
         }
         catch (Exception ex)
         {
-            TryKill(process);
+            await TryKillAndWaitAsync(process);
             return new CaptchaSolverResult(false, "", "", 0d, $"Solver execution failed: {ex.Message}");
         }
     }
@@ -192,7 +192,7 @@ public sealed class CaptchaAutoSolver : ICaptchaAutoSolver
         }
     }
 
-    private static void TryKill(Process process)
+    private static async Task TryKillAndWaitAsync(Process process)
     {
         try
         {
@@ -200,9 +200,12 @@ public sealed class CaptchaAutoSolver : ICaptchaAutoSolver
             {
                 process.Kill(entireProcessTree: true);
             }
+
+            await process.WaitForExitAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(2));
         }
         catch
         {
+            // Best-effort cleanup. The Process instance is still disposed by the caller.
         }
     }
 

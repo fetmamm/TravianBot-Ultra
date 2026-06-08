@@ -412,7 +412,7 @@ public partial class MainWindow
             return;
         }
 
-        _ = SwitchToActiveVillageAsync(selected);
+        _backgroundTasks.Track(SwitchToActiveVillageAsync(selected));
     }
 
     // The account's configured auto-loop groups, used as the default for villages that have no

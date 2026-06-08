@@ -61,14 +61,33 @@ public sealed class BrowserSession : IAsyncDisposable
             ConfigureLocalPlaywrightEnvironment(projectRoot);
 
             using var playwright = await Playwright.CreateAsync();
-            var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+            IBrowser? browser = null;
+            try
             {
-                Headless = true,
-            });
+                browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+                {
+                    Headless = true,
+                });
 
-            await browser.CloseAsync();
-            _warmupCompleted = true;
-            return true;
+                await browser.CloseAsync();
+                browser = null;
+                _warmupCompleted = true;
+                return true;
+            }
+            finally
+            {
+                if (browser is not null)
+                {
+                    try
+                    {
+                        await browser.CloseAsync();
+                    }
+                    catch
+                    {
+                        // Best-effort cleanup if warmup was cancelled or launch partially failed.
+                    }
+                }
+            }
         }
         finally
         {

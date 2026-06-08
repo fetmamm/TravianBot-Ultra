@@ -95,6 +95,17 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
 
 ## 4. Beslutslogg (ADR — append-only)
 
+- **2026-06-08** — **Click-delay körs endast när Action pacing är aktiverad.**
+  `DelayBeforeClickAsync` returnerar direkt när `action_pacing_enabled` är av, så den centrala click-delayen
+  följer Settings-checkboxen vid samtliga anrop.
+
+- **2026-06-08** — **Shutdown steg 4–8: spårade bakgrundsjobb, processväntan och popup-cancel.**
+  MainWindows fristående warmup-/refresh-/loopjobb registreras nu i en ägd `BackgroundTaskTracker` med
+  gemensam shutdown-token. Stängning stoppar och inväntar jobben innan browser-sessionen disponeras och
+  nekar nya jobb efter att shutdown startat. Captcha-solverns Python-processträd dödas och inväntas vid
+  timeout/cancel. Fönsterlokala CTS i Add Farms och Catapult Waves avbryts/disponeras vid close, och
+  modeless popups stängs explicit under app-shutdown.
+
 - **2026-06-08** — **Queue clear använder ofiltrerad konto-kö.**
   `Clear account queue` utgick tidigare från `QueueDataGrid.ItemsSource`, som är filtrerad till vald by,
   och rensade därför bara den by som visades. Account-clear läser nu alla aktiva poster direkt från den

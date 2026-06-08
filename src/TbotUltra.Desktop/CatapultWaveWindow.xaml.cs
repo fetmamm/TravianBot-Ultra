@@ -18,6 +18,7 @@ public partial class CatapultWaveWindow : Window
     private readonly Dictionary<string, Run> _firstAttackAmountRuns = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Hyperlink> _firstAttackAmountLinks = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Run> _waveAmountRuns = new(StringComparer.OrdinalIgnoreCase);
+    private readonly CancellationTokenSource _windowCts = new();
     private bool _suppressRefresh;
     private bool _isRunning;
     private bool _isRefreshing;
@@ -49,6 +50,14 @@ public partial class CatapultWaveWindow : Window
         Loaded += OnWindowLoaded;
     }
 
+    protected override void OnClosed(EventArgs e)
+    {
+        Loaded -= OnWindowLoaded;
+        _windowCts.Cancel();
+        _windowCts.Dispose();
+        base.OnClosed(e);
+    }
+
     private async void OnWindowLoaded(object sender, RoutedEventArgs e)
     {
         // Only run the auto-load once.
@@ -65,7 +74,7 @@ public partial class CatapultWaveWindow : Window
         BusyOverlay.Show("Catapult waves", "Reading troops from Rally Point…");
         try
         {
-            var setupInfo = await InitialLoadRequested(message => SetStatus(message, isAlarm: false), CancellationToken.None);
+            var setupInfo = await InitialLoadRequested(message => SetStatus(message, isAlarm: false), _windowCts.Token);
             UpdateSetupInfo(setupInfo);
             SetStatus("Troops loaded from Rally Point.", isAlarm: false);
         }
@@ -184,7 +193,7 @@ public partial class CatapultWaveWindow : Window
         try
         {
             SetStatus("Preparing catapult waves...", isAlarm: false);
-            var result = await StartRequested(request!, message => SetStatus(message, isAlarm: false), CancellationToken.None);
+            var result = await StartRequested(request!, message => SetStatus(message, isAlarm: false), _windowCts.Token);
             var attackMode = request!.RaidAttack ? "raid" : "normal attack";
             var done = $"Sent {result.SentCount}/{result.TotalAttacks} {attackMode}(s) to ({result.X}|{result.Y}).";
             SetStatus(done, isAlarm: false);
@@ -312,7 +321,7 @@ public partial class CatapultWaveWindow : Window
         try
         {
             SetStatus("Refreshing troops from Rally Point...", isAlarm: false);
-            var setupInfo = await RefreshRequested(message => SetStatus(message, isAlarm: false), CancellationToken.None);
+            var setupInfo = await RefreshRequested(message => SetStatus(message, isAlarm: false), _windowCts.Token);
             UpdateSetupInfo(setupInfo);
             SetStatus("Troops refreshed from Rally Point.", isAlarm: false);
         }

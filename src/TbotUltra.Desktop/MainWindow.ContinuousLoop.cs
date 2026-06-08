@@ -64,7 +64,7 @@ public partial class MainWindow
             return;
         }
 
-        _ = Task.Run(async () =>
+        var autoQueueTask = Task.Run(async () =>
         {
             var autoToken = _loopController.StartAutoQueueRun();
             try
@@ -97,6 +97,7 @@ public partial class MainWindow
                 });
             }
         });
+        _backgroundTasks.Track(autoQueueTask);
     }
 
     private void TriggerQueueAutoRunFromEnqueue()

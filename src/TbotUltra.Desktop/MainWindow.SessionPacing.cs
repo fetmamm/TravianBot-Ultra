@@ -31,8 +31,10 @@ public partial class MainWindow
     private void InitializeSessionPacing()
     {
         _sessionPacer.Logger = AppendLog;
-        _sessionPacer.SleepStarting += (_, _) => _ = SafeSessionPacingInvokeAsync(() => HandleSessionPacingSleepStartingAsync());
-        _sessionPacer.WakeRequested += (_, _) => _ = SafeSessionPacingInvokeAsync(HandleSessionPacingWakeRequestedAsync);
+        _sessionPacer.SleepStarting += (_, _) => _backgroundTasks.Track(
+            SafeSessionPacingInvokeAsync(() => HandleSessionPacingSleepStartingAsync()));
+        _sessionPacer.WakeRequested += (_, _) => _backgroundTasks.Track(
+            SafeSessionPacingInvokeAsync(HandleSessionPacingWakeRequestedAsync));
 
         // Use a mutable brush so the pacing box background can be animated (XAML's literal brush is frozen).
         if (SessionPacingBorder is not null)
@@ -93,7 +95,7 @@ public partial class MainWindow
         }
 
         AppendLog("[pacing] manual sleep requested from settings.");
-        _ = SafeSessionPacingInvokeAsync(() => HandleSessionPacingSleepStartingAsync(manual: true));
+        _backgroundTasks.Track(SafeSessionPacingInvokeAsync(() => HandleSessionPacingSleepStartingAsync(manual: true)));
     }
 
     private async Task HandleSessionPacingSleepStartingAsync(bool manual = false)

@@ -71,6 +71,7 @@ public partial class MainWindow
         NotifySessionPacingAutomationStarted();
 
         _loopTask = Task.Run(() => RunContinuousLoopAsync(token), token);
+        _backgroundTasks.Track(_loopTask);
         _ = TrackLoopCompletionAsync(_loopTask);
     }
 

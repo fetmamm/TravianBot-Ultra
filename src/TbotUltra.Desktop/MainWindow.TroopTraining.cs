@@ -383,13 +383,16 @@ public partial class MainWindow
         }
 
         _smithyUpgradeStatusRefreshRunning = true;
-        _ = Task.Run(async () =>
+        _backgroundTasks.Run(async cancellationToken =>
         {
             try
             {
                 var options = ApplySelectedVillageToOptions(LoadBotOptions());
-                var smithyStatus = await _botService.ReadSmithyUpgradeStatusAsync(options, AppendLog, knownBuildings, CancellationToken.None);
+                var smithyStatus = await _botService.ReadSmithyUpgradeStatusAsync(options, AppendLog, knownBuildings, cancellationToken);
                 await Dispatcher.InvokeAsync(() => ApplySmithyUpgradeStatus(smithyStatus));
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
             }
             catch (Exception ex)
             {
@@ -398,7 +401,8 @@ public partial class MainWindow
             finally
             {
                 _smithyUpgradeStatusRefreshRunning = false;
-                if (_pendingSmithyUpgradeStatusBuildings is not null)
+                if (!cancellationToken.IsCancellationRequested
+                    && _pendingSmithyUpgradeStatusBuildings is not null)
                 {
                     var pendingBuildings = _pendingSmithyUpgradeStatusBuildings;
                     _pendingSmithyUpgradeStatusBuildings = null;

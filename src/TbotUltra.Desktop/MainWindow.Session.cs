@@ -57,7 +57,9 @@ public partial class MainWindow
             // Warm the captcha solver lazily, now that we know the server. Fire-and-forget and
             // self-gated (only runs for SS-Travi with captcha auto-solve enabled) so it never
             // slows login on official servers.
-            _ = RunCaptchaWarmupAsync();
+            _backgroundTasks.Run(
+                RunCaptchaWarmupAsync,
+                ex => AppendLog($"Captcha warmup failed: {ex.Message}"));
 
             await EnsureChromiumInstalledAsync();
             // A visible browser opens as soon as login starts. Track that in a DEDICATED flag so a

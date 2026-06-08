@@ -26,6 +26,7 @@ public partial class AddFarmsToListWindow : Window
     private List<FarmListSelectionOption> _options = [];
     private int _natarFarmCount;
     private bool _loaded;
+    private bool _loadCtsDisposed;
 
     public IReadOnlyList<AddFarmsTarget> Targets { get; private set; } = [];
     public string SelectedTroopType { get; private set; } = string.Empty;
@@ -52,6 +53,19 @@ public partial class AddFarmsToListWindow : Window
 
         AddFarmsButton.IsEnabled = false;
         Loaded += OnLoaded;
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        Loaded -= OnLoaded;
+        if (!_loadCtsDisposed)
+        {
+            _loadCtsDisposed = true;
+            _loadCts.Cancel();
+            _loadCts.Dispose();
+        }
+
+        base.OnClosed(e);
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)

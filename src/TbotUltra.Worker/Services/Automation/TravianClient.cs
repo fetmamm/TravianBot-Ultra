@@ -170,6 +170,11 @@ public sealed partial class TravianClient
         CancellationToken cancellationToken,
         string? reason = null)
     {
+        if (!_config.ActionPacingEnabled)
+        {
+            return Task.CompletedTask;
+        }
+
         return ActionPacer.FromOptions(_config, Notify).DelayAsync(
             _config.ActionPacingClickMinSeconds,
             _config.ActionPacingClickMaxSeconds,

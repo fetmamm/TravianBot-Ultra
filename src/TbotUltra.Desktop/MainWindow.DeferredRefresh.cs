@@ -40,17 +40,20 @@ public partial class MainWindow
         var baseOptions = ApplySelectedVillageToOptions(LoadBotOptions());
         var itemOptions = BotOptionsPayloadApplier.Apply(baseOptions, item.Payload);
 
-        _ = Task.Run(async () =>
+        _backgroundTasks.Run(async cancellationToken =>
         {
             try
             {
-                await Task.Delay(halfDelay);
-                var status = await _botService.ReadBuildingsStatusAsync(itemOptions, AppendLog, CancellationToken.None);
+                await Task.Delay(halfDelay, cancellationToken);
+                var status = await _botService.ReadBuildingsStatusAsync(itemOptions, AppendLog, cancellationToken);
                 await Dispatcher.InvokeAsync(() =>
                 {
                     _lastBuildingStatus = status;
                     PopulateBuildingsTab(status);
                 });
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
             }
             catch (Exception ex)
             {
@@ -70,7 +73,7 @@ public partial class MainWindow
         var itemOptions = BotOptionsPayloadApplier.Apply(baseOptions, item.Payload);
         var deadlineUtc = DateTimeOffset.UtcNow + queueWaitDelay;
 
-        _ = Task.Run(async () =>
+        _backgroundTasks.Run(async cancellationToken =>
         {
             try
             {
@@ -81,7 +84,7 @@ public partial class MainWindow
                         Math.Floor(remaining.TotalSeconds / 2d),
                         1d,
                         120d);
-                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds), CancellationToken.None);
+                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
 
                     if (!IsQueueItemStillDeferred(item.Id))
                     {
@@ -91,8 +94,11 @@ public partial class MainWindow
                     await RefreshCurrentPageStorageStatusAsync(
                         itemOptions,
                         "deferred_queue_wait",
-                        CancellationToken.None);
+                        cancellationToken);
                 }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
             }
             catch (Exception ex)
             {
@@ -170,11 +176,15 @@ public partial class MainWindow
         }
 
         _deferredConstructionRefreshRunning = true;
-        _ = Task.Run(async () =>
+        _backgroundTasks.Run(async cancellationToken =>
         {
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 await RefreshDeferredConstructionWaitsAsync(status, source);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
             }
             catch (Exception ex)
             {
@@ -311,11 +321,15 @@ public partial class MainWindow
         }
 
         _deferredTroopTrainingRefreshRunning = true;
-        _ = Task.Run(async () =>
+        _backgroundTasks.Run(async cancellationToken =>
         {
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 await RefreshDeferredTroopTrainingWaitsAsync(status, source);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
             }
             catch (Exception ex)
             {
@@ -324,7 +338,8 @@ public partial class MainWindow
             finally
             {
                 _deferredTroopTrainingRefreshRunning = false;
-                if (_pendingDeferredTroopTrainingRefreshStatus is not null)
+                if (!cancellationToken.IsCancellationRequested
+                    && _pendingDeferredTroopTrainingRefreshStatus is not null)
                 {
                     var pendingStatus = _pendingDeferredTroopTrainingRefreshStatus;
                     var pendingSource = _pendingDeferredTroopTrainingRefreshSource ?? "pending_refresh";

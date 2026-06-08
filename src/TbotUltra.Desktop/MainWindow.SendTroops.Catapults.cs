@@ -21,7 +21,7 @@ public partial class MainWindow
             return;
         }
 
-        _ = StartCatapultWavesAsync();
+        _backgroundTasks.Track(StartCatapultWavesAsync());
     }
 
     private async Task StartCatapultWavesAsync()
@@ -49,6 +49,7 @@ public partial class MainWindow
                 Owner = this,
                 InitialLoadRequested = async (status, token) =>
                 {
+                    using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(operationToken, token);
                     var initialSetupInfo = await _botService.ReadCatapultWaveSetupInfoAsync(
                         options,
                         message =>
@@ -57,12 +58,13 @@ public partial class MainWindow
                             status(message);
                         },
                         forceRefresh: false,
-                        operationToken);
+                        linkedCts.Token);
                     SetCatapultWavesStatus("Troops loaded from Rally Point.");
                     return initialSetupInfo;
                 },
                 RefreshRequested = async (status, token) =>
                 {
+                    using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(operationToken, token);
                     status("Refreshing troops from Rally Point...");
                     SetCatapultWavesStatus("Refreshing troops from Rally Point...");
                     var refreshedSetupInfo = await _botService.ReadCatapultWaveSetupInfoAsync(
@@ -73,12 +75,13 @@ public partial class MainWindow
                             status(message);
                         },
                         forceRefresh: true,
-                        operationToken);
+                        linkedCts.Token);
                     SetCatapultWavesStatus("Troops refreshed from Rally Point.");
                     return refreshedSetupInfo;
                 },
                 StartRequested = async (request, status, token) =>
                 {
+                    using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(operationToken, token);
                     status("Preparing catapult waves...");
                     SetCatapultWavesStatus("Preparing catapult waves...");
                     var result = await _botService.StartCatapultWavesAsync(
@@ -89,7 +92,7 @@ public partial class MainWindow
                             AppendLog(message);
                             status(message);
                         },
-                        operationToken);
+                        linkedCts.Token);
 
                     var attackMode = request.RaidAttack ? "raid" : "normal attack";
                     var message = $"Sent {result.SentCount}/{result.TotalAttacks} {attackMode}(s) to ({result.X}|{result.Y}).";

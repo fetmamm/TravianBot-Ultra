@@ -181,7 +181,7 @@ public partial class MainWindow
     {
         LoadConfigToUi();
         AppendLog("Config reloaded from config/bot.json.");
-        _ = RefreshInboxIndicatorsAsync(logErrors: false);
+        _backgroundTasks.Track(RefreshInboxIndicatorsAsync(logErrors: false));
     }
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
@@ -235,6 +235,12 @@ public partial class MainWindow
             _loopController.CancelQueueAutoRunRoot();
             ClosePopupWindows();
 
+            var backgroundTasksStopped = await _backgroundTasks.StopAsync(TimeSpan.FromSeconds(10));
+            if (!backgroundTasksStopped)
+            {
+                AppendLog("Shutdown timeout while waiting for background tasks. Continuing browser cleanup.");
+            }
+
             try
             {
                 await _botService.ShutdownAsync(AppendLog).WaitAsync(TimeSpan.FromSeconds(15));
@@ -259,6 +265,7 @@ public partial class MainWindow
         }
         finally
         {
+            _backgroundTasks.Dispose();
             _shutdownCompleted = true;
             _shutdownInProgress = false;
             Close();
@@ -271,6 +278,10 @@ public partial class MainWindow
         {
             _logsPopupWindow?.Close();
             _queuePopupWindow?.Close();
+            CloseCaptchaAutoSolvePopup();
+            _resourceTestFunctionsWindow?.Close();
+            _savePageHtmlWindow?.Close();
+            _bulkSavePageHtmlWindow?.Close();
         }
         catch (Exception ex)
         {

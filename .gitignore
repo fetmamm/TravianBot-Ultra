@@ -27,6 +27,7 @@ ms-playwright/
 logs/
 temp_build_out/
 artifacts/
+.artifacts/
 .vs/
 **/debug_output/
 **/dataset_quarantine/
