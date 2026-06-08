@@ -131,6 +131,9 @@ public static class LogClassifier
             ":verbose]",
             "building snapshot refreshed",
             "building overview scan looked incomplete",
+            "no hero action was needed",
+            "[hero_manage started]",
+            "[loginasync started]",
             // Catches per-function "[SomeFunctionAsync] started" diagnostics. Note: task-lifecycle
             // lines read "[task STARTED]" (bracket AFTER the word) so they are NOT matched here.
             "] started",

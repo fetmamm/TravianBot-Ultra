@@ -24,6 +24,23 @@ namespace TbotUltra.Desktop;
 /// </summary>
 public partial class MainWindow
 {
+    private void LoadHeroAttributeSnapshotForActiveAccount(string accountName)
+    {
+        try
+        {
+            var serverUrl = GetActiveAccountServerUrl();
+            if (_heroAttributeSnapshotStore.TryLoad(accountName, serverUrl, out var snapshot)
+                && snapshot is not null)
+            {
+                ApplyHeroSnapshotToUi(snapshot);
+            }
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Could not load cached hero attributes: {ex.Message}");
+        }
+    }
+
     /// <summary>
     /// Persists the current attribute priority order to <c>bot.json</c>.
     /// Called from <see cref="Views.HeroPanel"/> after a drag-drop reorder.

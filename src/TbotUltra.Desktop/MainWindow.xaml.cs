@@ -146,6 +146,7 @@ public partial class MainWindow : Window
     private readonly IAccountProvider _accountProvider;
     private readonly EnvAccountStore _accountStore;
     private readonly AccountAnalysisStore _accountAnalysisStore;
+    private readonly HeroAttributeSnapshotStore _heroAttributeSnapshotStore;
     private readonly NatarFarmCacheStore _natarFarmCacheStore;
     private readonly ManualFarmingPreferenceStore _manualFarmingPreferenceStore;
     private readonly AccountDeletionService _accountDeletionService;
@@ -407,6 +408,7 @@ public partial class MainWindow : Window
         _villageCacheStore = new VillageCacheStore(_projectRoot, () => _accountStore.ActiveAccountName(), AppendLog);
         InitializeSessionPacing();
         _accountAnalysisStore = new AccountAnalysisStore(_projectRoot);
+        _heroAttributeSnapshotStore = new HeroAttributeSnapshotStore(_projectRoot);
         _natarFarmCacheStore = new NatarFarmCacheStore(_projectRoot);
         _manualFarmingPreferenceStore = new ManualFarmingPreferenceStore(_projectRoot);
         _serverDiscoveryService = new ServerDiscoveryService();
@@ -625,6 +627,7 @@ public partial class MainWindow : Window
             UpdateInboxButtons(0, 0);
             UpdateGoldClubInfoFromStoredAnalysis();
             RefreshNatarsProfileAnalyzedFromCache();
+            LoadHeroAttributeSnapshotForActiveAccount(account.Name);
         }
         catch (Exception ex)
         {

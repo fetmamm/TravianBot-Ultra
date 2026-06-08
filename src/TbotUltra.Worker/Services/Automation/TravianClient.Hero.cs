@@ -2855,10 +2855,24 @@ public sealed partial class TravianClient
         var key = BuildHeroAttributeSnapshotCacheKey();
         lock (HeroAttributeSnapshotCacheSync)
         {
-            return CachedHeroAttributeSnapshotsByKey.TryGetValue(key, out var snapshot)
-                ? snapshot
-                : null;
+            if (CachedHeroAttributeSnapshotsByKey.TryGetValue(key, out var snapshot))
+            {
+                return snapshot;
+            }
         }
+
+        if (_heroAttributeSnapshotStore.TryLoad(_account.Name, _config.BaseUrl, out var storedSnapshot)
+            && storedSnapshot is not null)
+        {
+            lock (HeroAttributeSnapshotCacheSync)
+            {
+                CachedHeroAttributeSnapshotsByKey[key] = storedSnapshot;
+            }
+
+            return storedSnapshot;
+        }
+
+        return null;
     }
 
     private void SaveCachedHeroAttributeSnapshot(HeroAttributeSnapshot snapshot)
@@ -2868,6 +2882,8 @@ public sealed partial class TravianClient
         {
             CachedHeroAttributeSnapshotsByKey[key] = snapshot with { };
         }
+
+        _heroAttributeSnapshotStore.Save(_account.Name, _config.BaseUrl, snapshot);
     }
 
     private void InvalidateCachedHeroAttributeSnapshot()

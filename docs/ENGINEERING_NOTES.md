@@ -95,6 +95,11 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
 
 ## 4. Beslutslogg (ADR — append-only)
 
+- **2026-06-08** — **Hero-attribut sparas per konto/server och loggbrus filtreras.**
+  Senast lästa `HeroAttributeSnapshot` sparas under kontots cache och laddas till Hero-UI vid start och
+  kontobyte. Login-felet `Current page state is 'unknown'` ligger kvar i alarmhistoriken men auto-kvitteras.
+  Clean-läget döljer no-action hero-status, `hero_manage STARTED` och `LoginAsync started`.
+
 - **2026-06-08** — **Click-delay körs endast när Action pacing är aktiverad.**
   `DelayBeforeClickAsync` returnerar direkt när `action_pacing_enabled` är av, så den centrala click-delayen
   följer Settings-checkboxen vid samtliga anrop.

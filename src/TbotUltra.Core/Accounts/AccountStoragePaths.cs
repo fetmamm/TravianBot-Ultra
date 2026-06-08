@@ -129,6 +129,15 @@ public static class AccountStoragePaths
         return Path.Combine(AccountDirectory(projectRoot, accountName), "cache", "manual-farming.json");
     }
 
+    public static string HeroAttributeSnapshotPath(string projectRoot, string accountName, string? serverUrl = null)
+    {
+        return Path.Combine(
+            AccountDirectory(projectRoot, accountName),
+            "cache",
+            "hero-attributes",
+            $"{NormalizeServerKey(serverUrl)}.json");
+    }
+
     public static string LegacyManualFarmingPreferencePath(string projectRoot)
     {
         return Path.Combine(projectRoot, "config", "cache", "manual-farming-preferences.json");

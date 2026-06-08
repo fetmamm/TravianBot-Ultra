@@ -43,6 +43,7 @@ public sealed partial class TravianClient
     private readonly bool _browserVisible;
     private readonly string _projectRoot;
     private readonly string _capitalCachePath;
+    private readonly HeroAttributeSnapshotStore _heroAttributeSnapshotStore;
     private readonly NatarFarmCacheStore _natarFarmCacheStore;
     private readonly ICaptchaAutoSolver? _captchaAutoSolver;
     private readonly Action<string>? _statusCallback;
@@ -155,6 +156,7 @@ public sealed partial class TravianClient
             ? Directory.GetCurrentDirectory()
             : projectRoot;
         _capitalCachePath = AccountStoragePaths.CapitalStatePath(_projectRoot, _account.Name);
+        _heroAttributeSnapshotStore = new HeroAttributeSnapshotStore(_projectRoot);
         _natarFarmCacheStore = new NatarFarmCacheStore(_projectRoot);
         _captchaAutoSolver = captchaAutoSolver;
         _statusCallback = statusCallback;

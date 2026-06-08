@@ -888,6 +888,8 @@ public partial class MainWindow
         var value = message.ToLowerInvariant();
         return value.Contains("chromium warmup")
             || value.Contains("captcha warmup")
+            || (value.Contains("not logged in")
+                && value.Contains("current page state is 'unknown'"))
             || (value.Contains("[resource-refresh] fail")
                 && (value.Contains("execution context was destroyed")
                     || value.Contains("timeout")))
