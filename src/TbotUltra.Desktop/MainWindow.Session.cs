@@ -303,6 +303,7 @@ public partial class MainWindow
             try
             {
                 await ResetForAccountSwitchAsync(options, previousLoggedIn);
+                RecoverAndRefreshActiveAccountQueue();
                 AppendLog($"Active account changed to '{activeAccountAfterDialog}'. Previous session closed and state reset.");
                 ResetVillageSelectionUi();
                 LoadConfigToUi();
@@ -368,6 +369,7 @@ public partial class MainWindow
             await ResetForAccountSwitchAsync(previousOptions, previousLoggedIn);
 
             _accountStore.SetActive(selected.Name);
+            RecoverAndRefreshActiveAccountQueue();
             AppendLog($"Active account changed to '{selected.Name}'. Previous session closed and state reset.");
             ResetVillageSelectionUi();
             SyncServerFromActiveAccount();
@@ -462,7 +464,7 @@ public partial class MainWindow
                 AppendLog($"Could not close browser during reset: {ex.Message}");
             }
 
-            ClearAccountScopedUiState();
+            ClearAccountScopedUiState(clearQueue: true);
             StatusTextBlock.Text = "Program reset. Press Login to start a new session.";
             AppendLog("Program reset completed. Browser session closed, internal state and queue cleared. Press Login to start again.");
         }
@@ -496,9 +498,12 @@ public partial class MainWindow
         }
     }
 
-    private void ClearAccountScopedUiState()
+    private void ClearAccountScopedUiState(bool clearQueue)
     {
-        _botService.ClearQueue();
+        if (clearQueue)
+        {
+            _botService.ClearQueue();
+        }
         _resourceClickCooldownBySlot.Clear();
         _resourceLastQueuedTargetBySlot.Clear();
         _resourcesViewModel.ClearPendingTargets();
@@ -543,6 +548,17 @@ public partial class MainWindow
         UpdateExecutionStateIndicator();
     }
 
+    private void RecoverAndRefreshActiveAccountQueue()
+    {
+        var recovered = _botService.ResetOrphanedRunningQueueItems();
+        if (recovered > 0)
+        {
+            AppendLog($"Recovered {recovered} queue item(s) for '{_accountStore.ActiveAccountName()}' from Running to Pending.");
+        }
+
+        RefreshQueueUi();
+    }
+
     // Switching the active account mid-session must behave like a fresh start: stop any running
     // automation, log out + close the old browser session, and clear all account-scoped cache so
     // stale buildings/villages/login state from the previous account never carry over. Closing the
@@ -581,8 +597,9 @@ public partial class MainWindow
             AppendLog($"Could not close browser during account switch: {ex.Message}");
         }
 
-        ClearPersistedAccountScopedConfig();
-        ClearAccountScopedUiState();
+        // Account switching must clear only in-memory/UI state. Each account's queue.json is preserved
+        // and becomes visible again when that account is selected later in the same app session.
+        ClearAccountScopedUiState(clearQueue: false);
     }
 
     // bot.json is shared across accounts, but a handful of settings point at specific villages or

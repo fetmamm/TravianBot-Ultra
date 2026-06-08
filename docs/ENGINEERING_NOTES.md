@@ -95,6 +95,35 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
 
 ## 4. Beslutslogg (ADR — append-only)
 
+- **2026-06-08** — **Kontobyte bevarar båda kontonas separata köer.**
+  `JsonQueueStore` var redan dynamiskt konto-scopead, men `ResetForAccountSwitchAsync` anropade
+  `ClearAccountScopedUiState`, som alltid körde `ClearQueue`. Vid dropdown-byte rensades gamla kontots fil;
+  via Accounts-fönstret kunde aktiva kontot redan vara bytt och då rensades nya kontots fil. UI-reset tar
+  nu `clearQueue`; program-reset använder `true`, kontobyte använder `false`. Efter byte läses det nya
+  kontots befintliga kö direkt och eventuella orphaned `Running`-poster återställs till `Pending`. Den gamla
+  konto-settings-rensningen anropas inte längre vid byte, eftersom den via Accounts-fönstret kunde träffa
+  det nyvalda kontots redan separata village/farm-inställningar.
+
+- **2026-06-08** — **Task/Daily Quest collection följer aktiv by och bryter inte by-dräneringen.**
+  Bakgrundssignalen köade tidigare `collect_tasks`/`collect_daily_quests` utan target-village och
+  continuous-schedulern prioriterade dem globalt före by-rotationen. Resultatet kunde bli att `/tasks`
+  öppnades efter ett byte till en annan by där village-rewarden inte fanns. Collect-items taggas nu med
+  `ActiveVillage` från samma current-page-status som signalen lästes på. De körs direkt endast om boten
+  fortfarande arbetar i den byn; annars väntar de tills nuvarande by saknar redo arbete.
+
+- **2026-06-08** — **Pause bot fryser session pacing; Stop bot återställer den.**
+  `SessionPacer` har nu ett explicit `Paused`-läge som sparar återstående körtid. Start efter paus
+  fortsätter samma nedräkning i stället för att skapa en ny varierad session. Endast bekräftad
+  **Stop bot** (samt appstängning) gör full `Reset`. Hero resource max-use-defaulten är åter 5000
+  både i `BotOptionsFactory` och standardkonfigurationen.
+
+- **2026-06-08** — **Village overview tappar inte byggkö-status vid en partiell DOM-miss.**
+  Dashboardens Buildings-ikoner drevs enbart av `ReadBuildQueueAsync`; om den breda kö-selektorn
+  tillfälligt gav noll poster skrevs `ActiveBuildCount=0` trots att den oberoende
+  `ReadActiveConstructionsAsync` samtidigt såg pågående byggen. Statusläsningarna använder nu maxvärdet
+  från båda läsningarna. Active-construction-parsern deduplicerar inte längre på byggnadsnamn, eftersom
+  två samtidiga uppgraderingar kan ha identiskt namn och ska räknas som två separata köplatser.
+
 - **2026-06-07** — **Byggnads-kö: sluta slå ihop nivå-uppgraderingar + krav-medveten kö + kaskad-borttagning.**
   Rotorsak (rapporterad bugg): `EnqueueBuildingUpgradeTaskCoalesced` (`MainWindow.Buildings.Queueing.cs`)
   slog ihop alla `upgrade_building_to_level` för samma slot till EN max-nivå och **skapade ett nytt item

@@ -156,7 +156,7 @@ public static class BotOptionsFactory
             CollectStepDelayMaxMs = configuration.GetValue(BotOptionPayloadKeys.CollectStepDelayMaxMs, PacingDefaults.CollectStepDelayMaxMs),
             HeroResourceTransferEnabled = configuration.GetValue(BotOptionPayloadKeys.HeroResourceTransferEnabled, true),
             HeroResourceMaxUseEnabled = configuration.GetValue(BotOptionPayloadKeys.HeroResourceMaxUseEnabled, true),
-            HeroResourceMaxUsePerResource = configuration.GetValue(BotOptionPayloadKeys.HeroResourceMaxUsePerResource, 4000),
+            HeroResourceMaxUsePerResource = configuration.GetValue(BotOptionPayloadKeys.HeroResourceMaxUsePerResource, 5000),
             UpgradeSelectorProfile = configuration[BotOptionPayloadKeys.UpgradeSelectorProfile] ?? "auto",
             NatarVillageSelection = configuration["natar_village_selection"] ?? "farm_villages",
         };

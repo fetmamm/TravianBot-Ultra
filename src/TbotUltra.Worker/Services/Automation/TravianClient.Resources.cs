@@ -653,6 +653,7 @@ public sealed partial class TravianClient
         // resources UI keeps showing upgrades started outside the program (target level in parentheses).
         var activeConstructions = await ReadActiveConstructionsAsync(cancellationToken, allowNavigationToBuildings: false);
         var buildQueue = await ReadBuildQueueAsync(cancellationToken);
+        var activeBuildCount = Math.Max(buildQueue.Count, activeConstructions.Count);
         var remaining = ResolveShortestQueueDurationSeconds(buildQueue);
         var currency = await ReadCurrencyAsync(cancellationToken);
         var unreadInbox = await ReadUnreadInboxCountsAsync(cancellationToken);
@@ -714,8 +715,8 @@ public sealed partial class TravianClient
             VillageCount: villages.Count,
             Gold: currency.Gold,
             Silver: currency.Silver,
-            IsBuildingInProgress: buildQueue.Count > 0,
-            ActiveBuildCount: buildQueue.Count,
+            IsBuildingInProgress: activeBuildCount > 0,
+            ActiveBuildCount: activeBuildCount,
             BuildQueueRemainingSeconds: remaining,
             BuildQueueRemainingText: remaining is int left ? FormatDuration(left) : string.Empty,
             IsCapital: cachedIsCapital,

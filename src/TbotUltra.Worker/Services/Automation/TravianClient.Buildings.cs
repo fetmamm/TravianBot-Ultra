@@ -2808,13 +2808,11 @@ public sealed partial class TravianClient
             () => {
               const items = [];
               const lis = document.querySelectorAll('.boxes.buildingList ul li, .buildingList ul li');
-              const seen = new Set();
               for (const li of lis) {
                 const nameEl = li.querySelector('.name');
                 if (!nameEl) continue;
                 const fullName = (nameEl.textContent || '').replace(/\s+/g, ' ').trim();
-                if (!fullName || seen.has(fullName)) continue;
-                seen.add(fullName);
+                if (!fullName) continue;
 
                 const lvlEl = nameEl.querySelector('.lvl');
                 const lvlText = (lvlEl?.textContent || '').trim();

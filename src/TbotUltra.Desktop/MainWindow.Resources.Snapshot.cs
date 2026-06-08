@@ -296,7 +296,7 @@ public partial class MainWindow
         return long.TryParse(normalized, out var parsed) ? parsed : null;
     }
 
-    private async Task RefreshResourceSnapshotForUiAsync(
+    private async Task<VillageStatus?> RefreshResourceSnapshotForUiAsync(
         BotOptions? options = null,
         CancellationToken cancellationToken = default,
         bool forceCurrentVillage = false,
@@ -304,7 +304,7 @@ public partial class MainWindow
     {
         if (_resourceSnapshotRefreshRunning)
         {
-            return;
+            return null;
         }
 
         _resourceSnapshotRefreshRunning = true;
@@ -335,6 +335,7 @@ public partial class MainWindow
                     ApplyHeroAdventureAvailability(adventureCount);
                 }
             });
+            return status;
         }
         catch (Exception ex)
         {
@@ -395,9 +396,10 @@ public partial class MainWindow
         var options = LoadBotOptions();
         var officialServer = IsOfficialTravianServer(options);
 
+        VillageStatus? refreshedStatus = null;
         try
         {
-            await RefreshResourceSnapshotForUiAsync(options, CancellationToken.None, currentPageOnly: true);
+            refreshedStatus = await RefreshResourceSnapshotForUiAsync(options, CancellationToken.None, currentPageOnly: true);
         }
         catch (Exception ex)
         {
@@ -411,10 +413,10 @@ public partial class MainWindow
             }
         }
 
-        if (officialServer)
+        if (officialServer && refreshedStatus is not null)
         {
-            await TryQueueAutoCollectTasksAsync(options);
-            await TryQueueAutoCollectDailyQuestsAsync(options);
+            await TryQueueAutoCollectTasksAsync(options, refreshedStatus);
+            await TryQueueAutoCollectDailyQuestsAsync(options, refreshedStatus);
         }
         else
         {
@@ -426,7 +428,7 @@ public partial class MainWindow
     // Official only: cheap current-page check (no navigation) for claimable Questmaster task
     // rewards. When found, queues the collect_tasks runtime task. Gated by the user setting and
     // de-duplicated so the same collection is never queued twice.
-    private async Task TryQueueAutoCollectTasksAsync(BotOptions options)
+    private async Task TryQueueAutoCollectTasksAsync(BotOptions options, VillageStatus? observedStatus = null)
     {
         if (!IsAutoCollectTasksEnabledNow(options))
         {
@@ -444,7 +446,14 @@ public partial class MainWindow
         {
             if (await _botService.HasClaimableTasksOnCurrentPageAsync(options, AppendLog, CancellationToken.None))
             {
-                _botService.EnqueueRuntime("collect_tasks", "Collect tasks", null, priority: -40, maxRetries: 1);
+                var payload = BuildCurrentVillageUtilityPayload(observedStatus);
+                if (payload is null)
+                {
+                    AppendLog("[tasks:verbose] claimable rewards detected, but current village could not be identified; retrying on the next refresh.");
+                    return;
+                }
+
+                _botService.EnqueueRuntime("collect_tasks", "Collect tasks", payload, priority: -40, maxRetries: 1);
                 AppendLog("Tasks: claimable rewards detected — queued collect_tasks.");
             }
         }
@@ -457,7 +466,7 @@ public partial class MainWindow
     // Official only: cheap current-page check (no navigation) for claimable Daily Quests rewards.
     // When found, queues the collect_daily_quests runtime task. Gated by the user setting and
     // de-duplicated so the same collection is never queued twice.
-    private async Task TryQueueAutoCollectDailyQuestsAsync(BotOptions options)
+    private async Task TryQueueAutoCollectDailyQuestsAsync(BotOptions options, VillageStatus? observedStatus = null)
     {
         if (!IsAutoCollectDailyQuestsEnabledNow(options))
         {
@@ -474,7 +483,14 @@ public partial class MainWindow
         {
             if (await _botService.HasClaimableDailyQuestsOnCurrentPageAsync(options, AppendLog, CancellationToken.None))
             {
-                _botService.EnqueueRuntime("collect_daily_quests", "Collect daily quests", null, priority: -40, maxRetries: 1);
+                var payload = BuildCurrentVillageUtilityPayload(observedStatus);
+                if (payload is null)
+                {
+                    AppendLog("[daily-quests:verbose] claimable rewards detected, but current village could not be identified; retrying on the next refresh.");
+                    return;
+                }
+
+                _botService.EnqueueRuntime("collect_daily_quests", "Collect daily quests", payload, priority: -40, maxRetries: 1);
                 AppendLog("Daily quests: claimable rewards detected - queued collect_daily_quests.");
             }
         }
@@ -482,6 +498,44 @@ public partial class MainWindow
         {
             AppendLog($"Auto collect daily quests check skipped: {ex.Message}");
         }
+    }
+
+    private Dictionary<string, string>? BuildCurrentVillageUtilityPayload(VillageStatus? observedStatus)
+    {
+        var villageName = NormalizeVillageName(observedStatus?.ActiveVillage)
+            ?? NormalizeVillageName(_activeWorkingVillageName);
+        if (villageName is null)
+        {
+            return null;
+        }
+
+        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.TargetVillageName] = villageName,
+        };
+
+        var villageUrl = observedStatus?.Villages
+            .FirstOrDefault(item => string.Equals(
+                NormalizeVillageName(item.Name),
+                villageName,
+                StringComparison.OrdinalIgnoreCase))
+            ?.Url;
+        if (string.IsNullOrWhiteSpace(villageUrl))
+        {
+            villageUrl = GetEnabledAutomationVillages()
+                .FirstOrDefault(item => string.Equals(
+                    NormalizeVillageName(item.Name),
+                    villageName,
+                    StringComparison.OrdinalIgnoreCase))
+                ?.Url;
+        }
+
+        if (!string.IsNullOrWhiteSpace(villageUrl))
+        {
+            payload[BotOptionPayloadKeys.TargetVillageUrl] = villageUrl;
+        }
+
+        return payload;
     }
 
     private bool IsAutoCollectTasksEnabledNow(BotOptions options)

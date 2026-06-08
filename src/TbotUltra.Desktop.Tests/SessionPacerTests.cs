@@ -55,4 +55,37 @@ public sealed class SessionPacerTests
 
         Assert.Equal(SessionPacerPhase.Sleeping, pacer.Phase);
     }
+
+    [Fact]
+    public void PauseAndResume_PreservesRemainingRunTime()
+    {
+        var pacer = new SessionPacer();
+        pacer.Configure(new SessionPacerSettings(true, 120, 30, 0));
+        pacer.NotifyAutomationStarted();
+        var beforePause = pacer.TimeUntilSleep!.Value;
+
+        pacer.NotifyAutomationStopped();
+        Assert.Equal(SessionPacerPhase.Paused, pacer.Phase);
+
+        pacer.NotifyAutomationStarted();
+        var afterResume = pacer.TimeUntilSleep!.Value;
+
+        Assert.Equal(SessionPacerPhase.Running, pacer.Phase);
+        Assert.InRange(Math.Abs((beforePause - afterResume).TotalSeconds), 0, 2);
+    }
+
+    [Fact]
+    public void Reset_AfterPause_StartsANewRun()
+    {
+        var pacer = new SessionPacer();
+        pacer.Configure(new SessionPacerSettings(true, 120, 30, 0));
+        pacer.NotifyAutomationStarted();
+        pacer.NotifyAutomationStopped();
+
+        pacer.Reset();
+        pacer.NotifyAutomationStarted();
+
+        Assert.Equal(SessionPacerPhase.Running, pacer.Phase);
+        Assert.InRange(pacer.TimeUntilSleep!.Value.TotalMinutes, 119, 120);
+    }
 }

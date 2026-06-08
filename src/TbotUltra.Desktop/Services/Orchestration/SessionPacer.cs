@@ -5,6 +5,7 @@ namespace TbotUltra.Desktop.Services.Orchestration;
 public enum SessionPacerPhase
 {
     Disabled,
+    Paused,
     Running,
     Sleeping,
 }
@@ -24,6 +25,7 @@ public sealed class SessionPacer
     private DateTimeOffset? _wakeAt;
     private TimeSpan? _activeRunDuration;
     private TimeSpan? _activeSleepDuration;
+    private TimeSpan? _pausedRunRemaining;
     private bool _sleepStartRaised;
     private bool _automationActive;
     private bool _manualSleep;
@@ -43,6 +45,7 @@ public sealed class SessionPacer
     public string StatusText => Phase switch
     {
         SessionPacerPhase.Running => $"Next sleep in: {Format(TimeUntilSleep)}",
+        SessionPacerPhase.Paused => $"Paused - next sleep in: {Format(_pausedRunRemaining)}",
         SessionPacerPhase.Sleeping => $"Sleeping - {Format(TimeUntilWake)}",
         // Idle before the loop runs: stay neutral ("Session pacing"). Only show "off" once
         // automation is actually running but pacing is disabled in settings.
@@ -70,6 +73,7 @@ public sealed class SessionPacer
             _runDeadline = null;
             _wakeAt = null;
             _activeRunDuration = null;
+            _pausedRunRemaining = null;
             _sleepStartRaised = false;
             _timer.Stop();
             RaiseTick();
@@ -95,10 +99,23 @@ public sealed class SessionPacer
             return;
         }
 
+        if (Phase == SessionPacerPhase.Paused && _pausedRunRemaining is not null)
+        {
+            Phase = SessionPacerPhase.Running;
+            _runStartedAt = DateTimeOffset.Now;
+            _runDeadline = _runStartedAt.Value.Add(_pausedRunRemaining.Value);
+            _sleepStartRaised = false;
+            _timer.Start();
+            Logger?.Invoke($"[pacing] session run timer resumed; next sleep in {Format(TimeUntilSleep)}.");
+            RaiseTick();
+            return;
+        }
+
         Phase = SessionPacerPhase.Running;
         _runStartedAt = DateTimeOffset.Now;
         _activeRunDuration = TimeSpan.FromMinutes(ApplyVariation(_settings.MaxRunMinutes));
         _runDeadline = _runStartedAt.Value.Add(_activeRunDuration.Value);
+        _pausedRunRemaining = null;
         _wakeAt = null;
         _sleepStartRaised = false;
         _timer.Start();
@@ -111,14 +128,31 @@ public sealed class SessionPacer
         _automationActive = false;
         if (Phase == SessionPacerPhase.Running)
         {
-            Phase = SessionPacerPhase.Disabled;
+            _pausedRunRemaining = TimeUntilSleep ?? TimeSpan.Zero;
+            Phase = SessionPacerPhase.Paused;
             _runStartedAt = null;
             _runDeadline = null;
-            _activeRunDuration = null;
             _sleepStartRaised = false;
             _timer.Stop();
+            Logger?.Invoke($"[pacing] session run timer paused; {Format(_pausedRunRemaining)} remaining.");
         }
 
+        RaiseTick();
+    }
+
+    public void Reset()
+    {
+        _automationActive = false;
+        _manualSleep = false;
+        Phase = SessionPacerPhase.Disabled;
+        _runStartedAt = null;
+        _runDeadline = null;
+        _wakeAt = null;
+        _activeRunDuration = null;
+        _activeSleepDuration = null;
+        _pausedRunRemaining = null;
+        _sleepStartRaised = false;
+        _timer.Stop();
         RaiseTick();
     }
 
@@ -139,6 +173,7 @@ public sealed class SessionPacer
         Phase = SessionPacerPhase.Sleeping;
         _runDeadline = null;
         _runStartedAt = null;
+        _pausedRunRemaining = null;
         _sleepStartRaised = false;
         _automationActive = false;
         _timer.Start();

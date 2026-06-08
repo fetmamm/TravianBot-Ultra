@@ -107,6 +107,8 @@ public partial class MainWindow
             return;
         }
 
+        ResetSessionPacing();
+
         // Hard stop: abort whatever is running right now (including waits) and clear state.
         _loopController.RequestQueueStop();
         _loopController.CancelOperation();
@@ -201,7 +203,7 @@ public partial class MainWindow
             _loopController.MarkClosing();
             _inboxAutoEnabled = false;
             _clockTimer.Stop();
-            NotifySessionPacingAutomationStopped();
+            ResetSessionPacing();
             _copyFeedbackTimer.Stop();
             _inboxRefreshTimer.Stop();
             _buildQueueCountdownTimer.Stop();

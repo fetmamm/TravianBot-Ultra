@@ -77,6 +77,11 @@ public partial class MainWindow
         _sessionPacer.NotifyAutomationStopped();
     }
 
+    private void ResetSessionPacing()
+    {
+        _sessionPacer.Reset();
+    }
+
     // Triggered from the Settings popup "Sleep now" button (after the user confirms). Reuses the normal
     // controlled-sleep flow but forces the sleep so it also works when session pacing is turned off.
     private void RequestManualSessionSleep()

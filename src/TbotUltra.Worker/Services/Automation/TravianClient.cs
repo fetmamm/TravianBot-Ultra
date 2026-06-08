@@ -1334,6 +1334,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         // parentheses. We are on dorf1/dorf2 after the reads above, both of which carry the list,
         // so no extra navigation is needed.
         var activeConstructions = await ReadActiveConstructionsAsync(cancellationToken, allowNavigationToBuildings: false);
+        var activeBuildCount = Math.Max(buildQueue.Count, activeConstructions.Count);
 
         return new VillageStatus(
             ActiveVillage: activeVillage,
@@ -1346,8 +1347,8 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             VillageCount: villages.Count,
             Gold: currency.Gold,
             Silver: currency.Silver,
-            IsBuildingInProgress: buildQueue.Count > 0,
-            ActiveBuildCount: buildQueue.Count,
+            IsBuildingInProgress: activeBuildCount > 0,
+            ActiveBuildCount: activeBuildCount,
             BuildQueueRemainingSeconds: remaining,
             BuildQueueRemainingText: remaining is int left ? FormatDuration(left) : string.Empty,
             IsCapital: TryGetCachedCapitalState(activeVillage),

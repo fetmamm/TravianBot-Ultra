@@ -466,14 +466,17 @@ public partial class MainWindow
         RemoveDisabledAutoCollectUtilityItems(options);
         var queueItems = _botService.GetQueueItemsForDisplay();
         var now = DateTimeOffset.UtcNow;
-        var readyUtilityItem = OrderContinuousLoopGroupItems(
+        var readyUtilityItems = OrderContinuousLoopGroupItems(
                 queueItems.Where(item =>
                     IsAlwaysOnUtilityTask(item.TaskName) &&
                     IsAutoCollectUtilityTaskEnabledNow(item.TaskName, options) &&
                     IsQueueItemVillageEnabled(item) &&
                     item.Status == QueueStatus.Pending &&
-                    item.NextAttemptAt <= now))
-            .FirstOrDefault();
+                    item.NextAttemptAt <= now));
+        var activeVillageKey = _activeWorkingVillageKey;
+        var readyUtilityItem = readyUtilityItems.FirstOrDefault(item =>
+            activeVillageKey is null
+            || string.Equals(GetQueueItemVillageKey(item), activeVillageKey, StringComparison.OrdinalIgnoreCase));
         if (readyUtilityItem is not null)
         {
             return readyUtilityItem;
@@ -497,7 +500,7 @@ public partial class MainWindow
             var orderedGroupItems = OrderContinuousLoopGroupItems(
                 queueItems.Where(item =>
                     item.Group == group &&
-                    (!IsAlwaysOnUtilityTask(item.TaskName) || IsAutoCollectUtilityTaskEnabledNow(item.TaskName, options)) &&
+                    !IsAlwaysOnUtilityTask(item.TaskName) &&
                     IsQueueItemVillageEnabled(item) &&
                     IsQueueItemGroupEnabledForItsVillage(item) &&
                     item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused));
@@ -561,7 +564,9 @@ public partial class MainWindow
             $"[loop-pick:verbose] no item selected from {orderedGroups.Count} group(s)"
                 + (lastSkipReason is null ? string.Empty : $" — last reason: {lastSkipReason}"),
             $"no-selected:{orderedGroups.Count}:{BuildLoopPickSkipKey(lastSkipReason)}");
-        return null;
+        // Collect rewards in the village where the signal was observed. If another village still had
+        // ready work, the utility item waited above; switch only after the current work is exhausted.
+        return readyUtilityItems.FirstOrDefault();
     }
 
     // Whether a queue item's automation group is enabled for ITS OWN village. Lets a group turned off on
