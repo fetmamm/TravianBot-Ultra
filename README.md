@@ -92,24 +92,6 @@ instances from the same folder.
 
 ---
 
-## Quick start
-
-- Launch UI: double-click `Start_Tbot.bat` (or `Start_Tbot_UI.vbs`)
-- Or run: `dotnet run --project src/TbotUltra.Desktop/TbotUltra.Desktop.csproj -c Debug`
-- Smoke check: `Smoke_Check.bat` (build + Worker tests)
-
-Config is read from `config/bot.json`, the per-account `config/accounts/<account>/queue.json` and `.env`.
-Dashboard settings can also save account-scoped opt-ins such as auto collect tasks and auto collect daily quests.
-Global runtime pacing is configured in **Settings -> Bot behavior**. Session pacing defaults to
-120 minutes running, 60 minutes sleeping, 15% variation; action pacing defaults to small randomized
-delays before tasks, after page loads, between farm sends, and between continuous-loop passes.
-
-Official servers also support **Farming -> Travco inactive search**. It opens Travco with the
-account server, capital coordinates, two inactive days, distance sorting and 100 results per page,
-then saves the current page or every result page as an account-scoped reusable list.
-
----
-
 ## Multi-village support
 
 The bot manages every village on the account from one **Dashboard → Village overview** list.
