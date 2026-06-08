@@ -142,6 +142,7 @@ public partial class MainWindow : Window
     private readonly string _sessionLogPath;
     private readonly BotConfigStore _botConfigStore;
     private readonly VillageSettingsStore _villageSettingsStore;
+    private readonly TravcoListStore _travcoListStore;
     private readonly VillageCacheStore _villageCacheStore;
     private readonly IAccountProvider _accountProvider;
     private readonly EnvAccountStore _accountStore;
@@ -405,6 +406,7 @@ public partial class MainWindow : Window
         _accountStore = new EnvAccountStore(_envPath);
         _botConfigStore = new BotConfigStore(_botConfigPath, _projectRoot, () => _accountStore.ActiveAccountName());
         _villageSettingsStore = new VillageSettingsStore(_projectRoot, () => _accountStore.ActiveAccountName(), AppendLog);
+        _travcoListStore = new TravcoListStore(_projectRoot, () => _accountStore.ActiveAccountName(), AppendLog);
         _villageCacheStore = new VillageCacheStore(_projectRoot, () => _accountStore.ActiveAccountName(), AppendLog);
         InitializeSessionPacing();
         _accountAnalysisStore = new AccountAnalysisStore(_projectRoot);

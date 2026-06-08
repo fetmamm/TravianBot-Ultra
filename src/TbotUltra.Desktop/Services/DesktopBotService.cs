@@ -319,6 +319,21 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
         return _taskRunner.ReadHeroInventoryResourcesAsync(options, log, null, cancellationToken);
     }
 
+    public Task OpenTravcoAndSearchAsync(BotOptions options, int x, int y, int daysInactive, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.OpenTravcoAndSearchAsync(options, x, y, daysInactive, log, cancellationToken);
+    }
+
+    public Task<TravcoScrapeResult> ScrapeTravcoPageAsync(Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.ScrapeTravcoPageAsync(log, cancellationToken);
+    }
+
+    public Task CloseTravcoTabAsync(Action<string> log)
+    {
+        return _taskRunner.CloseTravcoTabAsync(log);
+    }
+
     public bool ConsumeBrowserClosedByUserSignal()
     {
         return _taskRunner.ConsumeBrowserClosedByUserSignal();

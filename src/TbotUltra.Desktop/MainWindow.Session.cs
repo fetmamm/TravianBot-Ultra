@@ -524,6 +524,7 @@ public partial class MainWindow
         // Drop the cached village enabled-state so the next account reloads its own villages.json
         // (the file itself is kept — it is exactly the per-account memory we want to persist).
         _villageSettingsStore.InvalidateCache();
+        _travcoListStore.InvalidateCache();
         // Drop the in-memory per-village buildings/fields cache so the next account doesn't show the
         // previous account's villages. The on-disk village_cache.json per account is kept.
         _villageStatusCacheByName.Clear();

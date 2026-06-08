@@ -1545,6 +1545,10 @@
                                                     Content="Create Farmlist"
                                                     MinWidth="120"
                                                     Click="CreateFarmListButton_Click" />
+                                            <Button x:Name="TravcoInactiveSearchButton"
+                                                    Content="Travco inactive search"
+                                                    MinWidth="170"
+                                                    Click="TravcoInactiveSearchButton_Click" />
                                         </WrapPanel>
 
                                         <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">

@@ -70,6 +70,11 @@ public static class AccountStoragePaths
         return Path.Combine(AccountDirectory(projectRoot, accountName), "villages.json");
     }
 
+    public static string TravcoListsPath(string projectRoot, string accountName)
+    {
+        return Path.Combine(AccountDirectory(projectRoot, accountName), "travco_lists.json");
+    }
+
     // Per-account task queue. The queue used to be a single global config/queue.json shared by every
     // account; scoping it per account keeps one account's queued work from leaking into another.
     public static string AccountQueuePath(string projectRoot, string accountName)

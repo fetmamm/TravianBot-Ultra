@@ -276,6 +276,8 @@ public partial class MainWindow
     {
         try
         {
+            _travcoSuppressRestart = true;
+            _travcoToolsWindow?.CloseForShutdown();
             _logsPopupWindow?.Close();
             _queuePopupWindow?.Close();
             CloseCaptchaAutoSolvePopup();

@@ -1,0 +1,142 @@
+<Window x:Class="TbotUltra.Desktop.TravcoToolsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:TbotUltra.Desktop.Views"
+        Title="Travco inactive search"
+        Width="1080"
+        Height="680"
+        MinWidth="860"
+        MinHeight="520"
+        Background="{DynamicResource AppBackgroundBrush}"
+        WindowStartupLocation="CenterOwner">
+    <Grid>
+        <Grid Margin="14">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0" Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Button x:Name="InactiveSearchButton"
+                        Grid.Column="0"
+                        MinWidth="150"
+                        Content="Open Travco"
+                        Background="{DynamicResource AccentBrush}"
+                        BorderBrush="{DynamicResource AccentBrush}"
+                        Foreground="White"
+                        Click="InactiveSearchButton_Click" />
+
+                <TextBox x:Name="ListNameTextBox"
+                         Grid.Column="2"
+                         MinWidth="220"
+                         MaxWidth="420"
+                         HorizontalAlignment="Left"
+                         VerticalContentAlignment="Center"
+                         Text="{Binding ListName, UpdateSourceTrigger=PropertyChanged}" />
+
+                <Button x:Name="SaveListButton"
+                        Grid.Column="3"
+                        MinWidth="150"
+                        Content="Save page as list"
+                        Click="SaveListButton_Click" />
+            </Grid>
+
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="240" />
+                    <ColumnDefinition Width="12" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0"
+                        Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="10">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="Saved lists"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   Margin="0,0,0,8" />
+                        <ListBox x:Name="SavedListsListBox"
+                                 Grid.Row="1"
+                                 ItemsSource="{Binding SavedLists}"
+                                 SelectedItem="{Binding SelectedSavedList}"
+                                 DisplayMemberPath="Name" />
+                        <Grid Grid.Row="2" Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Content="Open" Click="OpenListButton_Click" />
+                            <Button Grid.Column="2" Content="Delete" Click="DeleteListButton_Click" />
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <Border Grid.Column="2"
+                        Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="8">
+                    <DataGrid x:Name="ResultsDataGrid"
+                              ItemsSource="{Binding Rows}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              IsReadOnly="False"
+                              HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal"
+                              SelectionMode="Extended">
+                        <DataGrid.Columns>
+                            <DataGridCheckBoxColumn Header="Use"
+                                                    Width="52"
+                                                    Binding="{Binding Selected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <DataGridTextColumn Header="Distance" Width="90" IsReadOnly="True" Binding="{Binding DistanceText}" />
+                            <DataGridTextColumn Header="Account" Width="*" MinWidth="150" IsReadOnly="True" Binding="{Binding Account}" />
+                            <DataGridTextColumn Header="Village" Width="*" MinWidth="150" IsReadOnly="True" Binding="{Binding Village}" />
+                            <DataGridTextColumn Header="Pop" Width="90" IsReadOnly="True" Binding="{Binding PopText}" />
+                            <DataGridTextColumn Header="Coordinates" Width="110" IsReadOnly="True" Binding="{Binding Coordinates}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Border>
+            </Grid>
+
+            <Grid Grid.Row="2" Margin="0,12,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0"
+                           Text="{Binding StatusText}"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           VerticalAlignment="Center"
+                           TextWrapping="Wrap"
+                           Margin="0,0,12,0" />
+                <Button Grid.Column="1" Width="100" Content="Close" Click="CloseButton_Click" />
+            </Grid>
+        </Grid>
+
+        <views:BusyOverlayControl x:Name="BusyOverlay"
+                                  ShowCancel="False"
+                                  Title="Travco inactive search"
+                                  Text="Searching Travco..." />
+    </Grid>
+</Window>

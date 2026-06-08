@@ -3,6 +3,7 @@ using TbotUltra.Core.Accounts;
 using TbotUltra.Worker.Configuration;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Infrastructure;
+using TbotUltra.Worker.Services.Automation;
 using Microsoft.Playwright;
 using System.Text.Json;
 
@@ -63,6 +64,7 @@ public sealed class BotTaskRunner
     private readonly SemaphoreSlim _sessionGate = new(1, 1);
     private BrowserSession? _sharedVisibleSession;
     private IPage? _sharedVisiblePage;
+    private IPage? _travcoPage;
     private string? _sharedVisibleAccountName;
     private string? _sharedVisibleBaseUrl;
     // Session-scoped cache shared by every TravianClient created for the shared visible browser, so
@@ -1376,6 +1378,25 @@ public sealed class BotTaskRunner
         await _sessionGate.WaitAsync();
         try
         {
+            if (_travcoPage is not null)
+            {
+                try
+                {
+                    if (!_travcoPage.IsClosed)
+                    {
+                        await _travcoPage.CloseAsync();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    log?.Invoke($"Error while closing Travco tab: {ex.Message}");
+                }
+                finally
+                {
+                    _travcoPage = null;
+                }
+            }
+
             if (_sharedVisibleSession is null)
             {
                 return;
@@ -1396,6 +1417,109 @@ public sealed class BotTaskRunner
                 _sharedVisibleAccountName = null;
                 _sharedVisibleBaseUrl = null;
                 _sharedVisibleSessionCache = new TravianSessionCache();
+            }
+        }
+        finally
+        {
+            _sessionGate.Release();
+        }
+    }
+
+    public async Task OpenTravcoAndSearchAsync(
+        BotOptions options,
+        int x,
+        int y,
+        int daysInactive,
+        Action<string> log,
+        CancellationToken cancellationToken)
+    {
+        if (options.IsPrivateServer)
+        {
+            throw new InvalidOperationException("Travco inactive search supports official Travian servers only.");
+        }
+
+        if (options.Headless)
+        {
+            throw new InvalidOperationException("Travco inactive search requires the visible browser session.");
+        }
+
+        var account = _accountProvider.LoadAccount();
+        await _sessionGate.WaitAsync(cancellationToken);
+        try
+        {
+            var lease = await AcquireClientLeaseAsync(options, account, log, interactive: true, cancellationToken);
+            try
+            {
+                if (_travcoPage is null || _travcoPage.IsClosed)
+                {
+                    _travcoPage = await _sharedVisiblePage!.Context.NewPageAsync();
+                    log("[travco] opened browser tab.");
+                }
+
+                await TravcoInactiveSearch.RunSearchAsync(
+                    _travcoPage,
+                    new Uri(options.BaseUrl).Host,
+                    x,
+                    y,
+                    daysInactive,
+                    resultsPerPage: 100,
+                    log,
+                    cancellationToken);
+                await _travcoPage.BringToFrontAsync();
+            }
+            finally
+            {
+                await FinalizeLeaseAsync(lease, log);
+            }
+        }
+        finally
+        {
+            _sessionGate.Release();
+        }
+    }
+
+    public async Task<TravcoScrapeResult> ScrapeTravcoPageAsync(
+        Action<string> log,
+        CancellationToken cancellationToken)
+    {
+        await _sessionGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (_travcoPage is null || _travcoPage.IsClosed)
+            {
+                throw new InvalidOperationException("Open and run a Travco inactive search first.");
+            }
+
+            return await TravcoInactiveSearch.ScrapePageAsync(_travcoPage, log, cancellationToken);
+        }
+        finally
+        {
+            _sessionGate.Release();
+        }
+    }
+
+    public async Task CloseTravcoTabAsync(Action<string>? log = null)
+    {
+        await _sessionGate.WaitAsync();
+        try
+        {
+            if (_travcoPage is null)
+            {
+                return;
+            }
+
+            try
+            {
+                if (!_travcoPage.IsClosed)
+                {
+                    await _travcoPage.CloseAsync();
+                }
+
+                log?.Invoke("[travco] browser tab closed.");
+            }
+            finally
+            {
+                _travcoPage = null;
             }
         }
         finally
@@ -1494,6 +1618,7 @@ public sealed class BotTaskRunner
 
         if (mustReplaceSession)
         {
+            _travcoPage = null;
             if (_sharedVisibleSession is not null)
             {
                 try
