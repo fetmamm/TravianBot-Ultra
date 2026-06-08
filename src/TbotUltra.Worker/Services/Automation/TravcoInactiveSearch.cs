@@ -1,4 +1,5 @@
 using Microsoft.Playwright;
+using System.Text.Json;
 using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Worker.Services.Automation;
@@ -126,7 +127,8 @@ public static class TravcoInactiveSearch
             throw new InvalidOperationException("The Travco browser tab is closed.");
         }
 
-        var rawPageDto = await page.EvaluateAsync<TravcoRawPageDto>(
+        log?.Invoke("[travco] reading result rows from the current page.");
+        var payload = await page.EvaluateAsync<JsonElement>(
             """
             () => {
               const table = document.querySelector('main table');
@@ -145,7 +147,9 @@ public static class TravcoInactiveSearch
                   || villageLink?.childNodes?.[0]?.textContent
                   || '').trim();
                 const coordinates = (villageLink?.querySelector('.text-muted.small')?.textContent || '').trim();
-                const latestPopulation = (cells[4]?.textContent || '').trim();
+                const populationElement = cells[3]?.querySelector(
+                  '[data-original-title="Population"], [title="Population"]');
+                const latestPopulation = (populationElement?.textContent || '').trim();
                 return {
                   cells: ['', distance, account, village, latestPopulation],
                   villageHref: coordinates || villageLink?.href || null
@@ -174,7 +178,7 @@ public static class TravcoInactiveSearch
             }
             """).WaitAsync(cancellationToken);
 
-        var rawPage = rawPageDto.ToDomain();
+        var rawPage = ParseRawPagePayload(payload);
         var result = TravcoInactiveSearchParser.Parse(rawPage);
         log?.Invoke($"[travco] scraped page {result.PageNumber}/{result.TotalPages}: {result.Rows.Count} row(s).");
         return result;
@@ -203,7 +207,7 @@ public static class TravcoInactiveSearch
         {
             try
             {
-                await NavigateToPageAsync(page, 1, CancellationToken.None);
+                await ReturnToFirstPageAsync(page);
                 log?.Invoke("[travco] returned to result page 1.");
             }
             catch (Exception ex)
@@ -252,6 +256,26 @@ public static class TravcoInactiveSearch
         await WaitForResultsSettledAsync(page, cancellationToken);
     }
 
+    private static async Task ReturnToFirstPageAsync(IPage page)
+    {
+        var firstPageLink = page.Locator(
+            "main a[data-original-title='first page'][href*='page=1'], main a[title='first page'][href*='page=1']")
+            .First;
+        if (await firstPageLink.CountAsync() > 0)
+        {
+            await firstPageLink.ClickAsync();
+            await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+            await page.WaitForFunctionAsync(
+                "() => Number.parseInt((document.querySelector('main a.btn.active[href*=\"page=\"]')?.textContent || '0').trim(), 10) === 1",
+                null,
+                new PageWaitForFunctionOptions { Timeout = 20000 });
+            await WaitForResultsSettledAsync(page, CancellationToken.None);
+            return;
+        }
+
+        await NavigateToPageAsync(page, 1, CancellationToken.None);
+    }
+
     private static Task WaitForValueAsync(
         IPage page,
         string selector,
@@ -284,6 +308,56 @@ public static class TravcoInactiveSearch
         };
     }
 
+    private static TravcoRawPage ParseRawPagePayload(JsonElement payload)
+    {
+        if (payload.ValueKind != JsonValueKind.Object)
+        {
+            throw new InvalidOperationException(
+                $"Travco result data has unexpected type '{payload.ValueKind}'.");
+        }
+
+        var pageNumber = payload.TryGetProperty("pageNumber", out var pageElement)
+            && pageElement.TryGetInt32(out var parsedPage)
+                ? parsedPage
+                : 1;
+        var totalPages = payload.TryGetProperty("totalPages", out var totalElement)
+            && totalElement.TryGetInt32(out var parsedTotal)
+                ? parsedTotal
+                : 1;
+        var headers = payload.TryGetProperty("headers", out var headersElement)
+            && headersElement.ValueKind == JsonValueKind.Array
+                ? headersElement.EnumerateArray()
+                    .Select(item => item.GetString() ?? string.Empty)
+                    .ToList()
+                : [];
+        var rows = new List<TravcoRawRow>();
+        if (payload.TryGetProperty("rows", out var rowsElement)
+            && rowsElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var rowElement in rowsElement.EnumerateArray())
+            {
+                if (rowElement.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                var cells = rowElement.TryGetProperty("cells", out var cellsElement)
+                    && cellsElement.ValueKind == JsonValueKind.Array
+                        ? cellsElement.EnumerateArray()
+                            .Select(item => item.GetString() ?? string.Empty)
+                            .ToList()
+                        : [];
+                var villageHref = rowElement.TryGetProperty("villageHref", out var hrefElement)
+                    && hrefElement.ValueKind == JsonValueKind.String
+                        ? hrefElement.GetString()
+                        : null;
+                rows.Add(new TravcoRawRow(cells, villageHref));
+            }
+        }
+
+        return new TravcoRawPage(pageNumber, totalPages, headers, rows);
+    }
+
     private static string NormalizeHost(string? value)
     {
         var trimmed = (value ?? string.Empty).Trim().TrimEnd('/');
@@ -305,26 +379,4 @@ public static class TravcoInactiveSearch
         public string PageSize { get; set; } = string.Empty;
     }
 
-    private sealed class TravcoRawPageDto
-    {
-        public int PageNumber { get; set; }
-        public int TotalPages { get; set; }
-        public List<string> Headers { get; set; } = [];
-        public List<TravcoRawRowDto> Rows { get; set; } = [];
-
-        public TravcoRawPage ToDomain()
-        {
-            return new TravcoRawPage(
-                PageNumber,
-                TotalPages,
-                Headers,
-                Rows.Select(row => new TravcoRawRow(row.Cells, row.VillageHref)).ToList());
-        }
-    }
-
-    private sealed class TravcoRawRowDto
-    {
-        public List<string> Cells { get; set; } = [];
-        public string? VillageHref { get; set; }
-    }
 }

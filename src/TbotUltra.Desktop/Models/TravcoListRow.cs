@@ -7,14 +7,92 @@ namespace TbotUltra.Desktop.Models;
 public sealed class TravcoListRow : INotifyPropertyChanged
 {
     private bool _selected = true;
+    private double? _distance;
+    private string _account = string.Empty;
+    private string _village = string.Empty;
+    private long? _pop;
+    private string _coordinates = string.Empty;
 
-    public double? Distance { get; init; }
+    public double? Distance
+    {
+        get => _distance;
+        set
+        {
+            if (_distance == value)
+            {
+                return;
+            }
+
+            _distance = value;
+            OnPropertyChanged(nameof(Distance));
+            OnPropertyChanged(nameof(DistanceText));
+        }
+    }
+
     public string DistanceText => Distance?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) ?? "-";
-    public string Account { get; init; } = string.Empty;
-    public string Village { get; init; } = string.Empty;
-    public long? Pop { get; init; }
+
+    public string Account
+    {
+        get => _account;
+        set
+        {
+            if (_account == value)
+            {
+                return;
+            }
+
+            _account = value;
+            OnPropertyChanged(nameof(Account));
+        }
+    }
+
+    public string Village
+    {
+        get => _village;
+        set
+        {
+            if (_village == value)
+            {
+                return;
+            }
+
+            _village = value;
+            OnPropertyChanged(nameof(Village));
+        }
+    }
+
+    public long? Pop
+    {
+        get => _pop;
+        set
+        {
+            if (_pop == value)
+            {
+                return;
+            }
+
+            _pop = value;
+            OnPropertyChanged(nameof(Pop));
+            OnPropertyChanged(nameof(PopText));
+        }
+    }
+
     public string PopText => Pop?.ToString("#,0", System.Globalization.CultureInfo.InvariantCulture) ?? "-";
-    public string Coordinates { get; init; } = string.Empty;
+
+    public string Coordinates
+    {
+        get => _coordinates;
+        set
+        {
+            if (_coordinates == value)
+            {
+                return;
+            }
+
+            _coordinates = value;
+            OnPropertyChanged(nameof(Coordinates));
+        }
+    }
 
     public bool Selected
     {
@@ -27,7 +105,7 @@ public sealed class TravcoListRow : INotifyPropertyChanged
             }
 
             _selected = value;
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Selected)));
+            OnPropertyChanged(nameof(Selected));
         }
     }
 
@@ -45,4 +123,9 @@ public sealed class TravcoListRow : INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void OnPropertyChanged(string propertyName)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
 }

@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:TbotUltra.Desktop.Views"
         Title="Travco inactive search"
-        Width="1080"
+        Width="1200"
         Height="680"
-        MinWidth="860"
+        MinWidth="980"
         MinHeight="520"
         Background="{DynamicResource AppBackgroundBrush}"
         WindowStartupLocation="CenterOwner">
@@ -95,7 +95,7 @@
 
             <Grid Grid.Row="1">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="240" />
+                    <ColumnDefinition Width="360" />
                     <ColumnDefinition Width="12" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
@@ -130,16 +130,25 @@
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Name" Width="*" MinWidth="90" Binding="{Binding Name}" />
                                 <DataGridTextColumn Header="Saved date" Width="115" Binding="{Binding SavedDateText}" />
+                                <DataGridTextColumn Header="Villages" Width="75" Binding="{Binding VillageCount}" />
                             </DataGrid.Columns>
                         </DataGrid>
                         <Grid Grid.Row="2" Margin="0,10,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <Button Grid.Column="0" Content="Open" Click="OpenListButton_Click" />
-                            <Button Grid.Column="2" Content="Delete" Click="DeleteListButton_Click" />
+                            <Button Grid.Column="1" Margin="6,0,0,0" Content="Edit" Click="EditListButton_Click" />
+                            <Button x:Name="SaveEditedListButton"
+                                    Grid.Column="2"
+                                    Margin="6,0,0,0"
+                                    Content="Save"
+                                    IsEnabled="False"
+                                    Click="SaveEditedListButton_Click" />
+                            <Button Grid.Column="3" Margin="6,0,0,0" Content="Delete" Click="DeleteListButton_Click" />
                         </Grid>
                     </Grid>
                 </Border>
@@ -160,14 +169,16 @@
                               GridLinesVisibility="Horizontal"
                               SelectionMode="Extended">
                         <DataGrid.Columns>
-                            <DataGridCheckBoxColumn Header="Use"
+                            <DataGridCheckBoxColumn x:Name="UseColumn"
+                                                    IsReadOnly="True"
+                                                    Header="Use"
                                                     Width="52"
                                                     Binding="{Binding Selected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                            <DataGridTextColumn Header="Distance" Width="90" IsReadOnly="True" Binding="{Binding DistanceText}" />
-                            <DataGridTextColumn Header="Account" Width="*" MinWidth="150" IsReadOnly="True" Binding="{Binding Account}" />
-                            <DataGridTextColumn Header="Village" Width="*" MinWidth="150" IsReadOnly="True" Binding="{Binding Village}" />
-                            <DataGridTextColumn Header="Pop" Width="90" IsReadOnly="True" Binding="{Binding PopText}" />
-                            <DataGridTextColumn Header="Coordinates" Width="110" IsReadOnly="True" Binding="{Binding Coordinates}" />
+                            <DataGridTextColumn x:Name="DistanceColumn" Header="Distance" Width="90" IsReadOnly="True" Binding="{Binding Distance, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <DataGridTextColumn x:Name="AccountColumn" Header="Account" Width="*" MinWidth="150" IsReadOnly="True" Binding="{Binding Account, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <DataGridTextColumn x:Name="VillageColumn" Header="Village" Width="*" MinWidth="150" IsReadOnly="True" Binding="{Binding Village, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <DataGridTextColumn x:Name="PopColumn" Header="Pop" Width="90" IsReadOnly="True" Binding="{Binding Pop, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                            <DataGridTextColumn x:Name="CoordinatesColumn" Header="Coordinates" Width="110" IsReadOnly="True" Binding="{Binding Coordinates, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
                         </DataGrid.Columns>
                     </DataGrid>
                 </Border>
@@ -190,6 +201,7 @@
 
         <views:BusyOverlayControl x:Name="BusyOverlay"
                                   ShowCancel="False"
+                                  Cancelled="BusyOverlay_Cancelled"
                                   Title="Travco inactive search"
                                   Text="Searching Travco..." />
     </Grid>

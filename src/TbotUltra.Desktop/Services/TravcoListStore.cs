@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using System.Threading;
 using TbotUltra.Core.Accounts;
 
@@ -17,6 +18,9 @@ public sealed class TravcoListStore
 
         [JsonIgnore]
         public string SavedDateText => CreatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+
+        [JsonIgnore]
+        public int VillageCount => Rows.Count;
     }
 
     public sealed class TravcoSavedRow
@@ -79,6 +83,13 @@ public sealed class TravcoListStore
             EnsureCacheLoaded();
             var normalized = Clone(list);
             normalized.Name = normalized.Name.Trim();
+            normalized.Rows = RemoveDuplicates(normalized.Rows, out var missingCoordinates);
+            if (missingCoordinates > 0)
+            {
+                _log?.Invoke(
+                    $"ALARM: Travco list '{normalized.Name}' skipped {missingCoordinates} village(s) because coordinates were missing or unreadable.");
+            }
+
             if (normalized.Id == Guid.Empty)
             {
                 normalized.Id = Guid.NewGuid();
@@ -122,6 +133,47 @@ public sealed class TravcoListStore
             _cache = [];
             _cacheAccount = null;
         }
+    }
+
+    public static List<TravcoSavedRow> RemoveDuplicates(IEnumerable<TravcoSavedRow> rows)
+    {
+        return RemoveDuplicates(rows, out _);
+    }
+
+    public static List<TravcoSavedRow> RemoveDuplicates(
+        IEnumerable<TravcoSavedRow> rows,
+        out int missingCoordinates)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+
+        missingCoordinates = 0;
+        var uniqueRows = new List<TravcoSavedRow>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var row in rows)
+        {
+            if (!TryNormalizeCoordinates(row.Coordinates, out var coordinates))
+            {
+                missingCoordinates++;
+                continue;
+            }
+
+            if (!seen.Add(coordinates))
+            {
+                continue;
+            }
+
+            uniqueRows.Add(new TravcoSavedRow
+            {
+                Distance = row.Distance,
+                Account = row.Account,
+                Village = row.Village,
+                Pop = row.Pop,
+                Coordinates = coordinates,
+                Selected = row.Selected,
+            });
+        }
+
+        return uniqueRows;
     }
 
     private void EnsureCacheLoaded()
@@ -208,6 +260,23 @@ public sealed class TravcoListStore
                 Selected = row.Selected,
             }).ToList(),
         };
+    }
+
+    private static bool TryNormalizeCoordinates(string? coordinates, out string normalized)
+    {
+        var match = Regex.Match(
+            coordinates ?? string.Empty,
+            @"^\s*[\[(]?\s*(?<x>-?\d+)\s*\|\s*(?<y>-?\d+)\s*[\])]?\s*$");
+        if (!match.Success
+            || !int.TryParse(match.Groups["x"].Value, out var x)
+            || !int.TryParse(match.Groups["y"].Value, out var y))
+        {
+            normalized = string.Empty;
+            return false;
+        }
+
+        normalized = $"{x}|{y}";
+        return true;
     }
 
     private static T RetryFileIo<T>(Func<T> action)
