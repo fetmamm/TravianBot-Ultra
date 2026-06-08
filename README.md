@@ -32,6 +32,59 @@ The optional captcha solver is a small separate Python module.
 
 ---
 
+## TBot Ultra - Advanced Travian Bot
+Advanced open-source Travian Bot for Travian Legends with automation, farming, building management, resource optimization and multi-village support.
+Also works for SS-Travian private server but the main goal forward is the official Travian servers.
+
+## What can this program do?
+
+Tbot Ultra is an automation tool for Travian Legends. It helps players automate repetitive tasks such as village management, resource handling, farming, troops and construction.
+
+## Features: 🔹 
+- Automatic building
+Works for buildings and resources. Can choose from lowest level first and resource priority first (smart).
+- Hero adventures
+Send hero on adventures when available
+- Revive hero
+If dead, auto revive
+- Spend hero attributes points
+Use hero inventory resources for building
+- Collect daily quests
+- Collect tasks
+- Read messages and reports
+- Upgrade troops in smithy
+- Send resources between own villages
+- Send reinforcements between own villages
+- Farming
+Add farms to farmlists
+Create farmlists
+Execute farmlists with configurable intervals
+- Send catapult waves
+Configurable catapult wave sender. Can pick target, desired troops in first attack and wave attacks.
+- Session pacing
+More human-like behaviour that can be tweaked by the user.
+Click, task, loop delay.
+- Auto sleep
+Logs out the user and wait a set amount of time to simulate non activity.
+Can be configures as you like.
+- Captcha solver (for SS-Travi servers)
+Automatic captcha solver that can solve captchas and put in the correct value so that the program can run continuously.
+- Read gold, silver, plus, goldclub, tribe status
+- Read production, resources, buildings, hero home village, hero status, warehouse/granary capacity and many more
+- Clean dark mode UI that is highly configurable. 
+- Shows village status for all villages
+
+The program is built so that it can handle multiple villages. The settings for each village is configurable and individual.
+
+## Future functions:
+
+- Travco inactive search
+Add functionality so that the program can analyze inactive players from https://travcotools.com/en/inactive-search/
+Add these to lists inside the program that can be sorted and added to travian farm lists.
+Compare already scanned villages to new ones and adjust the lists. 
+
+---
+
 ## Download
 
 Each version on the [Releases](../../releases) page ships two options (`Recommended`: Use the `Portable` option`):
@@ -61,6 +114,10 @@ Dashboard settings can also save account-scoped opt-ins such as auto collect tas
 Global runtime pacing is configured in **Settings -> Bot behavior**. Session pacing defaults to
 120 minutes running, 60 minutes sleeping, 15% variation; action pacing defaults to small randomized
 delays before tasks, after page loads, between farm sends, and between continuous-loop passes.
+
+Official servers also support **Farming -> Travco inactive search**. It opens Travco with the
+account server, capital coordinates, two inactive days, distance sorting and 100 results per page,
+then saves the current page or every result page as an account-scoped reusable list.
 
 ---
 
@@ -277,3 +334,9 @@ Credentials and per-account data are stored locally only (in `.env` and
 ## License
 
 Released under the [MIT License](LICENSE).
+
+---
+
+## Keywords
+Travian Bot, Travian Automation, Travian Legends, Travian Scripts, Travian Game Bot, Travian Farming Bot, Travian Automation Bot, Browser Game Automation, Browser Game Bot, Python Bot, C# Bot, Open Source Travian Bot, Travian Assistant, Travian Resource Management, Travian Village Management, Travian Auto Farm, Travian Auto Build, Travian Multi Village Bot, Travian Helper, Travian Tool, Travian Utility, Travian Gaming Automation, Python Automation, C# Automation, Browser Game Scripts.
+
