@@ -95,6 +95,12 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
 
 ## 4. Beslutslogg (ADR — append-only)
 
+- **2026-06-09** — **Analyze farmlists läser Official React-markup utan att expandera listor.**
+  Officiell Rally Point-farmlist använder `build.php?id=39&gid=16&tt=99` och renderar listor som
+  `#rallyPointFarmList .farmListWrapper`. Namn och list-ID läses från `.farmListName .name` respektive
+  `[data-list]`; antal läses från Start-knappen och Add target-kapaciteten, som finns kvar även när listan
+  är kollapsad. SS/legacy-parsern behålls som fallback.
+
 - **2026-06-08** — **Travco inactive search använder en separat tab och JsonElement-baserad DOM-läsning.**
   Official-only-flödet återanvänder den synliga browser-contexten. Popupen väljer by, dagar och sortering;
   sparning läser aktuell DOM eller samtliga resultatsidor och återgår till sida 1. Playwright-resultat
@@ -155,6 +161,16 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   öppnades efter ett byte till en annan by där village-rewarden inte fanns. Collect-items taggas nu med
   `ActiveVillage` från samma current-page-status som signalen lästes på. De körs direkt endast om boten
   fortfarande arbetar i den byn; annars väntar de tills nuvarande by saknar redo arbete.
+
+- **2026-06-09** — **Collect tasks har 60 sekunders cooldown per by.**
+  När `collect_tasks` köas sparas tiden per by-URL (bynamn som fallback). Samma by får inte köa ett nytt
+  försök förrän 60 sekunder passerat, men ett bybyte har ingen gemensam väntetid. Cooldown rensas vid kontoreset.
+
+- **2026-06-09** — **Travco-popup utan öppnad tab stängs utan browserlås.**
+  `CloseTravcoTabAsync` returnerar före `_sessionGate` när `_travcoPage` saknas, så Yes i stängningsdialogen
+  inte kan fastna bakom en annan browseroperation när användaren aldrig körde Analyze Travco. Popupens
+  slutliga `Close()` dispatchas efter den avbrutna `Closing`-händelsen för att undvika ett synkront
+  reentrancy-fall när close-callbacken returnerar direkt.
 
 - **2026-06-08** — **Pause bot fryser session pacing; Stop bot återställer den.**
   `SessionPacer` har nu ett explicit `Paused`-läge som sparar återstående körtid. Start efter paus

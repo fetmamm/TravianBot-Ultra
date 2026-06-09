@@ -129,7 +129,7 @@
                                   GridLinesVisibility="Horizontal">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Name" Width="*" MinWidth="90" Binding="{Binding Name}" />
-                                <DataGridTextColumn Header="Saved date" Width="115" Binding="{Binding SavedDateText}" />
+                                <DataGridTextColumn Header="Saved date" Width="145" Binding="{Binding SavedDateText}" />
                                 <DataGridTextColumn Header="Villages" Width="75" Binding="{Binding VillageCount}" />
                             </DataGrid.Columns>
                         </DataGrid>

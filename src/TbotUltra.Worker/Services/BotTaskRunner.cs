@@ -1524,6 +1524,12 @@ public sealed class BotTaskRunner
 
     public async Task CloseTravcoTabAsync(Action<string>? log = null)
     {
+        if (_travcoPage is null)
+        {
+            log?.Invoke("[travco] no browser tab was open.");
+            return;
+        }
+
         await _sessionGate.WaitAsync();
         try
         {

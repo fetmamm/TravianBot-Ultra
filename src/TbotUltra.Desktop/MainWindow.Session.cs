@@ -507,6 +507,7 @@ public partial class MainWindow
             _botService.ClearQueue();
         }
         _resourceClickCooldownBySlot.Clear();
+        _collectTasksLastQueuedAtByVillage.Clear();
         _resourceLastQueuedTargetBySlot.Clear();
         _resourcesViewModel.ClearPendingTargets();
         _buildingClickCooldownBySlot.Clear();

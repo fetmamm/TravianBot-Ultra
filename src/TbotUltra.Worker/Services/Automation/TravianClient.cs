@@ -3685,9 +3685,10 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
     private async Task EnsureRallyPointAndOpenFarmListPageAsync(CancellationToken cancellationToken)
     {
-        await GotoAsync(Paths.FarmListPage, cancellationToken);
+        await GotoAsync(RallyPointFarmListPath, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening farmlists.", cancellationToken);
         await EnsureLoggedInAsync();
+        await WaitForOfficialFarmListRenderAsync(cancellationToken);
         if (await IsFarmListPageAsync(cancellationToken))
         {
             return;
@@ -3707,14 +3708,37 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             Notify($"Could not auto-construct Rally Point on slot 39: {ex.Message}");
         }
 
-        await GotoAsync(Paths.FarmListPage, cancellationToken);
+        await GotoAsync(RallyPointFarmListPath, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening farmlists.", cancellationToken);
         await EnsureLoggedInAsync();
+        await WaitForOfficialFarmListRenderAsync(cancellationToken);
 
         if (!await IsFarmListPageAsync(cancellationToken))
         {
-            throw new InvalidOperationException("Could not open farm list page at build.php?id=39&t=99. Farmlists may be unavailable on this account/server.");
+            throw new InvalidOperationException($"Could not open farm list page at {RallyPointFarmListPath}. Farmlists may be unavailable on this account/server.");
         }
+    }
+
+    private async Task WaitForOfficialFarmListRenderAsync(CancellationToken cancellationToken)
+    {
+        if (_config.IsPrivateServer)
+        {
+            return;
+        }
+
+        try
+        {
+            await _page.WaitForFunctionAsync(
+                "() => !!document.querySelector('#rallyPointFarmList')",
+                null,
+                new PageWaitForFunctionOptions { Timeout = 5000 });
+        }
+        catch (TimeoutException)
+        {
+            Notify("[farm-list] Official farm list root did not render within 5 seconds; continuing with page checks.");
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
     }
 
     private async Task EnsureRallyPointAndOpenSendTroopsPageAsync(CancellationToken cancellationToken, bool allowReuseCurrentPage)
@@ -3816,6 +3840,56 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             """
             () => {
               const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
+              const cleanNumericText = (value) =>
+                normalize(value).replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '');
+
+              // Official Travian (T4.6) keeps list metadata rendered even when lists are collapsed.
+              const officialCandidates = Array.from(document.querySelectorAll('#rallyPointFarmList .farmListWrapper'));
+              if (officialCandidates.length > 0) {
+                return officialCandidates.slice(0, 200).map((candidate) => {
+                  const name =
+                    normalize(candidate.querySelector('.farmListName .name')?.textContent) ||
+                    'Farm list';
+                  const lid =
+                    candidate.querySelector('.dragAndDrop[data-list]')?.getAttribute('data-list') ||
+                    candidate.querySelector('[data-farm-list-id]')?.getAttribute('data-farm-list-id') ||
+                    '';
+
+                  const statusText = cleanNumericText(candidate.querySelector('.farmListStatus')?.textContent);
+                  const statusMatch = statusText.match(/(\d+)\s*\/\s*(\d+)/);
+                  const running = statusMatch ? Number(statusMatch[1]) : 0;
+                  const statusTotal = statusMatch ? Number(statusMatch[2]) : 0;
+
+                  const capacityText = cleanNumericText(candidate.querySelector('td.addTarget')?.textContent);
+                  const capacityMatch = capacityText.match(/(\d+)\s*\/\s*(\d+)/);
+                  let total = capacityMatch ? Number(capacityMatch[1]) : statusTotal;
+
+                  const startButton = candidate.querySelector('button.startFarmList');
+                  const startText = cleanNumericText(startButton?.textContent);
+                  const startCountMatch = startText.match(/start\s*\((\d+)\)/i);
+                  const renderedSlots = Array.from(candidate.querySelectorAll('tbody tr.slot'));
+                  let active = startCountMatch
+                    ? Number(startCountMatch[1])
+                    : renderedSlots.filter((row) => !row.classList.contains('disabled')).length;
+
+                  if (!Number.isFinite(total) || total < 0) total = 0;
+                  if (!Number.isFinite(active) || active < 0) active = 0;
+                  if (renderedSlots.length === 0 && !startCountMatch && startButton && !startButton.classList.contains('disabled')) {
+                    active = total;
+                  }
+                  if (total > 0 && active > total) active = total;
+
+                  return {
+                    name,
+                    activeFarmCount: active,
+                    totalFarmCount: total,
+                    timerText: '',
+                    disabled: Number.isFinite(running) && running > 0,
+                    lid
+                  };
+                });
+              }
+
               const candidates = new Set();
               document.querySelectorAll('.listTitle').forEach((node) => candidates.add(node));
               if (candidates.size === 0) {

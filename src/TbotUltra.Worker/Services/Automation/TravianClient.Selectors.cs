@@ -45,6 +45,9 @@ public sealed partial class TravianClient
     private string RallyPointSendTroopsPath =>
         _config.IsPrivateServer ? Paths.RallyPointSendTroops : "/build.php?id=39&gid=16&tt=2";
 
+    private string RallyPointFarmListPath =>
+        _config.IsPrivateServer ? Paths.FarmListPage : "/build.php?id=39&gid=16&tt=99";
+
     // Hero pages: SS/legacy uses /hero_*.php (+ /hero.php?t=3 for adventures);
     // official Travian (T4.6) uses REST-style /hero/<section>.
     private string HeroAdventuresPath =>

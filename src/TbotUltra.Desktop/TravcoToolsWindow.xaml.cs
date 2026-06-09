@@ -487,7 +487,7 @@ public partial class TravcoToolsWindow : Window
         finally
         {
             _allowClose = true;
-            Close();
+            await Dispatcher.InvokeAsync(Close, System.Windows.Threading.DispatcherPriority.Background);
         }
     }
 

@@ -13,6 +13,9 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
+    private static readonly TimeSpan CollectTasksVillageCooldown = TimeSpan.FromMinutes(1);
+    private readonly Dictionary<string, DateTimeOffset> _collectTasksLastQueuedAtByVillage = new(StringComparer.OrdinalIgnoreCase);
+
     private async Task TryRefreshResourceProductionOnlyAsync(CancellationToken cancellationToken)
     {
         if (_lastResourceStatusForUi is null)
@@ -442,11 +445,20 @@ public partial class MainWindow
             return;
         }
 
+        var payload = BuildCurrentVillageUtilityPayload(observedStatus);
+        var villageCooldownKey = GetUtilityTaskVillageKey(payload);
+        var now = DateTimeOffset.UtcNow;
+        if (villageCooldownKey is not null
+            && _collectTasksLastQueuedAtByVillage.TryGetValue(villageCooldownKey, out var lastQueuedAt)
+            && now - lastQueuedAt < CollectTasksVillageCooldown)
+        {
+            return;
+        }
+
         try
         {
             if (await _botService.HasClaimableTasksOnCurrentPageAsync(options, AppendLog, CancellationToken.None))
             {
-                var payload = BuildCurrentVillageUtilityPayload(observedStatus);
                 if (payload is null)
                 {
                     AppendLog("[tasks:verbose] claimable rewards detected, but current village could not be identified; retrying on the next refresh.");
@@ -454,6 +466,10 @@ public partial class MainWindow
                 }
 
                 _botService.EnqueueRuntime("collect_tasks", "Collect tasks", payload, priority: -40, maxRetries: 1);
+                if (villageCooldownKey is not null)
+                {
+                    _collectTasksLastQueuedAtByVillage[villageCooldownKey] = now;
+                }
                 AppendLog("Tasks: claimable rewards detected — queued collect_tasks.");
             }
         }
@@ -536,6 +552,28 @@ public partial class MainWindow
         }
 
         return payload;
+    }
+
+    private static string? GetUtilityTaskVillageKey(IReadOnlyDictionary<string, string>? payload)
+    {
+        if (payload is null)
+        {
+            return null;
+        }
+
+        if (payload.TryGetValue(BotOptionPayloadKeys.TargetVillageUrl, out var villageUrl)
+            && !string.IsNullOrWhiteSpace(villageUrl))
+        {
+            return $"url:{villageUrl.Trim()}";
+        }
+
+        if (payload.TryGetValue(BotOptionPayloadKeys.TargetVillageName, out var villageName)
+            && NormalizeVillageName(villageName) is string normalizedName)
+        {
+            return $"name:{normalizedName}";
+        }
+
+        return null;
     }
 
     private bool IsAutoCollectTasksEnabledNow(BotOptions options)
