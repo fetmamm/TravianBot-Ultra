@@ -90,7 +90,7 @@ public sealed partial class TravianClient
                 Message: "Could not find a 'To the adventure' entry on the adventures list.");
         }
 
-        await WaitForNavigationSettledAsync(cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await PauseForManualStepIfVisibleAsync("Manual verification appeared on adventure detail page.", cancellationToken);
 
         var returnSeconds = await ReadHeroReturnSecondsAsync(cancellationToken);
@@ -107,7 +107,7 @@ public sealed partial class TravianClient
                 Message: "Could not click the final 'To adventure' submit button on the adventure detail page.");
         }
 
-        await WaitForNavigationSettledAsync(cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await PauseForManualStepIfVisibleAsync("Manual verification appeared after dispatching hero.", cancellationToken);
 
         // Land back on dorf1 after dispatch so the next status read happens on a fresh page.
@@ -325,7 +325,7 @@ public sealed partial class TravianClient
 
         Notify("[hero:verbose] reloading dorf1 to refresh hero sidebar");
         await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
-        await WaitForNavigationSettledAsync(cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while refreshing dorf1 for hero check.", cancellationToken);
     }
 
@@ -411,7 +411,7 @@ public sealed partial class TravianClient
 
     private async Task OpenAdventureListWithFallbackAsync(CancellationToken cancellationToken)
     {
-        await WaitForNavigationSettledAsync(cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening adventures list.", cancellationToken);
 
         if (await HasAdventureEntryOnPageAsync(cancellationToken))
@@ -420,7 +420,7 @@ public sealed partial class TravianClient
         }
 
         await GotoAsync(HeroAdventuresPath, cancellationToken);
-        await WaitForNavigationSettledAsync(cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await PauseForManualStepIfVisibleAsync("Manual verification appeared on hero adventures page.", cancellationToken);
         if (await HasAdventureEntryOnPageAsync(cancellationToken))
         {
@@ -428,7 +428,7 @@ public sealed partial class TravianClient
         }
 
         await GotoAsync(Paths.HeroAdventureLegacy, cancellationToken);
-        await WaitForNavigationSettledAsync(cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await PauseForManualStepIfVisibleAsync("Manual verification appeared on legacy hero adventures page.", cancellationToken);
     }
 
@@ -442,7 +442,7 @@ public sealed partial class TravianClient
         try
         {
             await GotoAsync(HeroAdventuresPath, cancellationToken);
-            await WaitForNavigationSettledAsync(cancellationToken);
+            await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
             await PauseForManualStepIfVisibleAsync("Manual verification appeared on hero adventures page.", cancellationToken);
             if (await IsHeroAdventuresPageAsync(cancellationToken))
             {
@@ -455,7 +455,7 @@ public sealed partial class TravianClient
         }
 
         await GotoAsync(Paths.HeroAdventureLegacy, cancellationToken);
-        await WaitForNavigationSettledAsync(cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await PauseForManualStepIfVisibleAsync("Manual verification appeared on legacy hero adventures page.", cancellationToken);
     }
 
@@ -609,7 +609,7 @@ public sealed partial class TravianClient
     {
         Notify("[hero] revive flow starting (inventory page)");
         await GotoAsync(HeroInventoryPath, cancellationToken);
-        await WaitForNavigationSettledAsync(cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening hero inventory.", cancellationToken);
 
         // Make sure the Attributes tab is active. The Revive button is rendered there.
@@ -637,7 +637,7 @@ public sealed partial class TravianClient
                 """);
             if (clicked)
             {
-                await WaitForNavigationSettledAsync(cancellationToken);
+                await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
             }
         }
 
@@ -689,7 +689,7 @@ public sealed partial class TravianClient
                 await Task.Delay(1000, cancellationToken);
             }
 
-            await WaitForNavigationSettledAsync(cancellationToken);
+            await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
             await PauseForManualStepIfVisibleAsync("Manual verification appeared after clicking Revive.", cancellationToken);
             Notify("Revive button clicked.");
         }
@@ -705,7 +705,7 @@ public sealed partial class TravianClient
     {
         Notify("[hero:verbose] ReadHeroReturnFromRallyPoint starting");
         await GotoAsync(RallyPointTroopsPath, cancellationToken);
-        await WaitForNavigationSettledAsync(cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening rally point.", cancellationToken);
 
         var raw = await _page.EvaluateAsync<string?>(
@@ -752,33 +752,6 @@ public sealed partial class TravianClient
         }
 
         return int.TryParse(raw, out var seconds) ? Math.Max(0, seconds) : null;
-    }
-
-    private async Task WaitForNavigationSettledAsync(CancellationToken cancellationToken)
-    {
-        // Wait for DOMContentLoaded + Load so Mootools/PropertySetter init has run. Skip
-        // NetworkIdle: Travian keeps long-poll XHR open in the background, so that wait
-        // almost always burns its full timeout (~4s) for no benefit. The downstream
-        // WaitForAttributesTableAsync already waits on the actual element we need.
-        try
-        {
-            await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded, new PageWaitForLoadStateOptions
-            {
-                Timeout = _config.TimeoutMs,
-            }).WaitAsync(cancellationToken);
-        }
-        catch (PlaywrightException) { }
-        catch (TimeoutException) { }
-
-        try
-        {
-            await _page.WaitForLoadStateAsync(LoadState.Load, new PageWaitForLoadStateOptions
-            {
-                Timeout = _config.TimeoutMs,
-            }).WaitAsync(cancellationToken);
-        }
-        catch (PlaywrightException) { }
-        catch (TimeoutException) { }
     }
 
     private async Task<int?> ReadHeroReturnSecondsAsync(CancellationToken cancellationToken)
@@ -856,7 +829,7 @@ public sealed partial class TravianClient
             if (!IsCurrentUrlForPath(HeroAdventuresPath))
             {
                 await GotoAsync(HeroAdventuresPath, cancellationToken);
-                await WaitForNavigationSettledAsync(cancellationToken);
+                await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
                 await EnsureLoggedInAsync();
             }
 
@@ -892,7 +865,7 @@ public sealed partial class TravianClient
         try
         {
             await GotoAsync("/hero/attributes", cancellationToken);
-            await WaitForNavigationSettledAsync(cancellationToken);
+            await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
             await EnsureLoggedInAsync();
 
             await WaitForOfficialHeroHpRenderAsync(cancellationToken);
@@ -1453,7 +1426,7 @@ public sealed partial class TravianClient
         else
         {
             await GotoAsync(HeroAttributesPath, cancellationToken);
-            await WaitForNavigationSettledAsync(cancellationToken);
+            await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
             await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening hero attributes.", cancellationToken);
             await EnsureLoggedInAsync();
         }
@@ -1758,7 +1731,7 @@ public sealed partial class TravianClient
         }
 
         await GotoAsync(HeroInventoryPath, cancellationToken);
-        await WaitForNavigationSettledAsync(cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening hero inventory for ointments.", cancellationToken);
 
         var info = await ReadHeroOintmentInventoryInfoAsync(cancellationToken);
@@ -1787,7 +1760,7 @@ public sealed partial class TravianClient
 
         await Task.Delay(500, cancellationToken);
         var confirmed = await ConfirmHeroOintmentUseAsync(useCount, cancellationToken);
-        await WaitForNavigationSettledAsync(cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await Task.Delay(500, cancellationToken);
 
         var refreshedHp = await ReadHeroHpFromSidebarAsync(cancellationToken);
@@ -2008,7 +1981,7 @@ public sealed partial class TravianClient
     {
         Notify("[hero:verbose] official hero point allocation entered");
         await GotoAsync("/hero/attributes", cancellationToken);
-        await WaitForNavigationSettledAsync(cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await EnsureLoggedInAsync();
 
         try
@@ -2110,7 +2083,7 @@ public sealed partial class TravianClient
         if (saved)
         {
             InvalidateCachedHeroAttributeSnapshot();
-            await WaitForNavigationSettledAsync(cancellationToken);
+            await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         }
 
         Notify($"[hero] official point allocation: assigned {used}, saved={saved}");
@@ -2300,14 +2273,14 @@ public sealed partial class TravianClient
     private async Task EnsureHeroInventoryAttributesTabAsync(CancellationToken cancellationToken)
     {
         await GotoAsync(HeroInventoryPath, cancellationToken);
-        await WaitForNavigationSettledAsync(cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening hero inventory.", cancellationToken);
         await EnsureLoggedInAsync();
 
         if (!IsCurrentUrlForPath(HeroInventoryPath))
         {
             await GotoAsync(HeroInventoryPath, cancellationToken);
-            await WaitForNavigationSettledAsync(cancellationToken);
+            await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
             await PauseForManualStepIfVisibleAsync("Manual verification appeared after re-opening hero inventory.", cancellationToken);
         }
 
@@ -2339,7 +2312,7 @@ public sealed partial class TravianClient
 
         if (clicked)
         {
-            await WaitForNavigationSettledAsync(cancellationToken);
+            await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
             await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening hero attributes tab.", cancellationToken);
         }
 
@@ -2351,7 +2324,7 @@ public sealed partial class TravianClient
         {
             Notify($"Hero attributes table missing after tab click — reloading {HeroInventoryPath}.");
             await GotoAsync(HeroInventoryPath, cancellationToken);
-            await WaitForNavigationSettledAsync(cancellationToken);
+            await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
             tableReady = await WaitForAttributesTableAsync(cancellationToken, timeoutMs: 6000);
             if (!tableReady)
             {
@@ -2500,7 +2473,7 @@ public sealed partial class TravianClient
         {
             await EnsureLoggedInAsync();
             await GotoAsync(HeroInventoryPath, cancellationToken);
-            await WaitForNavigationSettledAsync(cancellationToken);
+            await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
             await EnsureLoggedInAsync();
 
         // Give the React-rendered inventory grid a moment to appear; a timeout just falls through
@@ -2738,7 +2711,7 @@ public sealed partial class TravianClient
     private async Task<bool> ApplyOfficialHeroHideModeAsync(string desired, CancellationToken cancellationToken)
     {
         await GotoAsync(HeroAttributesPath, cancellationToken);
-        await WaitForNavigationSettledAsync(cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening hero attributes.", cancellationToken);
         await EnsureLoggedInAsync();
 
@@ -2778,7 +2751,7 @@ public sealed partial class TravianClient
 
         if (changed)
         {
-            await WaitForNavigationSettledAsync(cancellationToken);
+            await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
             Notify($"Hero hide mode set to '{desired}' on official attributes page.");
         }
 
@@ -2840,7 +2813,7 @@ public sealed partial class TravianClient
             return false;
         }
 
-        await WaitForNavigationSettledAsync(cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await PauseForManualStepIfVisibleAsync("Manual verification appeared after saving hero points.", cancellationToken);
         return true;
     }
@@ -3010,7 +2983,7 @@ public sealed partial class TravianClient
         // Official Travian (T4.6) instead opens a React confirmation modal with a "Continue"
         // button (class "...continue...") and does NOT navigate — the modal needs a moment to
         // render, so poll for the confirm button before giving up.
-        await WaitForNavigationSettledAsync(cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await PauseForManualStepIfVisibleAsync("Manual verification appeared on adventure detail page.", cancellationToken);
         var fallbackReturnFromDetail = await ReadAdventureReturnSecondsAsync(cancellationToken) ?? fallbackReturnSeconds;
         Notify($"[adventure] picked {pickOrder} adventure, duration={duration}s, hero return ETA={fallbackReturnFromDetail}s");
@@ -3049,7 +3022,7 @@ public sealed partial class TravianClient
             return (false, duration, fallbackReturnFromDetail);
         }
 
-        await WaitForNavigationSettledAsync(cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await PauseForManualStepIfVisibleAsync("Manual verification appeared after starting hero adventure.", cancellationToken);
         var dispatched = await IsHeroAdventureActivePageAsync(cancellationToken);
         var returnSeconds = await ReadAdventureReturnSecondsAsync(cancellationToken) ?? fallbackReturnFromDetail;

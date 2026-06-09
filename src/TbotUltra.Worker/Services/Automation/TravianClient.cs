@@ -5249,7 +5249,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             try
             {
                 await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
-                await WaitForNavigationSettledAsync(cancellationToken);
+                await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
             }
             catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
             {

@@ -326,7 +326,7 @@ public sealed partial class TravianClient
     private async Task WaitBeforeReinforcementConfirmAsync(string stepName, CancellationToken cancellationToken)
     {
         Notify($"[reinforce:verbose] waiting before {stepName}");
-        await WaitForNavigationSettledAsync(cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await PauseForManualStepIfVisibleAsync($"Manual verification appeared before reinforcement {stepName}.", cancellationToken);
         await Task.Delay(500, cancellationToken);
     }

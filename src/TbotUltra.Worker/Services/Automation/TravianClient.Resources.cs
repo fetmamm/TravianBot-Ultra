@@ -858,7 +858,7 @@ public sealed partial class TravianClient
                         WaitUntil = WaitUntilState.DOMContentLoaded,
                         Timeout = _config.TimeoutMs,
                     }).WaitAsync(cancellationToken);
-                    await WaitForNavigationSettledAsync(cancellationToken);
+                    await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
                     await WaitForResourceSnapshotWidgetsAsync(cancellationToken);
                 }
                 catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
@@ -961,7 +961,7 @@ public sealed partial class TravianClient
 
     private async Task WaitForResourceSnapshotWidgetsAsync(CancellationToken cancellationToken)
     {
-        await WaitForNavigationSettledAsync(cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
 
         for (var attempt = 1; attempt <= 4; attempt++)
         {
@@ -1016,7 +1016,7 @@ public sealed partial class TravianClient
                         WaitUntil = WaitUntilState.DOMContentLoaded,
                         Timeout = _config.TimeoutMs,
                     }).WaitAsync(cancellationToken);
-                    await WaitForNavigationSettledAsync(cancellationToken);
+                    await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
                     continue;
                 }
                 catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
@@ -1213,7 +1213,7 @@ public sealed partial class TravianClient
                         WaitUntil = WaitUntilState.DOMContentLoaded,
                         Timeout = _config.TimeoutMs,
                     }).WaitAsync(cancellationToken);
-                    await WaitForNavigationSettledAsync(cancellationToken);
+                    await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
                     await WaitForResourceSnapshotWidgetsAsync(cancellationToken);
                 }
                 catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))

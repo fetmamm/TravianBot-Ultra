@@ -44,7 +44,7 @@ public sealed partial class TravianClient
             cancellationToken.ThrowIfCancellationRequested();
 
             await GotoAsync(Paths.Tasks, cancellationToken);
-            await WaitForNavigationSettledAsync(cancellationToken);
+            await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
             await EnsureLoggedInAsync();
             await PauseForManualStepIfVisibleAsync("Manual verification appeared on the tasks page.", cancellationToken);
             await WaitForTasksPageRenderAsync(cancellationToken);
@@ -66,7 +66,7 @@ public sealed partial class TravianClient
 
             // Re-read on dorf1 so nothing is missed and the next refresh sees a clean page.
             await GotoAsync(Paths.Resources, cancellationToken);
-            await WaitForNavigationSettledAsync(cancellationToken);
+            await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
             if (!await HasClaimableTasksOnCurrentPageAsync(cancellationToken))
             {
                 break;
