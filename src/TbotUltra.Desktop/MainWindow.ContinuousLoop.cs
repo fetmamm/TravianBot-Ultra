@@ -398,7 +398,11 @@ public partial class MainWindow
 
         try
         {
-            var status = await ReadVillageStatusWithRetryAsync(options, cancellationToken, resourceOnly: false);
+            var status = await ReadVillageStatusWithRetryAsync(
+                options,
+                cancellationToken,
+                resourceOnly: false,
+                forceCurrentVillage: true);
             await Dispatcher.InvokeAsync(() =>
             {
                 CacheVillageStatus(status);
@@ -836,7 +840,7 @@ public partial class MainWindow
                 break;
             }
 
-            var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            var options = AutomationExecutionOptions.WithoutImplicitVillageTarget(LoadBotOptions());
             var loopDelaySeconds = Math.Max(5, options.LoopIntervalSeconds);
             var tickId = Interlocked.Increment(ref _loopTickCounter);
             var tickSw = Stopwatch.StartNew();
@@ -1089,7 +1093,7 @@ public partial class MainWindow
             }
 
             await EnsureChromiumInstalledAsync();
-            var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            var options = AutomationExecutionOptions.WithoutImplicitVillageTarget(LoadBotOptions());
             AppendLog($"[AUTOQ {runId}] RUN task={next.TaskName}, id={next.Id}");
             var shouldContinue = await ExecuteSingleQueueItemAsync(
                 next,
