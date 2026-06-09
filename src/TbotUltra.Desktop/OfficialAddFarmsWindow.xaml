@@ -1,0 +1,195 @@
+<Window x:Class="TbotUltra.Desktop.OfficialAddFarmsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:TbotUltra.Desktop.Views"
+        Title="Add Farms to Lists"
+        Width="720"
+        Height="680"
+        MinWidth="660"
+        MinHeight="600"
+        Background="{DynamicResource AppBackgroundBrush}"
+        WindowStartupLocation="CenterOwner">
+    <Grid>
+        <Grid Margin="16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Margin="0,0,0,12">
+                <TextBlock Text="Add farms from Travco"
+                           FontSize="18"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                <TextBlock Text="Select one source list and one or more destination farm lists."
+                           Margin="0,4,0,0"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+            </StackPanel>
+
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                            Background="{DynamicResource SurfaceBrush}" CornerRadius="6" Padding="12">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="170" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Travco source list" VerticalAlignment="Center" />
+                            <ComboBox x:Name="SourceListComboBox" Grid.Column="1"
+                                      DisplayMemberPath="DisplayName" SelectionChanged="InputChanged" />
+                            <TextBlock Grid.Row="1" Text="Available source farms" Margin="0,10,0,0" />
+                            <TextBlock x:Name="SourceCountTextBlock" Grid.Row="1" Grid.Column="1"
+                                       Margin="0,10,0,0" FontWeight="SemiBold" />
+                        </Grid>
+                    </Border>
+
+                    <Border Margin="0,10,0,0" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                            Background="{DynamicResource SurfaceBrush}" CornerRadius="6" Padding="12">
+                        <StackPanel>
+                            <TextBlock Text="Destination farm lists"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       Margin="0,0,0,8" />
+                            <ListBox x:Name="TargetListsListBox" MaxHeight="190">
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}"
+                                                      Checked="TargetCheckBox_Changed"
+                                                      Unchecked="TargetCheckBox_Changed"
+                                                      Margin="0,0,10,0" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold" />
+                                            <TextBlock Grid.Column="2" Text="{Binding CountText}"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Margin="0,10,0,0" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                            Background="{DynamicResource SurfaceBrush}" CornerRadius="6" Padding="12">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="170" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Text="Amount per list" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <RadioButton x:Name="FillModeRadioButton" Content="Fill to 100" IsChecked="True"
+                                             Margin="0,0,14,0" Checked="InputChanged" />
+                                <RadioButton x:Name="AmountModeRadioButton" Content="Amount"
+                                             Margin="0,0,10,0" Checked="InputChanged" />
+                                <ComboBox x:Name="AmountComboBox" Width="90" SelectionChanged="InputChanged" />
+                            </StackPanel>
+
+                            <TextBlock Grid.Row="1" Text="Order" VerticalAlignment="Center" Margin="0,10,0,0" />
+                            <ComboBox x:Name="OrderComboBox" Grid.Row="1" Grid.Column="1" Margin="0,10,0,0"
+                                      SelectionChanged="InputChanged">
+                                <ComboBoxItem Tag="distance_asc" Content="Distance - shortest first" IsSelected="True" />
+                                <ComboBoxItem Tag="distance_desc" Content="Distance - longest first" />
+                                <ComboBoxItem Tag="pop_desc" Content="Population - highest first" />
+                                <ComboBoxItem Tag="pop_asc" Content="Population - lowest first" />
+                            </ComboBox>
+
+                            <TextBlock Grid.Row="2" Text="Population filter" VerticalAlignment="Center" Margin="0,10,0,0" />
+                            <Grid Grid.Row="2" Grid.Column="1" Margin="0,10,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="12" />
+                                    <ColumnDefinition Width="100" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox x:Name="PopulationFilterComboBox" SelectionChanged="InputChanged">
+                                    <ComboBoxItem Tag="all" Content="All populations" IsSelected="True" />
+                                    <ComboBoxItem Tag="under" Content="Under or equal to" />
+                                    <ComboBoxItem Tag="over" Content="Over or equal to" />
+                                </ComboBox>
+                                <TextBox x:Name="PopulationTextBox" Grid.Column="2" Text="50" TextChanged="InputChanged" />
+                            </Grid>
+
+                            <TextBlock Grid.Row="3" Text="Distance filter" VerticalAlignment="Center" Margin="0,10,0,0" />
+                            <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Margin="0,10,0,0">
+                                <CheckBox x:Name="DistanceFilterCheckBox" Content="Within"
+                                          Checked="InputChanged" Unchecked="InputChanged" />
+                                <TextBox x:Name="DistanceTextBox" Width="100" Margin="12,0,8,0"
+                                         Text="20" TextChanged="InputChanged" />
+                                <TextBlock Text="fields" VerticalAlignment="Center" />
+                            </StackPanel>
+
+                            <CheckBox x:Name="SkipDuplicatesCheckBox" Grid.Row="4" Grid.ColumnSpan="2"
+                                      Margin="0,14,0,0"
+                                      Content="Don't add duplicates already present in any farm list"
+                                      IsChecked="True" Checked="InputChanged" Unchecked="InputChanged" />
+                        </Grid>
+                    </Border>
+
+                    <Border Margin="0,10,0,0" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                            Background="{DynamicResource SurfaceBrush}" CornerRadius="6" Padding="12">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="170" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Troops" VerticalAlignment="Center" />
+                            <ComboBox x:Name="TroopModeComboBox" Grid.Column="1"
+                                      SelectionChanged="TroopModeComboBox_SelectionChanged">
+                                <ComboBoxItem Tag="default" Content="Default" IsSelected="True" />
+                                <ComboBoxItem Tag="custom" Content="Custom" />
+                            </ComboBox>
+                            <TextBlock Grid.Row="1" Text="Troop type" Margin="0,10,0,0" VerticalAlignment="Center" />
+                            <ComboBox x:Name="TroopTypeComboBox" Grid.Row="1" Grid.Column="1" Margin="0,10,0,0"
+                                      SelectionChanged="InputChanged" />
+                            <TextBlock Grid.Row="2" Text="Troop count" Margin="0,10,0,0" VerticalAlignment="Center" />
+                            <TextBox x:Name="TroopCountTextBox" Grid.Row="2" Grid.Column="1" Margin="0,10,0,0"
+                                     TextChanged="InputChanged" />
+                        </Grid>
+                    </Border>
+
+                    <TextBlock x:Name="SummaryTextBlock" Margin="0,14,0,0"
+                               Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+            </ScrollViewer>
+
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+                <Button x:Name="AddButton" Content="Add farms" Width="110" Margin="0,0,8,0"
+                        Click="AddButton_Click" />
+                <Button Content="Cancel" Width="100" Click="CancelButton_Click" />
+            </StackPanel>
+        </Grid>
+
+        <views:BusyOverlayControl x:Name="LoadingOverlay"
+                                  Title="Adding farms"
+                                  Text="Preparing..."
+                                  Cancelled="LoadingOverlay_Cancelled" />
+    </Grid>
+</Window>

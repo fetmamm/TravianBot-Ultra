@@ -21,6 +21,9 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
+    private readonly HashSet<string> _analyzedFarmCoordinates = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, int?> _farmListCapacitiesByName = new(StringComparer.OrdinalIgnoreCase);
+
     private void UpdateFarmingUiState()
     {
         if (!_farmingFeaturesAvailable || FarmingStatusTextBlock is null)
@@ -94,7 +97,41 @@ public partial class MainWindow
 
         var lists = await _botService.ReadFarmListsOverviewAsync(options, AppendLog, cancellationToken) ?? [];
         await ApplyFarmListOverviewToUiAsync(lists);
+        await SaveFarmListsSnapshotAsync(lists, cancellationToken);
         return true;
+    }
+
+    private async Task SaveFarmListsSnapshotAsync(IReadOnlyList<FarmListOverview> lists, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var path = AccountStoragePaths.FarmListsSnapshotPath(_projectRoot, _accountStore.ActiveAccountName());
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            var payload = new
+            {
+                capturedAtUtc = DateTimeOffset.UtcNow,
+                lists = lists.Select(item => new
+                {
+                    name = item.Name,
+                    activeFarmCount = item.ActiveFarmCount,
+                    totalFarmCount = item.TotalFarmCount,
+                    remainingSeconds = item.RemainingSeconds,
+                    listId = item.ListId,
+                    capacity = item.Capacity,
+                    farmCoordinates = item.FarmCoordinates,
+                }),
+            };
+            await File.WriteAllTextAsync(path, JsonSerializer.Serialize(payload), cancellationToken);
+            AppendLog($"[farm-list] saved analysis snapshot with {_analyzedFarmCoordinates.Count} unique coordinate(s).");
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Could not save farm list analysis snapshot: {ex.Message}");
+        }
     }
 
     // Merges a freshly read farm-list overview into the UI rows: dedupes by name, keeps timers/lids,
@@ -104,7 +141,8 @@ public partial class MainWindow
     {
         var selectedFarmLists = LoadConfiguredContinuousFarmListNames();
         var selectedFarmListIds = LoadConfiguredContinuousFarmListIds();
-        var mergedByName = new Dictionary<string, (int Active, int Total, int? RemainingSeconds, string? ListId)>(StringComparer.OrdinalIgnoreCase);
+        var mergedByName = new Dictionary<string, (int Active, int Total, int? RemainingSeconds, string? ListId, int? Capacity, IReadOnlyList<string> Coordinates)>(StringComparer.OrdinalIgnoreCase);
+        var analyzedCoordinates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var list in lists)
         {
             if (list is null)
@@ -114,13 +152,21 @@ public partial class MainWindow
 
             var normalizedName = string.IsNullOrWhiteSpace(list.Name) ? "Farm list" : list.Name.Trim();
             var incomingListId = string.IsNullOrWhiteSpace(list.ListId) ? null : list.ListId.Trim();
+            var incomingCoordinates = (list.FarmCoordinates ?? [])
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Select(value => value.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            analyzedCoordinates.UnionWith(incomingCoordinates);
             if (!mergedByName.TryGetValue(normalizedName, out var existing))
             {
                 mergedByName[normalizedName] = (
                     Active: Math.Max(0, list.ActiveFarmCount),
                     Total: Math.Max(0, list.TotalFarmCount),
                     RemainingSeconds: list.RemainingSeconds is > 0 ? list.RemainingSeconds : null,
-                    ListId: incomingListId);
+                    ListId: incomingListId,
+                    Capacity: list.Capacity,
+                    Coordinates: incomingCoordinates);
                 continue;
             }
 
@@ -131,7 +177,9 @@ public partial class MainWindow
                 RemainingSeconds: existing.RemainingSeconds is > 0
                     ? existing.RemainingSeconds
                     : incomingRemaining,
-                ListId: string.IsNullOrWhiteSpace(existing.ListId) ? incomingListId : existing.ListId);
+                ListId: string.IsNullOrWhiteSpace(existing.ListId) ? incomingListId : existing.ListId,
+                Capacity: existing.Capacity ?? list.Capacity,
+                Coordinates: existing.Coordinates.Concat(incomingCoordinates).Distinct(StringComparer.OrdinalIgnoreCase).ToList());
         }
 
         await Dispatcher.InvokeAsync(() =>
@@ -140,6 +188,9 @@ public partial class MainWindow
             try
             {
                 _farmLists.Clear();
+                _analyzedFarmCoordinates.Clear();
+                _analyzedFarmCoordinates.UnionWith(analyzedCoordinates);
+                _farmListCapacitiesByName.Clear();
                 var displayedRows = 0;
                 foreach (var pair in mergedByName.OrderBy(pair => pair.Key))
                 {
@@ -158,9 +209,11 @@ public partial class MainWindow
                         ListId = pair.Value.ListId,
                         ActiveFarmCount = pair.Value.Active,
                         TotalFarmCount = pair.Value.Total,
+                        Capacity = pair.Value.Capacity,
                         IsEnabled = isSelected,
                         RemainingSeconds = pair.Value.RemainingSeconds,
                     });
+                    _farmListCapacitiesByName[pair.Key] = pair.Value.Capacity;
                     displayedRows++;
                 }
             }
@@ -280,7 +333,9 @@ public partial class MainWindow
                 ActiveFarmCount: entry.ActiveFarmCount,
                 TotalFarmCount: entry.TotalFarmCount,
                 RemainingSeconds: entry.RemainingSeconds,
-                ListId: string.IsNullOrWhiteSpace(entry.ListId) ? null : entry.ListId))
+                ListId: string.IsNullOrWhiteSpace(entry.ListId) ? null : entry.ListId,
+                Capacity: entry.Capacity,
+                FarmCoordinates: entry.FarmCoordinates ?? []))
             .ToList();
 
         await ApplyFarmListOverviewToUiAsync(lists);
@@ -300,6 +355,8 @@ public partial class MainWindow
         public int TotalFarmCount { get; init; }
         public int? RemainingSeconds { get; init; }
         public string? ListId { get; init; }
+        public int? Capacity { get; init; }
+        public List<string>? FarmCoordinates { get; init; }
     }
 
     private async void AnalyzeFarmListsButton_Click(object sender, RoutedEventArgs e)
@@ -312,7 +369,9 @@ public partial class MainWindow
         var operationId = BeginOperation("Analyze Farmlists");
         var operationSw = Stopwatch.StartNew();
         var operationToken = _loopController.StartOperation("operation");
-        SetFarmingFunctionRunning(true);
+        SetFarmingFunctionRunning(true, showCancelButton: false);
+        BusyOverlay.ShowCancel = true;
+        ShowBusyOverlay("Analyze farmlists", "Reading current farmlists...");
         try
         {
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
@@ -361,6 +420,115 @@ public partial class MainWindow
         try
         {
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            if (!options.IsPrivateServer)
+            {
+                await EnsureChromiumInstalledAsync();
+                var available = await RefreshFarmListsFromServerAsync(options, operationToken);
+                if (!available)
+                {
+                    CompleteOperation(operationId, operationSw, "Gold Club is not active.");
+                    return;
+                }
+
+                var sourceLists = _travcoListStore.LoadAll()
+                    .Where(list => list.Rows.Any(row => row.Selected))
+                    .ToList();
+                if (sourceLists.Count == 0)
+                {
+                    AppDialog.Show(this, "No saved Travco lists with selected farms were found.", "Add farms", MessageBoxButton.OK, MessageBoxImage.Information);
+                    CompleteOperation(operationId, operationSw, "No saved Travco lists found.");
+                    return;
+                }
+
+                var targetLists = _farmLists
+                    .Select(item => new FarmListSelectionOption
+                    {
+                        Name = item.Name,
+                        ActiveFarmCount = item.ActiveFarmCount,
+                        TotalFarmCount = item.TotalFarmCount,
+                        Capacity = _farmListCapacitiesByName.GetValueOrDefault(item.Name),
+                    })
+                    .ToList();
+
+                async Task<OfficialFarmAddRunResult> RunOfficialPlansAsync(
+                    IReadOnlyList<OfficialFarmAddPlan> plans,
+                    bool useDefaultTroops,
+                    string troopType,
+                    int troopCount,
+                    IProgress<FarmAddProgress> progress,
+                    CancellationToken cancellationToken)
+                {
+                    var requested = plans.Sum(plan => plan.Coordinates.Count);
+                    var processed = 0;
+                    var added = 0;
+                    var duplicates = 0;
+                    var failed = 0;
+
+                    foreach (var plan in plans)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        var processedBeforeList = processed;
+                        var addedBeforeList = added;
+                        var aggregateProgress = new Progress<FarmAddProgress>(value =>
+                        {
+                            progress.Report(new FarmAddProgress(
+                                value.FarmListName,
+                                processedBeforeList + value.ProcessedCount,
+                                requested,
+                                addedBeforeList + value.AddedCount));
+                        });
+
+                        AppendLog(
+                            $"Add farms from Travco: target='{plan.TargetName}', requested={plan.Coordinates.Count}, " +
+                            $"troops={(useDefaultTroops ? "default" : $"{troopCount} {troopType}")}.");
+                        var result = await _botService.AddFarmsFromCoordinatesAsync(
+                            options,
+                            plan.TargetName,
+                            troopType,
+                            troopCount,
+                            plan.Coordinates,
+                            useDefaultTroops,
+                            AppendLog,
+                            aggregateProgress,
+                            cancellationToken);
+                        processed += result.AttemptedCount;
+                        added += result.AddedCount;
+                        duplicates += result.AlreadyInListCount;
+                        failed += result.FailedCount;
+                        AppendLog(
+                            $"Finished '{plan.TargetName}': added={result.AddedCount}, " +
+                            $"duplicates={result.AlreadyInListCount}, failed={result.FailedCount}.");
+                    }
+
+                    return new OfficialFarmAddRunResult(requested, added, duplicates, failed);
+                }
+
+                var officialDialog = new OfficialAddFarmsWindow(
+                    ResolveCurrentTribeForFarming(),
+                    LoadAddFarmsTroopCount(),
+                    sourceLists,
+                    targetLists,
+                    _analyzedFarmCoordinates,
+                    RunOfficialPlansAsync,
+                    operationToken)
+                {
+                    Owner = this,
+                };
+                if (officialDialog.ShowDialog() != true || officialDialog.RunResult is null)
+                {
+                    CompleteOperation(operationId, operationSw, "Add farms canceled.");
+                    return;
+                }
+
+                await RefreshFarmListsFromServerAsync(options, operationToken);
+                var runResult = officialDialog.RunResult;
+                CompleteOperation(
+                    operationId,
+                    operationSw,
+                    $"Added {runResult.Added}; duplicates {runResult.Duplicates}; failed {runResult.Failed}.");
+
+                return;
+            }
 
             async Task<AddFarmsLoadResult> LoadAsync(CancellationToken token)
             {
@@ -510,15 +678,118 @@ public partial class MainWindow
         }
     }
 
-    private void CreateFarmListButton_Click(object sender, RoutedEventArgs e)
+    private async void CreateFarmListButton_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockIfSessionSleeping("Create farmlists"))
+        {
+            return;
+        }
+
         if (!_farmingFeaturesAvailable)
         {
             AppendLog("Create Farmlist is unavailable while Gold Club farming is disabled.");
             return;
         }
 
-        AppendLog("Create Farmlist clicked. Wiring to farm page action is not connected yet.");
+        var options = ApplySelectedVillageToOptions(LoadBotOptions());
+        if (options.IsPrivateServer)
+        {
+            AppendLog("Create Farmlists is currently available on official servers only.");
+            return;
+        }
+
+        var villages = GetFarmListCreationVillages();
+        if (villages.Count == 0)
+        {
+            AppendLog("Create Farmlists requires at least one loaded village.");
+            return;
+        }
+
+        var operationId = BeginOperation("Create Farmlists");
+        var operationSw = Stopwatch.StartNew();
+        var operationToken = _loopController.StartOperation("operation");
+        SetFarmingFunctionRunning(true);
+        try
+        {
+            async Task<FarmListCreateBatchResult> RunAsync(
+                FarmListCreateRequest request,
+                IProgress<FarmListCreateProgress> progress,
+                CancellationToken cancellationToken)
+            {
+                await EnsureChromiumInstalledAsync();
+                progress.Report(new FarmListCreateProgress(
+                    "Analyzing farmlists",
+                    0,
+                    request.Names.Count));
+                AppendLog("[farm-list-create] analyzing current farmlist page before creation.");
+                var available = await RefreshFarmListsFromServerAsync(options, cancellationToken);
+                if (!available)
+                {
+                    throw new InvalidOperationException("Gold Club is not active.");
+                }
+
+                AppendLog(
+                    $"[farm-list-create] requested={request.Names.Count}, village='{request.VillageName}', " +
+                    $"default={request.TroopCount} {request.TroopType}.");
+                return await _botService.CreateFarmListsAsync(
+                    options,
+                    request,
+                    AppendLog,
+                    progress,
+                    cancellationToken);
+            }
+
+            var dialog = new CreateFarmListsWindow(
+                ResolveCurrentTribeForFarming(),
+                villages,
+                RunAsync,
+                operationToken)
+            {
+                Owner = this,
+            };
+            if (dialog.ShowDialog() != true || dialog.RunResult is null)
+            {
+                CompleteOperation(operationId, operationSw, "Create farmlists canceled.");
+                return;
+            }
+
+            await RefreshFarmListsFromServerAsync(options, operationToken);
+            CompleteOperation(
+                operationId,
+                operationSw,
+                $"Created {dialog.RunResult.CreatedCount}/{dialog.RunResult.RequestedCount} farmlists.");
+        }
+        catch (OperationCanceledException)
+        {
+            AppendLog("Create farmlists canceled.");
+        }
+        catch (Exception ex)
+        {
+            FailOperation(operationId, operationSw, ex);
+        }
+        finally
+        {
+            HideBusyOverlay();
+            SetFarmingFunctionRunning(false);
+            DisposeOperationCts();
+        }
+    }
+
+    private IReadOnlyList<VillageSelectionItem> GetFarmListCreationVillages()
+    {
+        var source = (DashboardVillageList.ItemsSource as IEnumerable<VillageSelectionItem>)
+            ?? (VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem>)
+            ?? [];
+        return source
+            .Where(village => !string.IsNullOrWhiteSpace(village.Name)
+                              && !string.Equals(village.Name, "-", StringComparison.Ordinal))
+            .GroupBy(
+                village => string.IsNullOrWhiteSpace(village.Url)
+                    ? $"name:{village.Name.Trim()}"
+                    : village.Url,
+                StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToList();
     }
 
     private async void FarmListSendNowButton_Click(object sender, RoutedEventArgs e)

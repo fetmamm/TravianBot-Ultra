@@ -1,0 +1,139 @@
+<Window x:Class="TbotUltra.Desktop.CreateFarmListsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:TbotUltra.Desktop.Views"
+        Title="Create Farmlists"
+        Width="660"
+        Height="650"
+        MinWidth="600"
+        MinHeight="580"
+        Background="{DynamicResource AppBackgroundBrush}"
+        WindowStartupLocation="CenterOwner">
+    <Grid>
+        <Grid Margin="16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Margin="0,0,0,12">
+                <TextBlock Text="Create farmlists"
+                           FontSize="18"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                <TextBlock Text="Enter one unique farm list name per line."
+                           Margin="0,4,0,0"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+            </StackPanel>
+
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <Border BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1"
+                            Background="{DynamicResource SurfaceBrush}"
+                            CornerRadius="6"
+                            Padding="12">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="170" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Number of lists" VerticalAlignment="Center" />
+                            <ComboBox x:Name="ListCountComboBox"
+                                      Grid.Column="1"
+                                      Width="110"
+                                      HorizontalAlignment="Left"
+                                      SelectionChanged="InputChanged" />
+                            <TextBlock Grid.Row="1"
+                                       Text="List names"
+                                       Margin="0,10,0,0"
+                                       VerticalAlignment="Top" />
+                            <TextBox x:Name="ListNamesTextBox"
+                                     Grid.Row="1"
+                                     Grid.Column="1"
+                                     Height="210"
+                                     Margin="0,10,0,0"
+                                     AcceptsReturn="True"
+                                     VerticalScrollBarVisibility="Auto"
+                                     TextChanged="InputChanged" />
+                        </Grid>
+                    </Border>
+
+                    <Border Margin="0,10,0,0"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1"
+                            Background="{DynamicResource SurfaceBrush}"
+                            CornerRadius="6"
+                            Padding="12">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="170" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Village" VerticalAlignment="Center" />
+                            <ComboBox x:Name="VillageComboBox"
+                                      Grid.Column="1"
+                                      DisplayMemberPath="NameWithCoords"
+                                      SelectionChanged="InputChanged" />
+                            <TextBlock Grid.Row="1"
+                                       Text="Default troop type"
+                                       Margin="0,10,0,0"
+                                       VerticalAlignment="Center" />
+                            <ComboBox x:Name="TroopTypeComboBox"
+                                      Grid.Row="1"
+                                      Grid.Column="1"
+                                      Margin="0,10,0,0"
+                                      SelectionChanged="InputChanged" />
+                            <TextBlock Grid.Row="2"
+                                       Text="Default troop count"
+                                       Margin="0,10,0,0"
+                                       VerticalAlignment="Center" />
+                            <TextBox x:Name="TroopCountTextBox"
+                                     Grid.Row="2"
+                                     Grid.Column="1"
+                                     Width="110"
+                                     HorizontalAlignment="Left"
+                                     Margin="0,10,0,0"
+                                     Text="1"
+                                     TextChanged="InputChanged" />
+                        </Grid>
+                    </Border>
+
+                    <TextBlock x:Name="ValidationTextBlock"
+                               Margin="0,12,0,0"
+                               Foreground="{DynamicResource WarningTextBrush}"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </ScrollViewer>
+
+            <StackPanel Grid.Row="2"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Margin="0,14,0,0">
+                <Button x:Name="CreateButton"
+                        Content="Create farmlists"
+                        MinWidth="150"
+                        Margin="0,0,8,0"
+                        Click="CreateButton_Click" />
+                <Button Content="Cancel"
+                        Width="100"
+                        Click="CancelButton_Click" />
+            </StackPanel>
+        </Grid>
+
+        <views:BusyOverlayControl x:Name="LoadingOverlay"
+                                  Title="Creating farmlists"
+                                  Text="Preparing..."
+                                  Cancelled="LoadingOverlay_Cancelled" />
+    </Grid>
+</Window>

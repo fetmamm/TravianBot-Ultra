@@ -313,7 +313,7 @@ public sealed partial class TravianClient
                 var populationDelta = await ReadUpgradePopulationDeltaOnCurrentPageAsync(cancellationToken);
                 await ClickDetectedUpgradeCandidateAsync(slotId, actionability.CandidateIndex, cancellationToken);
                 await NavigateToResourceFieldsAfterUpgradeClickAsync(cancellationToken);
-                await WaitForPostUpgradeClickPageLoadAsync(cancellationToken);
+                await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
                 upgrades += 1;
                 if (populationDelta is int popDelta)
                 {
@@ -516,7 +516,7 @@ public sealed partial class TravianClient
                         var populationDelta = await ReadUpgradePopulationDeltaOnCurrentPageAsync(cancellationToken);
                         await ClickDetectedUpgradeCandidateAsync(slot, actionability.CandidateIndex, cancellationToken);
                         await NavigateToResourceFieldsAfterUpgradeClickAsync(cancellationToken);
-                        await WaitForPostUpgradeClickPageLoadAsync(cancellationToken);
+                        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
                         upgrades += 1;
                         if (populationDelta is int popDelta)
                         {

@@ -10,6 +10,7 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
     private string? _listId;
     private int _activeFarmCount;
     private int _totalFarmCount;
+    private int? _capacity;
     private int? _remainingSeconds;
     private bool _isProcessing;
 
@@ -80,6 +81,24 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
         }
     }
 
+    public int? Capacity
+    {
+        get => _capacity;
+        set
+        {
+            var normalized = value is > 0 ? value : null;
+            if (_capacity == normalized)
+            {
+                return;
+            }
+
+            _capacity = normalized;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(FarmCountText));
+            OnPropertyChanged(nameof(FillPercent));
+        }
+    }
+
     public bool IsEnabled
     {
         get => _isEnabled;
@@ -131,18 +150,19 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
         }
     }
 
-    public string FarmCountText => $"{ActiveFarmCount}/{TotalFarmCount} farms";
+    public string FarmCountText => $"{TotalFarmCount}/{Capacity ?? TotalFarmCount} farms";
 
     public double FillPercent
     {
         get
         {
-            if (TotalFarmCount <= 0)
+            var capacity = Capacity ?? TotalFarmCount;
+            if (capacity <= 0)
             {
                 return 0;
             }
 
-            return Math.Max(0, Math.Min(100, (double)ActiveFarmCount / TotalFarmCount * 100));
+            return Math.Max(0, Math.Min(100, (double)TotalFarmCount / capacity * 100));
         }
     }
 

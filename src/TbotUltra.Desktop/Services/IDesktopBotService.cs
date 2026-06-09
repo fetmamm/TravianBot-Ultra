@@ -35,6 +35,8 @@ public interface IDesktopBotService
     Task<FarmAddResult> AddSingleFarmFromNatarsAsync(BotOptions options, string farmListName, string troopType, int troopCount, Action<string> log, CancellationToken cancellationToken);
     Task<int> EnsureNatarFarmCacheAndReturnToFarmListAsync(BotOptions options, Action<string> log, bool forceRefresh, CancellationToken cancellationToken);
     Task<FarmAddBatchResult> AddFarmsFromNatarsAsync(BotOptions options, string farmListName, string troopType, int troopCount, int requestedCount, Action<string> log, IProgress<int>? addedProgress, CancellationToken cancellationToken);
+    Task<FarmAddBatchResult> AddFarmsFromCoordinatesAsync(BotOptions options, string farmListName, string troopType, int troopCount, IReadOnlyList<FarmCoordinate> coordinates, bool useDefaultTroops, Action<string> log, IProgress<FarmAddProgress>? progress, CancellationToken cancellationToken);
+    Task<FarmListCreateBatchResult> CreateFarmListsAsync(BotOptions options, FarmListCreateRequest request, Action<string> log, IProgress<FarmListCreateProgress>? progress, CancellationToken cancellationToken);
     Task<ManualFarmRunResult> StartManualFarmingFromNatarsAsync(BotOptions options, string troopType, long troopCount, int troopVariancePercent, bool raidAttack, Action<string> log, CancellationToken cancellationToken);
     Task<IReadOnlyDictionary<string, long>> ReadAvailableTroopsForCatapultWavesAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<IReadOnlyDictionary<string, long>> ReadAvailableTroopsForCatapultWavesAsync(BotOptions options, Action<string> log, bool forceRefresh, CancellationToken cancellationToken);

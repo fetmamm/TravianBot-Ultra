@@ -157,6 +157,8 @@ public sealed partial class TravianClient
 
         // Travian auto-fills the amounts. We read them (for the log AND to keep the cached
         // inventory in sync afterwards) but do NOT modify the inputs.
+
+        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         HeroInventoryResources? transferred = null;
         try
         {
@@ -280,7 +282,8 @@ public sealed partial class TravianClient
         }
 
         Notify($"[hero-transfer] transfer confirmed at {label}; waiting for page reload");
-        await WaitForPostUpgradeClickPageLoadAsync(cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
+
         try
         {
             await _page.WaitForFunctionAsync(
@@ -307,8 +310,7 @@ public sealed partial class TravianClient
             }
         }
 
-        await Task.Delay(350, cancellationToken);
-        await ApplyActionDelayAsync(cancellationToken);
+        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
 
         // Keep the cached inventory in sync by deducting what Travian just moved out of it. We do
         // NOT re-navigate to the inventory page here (that would derail the upgrade loop) — the

@@ -4,9 +4,14 @@
 > En levande fil för konventioner, beslut och fallgropar. Fyll på löpande — lägg nya
 > rader i **Beslutslogg** och **Kända fallgropar** med datum. Håll den kort och konkret.
 
-Relaterat: `docs/REFACTOR_PLAN.md` (refaktoreringsanalys), `AGENTS.md` (instruktioner för AI-agenter), `README.md`.
+`AGENTS.md` och CLAUDE.md (instruktioner för AI-agenter), `README.md`.
 
 ---
+
+## Helpers
+Kan användas om en sida ska vänta på att den har laddats färdigt.
+await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
+
 
 ## 1. Arkitektur (kort)
 
@@ -95,11 +100,36 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
 
 ## 4. Beslutslogg (ADR — append-only)
 
-- **2026-06-09** — **Analyze farmlists läser Official React-markup utan att expandera listor.**
+- **2026-06-09** — **Analyze Farmlists använder huvudfönstrets gemensamma loading-overlay.**
+  Analysen visar `BusyOverlayControl` med modal loading och dess Cancel-knapp. Den separata flytande
+  farming-Cancel-knappen döljs för just detta flöde.
+
+- **2026-06-09** — **Create Farmlists på Official analyserar före skapande och verifierar varje lista.**
+  Popupen tar 1–100 unika namn, en by och exakt en standardtrupp med antal. Browsern öppnas först när
+  `Create X farmlists` klickas; popupens loading visas medan befintliga `RefreshFarmListsFromServerAsync`
+  analyserar sidan, därefter läses aktuella `.farmListWrapper` och namn innan skapandet startar.
+  Summan får aldrig överstiga 100 listor och befintliga namn stoppas skiftlägesokänsligt. Varje lista
+  skapas via `#createFarmListForm`, verifieras i renderad DOM och sidan refreshas innan ett nytt försök
+  om namnet inte syns. Körningen är sekventiell och popupens loading kan avbrytas.
+
+- **2026-06-09** — **Add Farms använder Travco-källor på Official och Natars endast på SS-Travi.**
+  Official-dialogen väljer en sparad Travco-lista och en eller flera mål-farmlistor samt stödjer antal, distance-/population-
+  sortering, populationströskel, maximal distance och dubblettfilter. Analyze expanderar Official-listorna,
+  läser koordinater från samtliga renderade slots och sparar dem i farmlist-snapshoten för jämförelse.
+  Official-kapaciteten är 100 farms per lista (`Add target` visar exempelvis `5/100`). Dialogen erbjuder
+  därför endast 1–100 eller Fill. Valet begränsas till återstående platser och Worker läser dessutom om
+  aktuellt antal före varje Add target-försök, så listan aldrig kan passera 100 även om UI-data är stale.
+  Valda listor behandlas sekventiellt utan totalgräns för körningen. Loading visar sammanlagd progress och
+  kan avbrytas. `Default` behåller trupperna som Official fyller från listans standardinställning; Worker
+  verifierar exakt `listId`, fyller koordinaterna och väntar tills React aktiverat Save innan klick. Om
+  `.targetSelectionResultWrapper.hasError` visas stängs dialogen, koordinaten loggas som överhoppad och
+  batchen fortsätter med nästa by.
+
+- **2026-06-09** — **Analyze farmlists läser Official React-markup.**
   Officiell Rally Point-farmlist använder `build.php?id=39&gid=16&tt=99` och renderar listor som
   `#rallyPointFarmList .farmListWrapper`. Namn och list-ID läses från `.farmListName .name` respektive
   `[data-list]`; antal läses från Start-knappen och Add target-kapaciteten, som finns kvar även när listan
-  är kollapsad. SS/legacy-parsern behålls som fallback.
+  är kollapsad. Listorna expanderas endast när koordinater ska läsas. SS/legacy-parsern behålls som fallback.
 
 - **2026-06-08** — **Travco inactive search använder en separat tab och JsonElement-baserad DOM-läsning.**
   Official-only-flödet återanvänder den synliga browser-contexten. Popupen väljer by, dagar och sortering;

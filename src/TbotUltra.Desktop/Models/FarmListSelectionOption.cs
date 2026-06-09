@@ -10,6 +10,7 @@ public sealed class FarmListSelectionOption : INotifyPropertyChanged
     public string Name { get; init; } = string.Empty;
     public int ActiveFarmCount { get; init; }
     public int TotalFarmCount { get; init; }
+    public int? Capacity { get; init; }
 
     public bool IsChecked
     {
@@ -26,13 +27,15 @@ public sealed class FarmListSelectionOption : INotifyPropertyChanged
         }
     }
 
-    public int AvailableSlots => Math.Max(0, TotalFarmCount - ActiveFarmCount);
+    public int AvailableSlots => Math.Max(0, (Capacity ?? TotalFarmCount) - TotalFarmCount);
 
     public bool IsFull => AvailableSlots <= 0;
 
     public string CountText => $"{ActiveFarmCount}/{TotalFarmCount}";
 
-    public string CapacityText => $"{AvailableSlots} slots left";
+    public string CapacityText => Capacity is > 0
+        ? $"{AvailableSlots} slots left"
+        : $"{TotalFarmCount} farms";
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

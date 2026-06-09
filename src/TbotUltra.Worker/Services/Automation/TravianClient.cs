@@ -14,6 +14,7 @@ namespace TbotUltra.Worker.Services;
 
 public sealed partial class TravianClient
 {
+    private const int OfficialFarmListCapacity = 100;
     private const int MaxFarmsPerFarmList = 120;
     private const double ManualFarmingMinimumTroopRatio = 0.5d;
     private const int ManualFarmingMaxConsecutiveLowTroopSkips = 3;
@@ -700,6 +701,8 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         }
 
         await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
+        await EnsureOfficialFarmListsExpandedAsync(cancellationToken);
         var rows = await ReadFarmListsFromCurrentPageAsync(cancellationToken);
         Notify($"[farm-list] read {rows.Count} farm list(s) from rally point");
         return rows;
@@ -787,6 +790,8 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             troopCount,
             coordinate.X.Value,
             coordinate.Y.Value,
+            lid,
+            false,
             cancellationToken);
         if (saveOutcome == AddRaidSaveOutcome.Failed)
         {
@@ -835,6 +840,91 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             throw new InvalidOperationException("Gold Club is not enabled for this account.");
         }
 
+        var coordinates = await ReadNatarFarmCoordinatesCachedAsync(cancellationToken);
+        if (coordinates.Count <= 0)
+        {
+            throw new InvalidOperationException("Could not read any 'Natar farm village' coordinates from Natars profile.");
+        }
+
+        return await AddFarmsFromCoordinatesCoreAsync(
+            farmListName,
+            troopType,
+            troopCount,
+            requestedCount,
+            coordinates
+                .Where(coordinate => coordinate.X.HasValue && coordinate.Y.HasValue)
+                .Select(coordinate => new FarmCoordinate(coordinate.X!.Value, coordinate.Y!.Value))
+                .ToList(),
+            addedProgress,
+            null,
+            false,
+            cancellationToken);
+    }
+
+    public async Task<FarmAddBatchResult> AddFarmsFromCoordinatesAsync(
+        string farmListName,
+        string troopType,
+        int troopCount,
+        IReadOnlyList<FarmCoordinate> coordinates,
+        bool useDefaultTroops = false,
+        IProgress<FarmAddProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        LogFunctionStarted();
+        if (_config.IsPrivateServer)
+        {
+            throw new InvalidOperationException("Travco farm lists are only available on official servers.");
+        }
+
+        if (string.IsNullOrWhiteSpace(farmListName))
+        {
+            throw new InvalidOperationException("Farm list name is required.");
+        }
+
+        if (!useDefaultTroops && string.IsNullOrWhiteSpace(troopType))
+        {
+            throw new InvalidOperationException("Troop type is required.");
+        }
+
+        if (!useDefaultTroops && troopCount <= 0)
+        {
+            throw new InvalidOperationException("Troop count must be greater than 0.");
+        }
+
+        if (coordinates.Count <= 0)
+        {
+            throw new InvalidOperationException("At least one farm coordinate is required.");
+        }
+
+        await EnsureLoggedInAsync();
+        if (!await ReadGoldClubEnabledAsync(cancellationToken))
+        {
+            throw new InvalidOperationException("Gold Club is not enabled for this account.");
+        }
+
+        return await AddFarmsFromCoordinatesCoreAsync(
+            farmListName,
+            troopType,
+            troopCount,
+            coordinates.Count,
+            coordinates,
+            null,
+            progress,
+            useDefaultTroops,
+            cancellationToken);
+    }
+
+    private async Task<FarmAddBatchResult> AddFarmsFromCoordinatesCoreAsync(
+        string farmListName,
+        string troopType,
+        int troopCount,
+        int requestedCount,
+        IReadOnlyList<FarmCoordinate> coordinates,
+        IProgress<int>? addedProgress,
+        IProgress<FarmAddProgress>? progress,
+        bool useDefaultTroops,
+        CancellationToken cancellationToken)
+    {
         await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
         var lid = await TryResolveFarmListSlotIdByNameAsync(farmListName, cancellationToken);
         if (string.IsNullOrWhiteSpace(lid))
@@ -842,13 +932,23 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             throw new InvalidOperationException($"Could not find farm list '{farmListName}' on farm page.");
         }
 
-        var coordinates = await ReadNatarFarmCoordinatesCachedAsync(cancellationToken);
-        if (coordinates.Count <= 0)
+        var capacityLimit = requestedCount;
+        if (!_config.IsPrivateServer)
         {
-            throw new InvalidOperationException("Could not read any 'Natar farm village' coordinates from Natars profile.");
+            var currentFarmCount = await ReadOfficialFarmListFarmCountAsync(lid, cancellationToken);
+            if (!currentFarmCount.HasValue)
+            {
+                throw new InvalidOperationException($"Could not read the current farm count for '{farmListName}'.");
+            }
+
+            capacityLimit = Math.Max(0, OfficialFarmListCapacity - currentFarmCount.Value);
+            if (capacityLimit <= 0)
+            {
+                throw new InvalidOperationException($"Farm list '{farmListName}' is full (100/100).");
+            }
         }
 
-        var maxAttempts = Math.Min(requestedCount, coordinates.Count);
+        var maxAttempts = Math.Min(Math.Min(requestedCount, coordinates.Count), capacityLimit);
         Notify($"Starting add farms batch: requested={requestedCount}, available={coordinates.Count}, attempts={maxAttempts}.");
         var added = 0;
         var alreadyInList = 0;
@@ -857,20 +957,35 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         for (var i = 0; i < maxAttempts; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (!_config.IsPrivateServer)
+            {
+                var currentFarmCount = await ReadOfficialFarmListFarmCountAsync(lid, cancellationToken);
+                if (!currentFarmCount.HasValue)
+                {
+                    throw new InvalidOperationException($"Could not verify the current farm count for '{farmListName}'.");
+                }
+
+                if (currentFarmCount.Value >= OfficialFarmListCapacity)
+                {
+                    Notify($"[farm-list] '{farmListName}' reached 100/100; stopping before another Add target attempt.");
+                    break;
+                }
+            }
+
             var coordinate = coordinates[i];
             attempted++;
             var stepPrefix = $"[{attempted}/{maxAttempts}]";
 
-            await GotoAsync(Paths.FarmListBySlotId(lid), cancellationToken);
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening Add Raid form.", cancellationToken);
-            await EnsureLoggedInAsync();
+            await OpenAddRaidFormAsync(lid, cancellationToken);
 
             var saveOutcome = await TryFillAddRaidFormAndSaveAsync(
                 farmListName,
                 troopType.Trim(),
                 troopCount,
-                coordinate.X ?? 0,
-                coordinate.Y ?? 0,
+                coordinate.X,
+                coordinate.Y,
+                lid,
+                useDefaultTroops,
                 cancellationToken);
 
             if (saveOutcome == AddRaidSaveOutcome.Added)
@@ -878,6 +993,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 added++;
                 addedProgress?.Report(added);
                 Notify($"{stepPrefix} Added farm ({coordinate.X}|{coordinate.Y}) to '{farmListName}'.");
+                progress?.Report(new FarmAddProgress(farmListName, attempted, maxAttempts, added));
                 continue;
             }
 
@@ -885,11 +1001,21 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             {
                 alreadyInList++;
                 Notify($"{stepPrefix} Farm ({coordinate.X}|{coordinate.Y}) is already in '{farmListName}' (This village is already in the selected farm list.).");
+                progress?.Report(new FarmAddProgress(farmListName, attempted, maxAttempts, added));
+                continue;
+            }
+
+            if (saveOutcome == AddRaidSaveOutcome.InvalidCoordinates)
+            {
+                failed++;
+                Notify($"{stepPrefix} Skipped ({coordinate.X}|{coordinate.Y}): there is no village at these coordinates.");
+                progress?.Report(new FarmAddProgress(farmListName, attempted, maxAttempts, added));
                 continue;
             }
 
             failed++;
             Notify($"{stepPrefix} Failed to save farm ({coordinate.X}|{coordinate.Y}) in '{farmListName}'.");
+            progress?.Report(new FarmAddProgress(farmListName, attempted, maxAttempts, added));
         }
 
         await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
@@ -900,6 +1026,25 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             added,
             alreadyInList,
             failed);
+    }
+
+    private async Task<int?> ReadOfficialFarmListFarmCountAsync(string lid, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return await _page.EvaluateAsync<int?>(
+            """
+            (listId) => {
+              const clean = (value) => (value || '')
+                .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+              const wrapper = Array.from(document.querySelectorAll('#rallyPointFarmList .farmListWrapper'))
+                .find(node => node.querySelector('.dragAndDrop[data-list]')?.getAttribute('data-list') === String(listId));
+              const match = clean(wrapper?.querySelector('td.addTarget')?.textContent).match(/(\d+)\s*\/\s*(\d+)/);
+              return match ? Number(match[1]) : null;
+            }
+            """,
+            lid);
     }
 
     public async Task<int> EnsureNatarFarmCacheAndReturnToFarmListAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
@@ -1387,6 +1532,8 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 RecordServerTime(dateHeader);
             }
         }, cancellationToken: cancellationToken);
+        
+        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         Notify($"[nav] GOTO done target='{url}' current='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
         InvalidateActiveConstructionsCache();
         await ActionPacer.FromOptions(_config, Notify).DelayAsync(
@@ -3741,6 +3888,59 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         cancellationToken.ThrowIfCancellationRequested();
     }
 
+    private async Task EnsureOfficialFarmListsExpandedAsync(CancellationToken cancellationToken)
+    {
+        if (_config.IsPrivateServer)
+        {
+            return;
+        }
+
+        var collapsedCount = await _page.EvaluateAsync<int>(
+            """
+            () => {
+              const collapsed = Array.from(document.querySelectorAll('#rallyPointFarmList .farmListWrapper.collapsed'));
+              for (const list of collapsed) {
+                const toggle = list.querySelector('.farmListHeader .expandCollapse');
+                toggle?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+              }
+              return collapsed.length;
+            }
+            """);
+        if (collapsedCount <= 0)
+        {
+            return;
+        }
+
+        Notify($"[farm-list] expanding {collapsedCount} Official farm list(s) to read target coordinates");
+        try
+        {
+            await _page.WaitForFunctionAsync(
+                """
+                () => {
+                  const clean = (value) => (value || '')
+                    .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+                  return Array.from(document.querySelectorAll('#rallyPointFarmList .farmListWrapper'))
+                    .every(list => {
+                      if (list.classList.contains('collapsed')) return false;
+                      const match = clean(list.querySelector('td.addTarget')?.textContent).match(/(\d+)\s*\/\s*(\d+)/);
+                      const expectedRows = match ? Number(match[1]) : 0;
+                      return list.querySelectorAll('tbody tr.slot').length >= expectedRows;
+                    });
+                }
+                """,
+                null,
+                new PageWaitForFunctionOptions { Timeout = 8000 });
+        }
+        catch (TimeoutException)
+        {
+            Notify("[farm-list] some Official farm lists did not expand within 8 seconds; reading available targets.");
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+    }
+
     private async Task EnsureRallyPointAndOpenSendTroopsPageAsync(CancellationToken cancellationToken, bool allowReuseCurrentPage)
     {
         if (allowReuseCurrentPage && await IsSendTroopsPageAsync(cancellationToken))
@@ -3863,6 +4063,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                   const capacityText = cleanNumericText(candidate.querySelector('td.addTarget')?.textContent);
                   const capacityMatch = capacityText.match(/(\d+)\s*\/\s*(\d+)/);
                   let total = capacityMatch ? Number(capacityMatch[1]) : statusTotal;
+                  let capacity = capacityMatch ? Number(capacityMatch[2]) : total;
 
                   const startButton = candidate.querySelector('button.startFarmList');
                   const startText = cleanNumericText(startButton?.textContent);
@@ -3873,16 +4074,31 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                     : renderedSlots.filter((row) => !row.classList.contains('disabled')).length;
 
                   if (!Number.isFinite(total) || total < 0) total = 0;
+                  if (!Number.isFinite(capacity) || capacity < total) capacity = total;
                   if (!Number.isFinite(active) || active < 0) active = 0;
                   if (renderedSlots.length === 0 && !startCountMatch && startButton && !startButton.classList.contains('disabled')) {
                     active = total;
                   }
                   if (total > 0 && active > total) active = total;
 
+                  const farmCoordinates = [];
+                  const seenCoordinates = new Set();
+                  for (const link of candidate.querySelectorAll('tbody tr.slot td.target a[href*="karte.php"]')) {
+                    const href = link.getAttribute('href') || '';
+                    const match = href.match(/[?&]x=(-?\d+).*?[?&]y=(-?\d+)/i);
+                    if (!match) continue;
+                    const key = `${Number(match[1])}|${Number(match[2])}`;
+                    if (seenCoordinates.has(key)) continue;
+                    seenCoordinates.add(key);
+                    farmCoordinates.push(key);
+                  }
+
                   return {
                     name,
                     activeFarmCount: active,
                     totalFarmCount: total,
+                    capacity,
+                    farmCoordinates,
                     timerText: '',
                     disabled: Number.isFinite(running) && running > 0,
                     lid
@@ -4031,7 +4247,9 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 ActiveFarmCount: Math.Min(MaxFarmsPerFarmList, Math.Max(0, row.ActiveFarmCount ?? 0)),
                 TotalFarmCount: Math.Min(MaxFarmsPerFarmList, Math.Max(0, row.TotalFarmCount ?? 0)),
                 RemainingSeconds: ResolveFarmListRemainingSeconds(row.TimerText, row.Disabled),
-                ListId: string.IsNullOrWhiteSpace(row.Lid) ? null : row.Lid!.Trim()))
+                ListId: string.IsNullOrWhiteSpace(row.Lid) ? null : row.Lid!.Trim(),
+                Capacity: row.Capacity,
+                FarmCoordinates: row.FarmCoordinates ?? []))
             .ToList();
     }
 
@@ -4492,6 +4710,13 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
               const target = normalizeListName(targetName);
               if (!target) return null;
 
+              for (const wrapper of document.querySelectorAll('#rallyPointFarmList .farmListWrapper')) {
+                const name = normalizeListName(wrapper.querySelector('.farmListName .name')?.textContent);
+                if (name !== target) continue;
+                const listId = wrapper.querySelector('.dragAndDrop[data-list]')?.getAttribute('data-list');
+                if (listId) return listId;
+              }
+
               const tryReadListId = (root) => {
                 if (!root) return null;
                 const markAll = root.querySelector('input[id^="raidListMarkAll"]');
@@ -4531,16 +4756,73 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             farmListName);
     }
 
+    private async Task OpenAddRaidFormAsync(string lid, CancellationToken cancellationToken)
+    {
+        if (_config.IsPrivateServer)
+        {
+            await GotoAsync(Paths.FarmListBySlotId(lid), cancellationToken);
+        }
+        else
+        {
+            if (!await IsFarmListPageAsync(cancellationToken))
+            {
+                await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
+            }
+
+            var clicked = await _page.EvaluateAsync<bool>(
+                """
+                (listId) => {
+                  const wrapper = Array.from(document.querySelectorAll('#rallyPointFarmList .farmListWrapper'))
+                    .find(node => node.querySelector('.dragAndDrop[data-list]')?.getAttribute('data-list') === String(listId));
+                  const button = wrapper?.querySelector('td.addTarget a, td.addTarget button');
+                  if (!button) return false;
+                  button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                  return true;
+                }
+                """,
+                lid);
+            if (!clicked)
+            {
+                throw new InvalidOperationException($"Could not open Add target for farm list id {lid}.");
+            }
+
+            try
+            {
+                await _page.WaitForFunctionAsync(
+                    """
+                    () => {
+                      const inputs = Array.from(document.querySelectorAll('input:not([type="hidden"])'));
+                      const hasX = inputs.some(node => /(^|coord)x/i.test(node.name || node.id || ''));
+                      const hasY = inputs.some(node => /(^|coord)y/i.test(node.name || node.id || ''));
+                      return hasX && hasY;
+                    }
+                    """,
+                    null,
+                    new PageWaitForFunctionOptions { Timeout = 5000 });
+            }
+            catch (TimeoutException)
+            {
+                throw new InvalidOperationException($"Add target dialog for farm list id {lid} did not render.");
+            }
+        }
+
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening Add Raid form.", cancellationToken);
+        await EnsureLoggedInAsync();
+    }
+
     private async Task<AddRaidSaveOutcome> TryFillAddRaidFormAndSaveAsync(
         string farmListName,
         string troopType,
         int troopCount,
         int x,
         int y,
+        string lid,
+        bool useDefaultTroops,
         CancellationToken cancellationToken)
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared before filling Add Raid form.", cancellationToken);
-        var saved = await _page.EvaluateAsync<bool>(
+        var troopIndex = TroopCatalog.ResolveTroopIndex(troopType);
+        var filled = await _page.EvaluateAsync<bool>(
             """
             (args) => {
               const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
@@ -4554,17 +4836,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 return true;
               };
 
-              const all = document;
-              const buttons = Array.from(all.querySelectorAll('button, input[type="submit"], a'));
-              const saveButton = buttons.find(node => {
-                const text = `${node.textContent || ''} ${node.getAttribute('value') || ''} ${node.getAttribute('title') || ''}`.toLowerCase();
-                const cls = (node.className || '').toLowerCase();
-                const disabled = node.hasAttribute('disabled') || cls.includes('disabled');
-                return !disabled && (text.includes('save') || text.includes('spara'));
-              });
-              if (!saveButton) return false;
-
-              const root = saveButton.closest('form, .content, .box, #content') || document;
+              const root = document.querySelector('#farmListTargetForm') || document;
               const selects = Array.from(root.querySelectorAll('select'));
               const textInputs = Array.from(root.querySelectorAll('input:not([type="hidden"])'));
 
@@ -4582,18 +4854,37 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 return fallback;
               };
 
-              const xInput = findInput(['xcoord', 'coordx', 'x']);
-              const yInput = findInput(['ycoord', 'coordy', 'y']);
+              const xInput =
+                root.querySelector('input[name="x"], input[name="xCoord"], input[id*="xCoord" i]') ||
+                findInput(['xcoord', 'coordx', 'x']);
+              const yInput =
+                root.querySelector('input[name="y"], input[name="yCoord"], input[id*="yCoord" i]') ||
+                findInput(['ycoord', 'coordy', 'y']);
               if (!xInput || !yInput) return false;
+
+              const listSelect = root.querySelector('select[name="listId"]') ||
+                selects.find(select => Array.from(select.options || []).some(option => option.value === String(args.lid)));
+              if (listSelect && listSelect.value !== String(args.lid)) {
+                const option = Array.from(listSelect.options || []).find(opt => opt.value === String(args.lid));
+                if (!option) return false;
+                listSelect.value = option.value;
+                listSelect.dispatchEvent(new Event('input', { bubbles: true }));
+                listSelect.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+
               if (!setValue(xInput, args.x) || !setValue(yInput, args.y)) return false;
 
-              const listSelect = selects.find(select => Array.from(select.options || []).some(option => norm(option.textContent || '') === norm(args.farmListName)));
-              if (listSelect) {
-                const option = Array.from(listSelect.options || []).find(opt => norm(opt.textContent || '') === norm(args.farmListName));
+              const listSelectByName = selects.find(select => Array.from(select.options || []).some(option => norm(option.textContent || '') === norm(args.farmListName)));
+              if (!listSelect && listSelectByName) {
+                const option = Array.from(listSelectByName.options || []).find(opt => norm(opt.textContent || '') === norm(args.farmListName));
                 if (option) {
-                  listSelect.value = option.value;
-                  listSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                  listSelectByName.value = option.value;
+                  listSelectByName.dispatchEvent(new Event('change', { bubbles: true }));
                 }
+              }
+
+              if (args.useDefaultTroops) {
+                return true;
               }
 
               const troopSelect = selects.find(select => Array.from(select.options || []).some(option => norm(option.textContent || '') === norm(args.troopType)));
@@ -4609,7 +4900,8 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 if (node === xInput || node === yInput) return false;
                 const id = (node.id || '').toLowerCase();
                 const name = (node.getAttribute('name') || '').toLowerCase();
-                return id.includes('count') || id.includes('amount') || name.includes('count') || name.includes('amount');
+                return (args.troopIndex && (name === `t${args.troopIndex}` || id === `t${args.troopIndex}`))
+                  || id.includes('count') || id.includes('amount') || name.includes('count') || name.includes('amount');
               });
               if (!countInput) {
                 countInput = textInputs.find(node => node !== xInput && node !== yInput);
@@ -4617,7 +4909,6 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
               if (!countInput) return false;
               if (!setValue(countInput, args.troopCount)) return false;
 
-              saveButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
               return true;
             }
             """,
@@ -4626,16 +4917,128 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 farmListName,
                 troopType,
                 troopCount,
+                troopIndex,
+                lid,
+                useDefaultTroops,
                 x,
                 y,
             });
 
-        if (!saved)
+        if (!filled)
         {
             return AddRaidSaveOutcome.Failed;
         }
 
-        await Task.Delay(350, cancellationToken);
+        if (!_config.IsPrivateServer)
+        {
+            try
+            {
+                await _page.WaitForFunctionAsync(
+                    """
+                    (lid) => {
+                      const form = document.querySelector('#farmListTargetForm');
+                      const save = form?.querySelector('button.save, button[type="submit"]');
+                      const list = form?.querySelector('select[name="listId"]');
+                      const targetError = form?.querySelector(
+                        '.targetSelectionResultWrapper.hasError .targetSelectionValidation.show, ' +
+                        '.targetSelectionResultWrapper.hasError .customValidationRenderElement');
+                      const invalidCoordinates = !!targetError
+                        && (targetError.textContent || '').replace(/\s+/g, ' ').trim().length > 0;
+                      return invalidCoordinates || (!!save && !save.disabled && (!list || list.value === String(lid)));
+                    }
+                    """,
+                    lid,
+                    new PageWaitForFunctionOptions { Timeout = 5000 });
+            }
+            catch (TimeoutException)
+            {
+                Notify($"[farm-list] Add target form did not become ready for ({x}|{y}) in '{farmListName}'.");
+                return AddRaidSaveOutcome.Failed;
+            }
+        }
+
+        if (!_config.IsPrivateServer)
+        {
+            var invalidCoordinates = await _page.EvaluateAsync<bool>(
+                """
+                () => {
+                  const form = document.querySelector('#farmListTargetForm');
+                  const targetError = form?.querySelector(
+                    '.targetSelectionResultWrapper.hasError .targetSelectionValidation.show, ' +
+                    '.targetSelectionResultWrapper.hasError .customValidationRenderElement');
+                  return !!targetError
+                    && (targetError.textContent || '').replace(/\s+/g, ' ').trim().length > 0;
+                }
+                """);
+            if (invalidCoordinates)
+            {
+                await _page.EvaluateAsync(
+                    """
+                    () => {
+                      const form = document.querySelector('#farmListTargetForm');
+                      const cancel = form?.querySelector('.actionButtons button.cancel')
+                        || document.querySelector('.dialogCancelButton');
+                      if (cancel) cancel.click();
+                    }
+                    """);
+                try
+                {
+                    await _page.WaitForFunctionAsync(
+                        "() => !document.querySelector('#farmListTargetForm')",
+                        null,
+                        new PageWaitForFunctionOptions { Timeout = 3000 });
+                }
+                catch (TimeoutException)
+                {
+                    Notify($"[farm-list] Invalid Add target dialog remained open after skipping ({x}|{y}).");
+                }
+
+                return AddRaidSaveOutcome.InvalidCoordinates;
+            }
+        }
+
+        var clicked = await _page.EvaluateAsync<bool>(
+            """
+            () => {
+              const form = document.querySelector('#farmListTargetForm') || document;
+              const save = form.querySelector('button.save, button[type="submit"]');
+              if (!save || save.disabled) return false;
+              save.click();
+              return true;
+            }
+            """);
+        if (!clicked)
+        {
+            Notify($"[farm-list] Add target Save button was unavailable for ({x}|{y}) in '{farmListName}'.");
+            return AddRaidSaveOutcome.Failed;
+        }
+
+        if (!_config.IsPrivateServer)
+        {
+            try
+            {
+                await _page.WaitForFunctionAsync(
+                    """
+                    () => {
+                      const body = (document.body?.innerText || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                      if (body.includes('already in the selected farm list')) return true;
+                      return !document.querySelector('#farmListTargetForm');
+                    }
+                    """,
+                    null,
+                    new PageWaitForFunctionOptions { Timeout = 5000 });
+            }
+            catch (TimeoutException)
+            {
+                Notify($"[farm-list] Add target save did not finish for ({x}|{y}).");
+                return AddRaidSaveOutcome.Failed;
+            }
+        }
+        else
+        {
+            await Task.Delay(350, cancellationToken);
+        }
+
         await PauseForManualStepIfVisibleAsync("Manual verification appeared after saving new raid.", cancellationToken);
         await EnsureLoggedInAsync();
 
@@ -5088,6 +5491,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         Failed = 0,
         Added = 1,
         AlreadyInList = 2,
+        InvalidCoordinates = 3,
     }
 
     private sealed record ManualAttackSendResult(
@@ -5645,6 +6049,12 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
         [JsonPropertyName("totalFarmCount")]
         public int? TotalFarmCount { get; init; }
+
+        [JsonPropertyName("capacity")]
+        public int? Capacity { get; init; }
+
+        [JsonPropertyName("farmCoordinates")]
+        public string[]? FarmCoordinates { get; init; }
 
         [JsonPropertyName("timerText")]
         public string? TimerText { get; init; }

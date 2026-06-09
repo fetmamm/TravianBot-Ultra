@@ -207,7 +207,17 @@ public sealed record FarmListOverview(
     int ActiveFarmCount,
     int TotalFarmCount,
     int? RemainingSeconds,
-    string? ListId = null);
+    string? ListId = null,
+    int? Capacity = null,
+    IReadOnlyList<string>? FarmCoordinates = null);
+
+public sealed record FarmCoordinate(int X, int Y);
+
+public sealed record FarmAddProgress(
+    string FarmListName,
+    int ProcessedCount,
+    int TotalCount,
+    int AddedCount);
 
 public sealed record FarmAddResult(
     string FarmListName,
@@ -223,6 +233,24 @@ public sealed record FarmAddBatchResult(
     int AddedCount,
     int AlreadyInListCount,
     int FailedCount);
+
+public sealed record FarmListCreateRequest(
+    IReadOnlyList<string> Names,
+    string VillageName,
+    string? VillageId,
+    string TroopType,
+    int TroopCount);
+
+public sealed record FarmListCreateProgress(
+    string Phase,
+    int ProcessedCount,
+    int TotalCount,
+    string? FarmListName = null);
+
+public sealed record FarmListCreateBatchResult(
+    int RequestedCount,
+    int CreatedCount,
+    IReadOnlyList<string> CreatedNames);
 
 public sealed record ManualFarmRunResult(
     int TotalTargets,

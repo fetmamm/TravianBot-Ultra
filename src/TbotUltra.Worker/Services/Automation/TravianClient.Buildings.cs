@@ -9,22 +9,6 @@ namespace TbotUltra.Worker.Services;
 
 public sealed partial class TravianClient
 {
-    private async Task WaitForPostUpgradeClickPageLoadAsync(CancellationToken cancellationToken)
-    {
-        Notify("[build:verbose] waiting for post-upgrade-click page load (DOMContentLoaded)");
-        try
-        {
-            await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
-            Notify("[build:verbose] post-upgrade-click page load complete");
-        }
-        catch (Exception ex)
-        {
-            // Continue with the best available page state.
-            Notify($"[build:verbose] post-upgrade-click load wait failed (continuing): {ex.GetType().Name}: {ex.Message}");
-        }
-
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared after upgrade click.", cancellationToken);
-    }
 
     public async Task<VillageStatus> ReadBuildingsStatusAsync(CancellationToken cancellationToken = default)
     {
@@ -316,7 +300,7 @@ public sealed partial class TravianClient
             {
                 await AddPopulationToActiveVillageCacheAsync(popDelta, cancellationToken);
             }
-            await WaitForPostUpgradeClickPageLoadAsync(cancellationToken);
+            await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
             var postClickWaitSeconds = await ReadQueuedBuildingWaitSecondsAsync(buildingName, durationSeconds, cancellationToken);
             transientRetries = 0;
             var progress = await WaitForBuildingLevelAdvanceAsync(slotId, currentLevel, queueFingerprintBefore, cancellationToken);
@@ -1034,7 +1018,7 @@ public sealed partial class TravianClient
             {
                 await AddPopulationToActiveVillageCacheAsync(popDelta, cancellationToken);
             }
-            await WaitForPostUpgradeClickPageLoadAsync(cancellationToken);
+            await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
             var postClickWaitSeconds = await ReadQueuedBuildingWaitSecondsAsync(buildingName, durationSeconds, cancellationToken);
             transientRetries = 0;
             var progress = await WaitForBuildingLevelAdvanceAsync(slotId, currentLevel, queueFingerprintBefore, cancellationToken);

@@ -496,6 +496,65 @@ public sealed class BotTaskRunner
         return result ?? throw new InvalidOperationException("Could not add farms from Natars profile.");
     }
 
+    public async Task<FarmAddBatchResult> AddFarmsFromCoordinatesAsync(
+        BotOptions options,
+        string farmListName,
+        string troopType,
+        int troopCount,
+        IReadOnlyList<FarmCoordinate> coordinates,
+        bool useDefaultTroops,
+        Action<string> log,
+        string? accountName = null,
+        IProgress<FarmAddProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        FarmAddBatchResult? result = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                result = await client.AddFarmsFromCoordinatesAsync(
+                    farmListName,
+                    troopType,
+                    troopCount,
+                    coordinates,
+                    useDefaultTroops,
+                    progress,
+                    cancellationToken);
+            });
+
+        return result ?? throw new InvalidOperationException("Could not add farms from Travco list.");
+    }
+
+    public async Task<FarmListCreateBatchResult> CreateFarmListsAsync(
+        BotOptions options,
+        FarmListCreateRequest request,
+        Action<string> log,
+        string? accountName = null,
+        IProgress<FarmListCreateProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        FarmListCreateBatchResult? result = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                result = await client.CreateFarmListsAsync(request, progress, cancellationToken);
+            });
+
+        return result ?? throw new InvalidOperationException("Could not create farm lists.");
+    }
+
     public async Task<int> EnsureNatarFarmCacheAndReturnToFarmListAsync(
         BotOptions options,
         Action<string> log,
@@ -1964,6 +2023,8 @@ public sealed class BotTaskRunner
                         totalFarmCount = item.TotalFarmCount,
                         remainingSeconds = item.RemainingSeconds,
                         listId = item.ListId,
+                        capacity = item.Capacity,
+                        farmCoordinates = item.FarmCoordinates,
                     })
                     .ToList(),
             };

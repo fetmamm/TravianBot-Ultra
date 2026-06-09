@@ -52,6 +52,7 @@ Compatible with:
 - Send resources between own villages
 - Send reinforcements between own villages
 - Farming
+- Create multiple Official farmlists with selected village and default troops
 - Send catapult waves
 - Session pacing
 - Auto sleep
@@ -69,6 +70,12 @@ Add functionality so that the program can analyze inactive players from https://
 Add these to lists inside the program that can be sorted and added to travian farm lists.
 Compare already scanned villages to new ones and adjust the lists. 
 
+– +15% resource production for 8h automatic watch video
+– reduce adventure duration button / video watch
+– increase adventure to hard button / video watch
+– construct 25% faster button / video watch
+
+
 ## Known bugs:
 
 Please visit the [issues page](https://github.com/fetmamm/Tbot_ultra_new/issues) for known bugs or the [Discord channel](https://discord.gg/7bgzKy9sHK).
@@ -77,11 +84,17 @@ Please visit the [issues page](https://github.com/fetmamm/Tbot_ultra_new/issues)
 
 ## Download
 
-Goto the latest [Releases](../../releases) page:
+Goto the latest [Releases](../../releases) page and download:
 
 - **Portable** (`tbot-ultra-win-x64-...-portable.zip`)
 
-no installation: extract the zip and run `Tbot Ultra.exe` inside the folder.
+Extract the zip file
+
+Run `Tbot Ultra.exe` inside the extracted folder.
+
+Windows may show a SmartScreen or certificate warning because the application is not digitally signed. This is normal and does not indicate a virus or security issue.
+
+If prompted, click More info → Run anyway.
 
 Set up your account and server inside the app (**Account → Manage**)
 

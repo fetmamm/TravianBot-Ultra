@@ -142,11 +142,11 @@ public partial class MainWindow
         }
     }
 
-    private void SetFarmingFunctionRunning(bool running)
+    private void SetFarmingFunctionRunning(bool running, bool showCancelButton = true)
     {
         if (!Dispatcher.CheckAccess())
         {
-            _ = Dispatcher.BeginInvoke(() => SetFarmingFunctionRunning(running));
+            _ = Dispatcher.BeginInvoke(() => SetFarmingFunctionRunning(running, showCancelButton));
             return;
         }
 
@@ -159,8 +159,11 @@ public partial class MainWindow
 
             if (CancelFarmingOperationButton is not null)
             {
-                CancelFarmingOperationButton.Visibility = running ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
-                CancelFarmingOperationButton.IsEnabled = running;
+                var showButton = running && showCancelButton;
+                CancelFarmingOperationButton.Visibility = showButton
+                    ? System.Windows.Visibility.Visible
+                    : System.Windows.Visibility.Collapsed;
+                CancelFarmingOperationButton.IsEnabled = showButton;
             }
 
             UpdateExecutionStateIndicator();
