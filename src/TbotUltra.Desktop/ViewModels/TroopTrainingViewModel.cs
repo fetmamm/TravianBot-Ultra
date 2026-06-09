@@ -731,6 +731,23 @@ public sealed class TroopTrainingViewModel : BaseViewModel
         }
     }
 
+    public void ClearRuntimeTimers()
+    {
+        foreach (var option in Buildings)
+        {
+            option.QueueRemainingSeconds = null;
+            option.QueueStatusText = option.Exists
+                ? "Queue refresh requested."
+                : "Building not available in this village.";
+        }
+
+        AutoCelebrationRemainingSeconds = null;
+        AutoCelebrationCanStart = BreweryExists;
+        AutoCelebrationStatusText = BreweryExists
+            ? "Status refresh requested."
+            : "Brewery not available in this village.";
+    }
+
     public void ApplyBreweryCelebrationStatus(BreweryCelebrationStatus status)
     {
         AutoCelebrationCanStart = status.IsAvailableForTribe

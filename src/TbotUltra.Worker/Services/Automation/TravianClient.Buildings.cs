@@ -1113,6 +1113,7 @@ public sealed partial class TravianClient
             }
             await GotoAsync(url, cancellationToken);
             await PauseForManualStepIfVisibleAsync($"Manual verification on slot {slotId} construct page.", cancellationToken);
+            await EnsureExpectedConstructChoicePageAsync(slotId, gid, url, "construct", cancellationToken);
 
             // Step 2: read build duration.
             var durationSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken) ?? 0;
@@ -1123,19 +1124,12 @@ public sealed partial class TravianClient
             var clicked = await ClickConstructBuildingButtonAsync(gid, cancellationToken);
             if (!clicked)
             {
-                var waitAfterBusy = await WaitForConstructionSlotIfBusyAsync(ConstructionKind.Building, cancellationToken);
-                if (waitAfterBusy > 0)
-                {
-                    continue;
-                }
-
-                var existingProgress = await DetectConstructProgressAsync(slotId, gid, buildingName, queueFingerprintBefore, cancellationToken);
-                if (existingProgress.Started)
-                {
-                    return $"Queued {buildingName} in slot {slotId}. Evidence: {existingProgress.Evidence}.";
-                }
-
-                if (await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
+                // Classify the construct page before any queue/progress check navigates to dorf2.
+                // Otherwise a normal resource block is read from the wrong page and degrades into the
+                // misleading "could not find Construct building button" alarm.
+                var blockedByResources = await CurrentPageLooksBlockedByResourcesAsync(cancellationToken);
+                var missingRequirements = await ReadConstructRequirementErrorAsync(gid, cancellationToken);
+                if (blockedByResources)
                 {
                     var snapshot = await ReadUpgradeResourceWaitSnapshotAsync(
                         $"Building slot {slotId} construct {buildingName}",
@@ -1163,12 +1157,6 @@ public sealed partial class TravianClient
                     return BuildUpgradeResourceBlockedResultMessage(snapshot);
                 }
 
-                // Prerequisites gate: a building that is not yet buildable (e.g. Smithy needs Main Building 3
-                // + Academy 1) has no 'Construct building' button at all — Official lists the missing
-                // prerequisites in span.buildingCondition.error inside this gid's wrapper. Read it from the
-                // already-loaded construct page (no extra navigation) and return a clear, temporary
-                // "cannot be built yet" message instead of a misleading "could not find button" + artifacts.
-                var missingRequirements = await ReadConstructRequirementErrorAsync(gid, cancellationToken);
                 if (!string.IsNullOrWhiteSpace(missingRequirements))
                 {
                     // Temporary block: the building becomes available once the prerequisites are built.
@@ -1179,8 +1167,38 @@ public sealed partial class TravianClient
                     return $"Slot {slotId}: {buildingName} cannot be built yet. Missing requirements: {missingRequirements}. Upgrades performed: 0. queue_wait_seconds={waitSeconds}";
                 }
 
+                var waitAfterBusy = await WaitForConstructionSlotIfBusyAsync(ConstructionKind.Building, cancellationToken);
+                if (waitAfterBusy > 0)
+                {
+                    continue;
+                }
+
+                var existingProgress = await DetectConstructProgressAsync(slotId, gid, buildingName, queueFingerprintBefore, cancellationToken);
+                if (existingProgress.Started)
+                {
+                    return $"Queued {buildingName} in slot {slotId}. Evidence: {existingProgress.Evidence}.";
+                }
+
+                // Queue/progress verification navigates away from the construct page. Re-open and verify
+                // the exact slot/category before one final click attempt, covering transient redirects or
+                // a construct page that had not finished rendering on the first scan.
+                await EnsureExpectedConstructChoicePageAsync(
+                    slotId,
+                    gid,
+                    url,
+                    "construct retry",
+                    cancellationToken);
+                clicked = await ClickConstructBuildingButtonAsync(gid, cancellationToken);
+                if (clicked)
+                {
+                    Notify($"Slot {slotId}: construct button for gid {gid} found on verified retry.");
+                }
+            }
+
+            if (!clicked)
+            {
                 await CaptureFailureArtifactsAsync($"construct-slot-{slotId}-gid-{gid}-no-click", cancellationToken);
-                return $"Slot {slotId}: could not find 'Construct building' button for gid {gid}.";
+                return $"Slot {slotId}: verified construct page but could not find an actionable 'Construct building' button for gid {gid}.";
             }
 
             if (populationDelta is int popDelta)
@@ -4158,6 +4176,54 @@ public sealed partial class TravianClient
 
         throw new InvalidOperationException(
             $"{operationLabel} expected a build slot context, but required build controls were not found.");
+    }
+
+    private async Task EnsureExpectedConstructChoicePageAsync(
+        int slotId,
+        int gid,
+        string constructUrl,
+        string operationLabel,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; attempt <= 2; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var ready = false;
+            try
+            {
+                ready = await _page.EvaluateAsync<bool>(
+                    """
+                    ({ slotId, gid }) => {
+                      const match = window.location.href.match(/[?&]id=(\d+)/);
+                      const currentSlot = match ? Number(match[1]) : null;
+                      if (currentSlot !== slotId) return false;
+                      return !!document.querySelector(
+                        `#contract_building${gid}, #building${gid}, [data-gid="${gid}"], #contract_building, [id^="contract_building"]`
+                      );
+                    }
+                    """,
+                    new { slotId, gid });
+            }
+            catch (Exception ex) when (IsTransientExecutionContextException(ex))
+            {
+                Notify($"{operationLabel} construct-page verification hit transient navigation: {ex.Message}");
+            }
+
+            if (ready)
+            {
+                return;
+            }
+
+            Notify($"{operationLabel} expected construct choices for slot {slotId}/gid {gid}, but current url is '{_page.Url}'. Reopening attempt {attempt}/2.");
+            await GotoAsync(constructUrl, cancellationToken);
+            await EnsureLoggedInAsync();
+            await PauseForManualStepIfVisibleAsync(
+                $"Manual verification while reopening construct page for slot {slotId}.",
+                cancellationToken);
+        }
+
+        throw new InvalidOperationException(
+            $"{operationLabel} could not load the construct-choice page for slot {slotId}/gid {gid}; current url is '{_page.Url}'.");
     }
 
     private async Task<bool> WaitForBuildSlotContextAsync(int slotId, int timeoutMs, CancellationToken cancellationToken)

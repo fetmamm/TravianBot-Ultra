@@ -100,6 +100,18 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
 
 ## 4. Beslutslogg (ADR — append-only)
 
+- **2026-06-09** — **Construct klassificerar blockering innan navigerande verifiering.**
+  Vid utebliven construct-knapp lases resursbrist och krav medan den riktiga slot/category-sidan fortfarande
+  ar oppen. Ko-/progresskontroller far darefter navigera till `dorf2`; innan ett sista retry oppnas och
+  verifieras exakt construct-sida igen. Detta stoppar falska "could not find Construct building"-larm,
+  bland annat nar Barracks saknar en resurs.
+
+- **2026-06-09** — **Construction-ko och UI-status bevaras genom partiella refreshar.**
+  Current-page-resurslasningar utan bygg-DOM far inte skriva over en cachad aktiv byggko med noll.
+  `already queued`/`still in progress` klassas som ko-upptagning, sa resursrefresh inte nollstaller
+  flera timmar lang vantan. Running/paused construction raknas som aktiv UI-ko, och en queue-full-
+  deferred post far inte hindra senare construction i samma by fran att prova en annan ledig slot.
+
 - **2026-06-09** — **Automation använder inte dropdown-byn som implicit task-mål.**
   Continuous loop och Auto Queue rensar `TargetVillageName`/`TargetVillageUrl` från sina bas-options;
   endast taskens egen payload får styra bybyte. Loopens construction-statussync läser browserns aktuella
@@ -1226,3 +1238,7 @@ Rör bara **stateless parsing** — inte klick-/navigeringsordningen.
 - En ny förmåga ska kunna unit-testas till >50 % utan browser (parsing isolerad).
 - Inga nya rå `async void` / spridda CTS-fält.
 - God-klasserna ska **krympa eller stå still**, aldrig växa.
+- **2026-06-09** — Dashboardens `Function list` ersattes med `Clear timers`. Efter bekräftelse
+  nollställs vald bys uppskjutna task-tider och volatila aktivitetscache (inklusive serverns
+  avlästa byggkö), medan Queue-sidans poster behålls; en ledig session läser om status direkt
+  och en aktiv loop väcks för omläsning mellan tasks.

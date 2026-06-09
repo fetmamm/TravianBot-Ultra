@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using TbotUltra.Core.Configuration;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Worker;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
@@ -424,10 +425,21 @@ public partial class MainWindow
 
     private async Task RefreshConstructionStatusAsync(CancellationToken cancellationToken)
     {
-        var options = ApplySelectedVillageToOptions(LoadBotOptions());
-        var status = await ReadVillageStatusWithRetryAsync(options, cancellationToken, resourceOnly: false);
+        var options = AutomationExecutionOptions.WithoutImplicitVillageTarget(LoadBotOptions());
+        var status = await ReadVillageStatusWithRetryAsync(
+            options,
+            cancellationToken,
+            resourceOnly: false,
+            forceCurrentVillage: true);
         await Dispatcher.InvokeAsync(() =>
         {
+            SetActiveWorkingVillageFromStatus(status);
+            CacheVillageStatus(status);
+            if (!IsStatusForSelectedVillage(status))
+            {
+                return;
+            }
+
             _lastBuildingStatus = status;
             ApplyVillageStatusToUi(status);
             PopulateBuildingsTab(status);
@@ -446,13 +458,4 @@ public partial class MainWindow
             || IsBuildingMutationTask(taskName);
     }
 
-    // True when a construction defer message reflects a full build queue (no free slot) rather than
-    // missing resources. Used to tag the queue item so the resource-driven refresh leaves its timer
-    // alone instead of flashing "Ready" when resources happen to be sufficient.
-    private static bool IsBuildQueueFullDeferMessage(string? message)
-    {
-        return !string.IsNullOrWhiteSpace(message)
-            && (message.Contains("build queue full", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("blocked by queue", StringComparison.OrdinalIgnoreCase));
-    }
 }

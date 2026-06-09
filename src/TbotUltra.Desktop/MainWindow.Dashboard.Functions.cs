@@ -1,114 +1,162 @@
 using System;
-using System.Linq;
+using System.Threading;
 using System.Windows;
-using TbotUltra.Desktop.Models;
 using TbotUltra.Worker.Domain;
-using TbotUltra.Worker.Services;
 
 namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
-    private void DashboardFunctionListButton_Click(object sender, RoutedEventArgs e)
+    private async void DashboardClearTimersButton_Click(object sender, RoutedEventArgs e)
     {
-        var currentByGroup = _automationLoopTasks
-            .ToDictionary(item => item.TaskName, item => item, StringComparer.OrdinalIgnoreCase);
-        // NPC trade is controlled by the Auto settings master toggle + per-village choice, not as an
-        // Automation Loop group — exclude it from the Function list.
-        var orderedGroupKeys = QueueGroupCatalog.AllGroups
-            .Where(group => group != QueueGroup.NpcTrade)
-            .Select(QueueGroupCatalog.GetKey)
-            .ToList();
-        var selectableGroupKeys = orderedGroupKeys
-            .Where(groupKey =>
-                !string.Equals(groupKey, QueueGroupCatalog.GetKey(QueueGroup.BreweryCelebration), StringComparison.OrdinalIgnoreCase)
-                || IsTeutonsTribe(ResolveStoredTroopTrainingTribe()))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var options = orderedGroupKeys
-            .Select(groupKey =>
-            {
-                QueueGroupCatalog.TryParse(groupKey, out var group);
-                var isSelectable = selectableGroupKeys.Contains(groupKey);
-                return new DashboardFunctionOption
-                {
-                    Key = groupKey,
-                    Label = currentByGroup.TryGetValue(groupKey, out var current)
-                        ? current.Title
-                        : QueueGroupCatalog.GetTitle(group),
-                    IsVisible = isSelectable
-                        && currentByGroup.TryGetValue(groupKey, out var selected)
-                        && selected.IsVisible,
-                    IsSelectable = isSelectable,
-                };
-            })
-            .ToList();
-
-        var dialog = new DashboardFunctionListWindow(options)
+        var selectedVillageName = NormalizeVillageName(GetSelectedVillageName());
+        if (string.IsNullOrWhiteSpace(selectedVillageName))
         {
-            Owner = this,
-        };
-        if (dialog.ShowDialog() != true)
+            MessageBox.Show(
+                this,
+                "Select a village before clearing timers.",
+                "Clear timers",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        var confirmation = MessageBox.Show(
+            this,
+            $"Clear cached timers and request fresh status reads for '{selectedVillageName}'?\n\nQueue page items will not be removed.",
+            "Clear timers",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+        if (confirmation != MessageBoxResult.Yes)
         {
             return;
         }
 
-        var selectedGroupNames = dialog.SelectedVisibility
-            .Where(item => item.Value)
-            .Select(item => item.Key)
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var resetQueueItems = ResetSelectedVillageDeferredTimers(selectedVillageName);
+        ClearSelectedVillageRuntimeTimerCache(selectedVillageName);
+        RefreshQueueUi();
+        RefreshVillageActivityIndicatorsOnDashboard();
+        UpdateAutomationLoopRunningIndicators();
 
-        _suppressAutomationLoopConfigWrite = true;
+        var loopRunning = _autoQueueRunning || (_loopTask is not null && !_loopTask.IsCompleted);
+        if (loopRunning)
+        {
+            Interlocked.Exchange(ref _continuousLoopWakeRequested, 1);
+            AppendLog(
+                $"Cleared timers for village '{selectedVillageName}' ({resetQueueItems} deferred queue item(s)); " +
+                "the running automation loop will refresh status.");
+            return;
+        }
+
+        if (!_isLoggedIn || !_browserSessionLikelyOpen || _uiBusy)
+        {
+            AppendLog(
+                $"Cleared timers for village '{selectedVillageName}' ({resetQueueItems} deferred queue item(s)); " +
+                "status will refresh on the next automation run.");
+            return;
+        }
+
+        ToggleUiBusy(true);
         try
         {
-            _automationLoopTasks.Clear();
-            foreach (var groupKey in orderedGroupKeys)
-            {
-                if (!QueueGroupCatalog.TryParse(groupKey, out var group))
-                {
-                    continue;
-                }
+            var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            var status = await ReadVillageStatusWithRetryAsync(
+                options,
+                CancellationToken.None,
+                resourceOnly: false,
+                forceCurrentVillage: false);
 
-                var isSelectable = selectableGroupKeys.Contains(groupKey);
-                var isVisible = isSelectable && selectedGroupNames.Contains(groupKey);
-
-                if (currentByGroup.TryGetValue(groupKey, out var existing))
-                {
-                    _automationLoopTasks.Add(new LoopTaskOption
-                    {
-                        TaskName = existing.TaskName,
-                        Title = existing.Title,
-                        Description = existing.Description,
-                        IsEnabled = existing.IsEnabled && isVisible,
-                        IsVisible = isVisible,
-                        StateText = existing.StateText,
-                        DetailText = existing.DetailText,
-                        QueuedCount = existing.QueuedCount,
-                        RemainingSeconds = existing.RemainingSeconds,
-                    });
-                    continue;
-                }
-
-                _automationLoopTasks.Add(new LoopTaskOption
-                {
-                    TaskName = groupKey,
-                    Title = QueueGroupCatalog.GetTitle(group),
-                    Description = QueueGroupCatalog.GetDescription(group),
-                    IsEnabled = false,
-                    IsVisible = isVisible,
-                    StateText = "Idle",
-                    DetailText = "No queued task.",
-                });
-            }
+            CacheVillageStatus(status, selectedVillageName);
+            SetActiveWorkingVillageFromStatus(status);
+            ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: true);
+            _resourcesViewModel.ApplyStorageForecasts(status);
+            _lastBuildingStatus = status;
+            PopulateBuildingsTab(status);
+            ApplyConstructionTimerFromStatus(status);
+            RefreshVillageActivityIndicatorsOnDashboard();
+            AppendLog(
+                $"Cleared timers and refreshed status for village '{selectedVillageName}' " +
+                $"({resetQueueItems} deferred queue item(s)).");
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Timers were cleared for village '{selectedVillageName}', but immediate status refresh failed: {ex.Message}");
         }
         finally
         {
-            _suppressAutomationLoopConfigWrite = false;
+            ToggleUiBusy(false);
+        }
+    }
+
+    private int ResetSelectedVillageDeferredTimers(string selectedVillageName)
+    {
+        var resetCount = 0;
+        var now = DateTimeOffset.UtcNow;
+
+        foreach (var item in _botService.GetQueueItemsForDisplay())
+        {
+            if (item.Status != QueueStatus.Pending || item.NextAttemptAt <= now)
+            {
+                continue;
+            }
+
+            var itemVillageName = NormalizeVillageName(GetQueueItemVillageName(item));
+            var belongsToSelectedVillage = string.Equals(
+                itemVillageName,
+                selectedVillageName,
+                StringComparison.OrdinalIgnoreCase);
+            var isAccountHeroTimer = string.IsNullOrWhiteSpace(itemVillageName) &&
+                                     item.Group == QueueGroup.Hero;
+            if (!belongsToSelectedVillage && !isAccountHeroTimer)
+            {
+                continue;
+            }
+
+            if (_botService.UpdateDeferredQueueItem(item.Id, item.Payload, TimeSpan.Zero))
+            {
+                resetCount++;
+            }
         }
 
-        UpdateAutomationLoopOrders();
-        RefreshAutomationLoopDashboardUi();
-        PersistAutomationLoopTasksToConfig();
+        return resetCount;
+    }
+
+    private void ClearSelectedVillageRuntimeTimerCache(string selectedVillageName)
+    {
+        _buildQueueRemainingSeconds = -1;
+        _buildQueueActiveCount = 0;
+        _buildQueueReachedZeroPendingCompletion = false;
+        _continuousLoopConstructionStatusNeedsSync = true;
+        _smithyUpgradeRemainingSeconds.Clear();
+        _troopTrainingViewModel.ClearRuntimeTimers();
+        _heroViewModel.AdventureStatusText = "Status refresh requested.";
+
+        if (_villageStatusCacheByName.TryGetValue(selectedVillageName, out var cachedStatus))
+        {
+            _villageStatusCacheByName[selectedVillageName] = ClearCachedActivityTimers(cachedStatus);
+        }
+
+        if (_lastBuildingStatus is not null &&
+            string.Equals(
+                NormalizeVillageName(_lastBuildingStatus.ActiveVillage),
+                selectedVillageName,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            _lastBuildingStatus = ClearCachedActivityTimers(_lastBuildingStatus);
+        }
+    }
+
+    private static VillageStatus ClearCachedActivityTimers(VillageStatus status)
+    {
+        return status with
+        {
+            BuildQueue = [],
+            IsBuildingInProgress = false,
+            ActiveBuildCount = 0,
+            BuildQueueRemainingSeconds = null,
+            BuildQueueRemainingText = string.Empty,
+            ActiveConstructions = [],
+        };
     }
 }

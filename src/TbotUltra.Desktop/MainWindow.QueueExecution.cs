@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using TbotUltra.Core.Configuration;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop;
@@ -213,7 +214,7 @@ public partial class MainWindow
                     // (RefreshDeferredConstructionWaitsAsync) doesn't resume a queue-full deferral
                     // the moment resources look sufficient, which caused a brief "Ready" flash
                     // before the worker re-deferred on the still-full build queue.
-                    updatedPayload[BotOptionPayloadKeys.UpgradeDeferReason] = IsBuildQueueFullDeferMessage(ex.Message)
+                    updatedPayload[BotOptionPayloadKeys.UpgradeDeferReason] = ConstructionQueueState.IsQueueOccupancyDeferMessage(ex.Message)
                         ? BotOptionPayloadKeys.UpgradeDeferReasonQueueFull
                         : BotOptionPayloadKeys.UpgradeDeferReasonResources;
                     payloadChanged = true;

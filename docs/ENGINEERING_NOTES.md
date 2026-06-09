@@ -111,6 +111,8 @@ For en ny dashboard-bool ska hela configkedjan uppdateras:
 - Async-handlers ska delegera till befintlig guarded async-hjalpare och logga ovantade fel.
 - Loop- och CTS-livscykel ska agas av `LoopController`; skapa inte nya spridda CTS-falt.
 - Dashboard-checkboxar foljer befintligt suppress-flagga + load/save-monster.
+- Dashboard `Clear timers` ar vald-by-scope: gor uppskjutna tasks korbara nu och rensar
+  volatila Construction/Smithy/Troops/Hero-timers, men tar aldrig bort Queue-sidans poster.
 - Ateranvand `SettingInfoIconStyle` for forklarande infoikoner.
 - Langre listor ska ligga i en begransad `ScrollViewer`, inte expandera resten av dashboarden.
 
@@ -132,10 +134,15 @@ eller sta still, inte vaxa.
 ### Byggnader och ko
 
 - Per-slot state fran kon maste alltid filtreras per vald by.
+- Partiella current-page-resurslasningar utan bygg-DOM far inte nollstalla en cachad aktiv byggko.
+- Construction-defer som betyder `queue full`, `already queued` eller `still in progress` ar ko-upptagning,
+  inte resursbrist; resursrefresh far inte aterstalla den vantan.
 - `BuildQueueIdentityFingerprint` far inte innehalla tickande countdown-text.
 - Resource upgrade-all ska returnera `queue_wait_seconds` direkt vid resursbrist.
 - Exkludera payment-knappen `Open shop` fran upgrade-/construct-kandidater.
 - Official tom slot identifieras via `#contract_building*` utan `Upgrade to level N`; anvand inte enbart `.upgradeButtonsContainer`.
+- Vid misslyckat construct-klick ska resursbrist och krav lasas innan ko-/progresskontroller som navigerar till `dorf2`.
+- Construct ska verifiera ratt `build.php?id=<slot>&category=<n>` och renderade `#contract_building*` fore klick.
 - Saknade byggkrav ar temporar defer, inte permanent failure.
 - `gid 13` ar Smithy; det finns ingen separat Armoury pa `gid 12`.
 

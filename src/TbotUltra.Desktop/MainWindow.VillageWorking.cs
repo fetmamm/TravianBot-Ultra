@@ -169,7 +169,8 @@ public partial class MainWindow
         {
             foreach (var item in _botService.GetQueueItemsForDisplay())
             {
-                if (item.Status != QueueStatus.Pending || !IsConstructionQueueTask(item.TaskName))
+                if (!ConstructionQueueState.IsActiveQueueStatus(item.Status)
+                    || !IsConstructionQueueTask(item.TaskName))
                 {
                     continue;
                 }
@@ -529,6 +530,8 @@ public partial class MainWindow
 
         if (_villageStatusCacheByName.TryGetValue(name, out var existing))
         {
+            status = ConstructionQueueState.PreserveKnownConstructionState(status, existing);
+
             if ((status.Buildings is null || status.Buildings.Count == 0) && existing.Buildings is { Count: > 0 })
             {
                 status = status with { Buildings = existing.Buildings };

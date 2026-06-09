@@ -166,7 +166,9 @@ public static class BotOptionsFactory
         BotOptions source,
         bool? headlessOverride = null,
         int? resourceUpgradeTargetLevelOverride = null,
-        string? natarVillageSelectionOverride = null)
+        string? natarVillageSelectionOverride = null,
+        string? targetVillageNameOverride = null,
+        string? targetVillageUrlOverride = null)
     {
         return new BotOptions
         {
@@ -263,8 +265,8 @@ public static class BotOptionsFactory
             ActionPacingClickMaxSeconds = source.ActionPacingClickMaxSeconds,
             ActionPacingLoopMinSeconds = source.ActionPacingLoopMinSeconds,
             ActionPacingLoopMaxSeconds = source.ActionPacingLoopMaxSeconds,
-            TargetVillageName = source.TargetVillageName,
-            TargetVillageUrl = source.TargetVillageUrl,
+            TargetVillageName = targetVillageNameOverride ?? source.TargetVillageName,
+            TargetVillageUrl = targetVillageUrlOverride ?? source.TargetVillageUrl,
             AllowGoldSpending = source.AllowGoldSpending,
             AllowSilverSpending = source.AllowSilverSpending,
             GoldLimit = source.GoldLimit,

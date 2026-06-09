@@ -631,12 +631,12 @@
                                                            TextAlignment="Center" />
                                             </Border>
                                         </StackPanel>
-                                        <Button x:Name="DashboardFunctionListButton"
+                                        <Button x:Name="DashboardClearTimersButton"
                                                 DockPanel.Dock="Right"
                                                 Height="30"
-                                                Content="Function list"
+                                                Content="Clear timers"
                                                 MinWidth="70"
-                                                Click="DashboardFunctionListButton_Click" />
+                                                Click="DashboardClearTimersButton_Click" />
                                         <StackPanel DockPanel.Dock="Right" Visibility="Collapsed">
                                             <Ellipse x:Name="AutomationLoopRunStateDot" Width="8" Height="8" Fill="{DynamicResource BorderMutedBrush}" />
                                             <TextBlock x:Name="AutomationLoopRunStateTextBlock" Text="Idle" />

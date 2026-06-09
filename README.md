@@ -124,6 +124,8 @@ The bot manages every village on the account from one **Dashboard → Village ov
   per-village choice in **Village settings** — it runs only when both are on.
 - **Switch village** moves the browser to the village selected in the dropdown; selecting a village in
   the dropdown only changes the view/queue context (it does not navigate).
+- **Clear timers** resets cached activity timers for the selected village and requests fresh status
+  reads without removing items from the Queue page.
 
 ---
 

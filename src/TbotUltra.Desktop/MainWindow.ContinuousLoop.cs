@@ -693,6 +693,13 @@ public partial class MainWindow
 
             if (item.NextAttemptAt > now)
             {
+                if (ConstructionQueueState.IsQueueOccupancyDeferred(item))
+                {
+                    // A queue-occupied item can be specific to this slot/building. Keep scanning this
+                    // village so another building or a Roman resource slot can fill a free server slot.
+                    continue;
+                }
+
                 // Strict queue order: if the next item in line is waiting (e.g. for resources),
                 // hold the whole Construction group instead of skipping ahead to build something
                 // queued later. The user wants the queue processed in order.
