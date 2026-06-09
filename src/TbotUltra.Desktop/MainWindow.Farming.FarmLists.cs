@@ -422,33 +422,49 @@ public partial class MainWindow
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
             if (!options.IsPrivateServer)
             {
-                await EnsureChromiumInstalledAsync();
-                var available = await RefreshFarmListsFromServerAsync(options, operationToken);
-                if (!available)
+                async Task<OfficialAddFarmsLoadResult> LoadOfficialAsync(CancellationToken cancellationToken)
                 {
-                    CompleteOperation(operationId, operationSw, "Gold Club is not active.");
-                    return;
-                }
-
-                var sourceLists = _travcoListStore.LoadAll()
-                    .Where(list => list.Rows.Any(row => row.Selected))
-                    .ToList();
-                if (sourceLists.Count == 0)
-                {
-                    AppDialog.Show(this, "No saved Travco lists with selected farms were found.", "Add farms", MessageBoxButton.OK, MessageBoxImage.Information);
-                    CompleteOperation(operationId, operationSw, "No saved Travco lists found.");
-                    return;
-                }
-
-                var targetLists = _farmLists
-                    .Select(item => new FarmListSelectionOption
+                    await EnsureChromiumInstalledAsync();
+                    var available = await RefreshFarmListsFromServerAsync(options, cancellationToken);
+                    if (!available)
                     {
-                        Name = item.Name,
-                        ActiveFarmCount = item.ActiveFarmCount,
-                        TotalFarmCount = item.TotalFarmCount,
-                        Capacity = _farmListCapacitiesByName.GetValueOrDefault(item.Name),
-                    })
-                    .ToList();
+                        return new OfficialAddFarmsLoadResult(
+                            false,
+                            "Gold Club is not active.",
+                            [],
+                            [],
+                            new HashSet<string>());
+                    }
+
+                    var sourceLists = _travcoListStore.LoadAll()
+                        .Where(list => list.Rows.Any(row => row.Selected))
+                        .ToList();
+                    if (sourceLists.Count == 0)
+                    {
+                        return new OfficialAddFarmsLoadResult(
+                            false,
+                            "No saved Travco lists with selected farms were found.",
+                            [],
+                            [],
+                            new HashSet<string>());
+                    }
+
+                    var targetLists = _farmLists
+                        .Select(item => new FarmListSelectionOption
+                        {
+                            Name = item.Name,
+                            ActiveFarmCount = item.ActiveFarmCount,
+                            TotalFarmCount = item.TotalFarmCount,
+                            Capacity = _farmListCapacitiesByName.GetValueOrDefault(item.Name),
+                        })
+                        .ToList();
+                    return new OfficialAddFarmsLoadResult(
+                        true,
+                        null,
+                        sourceLists,
+                        targetLists,
+                        new HashSet<string>(_analyzedFarmCoordinates, StringComparer.OrdinalIgnoreCase));
+                }
 
                 async Task<OfficialFarmAddRunResult> RunOfficialPlansAsync(
                     IReadOnlyList<OfficialFarmAddPlan> plans,
@@ -506,9 +522,7 @@ public partial class MainWindow
                 var officialDialog = new OfficialAddFarmsWindow(
                     ResolveCurrentTribeForFarming(),
                     LoadAddFarmsTroopCount(),
-                    sourceLists,
-                    targetLists,
-                    _analyzedFarmCoordinates,
+                    LoadOfficialAsync,
                     RunOfficialPlansAsync,
                     operationToken)
                 {
@@ -516,7 +530,22 @@ public partial class MainWindow
                 };
                 if (officialDialog.ShowDialog() != true || officialDialog.RunResult is null)
                 {
-                    CompleteOperation(operationId, operationSw, "Add farms canceled.");
+                    if (!string.IsNullOrWhiteSpace(officialDialog.LoadFailureMessage))
+                    {
+                        AppDialog.Show(
+                            this,
+                            officialDialog.LoadFailureMessage,
+                            "Add farms",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information);
+                    }
+
+                    CompleteOperation(
+                        operationId,
+                        operationSw,
+                        string.IsNullOrWhiteSpace(officialDialog.LoadFailureMessage)
+                            ? "Add farms canceled."
+                            : officialDialog.LoadFailureMessage);
                     return;
                 }
 

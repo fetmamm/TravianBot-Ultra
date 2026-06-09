@@ -4769,6 +4769,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
             }
 
+            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
             var clicked = await _page.EvaluateAsync<bool>(
                 """
                 (listId) => {
@@ -4786,15 +4787,15 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 throw new InvalidOperationException($"Could not open Add target for farm list id {lid}.");
             }
 
+            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
             try
             {
                 await _page.WaitForFunctionAsync(
                     """
                     () => {
-                      const inputs = Array.from(document.querySelectorAll('input:not([type="hidden"])'));
-                      const hasX = inputs.some(node => /(^|coord)x/i.test(node.name || node.id || ''));
-                      const hasY = inputs.some(node => /(^|coord)y/i.test(node.name || node.id || ''));
-                      return hasX && hasY;
+                      const form = document.querySelector('#farmListTargetForm');
+                      return !!form?.querySelector('input[name="x"]')
+                        && !!form?.querySelector('input[name="y"]');
                     }
                     """,
                     null,
@@ -4872,7 +4873,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 listSelect.dispatchEvent(new Event('change', { bubbles: true }));
               }
 
-              if (!setValue(xInput, args.x) || !setValue(yInput, args.y)) return false;
+              if (!setValue(xInput, args.x)) return false;
 
               const listSelectByName = selects.find(select => Array.from(select.options || []).some(option => norm(option.textContent || '') === norm(args.farmListName)));
               if (!listSelect && listSelectByName) {
@@ -4882,6 +4883,12 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                   listSelectByName.dispatchEvent(new Event('change', { bubbles: true }));
                 }
               }
+
+              if (args.pacedCoordinateInputs) {
+                return true;
+              }
+
+              if (!setValue(yInput, args.y)) return false;
 
               if (args.useDefaultTroops) {
                 return true;
@@ -4920,6 +4927,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 troopIndex,
                 lid,
                 useDefaultTroops,
+                pacedCoordinateInputs = !_config.IsPrivateServer,
                 x,
                 y,
             });
@@ -4927,6 +4935,31 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         if (!filled)
         {
             return AddRaidSaveOutcome.Failed;
+        }
+
+        if (!_config.IsPrivateServer)
+        {
+            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
+            var yInput = _page.Locator(
+                "#farmListTargetForm input[name=\"y\"], " +
+                "#farmListTargetForm input[name=\"yCoord\"], " +
+                "#farmListTargetForm input[id*=\"yCoord\" i]").First;
+            await yInput.FillAsync(y.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
+
+            if (!useDefaultTroops)
+            {
+                if (troopIndex is null)
+                {
+                    return AddRaidSaveOutcome.Failed;
+                }
+
+                var troopInput = _page.Locator(
+                    $"#farmListTargetForm input.unitAmount[name=\"t{troopIndex.Value}\"], " +
+                    $"#farmListTargetForm input[name=\"t{troopIndex.Value}\"]").First;
+                await troopInput.FillAsync(troopCount.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
+            }
         }
 
         if (!_config.IsPrivateServer)
@@ -4997,6 +5030,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             }
         }
 
+        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         var clicked = await _page.EvaluateAsync<bool>(
             """
             () => {

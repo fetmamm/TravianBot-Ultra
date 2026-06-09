@@ -12,6 +12,12 @@ namespace TbotUltra.Desktop;
 
 public sealed record OfficialFarmAddPlan(string TargetName, IReadOnlyList<FarmCoordinate> Coordinates);
 public sealed record OfficialFarmAddRunResult(int Requested, int Added, int Duplicates, int Failed);
+public sealed record OfficialAddFarmsLoadResult(
+    bool Ok,
+    string? Message,
+    IReadOnlyList<TravcoListStore.TravcoSavedList> SourceLists,
+    IReadOnlyList<FarmListSelectionOption> TargetLists,
+    IReadOnlySet<string> ExistingCoordinates);
 
 public partial class OfficialAddFarmsWindow : Window
 {
@@ -50,7 +56,8 @@ public partial class OfficialAddFarmsWindow : Window
         public event PropertyChangedEventHandler? PropertyChanged;
     }
 
-    private readonly IReadOnlySet<string> _existingCoordinates;
+    private IReadOnlySet<string> _existingCoordinates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    private readonly Func<CancellationToken, Task<OfficialAddFarmsLoadResult>> _loader;
     private readonly Func<
         IReadOnlyList<OfficialFarmAddPlan>,
         bool,
@@ -60,15 +67,15 @@ public partial class OfficialAddFarmsWindow : Window
         CancellationToken,
         Task<OfficialFarmAddRunResult>> _runner;
     private readonly CancellationTokenSource _runCts;
+    private bool _loaded;
 
     public OfficialFarmAddRunResult? RunResult { get; private set; }
+    public string? LoadFailureMessage { get; private set; }
 
     public OfficialAddFarmsWindow(
         string tribe,
         int defaultTroopCount,
-        IReadOnlyList<TravcoListStore.TravcoSavedList> sourceLists,
-        IReadOnlyList<FarmListSelectionOption> targetLists,
-        IReadOnlySet<string> existingCoordinates,
+        Func<CancellationToken, Task<OfficialAddFarmsLoadResult>> loader,
         Func<
             IReadOnlyList<OfficialFarmAddPlan>,
             bool,
@@ -80,43 +87,84 @@ public partial class OfficialAddFarmsWindow : Window
         CancellationToken externalToken)
     {
         InitializeComponent();
-        _existingCoordinates = existingCoordinates;
+        _loader = loader;
         _runner = runner;
         _runCts = CancellationTokenSource.CreateLinkedTokenSource(externalToken);
 
-        SourceListComboBox.ItemsSource = sourceLists
-            .Select(list => new SourceOption(list.Id, list.Name, list.Rows))
-            .Where(option => option.SelectedCount > 0)
-            .ToList();
-        TargetListsListBox.ItemsSource = targetLists
-            .Select(list => new TargetOption
-            {
-                Name = list.Name,
-                FarmCount = list.TotalFarmCount,
-                Capacity = Math.Min(OfficialFarmListCapacity, list.Capacity ?? OfficialFarmListCapacity),
-            })
-            .ToList();
         TroopTypeComboBox.ItemsSource = TroopCatalog.ResolveTroopTypesForTribe(tribe);
         AmountComboBox.ItemsSource = Enumerable.Range(1, OfficialFarmListCapacity);
         AmountComboBox.SelectedItem = OfficialFarmListCapacity;
         TroopCountTextBox.Text = Math.Max(1, defaultTroopCount).ToString(CultureInfo.InvariantCulture);
 
-        SourceListComboBox.SelectedIndex = SourceListComboBox.Items.Count > 0 ? 0 : -1;
         TroopTypeComboBox.SelectedIndex = TroopTypeComboBox.Items.Count > 0 ? 0 : -1;
-        if (TargetListsListBox.Items.Count > 0 && TargetListsListBox.Items[0] is TargetOption first)
-        {
-            first.IsChecked = true;
-        }
-
+        AddButton.IsEnabled = false;
         UpdateTroopControls();
         RefreshState();
+        Loaded += OnLoaded;
     }
 
     protected override void OnClosed(EventArgs e)
     {
+        Loaded -= OnLoaded;
         _runCts.Cancel();
         _runCts.Dispose();
         base.OnClosed(e);
+    }
+
+    private async void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        if (_loaded)
+        {
+            return;
+        }
+
+        _loaded = true;
+        LoadingOverlay.Show("Loading farmlists", "Analyzing current farmlists...");
+        try
+        {
+            var result = await _loader(_runCts.Token);
+            if (!result.Ok)
+            {
+                LoadFailureMessage = result.Message;
+                DialogResult = false;
+                Close();
+                return;
+            }
+
+            _existingCoordinates = result.ExistingCoordinates;
+            SourceListComboBox.ItemsSource = result.SourceLists
+                .Select(list => new SourceOption(list.Id, list.Name, list.Rows))
+                .Where(option => option.SelectedCount > 0)
+                .ToList();
+            TargetListsListBox.ItemsSource = result.TargetLists
+                .Select(list => new TargetOption
+                {
+                    Name = list.Name,
+                    FarmCount = list.TotalFarmCount,
+                    Capacity = Math.Min(OfficialFarmListCapacity, list.Capacity ?? OfficialFarmListCapacity),
+                })
+                .ToList();
+
+            SourceListComboBox.SelectedIndex = SourceListComboBox.Items.Count > 0 ? 0 : -1;
+            if (TargetListsListBox.Items.Count > 0 && TargetListsListBox.Items[0] is TargetOption first)
+            {
+                first.IsChecked = true;
+            }
+
+            LoadingOverlay.Hide();
+            RefreshState();
+        }
+        catch (OperationCanceledException)
+        {
+            DialogResult = false;
+            Close();
+        }
+        catch (Exception ex)
+        {
+            LoadFailureMessage = ex.Message;
+            DialogResult = false;
+            Close();
+        }
     }
 
     private void InputChanged(object sender, RoutedEventArgs e) => RefreshState();

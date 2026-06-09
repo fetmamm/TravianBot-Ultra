@@ -2,7 +2,7 @@
 
 > **Läs detta innan du ändrar selektorer, sökvägar eller serverlogik.**
 > En levande fil för konventioner, beslut och fallgropar. Fyll på löpande — lägg nya
-> rader i **Beslutslogg** och **Kända fallgropar** med datum. Håll den kort och konkret.
+> rader i **Beslutslogg** och **Kända fallgropar** med datum. Håll den kort och konkret på maximalt 300 rader.
 
 `AGENTS.md` och CLAUDE.md (instruktioner för AI-agenter), `README.md`.
 
@@ -123,7 +123,9 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   kan avbrytas. `Default` behåller trupperna som Official fyller från listans standardinställning; Worker
   verifierar exakt `listId`, fyller koordinaterna och väntar tills React aktiverat Save innan klick. Om
   `.targetSelectionResultWrapper.hasError` visas stängs dialogen, koordinaten loggas som överhoppad och
-  batchen fortsätter med nästa by.
+  batchen fortsätter med nästa by. Dialogen öppnas innan farmlistan analyseras och visar loading under
+  initial laddning samt under hela tilläggskörningen. Official Add target använder Settings-värdet för
+  Action pacing `Click` efter Add target, mellan X/Y-input och före Save.
 
 - **2026-06-09** — **Analyze farmlists läser Official React-markup.**
   Officiell Rally Point-farmlist använder `build.php?id=39&gid=16&tt=99` och renderar listor som

@@ -101,7 +101,7 @@
 
                             <TextBlock Text="Amount per list" VerticalAlignment="Center" />
                             <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                <RadioButton x:Name="FillModeRadioButton" Content="Fill to 100" IsChecked="True"
+                                <RadioButton x:Name="FillModeRadioButton" Content="Fill" IsChecked="True"
                                              Margin="0,0,14,0" Checked="InputChanged" />
                                 <RadioButton x:Name="AmountModeRadioButton" Content="Amount"
                                              Margin="0,0,10,0" Checked="InputChanged" />
