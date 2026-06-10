@@ -214,9 +214,14 @@ public partial class MainWindow
                     // (RefreshDeferredConstructionWaitsAsync) doesn't resume a queue-full deferral
                     // the moment resources look sufficient, which caused a brief "Ready" flash
                     // before the worker re-deferred on the still-full build queue.
-                    updatedPayload[BotOptionPayloadKeys.UpgradeDeferReason] = ConstructionQueueState.IsQueueOccupancyDeferMessage(ex.Message)
-                        ? BotOptionPayloadKeys.UpgradeDeferReasonQueueFull
-                        : BotOptionPayloadKeys.UpgradeDeferReasonResources;
+                    updatedPayload[BotOptionPayloadKeys.UpgradeDeferReason] =
+                        ConstructionQueueState.IsQueueOccupancyDeferMessage(ex.Message)
+                            ? BotOptionPayloadKeys.UpgradeDeferReasonQueueFull
+                            : ConstructionQueueState.IsConstructionInProgressDeferMessage(ex.Message)
+                                ? BotOptionPayloadKeys.UpgradeDeferReasonInProgress
+                                : BotOptionPayloadKeys.UpgradeDeferReasonResources;
+                    updatedPayload[BotOptionPayloadKeys.UpgradeDeferClassificationVersion] =
+                        ConstructionQueueState.CurrentDeferClassificationVersion;
                     payloadChanged = true;
 
                     if (string.Equals(
@@ -235,6 +240,18 @@ public partial class MainWindow
                             $"[construction] BUILD QUEUE FULL village='{villageName}'. " +
                             $"No more Construction will run in this village until the first active construction finishes. " +
                             $"Next retry: {FormatQueueServerTime(retryAt)} (in {queueWaitDelay.TotalSeconds:F0}s).");
+                    }
+                    else if (string.Equals(
+                        updatedPayload[BotOptionPayloadKeys.UpgradeDeferReason],
+                        BotOptionPayloadKeys.UpgradeDeferReasonInProgress,
+                        StringComparison.OrdinalIgnoreCase))
+                    {
+                        var villageName = NormalizeVillageName(GetQueueItemVillageName(item)) ?? "-";
+                        var retryAt = DateTimeOffset.UtcNow + queueWaitDelay;
+                        AppendLog(
+                            $"[construction-queue:verbose] in-progress defer classified " +
+                            $"id={item.Id} task='{item.TaskName}' village='{villageName}' mode={mode} " +
+                            $"retryAt='{FormatQueueServerTime(retryAt)}'; later construction remains eligible.");
                     }
                 }
 

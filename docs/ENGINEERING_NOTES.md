@@ -142,7 +142,12 @@ eller sta still, inte vaxa.
 - Per-slot state fran kon maste alltid filtreras per vald by.
 - Partiella current-page-resurslasningar utan bygg-DOM far inte nollstalla en cachad aktiv byggko.
 - Construction-defer som betyder `queue full`, `already queued` eller `still in progress` ar ko-upptagning,
-  inte resursbrist; resursrefresh far inte aterstalla den vantan.
+  inte resursbrist; resursrefresh far inte aterstalla den vantan. Endast verklig `queue full`/`blocked by
+  queue` far blockera hela byn. `already queued/still in progress` blockerar bara samma uppgift, sa senare
+  bygguppgifter kan anvanda en ledig Plus-slot. Queue-full retry synkas mot byns levande byggstatus.
+  Aldre defer-poster utan aktuell klassificeringsversion ska valideras om av Worker, men hogst en per by
+  nar en tidigare post redan har bekraftat full ko; annars orsakas en `dorf2`-reload per gammal post.
+- `load_buildings_snapshot` ar en lasning och far inte blockeras som ett bygge.
 - `BuildQueueIdentityFingerprint` far inte innehalla tickande countdown-text.
 - Resource upgrade-all ska returnera `queue_wait_seconds` direkt vid resursbrist.
 - Exkludera payment-knappen `Open shop` fran upgrade-/construct-kandidater.

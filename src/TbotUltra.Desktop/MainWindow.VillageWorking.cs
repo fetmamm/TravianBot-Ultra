@@ -528,6 +528,10 @@ public partial class MainWindow
             return;
         }
 
+        // Reconcile persisted queue-full deferrals from the live response before a partial-read merge can
+        // preserve older construction state. This lets a newly free Plus/normal slot wake the next task.
+        TriggerDeferredConstructionWaitRefresh(status, "village_status");
+
         // A "full" read brings buildings (or resource fields); a lightweight resource refresh does not.
         // Persist only on full reads so the durable structure is saved without thrashing the file every
         // 16s; lighter refreshes still update memory.

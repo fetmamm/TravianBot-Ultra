@@ -171,7 +171,7 @@ public partial class MainWindow
 
     private void TriggerDeferredConstructionWaitRefresh(VillageStatus status, string source)
     {
-        if (_deferredConstructionRefreshRunning || status.Resources.Count == 0)
+        if (_deferredConstructionRefreshRunning)
         {
             return;
         }
@@ -215,13 +215,66 @@ public partial class MainWindow
                 || string.Equals(itemVillage, statusVillage, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
+        var queueFullItems = deferredItems
+            .Where(ConstructionQueueState.IsQueueOccupancyDeferred)
+            .Where(item => statusVillage is not null
+                && NormalizeVillageName(GetQueueItemVillageName(item)) is string itemVillage
+                && string.Equals(itemVillage, statusVillage, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        var queueFullDelay = ConstructionQueueState.ResolveQueueFullRetryDelay(status, _travianPlusActive);
+        if (queueFullItems.Count > 0 && queueFullDelay is not null)
+        {
+            if (queueFullDelay == TimeSpan.Zero)
+            {
+                var now = DateTimeOffset.UtcNow;
+                var nextBlockedItem = queueFullItems.FirstOrDefault(item => item.NextAttemptAt > now)
+                    ?? queueFullItems.FirstOrDefault();
+                if (nextBlockedItem is not null
+                    && _botService.UpdateDeferredQueueItem(nextBlockedItem.Id, nextBlockedItem.Payload, TimeSpan.Zero))
+                {
+                    AppendLog(
+                        $"[construction-queue:verbose] live status released queue-full blocker " +
+                        $"id={nextBlockedItem.Id} task='{nextBlockedItem.TaskName}' village='{statusVillage ?? "-"}' " +
+                        $"active={status.ActiveBuildCount} plus={_travianPlusActive?.ToString() ?? "unknown"} source='{source}'.");
+                    AppendLog(
+                        $"[construction] BUILD SLOT AVAILABLE village='{statusVillage ?? "-"}'. " +
+                        $"Next queued construction will retry now.");
+                }
+            }
+            else
+            {
+                var updatedCount = 0;
+                foreach (var item in queueFullItems)
+                {
+                    var remainingSeconds = Math.Max(0, (int)Math.Ceiling((item.NextAttemptAt - DateTimeOffset.UtcNow).TotalSeconds));
+                    if (Math.Abs(remainingSeconds - queueFullDelay.Value.TotalSeconds) <= 5)
+                    {
+                        continue;
+                    }
+
+                    if (_botService.UpdateDeferredQueueItem(item.Id, item.Payload, queueFullDelay.Value))
+                    {
+                        updatedCount++;
+                    }
+                }
+
+                if (updatedCount > 0)
+                {
+                    var retryAt = DateTimeOffset.UtcNow + queueFullDelay.Value;
+                    AppendLog(
+                        $"[construction-queue:verbose] live status synchronized {updatedCount} queue-full blocker(s) " +
+                        $"village='{statusVillage ?? "-"}' active={status.ActiveBuildCount} " +
+                        $"plus={_travianPlusActive?.ToString() ?? "unknown"} retryAt='{FormatQueueServerTime(retryAt)}' source='{source}'.");
+                }
+            }
+        }
+
         foreach (var item in deferredItems)
         {
-            // Skip items deferred because the build queue was full (not resources). Their timer reflects
-            // a build slot freeing up; resuming them just because resources look sufficient causes a brief
-            // "Ready" flash before the worker re-defers on the still-full build queue.
-            if (item.Payload.TryGetValue(BotOptionPayloadKeys.UpgradeDeferReason, out var deferReason)
-                && string.Equals(deferReason, BotOptionPayloadKeys.UpgradeDeferReasonQueueFull, StringComparison.OrdinalIgnoreCase))
+            // Queue occupancy and an already-running construction are not resource waits. Keep their
+            // timers intact; the selector may skip an in-progress item and use another Plus slot.
+            if (ConstructionQueueState.IsQueueOccupancyDeferred(item)
+                || ConstructionQueueState.IsConstructionInProgressDeferred(item))
             {
                 continue;
             }

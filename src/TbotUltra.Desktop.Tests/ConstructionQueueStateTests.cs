@@ -10,11 +10,19 @@ public sealed class ConstructionQueueStateTests
     [Theory]
     [InlineData("Slot 20: build queue full. queue_wait_seconds=3600")]
     [InlineData("Slot 20 blocked by queue. queue_wait_seconds=3600")]
-    [InlineData("Slot 20: upgrade to level 5 already queued and still in progress. queue_wait_seconds=3600")]
-    [InlineData("Slot 20: upgrade toward max already queued and still in progress. queue_wait_seconds=3600")]
     public void IsQueueOccupancyDeferMessage_RecognizesQueueWaits(string message)
     {
         Assert.True(ConstructionQueueState.IsQueueOccupancyDeferMessage(message));
+    }
+
+    [Theory]
+    [InlineData("Slot 20: upgrade to level 5 already queued and still in progress. queue_wait_seconds=3600")]
+    [InlineData("Slot 20: upgrade toward max already queued and still in progress. queue_wait_seconds=3600")]
+    [InlineData("Slot 20: upgrade to level 5 queued and still in progress. queue_wait_seconds=3600")]
+    public void IsConstructionInProgressDeferMessage_RecognizesItemSpecificWaits(string message)
+    {
+        Assert.True(ConstructionQueueState.IsConstructionInProgressDeferMessage(message));
+        Assert.False(ConstructionQueueState.IsQueueOccupancyDeferMessage(message));
     }
 
     [Fact]
@@ -44,6 +52,30 @@ public sealed class ConstructionQueueStateTests
     }
 
     [Fact]
+    public void IsLegacyQueueOccupancyDeferred_RequiresCurrentClassificationVersion()
+    {
+        var legacy = CreateDeferredQueueFullItem("upgrade_building_to_level");
+        var current = CreateDeferredQueueFullItem("upgrade_building_to_level");
+        current.Payload[BotOptionPayloadKeys.UpgradeDeferClassificationVersion] =
+            ConstructionQueueState.CurrentDeferClassificationVersion;
+
+        Assert.True(ConstructionQueueState.IsLegacyQueueOccupancyDeferred(legacy));
+        Assert.False(ConstructionQueueState.IsLegacyQueueOccupancyDeferred(current));
+    }
+
+    [Fact]
+    public void ShouldLiveValidateLegacyQueueOccupancy_StopsAfterConfirmedVillageBlocker()
+    {
+        var legacy = CreateDeferredQueueFullItem("upgrade_building_to_level");
+        var confirmed = CreateDeferredQueueFullItem("upgrade_building_to_level");
+        confirmed.Payload[BotOptionPayloadKeys.UpgradeDeferClassificationVersion] =
+            ConstructionQueueState.CurrentDeferClassificationVersion;
+
+        Assert.True(ConstructionQueueState.ShouldLiveValidateLegacyQueueOccupancy(legacy, []));
+        Assert.False(ConstructionQueueState.ShouldLiveValidateLegacyQueueOccupancy(legacy, [confirmed]));
+    }
+
+    [Fact]
     public void BlocksAdditionalConstruction_ResourceWaitDoesNotBlockConstruction()
     {
         var resourceWait = new QueueItem
@@ -56,6 +88,48 @@ public sealed class ConstructionQueueStateTests
         };
 
         Assert.False(ConstructionQueueState.BlocksAdditionalConstruction(resourceWait));
+    }
+
+    [Fact]
+    public void IsConstructionInProgressDeferred_DoesNotBlockAdditionalConstruction()
+    {
+        var item = new QueueItem
+        {
+            TaskName = "upgrade_building_to_level",
+            Payload = new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.UpgradeDeferReason] = BotOptionPayloadKeys.UpgradeDeferReasonInProgress,
+            },
+        };
+
+        Assert.True(ConstructionQueueState.IsConstructionInProgressDeferred(item));
+        Assert.False(ConstructionQueueState.BlocksAdditionalConstruction(item));
+    }
+
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(1, true)]
+    public void ResolveQueueFullRetryDelay_FreeSlotRetriesImmediately(int activeBuildCount, bool plusActive)
+    {
+        var status = CreateStatus([], [], activeBuildCount, remainingSeconds: 900);
+
+        Assert.Equal(TimeSpan.Zero, ConstructionQueueState.ResolveQueueFullRetryDelay(status, plusActive));
+    }
+
+    [Fact]
+    public void ResolveQueueFullRetryDelay_FullQueueUsesLiveShortestTimer()
+    {
+        var status = CreateStatus([], [], activeBuildCount: 2, remainingSeconds: 900);
+
+        Assert.Equal(TimeSpan.FromSeconds(900), ConstructionQueueState.ResolveQueueFullRetryDelay(status, travianPlusActive: true));
+    }
+
+    [Fact]
+    public void ResolveQueueFullRetryDelay_FullQueueWithoutTimerKeepsExistingRetry()
+    {
+        var status = CreateStatus([], [], activeBuildCount: 1, remainingSeconds: null);
+
+        Assert.Null(ConstructionQueueState.ResolveQueueFullRetryDelay(status, travianPlusActive: false));
     }
 
     [Fact]

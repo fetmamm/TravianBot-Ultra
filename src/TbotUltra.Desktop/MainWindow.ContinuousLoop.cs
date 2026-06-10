@@ -696,15 +696,44 @@ public partial class MainWindow
             {
                 if (ConstructionQueueState.IsQueueOccupancyDeferred(item))
                 {
+                    if (ConstructionQueueState.ShouldLiveValidateLegacyQueueOccupancy(item, queueOccupancyBlockers))
+                    {
+                        AppendLoopPickVerbose(
+                            $"[construction-queue:verbose] legacy queue-full classification requires live validation " +
+                            $"id={item.Id} task='{item.TaskName}' village='{NormalizeVillageName(GetQueueItemVillageName(item)) ?? "-"}'; retrying now.",
+                            $"construction-legacy-queue-full:{item.Id}");
+                        return item;
+                    }
+
                     // The server queue is authoritative for the village. Keep the deferred item as a
                     // blocker so later tasks do not repeat the same live queue check before the first
                     // active construction completes.
                     queueOccupancyBlockers.Add(item);
+                    if (ConstructionQueueState.IsLegacyQueueOccupancyDeferred(item))
+                    {
+                        AppendLoopPickVerbose(
+                            $"[construction-queue:verbose] legacy queue-full validation suppressed " +
+                            $"id={item.Id} task='{item.TaskName}' village='{NormalizeVillageName(GetQueueItemVillageName(item)) ?? "-"}' " +
+                            $"because blockerId={queueOccupancyBlockers[0].Id} already confirms the village queue is full.",
+                            $"construction-legacy-queue-full-suppressed:{item.Id}:{queueOccupancyBlockers[0].Id}");
+                    }
                     LogConstructionQueueFullBlock(item, now);
                     var queueFullWaitSec = Math.Max(0, (item.NextAttemptAt - now).TotalSeconds);
                     skipReason =
                         $"group=Construction village='{NormalizeVillageName(GetQueueItemVillageName(item)) ?? "-"}' " +
                         $"build queue full; next retry {FormatQueueServerTime(item.NextAttemptAt)} ({queueFullWaitSec:F0}s)";
+                    continue;
+                }
+
+                if (ConstructionQueueState.IsConstructionInProgressDeferred(item))
+                {
+                    var inProgressWaitSec = Math.Max(0, (item.NextAttemptAt - now).TotalSeconds);
+                    AppendLoopPickVerbose(
+                        $"[construction-queue:verbose] in-progress item skipped " +
+                        $"id={item.Id} task='{item.TaskName}' village='{NormalizeVillageName(GetQueueItemVillageName(item)) ?? "-"}' " +
+                        $"waitSeconds={inProgressWaitSec:F0} retryAt='{FormatQueueServerTime(item.NextAttemptAt)}'; checking later construction.",
+                        $"construction-in-progress-skipped:{item.Id}:{item.NextAttemptAt.UtcTicks}");
+                    skipReason = $"group=Construction task='{item.TaskName}' already in progress; checking later construction";
                     continue;
                 }
 

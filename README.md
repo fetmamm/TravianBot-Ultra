@@ -126,6 +126,10 @@ The bot manages every village on the account from one **Dashboard → Village ov
   the dropdown only changes the view/queue context (it does not navigate).
 - **Clear timers** resets cached activity timers for the selected village and requests fresh status
   reads without removing items from the Queue page.
+- Construction queue waits are reconciled with live village status, so a newly free normal or Plus
+  building slot wakes the next queued construction instead of waiting on a stale timer.
+- A construction already running for one queued item no longer blocks later items from using the
+  second Travian Plus building slot.
 
 ---
 

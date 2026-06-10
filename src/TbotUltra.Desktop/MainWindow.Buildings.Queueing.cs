@@ -12,8 +12,7 @@ namespace TbotUltra.Desktop;
 public partial class MainWindow
 {
     private static bool IsBuildingMutationTask(string taskName) =>
-        string.Equals(taskName, "load_buildings_snapshot", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(taskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+        string.Equals(taskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
         || string.Equals(taskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase)
         || string.Equals(taskName, "construct_building", StringComparison.OrdinalIgnoreCase)
         || string.Equals(taskName, "demolish_building_to_level", StringComparison.OrdinalIgnoreCase);
