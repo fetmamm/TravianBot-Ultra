@@ -72,6 +72,20 @@ public sealed class MapAnalyzerService
 
             _log?.Invoke($"[map-oasis] map.sql saved to '{path}'.");
             _log?.Invoke("[map-oasis] parsing map.sql.");
+            var schema = MapOasisParser.DetectSchema(File.ReadLines(path).Take(50));
+            if (schema == MapOasisParser.MapSqlSchema.OfficialVillages)
+            {
+                throw new InvalidOperationException(
+                    "This server's map.sql contains villages only and does not include oasis landscape data. " +
+                    "Map oasis analysis is unavailable for this server format.");
+            }
+
+            if (schema == MapOasisParser.MapSqlSchema.Unknown)
+            {
+                throw new InvalidOperationException(
+                    "The downloaded map.sql format is not recognized and could not be analyzed safely.");
+            }
+
             var oases = MapOasisParser.Parse(
                 File.ReadLines(path),
                 includeOccupied,

@@ -77,4 +77,30 @@ public sealed class MapOasisParserTests
         Assert.Equal("Iron 50%", result[0].OasisType);
         Assert.Equal("Wood+Crop", result[1].OasisType);
     }
+
+    [Fact]
+    public void DetectSchema_RecognizesOfficialVillageOnlyFormat()
+    {
+        string[] lines =
+        [
+            "INSERT INTO `x_world` VALUES (82,-119,200,1,36264,'03',1519,'Player',181,'Alliance',630,NULL,FALSE,NULL,NULL,NULL);",
+        ];
+
+        Assert.Equal(
+            MapOasisParser.MapSqlSchema.OfficialVillages,
+            MapOasisParser.DetectSchema(lines));
+    }
+
+    [Fact]
+    public void DetectSchema_RecognizesLandscapeOasisFormat()
+    {
+        string[] lines =
+        [
+            "INSERT INTO `x_world` VALUES (-1,2,10,3,0,'Free oasis',0,'',0);",
+        ];
+
+        Assert.Equal(
+            MapOasisParser.MapSqlSchema.OasisLandscape,
+            MapOasisParser.DetectSchema(lines));
+    }
 }

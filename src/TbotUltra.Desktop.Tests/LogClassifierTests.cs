@@ -31,4 +31,13 @@ public sealed class LogClassifierTests
     {
         Assert.True(LogClassifier.IsVerbose(message));
     }
+
+    [Theory]
+    [InlineData("Removed 12/12 invalid coordinate(s) from Travco list 'Travco all pages_1'.")]
+    [InlineData("[travco] removed 12 invalid coordinate(s) from 'Travco all pages_1'.")]
+    [InlineData("Finished 'Inactive1': added=17, duplicates=0, invalid=12, failed=12.")]
+    public void IsExpectedFarmListResult_MatchesNormalOutcomeLines(string message)
+    {
+        Assert.True(LogClassifier.IsExpectedFarmListResult(message));
+    }
 }

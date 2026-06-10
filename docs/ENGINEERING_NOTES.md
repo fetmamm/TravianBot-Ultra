@@ -127,6 +127,8 @@ For en ny dashboard-bool ska hela configkedjan uppdateras:
   Travco-listor och Official-importens koordinatflode forblir kompatibla.
 - `map.sql`-parsern anvander kolumnerna `x`, `y`, `landscape`, `type` och `player_id`;
   endast `type == 3`, kanda landscape-ID:n och valda oastyper tas med.
+- Official `map.sql` kan vara village-only (`tileId,x,y,tribe,villageId,...`) utan landscape/oaser.
+  Det formatet ska identifieras och stoppas med tydligt fel; skapa aldrig en tom oaslista.
 
 ### Kvalitetsregel
 

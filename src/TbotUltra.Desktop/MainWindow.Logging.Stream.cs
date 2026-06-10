@@ -809,6 +809,11 @@ public partial class MainWindow
             return false;
         }
 
+        if (LogClassifier.IsExpectedFarmListResult(message))
+        {
+            return false;
+        }
+
         // Normal "defer and retry later" signals are NOT errors. The worker raises a
         // TaskWaitException (and embeds queue_wait_seconds=) when a task simply needs to wait —
         // e.g. build queue full, hero already dispatched, resources still accumulating. These would

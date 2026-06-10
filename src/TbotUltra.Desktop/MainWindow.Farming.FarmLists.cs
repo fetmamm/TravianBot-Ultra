@@ -566,10 +566,13 @@ public partial class MainWindow
                     return;
                 }
 
+                BusyOverlay.ShowCancel = false;
+                ShowBusyOverlay("Adding farms", "Finalizing farm list updates...");
                 await RefreshFarmListsFromServerAsync(options, operationToken);
                 var runResult = officialDialog.RunResult;
                 if (runResult.InvalidCoordinates.Count > 0)
                 {
+                    HideBusyOverlay();
                     var removeInvalid = AppDialog.Show(
                         this,
                         $"{runResult.InvalidCoordinates.Count} invalid village coordinate(s) were found.\n\n" +
@@ -588,6 +591,7 @@ public partial class MainWindow
                     }
                 }
 
+                HideBusyOverlay();
                 CompleteOperation(
                     operationId,
                     operationSw,
@@ -739,6 +743,7 @@ public partial class MainWindow
         }
         finally
         {
+            HideBusyOverlay();
             SetFarmingFunctionRunning(false);
             DisposeOperationCts();
         }

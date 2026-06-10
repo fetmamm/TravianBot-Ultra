@@ -206,6 +206,26 @@ public static class LogClassifier
             "[storage-refresh");
     }
 
+    public static bool IsExpectedFarmListResult(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        var value = message.ToLowerInvariant();
+        return (value.StartsWith("finished '", StringComparison.Ordinal)
+                && value.Contains("added=", StringComparison.Ordinal)
+                && value.Contains("duplicates=", StringComparison.Ordinal)
+                && value.Contains("invalid=", StringComparison.Ordinal)
+                && value.Contains("failed=", StringComparison.Ordinal))
+            || (value.Contains("removed ", StringComparison.Ordinal)
+                && value.Contains(" invalid coordinate(s)", StringComparison.Ordinal)
+                && value.Contains("travco list", StringComparison.Ordinal))
+            || (value.StartsWith("[travco] removed ", StringComparison.Ordinal)
+                && value.Contains(" invalid coordinate(s)", StringComparison.Ordinal));
+    }
+
     private static bool Contains(string haystack, params string[] needles)
     {
         foreach (var needle in needles)

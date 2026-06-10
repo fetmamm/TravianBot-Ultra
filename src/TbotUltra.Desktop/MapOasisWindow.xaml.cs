@@ -44,6 +44,12 @@ public partial class MapOasisWindow : Window
         try
         {
             var oases = await AnalyzeRequested(IncludeOccupiedCheckBox.IsChecked == true, selectedTypes);
+            if (oases.Count == 0)
+            {
+                SetStatus("No oases matched the selected filters. No list was created.");
+                return;
+            }
+
             var listName = OasisListNaming.CreateName(
                 selectedTypes,
                 _store.LoadAll().Select(list => list.Name));

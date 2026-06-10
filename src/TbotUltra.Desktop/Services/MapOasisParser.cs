@@ -5,6 +5,50 @@ namespace TbotUltra.Desktop.Services;
 
 public static class MapOasisParser
 {
+    public enum MapSqlSchema
+    {
+        Unknown,
+        OasisLandscape,
+        OfficialVillages,
+    }
+
+    public static MapSqlSchema DetectSchema(IEnumerable<string> lines)
+    {
+        ArgumentNullException.ThrowIfNull(lines);
+
+        foreach (var line in lines)
+        {
+            if (!TryParseValues(line, out var values))
+            {
+                continue;
+            }
+
+            if (values.Count >= 16
+                && TryParseInt(values[0], out _)
+                && TryParseInt(values[1], out var officialX)
+                && TryParseInt(values[2], out var officialY)
+                && officialX is >= -1000 and <= 1000
+                && officialY is >= -1000 and <= 1000)
+            {
+                return MapSqlSchema.OfficialVillages;
+            }
+
+            if (values.Count >= 7
+                && TryParseInt(values[0], out var x)
+                && TryParseInt(values[1], out var y)
+                && TryParseInt(values[2], out var landscape)
+                && TryParseInt(values[3], out var type)
+                && x is >= -1000 and <= 1000
+                && y is >= -1000 and <= 1000
+                && (type == 3 || TryMapLandscape(landscape, out _, out _)))
+            {
+                return MapSqlSchema.OasisLandscape;
+            }
+        }
+
+        return MapSqlSchema.Unknown;
+    }
+
     public static List<OasisInfo> Parse(
         IEnumerable<string> lines,
         bool includeOccupied,
