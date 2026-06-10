@@ -1236,6 +1236,27 @@ public sealed class BotTaskRunner
             });
     }
 
+    // Reloads the page the browser is currently on (no navigation), used by the continuous loop's
+    // idle keep-alive to stop the Travian page from going stale and showing wrong values.
+    public async Task RefreshCurrentPageAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                await client.RefreshCurrentPageAsync(cancellationToken);
+            });
+    }
+
     public async Task<HeroAdventureDispatchResult> SendHeroOnAdventureAsync(
         BotOptions options,
         Action<string> log,

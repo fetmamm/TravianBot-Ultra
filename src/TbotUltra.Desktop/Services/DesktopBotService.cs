@@ -307,6 +307,11 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
             cancellationToken: cancellationToken);
     }
 
+    public Task RefreshCurrentPageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.RefreshCurrentPageAsync(options, log, accountName: null, cancellationToken: cancellationToken);
+    }
+
     public Task<InboxStatus> ReadInboxStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.ReadInboxStatusAsync(options, log, null, cancellationToken);

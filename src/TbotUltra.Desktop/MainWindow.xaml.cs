@@ -42,7 +42,7 @@ public partial class MainWindow : Window
     private const int MaxSessionLogFiles = 5;
     private const int ContinuousLoopMaxSleepSliceSeconds = 1;
     private const int ContinuousInboxCheckIntervalSeconds = 15;
-    private const int ContinuousKeepAliveIntervalSeconds = 120;
+    private const int ContinuousKeepAliveIntervalSeconds = 60;
     private const int NpcTradeGoldCost = 3;
     private const string RuntimeManualTaskPrefix = "desktop_runtime_manual";
 

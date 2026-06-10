@@ -235,6 +235,18 @@ public sealed partial class TravianClient
         Notify($"[WaitForPageReadyAsync] Page did not load after {attempts} attempts. Url='{_page.Url}'.");
     }
 
+    // Reloads whatever page the browser is currently on to keep a long-idle session fresh. This avoids
+    // Travian's own "auto-reload failed" stale state (a countdown that expired without reloading), which
+    // makes the page show wrong/old values. Re-verifies login after the reload.
+    public async Task RefreshCurrentPageAsync(CancellationToken cancellationToken = default)
+    {
+        Notify($"[keep-alive] refreshing current page to avoid a stale session. Url='{_page.Url}'");
+        await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded })
+            .WaitAsync(cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken);
+        await EnsureLoggedInAsync();
+    }
+
     // Login function
     public async Task LoginAsync(CancellationToken cancellationToken = default)
     {

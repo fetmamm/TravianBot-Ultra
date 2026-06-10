@@ -889,10 +889,10 @@ public partial class MainWindow
         _lastContinuousBrowserActivityUtc = DateTimeOffset.UtcNow;
     }
 
-    // Keep the Travian page from going stale while the loop is idle-waiting. If no task has
-    // navigated the browser for ContinuousKeepAliveIntervalSeconds, do one real navigation so the
-    // session stays live and the next status read happens on a fresh page. Throttled, so it never
-    // fires more than once per interval — not spammy.
+    // Keep the Travian page from going stale while the loop is idle-waiting. If no task has touched
+    // the browser for ContinuousKeepAliveIntervalSeconds (~1 min), reload the page the program is
+    // currently on so the session stays live and Travian never shows stale/wrong values. Throttled,
+    // so it never fires more than once per interval — not spammy.
     private async Task MaybeKeepBrowserFreshDuringContinuousLoopAsync(BotOptions options, CancellationToken token)
     {
         var now = DateTimeOffset.UtcNow;
@@ -905,12 +905,7 @@ public partial class MainWindow
 
         try
         {
-            await _botService.NavigateToVillageResourceFieldsAsync(
-                options,
-                _ => { },
-                GetSelectedVillageName(),
-                GetSelectedVillageUrl(),
-                token);
+            await _botService.RefreshCurrentPageAsync(options, _ => { }, token);
         }
         catch (OperationCanceledException)
         {
