@@ -141,8 +141,9 @@
         </Grid>
 
         <views:BusyOverlayControl x:Name="BusyOverlay"
-                                  ShowCancel="False"
+                                  ShowCancel="True"
                                   Title="Map oasis analyzer"
-                                  Text="Downloading and analyzing map.sql..." />
+                                  Text="Scanning the Travian map..."
+                                  Cancelled="BusyOverlay_Cancelled" />
     </Grid>
 </Window>

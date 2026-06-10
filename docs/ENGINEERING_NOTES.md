@@ -121,14 +121,16 @@ For en ny dashboard-bool ska hela configkedjan uppdateras:
   Queue-full-poster ar bara boolesk occupancy-fallback och far aldrig summeras som byggnader.
 - Ateranvand `SettingInfoIconStyle` for forklarande infoikoner.
 - Langre listor ska ligga i en begransad `ScrollViewer`, inte expandera resten av dashboarden.
-- Map Oasis Analyzer laser `{BaseUrl}/map.sql` via HTTP, cachar per server under
-  `Data/Maps/<host>/map.sql` och parsern ska forbli browserfri och enhetstestbar.
+- Map Oasis Analyzer anvander den inloggade Official-sessionens `POST /api/v1/map/position`
+  med zoom level 3. Skanningen serialiseras genom `BotTaskRunner`, har retry/pacing och parsern
+  ska forbli browserfri och enhetstestbar.
+- Skanningscheckpoint och senast kompletta resultat lagras konto-/serverspecifikt under
+  `config/accounts/<account>/cache/map-oasis/`; checkpoint ateranvands endast med samma filter.
 - Oaslistor ateranvander kontoavgransade `travco_lists.json`; oasfalt ar valfria sa aldre
   Travco-listor och Official-importens koordinatflode forblir kompatibla.
-- `map.sql`-parsern anvander kolumnerna `x`, `y`, `landscape`, `type` och `player_id`;
-  endast `type == 3`, kanda landscape-ID:n och valda oastyper tas med.
-- Official `map.sql` kan vara village-only (`tileId,x,y,tribe,villageId,...`) utan landscape/oaser.
-  Det formatet ska identifieras och stoppas med tydligt fel; skapa aldrig en tom oaslista.
+- Kartparsern tar endast `did == -1` med titel `{k.fo}` eller `{k.bt}` och tolkar bonusarna
+  `{a:r1}`-`{a:r4}` i tile-texten. `{k.bt}`/`uid` betyder occupied; okanda kombinationer ignoreras.
+- Official `map.sql` innehaller endast byar och far inte anvandas som oaskalla.
 
 ### Kvalitetsregel
 

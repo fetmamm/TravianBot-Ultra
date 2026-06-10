@@ -75,6 +75,24 @@ public static class AccountStoragePaths
         return Path.Combine(AccountDirectory(projectRoot, accountName), "travco_lists.json");
     }
 
+    public static string MapOasisCheckpointPath(string projectRoot, string accountName, string? serverUrl = null)
+    {
+        return Path.Combine(
+            AccountDirectory(projectRoot, accountName),
+            "cache",
+            "map-oasis",
+            $"{NormalizeServerKey(serverUrl)}.checkpoint.json");
+    }
+
+    public static string MapOasisCachePath(string projectRoot, string accountName, string? serverUrl = null)
+    {
+        return Path.Combine(
+            AccountDirectory(projectRoot, accountName),
+            "cache",
+            "map-oasis",
+            $"{NormalizeServerKey(serverUrl)}.json");
+    }
+
     // Per-account task queue. The queue used to be a single global config/queue.json shared by every
     // account; scoping it per account keeps one account's queued work from leaking into another.
     public static string AccountQueuePath(string projectRoot, string accountName)

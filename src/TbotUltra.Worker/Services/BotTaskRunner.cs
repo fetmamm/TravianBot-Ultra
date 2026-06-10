@@ -82,6 +82,47 @@ public sealed class BotTaskRunner
 
     public static IReadOnlyList<string> RegisteredTaskNames => TaskHandlers.Keys.ToList();
 
+    public async Task<IReadOnlyList<MapOasisEntry>> ScanMapOasesAsync(
+        BotOptions options,
+        bool includeOccupied,
+        IReadOnlyCollection<string> selectedTypes,
+        Action<string> log,
+        IProgress<MapOasisScanProgress>? progress,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<MapOasisEntry>? result = null;
+        try
+        {
+            await ExecuteWithClientAsync(
+                options,
+                log,
+                accountName,
+                interactive: true,
+                cancellationToken,
+                async client =>
+                {
+                    result = await client.ScanMapOasesAsync(
+                        includeOccupied,
+                        selectedTypes,
+                        progress,
+                        cancellationToken);
+                });
+        }
+        catch (OperationCanceledException)
+        {
+            log("[map-oasis] scan canceled.");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            log($"[map-oasis] scan failed: {ex}");
+            throw new InvalidOperationException($"Map oasis analysis failed: {ex.Message}", ex);
+        }
+
+        return result ?? [];
+    }
+
     public async Task ExecuteOnceAsync(
         BotOptions options,
         Action<string> log,

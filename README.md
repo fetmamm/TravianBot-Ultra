@@ -54,7 +54,7 @@ Compatible with:
 - Farming
 - Create multiple Official farmlists with selected village and default troops
 - Configure the Official Add Farms internal step delay in Settings (default 0.1-0.3 seconds)
-- Analyze `map.sql` oases by resource type and save them as reusable farm-source lists
+- Scan the authenticated Travian map for oases by resource type and save them as reusable farm-source lists
 - Send catapult waves
 - Session pacing
 - Auto sleep

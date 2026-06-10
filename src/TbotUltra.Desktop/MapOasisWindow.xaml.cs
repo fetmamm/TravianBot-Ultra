@@ -2,6 +2,7 @@ using System.Windows;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
 using TbotUltra.Desktop.ViewModels;
+using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop;
 
@@ -11,8 +12,9 @@ public partial class MapOasisWindow : Window
     private readonly Action<string>? _log;
     private readonly MapOasisViewModel _viewModel = new();
     private bool _busy;
+    private CancellationTokenSource? _runCts;
 
-    public Func<bool, List<string>, Task<List<OasisInfo>>>? AnalyzeRequested { get; init; }
+    public Func<bool, List<string>, IProgress<MapOasisScanProgress>, CancellationToken, Task<List<OasisInfo>>>? AnalyzeRequested { get; init; }
 
     public MapOasisWindow(TravcoListStore store, Action<string>? log)
     {
@@ -40,10 +42,21 @@ public partial class MapOasisWindow : Window
         }
 
         SetBusy(true);
-        BusyOverlay.Show("Analyze map oasis", "Downloading and analyzing map.sql...");
+        _runCts = new CancellationTokenSource();
+        BusyOverlay.Show("Analyze map oasis", "Scanning the Travian map...");
         try
         {
-            var oases = await AnalyzeRequested(IncludeOccupiedCheckBox.IsChecked == true, selectedTypes);
+            var progress = new Progress<MapOasisScanProgress>(value =>
+            {
+                var text = $"Scanning map area {value.CompletedAreas}/{value.TotalAreas} - {value.OasisCount} matching oases found.";
+                BusyOverlay.Text = text;
+                _viewModel.StatusText = text;
+            });
+            var oases = await AnalyzeRequested(
+                IncludeOccupiedCheckBox.IsChecked == true,
+                selectedTypes,
+                progress,
+                _runCts.Token);
             if (oases.Count == 0)
             {
                 SetStatus("No oases matched the selected filters. No list was created.");
@@ -72,6 +85,10 @@ public partial class MapOasisWindow : Window
             SetStatus($"Created '{listName}' with {oases.Count} oasis/oases.");
             _log?.Invoke($"[map-oasis] created oasis list '{listName}' with {oases.Count} row(s).");
         }
+        catch (OperationCanceledException)
+        {
+            SetStatus("Map oasis analysis was canceled.");
+        }
         catch (Exception ex)
         {
             SetStatus(ex.Message);
@@ -80,6 +97,8 @@ public partial class MapOasisWindow : Window
         {
             BusyOverlay.Hide();
             SetBusy(false);
+            _runCts?.Dispose();
+            _runCts = null;
         }
     }
 
@@ -130,6 +149,17 @@ public partial class MapOasisWindow : Window
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
+
+    private void BusyOverlay_Cancelled(object sender, EventArgs e)
+    {
+        _runCts?.Cancel();
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _runCts?.Cancel();
+        base.OnClosed(e);
+    }
 
     private List<string> GetSelectedTypes()
     {

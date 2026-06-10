@@ -57,6 +57,24 @@ public sealed class DesktopBotService : IDesktopBotService
         return _taskRunner.ExecuteOnceAsync(options, log, options.LoopTasks, null, cancellationToken);
     }
 
+    public Task<IReadOnlyList<MapOasisEntry>> ScanMapOasesAsync(
+        BotOptions options,
+        bool includeOccupied,
+        IReadOnlyCollection<string> selectedTypes,
+        Action<string> log,
+        IProgress<MapOasisScanProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        return _taskRunner.ScanMapOasesAsync(
+            options,
+            includeOccupied,
+            selectedTypes,
+            log,
+            progress,
+            null,
+            cancellationToken);
+    }
+
     public Task<bool> IsLoggedInAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.IsLoggedInAsync(options, log, null, cancellationToken);
