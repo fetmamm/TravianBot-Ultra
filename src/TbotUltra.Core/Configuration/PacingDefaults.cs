@@ -16,6 +16,8 @@ public static class PacingDefaults
     public const double ActionPacingClickMaxSeconds = 0.8;
     public const double ActionPacingLoopMinSeconds = 3.0;
     public const double ActionPacingLoopMaxSeconds = 8.0;
+    public const double FarmListStepDelayMinSeconds = 0.1;
+    public const double FarmListStepDelayMaxSeconds = 0.3;
 
     // Delay (ms) between internal clicks/steps in the auto-collect tasks/daily-quests flows only.
     public const int CollectStepDelayMinMs = 200;

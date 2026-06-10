@@ -217,7 +217,8 @@ public sealed record FarmAddProgress(
     string FarmListName,
     int ProcessedCount,
     int TotalCount,
-    int AddedCount);
+    int AddedCount,
+    int NotFoundCount);
 
 public sealed record FarmAddResult(
     string FarmListName,
@@ -232,7 +233,9 @@ public sealed record FarmAddBatchResult(
     int AttemptedCount,
     int AddedCount,
     int AlreadyInListCount,
-    int FailedCount);
+    int FailedCount,
+    int NotFoundCount = 0,
+    IReadOnlyList<FarmCoordinate>? InvalidCoordinates = null);
 
 public sealed record FarmListCreateRequest(
     IReadOnlyList<string> Names,

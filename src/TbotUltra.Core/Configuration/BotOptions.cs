@@ -314,6 +314,12 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingLoopMaxSeconds)]
     public double ActionPacingLoopMaxSeconds { get; init; } = PacingDefaults.ActionPacingLoopMaxSeconds;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.FarmListStepDelayMinSeconds)]
+    public double FarmListStepDelayMinSeconds { get; init; } = PacingDefaults.FarmListStepDelayMinSeconds;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.FarmListStepDelayMaxSeconds)]
+    public double FarmListStepDelayMaxSeconds { get; init; } = PacingDefaults.FarmListStepDelayMaxSeconds;
+
     [ConfigurationKeyName(BotOptionPayloadKeys.TargetVillageName)]
     public string TargetVillageName { get; init; } = string.Empty;
 

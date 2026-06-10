@@ -18,19 +18,28 @@ public sealed class ActionPacer
 
     public Task DelayAsync(double minSeconds, double maxSeconds, CancellationToken cancellationToken, string? reason = null)
     {
+        return DelayMillisecondsAsync(
+            (int)Math.Round(Math.Max(0, minSeconds) * 1000),
+            (int)Math.Round(Math.Max(0, maxSeconds) * 1000),
+            cancellationToken,
+            reason);
+    }
+
+    public Task DelayMillisecondsAsync(int minMilliseconds, int maxMilliseconds, CancellationToken cancellationToken, string? reason = null)
+    {
         if (!_enabled)
         {
             return Task.CompletedTask;
         }
 
-        var min = Math.Max(0, minSeconds);
-        var max = Math.Max(min, maxSeconds);
+        var min = Math.Max(0, minMilliseconds);
+        var max = Math.Max(min, maxMilliseconds);
         if (max <= 0)
         {
             return Task.CompletedTask;
         }
 
-        var delayMs = Random.Shared.Next((int)Math.Round(min * 1000), (int)Math.Round(max * 1000) + 1);
+        var delayMs = Random.Shared.Next(min, max + 1);
         if (delayMs <= 0)
         {
             return Task.CompletedTask;

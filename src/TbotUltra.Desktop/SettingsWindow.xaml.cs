@@ -177,6 +177,8 @@ public partial class SettingsWindow : Window
         ActionClickMaxTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingClickMaxSeconds, PacingDefaults.ActionPacingClickMaxSeconds));
         ActionLoopMinTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingLoopMinSeconds, PacingDefaults.ActionPacingLoopMinSeconds));
         ActionLoopMaxTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingLoopMaxSeconds, PacingDefaults.ActionPacingLoopMaxSeconds));
+        FarmListStepDelayMinTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.FarmListStepDelayMinSeconds, PacingDefaults.FarmListStepDelayMinSeconds));
+        FarmListStepDelayMaxTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.FarmListStepDelayMaxSeconds, PacingDefaults.FarmListStepDelayMaxSeconds));
 
         CollectStepDelayMinTextBox.Text = ReadInt(BotOptionPayloadKeys.CollectStepDelayMinMs, PacingDefaults.CollectStepDelayMinMs).ToString();
         CollectStepDelayMaxTextBox.Text = ReadInt(BotOptionPayloadKeys.CollectStepDelayMaxMs, PacingDefaults.CollectStepDelayMaxMs).ToString();
@@ -194,6 +196,13 @@ public partial class SettingsWindow : Window
         WriteDelayRange(BotOptionPayloadKeys.ActionPacingPageLoadMinSeconds, BotOptionPayloadKeys.ActionPacingPageLoadMaxSeconds, ActionPageLoadMinTextBox, ActionPageLoadMaxTextBox, PacingDefaults.ActionPacingPageLoadMinSeconds, PacingDefaults.ActionPacingPageLoadMaxSeconds);
         WriteDelayRange(BotOptionPayloadKeys.ActionPacingClickMinSeconds, BotOptionPayloadKeys.ActionPacingClickMaxSeconds, ActionClickMinTextBox, ActionClickMaxTextBox, PacingDefaults.ActionPacingClickMinSeconds, PacingDefaults.ActionPacingClickMaxSeconds);
         WriteDelayRange(BotOptionPayloadKeys.ActionPacingLoopMinSeconds, BotOptionPayloadKeys.ActionPacingLoopMaxSeconds, ActionLoopMinTextBox, ActionLoopMaxTextBox, PacingDefaults.ActionPacingLoopMinSeconds, PacingDefaults.ActionPacingLoopMaxSeconds);
+        WriteDelayRange(
+            BotOptionPayloadKeys.FarmListStepDelayMinSeconds,
+            BotOptionPayloadKeys.FarmListStepDelayMaxSeconds,
+            FarmListStepDelayMinTextBox,
+            FarmListStepDelayMaxTextBox,
+            PacingDefaults.FarmListStepDelayMinSeconds,
+            PacingDefaults.FarmListStepDelayMaxSeconds);
 
         // Collect step delay (ms). Clamp and keep max >= min so the worker always has a valid window.
         var collectMin = ReadIntText(CollectStepDelayMinTextBox, PacingDefaults.CollectStepDelayMinMs, 0, 5000);
@@ -217,6 +226,8 @@ public partial class SettingsWindow : Window
         ActionClickMaxTextBox.Text = FormatDelay(PacingDefaults.ActionPacingClickMaxSeconds);
         ActionLoopMinTextBox.Text = FormatDelay(PacingDefaults.ActionPacingLoopMinSeconds);
         ActionLoopMaxTextBox.Text = FormatDelay(PacingDefaults.ActionPacingLoopMaxSeconds);
+        FarmListStepDelayMinTextBox.Text = FormatDelay(PacingDefaults.FarmListStepDelayMinSeconds);
+        FarmListStepDelayMaxTextBox.Text = FormatDelay(PacingDefaults.FarmListStepDelayMaxSeconds);
         CollectStepDelayMinTextBox.Text = PacingDefaults.CollectStepDelayMinMs.ToString();
         CollectStepDelayMaxTextBox.Text = PacingDefaults.CollectStepDelayMaxMs.ToString();
     }

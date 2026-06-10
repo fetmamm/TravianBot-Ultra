@@ -1,0 +1,148 @@
+<Window x:Class="TbotUltra.Desktop.MapOasisWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:TbotUltra.Desktop.Views"
+        Title="Map oasis analyzer"
+        Width="1050"
+        Height="650"
+        MinWidth="850"
+        MinHeight="520"
+        Background="{DynamicResource AppBackgroundBrush}"
+        WindowStartupLocation="CenterOwner">
+    <Grid>
+        <Grid Margin="14">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0" Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="20" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <Button x:Name="AnalyzeButton"
+                            MinWidth="150"
+                            HorizontalAlignment="Left"
+                            Content="Analyze map oasis"
+                            Background="{DynamicResource AccentBrush}"
+                            BorderBrush="{DynamicResource AccentBrush}"
+                            Foreground="White"
+                            Click="AnalyzeButton_Click" />
+                    <CheckBox x:Name="IncludeOccupiedCheckBox"
+                              Margin="0,10,0,0"
+                              Content="Include occupied oases" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="Oasis types"
+                               Foreground="{DynamicResource TextMutedBrush}"
+                               Margin="0,0,0,6" />
+                    <WrapPanel>
+                        <CheckBox x:Name="WoodCheckBox" IsChecked="True" Content="Wood" Margin="0,0,18,6" />
+                        <CheckBox x:Name="ClayCheckBox" IsChecked="True" Content="Clay" Margin="0,0,18,6" />
+                        <CheckBox x:Name="IronCheckBox" IsChecked="True" Content="Iron" Margin="0,0,18,6" />
+                        <CheckBox x:Name="CropCheckBox" IsChecked="True" Content="Crop" Margin="0,0,18,6" />
+                        <CheckBox x:Name="WoodCropCheckBox" IsChecked="True" Content="Wood+Crop" Margin="0,0,18,6" />
+                        <CheckBox x:Name="ClayCropCheckBox" IsChecked="True" Content="Clay+Crop" Margin="0,0,18,6" />
+                        <CheckBox x:Name="IronCropCheckBox" IsChecked="True" Content="Iron+Crop" Margin="0,0,18,6" />
+                    </WrapPanel>
+                </StackPanel>
+            </Grid>
+
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="330" />
+                    <ColumnDefinition Width="12" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0"
+                        Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="10">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="Saved oasis lists"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   Margin="0,0,0,8" />
+                        <DataGrid x:Name="SavedListsDataGrid"
+                                  Grid.Row="1"
+                                  ItemsSource="{Binding SavedLists}"
+                                  SelectedItem="{Binding SelectedSavedList}"
+                                  AutoGenerateColumns="False"
+                                  CanUserAddRows="False"
+                                  CanUserDeleteRows="False"
+                                  IsReadOnly="True"
+                                  HeadersVisibility="Column"
+                                  GridLinesVisibility="Horizontal">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Name" Width="*" Binding="{Binding Name}" />
+                                <DataGridTextColumn Header="Oases" Width="70" Binding="{Binding VillageCount}" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                        <Grid Grid.Row="2" Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Content="Open" Click="OpenListButton_Click" />
+                            <Button Grid.Column="1" Margin="6,0,0,0" Content="Delete" Click="DeleteListButton_Click" />
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <Border Grid.Column="2"
+                        Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="8">
+                    <DataGrid x:Name="ResultsDataGrid"
+                              ItemsSource="{Binding Rows}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              IsReadOnly="True"
+                              HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Coordinates" Width="140" Binding="{Binding Coordinates}" />
+                            <DataGridTextColumn Header="Oasis type" Width="*" Binding="{Binding OasisType}" />
+                            <DataGridTextColumn Header="Occupied" Width="120" Binding="{Binding OccupiedText}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Border>
+            </Grid>
+
+            <Grid Grid.Row="2" Margin="0,12,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding StatusText}"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           VerticalAlignment="Center"
+                           TextWrapping="Wrap"
+                           Margin="0,0,12,0" />
+                <Button Grid.Column="1" Width="100" Content="Close" Click="CloseButton_Click" />
+            </Grid>
+        </Grid>
+
+        <views:BusyOverlayControl x:Name="BusyOverlay"
+                                  ShowCancel="False"
+                                  Title="Map oasis analyzer"
+                                  Text="Downloading and analyzing map.sql..." />
+    </Grid>
+</Window>

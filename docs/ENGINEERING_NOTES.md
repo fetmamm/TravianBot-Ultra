@@ -121,6 +121,12 @@ For en ny dashboard-bool ska hela configkedjan uppdateras:
   Queue-full-poster ar bara boolesk occupancy-fallback och far aldrig summeras som byggnader.
 - Ateranvand `SettingInfoIconStyle` for forklarande infoikoner.
 - Langre listor ska ligga i en begransad `ScrollViewer`, inte expandera resten av dashboarden.
+- Map Oasis Analyzer laser `{BaseUrl}/map.sql` via HTTP, cachar per server under
+  `Data/Maps/<host>/map.sql` och parsern ska forbli browserfri och enhetstestbar.
+- Oaslistor ateranvander kontoavgransade `travco_lists.json`; oasfalt ar valfria sa aldre
+  Travco-listor och Official-importens koordinatflode forblir kompatibla.
+- `map.sql`-parsern anvander kolumnerna `x`, `y`, `landscape`, `type` och `player_id`;
+  endast `type == 3`, kanda landscape-ID:n och valda oastyper tas med.
 
 ### Kvalitetsregel
 
@@ -148,6 +154,8 @@ eller sta still, inte vaxa.
   Aldre defer-poster utan aktuell klassificeringsversion ska valideras om av Worker, men hogst en per by
   nar en tidigare post redan har bekraftat full ko; annars orsakas en `dorf2`-reload per gammal post.
 - `load_buildings_snapshot` ar en lasning och far inte blockeras som ett bygge.
+- Construction-ko ska loggas per tillstandsandring och by, inte per blockerad ko-post. Behall klassificering,
+  vald retry och betydande timersynk; lyckad intern persistens och varje enskild blockerad kandidat ar brus.
 - `BuildQueueIdentityFingerprint` far inte innehalla tickande countdown-text.
 - Resource upgrade-all ska returnera `queue_wait_seconds` direkt vid resursbrist.
 - Exkludera payment-knappen `Open shop` fran upgrade-/construct-kandidater.
@@ -166,12 +174,21 @@ eller sta still, inte vaxa.
 - En transfer-dialog maste alltid stangas aktivt; kvarvarande `#dialogOverlay` blockerar senare klick.
 - Efter transfer ska samma build-slot invanta hydrerad DOM och vid behov laddas om en gang.
 - Noll adventures ska inte automatiskt stanga av anvandarens Hero-toggle.
+- Official Add target ska fylla X och Y som separata Playwright-interaktioner. Vid Default troops
+  ska koordinatfältet blur:as och en neutral yta i dialogen klickas innan flodet vantar pa aktiv Save.
+- Official Add target anvander konto-scopead `farm_list_step_delay_*_seconds` mellan interna steg;
+  standard ar 0,1-0,3 sekunder och installningen ligger under Action pacing/Loop.
+- Add Farms-progress ska visa lyckade tillagg separat fran kontrollerade och saknade koordinater.
+  Saknad by far inte rakna upp Added; Official live-count kontrolleras fore varje forsok for max 100.
+- Add Farms mal ar antal lyckade tillagg, inte antal forsok. Invalid/duplicate ska forbruka nasta
+  kandidat tills malet nas, listan blir full eller kallistan tar slut. Invalid kan rensas efter bekraftelse.
 
 ### UI, cache och loggning
 
 - Full village-status ska spara produktionssnapshot; tom ny data far inte skriva over bra cache.
 - Pause bevarar sessionens aterstaende pacing; endast Stop/reset nollstaller den.
 - Continuous toggle kan vara pa medan runner ar pausad; knappen ska da visa `Start bot`.
+- Huvudfonstrets gemensamma `BusyOverlay` ska alltid doljas i operationens `finally`, aven efter lyckad korning eller cancel.
 - Diagnostisk pacing loggas med `[pacing]`, men viktiga sleep/wake-handelser ska vara synliga i Clean mode.
 - Cached currency pa sidor utan valuta ar verbose; avsaknad av bade live- och cachevarde ar alarm.
 - Daily Quest-indikatorn kan vara stale; verifiera dialogen och refresha vid behov.

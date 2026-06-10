@@ -10,8 +10,20 @@ using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop;
 
-public sealed record OfficialFarmAddPlan(string TargetName, IReadOnlyList<FarmCoordinate> Coordinates);
-public sealed record OfficialFarmAddRunResult(int Requested, int Added, int Duplicates, int Failed);
+public sealed record OfficialFarmAddPlan(
+    Guid SourceListId,
+    string SourceListName,
+    string TargetName,
+    int DesiredCount,
+    IReadOnlyList<FarmCoordinate> Coordinates);
+public sealed record OfficialFarmAddRunResult(
+    int Requested,
+    int Added,
+    int Duplicates,
+    int Failed,
+    IReadOnlyList<FarmCoordinate> InvalidCoordinates,
+    Guid SourceListId = default,
+    string SourceListName = "");
 public sealed record OfficialAddFarmsLoadResult(
     bool Ok,
     string? Message,
@@ -67,6 +79,7 @@ public partial class OfficialAddFarmsWindow : Window
         CancellationToken,
         Task<OfficialFarmAddRunResult>> _runner;
     private readonly CancellationTokenSource _runCts;
+    private IReadOnlyList<string> _customTroopTypes = [];
     private bool _loaded;
 
     public OfficialFarmAddRunResult? RunResult { get; private set; }
@@ -91,12 +104,11 @@ public partial class OfficialAddFarmsWindow : Window
         _runner = runner;
         _runCts = CancellationTokenSource.CreateLinkedTokenSource(externalToken);
 
-        TroopTypeComboBox.ItemsSource = TroopCatalog.ResolveTroopTypesForTribe(tribe);
+        _customTroopTypes = TroopCatalog.ResolveTroopTypesForTribe(tribe);
         AmountComboBox.ItemsSource = Enumerable.Range(1, OfficialFarmListCapacity);
         AmountComboBox.SelectedItem = OfficialFarmListCapacity;
         TroopCountTextBox.Text = Math.Max(1, defaultTroopCount).ToString(CultureInfo.InvariantCulture);
 
-        TroopTypeComboBox.SelectedIndex = TroopTypeComboBox.Items.Count > 0 ? 0 : -1;
         AddButton.IsEnabled = false;
         UpdateTroopControls();
         RefreshState();
@@ -184,6 +196,8 @@ public partial class OfficialAddFarmsWindow : Window
         }
 
         var custom = IsCustomTroops();
+        TroopTypeComboBox.ItemsSource = custom ? _customTroopTypes : ["Default"];
+        TroopTypeComboBox.SelectedIndex = TroopTypeComboBox.Items.Count > 0 ? 0 : -1;
         TroopTypeComboBox.IsEnabled = custom;
         TroopCountTextBox.IsEnabled = custom;
     }
@@ -200,18 +214,28 @@ public partial class OfficialAddFarmsWindow : Window
             return;
         }
 
-        var total = plans.Sum(plan => plan.Coordinates.Count);
-        LoadingOverlay.Show("Adding farms", $"Adding 0/{total} villages");
+        var total = plans.Sum(plan => plan.DesiredCount);
+        LoadingOverlay.Show(
+            "Adding farms",
+            $"Added villages: 0/{total}\nCurrent list: -\nChecked: 0\nInvalid: 0");
         var progress = new Progress<FarmAddProgress>(value =>
         {
             LoadingOverlay.Text =
-                $"Adding {value.ProcessedCount}/{value.TotalCount} villages\n" +
-                $"Current list: {value.FarmListName}. Added: {value.AddedCount}.";
+                $"Added villages: {value.AddedCount}/{value.TotalCount}\n" +
+                $"Current list: {value.FarmListName}\n" +
+                $"Checked: {value.ProcessedCount}\n" +
+                $"Invalid: {value.NotFoundCount}";
         });
 
         try
         {
-            RunResult = await _runner(plans, useDefaultTroops, troopType, troopCount, progress, _runCts.Token);
+            var result = await _runner(plans, useDefaultTroops, troopType, troopCount, progress, _runCts.Token);
+            var source = (SourceOption)SourceListComboBox.SelectedItem;
+            RunResult = result with
+            {
+                SourceListId = source.Id,
+                SourceListName = source.Name,
+            };
             DialogResult = true;
             Close();
         }
@@ -246,7 +270,7 @@ public partial class OfficialAddFarmsWindow : Window
 
         var sourceCount = (SourceListComboBox.SelectedItem as SourceOption)?.SelectedCount ?? 0;
         var plans = BuildPlans();
-        var requested = plans.Sum(plan => plan.Coordinates.Count);
+        var requested = plans.Sum(plan => plan.DesiredCount);
         var selectedTargets = plans.Count;
         SourceCountTextBlock.Text = sourceCount.ToString(CultureInfo.InvariantCulture);
         SummaryTextBlock.Text =
@@ -288,7 +312,7 @@ public partial class OfficialAddFarmsWindow : Window
             var coordinates = OfficialFarmSelection.Filter(
                 source.Rows,
                 workingExisting,
-                amount,
+                source.Rows.Count,
                 order,
                 populationMode,
                 populationLimit,
@@ -299,10 +323,10 @@ public partial class OfficialAddFarmsWindow : Window
                 continue;
             }
 
-            plans.Add(new OfficialFarmAddPlan(target.Name, coordinates));
+            plans.Add(new OfficialFarmAddPlan(source.Id, source.Name, target.Name, amount, coordinates));
             if (SkipDuplicatesCheckBox.IsChecked == true)
             {
-                foreach (var coordinate in coordinates)
+                foreach (var coordinate in coordinates.Take(amount))
                 {
                     workingExisting.Add($"{coordinate.X}|{coordinate.Y}");
                 }

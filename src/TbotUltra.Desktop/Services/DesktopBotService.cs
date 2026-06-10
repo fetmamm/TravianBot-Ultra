@@ -92,9 +92,9 @@ public sealed class DesktopBotService : IDesktopBotService
         return _taskRunner.AddFarmsFromNatarsAsync(options, farmListName, troopType, troopCount, requestedCount, log, null, addedProgress, cancellationToken);
     }
 
-    public Task<FarmAddBatchResult> AddFarmsFromCoordinatesAsync(BotOptions options, string farmListName, string troopType, int troopCount, IReadOnlyList<FarmCoordinate> coordinates, bool useDefaultTroops, Action<string> log, IProgress<FarmAddProgress>? progress, CancellationToken cancellationToken)
+    public Task<FarmAddBatchResult> AddFarmsFromCoordinatesAsync(BotOptions options, string farmListName, string troopType, int troopCount, int requestedCount, IReadOnlyList<FarmCoordinate> coordinates, bool useDefaultTroops, Action<string> log, IProgress<FarmAddProgress>? progress, CancellationToken cancellationToken)
     {
-        return _taskRunner.AddFarmsFromCoordinatesAsync(options, farmListName, troopType, troopCount, coordinates, useDefaultTroops, log, null, progress, cancellationToken);
+        return _taskRunner.AddFarmsFromCoordinatesAsync(options, farmListName, troopType, troopCount, requestedCount, coordinates, useDefaultTroops, log, null, progress, cancellationToken);
     }
 
     public Task<FarmListCreateBatchResult> CreateFarmListsAsync(BotOptions options, FarmListCreateRequest request, Action<string> log, IProgress<FarmListCreateProgress>? progress, CancellationToken cancellationToken)

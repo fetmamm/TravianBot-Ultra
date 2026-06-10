@@ -118,6 +118,8 @@ public static class BotOptionsPayloadApplier
         var actionPacingClickMaxSeconds = source.ActionPacingClickMaxSeconds;
         var actionPacingLoopMinSeconds = source.ActionPacingLoopMinSeconds;
         var actionPacingLoopMaxSeconds = source.ActionPacingLoopMaxSeconds;
+        var farmListStepDelayMinSeconds = source.FarmListStepDelayMinSeconds;
+        var farmListStepDelayMaxSeconds = source.FarmListStepDelayMaxSeconds;
 
         if (payload is not null)
         {
@@ -898,6 +900,20 @@ public static class BotOptionsPayloadApplier
                     && double.TryParse(value, out var loopMax))
                 {
                     actionPacingLoopMaxSeconds = ClampDelaySeconds(loopMax);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.FarmListStepDelayMinSeconds, StringComparison.OrdinalIgnoreCase)
+                    && double.TryParse(value, out var farmListMin))
+                {
+                    farmListStepDelayMinSeconds = ClampDelaySeconds(farmListMin);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.FarmListStepDelayMaxSeconds, StringComparison.OrdinalIgnoreCase)
+                    && double.TryParse(value, out var farmListMax))
+                {
+                    farmListStepDelayMaxSeconds = ClampDelaySeconds(farmListMax);
                 }
             }
         }
@@ -999,6 +1015,8 @@ public static class BotOptionsPayloadApplier
             ActionPacingClickMaxSeconds = actionPacingClickMaxSeconds,
             ActionPacingLoopMinSeconds = actionPacingLoopMinSeconds,
             ActionPacingLoopMaxSeconds = actionPacingLoopMaxSeconds,
+            FarmListStepDelayMinSeconds = farmListStepDelayMinSeconds,
+            FarmListStepDelayMaxSeconds = Math.Max(farmListStepDelayMinSeconds, farmListStepDelayMaxSeconds),
             TargetVillageName = targetVillageName,
             TargetVillageUrl = targetVillageUrl,
             AllowGoldSpending = source.AllowGoldSpending,

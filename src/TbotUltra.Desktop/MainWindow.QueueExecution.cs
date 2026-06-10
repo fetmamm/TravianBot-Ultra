@@ -259,11 +259,11 @@ public partial class MainWindow
                 {
                     var payloadPersisted = _botService.UpdateDeferredQueueItem(item.Id, updatedPayload);
                     item.Payload = updatedPayload;
-                    if (IsConstructionQueueTask(item.TaskName))
+                    if (IsConstructionQueueTask(item.TaskName) && !payloadPersisted)
                     {
                         AppendLog(
-                            $"[construction-queue:verbose] defer payload persistence " +
-                            $"id={item.Id} task='{item.TaskName}' persisted={payloadPersisted} " +
+                            $"[construction-queue] construction payload persistence failed " +
+                            $"id={item.Id} task='{item.TaskName}' " +
                             $"reason='{updatedPayload.GetValueOrDefault(BotOptionPayloadKeys.UpgradeDeferReason, "-")}'");
                     }
                 }

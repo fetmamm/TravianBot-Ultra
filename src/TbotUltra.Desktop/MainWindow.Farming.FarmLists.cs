@@ -395,6 +395,7 @@ public partial class MainWindow
         }
         finally
         {
+            HideBusyOverlay();
             SetFarmingFunctionRunning(false);
             DisposeOperationCts();
         }
@@ -474,34 +475,40 @@ public partial class MainWindow
                     IProgress<FarmAddProgress> progress,
                     CancellationToken cancellationToken)
                 {
-                    var requested = plans.Sum(plan => plan.Coordinates.Count);
+                    var requested = plans.Sum(plan => plan.DesiredCount);
                     var processed = 0;
                     var added = 0;
                     var duplicates = 0;
                     var failed = 0;
+                    var notFound = 0;
+                    var invalidCoordinates = new List<FarmCoordinate>();
 
                     foreach (var plan in plans)
                     {
                         cancellationToken.ThrowIfCancellationRequested();
                         var processedBeforeList = processed;
                         var addedBeforeList = added;
+                        var notFoundBeforeList = notFound;
                         var aggregateProgress = new Progress<FarmAddProgress>(value =>
                         {
                             progress.Report(new FarmAddProgress(
                                 value.FarmListName,
                                 processedBeforeList + value.ProcessedCount,
                                 requested,
-                                addedBeforeList + value.AddedCount));
+                                addedBeforeList + value.AddedCount,
+                                notFoundBeforeList + value.NotFoundCount));
                         });
 
                         AppendLog(
-                            $"Add farms from Travco: target='{plan.TargetName}', requested={plan.Coordinates.Count}, " +
+                            $"Add farms from Travco: target='{plan.TargetName}', requested={plan.DesiredCount}, " +
+                            $"candidates={plan.Coordinates.Count}, " +
                             $"troops={(useDefaultTroops ? "default" : $"{troopCount} {troopType}")}.");
                         var result = await _botService.AddFarmsFromCoordinatesAsync(
                             options,
                             plan.TargetName,
                             troopType,
                             troopCount,
+                            plan.DesiredCount,
                             plan.Coordinates,
                             useDefaultTroops,
                             AppendLog,
@@ -511,12 +518,22 @@ public partial class MainWindow
                         added += result.AddedCount;
                         duplicates += result.AlreadyInListCount;
                         failed += result.FailedCount;
+                        notFound += result.NotFoundCount;
+                        invalidCoordinates.AddRange(result.InvalidCoordinates ?? []);
                         AppendLog(
                             $"Finished '{plan.TargetName}': added={result.AddedCount}, " +
-                            $"duplicates={result.AlreadyInListCount}, failed={result.FailedCount}.");
+                            $"duplicates={result.AlreadyInListCount}, invalid={result.NotFoundCount}, " +
+                            $"failed={result.FailedCount}.");
                     }
 
-                    return new OfficialFarmAddRunResult(requested, added, duplicates, failed);
+                    return new OfficialFarmAddRunResult(
+                        requested,
+                        added,
+                        duplicates,
+                        failed,
+                        invalidCoordinates
+                            .Distinct()
+                            .ToList());
                 }
 
                 var officialDialog = new OfficialAddFarmsWindow(
@@ -551,6 +568,26 @@ public partial class MainWindow
 
                 await RefreshFarmListsFromServerAsync(options, operationToken);
                 var runResult = officialDialog.RunResult;
+                if (runResult.InvalidCoordinates.Count > 0)
+                {
+                    var removeInvalid = AppDialog.Show(
+                        this,
+                        $"{runResult.InvalidCoordinates.Count} invalid village coordinate(s) were found.\n\n" +
+                        $"Remove them from Travco list '{runResult.SourceListName}'?",
+                        "Remove invalid villages",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question);
+                    if (removeInvalid == MessageBoxResult.Yes)
+                    {
+                        var removed = _travcoListStore.RemoveRowsByCoordinates(
+                            runResult.SourceListId,
+                            runResult.InvalidCoordinates);
+                        AppendLog(
+                            $"Removed {removed}/{runResult.InvalidCoordinates.Count} invalid coordinate(s) " +
+                            $"from Travco list '{runResult.SourceListName}'.");
+                    }
+                }
+
                 CompleteOperation(
                     operationId,
                     operationSw,

@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Threading;
 using TbotUltra.Core.Accounts;
+using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop.Services;
 
@@ -31,6 +32,8 @@ public sealed class TravcoListStore
         public long? Pop { get; set; }
         public string Coordinates { get; set; } = string.Empty;
         public bool Selected { get; set; } = true;
+        public string? OasisType { get; set; }
+        public bool? IsOccupied { get; set; }
     }
 
     private sealed class TravcoListFile
@@ -135,6 +138,39 @@ public sealed class TravcoListStore
         }
     }
 
+    public int RemoveRowsByCoordinates(Guid listId, IEnumerable<FarmCoordinate> coordinates)
+    {
+        ArgumentNullException.ThrowIfNull(coordinates);
+        var coordinateKeys = coordinates
+            .Select(coordinate => $"{coordinate.X}|{coordinate.Y}")
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (coordinateKeys.Count == 0)
+        {
+            return 0;
+        }
+
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+            var list = _cache.FirstOrDefault(candidate => candidate.Id == listId);
+            if (list is null)
+            {
+                return 0;
+            }
+
+            var removed = list.Rows.RemoveAll(row =>
+                TryNormalizeCoordinates(row.Coordinates, out var normalized)
+                && coordinateKeys.Contains(normalized));
+            if (removed > 0)
+            {
+                SaveFile();
+                _log?.Invoke($"[travco] removed {removed} invalid coordinate(s) from '{list.Name}'.");
+            }
+
+            return removed;
+        }
+    }
+
     public static List<TravcoSavedRow> RemoveDuplicates(IEnumerable<TravcoSavedRow> rows)
     {
         return RemoveDuplicates(rows, out _);
@@ -170,6 +206,8 @@ public sealed class TravcoListStore
                 Pop = row.Pop,
                 Coordinates = coordinates,
                 Selected = row.Selected,
+                OasisType = row.OasisType,
+                IsOccupied = row.IsOccupied,
             });
         }
 
@@ -258,6 +296,8 @@ public sealed class TravcoListStore
                 Pop = row.Pop,
                 Coordinates = row.Coordinates,
                 Selected = row.Selected,
+                OasisType = row.OasisType,
+                IsOccupied = row.IsOccupied,
             }).ToList(),
         };
     }

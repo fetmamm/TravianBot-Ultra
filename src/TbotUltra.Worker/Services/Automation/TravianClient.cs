@@ -185,6 +185,14 @@ public sealed partial class TravianClient
             reason);
     }
 
+    private Task DelayFarmListStepAsync(CancellationToken cancellationToken)
+    {
+        return new ActionPacer(enabled: true, Notify).DelayAsync(
+            _config.FarmListStepDelayMinSeconds,
+            _config.FarmListStepDelayMaxSeconds,
+            cancellationToken);
+    }
+
 // Helper function for waiting on a page to fully load with retries, to mitigate transient timeouts on slow-loading pages.
     private async Task WaitForPageReadyAsync(CancellationToken cancellationToken = default)
     {
@@ -865,6 +873,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         string farmListName,
         string troopType,
         int troopCount,
+        int requestedCount,
         IReadOnlyList<FarmCoordinate> coordinates,
         bool useDefaultTroops = false,
         IProgress<FarmAddProgress>? progress = null,
@@ -896,6 +905,11 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             throw new InvalidOperationException("At least one farm coordinate is required.");
         }
 
+        if (requestedCount <= 0)
+        {
+            throw new InvalidOperationException("Requested farm count must be greater than 0.");
+        }
+
         await EnsureLoggedInAsync();
         if (!await ReadGoldClubEnabledAsync(cancellationToken))
         {
@@ -906,7 +920,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             farmListName,
             troopType,
             troopCount,
-            coordinates.Count,
+            requestedCount,
             coordinates,
             null,
             progress,
@@ -948,13 +962,15 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             }
         }
 
-        var maxAttempts = Math.Min(Math.Min(requestedCount, coordinates.Count), capacityLimit);
-        Notify($"Starting add farms batch: requested={requestedCount}, available={coordinates.Count}, attempts={maxAttempts}.");
+        var targetAddedCount = Math.Min(requestedCount, capacityLimit);
+        Notify($"Starting add farms batch: target={targetAddedCount}, available={coordinates.Count}.");
         var added = 0;
         var alreadyInList = 0;
         var failed = 0;
+        var notFound = 0;
         var attempted = 0;
-        for (var i = 0; i < maxAttempts; i++)
+        var invalidCoordinates = new List<FarmCoordinate>();
+        for (var i = 0; i < coordinates.Count && added < targetAddedCount; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (!_config.IsPrivateServer)
@@ -974,7 +990,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
             var coordinate = coordinates[i];
             attempted++;
-            var stepPrefix = $"[{attempted}/{maxAttempts}]";
+            var stepPrefix = $"[checked={attempted}, added={added}/{targetAddedCount}]";
 
             await OpenAddRaidFormAsync(lid, cancellationToken);
 
@@ -993,7 +1009,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 added++;
                 addedProgress?.Report(added);
                 Notify($"{stepPrefix} Added farm ({coordinate.X}|{coordinate.Y}) to '{farmListName}'.");
-                progress?.Report(new FarmAddProgress(farmListName, attempted, maxAttempts, added));
+                progress?.Report(new FarmAddProgress(farmListName, attempted, targetAddedCount, added, notFound));
                 continue;
             }
 
@@ -1001,21 +1017,23 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             {
                 alreadyInList++;
                 Notify($"{stepPrefix} Farm ({coordinate.X}|{coordinate.Y}) is already in '{farmListName}' (This village is already in the selected farm list.).");
-                progress?.Report(new FarmAddProgress(farmListName, attempted, maxAttempts, added));
+                progress?.Report(new FarmAddProgress(farmListName, attempted, targetAddedCount, added, notFound));
                 continue;
             }
 
             if (saveOutcome == AddRaidSaveOutcome.InvalidCoordinates)
             {
                 failed++;
+                notFound++;
+                invalidCoordinates.Add(coordinate);
                 Notify($"{stepPrefix} Skipped ({coordinate.X}|{coordinate.Y}): there is no village at these coordinates.");
-                progress?.Report(new FarmAddProgress(farmListName, attempted, maxAttempts, added));
+                progress?.Report(new FarmAddProgress(farmListName, attempted, targetAddedCount, added, notFound));
                 continue;
             }
 
             failed++;
             Notify($"{stepPrefix} Failed to save farm ({coordinate.X}|{coordinate.Y}) in '{farmListName}'.");
-            progress?.Report(new FarmAddProgress(farmListName, attempted, maxAttempts, added));
+            progress?.Report(new FarmAddProgress(farmListName, attempted, targetAddedCount, added, notFound));
         }
 
         await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
@@ -1025,7 +1043,9 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             attempted,
             added,
             alreadyInList,
-            failed);
+            failed,
+            notFound,
+            invalidCoordinates);
     }
 
     private async Task<int?> ReadOfficialFarmListFarmCountAsync(string lid, CancellationToken cancellationToken)
@@ -4776,7 +4796,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
             }
 
-            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
+            await DelayFarmListStepAsync(cancellationToken);
             var clicked = await _page.EvaluateAsync<bool>(
                 """
                 (listId) => {
@@ -4794,7 +4814,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 throw new InvalidOperationException($"Could not open Add target for farm list id {lid}.");
             }
 
-            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
+            await DelayFarmListStepAsync(cancellationToken);
             try
             {
                 await _page.WaitForFunctionAsync(
@@ -4874,13 +4894,12 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 selects.find(select => Array.from(select.options || []).some(option => option.value === String(args.lid)));
               if (listSelect && listSelect.value !== String(args.lid)) {
                 const option = Array.from(listSelect.options || []).find(opt => opt.value === String(args.lid));
-                if (!option) return false;
-                listSelect.value = option.value;
-                listSelect.dispatchEvent(new Event('input', { bubbles: true }));
-                listSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                if (option) {
+                  listSelect.value = option.value;
+                  listSelect.dispatchEvent(new Event('input', { bubbles: true }));
+                  listSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                }
               }
-
-              if (!setValue(xInput, args.x)) return false;
 
               const listSelectByName = selects.find(select => Array.from(select.options || []).some(option => norm(option.textContent || '') === norm(args.farmListName)));
               if (!listSelect && listSelectByName) {
@@ -4895,6 +4914,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 return true;
               }
 
+              if (!setValue(xInput, args.x)) return false;
               if (!setValue(yInput, args.y)) return false;
 
               if (args.useDefaultTroops) {
@@ -4946,15 +4966,55 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
         if (!_config.IsPrivateServer)
         {
-            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
+            await DelayFarmListStepAsync(cancellationToken);
+            var xInput = _page.Locator(
+                "#farmListTargetForm input[name=\"x\"], " +
+                "#farmListTargetForm input[name=\"xCoord\"], " +
+                "#farmListTargetForm input[id*=\"xCoord\" i]").First;
+            await xInput.FillAsync(x.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            Notify($"[farm-list] Add target X filled with {x} for '{farmListName}'.");
+            await DelayFarmListStepAsync(cancellationToken);
+
             var yInput = _page.Locator(
                 "#farmListTargetForm input[name=\"y\"], " +
                 "#farmListTargetForm input[name=\"yCoord\"], " +
                 "#farmListTargetForm input[id*=\"yCoord\" i]").First;
             await yInput.FillAsync(y.ToString(System.Globalization.CultureInfo.InvariantCulture));
-            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
+            Notify($"[farm-list] Add target Y filled with {y} for '{farmListName}'.");
+            await DelayFarmListStepAsync(cancellationToken);
 
-            if (!useDefaultTroops)
+            if (useDefaultTroops)
+            {
+                var validationTriggered = await _page.EvaluateAsync<bool>(
+                    """
+                    () => {
+                      const form = document.querySelector('#farmListTargetForm');
+                      if (!form) return false;
+
+                      const active = document.activeElement;
+                      if (active instanceof HTMLElement) {
+                        active.blur();
+                      }
+
+                      const clickTarget = form.querySelector(
+                        '.targetSelection, .targetSelectionResultWrapper, .troopSelection, .actionButtons')
+                        || form;
+                      clickTarget.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+                      clickTarget.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+                      clickTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                      return true;
+                    }
+                    """);
+                if (!validationTriggered)
+                {
+                    Notify($"[farm-list] Could not trigger Add target validation for ({x}|{y}) in '{farmListName}'.");
+                    return AddRaidSaveOutcome.Failed;
+                }
+
+                Notify($"[farm-list] Add target validation triggered after coordinates for ({x}|{y}) in '{farmListName}'.");
+                await DelayFarmListStepAsync(cancellationToken);
+            }
+            else
             {
                 if (troopIndex is null)
                 {
@@ -4965,7 +5025,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                     $"#farmListTargetForm input.unitAmount[name=\"t{troopIndex.Value}\"], " +
                     $"#farmListTargetForm input[name=\"t{troopIndex.Value}\"]").First;
                 await troopInput.FillAsync(troopCount.ToString(System.Globalization.CultureInfo.InvariantCulture));
-                await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
+                await DelayFarmListStepAsync(cancellationToken);
             }
         }
 
@@ -5037,7 +5097,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             }
         }
 
-        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
+        await DelayFarmListStepAsync(cancellationToken);
         var clicked = await _page.EvaluateAsync<bool>(
             """
             () => {

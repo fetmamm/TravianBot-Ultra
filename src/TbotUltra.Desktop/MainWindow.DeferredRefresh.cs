@@ -244,10 +244,12 @@ public partial class MainWindow
             else
             {
                 var updatedCount = 0;
+                var largestAdjustmentSeconds = 0d;
                 foreach (var item in queueFullItems)
                 {
                     var remainingSeconds = Math.Max(0, (int)Math.Ceiling((item.NextAttemptAt - DateTimeOffset.UtcNow).TotalSeconds));
-                    if (Math.Abs(remainingSeconds - queueFullDelay.Value.TotalSeconds) <= 5)
+                    var adjustmentSeconds = Math.Abs(remainingSeconds - queueFullDelay.Value.TotalSeconds);
+                    if (adjustmentSeconds <= 5)
                     {
                         continue;
                     }
@@ -255,16 +257,18 @@ public partial class MainWindow
                     if (_botService.UpdateDeferredQueueItem(item.Id, item.Payload, queueFullDelay.Value))
                     {
                         updatedCount++;
+                        largestAdjustmentSeconds = Math.Max(largestAdjustmentSeconds, adjustmentSeconds);
                     }
                 }
 
-                if (updatedCount > 0)
+                if (updatedCount > 0 && largestAdjustmentSeconds >= 60)
                 {
                     var retryAt = DateTimeOffset.UtcNow + queueFullDelay.Value;
                     AppendLog(
                         $"[construction-queue:verbose] live status synchronized {updatedCount} queue-full blocker(s) " +
                         $"village='{statusVillage ?? "-"}' active={status.ActiveBuildCount} " +
-                        $"plus={_travianPlusActive?.ToString() ?? "unknown"} retryAt='{FormatQueueServerTime(retryAt)}' source='{source}'.");
+                        $"plus={_travianPlusActive?.ToString() ?? "unknown"} adjustmentSeconds={largestAdjustmentSeconds:F0} " +
+                        $"retryAt='{FormatQueueServerTime(retryAt)}' source='{source}'.");
                 }
             }
         }

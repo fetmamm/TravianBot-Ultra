@@ -53,6 +53,8 @@ Compatible with:
 - Send reinforcements between own villages
 - Farming
 - Create multiple Official farmlists with selected village and default troops
+- Configure the Official Add Farms internal step delay in Settings (default 0.1-0.3 seconds)
+- Analyze `map.sql` oases by resource type and save them as reusable farm-source lists
 - Send catapult waves
 - Session pacing
 - Auto sleep
@@ -64,16 +66,11 @@ Compatible with:
 
 ## Future functions:
 
-- Travco inactive search
-
-Add functionality so that the program can analyze inactive players from https://travcotools.com/en/inactive-search/
-Add these to lists inside the program that can be sorted and added to travian farm lists.
-Compare already scanned villages to new ones and adjust the lists. 
-
 – +15% resource production for 8h automatic watch video
 – reduce adventure duration button / video watch
 – increase adventure to hard button / video watch
 – construct 25% faster button / video watch
+- oasis scan for whole map and add to farmlist
 
 
 ## Known bugs:
