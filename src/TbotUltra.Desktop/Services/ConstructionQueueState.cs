@@ -26,6 +26,21 @@ public static class ConstructionQueueState
             && string.Equals(reason, BotOptionPayloadKeys.UpgradeDeferReasonQueueFull, StringComparison.OrdinalIgnoreCase);
     }
 
+    public static bool BlocksAdditionalConstruction(QueueItem queueOccupancyDeferredItem)
+    {
+        return IsQueueOccupancyDeferred(queueOccupancyDeferredItem);
+    }
+
+    public static int ResolveDisplayedActiveBuildCount(VillageStatus? status, bool hasQueueFullEvidence)
+    {
+        if (status is not null && status.ActiveBuildCount > 0)
+        {
+            return status.ActiveBuildCount;
+        }
+
+        return hasQueueFullEvidence ? 1 : 0;
+    }
+
     public static VillageStatus PreserveKnownConstructionState(VillageStatus incoming, VillageStatus existing)
     {
         var isPartialRead = incoming.Buildings.Count == 0;

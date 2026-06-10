@@ -670,7 +670,7 @@ public partial class MainWindow
         return head;
     }
 
-    private static QueueItem? SelectNextConstructionQueueItem(
+    private QueueItem? SelectNextConstructionQueueItem(
         IReadOnlyList<QueueItem> orderedGroupItems,
         DateTimeOffset now,
         out string? skipReason)
@@ -682,6 +682,7 @@ public partial class MainWindow
             return null;
         }
 
+        var queueOccupancyBlockers = new List<QueueItem>();
         for (var index = 0; index < orderedGroupItems.Count; index++)
         {
             var item = orderedGroupItems[index];
@@ -695,8 +696,15 @@ public partial class MainWindow
             {
                 if (ConstructionQueueState.IsQueueOccupancyDeferred(item))
                 {
-                    // A queue-occupied item can be specific to this slot/building. Keep scanning this
-                    // village so another building or a Roman resource slot can fill a free server slot.
+                    // The server queue is authoritative for the village. Keep the deferred item as a
+                    // blocker so later tasks do not repeat the same live queue check before the first
+                    // active construction completes.
+                    queueOccupancyBlockers.Add(item);
+                    LogConstructionQueueFullBlock(item, now);
+                    var queueFullWaitSec = Math.Max(0, (item.NextAttemptAt - now).TotalSeconds);
+                    skipReason =
+                        $"group=Construction village='{NormalizeVillageName(GetQueueItemVillageName(item)) ?? "-"}' " +
+                        $"build queue full; next retry {FormatQueueServerTime(item.NextAttemptAt)} ({queueFullWaitSec:F0}s)";
                     continue;
                 }
 
@@ -706,6 +714,36 @@ public partial class MainWindow
                 var waitSec = (item.NextAttemptAt - now).TotalSeconds;
                 skipReason = $"group=Construction task='{item.TaskName}' waiting {waitSec:F0}s (NextAttemptAt in future); holding queue order";
                 return null;
+            }
+
+            if (ConstructionQueueState.IsQueueOccupancyDeferred(item))
+            {
+                var villageName = NormalizeVillageName(GetQueueItemVillageName(item)) ?? "-";
+                AppendLoopPickVerbose(
+                    $"[construction-queue:verbose] queue-full retry released " +
+                    $"id={item.Id} task='{item.TaskName}' village='{villageName}' " +
+                    $"scheduledAt='{FormatQueueServerTime(item.NextAttemptAt)}' " +
+                    $"now='{FormatQueueServerTime(now)}'",
+                    $"construction-queue-released:{item.Id}:{item.NextAttemptAt.UtcTicks}");
+            }
+
+            var blockingItem = queueOccupancyBlockers.FirstOrDefault(blocker =>
+                ConstructionQueueState.BlocksAdditionalConstruction(blocker));
+            if (blockingItem is not null)
+            {
+                var waitSec = Math.Max(0, (blockingItem.NextAttemptAt - now).TotalSeconds);
+                var villageName = NormalizeVillageName(GetQueueItemVillageName(blockingItem)) ?? "-";
+                AppendLoopPickVerbose(
+                    $"[construction-queue:verbose] candidate blocked " +
+                    $"village='{villageName}' blockerId={blockingItem.Id} " +
+                    $"blockerTask='{blockingItem.TaskName}' candidateId={item.Id} " +
+                    $"candidateTask='{item.TaskName}' waitSeconds={waitSec:F0} " +
+                    $"retryAt='{FormatQueueServerTime(blockingItem.NextAttemptAt)}'",
+                    $"construction-queue-candidate-blocked:{blockingItem.Id}:{item.Id}:{blockingItem.NextAttemptAt.UtcTicks}");
+                skipReason =
+                    $"group=Construction task='{item.TaskName}' blocked {waitSec:F0}s by full server queue " +
+                    $"from earlier task='{blockingItem.TaskName}'";
+                continue;
             }
 
             if (IsBuildingUpgradeForSlot(item, out var upgradeSlotId)
@@ -719,6 +757,19 @@ public partial class MainWindow
         }
 
         return null;
+    }
+
+    private void LogConstructionQueueFullBlock(QueueItem blocker, DateTimeOffset now)
+    {
+        var villageName = NormalizeVillageName(GetQueueItemVillageName(blocker)) ?? "-";
+        var waitSeconds = Math.Max(0, (blocker.NextAttemptAt - now).TotalSeconds);
+        AppendLoopPickVerbose(
+            $"[construction-queue:verbose] blocker active " +
+            $"id={blocker.Id} task='{blocker.TaskName}' village='{villageName}' " +
+            $"status={blocker.Status} waitSeconds={waitSeconds:F0} " +
+            $"retryAt='{FormatQueueServerTime(blocker.NextAttemptAt)}' " +
+            $"reason='{blocker.Payload.GetValueOrDefault(BotOptionPayloadKeys.UpgradeDeferReason, "-")}'",
+            $"construction-queue-full:{GetQueueItemVillageKey(blocker) ?? villageName}:{blocker.NextAttemptAt.UtcTicks}");
     }
 
     private static bool HasEarlierPendingConstructForSlot(IReadOnlyList<QueueItem> orderedItems, int beforeIndex, int slotId)

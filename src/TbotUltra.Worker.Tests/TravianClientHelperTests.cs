@@ -420,6 +420,33 @@ public sealed class TravianClientHelperTests
         Assert.Null(status.ShortestWaitSeconds);
     }
 
+    [Fact]
+    public void ResolveActiveBuildCount_PrefersAuthoritativeActiveConstructions()
+    {
+        IReadOnlyList<BuildQueueItem> broadQueue =
+        [
+            new BuildQueueItem("Warehouse level 19", "00:42:41"),
+            new BuildQueueItem("Duplicate nested queue markup", "00:42:41"),
+        ];
+        IReadOnlyList<ActiveConstruction> active =
+        [
+            new ActiveConstruction(ConstructionKind.Building, "Warehouse", 19, 2561, "done at 23:03"),
+        ];
+
+        Assert.Equal(1, TravianClient.ResolveActiveBuildCount(broadQueue, active));
+    }
+
+    [Fact]
+    public void ResolveActiveBuildCount_FallsBackToBroadQueueWhenActiveListIsEmpty()
+    {
+        IReadOnlyList<BuildQueueItem> broadQueue =
+        [
+            new BuildQueueItem("Warehouse level 19", "00:42:41"),
+        ];
+
+        Assert.Equal(1, TravianClient.ResolveActiveBuildCount(broadQueue, []));
+    }
+
     [Theory]
     [InlineData("Romans", false, 1, 1)]
     [InlineData("Romans", true, 1, 2)]

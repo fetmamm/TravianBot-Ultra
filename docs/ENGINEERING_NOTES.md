@@ -113,6 +113,12 @@ For en ny dashboard-bool ska hela configkedjan uppdateras:
 - Dashboard-checkboxar foljer befintligt suppress-flagga + load/save-monster.
 - Dashboard `Clear timers` ar vald-by-scope: gor uppskjutna tasks korbara nu och rensar
   volatila Construction/Smithy/Troops/Hero-timers, men tar aldrig bort Queue-sidans poster.
+- En `queue_full`-defer blockerar all senare construction i samma by tills den tidigaste
+  aktiva byggnaden ar fardig. Plus ger tva platser, annars en; inga romar-specialfall har.
+- Queue-full ska loggas med bynamn samt exakt nasta retry i servertid och sekunder kvar.
+- Djup queue-full-diagnostik anvander `[construction-queue:verbose]` och doljs i Clean-laget.
+- Dashboardens byggikoner anvander live `ActiveConstructions` som auktoritativt antal.
+  Queue-full-poster ar bara boolesk occupancy-fallback och far aldrig summeras som byggnader.
 - Ateranvand `SettingInfoIconStyle` for forklarande infoikoner.
 - Langre listor ska ligga i en begransad `ScrollViewer`, inte expandera resten av dashboarden.
 

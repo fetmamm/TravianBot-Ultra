@@ -52,7 +52,18 @@ public sealed partial class TravianClient
         Notify($"Storage read: village='{activeVillage}', storage wh={FormatResourceLogNumber(capacities.Warehouse)} gr={FormatResourceLogNumber(capacities.Granary)} | stock {BuildResourceValueLog(resources)} | prod {BuildProductionValueLog(productionByHour)}");
 
         var buildQueue = await ReadBuildQueueAsync(cancellationToken);
+        var activeConstructions = await ReadActiveConstructionsAsync(
+            cancellationToken,
+            allowNavigationToBuildings: false);
+        var activeBuildCount = ResolveActiveBuildCount(buildQueue, activeConstructions);
         var remaining = ResolveShortestQueueDurationSeconds(buildQueue);
+        if (buildQueue.Count != activeConstructions.Count)
+        {
+            Notify(
+                $"[construction-status:verbose] active count sources differ " +
+                $"village='{activeVillage}' buildQueue={buildQueue.Count} " +
+                $"activeConstructions={activeConstructions.Count} selected={activeBuildCount}");
+        }
 
         return new VillageStatus(
             ActiveVillage: activeVillage,
@@ -63,15 +74,16 @@ public sealed partial class TravianClient
             BuildQueue: buildQueue,
             Tribe: string.Empty,
             VillageCount: 0,
-            IsBuildingInProgress: buildQueue.Count > 0,
-            ActiveBuildCount: buildQueue.Count,
+            IsBuildingInProgress: activeBuildCount > 0,
+            ActiveBuildCount: activeBuildCount,
             BuildQueueRemainingSeconds: remaining,
             BuildQueueRemainingText: remaining is int left ? FormatDuration(left) : string.Empty,
             IsCapital: TryGetCachedCapitalState(activeVillage),
             ServerTimeUtc: _serverTimeUtc,
             WarehouseCapacity: capacities.Warehouse,
             GranaryCapacity: capacities.Granary,
-            ResourceStorageForecasts: forecasts);
+            ResourceStorageForecasts: forecasts,
+            ActiveConstructions: activeConstructions);
     }
 
     public async Task<IReadOnlyList<VillageStatus>> ReadAllVillageResourceStatusesAsync(CancellationToken cancellationToken = default)
@@ -653,7 +665,14 @@ public sealed partial class TravianClient
         // resources UI keeps showing upgrades started outside the program (target level in parentheses).
         var activeConstructions = await ReadActiveConstructionsAsync(cancellationToken, allowNavigationToBuildings: false);
         var buildQueue = await ReadBuildQueueAsync(cancellationToken);
-        var activeBuildCount = Math.Max(buildQueue.Count, activeConstructions.Count);
+        var activeBuildCount = ResolveActiveBuildCount(buildQueue, activeConstructions);
+        if (buildQueue.Count != activeConstructions.Count)
+        {
+            Notify(
+                $"[construction-status:verbose] active count sources differ " +
+                $"village='{activeVillage}' buildQueue={buildQueue.Count} " +
+                $"activeConstructions={activeConstructions.Count} selected={activeBuildCount}");
+        }
         var remaining = ResolveShortestQueueDurationSeconds(buildQueue);
         var currency = await ReadCurrencyAsync(cancellationToken);
         var unreadInbox = await ReadUnreadInboxCountsAsync(cancellationToken);

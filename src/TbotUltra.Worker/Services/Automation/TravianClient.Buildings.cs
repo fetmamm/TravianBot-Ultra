@@ -2667,6 +2667,11 @@ public sealed partial class TravianClient
                   const text = (element.textContent || '').replace(/\s+/g, ' ').trim();
                   if (!text) continue;
                   const timeElement = element.querySelector('.timer, .countdown, .value, [counting="down"], [id^="timer"]');
+                  const nameElement = element.querySelector('.name');
+                  const durationElement = element.querySelector('.buildDuration');
+                  // Broad fallback selectors such as ".buildingList li" can also match nested action/
+                  // detail list items. Only count rows that carry actual construction identity/timing.
+                  if (!timeElement && !nameElement && !durationElement) continue;
                   const timeLeft = timeElement ? (timeElement.textContent || '').trim() : null;
                   items.push({ text, timeLeft });
                 }
@@ -2685,6 +2690,15 @@ public sealed partial class TravianClient
             .Where(i => !string.IsNullOrWhiteSpace(i.Text))
             .Select(i => new BuildQueueItem(i.Text!, i.TimeLeft))
             .ToList();
+    }
+
+    internal static int ResolveActiveBuildCount(
+        IReadOnlyList<BuildQueueItem> buildQueue,
+        IReadOnlyList<ActiveConstruction> activeConstructions)
+    {
+        return activeConstructions.Count > 0
+            ? activeConstructions.Count
+            : buildQueue.Count;
     }
 
     internal static int? ResolveShortestQueueDurationSeconds(IReadOnlyList<BuildQueueItem> items)

@@ -1486,7 +1486,14 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         // parentheses. We are on dorf1/dorf2 after the reads above, both of which carry the list,
         // so no extra navigation is needed.
         var activeConstructions = await ReadActiveConstructionsAsync(cancellationToken, allowNavigationToBuildings: false);
-        var activeBuildCount = Math.Max(buildQueue.Count, activeConstructions.Count);
+        var activeBuildCount = ResolveActiveBuildCount(buildQueue, activeConstructions);
+        if (buildQueue.Count != activeConstructions.Count)
+        {
+            Notify(
+                $"[construction-status:verbose] active count sources differ " +
+                $"village='{activeVillage}' buildQueue={buildQueue.Count} " +
+                $"activeConstructions={activeConstructions.Count} selected={activeBuildCount}");
+        }
 
         return new VillageStatus(
             ActiveVillage: activeVillage,

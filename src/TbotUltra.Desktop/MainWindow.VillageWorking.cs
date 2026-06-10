@@ -132,7 +132,7 @@ public partial class MainWindow
         // reason queue_full means the server build queue is full → something IS building there. This lights
         // the Buildings slots for villages the bot isn't currently scanning (their cached status has no
         // live build count).
-        var queueFullByVillage = BuildQueueFullConstructionCountByVillage();
+        var queueFullVillages = BuildVillagesWithQueueFullConstruction();
         var queuedVillages = BuildVillagesWithConstructionQueue();
         foreach (var item in items)
         {
@@ -143,8 +143,8 @@ public partial class MainWindow
                 _villageStatusCacheByName.TryGetValue(name, out status);
             }
 
-            var queueActive = name is not null && queueFullByVillage.TryGetValue(name, out var count) ? count : 0;
-            item.BuildingSlots = BuildBuildingActivitySlots(status, buildingSlotCount, queueActive);
+            var hasQueueFullEvidence = name is not null && queueFullVillages.Contains(name);
+            item.BuildingSlots = BuildBuildingActivitySlots(status, buildingSlotCount, hasQueueFullEvidence);
             item.TroopSlots = BuildTroopActivitySlots(status);
             item.SmithySlots = BuildSmithyActivitySlots();
             item.HasQueue = name is not null && queuedVillages.Contains(name);
@@ -208,12 +208,11 @@ public partial class MainWindow
         }
     }
 
-    // Counts, per village name, construction queue items deferred because the build queue was full. Those
-    // imply the server build queue is occupied, so the Buildings slots can light up even for a village the
-    // bot isn't actively scanning.
-    private Dictionary<string, int> BuildQueueFullConstructionCountByVillage()
+    // Queue-full is occupancy evidence, never an active-construction count. Multiple program queue items
+    // can defer against the same single server construction, so keep one boolean signal per village.
+    private HashSet<string> BuildVillagesWithQueueFullConstruction()
     {
-        var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var villages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         try
         {
             foreach (var item in _botService.GetQueueItemsForDisplay())
@@ -236,7 +235,7 @@ public partial class MainWindow
                     continue;
                 }
 
-                map[villageName] = (map.TryGetValue(villageName, out var current) ? current : 0) + 1;
+                villages.Add(villageName);
             }
         }
         catch
@@ -244,12 +243,18 @@ public partial class MainWindow
             // Queue read failures are non-fatal for an overview indicator.
         }
 
-        return map;
+        return villages;
     }
 
-    private static IReadOnlyList<VillageActivitySlot> BuildBuildingActivitySlots(VillageStatus? status, int slotCount, int queueActiveCount = 0)
+    private static IReadOnlyList<VillageActivitySlot> BuildBuildingActivitySlots(
+        VillageStatus? status,
+        int slotCount,
+        bool hasQueueFullEvidence = false)
     {
-        var active = Math.Clamp(Math.Max(status?.ActiveBuildCount ?? 0, queueActiveCount), 0, slotCount);
+        var active = Math.Clamp(
+            ConstructionQueueState.ResolveDisplayedActiveBuildCount(status, hasQueueFullEvidence),
+            0,
+            slotCount);
         var slots = new List<VillageActivitySlot>(slotCount);
         for (var i = 0; i < slotCount; i++)
         {

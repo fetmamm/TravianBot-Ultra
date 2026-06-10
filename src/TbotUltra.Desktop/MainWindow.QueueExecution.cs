@@ -218,12 +218,37 @@ public partial class MainWindow
                         ? BotOptionPayloadKeys.UpgradeDeferReasonQueueFull
                         : BotOptionPayloadKeys.UpgradeDeferReasonResources;
                     payloadChanged = true;
+
+                    if (string.Equals(
+                            updatedPayload[BotOptionPayloadKeys.UpgradeDeferReason],
+                            BotOptionPayloadKeys.UpgradeDeferReasonQueueFull,
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        var villageName = NormalizeVillageName(GetQueueItemVillageName(item)) ?? "-";
+                        var retryAt = DateTimeOffset.UtcNow + queueWaitDelay;
+                        AppendLog(
+                            $"[construction-queue:verbose] queue-full defer classified " +
+                            $"id={item.Id} task='{item.TaskName}' village='{villageName}' mode={mode} " +
+                            $"waitSeconds={queueWaitDelay.TotalSeconds:F0} retryAt='{FormatQueueServerTime(retryAt)}' " +
+                            $"source='{ex.Message.Replace(Environment.NewLine, " ")}'");
+                        AppendLog(
+                            $"[construction] BUILD QUEUE FULL village='{villageName}'. " +
+                            $"No more Construction will run in this village until the first active construction finishes. " +
+                            $"Next retry: {FormatQueueServerTime(retryAt)} (in {queueWaitDelay.TotalSeconds:F0}s).");
+                    }
                 }
 
                 if (payloadChanged)
                 {
-                    _botService.UpdateDeferredQueueItem(item.Id, updatedPayload);
+                    var payloadPersisted = _botService.UpdateDeferredQueueItem(item.Id, updatedPayload);
                     item.Payload = updatedPayload;
+                    if (IsConstructionQueueTask(item.TaskName))
+                    {
+                        AppendLog(
+                            $"[construction-queue:verbose] defer payload persistence " +
+                            $"id={item.Id} task='{item.TaskName}' persisted={payloadPersisted} " +
+                            $"reason='{updatedPayload.GetValueOrDefault(BotOptionPayloadKeys.UpgradeDeferReason, "-")}'");
+                    }
                 }
 
                 await RefreshFarmListsUiAfterAutoSendIfNeededAsync(item, ex.Message);

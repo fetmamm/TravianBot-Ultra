@@ -1242,3 +1242,17 @@ Rör bara **stateless parsing** — inte klick-/navigeringsordningen.
   nollställs vald bys uppskjutna task-tider och volatila aktivitetscache (inklusive serverns
   avlästa byggkö), medan Queue-sidans poster behålls; en ledig session läser om status direkt
   och en aktiv loop väcks för omläsning mellan tasks.
+- **2026-06-09** — Construction-loopens queue-full-gating korrigerades. Tidigare hoppade
+  selektorn över en deferred queue-full-post och provade varje senare byggpost i samma by,
+  trots att serverkön redan var verifierad full. Nu blockerar den första avläsningen samma
+  bys hela Construction-grupp tills dess timer löper ut (Plus: två platser, annars en);
+  romar-specialfall tillämpas inte här.
+- **2026-06-09** — Queue-full-loggning gjordes explicit: både den första serverdefern och
+  efterföljande blockerade loopval skriver bynamn, exakt retry i servertid och sekunder kvar.
+- **2026-06-09** — Queue-full-flödet fick verbose-diagnostik för deferklassificering,
+  payload-persistens, aktiv blockerare, blockerad kandidat och frisläppt retry. Alla dessa
+  rader använder `[construction-queue:verbose]` och visas inte i Clean-filtret.
+- **2026-06-09** — Dashboardens byggantal korrigerades. Tidigare summerades varje deferred
+  `queue_full`-post som en separat serverbyggnad och `Max(buildQueue, activeConstructions)`
+  lät bred DOM-markup vinna över den exakta listan. Nu är `ActiveConstructions` auktoritativ,
+  breda kö-rader filtreras och queue-full används bara som en enda occupancy-fallback.

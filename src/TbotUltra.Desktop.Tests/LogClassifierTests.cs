@@ -6,6 +6,15 @@ namespace TbotUltra.Desktop.Tests;
 public sealed class LogClassifierTests
 {
     [Theory]
+    [InlineData("[construction-queue:verbose] blocker active village='KLET' waitSeconds=120")]
+    [InlineData("[construction-queue:verbose] candidate blocked candidateTask='construct_building'")]
+    [InlineData("[construction-queue:verbose] queue-full retry released village='KLET'")]
+    public void IsVerbose_HidesConstructionQueueDiagnosticsInCleanMode(string message)
+    {
+        Assert.True(LogClassifier.IsVerbose(message));
+    }
+
+    [Theory]
     [InlineData("Hero status: dead=False, hp=?%, adventures=0, points=0, in_village=True. No hero action was needed.")]
     [InlineData("[hero_manage STARTED] (1/1) on 'account'")]
     [InlineData("[LoginAsync started]")]

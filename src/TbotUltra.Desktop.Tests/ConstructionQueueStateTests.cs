@@ -36,6 +36,48 @@ public sealed class ConstructionQueueStateTests
     }
 
     [Fact]
+    public void BlocksAdditionalConstruction_QueueFullBlocksConstruction()
+    {
+        var deferredBuilding = CreateDeferredQueueFullItem("upgrade_building_to_level");
+
+        Assert.True(ConstructionQueueState.BlocksAdditionalConstruction(deferredBuilding));
+    }
+
+    [Fact]
+    public void BlocksAdditionalConstruction_ResourceWaitDoesNotBlockConstruction()
+    {
+        var resourceWait = new QueueItem
+        {
+            TaskName = "upgrade_building_to_level",
+            Payload = new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.UpgradeDeferReason] = BotOptionPayloadKeys.UpgradeDeferReasonResources,
+            },
+        };
+
+        Assert.False(ConstructionQueueState.BlocksAdditionalConstruction(resourceWait));
+    }
+
+    [Fact]
+    public void ResolveDisplayedActiveBuildCount_DoesNotCountDeferredItemsAsConstructions()
+    {
+        var status = CreateStatus(
+            buildings: [],
+            buildQueue: [new BuildQueueItem("Warehouse level 19", "00:42:41")],
+            activeBuildCount: 1,
+            remainingSeconds: 2561);
+
+        Assert.Equal(1, ConstructionQueueState.ResolveDisplayedActiveBuildCount(status, hasQueueFullEvidence: true));
+    }
+
+    [Fact]
+    public void ResolveDisplayedActiveBuildCount_UsesSingleFallbackWhenLiveStatusIsMissing()
+    {
+        Assert.Equal(1, ConstructionQueueState.ResolveDisplayedActiveBuildCount(null, hasQueueFullEvidence: true));
+        Assert.Equal(0, ConstructionQueueState.ResolveDisplayedActiveBuildCount(null, hasQueueFullEvidence: false));
+    }
+
+    [Fact]
     public void PreserveKnownConstructionState_KeepsActiveQueueForPartialRead()
     {
         var existing = CreateStatus(
@@ -96,5 +138,17 @@ public sealed class ConstructionQueueStateTests
             ActiveBuildCount: activeBuildCount,
             BuildQueueRemainingSeconds: remainingSeconds,
             BuildQueueRemainingText: remainingSeconds?.ToString() ?? string.Empty);
+    }
+
+    private static QueueItem CreateDeferredQueueFullItem(string taskName)
+    {
+        return new QueueItem
+        {
+            TaskName = taskName,
+            Payload = new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.UpgradeDeferReason] = BotOptionPayloadKeys.UpgradeDeferReasonQueueFull,
+            },
+        };
     }
 }
