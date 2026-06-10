@@ -48,6 +48,7 @@ public sealed partial class TravianClient
 
         try
         {
+            var diagnosticLogged = false;
             for (var index = 0; index < centers.Count; index++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -58,6 +59,12 @@ public sealed partial class TravianClient
 
                 var center = centers[index];
                 var json = await ReadMapAreaWithRetryAsync(center.X, center.Y, cancellationToken);
+                if (!diagnosticLogged)
+                {
+                    diagnosticLogged = true;
+                    LogMapAreaDiagnostic(json, center.X, center.Y);
+                }
+
                 foreach (var oasis in Automation.MapOasisApiParser.Parse(json))
                 {
                     if (oasis.X is < -200 or > 200
@@ -96,8 +103,16 @@ public sealed partial class TravianClient
                 }
             }
         }
+        catch (OperationCanceledException)
+        {
+            // A user cancel must start over next time, not resume; drop any saved checkpoint.
+            DeleteMapOasisCheckpoint(checkpointPath);
+            Notify("[map-oasis] scan canceled; checkpoint cleared, next scan starts from the beginning.");
+            throw;
+        }
         catch
         {
+            // Unexpected failures keep the checkpoint so the scan can resume after a retry.
             try
             {
                 await SaveMapOasisSnapshotAsync(
@@ -127,9 +142,24 @@ public sealed partial class TravianClient
             completedAreas,
             result,
             cancellationToken);
-        File.Delete(checkpointPath);
+        DeleteMapOasisCheckpoint(checkpointPath);
         Notify($"[map-oasis] scan completed with {result.Count} matching oases.");
         return result;
+    }
+
+    private void DeleteMapOasisCheckpoint(string checkpointPath)
+    {
+        try
+        {
+            if (File.Exists(checkpointPath))
+            {
+                File.Delete(checkpointPath);
+            }
+        }
+        catch (Exception ex)
+        {
+            Notify($"[map-oasis] checkpoint delete failed: {ex.Message}");
+        }
     }
 
     private async Task<MapOasisSnapshot?> LoadMapOasisCheckpointAsync(
@@ -197,6 +227,85 @@ public sealed partial class TravianClient
         }
 
         File.Move(temporaryPath, path, overwrite: true);
+    }
+
+    private void LogMapAreaDiagnostic(string json, int x, int y)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("tiles", out var tiles) || tiles.ValueKind != JsonValueKind.Array)
+            {
+                var keys = string.Join(", ", doc.RootElement.EnumerateObject().Select(p => p.Name));
+                Notify($"[map-oasis:diagnostic] area ({x}|{y}): no 'tiles' array. Root keys: [{keys}]");
+                Notify($"[map-oasis:diagnostic] raw snippet: {json[..Math.Min(json.Length, 300)]}");
+                return;
+            }
+
+            var tileList = tiles.EnumerateArray().ToList();
+            var didMinusOne = tileList
+                .Where(t => t.TryGetProperty("did", out var d) && d.ValueKind == JsonValueKind.Number && d.GetInt32() == -1)
+                .ToList();
+            var titleGroups = didMinusOne
+                .GroupBy(t => t.TryGetProperty("title", out var ti) ? (ti.GetString() ?? "null") : "(no title)")
+                .Select(g => $"'{g.Key}'×{g.Count()}")
+                .ToList();
+
+            Notify($"[map-oasis:diagnostic] area ({x}|{y}): total tiles={tileList.Count}, did=-1 count={didMinusOne.Count}, titles=[{string.Join(", ", titleGroups)}]");
+
+            var freeOasis = didMinusOne.FirstOrDefault(t =>
+                t.TryGetProperty("title", out var ti) && ti.GetString() == "{k.fo}");
+            var occupiedOasis = didMinusOne.FirstOrDefault(t =>
+                t.TryGetProperty("title", out var ti) && ti.GetString() == "{k.bt}");
+
+            if (freeOasis.ValueKind != JsonValueKind.Undefined)
+            {
+                LogOasisTileSample("free", freeOasis);
+            }
+
+            if (occupiedOasis.ValueKind != JsonValueKind.Undefined)
+            {
+                LogOasisTileSample("occupied", occupiedOasis);
+            }
+
+            if (freeOasis.ValueKind == JsonValueKind.Undefined
+                && occupiedOasis.ValueKind == JsonValueKind.Undefined
+                && didMinusOne.Count > 0)
+            {
+                var sample = didMinusOne[0];
+                var title = sample.TryGetProperty("title", out var ti) ? (ti.GetString() ?? "(null)") : "(no title)";
+                var text = sample.TryGetProperty("text", out var te) ? (te.GetString() ?? "(null)") : "(no text)";
+                Notify($"[map-oasis:diagnostic] sample did=-1 tile: title='{title}', text='{text}'");
+                Notify($"[map-oasis:diagnostic] raw snippet: {json[..Math.Min(json.Length, 500)]}");
+            }
+            else if (tileList.Count > 0)
+            {
+                var first = tileList[0];
+                var fieldKeys = string.Join(", ", first.EnumerateObject().Select(p => p.Name).Take(12));
+                var sampleDids = string.Join(", ", tileList.Take(5)
+                    .Select(t => t.TryGetProperty("did", out var d) ? d.ToString() : "(-)"));
+                Notify($"[map-oasis:diagnostic] no did=-1 tiles found. Total={tileList.Count}. Keys: [{fieldKeys}]. Sample dids: [{sampleDids}]");
+                Notify($"[map-oasis:diagnostic] raw snippet: {json[..Math.Min(json.Length, 500)]}");
+            }
+            else
+            {
+                Notify($"[map-oasis:diagnostic] area ({x}|{y}): tiles array is empty.");
+                Notify($"[map-oasis:diagnostic] raw: {json[..Math.Min(json.Length, 300)]}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Notify($"[map-oasis:diagnostic] parse failed for ({x}|{y}): {ex.Message}");
+            Notify($"[map-oasis:diagnostic] raw: {json[..Math.Min(json.Length, 200)]}");
+        }
+    }
+
+    private void LogOasisTileSample(string label, JsonElement tile)
+    {
+        var tileKeys = string.Join(", ", tile.EnumerateObject().Select(p => $"{p.Name}:{p.Value.ValueKind}"));
+        Notify($"[map-oasis:diagnostic] {label} oasis tile keys: [{tileKeys}]");
+        var raw = tile.GetRawText();
+        Notify($"[map-oasis:diagnostic] {label} oasis tile raw: {raw[..Math.Min(raw.Length, 1500)]}");
     }
 
     private async Task<string> ReadMapAreaWithRetryAsync(int x, int y, CancellationToken cancellationToken)

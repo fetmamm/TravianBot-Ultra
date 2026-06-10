@@ -85,12 +85,98 @@ public sealed class OfficialFarmSelectionTests
         Assert.Equal("5/100 farms", row.FarmCountText);
     }
 
+    [Fact]
+    public void Filter_OrdersByLiveDistanceFromReferenceVillage()
+    {
+        // Stored distances are intentionally reversed to prove they are ignored when a reference
+        // village is supplied: (0|0) is closest to the village, (10|10) is farthest.
+        var rows = new[]
+        {
+            Row("10|10", pop: 0, distance: 1),
+            Row("0|0", pop: 0, distance: 99),
+            Row("3|4", pop: 0, distance: 50),
+        };
+
+        var result = OfficialFarmSelection.Filter(
+            rows,
+            new HashSet<string>(),
+            amount: 3,
+            order: "distance_asc",
+            populationMode: "all",
+            populationLimit: 0,
+            maximumDistance: null,
+            skipDuplicates: true,
+            referenceVillage: (0, 0));
+
+        Assert.Equal([(0, 0), (3, 4), (10, 10)], result.Select(item => (item.X, item.Y)).ToArray());
+    }
+
+    [Fact]
+    public void Filter_AppliesLiveDistanceLimitFromReferenceVillage()
+    {
+        var rows = new[]
+        {
+            Row("3|4", pop: 0, distance: 0),   // 5 fields from (0|0)
+            Row("20|20", pop: 0, distance: 0), // far away
+        };
+
+        var result = OfficialFarmSelection.Filter(
+            rows,
+            new HashSet<string>(),
+            amount: 10,
+            order: "distance_asc",
+            populationMode: "all",
+            populationLimit: 0,
+            maximumDistance: 6,
+            skipDuplicates: true,
+            referenceVillage: (0, 0));
+
+        var coordinate = Assert.Single(result);
+        Assert.Equal((3, 4), (coordinate.X, coordinate.Y));
+    }
+
+    [Fact]
+    public void Filter_KeepsOnlySelectedOasisTypesAndExcludesOccupied()
+    {
+        var rows = new[]
+        {
+            OasisRow("1|1", "Wood", occupied: false),
+            OasisRow("2|2", "Crop", occupied: false),
+            OasisRow("3|3", "Wood", occupied: true),
+        };
+
+        var result = OfficialFarmSelection.Filter(
+            rows,
+            new HashSet<string>(),
+            amount: 10,
+            order: "distance_asc",
+            populationMode: "all",
+            populationLimit: 0,
+            maximumDistance: null,
+            skipDuplicates: true,
+            referenceVillage: (0, 0),
+            oasisTypes: new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Wood" },
+            includeOccupied: false);
+
+        var coordinate = Assert.Single(result);
+        Assert.Equal((1, 1), (coordinate.X, coordinate.Y));
+    }
+
     private static TravcoListStore.TravcoSavedRow Row(string coordinates, long pop, double distance) =>
         new()
         {
             Coordinates = coordinates,
             Pop = pop,
             Distance = distance,
+            Selected = true,
+        };
+
+    private static TravcoListStore.TravcoSavedRow OasisRow(string coordinates, string oasisType, bool occupied) =>
+        new()
+        {
+            Coordinates = coordinates,
+            OasisType = oasisType,
+            IsOccupied = occupied,
             Selected = true,
         };
 }

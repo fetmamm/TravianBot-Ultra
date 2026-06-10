@@ -77,6 +77,9 @@ public partial class MapOasisWindow : Window
                     Selected = true,
                     OasisType = oasis.OasisType,
                     IsOccupied = oasis.IsOccupied,
+                    Animals = oasis.Animals,
+                    OwnerPlayer = oasis.OwnerPlayer,
+                    OwnerAlliance = oasis.OwnerAlliance,
                 }).ToList(),
             };
             _store.Save(list);
@@ -116,6 +119,9 @@ public partial class MapOasisWindow : Window
             Coordinates = row.Coordinates,
             OasisType = row.OasisType ?? row.Village,
             IsOccupied = row.IsOccupied == true,
+            Animals = row.Animals ?? string.Empty,
+            OwnerPlayer = row.OwnerPlayer ?? string.Empty,
+            OwnerAlliance = row.OwnerAlliance ?? string.Empty,
         }));
         SetStatus($"Opened '{selected.Name}' with {selected.Rows.Count} oasis/oases.");
     }

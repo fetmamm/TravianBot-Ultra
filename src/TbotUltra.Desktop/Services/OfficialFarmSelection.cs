@@ -6,6 +6,12 @@ namespace TbotUltra.Desktop.Services;
 
 public static class OfficialFarmSelection
 {
+    // referenceVillage: when supplied, distance is computed live (straight-line) from that village to
+    //   each row's coordinates, replacing the stored row.Distance for ordering and the distance filter.
+    //   This makes "nearest first" correct for oasis lists (no stored distance) and lets the user change
+    //   the reference village without rescraping. When null, the stored row.Distance is used (legacy).
+    // oasisTypes: when supplied, only rows whose OasisType is in the set are kept (oasis source lists).
+    // includeOccupied: when false, rows flagged IsOccupied are dropped (oasis source lists).
     public static IReadOnlyList<FarmCoordinate> Filter(
         IEnumerable<TravcoListStore.TravcoSavedRow> sourceRows,
         IReadOnlySet<string> existingCoordinates,
@@ -14,53 +20,73 @@ public static class OfficialFarmSelection
         string populationMode,
         long populationLimit,
         double? maximumDistance,
-        bool skipDuplicates)
+        bool skipDuplicates,
+        (int X, int Y)? referenceVillage = null,
+        IReadOnlySet<string>? oasisTypes = null,
+        bool includeOccupied = true)
     {
         if (amount <= 0)
         {
             return [];
         }
 
-        var rows = sourceRows
-            .Where(row => row.Selected)
-            .Where(row => TryParseCoordinates(row.Coordinates, out _, out _));
-
-        rows = populationMode switch
+        // Project to coordinate-parseable candidates with an effective distance, applying the
+        // oasis-specific filters up front so they affect both ordering and the slot count.
+        var candidates = new List<(int X, int Y, long? Pop, double? Distance)>();
+        foreach (var row in sourceRows)
         {
-            "under" => rows.Where(row => row.Pop.HasValue && row.Pop.Value <= populationLimit),
-            "over" => rows.Where(row => row.Pop.HasValue && row.Pop.Value >= populationLimit),
-            _ => rows,
-        };
-
-        if (maximumDistance.HasValue)
-        {
-            rows = rows.Where(row => row.Distance.HasValue && row.Distance.Value <= maximumDistance.Value);
-        }
-
-        rows = order switch
-        {
-            "distance_desc" => rows.OrderByDescending(row => row.Distance ?? double.MinValue),
-            "pop_desc" => rows.OrderByDescending(row => row.Pop ?? long.MinValue),
-            "pop_asc" => rows.OrderBy(row => row.Pop ?? long.MaxValue),
-            _ => rows.OrderBy(row => row.Distance ?? double.MaxValue),
-        };
-
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var result = new List<FarmCoordinate>();
-        foreach (var row in rows)
-        {
-            if (!TryParseCoordinates(row.Coordinates, out var x, out var y))
+            if (!row.Selected || !TryParseCoordinates(row.Coordinates, out var x, out var y))
             {
                 continue;
             }
 
-            var key = $"{x}|{y}";
+            if (oasisTypes is not null && !oasisTypes.Contains(row.OasisType ?? string.Empty))
+            {
+                continue;
+            }
+
+            if (!includeOccupied && row.IsOccupied == true)
+            {
+                continue;
+            }
+
+            var distance = referenceVillage is { } village
+                ? Math.Sqrt(Math.Pow(x - village.X, 2) + Math.Pow(y - village.Y, 2))
+                : row.Distance;
+            candidates.Add((x, y, row.Pop, distance));
+        }
+
+        IEnumerable<(int X, int Y, long? Pop, double? Distance)> filtered = populationMode switch
+        {
+            "under" => candidates.Where(row => row.Pop.HasValue && row.Pop.Value <= populationLimit),
+            "over" => candidates.Where(row => row.Pop.HasValue && row.Pop.Value >= populationLimit),
+            _ => candidates,
+        };
+
+        if (maximumDistance.HasValue)
+        {
+            filtered = filtered.Where(row => row.Distance.HasValue && row.Distance.Value <= maximumDistance.Value);
+        }
+
+        filtered = order switch
+        {
+            "distance_desc" => filtered.OrderByDescending(row => row.Distance ?? double.MinValue),
+            "pop_desc" => filtered.OrderByDescending(row => row.Pop ?? long.MinValue),
+            "pop_asc" => filtered.OrderBy(row => row.Pop ?? long.MaxValue),
+            _ => filtered.OrderBy(row => row.Distance ?? double.MaxValue),
+        };
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result = new List<FarmCoordinate>();
+        foreach (var row in filtered)
+        {
+            var key = $"{row.X}|{row.Y}";
             if (!seen.Add(key) || (skipDuplicates && existingCoordinates.Contains(key)))
             {
                 continue;
             }
 
-            result.Add(new FarmCoordinate(x, y));
+            result.Add(new FarmCoordinate(row.X, row.Y));
             if (result.Count >= amount)
             {
                 break;

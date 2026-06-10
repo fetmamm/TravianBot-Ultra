@@ -36,6 +36,77 @@ public sealed class MapOasisApiParserTests
     }
 
     [Fact]
+    public void Parse_HandlesBidiControlCharactersInTileText()
+    {
+        // Travian wraps tile text with Unicode bidi controls (U+202D/U+202C) around the bonus tokens.
+        const char lro = '‭';
+        const char pdf = '‬';
+        var text = $"<br />{{a:r4}}{lro} {{a.r4}}{pdf} 25%<br />{{k.animals}}";
+        var json = CreateResponse($"{{\"x\":-38,\"y\":-108,\"did\":-1,\"title\":\"{{k.fo}}\",\"text\":\"{text}\"}}");
+
+        var oasis = Assert.Single(MapOasisApiParser.Parse(json));
+
+        Assert.Equal("Crop 25%", oasis.OasisType);
+        Assert.Equal("Crop", oasis.FilterType);
+    }
+
+    [Fact]
+    public void Parse_ReadsCoordinatesFromNestedPositionObject()
+    {
+        var json = CreateResponse(
+            "{\"position\":{\"x\":-198,\"y\":-170},\"did\":-1,\"title\":\"{k.fo}\",\"text\":\"{a:r1} {a.r1} 25%\"}");
+
+        var oasis = Assert.Single(MapOasisApiParser.Parse(json));
+
+        Assert.Equal(-198, oasis.X);
+        Assert.Equal(-170, oasis.Y);
+        Assert.Equal("Wood", oasis.FilterType);
+    }
+
+    [Fact]
+    public void Parse_ReadsCoordinatesFromNumericStrings()
+    {
+        var json = CreateResponse(
+            "{\"x\":\"-198\",\"y\":\"-170\",\"did\":-1,\"title\":\"{k.fo}\",\"text\":\"{a:r1} {a.r1} 25%\"}");
+
+        var oasis = Assert.Single(MapOasisApiParser.Parse(json));
+
+        Assert.Equal(-198, oasis.X);
+        Assert.Equal(-170, oasis.Y);
+    }
+
+    [Fact]
+    public void Parse_ReadsAnimalsForUnoccupiedOasis()
+    {
+        const string text =
+            "{a:r1} {a.r1} 25%<br />{k.animals}<br />" +
+            "<div class=\\\"inlineIcon tooltipUnit\\\" title=\\\"\\\"><i class=\\\"unit u35\\\"></i><span class=\\\"value \\\">5</span></div><br />" +
+            "<div class=\\\"inlineIcon tooltipUnit\\\" title=\\\"\\\"><i class=\\\"unit u37\\\"></i><span class=\\\"value \\\">4</span></div>";
+        var json = CreateResponse($"{{\"x\":1,\"y\":2,\"did\":-1,\"title\":\"{{k.fo}}\",\"text\":\"{text}\"}}");
+
+        var oasis = Assert.Single(MapOasisApiParser.Parse(json));
+
+        Assert.Equal("Wild Boar 5, Bear 4", oasis.Animals);
+        Assert.Equal(string.Empty, oasis.OwnerPlayer);
+    }
+
+    [Fact]
+    public void Parse_ReadsOwnerForOccupiedOasis()
+    {
+        const string text =
+            "{a:r3} {a.r3} 25%<br />{a:r4} {a.r4} 25%<br />" +
+            "{k.spieler} SomethingNew<br />{k.allianz} INX<br />{k.volk} {a.v1}";
+        var json = CreateResponse($"{{\"x\":1,\"y\":2,\"uid\":1174,\"did\":-1,\"title\":\"{{k.bt}}\",\"text\":\"{text}\"}}");
+
+        var oasis = Assert.Single(MapOasisApiParser.Parse(json));
+
+        Assert.True(oasis.IsOccupied);
+        Assert.Equal("SomethingNew", oasis.OwnerPlayer);
+        Assert.Equal("INX", oasis.OwnerAlliance);
+        Assert.Equal(string.Empty, oasis.Animals);
+    }
+
+    [Fact]
     public void Parse_IdentifiesOccupiedOasis()
     {
         var json = CreateResponse("{\"x\":1,\"y\":2,\"did\":-1,\"uid\":99,\"title\":\"{k.bt}\",\"text\":\"{a:r1} {a.r1} 25%\"}");

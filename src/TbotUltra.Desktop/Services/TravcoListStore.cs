@@ -34,6 +34,9 @@ public sealed class TravcoListStore
         public bool Selected { get; set; } = true;
         public string? OasisType { get; set; }
         public bool? IsOccupied { get; set; }
+        public string? Animals { get; set; }
+        public string? OwnerPlayer { get; set; }
+        public string? OwnerAlliance { get; set; }
     }
 
     private sealed class TravcoListFile
@@ -208,6 +211,9 @@ public sealed class TravcoListStore
                 Selected = row.Selected,
                 OasisType = row.OasisType,
                 IsOccupied = row.IsOccupied,
+                Animals = row.Animals,
+                OwnerPlayer = row.OwnerPlayer,
+                OwnerAlliance = row.OwnerAlliance,
             });
         }
 
@@ -298,6 +304,9 @@ public sealed class TravcoListStore
                 Selected = row.Selected,
                 OasisType = row.OasisType,
                 IsOccupied = row.IsOccupied,
+                Animals = row.Animals,
+                OwnerPlayer = row.OwnerPlayer,
+                OwnerAlliance = row.OwnerAlliance,
             }).ToList(),
         };
     }

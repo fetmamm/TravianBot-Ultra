@@ -75,6 +75,9 @@ public partial class MainWindow
                 Landscape = 0,
                 IsOccupied = entry.IsOccupied,
                 OasisType = entry.OasisType,
+                Animals = entry.Animals,
+                OwnerPlayer = entry.OwnerPlayer,
+                OwnerAlliance = entry.OwnerAlliance,
             }).ToList();
         }
         finally

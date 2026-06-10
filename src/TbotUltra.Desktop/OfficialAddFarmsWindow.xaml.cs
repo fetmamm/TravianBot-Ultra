@@ -39,6 +39,40 @@ public partial class OfficialAddFarmsWindow : Window
     {
         public int SelectedCount => Rows.Count(row => row.Selected);
         public string DisplayName => $"{Name} ({SelectedCount} farms)";
+
+        // An oasis source list is one whose selected rows carry an oasis type.
+        public bool IsOasisList => Rows.Any(row => row.Selected && !string.IsNullOrWhiteSpace(row.OasisType));
+    }
+
+    public sealed record AddFarmsVillageOption(string Name, int? X, int? Y)
+    {
+        public bool HasCoordinates => X.HasValue && Y.HasValue;
+        public string DisplayName => HasCoordinates ? $"{Name} ({X} | {Y})" : Name;
+    }
+
+    // One toggleable oasis type, used to let the user pick which oasis types from the source list to add.
+    public sealed class OasisTypeFilter : INotifyPropertyChanged
+    {
+        private bool _isChecked = true;
+
+        public required string Type { get; init; }
+
+        public bool IsChecked
+        {
+            get => _isChecked;
+            set
+            {
+                if (_isChecked == value)
+                {
+                    return;
+                }
+
+                _isChecked = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsChecked)));
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
     }
 
     public sealed class TargetOption : INotifyPropertyChanged
@@ -79,7 +113,10 @@ public partial class OfficialAddFarmsWindow : Window
         CancellationToken,
         Task<OfficialFarmAddRunResult>> _runner;
     private readonly CancellationTokenSource _runCts;
+    private readonly IReadOnlyList<AddFarmsVillageOption> _villages;
+    private readonly string? _selectedVillageName;
     private IReadOnlyList<string> _customTroopTypes = [];
+    private List<OasisTypeFilter> _oasisTypeFilters = [];
     private bool _loaded;
 
     public OfficialFarmAddRunResult? RunResult { get; private set; }
@@ -97,22 +134,44 @@ public partial class OfficialAddFarmsWindow : Window
             IProgress<FarmAddProgress>,
             CancellationToken,
             Task<OfficialFarmAddRunResult>> runner,
-        CancellationToken externalToken)
+        CancellationToken externalToken,
+        IReadOnlyList<AddFarmsVillageOption>? villages = null,
+        string? selectedVillageName = null)
     {
         InitializeComponent();
         _loader = loader;
         _runner = runner;
         _runCts = CancellationTokenSource.CreateLinkedTokenSource(externalToken);
+        _villages = villages ?? [];
+        _selectedVillageName = selectedVillageName;
 
         _customTroopTypes = TroopCatalog.ResolveTroopTypesForTribe(tribe);
         AmountComboBox.ItemsSource = Enumerable.Range(1, OfficialFarmListCapacity);
         AmountComboBox.SelectedItem = OfficialFarmListCapacity;
         TroopCountTextBox.Text = Math.Max(1, defaultTroopCount).ToString(CultureInfo.InvariantCulture);
 
+        PopulateVillageComboBox();
+
         AddButton.IsEnabled = false;
         UpdateTroopControls();
         RefreshState();
         Loaded += OnLoaded;
+    }
+
+    // Fills the "Distance from village" dropdown and pre-selects the village currently active in the
+    // main window so distance is computed against it by default. Only villages with coordinates qualify.
+    private void PopulateVillageComboBox()
+    {
+        var options = _villages.Where(village => village.HasCoordinates).ToList();
+        FromVillageComboBox.ItemsSource = options;
+        if (options.Count == 0)
+        {
+            return;
+        }
+
+        var preselected = options.FirstOrDefault(village =>
+            string.Equals(village.Name, _selectedVillageName, StringComparison.OrdinalIgnoreCase));
+        FromVillageComboBox.SelectedItem = preselected ?? options[0];
     }
 
     protected override void OnClosed(EventArgs e)
@@ -181,6 +240,48 @@ public partial class OfficialAddFarmsWindow : Window
 
     private void InputChanged(object sender, RoutedEventArgs e) => RefreshState();
     private void TargetCheckBox_Changed(object sender, RoutedEventArgs e) => RefreshState();
+
+    private void SourceListComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        RebuildOasisFilter();
+        RefreshState();
+    }
+
+    // Shows the oasis type/occupied filter only for oasis source lists, populated with the distinct
+    // oasis types present in the selected list. Hidden for villages lists.
+    private void RebuildOasisFilter()
+    {
+        if (OasisTypesItemsControl is null || OasisFilterBorder is null)
+        {
+            return;
+        }
+
+        foreach (var existing in _oasisTypeFilters)
+        {
+            existing.PropertyChanged -= OasisTypeFilter_PropertyChanged;
+        }
+
+        var source = SourceListComboBox?.SelectedItem as SourceOption;
+        var types = source is { IsOasisList: true }
+            ? source.Rows
+                .Where(row => row.Selected && !string.IsNullOrWhiteSpace(row.OasisType))
+                .Select(row => row.OasisType!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(type => type, StringComparer.OrdinalIgnoreCase)
+                .ToList()
+            : [];
+
+        _oasisTypeFilters = types.Select(type => new OasisTypeFilter { Type = type }).ToList();
+        foreach (var filter in _oasisTypeFilters)
+        {
+            filter.PropertyChanged += OasisTypeFilter_PropertyChanged;
+        }
+
+        OasisTypesItemsControl.ItemsSource = _oasisTypeFilters;
+        OasisFilterBorder.Visibility = _oasisTypeFilters.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OasisTypeFilter_PropertyChanged(object? sender, PropertyChangedEventArgs e) => RefreshState();
 
     private void TroopModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -296,6 +397,24 @@ public partial class OfficialAddFarmsWindow : Window
             return [];
         }
 
+        (int X, int Y)? referenceVillage = FromVillageComboBox?.SelectedItem is AddFarmsVillageOption village
+            && village.X.HasValue && village.Y.HasValue
+            ? (village.X.Value, village.Y.Value)
+            : null;
+
+        // Oasis source lists expose extra filters: which oasis types to include and whether to allow
+        // occupied oases. Villages lists pass these as "no filter".
+        IReadOnlySet<string>? oasisTypes = null;
+        var includeOccupied = true;
+        if (source.IsOasisList && _oasisTypeFilters.Count > 0)
+        {
+            oasisTypes = _oasisTypeFilters
+                .Where(filter => filter.IsChecked)
+                .Select(filter => filter.Type)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            includeOccupied = IncludeOccupiedCheckBox?.IsChecked == true;
+        }
+
         var workingExisting = new HashSet<string>(_existingCoordinates, StringComparer.OrdinalIgnoreCase);
         var plans = new List<OfficialFarmAddPlan>();
         foreach (var target in targetOptions.Where(option => option.IsChecked))
@@ -317,7 +436,10 @@ public partial class OfficialAddFarmsWindow : Window
                 populationMode,
                 populationLimit,
                 maximumDistance,
-                SkipDuplicatesCheckBox.IsChecked == true);
+                SkipDuplicatesCheckBox.IsChecked == true,
+                referenceVillage,
+                oasisTypes,
+                includeOccupied);
             if (coordinates.Count == 0)
             {
                 continue;

@@ -130,6 +130,10 @@ For en ny dashboard-bool ska hela configkedjan uppdateras:
   Travco-listor och Official-importens koordinatflode forblir kompatibla.
 - Kartparsern tar endast `did == -1` med titel `{k.fo}` eller `{k.bt}` och tolkar bonusarna
   `{a:r1}`-`{a:r4}` i tile-texten. `{k.bt}`/`uid` betyder occupied; okanda kombinationer ignoreras.
+- Koordinater las via `position.x/y` (kan ocksa ligga top-level eller som strangar). Tile-texten har
+  Unicode bidi-tecken (U+202D/U+202C) som maste strippas (kategori `Format`) fore regex.
+- Lediga oaser har djur (`{k.animals}`, enheter `u31`-`u40`); ockuperade har `uid`/`aid` och
+  `{k.spieler}`/`{k.allianz}`/`{k.volk}` men inga djur. Bada falten ar valfria i sparade listor.
 - Official `map.sql` innehaller endast byar och far inte anvandas som oaskalla.
 
 ### Kvalitetsregel

@@ -536,12 +536,20 @@ public partial class MainWindow
                             .ToList());
                 }
 
+                var villageOptions = GetFarmListCreationVillages()
+                    .Select(village => new OfficialAddFarmsWindow.AddFarmsVillageOption(
+                        village.Name,
+                        village.CoordX,
+                        village.CoordY))
+                    .ToList();
                 var officialDialog = new OfficialAddFarmsWindow(
                     ResolveCurrentTribeForFarming(),
                     LoadAddFarmsTroopCount(),
                     LoadOfficialAsync,
                     RunOfficialPlansAsync,
-                    operationToken)
+                    operationToken,
+                    villageOptions,
+                    GetSelectedVillageName())
                 {
                     Owner = this,
                 };

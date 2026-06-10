@@ -118,9 +118,12 @@
                               HeadersVisibility="Column"
                               GridLinesVisibility="Horizontal">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Coordinates" Width="140" Binding="{Binding Coordinates}" />
-                            <DataGridTextColumn Header="Oasis type" Width="*" Binding="{Binding OasisType}" />
-                            <DataGridTextColumn Header="Occupied" Width="120" Binding="{Binding OccupiedText}" />
+                            <DataGridTextColumn Header="Coordinates" Width="110" Binding="{Binding Coordinates}" />
+                            <DataGridTextColumn Header="Oasis type" Width="120" Binding="{Binding OasisType}" />
+                            <DataGridTextColumn Header="Occupied" Width="70" Binding="{Binding OccupiedText}" />
+                            <DataGridTextColumn Header="Animals" Width="*" Binding="{Binding Animals}" />
+                            <DataGridTextColumn Header="Player" Width="130" Binding="{Binding OwnerPlayer}" />
+                            <DataGridTextColumn Header="Alliance" Width="90" Binding="{Binding OwnerAlliance}" />
                         </DataGrid.Columns>
                     </DataGrid>
                 </Border>

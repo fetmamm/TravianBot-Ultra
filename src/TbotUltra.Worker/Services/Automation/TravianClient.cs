@@ -708,12 +708,55 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             throw new InvalidOperationException("Gold Club is not enabled for this account.");
         }
 
-        await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
-        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-        await EnsureOfficialFarmListsExpandedAsync(cancellationToken);
-        var rows = await ReadFarmListsFromCurrentPageAsync(cancellationToken);
+        // The farm list page is React-rendered, so the wrappers can be missing on the first read
+        // right after navigation (a known race that "worked on retry"). Wait for them to render and,
+        // on Official, retry the whole open/expand/read once if the page still yielded zero lists.
+        const int maxAttempts = 2;
+        IReadOnlyList<FarmListOverview> rows = [];
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
+            await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
+            await WaitForFarmListsRenderedAsync(cancellationToken);
+            await EnsureOfficialFarmListsExpandedAsync(cancellationToken);
+            rows = await ReadFarmListsFromCurrentPageAsync(cancellationToken);
+            if (rows.Count > 0 || _config.IsPrivateServer || attempt == maxAttempts)
+            {
+                break;
+            }
+
+            Notify($"[farm-list] no farm lists read on attempt {attempt}/{maxAttempts}; reopening the farm page and retrying.");
+            await Task.Delay(750, cancellationToken);
+        }
+
         Notify($"[farm-list] read {rows.Count} farm list(s) from rally point");
         return rows;
+    }
+
+    // Waits for the Official farm list wrappers to render before reading, so a slow React mount does
+    // not make us read an empty page. A genuinely empty account simply times out and reads zero.
+    private async Task WaitForFarmListsRenderedAsync(CancellationToken cancellationToken)
+    {
+        if (_config.IsPrivateServer)
+        {
+            return;
+        }
+
+        try
+        {
+            await _page.WaitForFunctionAsync(
+                "() => document.querySelectorAll('#rallyPointFarmList .farmListWrapper').length > 0",
+                null,
+                new PageWaitForFunctionOptions { Timeout = 8000 }).WaitAsync(cancellationToken);
+        }
+        catch (TimeoutException)
+        {
+            Notify("[farm-list] no farm list wrappers rendered within 8 seconds; the account may have no farm lists.");
+        }
+        catch (PlaywrightException ex)
+        {
+            Notify($"[farm-list] waiting for farm list wrappers failed: {ex.Message}");
+        }
     }
 
     public async Task<int?> SendFarmListNowAsync(string farmListName, CancellationToken cancellationToken = default)

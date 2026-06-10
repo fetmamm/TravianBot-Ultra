@@ -5,7 +5,10 @@ public sealed record MapOasisEntry(
     int Y,
     bool IsOccupied,
     string OasisType,
-    string FilterType);
+    string FilterType,
+    string Animals,
+    string OwnerPlayer,
+    string OwnerAlliance);
 
 public sealed record MapOasisScanProgress(
     int CompletedAreas,
