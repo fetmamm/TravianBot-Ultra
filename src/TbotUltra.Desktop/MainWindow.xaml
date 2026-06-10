@@ -1801,16 +1801,10 @@
                                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                                        Margin="0,0,0,8" />
                                             <Button x:Name="TravcoInactiveSearchButton"
-                                                    Content="Travco inactive search"
+                                                    Content="Inactive / oasis analysis"
                                                     MinWidth="170"
                                                     HorizontalAlignment="Left"
                                                     Click="TravcoInactiveSearchButton_Click" />
-                                            <Button x:Name="AnalyzeMapOasisButton"
-                                                    Content="Analyze map oasis"
-                                                    Margin="0,8,0,0"
-                                                    MinWidth="170"
-                                                    HorizontalAlignment="Left"
-                                                    Click="AnalyzeMapOasisButton_Click" />
                                         </StackPanel>
                                     </Border>
                                 </Grid>

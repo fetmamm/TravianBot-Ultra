@@ -57,6 +57,7 @@ public partial class MainWindow
                 _botService.ScrapeTravcoPageAsync(AppendLog, cancellationToken),
             ScrapeAllPagesRequested = (progress, cancellationToken) =>
                 _botService.ScrapeAllTravcoPagesAsync(AppendLog, progress, cancellationToken),
+            MapOasisScanRequested = RunMapOasisScanAsync,
             CloseRequested = () => _botService.CloseTravcoTabAsync(AppendLog),
         };
         window.Closed += TravcoToolsWindow_Closed;

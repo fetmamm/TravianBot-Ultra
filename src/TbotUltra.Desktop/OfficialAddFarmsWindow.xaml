@@ -53,37 +53,6 @@
                         </Grid>
                     </Border>
 
-                    <Border x:Name="OasisFilterBorder" Margin="0,10,0,0" Visibility="Collapsed"
-                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
-                            Background="{DynamicResource SurfaceBrush}" CornerRadius="6" Padding="12">
-                        <StackPanel>
-                            <TextBlock Text="Oasis filter"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                       Margin="0,0,0,8" />
-                            <TextBlock Text="Oasis types to include"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"
-                                       Margin="0,0,0,6" />
-                            <ItemsControl x:Name="OasisTypesItemsControl">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <WrapPanel />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <CheckBox Content="{Binding Type}"
-                                                  IsChecked="{Binding IsChecked, Mode=TwoWay}"
-                                                  Margin="0,0,18,6" />
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <CheckBox x:Name="IncludeOccupiedCheckBox" Margin="0,6,0,0"
-                                      Content="Include occupied oases"
-                                      Checked="InputChanged" Unchecked="InputChanged" />
-                        </StackPanel>
-                    </Border>
-
                     <Border Margin="0,10,0,0" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
                             Background="{DynamicResource SurfaceBrush}" CornerRadius="6" Padding="12">
                         <StackPanel>
@@ -208,6 +177,58 @@
                             <TextBox x:Name="TroopCountTextBox" Grid.Row="2" Grid.Column="1" Margin="0,10,0,0"
                                      TextChanged="InputChanged" />
                         </Grid>
+                    </Border>
+
+                    <Border x:Name="OasisFilterBorder" Margin="0,10,0,0" Visibility="Collapsed"
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                            Background="{DynamicResource SurfaceBrush}" CornerRadius="6" Padding="12">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Text="Oasis filter"
+                                           FontWeight="SemiBold"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                                <ContentControl Style="{StaticResource SettingInfoIconStyle}">
+                                    <ContentControl.ToolTip>
+                                        <ToolTip MaxWidth="320">
+                                            <TextBlock TextWrapping="Wrap"
+                                                       Text="Pick which oasis types from the selected list to add, and whether to include occupied oases. Only applies to map-oasis lists." />
+                                        </ToolTip>
+                                    </ContentControl.ToolTip>
+                                </ContentControl>
+                            </StackPanel>
+                            <ItemsControl x:Name="OasisSingleTypesItemsControl">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox Content="{Binding Type}"
+                                                  IsChecked="{Binding IsChecked, Mode=TwoWay}"
+                                                  Margin="0,0,18,6" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <ItemsControl x:Name="OasisComboTypesItemsControl">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox Content="{Binding Type}"
+                                                  IsChecked="{Binding IsChecked, Mode=TwoWay}"
+                                                  Margin="0,0,18,6" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <CheckBox x:Name="IncludeOccupiedCheckBox" Margin="0,6,0,0"
+                                      Content="Include occupied oases"
+                                      Checked="InputChanged" Unchecked="InputChanged" />
+                        </StackPanel>
                     </Border>
 
                     <TextBlock x:Name="SummaryTextBlock" Margin="0,14,0,0"

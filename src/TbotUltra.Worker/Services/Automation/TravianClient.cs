@@ -4392,6 +4392,26 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
               const target = normalizeListName(targetName);
               if (!target) return false;
 
+              // Official Travian (T4.6): each list is a #rallyPointFarmList .farmListWrapper with the
+              // name in .farmListName .name and a single "Start (N)" button.startFarmList. Clicking it
+              // sends every selected target, so no mark-all checkbox is needed.
+              const officialWrappers = Array.from(document.querySelectorAll('#rallyPointFarmList .farmListWrapper'));
+              for (const wrapper of officialWrappers) {
+                const name = normalizeListName(wrapper.querySelector('.farmListName .name')?.textContent || '');
+                if (name !== target) continue;
+
+                const startButton = wrapper.querySelector('button.startFarmList');
+                if (!startButton) return false;
+
+                const startClass = (startButton.className || '').toLowerCase();
+                if (startButton.disabled || startClass.includes('disabled')) return false;
+
+                startButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+                startButton.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+                startButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                return true;
+              }
+
               const tryReadListId = (root) => {
                 if (!root) return null;
                 const markAll = root.querySelector('input[id^="raidListMarkAll"]');
@@ -4858,22 +4878,37 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             }
 
             await DelayFarmListStepAsync(cancellationToken);
-            try
+
+            // Wait for the Add target form (X/Y inputs) to render. Retry up to 3 times with a 10s
+            // timeout each in case the page is slow to mount the dialog.
+            const int formRenderAttempts = 3;
+            var formRendered = false;
+            for (var attempt = 1; attempt <= formRenderAttempts; attempt++)
             {
-                await _page.WaitForFunctionAsync(
-                    """
-                    () => {
-                      const form = document.querySelector('#farmListTargetForm');
-                      return !!form?.querySelector('input[name="x"]')
-                        && !!form?.querySelector('input[name="y"]');
-                    }
-                    """,
-                    null,
-                    new PageWaitForFunctionOptions { Timeout = 5000 });
+                try
+                {
+                    await _page.WaitForFunctionAsync(
+                        """
+                        () => {
+                          const form = document.querySelector('#farmListTargetForm');
+                          return !!form?.querySelector('input[name="x"]')
+                            && !!form?.querySelector('input[name="y"]');
+                        }
+                        """,
+                        null,
+                        new PageWaitForFunctionOptions { Timeout = 10000 });
+                    formRendered = true;
+                    break;
+                }
+                catch (TimeoutException)
+                {
+                    Notify($"[farm-list] Add target dialog for farm list id {lid} not rendered (attempt {attempt}/{formRenderAttempts}).");
+                }
             }
-            catch (TimeoutException)
+
+            if (!formRendered)
             {
-                throw new InvalidOperationException($"Add target dialog for farm list id {lid} did not render.");
+                throw new InvalidOperationException($"Add target dialog for farm list id {lid} did not render after {formRenderAttempts} attempts.");
             }
         }
 

@@ -13,6 +13,14 @@ public sealed class TravcoListRow : INotifyPropertyChanged
     private long? _pop;
     private string _coordinates = string.Empty;
 
+    // Oasis metadata, only populated for map-oasis lists. Carried through the window so opening,
+    // toggling or editing an oasis list never strips the data the farm-add filter depends on.
+    public string? OasisType { get; set; }
+    public bool? IsOccupied { get; set; }
+    public string? Animals { get; set; }
+    public string? OwnerPlayer { get; set; }
+    public string? OwnerAlliance { get; set; }
+
     public double? Distance
     {
         get => _distance;

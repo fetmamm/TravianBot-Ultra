@@ -99,7 +99,10 @@ public sealed partial class TravianClient
 
                 if (completed < centers.Count)
                 {
-                    await Task.Delay(300, cancellationToken);
+                    // Always wait a randomized 300-800ms between map areas so the scan cadence is jittered
+                    // instead of a fixed, robotic interval. This is independent of the action-pacing toggle
+                    // so there is never a zero-delay burst of requests.
+                    await Task.Delay(Random.Shared.Next(300, 801), cancellationToken);
                 }
             }
         }

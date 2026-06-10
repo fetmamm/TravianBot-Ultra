@@ -24,6 +24,7 @@ public partial class TravcoToolsWindow : Window
     public Func<TravcoSearchRequest, CancellationToken, Task<TravcoScrapeResult>>? SearchRequested { get; init; }
     public Func<CancellationToken, Task<TravcoScrapeResult>>? ScrapePageRequested { get; init; }
     public Func<IProgress<(int CurrentPage, int TotalPages)>, CancellationToken, Task<TravcoScrapeResult>>? ScrapeAllPagesRequested { get; init; }
+    public Func<IProgress<MapOasisScanProgress>, CancellationToken, Task<List<OasisInfo>>>? MapOasisScanRequested { get; init; }
     public Func<Task>? CloseRequested { get; init; }
 
     public TravcoToolsWindow(
@@ -228,6 +229,93 @@ public partial class TravcoToolsWindow : Window
         }
     }
 
+    private void AnalyzeMapOasisButton_Click(object sender, RoutedEventArgs e)
+    {
+        _ = RunMapOasisScanAndSaveAsync();
+    }
+
+    // Scans the whole map for oases (all types, occupied and free) and saves them as one list. The
+    // list keeps each oasis's type/occupied/animals/owner so the farm-add dialog can filter on them.
+    private async Task RunMapOasisScanAndSaveAsync()
+    {
+        if (_busy || MapOasisScanRequested is null)
+        {
+            return;
+        }
+
+        SetBusy(true);
+        using var operationCts = CancellationTokenSource.CreateLinkedTokenSource(_windowCts.Token);
+        _activeOperationCts = operationCts;
+        BusyOverlay.ShowCancel = true;
+        BusyOverlay.Show("Analyze map oasis", "Scanning the Travian map for oases...");
+        try
+        {
+            SetStatus("Scanning the Travian map for oases.");
+            var progress = new Progress<MapOasisScanProgress>(value =>
+            {
+                BusyOverlay.Text =
+                    $"Scanning map area {value.CompletedAreas}/{value.TotalAreas} - {value.OasisCount} oases found.";
+            });
+            var oases = await MapOasisScanRequested(progress, operationCts.Token);
+            if (oases.Count == 0)
+            {
+                SetStatus("Map oasis scan finished with no oases found. No list was created.");
+                return;
+            }
+
+            SetEditMode(false);
+            _openedSavedListId = null;
+            _travcoReady = false;
+            ApplyRows(oases.Select(OasisToRow));
+            var name = OasisListNaming.CreateName(
+                OasisListNaming.TypeOrder,
+                _store.LoadAll().Select(list => list.Name));
+            _viewModel.ListName = name;
+            SaveCurrentRows(name);
+            SetStatus($"Saved '{name}' with {oases.Count} oasis/oases.");
+        }
+        catch (OperationCanceledException)
+        {
+            SetStatus("Map oasis scan canceled.");
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Map oasis scan failed: {ex.Message}");
+        }
+        finally
+        {
+            _activeOperationCts = null;
+            BusyOverlay.ShowCancel = false;
+            BusyOverlay.Hide();
+            SetBusy(false);
+        }
+    }
+
+    // Maps a scanned oasis to a list row. The Village column shows the oasis type and the Account
+    // column shows the owner (occupied) or the animal garrison (free); the structured oasis fields
+    // are kept for the farm-add filter. Distance is left empty — it is computed live at add time.
+    private static TravcoListRow OasisToRow(OasisInfo oasis)
+    {
+        var ownerOrAnimals = oasis.IsOccupied
+            ? string.IsNullOrWhiteSpace(oasis.OwnerAlliance)
+                ? oasis.OwnerPlayer
+                : $"{oasis.OwnerPlayer} ({oasis.OwnerAlliance})"
+            : oasis.Animals;
+
+        return new TravcoListRow
+        {
+            Coordinates = $"{oasis.X}|{oasis.Y}",
+            Village = oasis.OasisType,
+            Account = ownerOrAnimals,
+            Selected = true,
+            OasisType = oasis.OasisType,
+            IsOccupied = oasis.IsOccupied,
+            Animals = oasis.Animals,
+            OwnerPlayer = oasis.OwnerPlayer,
+            OwnerAlliance = oasis.OwnerAlliance,
+        };
+    }
+
     private void OpenListButton_Click(object sender, RoutedEventArgs e)
     {
         var selected = _viewModel.SelectedSavedList;
@@ -387,6 +475,11 @@ public partial class TravcoToolsWindow : Window
             Pop = row.Pop,
             Coordinates = row.Coordinates,
             Selected = row.Selected,
+            OasisType = row.OasisType,
+            IsOccupied = row.IsOccupied,
+            Animals = row.Animals,
+            OwnerPlayer = row.OwnerPlayer,
+            OwnerAlliance = row.OwnerAlliance,
         }).ToList();
     }
 
@@ -400,6 +493,11 @@ public partial class TravcoToolsWindow : Window
             Pop = row.Pop,
             Coordinates = row.Coordinates,
             Selected = row.Selected,
+            OasisType = row.OasisType,
+            IsOccupied = row.IsOccupied,
+            Animals = row.Animals,
+            OwnerPlayer = row.OwnerPlayer,
+            OwnerAlliance = row.OwnerAlliance,
         }));
     }
 
@@ -495,6 +593,7 @@ public partial class TravcoToolsWindow : Window
     {
         _busy = busy;
         InactiveSearchButton.IsEnabled = !busy;
+        AnalyzeMapOasisButton.IsEnabled = !busy;
         SaveListButton.IsEnabled = !busy && _travcoReady;
         SaveAllPagesButton.IsEnabled = !busy && _travcoReady;
         SavedListsListBox.IsEnabled = !busy;

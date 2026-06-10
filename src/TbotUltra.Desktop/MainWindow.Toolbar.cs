@@ -278,7 +278,6 @@ public partial class MainWindow
         {
             _travcoSuppressRestart = true;
             _travcoToolsWindow?.CloseForShutdown();
-            _mapOasisWindow?.CloseForShutdown();
             _logsPopupWindow?.Close();
             _queuePopupWindow?.Close();
             CloseCaptchaAutoSolvePopup();

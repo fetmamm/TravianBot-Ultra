@@ -251,7 +251,7 @@ public partial class OfficialAddFarmsWindow : Window
     // oasis types present in the selected list. Hidden for villages lists.
     private void RebuildOasisFilter()
     {
-        if (OasisTypesItemsControl is null || OasisFilterBorder is null)
+        if (OasisSingleTypesItemsControl is null || OasisComboTypesItemsControl is null || OasisFilterBorder is null)
         {
             return;
         }
@@ -277,7 +277,9 @@ public partial class OfficialAddFarmsWindow : Window
             filter.PropertyChanged += OasisTypeFilter_PropertyChanged;
         }
 
-        OasisTypesItemsControl.ItemsSource = _oasisTypeFilters;
+        // Single-resource types go on the top row, two-resource combos (e.g. "Wood+Crop") on the bottom.
+        OasisSingleTypesItemsControl.ItemsSource = _oasisTypeFilters.Where(filter => !filter.Type.Contains('+')).ToList();
+        OasisComboTypesItemsControl.ItemsSource = _oasisTypeFilters.Where(filter => filter.Type.Contains('+')).ToList();
         OasisFilterBorder.Visibility = _oasisTypeFilters.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 

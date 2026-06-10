@@ -47,7 +47,17 @@
                             Click="SaveAllPagesButton_Click" />
                 </StackPanel>
 
-                <Grid Grid.Column="2">
+                <StackPanel Grid.Column="2">
+                    <Button x:Name="AnalyzeMapOasisButton"
+                            Content="Analyze map oasis"
+                            MinWidth="150"
+                            Margin="0,0,0,10"
+                            HorizontalAlignment="Right"
+                            Background="{DynamicResource AccentBrush}"
+                            BorderBrush="{DynamicResource AccentBrush}"
+                            Foreground="White"
+                            Click="AnalyzeMapOasisButton_Click" />
+                    <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -90,7 +100,8 @@
                              HorizontalAlignment="Left"
                              VerticalContentAlignment="Center"
                              Text="{Binding ListName, UpdateSourceTrigger=PropertyChanged}" />
-                </Grid>
+                    </Grid>
+                </StackPanel>
             </Grid>
 
             <Grid Grid.Row="1">
