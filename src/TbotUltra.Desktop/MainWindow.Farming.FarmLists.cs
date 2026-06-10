@@ -891,7 +891,10 @@ public partial class MainWindow
         var operationId = BeginOperation("Farm Send Now");
         var operationSw = Stopwatch.StartNew();
         var operationToken = _loopController.StartOperation("operation");
-        SetFarmingFunctionRunning(true);
+        // Use the shared busy overlay with its built-in cancel instead of the separate cancel button.
+        SetFarmingFunctionRunning(true, showCancelButton: false);
+        BusyOverlay.ShowCancel = true;
+        ShowBusyOverlay("Send now", $"Sending '{list.Name}'...");
         try
         {
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
@@ -911,6 +914,7 @@ public partial class MainWindow
         }
         finally
         {
+            HideBusyOverlay();
             SetFarmingFunctionRunning(false);
             DisposeOperationCts();
         }
