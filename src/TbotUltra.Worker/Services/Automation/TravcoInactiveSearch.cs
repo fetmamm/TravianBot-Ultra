@@ -197,9 +197,8 @@ public static class TravcoInactiveSearch
             for (var pageNumber = 1; pageNumber <= totalPages; pageNumber++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                await NavigateToPageAsync(page, pageNumber, cancellationToken);
                 progress?.Report((pageNumber, totalPages));
-                var result = await ScrapePageAsync(page, log, cancellationToken);
+                var result = await ScrapePageWithRetryAsync(page, pageNumber, log, cancellationToken);
                 rows.AddRange(result.Rows);
             }
         }
@@ -220,11 +219,61 @@ public static class TravcoInactiveSearch
         return new TravcoScrapeResult(1, totalPages, rows);
     }
 
+    // Navigates to and scrapes a single page, retrying up to 3 times when the page is slow to load.
+    // A reload between attempts lets a stalled request recover before the next try. Only after all
+    // attempts fail does the error bubble up and abort the whole "save all pages" run.
+    private const int PageScrapeMaxAttempts = 3;
+
+    private static async Task<TravcoScrapeResult> ScrapePageWithRetryAsync(
+        IPage page,
+        int pageNumber,
+        Action<string>? log,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; attempt <= PageScrapeMaxAttempts; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                await NavigateToPageAsync(page, pageNumber, cancellationToken);
+                return await ScrapePageAsync(page, log, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex) when (attempt < PageScrapeMaxAttempts)
+            {
+                var backoff = TimeSpan.FromSeconds(attempt);
+                log?.Invoke(
+                    $"[travco] page {pageNumber} attempt {attempt}/{PageScrapeMaxAttempts} failed: {ex.Message}. " +
+                    $"Reloading and retrying in {backoff.TotalSeconds:0}s.");
+                try
+                {
+                    await page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded })
+                        .WaitAsync(cancellationToken);
+                }
+                catch (Exception reloadEx)
+                {
+                    log?.Invoke($"[travco] page {pageNumber} reload failed: {reloadEx.Message}.");
+                }
+
+                await Task.Delay(backoff, cancellationToken);
+            }
+        }
+
+        // Unreachable: the final attempt either returns or throws inside the loop.
+        throw new InvalidOperationException($"Travco page {pageNumber} could not be scraped.");
+    }
+
     private static async Task<int> ResolveTotalPagesAsync(
         IPage page,
         Action<string>? log,
         CancellationToken cancellationToken)
     {
+        // Make sure the results table (and thus the pagination links) is rendered before reading the
+        // page count; otherwise a slow load returns 1 and only page 1 would be saved silently.
+        await WaitForResultsSettledAsync(page, cancellationToken);
         var totalPages = await page.EvaluateAsync<int>(
             """
             () => Math.max(1, ...Array.from(document.querySelectorAll('main a[href*="page="]'))

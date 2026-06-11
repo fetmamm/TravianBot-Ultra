@@ -9,11 +9,28 @@ public partial class BuildingSlotActionsWindow : Window
 
     public BuildingSlotAction SelectedAction { get; private set; } = BuildingSlotAction.None;
 
-    public BuildingSlotActionsWindow(BuildingSlotRow slot, bool canDemolish, string demolishRequirementText)
+    public BuildingSlotActionsWindow(
+        BuildingSlotRow slot,
+        bool canDemolish,
+        string demolishRequirementText,
+        BuildingNextLevelEstimate? nextLevel = null)
     {
         InitializeComponent();
 
         TitleTextBlock.Text = $"{slot.SlotLabel} actions";
+        DemolishButton.IsEnabled = slot.IsOccupied && canDemolish;
+        DemolishRequirementTextBlock.Text = demolishRequirementText;
+        DemolishRequirementTextBlock.Visibility = canDemolish || string.IsNullOrWhiteSpace(demolishRequirementText)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+
+        ApplyState(slot, nextLevel);
+    }
+
+    // Refreshes the slot-dependent parts of the popup (subtitle, upgrade buttons and the next-level
+    // estimate) so it stays responsive when an upgrade is queued without closing the window.
+    public void ApplyState(BuildingSlotRow slot, BuildingNextLevelEstimate? nextLevel)
+    {
         SubtitleTextBlock.Text = slot.IsOccupied
             ? slot.IsMaxLevel
                 ? $"{slot.Name} level {slot.LevelLabel} (max)"
@@ -22,15 +39,26 @@ public partial class BuildingSlotActionsWindow : Window
                 ? $"{slot.PendingConstructName} queued for construction"
             : "Empty slot";
 
+        var canUpgrade = slot.CanQueueUpgrade && !slot.IsMaxLevel;
         BuildBuildingButton.IsEnabled = !slot.IsOccupied && !slot.HasPendingConstruct;
-        UpgradeButton.IsEnabled = slot.CanQueueUpgrade && !slot.IsMaxLevel;
-        UpgradeOneLevelButton.IsEnabled = slot.CanQueueUpgrade && !slot.IsMaxLevel;
-        UpgradeToMaxButton.IsEnabled = slot.CanQueueUpgrade && !slot.IsMaxLevel;
-        DemolishButton.IsEnabled = slot.IsOccupied && canDemolish;
-        DemolishRequirementTextBlock.Text = demolishRequirementText;
-        DemolishRequirementTextBlock.Visibility = canDemolish || string.IsNullOrWhiteSpace(demolishRequirementText)
-            ? Visibility.Collapsed
-            : Visibility.Visible;
+        UpgradeButton.IsEnabled = canUpgrade;
+        UpgradeOneLevelButton.IsEnabled = canUpgrade;
+        UpgradeToMaxButton.IsEnabled = canUpgrade;
+
+        if (nextLevel is not null)
+        {
+            NextLevelTitleTextBlock.Text = $"Upgrade to level {nextLevel.Level}";
+            NextLevelTimeTextBlock.Text = nextLevel.TimeText;
+            NextLevelWoodTextBlock.Text = nextLevel.WoodText;
+            NextLevelClayTextBlock.Text = nextLevel.ClayText;
+            NextLevelIronTextBlock.Text = nextLevel.IronText;
+            NextLevelCropTextBlock.Text = nextLevel.CropText;
+            NextLevelEstimateBorder.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            NextLevelEstimateBorder.Visibility = Visibility.Collapsed;
+        }
     }
 
     private void BuildBuildingButton_Click(object sender, RoutedEventArgs e)
@@ -72,6 +100,16 @@ public partial class BuildingSlotActionsWindow : Window
         Close();
     }
 }
+
+// Next-level build estimate shown in the slot popup. Strings are pre-formatted by the caller so the
+// window stays a dumb view (colors are applied per-resource in XAML).
+public sealed record BuildingNextLevelEstimate(
+    int Level,
+    string TimeText,
+    string WoodText,
+    string ClayText,
+    string IronText,
+    string CropText);
 
 public enum BuildingSlotAction
 {

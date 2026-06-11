@@ -215,6 +215,40 @@ public partial class MainWindow
         return $"{speed}x";
     }
 
+    // Resolves the server speed multiplier (1x/3x/10x...) used to scale catalog build times. First tries
+    // the configured server name (e.g. "Slangen 10x"), then the server URL where the speed lives in the
+    // subdomain (e.g. "ts100.x10.america.travian.com"). Falls back to 1x and raises a one-time alarm when
+    // no speed can be parsed. Estimates are best-effort and never block execution.
+    private double ResolveServerSpeed()
+    {
+        var serverName = LoadBotOptions().ServerName;
+
+        // Server name: digit before the x, e.g. "10x".
+        var nameMatch = Regex.Match(serverName ?? string.Empty, @"(\d+)\s*[xX]");
+        if (nameMatch.Success && double.TryParse(nameMatch.Groups[1].Value, out var nameSpeed) && nameSpeed > 0)
+        {
+            _serverSpeedAlarmRaised = false;
+            return nameSpeed;
+        }
+
+        // Server URL: speed subdomain, x before the digits, e.g. ".x10.".
+        var serverUrl = GetActiveAccountServerUrl();
+        var urlMatch = Regex.Match(serverUrl ?? string.Empty, @"\.x(\d+)\b", RegexOptions.IgnoreCase);
+        if (urlMatch.Success && double.TryParse(urlMatch.Groups[1].Value, out var urlSpeed) && urlSpeed > 0)
+        {
+            _serverSpeedAlarmRaised = false;
+            return urlSpeed;
+        }
+
+        if (!_serverSpeedAlarmRaised)
+        {
+            _serverSpeedAlarmRaised = true;
+            AppendLog($"ALARM: could not detect server speed from server name '{serverName}' or URL '{serverUrl}'; using 1x for build estimates.");
+        }
+
+        return 1.0;
+    }
+
     private string? GetActiveAccountServerUrl()
     {
         try

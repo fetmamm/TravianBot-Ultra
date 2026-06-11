@@ -122,11 +122,22 @@ public partial class MainWindow
         }
 
         var canDemolish = CanDemolishBuildings(out var demolishRequirementText);
-        var actionsWindow = new BuildingSlotActionsWindow(row, canDemolish, demolishRequirementText)
+        var nextLevelEstimate = BuildNextLevelEstimate(row);
+        var actionsWindow = new BuildingSlotActionsWindow(row, canDemolish, demolishRequirementText, nextLevelEstimate)
         {
             Owner = this,
         };
-        actionsWindow.UpgradeOneLevelRequested += (_, _) => QueueSingleBuildingUpgradeFromSlot(row.SlotId);
+        actionsWindow.UpgradeOneLevelRequested += (_, _) =>
+        {
+            QueueSingleBuildingUpgradeFromSlot(row.SlotId);
+            // Re-read the live row: queueing replaced it in _buildingRows with the new pending target,
+            // so the popup can show the next level's estimate without being reopened.
+            var liveRow = _buildingRows.FirstOrDefault(item => item.SlotId == row.SlotId);
+            if (liveRow is not null)
+            {
+                actionsWindow.ApplyState(liveRow, BuildNextLevelEstimate(liveRow));
+            }
+        };
         if (actionsWindow.ShowDialog() != true)
         {
             return;
@@ -218,7 +229,10 @@ public partial class MainWindow
             return;
         }
 
-        var targetWindow = new BuildingUpgradeTargetWindow(liveRow, maxLevel)
+        var targetWindow = new BuildingUpgradeTargetWindow(
+            liveRow,
+            maxLevel,
+            targetLevel => BuildUpgradeRangeEstimate(liveRow, targetLevel))
         {
             Owner = this,
         };
@@ -1166,6 +1180,14 @@ public partial class MainWindow
 
         PopulateBuildingCatalogOptions(status);
         BuildingsInfoTextBlock.Text = $"Buildings loaded. Occupied slots: {occupiedCount}, free slots: {22 - occupiedCount}.";
+
+        // The Main Building level just became available for this village. Recompute the queue estimates
+        // so already-queued items reflect the build-time discount. Skipped when this call came from
+        // RefreshQueueUi itself (see _isRefreshingQueueUi) to avoid an endless refresh loop.
+        if (!_isRefreshingQueueUi)
+        {
+            RequestQueueUiRefresh();
+        }
     }
 
     private static bool IsEmptyBuilding(Building building)

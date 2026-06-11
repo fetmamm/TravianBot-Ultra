@@ -1,3 +1,4 @@
+using System;
 using System.Windows;
 using TbotUltra.Desktop.Models;
 
@@ -5,12 +6,19 @@ namespace TbotUltra.Desktop;
 
 public partial class BuildingUpgradeTargetWindow : Window
 {
+    // Returns the cumulative build time + cost up to the given target level, or null when unavailable.
+    private readonly Func<int, BuildingNextLevelEstimate?>? _estimateProvider;
+
     public int SelectedTargetLevel { get; private set; }
 
-    public BuildingUpgradeTargetWindow(BuildingSlotRow slot, int maxLevel)
+    public BuildingUpgradeTargetWindow(
+        BuildingSlotRow slot,
+        int maxLevel,
+        Func<int, BuildingNextLevelEstimate?>? estimateProvider = null)
     {
         InitializeComponent();
 
+        _estimateProvider = estimateProvider;
         var currentLevel = slot.UpgradeBaseLevel;
         TitleTextBlock.Text = $"Upgrade {slot.UpgradeName}";
         SubtitleTextBlock.Text = $"{slot.SlotLabel}, level {currentLevel}. Max level: {maxLevel}.";
@@ -20,7 +28,29 @@ public partial class BuildingUpgradeTargetWindow : Window
             TargetLevelComboBox.Items.Add(level);
         }
 
+        TargetLevelComboBox.SelectionChanged += (_, _) => UpdateEstimate();
         TargetLevelComboBox.SelectedIndex = TargetLevelComboBox.Items.Count > 0 ? 0 : -1;
+    }
+
+    // Refreshes the estimate box for the currently selected target level. Hidden when no provider or
+    // no catalog data is available.
+    private void UpdateEstimate()
+    {
+        var estimate = _estimateProvider is not null && TargetLevelComboBox.SelectedItem is int level
+            ? _estimateProvider(level)
+            : null;
+        if (estimate is null)
+        {
+            EstimateBorder.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        TimeTextBlock.Text = estimate.TimeText;
+        WoodTextBlock.Text = estimate.WoodText;
+        ClayTextBlock.Text = estimate.ClayText;
+        IronTextBlock.Text = estimate.IronText;
+        CropTextBlock.Text = estimate.CropText;
+        EstimateBorder.Visibility = Visibility.Visible;
     }
 
     private void QueueButton_Click(object sender, RoutedEventArgs e)

@@ -32,6 +32,7 @@ public partial class MainWindow
         activeGrid.Columns.Add(new DataGridTextColumn { Header = "Task", Binding = new Binding("DisplayName"), Width = new DataGridLength(2, DataGridLengthUnitType.Star) });
         activeGrid.Columns.Add(new DataGridTextColumn { Header = "Status", Binding = new Binding("Status"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
         activeGrid.Columns.Add(new DataGridTextColumn { Header = "Retries", Binding = new Binding("RetriesText"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        activeGrid.Columns.Add(new DataGridTextColumn { Header = "Cost (W|C|I|Cr)", Binding = new Binding("CostText"), Width = new DataGridLength(1.6, DataGridLengthUnitType.Star) });
 
         var historyGrid = new DataGrid
         {

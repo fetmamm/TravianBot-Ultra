@@ -2780,6 +2780,7 @@
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
                                 <DockPanel Grid.Row="0" Margin="0,0,0,10">
@@ -2879,8 +2880,49 @@
                                         </DataGridTemplateColumn>
                                         <DataGridTextColumn Header="Retries" Width="0.9*" Binding="{Binding RetriesText}" />
                                         <DataGridTextColumn Header="Created" Width="1.5*" Binding="{Binding CreatedAtServer}" />
+                                        <DataGridTemplateColumn Header="Cost (W|C|I|Cr)" Width="1.6*">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding WoodText}" Foreground="{DynamicResource WoodTextBrush}" />
+                                                        <TextBlock Text=" | " Foreground="{DynamicResource TextSubtleBrush}" />
+                                                        <TextBlock Text="{Binding ClayText}" Foreground="{DynamicResource ClayTextBrush}" />
+                                                        <TextBlock Text=" | " Foreground="{DynamicResource TextSubtleBrush}" />
+                                                        <TextBlock Text="{Binding IronText}" Foreground="{DynamicResource IronTextBrush}" />
+                                                        <TextBlock Text=" | " Foreground="{DynamicResource TextSubtleBrush}" />
+                                                        <TextBlock Text="{Binding CropText}" Foreground="{DynamicResource CropTextBrush}" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
                                     </DataGrid.Columns>
                                 </DataGrid>
+
+                                <Border Grid.Row="2"
+                                        Margin="0,10,0,0"
+                                        Padding="10,6"
+                                        Background="{DynamicResource SurfaceAltBrush}"
+                                        BorderBrush="{DynamicResource BorderSubtleBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="Totals (selected village):"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   FontWeight="SemiBold"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,12,0" />
+                                        <TextBlock Text="Cost "
+                                                   Foreground="{DynamicResource TextSubtleBrush}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock x:Name="QueueTotalWoodTextBlock" Text="-" Foreground="{DynamicResource WoodTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        <TextBlock Text=" | " Foreground="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="QueueTotalClayTextBlock" Text="-" Foreground="{DynamicResource ClayTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        <TextBlock Text=" | " Foreground="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="QueueTotalIronTextBlock" Text="-" Foreground="{DynamicResource IronTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        <TextBlock Text=" | " Foreground="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="QueueTotalCropTextBlock" Text="-" Foreground="{DynamicResource CropTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Border>
                             </Grid>
                         </Border>
 

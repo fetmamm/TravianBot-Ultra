@@ -178,31 +178,54 @@ public partial class MainWindow
         return slotId.HasValue ? $" (slot {slotId.Value})" : string.Empty;
     }
 
+    // Guards against re-entrancy: RefreshQueueUi repopulates the Buildings tab, and PopulateBuildingsTab
+    // requests a queue refresh (so estimates pick up a newly detected Main Building level). Without this
+    // flag those two would trigger each other in an endless loop.
+    private bool _isRefreshingQueueUi;
+
     private void RefreshQueueUi(Guid? selectId = null)
     {
+        _isRefreshingQueueUi = true;
         try
         {
             var ordered = _botService.GetQueueItemsForDisplay().ToList();
             ClearStaleBuildingPendingCaches(ordered);
             _queueServerTimeOffset = ResolveQueueServerTimeOffset();
             var displayRunningId = ResolveDisplayRunningQueueItemId(ordered);
+            var serverSpeed = ResolveServerSpeed();
+            var mainBuildingLevel = ResolveMainBuildingLevel();
             var rows = ordered
-                .Select(item => new QueueItemRow
+                .Select(item =>
                 {
-                    Id = item.Id,
-                    Group = item.Group,
-                    GroupName = QueueGroupCatalog.GetTitle(item.Group),
-                    VillageName = GetQueueItemVillageName(item) ?? "-",
-                    VillageKey = GetQueueItemVillageKey(item) ?? string.Empty,
-                    DisplayName = BuildQueueDisplayName(item),
-                    TaskName = item.TaskName,
-                    Status = item.Id == displayRunningId ? QueueStatus.Running : item.Status,
-                    Retries = item.Retries,
-                    MaxRetries = item.MaxRetries,
-                    IsRuntimeOnly = item.IsRuntimeOnly,
-                    CreatedAt = item.CreatedAt,
-                    NextAttemptAtServer = FormatQueueServerTime(item.NextAttemptAt),
-                    CreatedAtServer = FormatQueueServerTime(item.CreatedAt),
+                    var estimate = EstimateForQueueItem(item, serverSpeed, mainBuildingLevel);
+                    return new QueueItemRow
+                    {
+                        Id = item.Id,
+                        Group = item.Group,
+                        GroupName = QueueGroupCatalog.GetTitle(item.Group),
+                        VillageName = GetQueueItemVillageName(item) ?? "-",
+                        VillageKey = GetQueueItemVillageKey(item) ?? string.Empty,
+                        DisplayName = BuildQueueDisplayName(item),
+                        TaskName = item.TaskName,
+                        Status = item.Id == displayRunningId ? QueueStatus.Running : item.Status,
+                        Retries = item.Retries,
+                        MaxRetries = item.MaxRetries,
+                        IsRuntimeOnly = item.IsRuntimeOnly,
+                        CreatedAt = item.CreatedAt,
+                        NextAttemptAtServer = FormatQueueServerTime(item.NextAttemptAt),
+                        CreatedAtServer = FormatQueueServerTime(item.CreatedAt),
+                        HasEstimate = estimate.HasData,
+                        EstimateSeconds = estimate.Seconds,
+                        EstimateWood = estimate.Wood,
+                        EstimateClay = estimate.Clay,
+                        EstimateIron = estimate.Iron,
+                        EstimateCrop = estimate.Crop,
+                        BuildTimeText = estimate.HasData ? FormatBuildDuration(estimate.Seconds) : "-",
+                        WoodText = estimate.HasData ? FormatResourceAmount(estimate.Wood) : "-",
+                        ClayText = estimate.HasData ? FormatResourceAmount(estimate.Clay) : "-",
+                        IronText = estimate.HasData ? FormatResourceAmount(estimate.Iron) : "-",
+                        CropText = estimate.HasData ? FormatResourceAmount(estimate.Crop) : "-",
+                    };
                 })
                 .ToList();
             var activeRows = rows
@@ -232,6 +255,7 @@ public partial class MainWindow
 
             QueueDataGrid.ItemsSource = displayedActiveRows;
             QueueHistoryDataGrid.ItemsSource = displayedHistoryRows;
+            UpdateQueueEstimateTotals(displayedActiveRows);
             SyncPendingResourceTargetsInUi();
             if (_lastBuildingStatus is not null)
             {
@@ -268,6 +292,10 @@ public partial class MainWindow
             QueueInfoTextBlock.Text = $"Queue load failed: {ex.Message}";
             AppendLog($"Queue load failed: {ex.Message}");
             UpdateExecutionStateIndicator();
+        }
+        finally
+        {
+            _isRefreshingQueueUi = false;
         }
     }
 

@@ -12,6 +12,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -26,10 +27,46 @@
         <TextBlock x:Name="SubtitleTextBlock"
                    Grid.Row="1"
                    Foreground="{DynamicResource TextSubtleBrush}"
-                   Margin="0,0,0,12"
+                   Margin="0,0,0,8"
                    TextWrapping="Wrap" />
 
-        <StackPanel Grid.Row="2">
+        <!-- Next-level estimate: build time + colored resource cost. Hidden when unavailable. -->
+        <Border x:Name="NextLevelEstimateBorder"
+                Grid.Row="2"
+                Margin="0,0,0,12"
+                Padding="8,6"
+                Background="{DynamicResource SurfaceAltBrush}"
+                BorderBrush="{DynamicResource BorderSubtleBrush}"
+                BorderThickness="1"
+                CornerRadius="6"
+                Visibility="Collapsed">
+            <StackPanel>
+                <TextBlock x:Name="NextLevelTitleTextBlock"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,4" />
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Time "
+                               Foreground="{DynamicResource TextSubtleBrush}"
+                               VerticalAlignment="Center" />
+                    <TextBlock x:Name="NextLevelTimeTextBlock"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                    <TextBlock x:Name="NextLevelWoodTextBlock" Text="-" Foreground="{DynamicResource WoodTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Text=" | " Foreground="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
+                    <TextBlock x:Name="NextLevelClayTextBlock" Text="-" Foreground="{DynamicResource ClayTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Text=" | " Foreground="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
+                    <TextBlock x:Name="NextLevelIronTextBlock" Text="-" Foreground="{DynamicResource IronTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Text=" | " Foreground="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
+                    <TextBlock x:Name="NextLevelCropTextBlock" Text="-" Foreground="{DynamicResource CropTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Row="3">
             <Button x:Name="BuildBuildingButton"
                     Content="Build building"
                     Height="28"
@@ -66,7 +103,7 @@
                        Visibility="Collapsed" />
         </StackPanel>
 
-        <StackPanel Grid.Row="3"
+        <StackPanel Grid.Row="4"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Margin="0,12,0,0">

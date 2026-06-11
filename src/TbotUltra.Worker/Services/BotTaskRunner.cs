@@ -1574,6 +1574,9 @@ public sealed class BotTaskRunner
                 if (_travcoPage is null || _travcoPage.IsClosed)
                 {
                     _travcoPage = await _sharedVisiblePage!.Context.NewPageAsync();
+                    // Travco can be slow to render; raise the default 15s context timeout for this tab
+                    // so individual navigations don't trip the timeout on a sluggish load.
+                    _travcoPage.SetDefaultTimeout(30000);
                     log("[travco] opened browser tab.");
                 }
 

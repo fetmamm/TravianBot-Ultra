@@ -100,7 +100,52 @@ public static class BuildingCatalogService
         ["Spartans"] = [44],
     };
 
+    // Resource fields (gids 1-4) are not in BaseBuildings (which only lists constructible buildings),
+    // but they appear in the catalog JSON and are needed for build-time/cost estimates of field upgrades.
+    private static readonly Dictionary<int, string> ResourceFieldNames = new()
+    {
+        [1] = "Woodcutter",
+        [2] = "Clay Pit",
+        [3] = "Iron Mine",
+        [4] = "Cropland",
+    };
+
+    private static readonly Lazy<IReadOnlyDictionary<string, int>> NameToGid = new(BuildNameToGid);
+
     private static readonly Lazy<IReadOnlyDictionary<int, BuildingCatalogEntry>> CatalogData = new(LoadCatalogData);
+
+    // Reverse lookup name -> gid across base buildings, tribe specials and resource fields.
+    // Used to resolve a queued/clicked building name back to its catalog gid for estimates.
+    public static int? GidForName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        return NameToGid.Value.TryGetValue(name.Trim(), out var gid) ? gid : null;
+    }
+
+    private static IReadOnlyDictionary<string, int> BuildNameToGid()
+    {
+        var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in ResourceFieldNames)
+        {
+            map[pair.Value] = pair.Key;
+        }
+
+        foreach (var pair in BaseBuildings)
+        {
+            map[pair.Value.Name] = pair.Key;
+        }
+
+        foreach (var pair in TribeSpecialBuildings)
+        {
+            map[pair.Value.Name] = pair.Key;
+        }
+
+        return map;
+    }
 
     public static IReadOnlyList<TribeBuildingCatalogEntry> GetCatalogForTribe(string tribe)
     {
@@ -210,7 +255,9 @@ public static class BuildingCatalogService
         return entry.Levels[level - 1];
     }
 
-    public static double BuildSecondsFor(int gid, int level, double serverSpeed = 1.0)
+    // Build time scaled by server speed and reduced by the village Main Building level. Travian's Main
+    // Building speeds up construction by 0.964^(level-1) (level 1 = no reduction, ~50% at level 20).
+    public static double BuildSecondsFor(int gid, int level, double serverSpeed = 1.0, int mainBuildingLevel = 1)
     {
         var stats = CostFor(gid, level);
         if (stats is null || serverSpeed <= 0)
@@ -218,7 +265,10 @@ public static class BuildingCatalogService
             return 0;
         }
 
-        return stats.BuildSeconds1x / serverSpeed;
+        var mainBuildingFactor = mainBuildingLevel > 1
+            ? System.Math.Pow(0.964, mainBuildingLevel - 1)
+            : 1.0;
+        return stats.BuildSeconds1x / serverSpeed * mainBuildingFactor;
     }
 
     public static bool IsSingleInstance(int gid)

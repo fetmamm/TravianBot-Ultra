@@ -119,6 +119,20 @@ For en ny dashboard-bool ska hela configkedjan uppdateras:
 - Djup queue-full-diagnostik anvander `[construction-queue:verbose]` och doljs i Clean-laget.
 - Dashboardens byggikoner anvander live `ActiveConstructions` som auktoritativt antal.
   Queue-full-poster ar bara boolesk occupancy-fallback och far aldrig summeras som byggnader.
+- Queue-sidans `Build time`/`Cost`-kolumner och totalsumman ar best-effort-estimat ur
+  `buildings_catalog.json` (1x), skalat med serverhastigheten fran `ResolveServerSpeed()`
+  (regex `(\d+)x` ur servernamnet; fallback 1x + engangs-`ALARM:`). Endast construction-tasks
+  estimeras (`EstimateForQueueItem`); ovriga lamnas blanka. Saknad nivadata/okand byggnad ger blank
+  + engangslarm, aldrig blockering. Kosidan visar numera endast `Cost` (Build time-kolumn/total borttagna);
+  byggtid visas bara i slot-popupen och `Upgrade to...`-fonstret.
+  Nuvarande niva for fleruppgraderingar finns bara for den laddade byn; annars estimeras endast malnivan.
+- Byggtiden skalas ocksa med huvudbyggnadens rabatt `0.964^(MB-1)` i `BuildSecondsFor`
+  (`mainBuildingLevel`). MB lases byspecifikt fran den laddade byns slots (`ResolveMainBuildingLevel`,
+  gid 15); okand MB -> default niva 1 (ingen rabatt). Nar byns byggnader skannas anropar
+  `PopulateBuildingsTab` en `RequestQueueUiRefresh` (skyddad av `_isRefreshingQueueUi` mot rekursion)
+  sa redan kolagda poster rakas om med ratt MB.
+- `ResolveServerSpeed` provar forst servernamnet (`(\d+)x`, t.ex. "10x") och faller annars tillbaka
+  pa server-URL:ens hastighetssubdoman (`\.x(\d+)`, t.ex. `ts100.x10...`). Misslyckas bada -> 1x + engangs-`ALARM:`.
 - Ateranvand `SettingInfoIconStyle` for forklarande infoikoner.
 - Langre listor ska ligga i en begransad `ScrollViewer`, inte expandera resten av dashboarden.
 - Map Oasis Analyzer anvander den inloggade Official-sessionens `POST /api/v1/map/position`
@@ -135,6 +149,9 @@ For en ny dashboard-bool ska hela configkedjan uppdateras:
 - Lediga oaser har djur (`{k.animals}`, enheter `u31`-`u40`); ockuperade har `uid`/`aid` och
   `{k.spieler}`/`{k.allianz}`/`{k.volk}` men inga djur. Bada falten ar valfria i sparade listor.
 - Official `map.sql` innehaller endast byar och far inte anvandas som oaskalla.
+- Travco-tabben ar seg: den satter `SetDefaultTimeout(30000)` (kontextens default ar 15s). "Save all
+  pages" kor `ScrapePageWithRetryAsync` (3 forsok med reload + backoff per sida) och `ResolveTotalPagesAsync`
+  vantar in resultattabellen fore sidantalet lases, sa en seg sida inte tyst kapar listan till sida 1.
 
 ### Kvalitetsregel
 

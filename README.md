@@ -63,6 +63,7 @@ Compatible with:
 - Read village data
 - Clean dark mode UI
 - Multi-village support
+- Calculate building time and resource cost for buildings + resourcefields
 
 ## Future functions:
 

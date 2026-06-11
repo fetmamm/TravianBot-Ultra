@@ -20,4 +20,23 @@ public sealed class QueueItemRow
     public DateTimeOffset CreatedAt { get; init; }
     public string CreatedAtServer { get; init; } = string.Empty;
     public string NextAttemptAtServer { get; init; } = string.Empty;
+
+    // Construction estimate (build time + resource cost). Only set for construction tasks; other
+    // tasks (farming, hero, ...) leave these blank. Raw values back the totals; the *Text props
+    // back the grid cells. HasEstimate gates whether a row contributes to the totals.
+    public bool HasEstimate { get; init; }
+    public double EstimateSeconds { get; init; }
+    public long EstimateWood { get; init; }
+    public long EstimateClay { get; init; }
+    public long EstimateIron { get; init; }
+    public long EstimateCrop { get; init; }
+
+    public string BuildTimeText { get; init; } = "-";
+    public string WoodText { get; init; } = "-";
+    public string ClayText { get; init; } = "-";
+    public string IronText { get; init; } = "-";
+    public string CropText { get; init; } = "-";
+
+    // Combined (uncolored) cost string for the pop-out grid, which is built in code without per-resource coloring.
+    public string CostText => HasEstimate ? $"{WoodText} | {ClayText} | {IronText} | {CropText}" : "-";
 }
