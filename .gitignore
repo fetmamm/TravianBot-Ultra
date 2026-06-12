@@ -17,6 +17,12 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
+# Captcha training data (dev-only, not needed at runtime; kept on disk, not tracked)
+Captcha_solver/math_ai/dataset/
+Captcha_solver/math_ai/auto_dataset/
+Captcha_solver/math_ai/test_images/
+Captcha_solver/math_ai/model_backups/
+
 # --- Playwright / browser auth ---
 playwright/.auth/
 ms-playwright/
@@ -35,7 +41,6 @@ artifacts/
 
 # --- Claude tooling ---
 /.claude
-.claude/worktrees/kind-cori-d469bc/
 
 # --- Other
 docs/CODING_FETMAMM.md
