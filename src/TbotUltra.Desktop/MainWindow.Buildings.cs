@@ -339,7 +339,10 @@ public partial class MainWindow
         }
 
         ConstructSlotTextBox.Text = slotId.ToString();
-        var choiceWindow = new BuildingConstructChoiceWindow(slotId, options)
+        var choiceWindow = new BuildingConstructChoiceWindow(
+            slotId,
+            options,
+            (gid, targetLevel) => BuildConstructRangeEstimate(gid, targetLevel))
         {
             Owner = this,
         };

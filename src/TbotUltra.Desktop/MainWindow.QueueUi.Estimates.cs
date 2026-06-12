@@ -143,7 +143,9 @@ public partial class MainWindow
     }
 
     // Resolves gid and current level for a building. Current level is only available when the item
-    // targets the currently loaded village (its slots live in _buildingRows).
+    // targets the currently loaded village (its slots live in _buildingRows). A slot that is only queued
+    // for construction has no built level yet but a separate construct item builds it to level 1, so the
+    // upgrade is estimated as starting from level 1 (avoiding double-counting that first level).
     private (int? Gid, int? CurrentLevel) ResolveBuildingGidAndLevel(int? slotId, string? name, bool villageLoaded)
     {
         var gid = BuildingCatalogService.GidForName(name);
@@ -153,8 +155,8 @@ public partial class MainWindow
             var row = _buildingRows.FirstOrDefault(r => r.SlotId == slotId.Value);
             if (row is not null)
             {
-                gid ??= row.Gid;
-                currentLevel = row.Level;
+                gid ??= row.UpgradeGid;
+                currentLevel = row.Level ?? (row.HasPendingConstruct ? 1 : null);
             }
         }
 
@@ -212,17 +214,26 @@ public partial class MainWindow
     }
 
     // Cumulative cost + time for upgrading a slot from its current/pending level up to targetLevel,
-    // shown live in the "Upgrade to..." window. Returns null when the gid or any level's catalog data
-    // is missing, or the target is not above the base level.
+    // shown live in the "Upgrade to..." window.
     private BuildingNextLevelEstimate? BuildUpgradeRangeEstimate(BuildingSlotRow slot, int targetLevel)
     {
-        if (slot.UpgradeGid is not int gid)
-        {
-            return null;
-        }
+        return slot.UpgradeGid is int gid
+            ? BuildRangeEstimate(gid, slot.UpgradeBaseLevel + 1, targetLevel)
+            : null;
+    }
 
-        var fromLevel = slot.UpgradeBaseLevel + 1;
-        if (targetLevel < fromLevel)
+    // Cumulative cost + time for constructing a new building from level 1 up to targetLevel, shown live
+    // in the "Choose building" window.
+    private BuildingNextLevelEstimate? BuildConstructRangeEstimate(int gid, int targetLevel)
+    {
+        return BuildRangeEstimate(gid, 1, targetLevel);
+    }
+
+    // Cumulative cost + time across the inclusive level range [fromLevel, toLevel] for the popups.
+    // Returns null when the target is not above the base level or any level's catalog data is missing.
+    private BuildingNextLevelEstimate? BuildRangeEstimate(int gid, int fromLevel, int toLevel)
+    {
+        if (toLevel < fromLevel)
         {
             return null;
         }
@@ -231,7 +242,7 @@ public partial class MainWindow
         var mainBuildingLevel = ResolveMainBuildingLevel();
         double seconds = 0;
         long wood = 0, clay = 0, iron = 0, crop = 0;
-        for (var level = fromLevel; level <= targetLevel; level++)
+        for (var level = fromLevel; level <= toLevel; level++)
         {
             var stats = BuildingCatalogService.CostFor(gid, level);
             if (stats is null)
@@ -247,7 +258,7 @@ public partial class MainWindow
         }
 
         return new BuildingNextLevelEstimate(
-            targetLevel,
+            toLevel,
             FormatBuildDuration(seconds),
             FormatResourceAmount(wood),
             FormatResourceAmount(clay),
@@ -295,6 +306,7 @@ public partial class MainWindow
             return;
         }
 
+        double seconds = 0;
         long wood = 0, clay = 0, iron = 0, crop = 0;
         var counted = 0;
         foreach (var row in rows)
@@ -305,12 +317,14 @@ public partial class MainWindow
             }
 
             counted++;
+            seconds += row.EstimateSeconds;
             wood += row.EstimateWood;
             clay += row.EstimateClay;
             iron += row.EstimateIron;
             crop += row.EstimateCrop;
         }
 
+        QueueTotalTimeTextBlock.Text = counted > 0 ? FormatBuildDuration(seconds) : "-";
         QueueTotalWoodTextBlock.Text = counted > 0 ? FormatResourceAmount(wood) : "-";
         QueueTotalClayTextBlock.Text = counted > 0 ? FormatResourceAmount(clay) : "-";
         QueueTotalIronTextBlock.Text = counted > 0 ? FormatResourceAmount(iron) : "-";

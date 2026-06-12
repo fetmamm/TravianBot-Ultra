@@ -7,6 +7,7 @@ namespace TbotUltra.Worker.Services.Automation;
 public static class TravcoInactiveSearch
 {
     public const string InactiveSearchUrl = "https://travcotools.com/en/inactive-search/";
+    public const string SiteOrigin = "https://travcotools.com";
 
     public static async Task RunSearchAsync(
         IPage page,

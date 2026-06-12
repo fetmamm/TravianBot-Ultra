@@ -102,8 +102,34 @@
                     <ComboBox x:Name="TargetLevelComboBox"
                               Width="100"
                               IsEnabled="False"
-                              VerticalAlignment="Center" />
+                              VerticalAlignment="Center"
+                              HorizontalAlignment="Left" />
                 </DockPanel>
+
+                <!-- Cumulative build time + colored resource cost up to the selected level. -->
+                <StackPanel x:Name="EstimatePanel"
+                            Orientation="Horizontal"
+                            Margin="0,8,0,0"
+                            Visibility="Collapsed">
+                    <TextBlock Text="Time "
+                               Foreground="{DynamicResource TextSubtleBrush}"
+                               VerticalAlignment="Center" />
+                    <TextBlock x:Name="TimeTextBlock"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"
+                               Margin="0,0,16,0" />
+                    <TextBlock Text="Cost "
+                               Foreground="{DynamicResource TextSubtleBrush}"
+                               VerticalAlignment="Center" />
+                    <TextBlock x:Name="WoodTextBlock" Text="-" Foreground="{DynamicResource WoodTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Text=" | " Foreground="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
+                    <TextBlock x:Name="ClayTextBlock" Text="-" Foreground="{DynamicResource ClayTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Text=" | " Foreground="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
+                    <TextBlock x:Name="IronTextBlock" Text="-" Foreground="{DynamicResource IronTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Text=" | " Foreground="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
+                    <TextBlock x:Name="CropTextBlock" Text="-" Foreground="{DynamicResource CropTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                </StackPanel>
             </StackPanel>
         </Border>
 

@@ -2878,9 +2878,9 @@
                                                 </DataTemplate>
                                             </DataGridTemplateColumn.CellTemplate>
                                         </DataGridTemplateColumn>
-                                        <DataGridTextColumn Header="Retries" Width="0.9*" Binding="{Binding RetriesText}" />
                                         <DataGridTextColumn Header="Created" Width="1.5*" Binding="{Binding CreatedAtServer}" />
-                                        <DataGridTemplateColumn Header="Cost (W|C|I|Cr)" Width="1.6*">
+                                        <DataGridTextColumn Header="Time" Width="1.1*" Binding="{Binding BuildTimeText}" />
+                                        <DataGridTemplateColumn Header="Cost (W | C | I | Cr)" Width="1.7*">
                                             <DataGridTemplateColumn.CellTemplate>
                                                 <DataTemplate>
                                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -2921,6 +2921,15 @@
                                         <TextBlock x:Name="QueueTotalIronTextBlock" Text="-" Foreground="{DynamicResource IronTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
                                         <TextBlock Text=" | " Foreground="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
                                         <TextBlock x:Name="QueueTotalCropTextBlock" Text="-" Foreground="{DynamicResource CropTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        <TextBlock Text="Time "
+                                                   Foreground="{DynamicResource TextSubtleBrush}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="24,0,0,0" />
+                                        <TextBlock x:Name="QueueTotalTimeTextBlock"
+                                                   Text="-"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   FontWeight="SemiBold"
+                                                   VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Border>
                             </Grid>

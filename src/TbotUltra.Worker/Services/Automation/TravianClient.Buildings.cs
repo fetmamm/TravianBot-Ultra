@@ -235,6 +235,18 @@ public sealed partial class TravianClient
                 }
 
                 var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: false);
+
+                // Defense-in-depth: a full build queue (not a resource shortage) can also leave us with
+                // no upgrade button while the page still mentions resources. Never spend hero/NPC
+                // resources in that case — re-check the queue from dorf2 (source of truth) and defer if no
+                // slot is free. CheckQueueOrDefer navigates to dorf2, so restore the build page afterwards.
+                var queueDefer = await CheckQueueOrDeferAsync(ConstructionKind.Building, slotId, upgrades, cancellationToken);
+                if (queueDefer is not null)
+                {
+                    return queueDefer;
+                }
+                await EnsureExpectedBuildSlotPageAsync(slotId, "resource recheck after queue gate", cancellationToken);
+
                 if (!heroTransferAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
                 {
                     heroTransferAttempted = true;
@@ -953,6 +965,18 @@ public sealed partial class TravianClient
                 }
 
                 var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: false);
+
+                // Defense-in-depth: a full build queue (not a resource shortage) can also leave us with
+                // no upgrade button while the page still mentions resources. Never spend hero/NPC
+                // resources in that case — re-check the queue from dorf2 (source of truth) and defer if no
+                // slot is free. CheckQueueOrDefer navigates to dorf2, so restore the build page afterwards.
+                var queueDefer = await CheckQueueOrDeferAsync(ConstructionKind.Building, slotId, upgrades, cancellationToken);
+                if (queueDefer is not null)
+                {
+                    return queueDefer;
+                }
+                await EnsureExpectedBuildSlotPageAsync(slotId, "resource recheck after queue gate", cancellationToken);
+
                 if (!heroTransferAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
                 {
                     heroTransferAttempted = true;
@@ -1135,6 +1159,14 @@ public sealed partial class TravianClient
                         $"Building slot {slotId} construct {buildingName}",
                         60,
                         cancellationToken);
+
+                    // Defense-in-depth: don't spend hero/NPC resources when the real blocker is a full
+                    // build queue (source of truth = dorf2). Re-check before transferring.
+                    var queueDefer = await CheckQueueOrDeferAsync(ConstructionKind.Building, slotId, attempt, cancellationToken);
+                    if (queueDefer is not null)
+                    {
+                        return queueDefer;
+                    }
 
                     if (!heroTransferAttempted)
                     {
@@ -2789,10 +2821,14 @@ public sealed partial class TravianClient
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading active constructions.", cancellationToken);
 
         var raw = await ReadActiveConstructionsOnCurrentPageAsync();
+        // The construction queue only renders on dorf1/dorf2 (source of truth). If the current page
+        // has none and we are not already on a village overview, read it on dorf2 — on every server
+        // flavor (not just Official), otherwise SS-Travi build pages report an empty queue and the
+        // slot gate wrongly thinks a slot is free.
         if (raw.Count == 0
-            && IsOfficialTravianServer()
             && allowNavigationToBuildings
-            && !IsCurrentUrlForPath(Paths.Buildings))
+            && !IsCurrentUrlForPath(Paths.Buildings)
+            && !IsCurrentUrlForPath(Paths.Resources))
         {
             await GotoAsync(Paths.Buildings, cancellationToken);
             raw = await ReadActiveConstructionsOnCurrentPageAsync();
@@ -2859,13 +2895,6 @@ public sealed partial class TravianClient
                 ? new List<ActiveConstructionJs>()
                 : JsonSerializer.Deserialize<List<ActiveConstructionJs>>(rawJson) ?? new List<ActiveConstructionJs>();
         }
-    }
-
-    private bool IsOfficialTravianServer()
-    {
-        return Uri.TryCreate(_config.BaseUrl, UriKind.Absolute, out var uri)
-            && (uri.Host.Equals("travian.com", StringComparison.OrdinalIgnoreCase)
-                || uri.Host.EndsWith(".travian.com", StringComparison.OrdinalIgnoreCase));
     }
 
     public async Task<ConstructionSlotStatus> EvaluateConstructionSlotsAsync(
@@ -3040,31 +3069,75 @@ public sealed partial class TravianClient
 
     public async Task<bool> IsTravianPlusActiveAsync(CancellationToken cancellationToken = default)
     {
+        var state = await EvaluatePlusStateOnCurrentPageAsync(cancellationToken);
+        Notify($"[plus:verbose] state='{state}' url='{_page.Url}'");
+
+        // Source of truth is dorf1/dorf2: the village quick-links bar and the link-list edit button
+        // both reflect Plus there (green=on, gold=off). Other pages (e.g. build.php with Plus active)
+        // can be inconclusive, so re-read on dorf2 before falling back.
+        if (state == PlusState.Unknown
+            && !IsCurrentUrlForPath(Paths.Resources)
+            && !IsCurrentUrlForPath(Paths.Buildings))
+        {
+            await GotoAsync(Paths.Buildings, cancellationToken);
+            state = await EvaluatePlusStateOnCurrentPageAsync(cancellationToken);
+            Notify($"[plus:verbose] dorf2 re-read state='{state}' url='{_page.Url}'");
+        }
+
+        // Conservative fallback: only a positive "on" signal counts as Plus active. Anything
+        // unknown is treated as inactive so we never over-fill the build queue (1 slot, not 2).
+        return state == PlusState.On;
+    }
+
+    private static class PlusState
+    {
+        public const string On = "on";
+        public const string Off = "off";
+        public const string Unknown = "unknown";
+    }
+
+    // Reads a tri-state Plus signal ("on"/"off"/"unknown") from the current page using verified,
+    // language-independent markup. Never defaults to "on".
+    private async Task<string> EvaluatePlusStateOnCurrentPageAsync(CancellationToken cancellationToken)
+    {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading Travian Plus status.", cancellationToken);
 
-        return await _page.EvaluateAsync<bool>(
-            """
-            () => {
-              // Official Travian (T4.6): the village quick-links bar is a Travian Plus feature.
-              // The quick-link buttons are styled "green" when Plus is active and "gold" when it
-              // is not (the disabled state is unrelated — it depends on the action's availability).
-              // This markup does not exist on SS, so SS falls through to the legacy check below.
-              const quickLinks = Array.from(document.querySelectorAll('a[data-dragid^="villageQuickLinks"], a[data-load-tooltip-data*="MarketplaceSendResources"]'));
-              if (quickLinks.length > 0) {
-                const classes = quickLinks.map(node => (node.className || '').toString()).join(' ');
-                if (/\bgreen\b/.test(classes)) return true;   // Plus active
-                if (/\bgold\b/.test(classes)) return false;   // Plus not active
-              }
+        try
+        {
+            return await _page.EvaluateAsync<string>(
+                """
+                () => {
+                  const hasClass = (el, c) => (el.className || '').toString().split(/\s+/).includes(c);
 
-              const box = document.querySelector('#sidebarBoxLinklist');
-              if (!box) return false;
-              const html = box.innerHTML || '';
-              if (html.includes('plusDialog')) return false;
-              if (/editWhite\s+green/.test(html)) return true;
-              if (/spieler\.php\?s=2/.test(html)) return true;
-              return true;
-            }
-            """);
+                  // 1) Village quick-links bar (dorf1/dorf2). Present in BOTH states; only the color
+                  //    differs: green = Plus active, gold = Plus inactive. (Verified against live DOM.)
+                  const quickLinks = Array.from(document.querySelectorAll('a[data-dragid^="villageQuickLinks"]'));
+                  if (quickLinks.length > 0) {
+                    if (quickLinks.some(node => hasClass(node, 'green'))) return 'on';
+                    if (quickLinks.some(node => hasClass(node, 'gold'))) return 'off';
+                  }
+
+                  // 2) Link-list edit button in the sidebar (village pages). green + linklist.php = Plus
+                  //    active; gold + a PlusDialog upsell onclick = Plus inactive. (Verified.)
+                  const edit = document.querySelector('#sidebarBoxLinklist a.edit, #sidebarBoxLinklist a.layoutButton.edit');
+                  if (edit) {
+                    const onclick = edit.getAttribute('onclick') || '';
+                    if (hasClass(edit, 'gold') || /PlusDialog/.test(onclick)) return 'off';
+                    if (hasClass(edit, 'green')) return 'on';
+                  }
+
+                  // 3) Build page (build.php): the 2nd queue slot is advertised as a locked Plus feature
+                  //    only when Plus is inactive. (Verified: `.plusAdvertising` with featureKey 'buildingQueue'.)
+                  if (document.querySelector('.plusAdvertising')) return 'off';
+
+                  return 'unknown';
+                }
+                """);
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            return PlusState.Unknown;
+        }
     }
 
 

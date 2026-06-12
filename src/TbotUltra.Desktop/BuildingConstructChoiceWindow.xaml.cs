@@ -1,3 +1,4 @@
+using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -14,10 +15,18 @@ public partial class BuildingConstructChoiceWindow : Window
 
     private const string MaxLevelSentinel = "Max";
 
-    public BuildingConstructChoiceWindow(int slotId, IReadOnlyList<BuildingCatalogOption> options)
+    // Returns the cumulative build time + cost from level 1 up to the given target level, or null when
+    // unavailable.
+    private readonly Func<int, int, BuildingNextLevelEstimate?>? _estimateProvider;
+
+    public BuildingConstructChoiceWindow(
+        int slotId,
+        IReadOnlyList<BuildingCatalogOption> options,
+        Func<int, int, BuildingNextLevelEstimate?>? estimateProvider = null)
     {
         InitializeComponent();
 
+        _estimateProvider = estimateProvider;
         TitleTextBlock.Text = $"Build in slot {slotId}";
 
         var available = options.Where(o => o.Availability == BuildingConstructAvailability.Available).ToList();
@@ -172,6 +181,7 @@ public partial class BuildingConstructChoiceWindow : Window
         SelectedNameTextBlock.Text = option.DisplayLabel;
         SelectedDetailsTextBlock.Text = $"{HumanizeCategory(option.Category)} · max level {option.MaxLevel}";
 
+        TargetLevelComboBox.SelectionChanged -= TargetLevelComboBox_SelectionChanged;
         TargetLevelComboBox.Items.Clear();
         for (var lvl = 1; lvl <= option.MaxLevel; lvl++)
         {
@@ -180,8 +190,42 @@ public partial class BuildingConstructChoiceWindow : Window
         TargetLevelComboBox.Items.Add(MaxLevelSentinel);
         TargetLevelComboBox.SelectedIndex = 0;
         TargetLevelComboBox.IsEnabled = true;
+        TargetLevelComboBox.SelectionChanged += TargetLevelComboBox_SelectionChanged;
         BuildButton.IsEnabled = true;
         BuildMaxButton.IsEnabled = true;
+        UpdateEstimate();
+    }
+
+    private void TargetLevelComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateEstimate();
+
+    // Refreshes the estimate box for the selected building and target level ("Max" => the building's max
+    // level). Hidden when no provider or catalog data is available.
+    private void UpdateEstimate()
+    {
+        if (_estimateProvider is null || SelectedOption is null)
+        {
+            EstimatePanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var selected = TargetLevelComboBox.SelectedItem?.ToString();
+        var targetLevel = string.Equals(selected, MaxLevelSentinel, StringComparison.OrdinalIgnoreCase)
+            ? SelectedOption.MaxLevel
+            : int.TryParse(selected, out var lvl) ? lvl : 1;
+
+        var estimate = _estimateProvider(SelectedOption.Gid, targetLevel);
+        if (estimate is null)
+        {
+            EstimatePanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        TimeTextBlock.Text = estimate.TimeText;
+        WoodTextBlock.Text = estimate.WoodText;
+        ClayTextBlock.Text = estimate.ClayText;
+        IronTextBlock.Text = estimate.IronText;
+        CropTextBlock.Text = estimate.CropText;
+        EstimatePanel.Visibility = Visibility.Visible;
     }
 
     private void BuildButton_Click(object sender, RoutedEventArgs e)

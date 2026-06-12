@@ -1505,6 +1505,7 @@ public sealed class BotTaskRunner
             {
                 try
                 {
+                    await ClearTravcoSiteDataAsync(_travcoPage, log);
                     if (!_travcoPage.IsClosed)
                     {
                         await _travcoPage.CloseAsync();
@@ -1666,6 +1667,7 @@ public sealed class BotTaskRunner
 
             try
             {
+                await ClearTravcoSiteDataAsync(_travcoPage, log);
                 if (!_travcoPage.IsClosed)
                 {
                     await _travcoPage.CloseAsync();
@@ -1681,6 +1683,42 @@ public sealed class BotTaskRunner
         finally
         {
             _sessionGate.Release();
+        }
+    }
+
+    // Clears travcotools.com site data (localStorage/cookies/etc.) from the shared browser context
+    // before the Travco tab closes. Otherwise the origin lingers as a tracked origin and Playwright's
+    // periodic StorageStateAsync (saved after every shared-session operation) reopens a short-lived
+    // travcotools tab to read its storage — the "blinking" extra tab the user sees every ~16s.
+    // Best-effort: never block tab close on a CDP failure.
+    private static async Task ClearTravcoSiteDataAsync(IPage page, Action<string>? log)
+    {
+        if (page.IsClosed)
+        {
+            return;
+        }
+
+        try
+        {
+            var cdp = await page.Context.NewCDPSessionAsync(page);
+            try
+            {
+                await cdp.SendAsync("Storage.clearDataForOrigin", new Dictionary<string, object>
+                {
+                    ["origin"] = TravcoInactiveSearch.SiteOrigin,
+                    ["storageTypes"] = "all",
+                });
+            }
+            finally
+            {
+                await cdp.DetachAsync();
+            }
+
+            log?.Invoke("[travco] cleared travcotools site data from the browser context.");
+        }
+        catch (Exception ex)
+        {
+            log?.Invoke($"[travco] could not clear travcotools site data: {ex.Message}");
         }
     }
 
