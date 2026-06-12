@@ -18,7 +18,7 @@ Målet: stegvisa, beteendebevarande refaktoriseringar med låg risk och hög nyt
 | 1 | 🟢 Klar | 2026-06-03 |
 | 2 | 🟢 Klar (lätt variant) | 2026-06-03 |
 | 3 | 🟢 Klar | 2026-06-03 |
-| 4 | 🟡 Pågår (steg 4a+4b klara) | 2026-06-12 |
+| 4 | 🟢 Klar (4a+4b+4c) | 2026-06-12 |
 | 5 | ⬜ Ej påbörjad | — |
 
 ### Rank 1 – delsteg
@@ -72,7 +72,9 @@ Mönster: lyft rena, stateless `internal static`-helpers (som redan har enhetste
   - `EnsureBuildingCanBeConstructed` (testas via reflection, bunden till `TravianClient`-state).
   - Nested-enum `UpgradeAttemptOutcome` ligger kvar i `TravianClient`; `TravianParsing.ParseUpgradeOutcome` refererar den kvalificerat.
 - [x] **Steg 4b:** Promoterade `ResourceCapacitySnapshot` (nested → topp-nivå-record, ny fil `ResourceCapacitySnapshot.cs`, samma namnrymd → inga using-ändringar i `NpcTrade.cs`/`TroopTraining.cs`). Extraherade troop-training-calc till ny `TroopTrainingCalculator`: `TryParseTroopTrainingQueueLimitSeconds`, `ResolveTroopTrainingQueueRemainingSeconds`, `CalculateTroopTrainingAmount`, `NormalizeTroopTrainingAmountMode`, `CalculateTroopTrainingRequiredResources`, `EstimateTroopTrainingWaitSeconds`, `MergeTroopTrainingCapacities` + privata helpers `GetResource`/`ComputeAvailableResource`/`CalculateRequiredCurrentResource`. Rena relocations (verbatim). Call-sites + testrefs ompekade. Full solution-build 0 fel/0 varningar; Worker 358/358, Desktop 121/121. _Lämnat kvar i `TravianClient`: `MergeTroopTrainingProductionByHour` (bygger på den generella, delade `MergeProductionByHour` som används av icke-trupp resursläsning)._
-- [ ] **Steg 4c:** Större strukturell uppdelning av `.Buildings`/`.Resources`/`.Hero` (separera ren parsing från sid-I/O) — kvarstår som ursprungligt Rank 4-mål, medel risk.
+- [x] **Steg 4c:** Extraherade C# HTML/DOM-parsern ur `TravianClient.Buildings.cs` → ny `BuildingDomParser`: 7 `*FromHtmlForTests`-ingångar (button-candidate/cost/duration/requirement/empty-slot) + `HtmlButtonCandidate`-record + låg-nivå-helpers (`ExtractButtonCandidates`, `HasDisabledAttribute`, `LastSectionIndex`, `ExtractBuildingSlotHtml`, `ReadAttribute`, `CleanHtmlText`). **Noll runtime-risk:** alla hade 0 produktionscallers — live-boten parsar JS-sidan (`EvaluateAsync`), dessa är test-only C#-speglar. Verbatim-flytt; täcks av `TravianOfficialConstructionDomTests` (16 anrop). `ParseBuildingOverviewHtmlForTests` lämnad i `TravianClient` (entanglad med delad overview-scan-subsystem `ParseBuildingOverviewScan`/`ParseGidFromBuildingCode`/`BuildingOverviewSlotSnapshot`, använd av 11+ instans-ställen) — anropar nu de tre flyttade token-helperna cross-class. _Resources/Hero faller bort: 0 C#-regex, all parsing JS-sidan → inget att lyfta._ Full solution-build 0 fel/0 varningar; Worker 358/358, Desktop 121/121.
+
+**Rank 4 i praktiken klar** (4a+4b+4c). Kvar enbart valfri större strukturell uppdelning av instans-I/O-metoderna i `.Buildings`/`.Resources`/`.Hero` — men där är parsing JS-sidan, så marginalnyttan av vidare C#-extraktion är låg.
 
 ## Rekommenderade refaktoriseringar
 

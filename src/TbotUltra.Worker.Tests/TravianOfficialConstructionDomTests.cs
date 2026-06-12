@@ -10,9 +10,9 @@ public sealed class TravianOfficialConstructionDomTests
     {
         var html = ReadDomFixture("upgrade_resourcefield.txt");
 
-        var button = TravianClient.SelectUpgradeButtonCandidateFromHtmlForTests(html, nextLevel: 1);
-        var cost = TravianClient.ReadConstructionCostFromHtmlForTests(html);
-        var duration = TravianClient.ReadPrimaryBuildDurationSecondsFromHtmlForTests(html);
+        var button = BuildingDomParser.SelectUpgradeButtonCandidateFromHtmlForTests(html, nextLevel: 1);
+        var cost = BuildingDomParser.ReadConstructionCostFromHtmlForTests(html);
+        var duration = BuildingDomParser.ReadPrimaryBuildDurationSecondsFromHtmlForTests(html);
 
         Assert.True(button is not null, DescribeCandidates(html));
         Assert.Equal("Upgrade to level 1", button.Text);
@@ -31,9 +31,9 @@ public sealed class TravianOfficialConstructionDomTests
     {
         var html = ReadDomFixture("upgrade_building.txt");
 
-        var button = TravianClient.SelectUpgradeButtonCandidateFromHtmlForTests(html, nextLevel: 2);
-        var cost = TravianClient.ReadConstructionCostFromHtmlForTests(html);
-        var duration = TravianClient.ReadPrimaryBuildDurationSecondsFromHtmlForTests(html);
+        var button = BuildingDomParser.SelectUpgradeButtonCandidateFromHtmlForTests(html, nextLevel: 2);
+        var cost = BuildingDomParser.ReadConstructionCostFromHtmlForTests(html);
+        var duration = BuildingDomParser.ReadPrimaryBuildDurationSecondsFromHtmlForTests(html);
 
         Assert.True(button is not null, DescribeCandidates(html));
         Assert.Equal("Upgrade to level 2", button.Text);
@@ -52,8 +52,8 @@ public sealed class TravianOfficialConstructionDomTests
     {
         var html = ReadDomFixture("construct_new_building_infrastructure.txt");
 
-        var cranny = TravianClient.SelectConstructButtonCandidateFromHtmlForTests(html, gid: 23);
-        var warehouse = TravianClient.SelectConstructButtonCandidateFromHtmlForTests(html, gid: 10);
+        var cranny = BuildingDomParser.SelectConstructButtonCandidateFromHtmlForTests(html, gid: 23);
+        var warehouse = BuildingDomParser.SelectConstructButtonCandidateFromHtmlForTests(html, gid: 10);
 
         Assert.True(cranny is not null, DescribeCandidates(html));
         Assert.Equal("23", cranny.WrapperGid);
@@ -101,9 +101,9 @@ public sealed class TravianOfficialConstructionDomTests
             <button type="button" value="Open shop" version="textButtonV1" class="textButtonV1 green " onclick="Travian.React.openPaymentWizard({activeTab: 'advantages'}); return false;">Open shop</button>
             """;
 
-        var candidates = TravianClient.ExtractButtonCandidatesFromHtmlForTests(html);
+        var candidates = BuildingDomParser.ExtractButtonCandidatesFromHtmlForTests(html);
         var openShop = candidates.Single(candidate => candidate.Text.Contains("Open shop", StringComparison.OrdinalIgnoreCase));
-        var selected = TravianClient.SelectUpgradeButtonCandidateFromHtmlForTests(html, nextLevel: 7);
+        var selected = BuildingDomParser.SelectUpgradeButtonCandidateFromHtmlForTests(html, nextLevel: 7);
 
         Assert.True(openShop.IsGold, $"Open shop payment decoy must be excluded. {DescribeCandidates(html)}");
         Assert.True(selected is not null, DescribeCandidates(html));
@@ -122,9 +122,9 @@ public sealed class TravianOfficialConstructionDomTests
         // which then matched a "Construct building" button as a false CanUpgrade (slot 21 in the session log).
         var html = ReadDomFixture(fixture);
 
-        Assert.True(TravianClient.IsEmptyConstructionSlotHtmlForTests(html), DescribeCandidates(html));
+        Assert.True(BuildingDomParser.IsEmptyConstructionSlotHtmlForTests(html), DescribeCandidates(html));
         // No genuine "Upgrade to level N" button must be selectable on a construct-choice page.
-        Assert.Null(TravianClient.SelectUpgradeButtonCandidateFromHtmlForTests(html, nextLevel: 1));
+        Assert.Null(BuildingDomParser.SelectUpgradeButtonCandidateFromHtmlForTests(html, nextLevel: 1));
     }
 
     [Theory]
@@ -134,7 +134,7 @@ public sealed class TravianOfficialConstructionDomTests
     {
         var html = ReadDomFixture(fixture);
 
-        Assert.False(TravianClient.IsEmptyConstructionSlotHtmlForTests(html), DescribeCandidates(html));
+        Assert.False(BuildingDomParser.IsEmptyConstructionSlotHtmlForTests(html), DescribeCandidates(html));
     }
 
     [Fact]
@@ -145,7 +145,7 @@ public sealed class TravianOfficialConstructionDomTests
         var html = ReadDomFixture("buildingpage_resources.txt");
 
         // Sawmill (gid 5) requires Woodcutter 10 + Main Building 5 → not buildable on this fixture.
-        var requirements = TravianClient.ReadConstructRequirementErrorFromHtmlForTests(html, gid: 5);
+        var requirements = BuildingDomParser.ReadConstructRequirementErrorFromHtmlForTests(html, gid: 5);
 
         Assert.False(string.IsNullOrWhiteSpace(requirements));
         Assert.Contains("Woodcutter", requirements, StringComparison.OrdinalIgnoreCase);
@@ -159,7 +159,7 @@ public sealed class TravianOfficialConstructionDomTests
         // Warehouse (gid 10) is buildable on this fixture (has a 'Construct building' button) → no error text.
         var html = ReadDomFixture("buildingpage_infrastructure.txt");
 
-        Assert.Null(TravianClient.ReadConstructRequirementErrorFromHtmlForTests(html, gid: 10));
+        Assert.Null(BuildingDomParser.ReadConstructRequirementErrorFromHtmlForTests(html, gid: 10));
     }
 
     private static string ReadDomFixture(string fileName)
@@ -183,7 +183,7 @@ public sealed class TravianOfficialConstructionDomTests
     {
         return string.Join(
             Environment.NewLine,
-            TravianClient.ExtractButtonCandidatesFromHtmlForTests(html).Select(candidate =>
+            BuildingDomParser.ExtractButtonCandidatesFromHtmlForTests(html).Select(candidate =>
                 $"{candidate.Text}|class={candidate.Classes}|wrapper={candidate.WrapperGid}|disabled={candidate.Disabled}|gold={candidate.IsGold}|speedup={candidate.IsSpeedup}|primary={candidate.InOfficialPrimarySection}|onclick={candidate.OnClick}"));
     }
 }
