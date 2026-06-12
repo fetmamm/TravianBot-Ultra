@@ -55,8 +55,8 @@ public sealed partial class TravianClient
         var activeConstructions = await ReadActiveConstructionsAsync(
             cancellationToken,
             allowNavigationToBuildings: false);
-        var activeBuildCount = ResolveActiveBuildCount(buildQueue, activeConstructions);
-        var remaining = ResolveShortestQueueDurationSeconds(buildQueue);
+        var activeBuildCount = ConstructionSlots.ActiveBuildCount(buildQueue, activeConstructions);
+        var remaining = TravianParsing.ResolveShortestQueueDurationSeconds(buildQueue);
         if (buildQueue.Count != activeConstructions.Count)
         {
             Notify(
@@ -77,7 +77,7 @@ public sealed partial class TravianClient
             IsBuildingInProgress: activeBuildCount > 0,
             ActiveBuildCount: activeBuildCount,
             BuildQueueRemainingSeconds: remaining,
-            BuildQueueRemainingText: remaining is int left ? FormatDuration(left) : string.Empty,
+            BuildQueueRemainingText: remaining is int left ? TravianParsing.FormatDuration(left) : string.Empty,
             IsCapital: TryGetCachedCapitalState(activeVillage),
             ServerTimeUtc: _serverTimeUtc,
             WarehouseCapacity: capacities.Warehouse,
@@ -220,7 +220,7 @@ public sealed partial class TravianClient
 
         var upgrades = 0;
         var transientRetries = 0;
-        var safetyCap = ComputeResourceUpgradeSafetyCap(targetLevel);
+        var safetyCap = UpgradeMath.ComputeResourceUpgradeSafetyCap(targetLevel);
         int? lastKnownLevel = null;
         var constructionNpcTradeAttempted = false;
         var heroTransferAttempted = false;
@@ -261,7 +261,7 @@ public sealed partial class TravianClient
                     return deferMessage;
                 }
 
-                var queueFingerprintBefore = BuildQueueIdentityFingerprint(snapshot.BuildQueue);
+                var queueFingerprintBefore = BuildQueueFingerprints.Identity(snapshot.BuildQueue);
                 var actionability = await AnalyzeUpgradeActionabilityAsync(
                     slotId,
                     cancellationToken,
@@ -310,7 +310,7 @@ public sealed partial class TravianClient
                 {
                     var resourceWaitSnapshot = await ReadUpgradeResourceWaitSnapshotAsync(
                         $"Resource slot {slotId} ({resourceName}) upgrade to level {effectiveTarget}",
-                        ClampResourceWaitSeconds(actionability.QueueWaitSeconds),
+                        UpgradeMath.ClampResourceWaitSeconds(actionability.QueueWaitSeconds),
                         cancellationToken);
                     return BuildUpgradeResourceBlockedResultMessage(resourceWaitSnapshot);
                 }
@@ -381,9 +381,6 @@ public sealed partial class TravianClient
         return $"Resource slot {slotId}: hit safety cap of {safetyCap} iterations while targeting level {targetLevel}. Upgrades performed: {upgrades}. Last known level: {levelText}.";
     }
 
-    internal static int ComputeResourceUpgradeSafetyCap(int targetLevel)
-        => Math.Max(10, targetLevel + 8);
-
     public async Task<string> UpgradeAllResourcesToLevelAsync(int targetLevel, string buildStrategy = "lowest_first", CancellationToken cancellationToken = default)
     {
         var smartStrategy = string.Equals(buildStrategy, "smart", StringComparison.OrdinalIgnoreCase);
@@ -426,7 +423,7 @@ public sealed partial class TravianClient
                         foreach (var resourceKey in new[] { "wood", "clay", "iron", "crop" })
                         {
                             var raw = snapshot.Resources.TryGetValue(resourceKey, out var rawValue) ? rawValue : null;
-                            if (TryParseResourceValue(raw) is { } value)
+                            if (TravianParsing.TryParseResourceValue(raw) is { } value)
                             {
                                 parsed[resourceKey] = value;
                             }
@@ -522,7 +519,7 @@ public sealed partial class TravianClient
                     {
                         attemptedAny = true;
                         Notify($"[UpgradeAllResourcesToLevelAsync] clicking upgrade for slot={slot} from level={level} toward target={effectiveTarget}.");
-                        var queueFingerprintBefore = BuildQueueIdentityFingerprint(await ReadBuildQueueAsync(cancellationToken));
+                        var queueFingerprintBefore = BuildQueueFingerprints.Identity(await ReadBuildQueueAsync(cancellationToken));
                         var rawUpgradeSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken);
                         // Read the population this level grants before clicking (page changes after).
                         var populationDelta = await ReadUpgradePopulationDeltaOnCurrentPageAsync(cancellationToken);
@@ -603,7 +600,7 @@ public sealed partial class TravianClient
                     {
                         var snapshot = await ReadUpgradeResourceWaitSnapshotAsync(
                             label,
-                            ClampResourceWaitSeconds(actionability.QueueWaitSeconds),
+                            UpgradeMath.ClampResourceWaitSeconds(actionability.QueueWaitSeconds),
                             cancellationToken);
                         blockReasons.Add($"slot {slot}: {actionability.Outcome} ({actionability.Reason})");
                         Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} blocked by resources. Deferring construction for {snapshot.WaitSeconds}s instead of scanning more slots. reason={snapshot.WaitReason}.");
@@ -665,7 +662,7 @@ public sealed partial class TravianClient
         // resources UI keeps showing upgrades started outside the program (target level in parentheses).
         var activeConstructions = await ReadActiveConstructionsAsync(cancellationToken, allowNavigationToBuildings: false);
         var buildQueue = await ReadBuildQueueAsync(cancellationToken);
-        var activeBuildCount = ResolveActiveBuildCount(buildQueue, activeConstructions);
+        var activeBuildCount = ConstructionSlots.ActiveBuildCount(buildQueue, activeConstructions);
         if (buildQueue.Count != activeConstructions.Count)
         {
             Notify(
@@ -673,7 +670,7 @@ public sealed partial class TravianClient
                 $"village='{activeVillage}' buildQueue={buildQueue.Count} " +
                 $"activeConstructions={activeConstructions.Count} selected={activeBuildCount}");
         }
-        var remaining = ResolveShortestQueueDurationSeconds(buildQueue);
+        var remaining = TravianParsing.ResolveShortestQueueDurationSeconds(buildQueue);
         var currency = await ReadCurrencyAsync(cancellationToken);
         var unreadInbox = await ReadUnreadInboxCountsAsync(cancellationToken);
         if (allowNavigationToResourcePage)
@@ -737,7 +734,7 @@ public sealed partial class TravianClient
             IsBuildingInProgress: activeBuildCount > 0,
             ActiveBuildCount: activeBuildCount,
             BuildQueueRemainingSeconds: remaining,
-            BuildQueueRemainingText: remaining is int left ? FormatDuration(left) : string.Empty,
+            BuildQueueRemainingText: remaining is int left ? TravianParsing.FormatDuration(left) : string.Empty,
             IsCapital: cachedIsCapital,
             ServerTimeUtc: _serverTimeUtc,
             UnreadMessages: unreadInbox.UnreadMessages,
@@ -846,8 +843,8 @@ public sealed partial class TravianClient
                 ["crop"] = snapshot?.CropProduction,
             };
             var capacities = (
-                Warehouse: TryParseResourceValue(snapshot?.Warehouse),
-                Granary: TryParseResourceValue(snapshot?.Granary));
+                Warehouse: TravianParsing.TryParseResourceValue(snapshot?.Warehouse),
+                Granary: TravianParsing.TryParseResourceValue(snapshot?.Granary));
 
             var hasResources = resources.Count > 0;
             var hasCapacity = capacities.Warehouse is not null || capacities.Granary is not null;
@@ -943,7 +940,7 @@ public sealed partial class TravianClient
     private static string BuildResourceValueLog(IReadOnlyDictionary<string, string> resources)
     {
         return string.Join(" ", new[] { "wood", "clay", "iron", "crop" }
-            .Select(key => $"{key[0]}={FormatResourceLogNumber(TryParseResourceValue(resources.TryGetValue(key, out var raw) ? raw : null))}"));
+            .Select(key => $"{key[0]}={FormatResourceLogNumber(TravianParsing.TryParseResourceValue(resources.TryGetValue(key, out var raw) ? raw : null))}"));
     }
 
     private static string BuildProductionValueLog(IReadOnlyDictionary<string, double?> productionByHour)
@@ -1260,7 +1257,7 @@ public sealed partial class TravianClient
         foreach (var key in new[] { "wood", "clay", "iron", "crop" })
         {
             resources.TryGetValue(key, out var rawCurrent);
-            var current = TryParseResourceValue(rawCurrent);
+            var current = TravianParsing.TryParseResourceValue(rawCurrent);
             var capacity = string.Equals(key, "crop", StringComparison.OrdinalIgnoreCase)
                 ? capacities.Granary
                 : capacities.Warehouse;
@@ -1292,17 +1289,6 @@ public sealed partial class TravianClient
         }
 
         return result;
-    }
-
-    internal static long? TryParseResourceValue(string? raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw))
-        {
-            return null;
-        }
-
-        var digits = new string(raw.Where(char.IsDigit).ToArray());
-        return long.TryParse(digits, out var parsed) ? parsed : null;
     }
 
     private static bool HasMeaningfulResourceFields(IReadOnlyList<ResourceField> fields)
@@ -1996,11 +1982,6 @@ public sealed partial class TravianClient
         await EnsureLoggedInAsync();
     }
 
-    internal static int ResolveResourceMaxLevelFallback(bool? isCapital)
-    {
-        return isCapital == true ? 40 : 10;
-    }
-
     private async Task<UpgradeProgressResult> WaitForResourceLevelAdvanceAsync(
         int slotId,
         int previousLevel,
@@ -2032,7 +2013,7 @@ public sealed partial class TravianClient
             latestSnapshot = await ReadResourceProgressSnapshotAsync(cancellationToken);
         }
 
-        var queueFingerprintAfter = BuildQueueIdentityFingerprint(latestSnapshot.BuildQueue);
+        var queueFingerprintAfter = BuildQueueFingerprints.Identity(latestSnapshot.BuildQueue);
         if (!string.Equals(queueFingerprintBefore, queueFingerprintAfter, StringComparison.Ordinal))
         {
             return new UpgradeProgressResult(false, true, "queue changed");
@@ -2049,7 +2030,7 @@ public sealed partial class TravianClient
 
     private static bool HasResourceQueueProgress(string queueFingerprintBefore, ResourceProgressSnapshot snapshot)
     {
-        var queueFingerprintAfter = BuildQueueIdentityFingerprint(snapshot.BuildQueue);
+        var queueFingerprintAfter = BuildQueueFingerprints.Identity(snapshot.BuildQueue);
         return !string.Equals(queueFingerprintBefore, queueFingerprintAfter, StringComparison.Ordinal);
     }
 
@@ -2109,7 +2090,7 @@ public sealed partial class TravianClient
             }
 
             var matchingTimers = resourceTimers
-                .Where(item => SameBuildingName(item.Name, resourceName))
+                .Where(item => BuildingNames.Same(item.Name, resourceName))
                 .Select(item => item.TimeLeftSeconds!.Value)
                 .ToList();
             if (matchingTimers.Count > 0)
@@ -2134,7 +2115,7 @@ public sealed partial class TravianClient
         {
             var active = await ReadActiveConstructionsAsync(cancellationToken);
             var highestQueuedLevel = active
-                .Where(item => item.Kind == ConstructionKind.Resource && SameBuildingName(item.Name, resourceName))
+                .Where(item => item.Kind == ConstructionKind.Resource && BuildingNames.Same(item.Name, resourceName))
                 .Select(item => item.Level ?? 0)
                 .DefaultIfEmpty(0)
                 .Max();
@@ -2350,7 +2331,7 @@ public sealed partial class TravianClient
             };
 
             resources.TryGetValue(key, out var currentRaw);
-            var current = TryParseResourceValue(currentRaw) ?? 0;
+            var current = TravianParsing.TryParseResourceValue(currentRaw) ?? 0;
             var missing = Math.Max(0, required - current);
             if (missing <= 0)
             {

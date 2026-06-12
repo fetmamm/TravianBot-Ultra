@@ -235,7 +235,7 @@ public sealed partial class TravianClient
                     continue;
                 }
 
-                var key = BuildCapitalCacheKey(entry.AccountName, entry.ServerUrl, entry.VillageName);
+                var key = CapitalCacheKey.Build(entry.AccountName, entry.ServerUrl, entry.VillageName);
                 _capitalCacheByKey[key] = entry;
             }
         }
@@ -276,7 +276,7 @@ public sealed partial class TravianClient
                     continue;
                 }
 
-                var key = BuildCapitalCacheKey(entry.AccountName, entry.ServerUrl, entry.VillageName);
+                var key = CapitalCacheKey.Build(entry.AccountName, entry.ServerUrl, entry.VillageName);
                 _capitalCacheByKey[key] = entry;
             }
 
@@ -378,26 +378,7 @@ public sealed partial class TravianClient
 
     private string BuildCapitalCacheKey(string villageName)
     {
-        return BuildCapitalCacheKey(_account.Name, _config.BaseUrl.TrimEnd('/'), villageName);
-    }
-
-    internal static string BuildCapitalCacheKey(string accountName, string serverUrl, string villageName)
-    {
-        return string.Join(
-            "|",
-            NormalizeCacheKeyPart(accountName),
-            NormalizeCacheKeyPart(serverUrl),
-            NormalizeCacheKeyPart(villageName));
-    }
-
-    internal static string NormalizeCacheKeyPart(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return string.Empty;
-        }
-
-        return value.Trim().ToLowerInvariant();
+        return CapitalCacheKey.Build(_account.Name, _config.BaseUrl.TrimEnd('/'), villageName);
     }
 
     private sealed class CapitalCacheDocument

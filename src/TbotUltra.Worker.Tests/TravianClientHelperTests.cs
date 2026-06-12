@@ -21,7 +21,7 @@ public sealed class TravianClientHelperTests
     [InlineData("73,600,000,000", 73600000000L)]
     public void TryParseResourceValue_ParsesDigitsOnly(string? raw, long? expected)
     {
-        Assert.Equal(expected, TravianClient.TryParseResourceValue(raw));
+        Assert.Equal(expected, TravianParsing.TryParseResourceValue(raw));
     }
 
     [Theory]
@@ -34,7 +34,7 @@ public sealed class TravianClientHelperTests
     [InlineData("  42  ", 42)]
     public void ParseNumericTextToInt_ExtractsLeadingNumber(string? value, int? expected)
     {
-        Assert.Equal(expected, TravianClient.ParseNumericTextToInt(value));
+        Assert.Equal(expected, TravianParsing.ParseNumericTextToInt(value));
     }
 
     [Theory]
@@ -51,7 +51,7 @@ public sealed class TravianClientHelperTests
     [InlineData("garbage", null)]
     public void ParseDurationToSeconds_HandlesCommonFormats(string? raw, int? expected)
     {
-        Assert.Equal(expected, TravianClient.ParseDurationToSeconds(raw));
+        Assert.Equal(expected, TravianParsing.ParseDurationToSeconds(raw));
     }
 
     [Theory]
@@ -64,7 +64,7 @@ public sealed class TravianClientHelperTests
     [InlineData(3725, "01:02:05")]
     public void FormatDuration_FormatsAsExpected(int seconds, string expected)
     {
-        Assert.Equal(expected, TravianClient.FormatDuration(seconds));
+        Assert.Equal(expected, TravianParsing.FormatDuration(seconds));
     }
 
     [Theory]
@@ -78,7 +78,7 @@ public sealed class TravianClientHelperTests
     [InlineData(20, 30, 0, 0)]
     public void CalculateOintmentsToUse_UsesOnlyNeededAmount(int? hp, int minHp, int available, int expected)
     {
-        Assert.Equal(expected, TravianClient.CalculateOintmentsToUse(hp, minHp, available));
+        Assert.Equal(expected, HeroCalc.CalculateOintmentsToUse(hp, minHp, available));
     }
 
     [Theory]
@@ -88,7 +88,7 @@ public sealed class TravianClientHelperTests
     [InlineData(60 * 60 * 12 + 100, 12 * 60 * 60)]
     public void ComputeUpgradeWaitSeconds_ClampsBetweenOneAndTwelveHours(int? input, int expected)
     {
-        Assert.Equal(expected, TravianClient.ComputeUpgradeWaitSeconds(input));
+        Assert.Equal(expected, UpgradeMath.ComputeUpgradeWaitSeconds(input));
     }
 
     [Theory]
@@ -97,7 +97,7 @@ public sealed class TravianClientHelperTests
     [InlineData(20, 25)]
     public void ComputeBuildingUpgradeSafetyCap_AddsBuffer(int targetLevel, int expected)
     {
-        Assert.Equal(expected, TravianClient.ComputeBuildingUpgradeSafetyCap(targetLevel));
+        Assert.Equal(expected, UpgradeMath.ComputeBuildingUpgradeSafetyCap(targetLevel));
     }
 
     [Theory]
@@ -106,14 +106,14 @@ public sealed class TravianClientHelperTests
     [InlineData(20, 28)]
     public void ComputeResourceUpgradeSafetyCap_AddsBufferWithMinimum(int targetLevel, int expected)
     {
-        Assert.Equal(expected, TravianClient.ComputeResourceUpgradeSafetyCap(targetLevel));
+        Assert.Equal(expected, UpgradeMath.ComputeResourceUpgradeSafetyCap(targetLevel));
     }
 
     [Fact]
     public void ResolveShortestQueueDurationSeconds_ReturnsMinOrNull()
     {
         IReadOnlyList<BuildQueueItem> empty = [];
-        Assert.Null(TravianClient.ResolveShortestQueueDurationSeconds(empty));
+        Assert.Null(TravianParsing.ResolveShortestQueueDurationSeconds(empty));
 
         IReadOnlyList<BuildQueueItem> queue =
         [
@@ -121,14 +121,14 @@ public sealed class TravianClientHelperTests
             new BuildQueueItem("B", "00:01:30"),
             new BuildQueueItem("C", "garbage"),
         ];
-        Assert.Equal(90, TravianClient.ResolveShortestQueueDurationSeconds(queue));
+        Assert.Equal(90, TravianParsing.ResolveShortestQueueDurationSeconds(queue));
 
         IReadOnlyList<BuildQueueItem> unparseable =
         [
             new BuildQueueItem("A", null),
             new BuildQueueItem("B", "garbage"),
         ];
-        Assert.Null(TravianClient.ResolveShortestQueueDurationSeconds(unparseable));
+        Assert.Null(TravianParsing.ResolveShortestQueueDurationSeconds(unparseable));
     }
 
     [Theory]
@@ -142,7 +142,7 @@ public sealed class TravianClientHelperTests
     [InlineData("spieler.php?id=5", "spieler.php?id=5")]
     public void CanonicalizeVillageSwitchUrl_ReducesToNewdidOverview(string input, string expected)
     {
-        Assert.Equal(expected, TravianClient.CanonicalizeVillageSwitchUrl(input));
+        Assert.Equal(expected, TravianUrls.CanonicalizeVillageSwitchUrl(input));
     }
 
     [Fact]
@@ -163,8 +163,8 @@ public sealed class TravianClientHelperTests
         ];
 
         Assert.Equal(
-            TravianClient.BuildQueueIdentityFingerprint(before),
-            TravianClient.BuildQueueIdentityFingerprint(after));
+            BuildQueueFingerprints.Identity(before),
+            BuildQueueFingerprints.Identity(after));
     }
 
     [Fact]
@@ -181,8 +181,8 @@ public sealed class TravianClientHelperTests
         ];
 
         Assert.NotEqual(
-            TravianClient.BuildQueueIdentityFingerprint(twoItems),
-            TravianClient.BuildQueueIdentityFingerprint(oneItem));
+            BuildQueueFingerprints.Identity(twoItems),
+            BuildQueueFingerprints.Identity(oneItem));
     }
 
     [Fact]
@@ -195,8 +195,8 @@ public sealed class TravianClientHelperTests
             new BuildQueueItem("C", null),
         ];
 
-        Assert.Equal(4800, TravianClient.ResolveTroopTrainingQueueRemainingSeconds(queue));
-        Assert.Equal(0, TravianClient.ResolveTroopTrainingQueueRemainingSeconds([]));
+        Assert.Equal(4800, TroopTrainingCalculator.ResolveTroopTrainingQueueRemainingSeconds(queue));
+        Assert.Equal(0, TroopTrainingCalculator.ResolveTroopTrainingQueueRemainingSeconds([]));
     }
 
     [Theory]
@@ -206,7 +206,7 @@ public sealed class TravianClientHelperTests
     [InlineData("", null)]
     public void TryParseTroopTrainingQueueLimitSeconds_ParsesExpectedValues(string value, int? expected)
     {
-        Assert.Equal(expected, TravianClient.TryParseTroopTrainingQueueLimitSeconds(value));
+        Assert.Equal(expected, TroopTrainingCalculator.TryParseTroopTrainingQueueLimitSeconds(value));
     }
 
     [Theory]
@@ -224,7 +224,7 @@ public sealed class TravianClientHelperTests
             ["crop"] = 100,
         };
 
-        var amount = TravianClient.CalculateTroopTrainingAmount(resources, unitCost, unitCost, unitCost, unitCost, amountMode, keepPercent);
+        var amount = TroopTrainingCalculator.CalculateTroopTrainingAmount(resources, unitCost, unitCost, unitCost, unitCost, amountMode, keepPercent);
         Assert.Equal(expected, amount);
     }
 
@@ -239,7 +239,7 @@ public sealed class TravianClientHelperTests
             ["crop"] = 76853541651L,
         };
 
-        var amount = TravianClient.CalculateTroopTrainingAmount(resources, 1000, 1000, 1000, 1000, "maximum", 0);
+        var amount = TroopTrainingCalculator.CalculateTroopTrainingAmount(resources, 1000, 1000, 1000, 1000, "maximum", 0);
         Assert.Equal(41812000, amount);
     }
 
@@ -250,13 +250,13 @@ public sealed class TravianClientHelperTests
     [InlineData("", "maximum")]
     public void NormalizeTroopTrainingAmountMode_NormalizesExpectedValues(string value, string expected)
     {
-        Assert.Equal(expected, TravianClient.NormalizeTroopTrainingAmountMode(value));
+        Assert.Equal(expected, TroopTrainingCalculator.NormalizeTroopTrainingAmountMode(value));
     }
 
     [Fact]
     public void CalculateTroopTrainingRequiredResources_RespectsKeepResourcesReserve()
     {
-        var required = TravianClient.CalculateTroopTrainingRequiredResources(
+        var required = TroopTrainingCalculator.CalculateTroopTrainingRequiredResources(
             100,
             100,
             100,
@@ -296,7 +296,7 @@ public sealed class TravianClientHelperTests
             ["crop"] = 0,
         };
 
-        var waitSeconds = TravianClient.EstimateTroopTrainingWaitSeconds(currentResources, requiredResources, productionByHour);
+        var waitSeconds = TroopTrainingCalculator.EstimateTroopTrainingWaitSeconds(currentResources, requiredResources, productionByHour);
         Assert.Equal(3600, waitSeconds);
     }
 
@@ -325,25 +325,25 @@ public sealed class TravianClientHelperTests
             ["crop"] = null,
         };
 
-        var waitSeconds = TravianClient.EstimateTroopTrainingWaitSeconds(currentResources, requiredResources, productionByHour);
+        var waitSeconds = TroopTrainingCalculator.EstimateTroopTrainingWaitSeconds(currentResources, requiredResources, productionByHour);
         Assert.Equal(60, waitSeconds);
     }
 
     [Fact]
     public void MergeTroopTrainingCapacities_UsesStatusThenCacheWhenLiveIsMissing()
     {
-        var mergedFromStatus = TravianClient.MergeTroopTrainingCapacities(
-            new TravianClient.ResourceCapacitySnapshot(null, null),
-            new TravianClient.ResourceCapacitySnapshot(1000, 2000),
+        var mergedFromStatus = TroopTrainingCalculator.MergeTroopTrainingCapacities(
+            new ResourceCapacitySnapshot(null, null),
+            new ResourceCapacitySnapshot(1000, 2000),
             3000,
             4000);
 
         Assert.Equal(1000, mergedFromStatus.WarehouseCapacity);
         Assert.Equal(2000, mergedFromStatus.GranaryCapacity);
 
-        var mergedFromCache = TravianClient.MergeTroopTrainingCapacities(
-            new TravianClient.ResourceCapacitySnapshot(null, null),
-            new TravianClient.ResourceCapacitySnapshot(null, null),
+        var mergedFromCache = TroopTrainingCalculator.MergeTroopTrainingCapacities(
+            new ResourceCapacitySnapshot(null, null),
+            new ResourceCapacitySnapshot(null, null),
             3000,
             4000);
 
@@ -390,7 +390,7 @@ public sealed class TravianClientHelperTests
     [InlineData(null, 10)]
     public void ResolveResourceMaxLevelFallback_DependsOnCapital(bool? isCapital, int expected)
     {
-        Assert.Equal(expected, TravianClient.ResolveResourceMaxLevelFallback(isCapital));
+        Assert.Equal(expected, UpgradeMath.ResolveResourceMaxLevelFallback(isCapital));
     }
 
     [Theory]
@@ -406,13 +406,13 @@ public sealed class TravianClientHelperTests
     [InlineData(int.MaxValue, 12 * 60 * 60)]
     public void ClampResourceWaitSeconds_ClampsToBoundsWithFallback(int? input, int expected)
     {
-        Assert.Equal(expected, TravianClient.ClampResourceWaitSeconds(input));
+        Assert.Equal(expected, UpgradeMath.ClampResourceWaitSeconds(input));
     }
 
     [Fact]
     public void ComputeConstructionSlotStatus_EmptyAllowsBoth()
     {
-        var status = TravianClient.ComputeConstructionSlotStatus([], "Romans", travianPlusActive: false);
+        var status = ConstructionSlots.Compute([], "Romans", travianPlusActive: false);
         Assert.True(status.CanStartResource);
         Assert.True(status.CanStartBuilding);
         Assert.Equal(0, status.ResourceSlotsUsed);
@@ -433,7 +433,7 @@ public sealed class TravianClientHelperTests
             new ActiveConstruction(ConstructionKind.Building, "Warehouse", 19, 2561, "done at 23:03"),
         ];
 
-        Assert.Equal(1, TravianClient.ResolveActiveBuildCount(broadQueue, active));
+        Assert.Equal(1, ConstructionSlots.ActiveBuildCount(broadQueue, active));
     }
 
     [Fact]
@@ -444,7 +444,7 @@ public sealed class TravianClientHelperTests
             new BuildQueueItem("Warehouse level 19", "00:42:41"),
         ];
 
-        Assert.Equal(1, TravianClient.ResolveActiveBuildCount(broadQueue, []));
+        Assert.Equal(1, ConstructionSlots.ActiveBuildCount(broadQueue, []));
     }
 
     [Theory]
@@ -454,7 +454,7 @@ public sealed class TravianClientHelperTests
     [InlineData("Teutons", true, 1, 2)]
     public void ComputeConstructionSlotStatus_MaxSlotsByTribeAndPlus(string tribe, bool plus, int resMax, int bldMax)
     {
-        var status = TravianClient.ComputeConstructionSlotStatus([], tribe, plus);
+        var status = ConstructionSlots.Compute([], tribe, plus);
         Assert.Equal(resMax, status.ResourceSlotsMax);
         Assert.Equal(bldMax, status.BuildingSlotsMax);
     }
@@ -466,7 +466,7 @@ public sealed class TravianClientHelperTests
         [
             new ActiveConstruction(ConstructionKind.Resource, "Woodcutter", 5, 120, "0:02:00"),
         ];
-        var status = TravianClient.ComputeConstructionSlotStatus(active, "Romans", travianPlusActive: false);
+        var status = ConstructionSlots.Compute(active, "Romans", travianPlusActive: false);
         Assert.False(status.CanStartResource);
         Assert.True(status.CanStartBuilding);
         Assert.Equal(120, status.ShortestWaitSeconds);
@@ -479,7 +479,7 @@ public sealed class TravianClientHelperTests
         [
             new ActiveConstruction(ConstructionKind.Resource, "Clay Pit", 3, 60, "0:01:00"),
         ];
-        var status = TravianClient.ComputeConstructionSlotStatus(active, "Gauls", travianPlusActive: false);
+        var status = ConstructionSlots.Compute(active, "Gauls", travianPlusActive: false);
         Assert.False(status.CanStartResource);
         Assert.False(status.CanStartBuilding);
     }
@@ -491,7 +491,7 @@ public sealed class TravianClientHelperTests
         [
             new ActiveConstruction(ConstructionKind.Building, "Main Building", 2, 540, "0:09:00"),
         ];
-        var status = TravianClient.ComputeConstructionSlotStatus(active, "Teutons", travianPlusActive: true);
+        var status = ConstructionSlots.Compute(active, "Teutons", travianPlusActive: true);
         Assert.True(status.CanStartBuilding);
         Assert.Equal(2, status.BuildingSlotsMax);
     }
@@ -504,7 +504,7 @@ public sealed class TravianClientHelperTests
             new ActiveConstruction(ConstructionKind.Resource, "Iron Mine", 4, 300, null),
             new ActiveConstruction(ConstructionKind.Building, "Warehouse", 1, 75, null),
         ];
-        var status = TravianClient.ComputeConstructionSlotStatus(active, "Romans", travianPlusActive: true);
+        var status = ConstructionSlots.Compute(active, "Romans", travianPlusActive: true);
         Assert.Equal(75, status.ShortestWaitSeconds);
     }
 
@@ -541,7 +541,7 @@ public sealed class TravianClientHelperTests
     [InlineData("", "BlockedUnknown")]
     public void ParseUpgradeOutcome_MapsKnownValues(string? value, string expectedName)
     {
-        Assert.Equal(expectedName, TravianClient.ParseUpgradeOutcome(value).ToString());
+        Assert.Equal(expectedName, TravianParsing.ParseUpgradeOutcome(value).ToString());
     }
 
     [Theory]
@@ -557,7 +557,7 @@ public sealed class TravianClientHelperTests
     [InlineData("Warehouse", "warehouse")]
     public void NormalizeBuildingName_NormalizesAliases(string input, string expected)
     {
-        Assert.Equal(expected, TravianClient.NormalizeBuildingName(input));
+        Assert.Equal(expected, BuildingNames.Normalize(input));
     }
 
     [Theory]
@@ -568,7 +568,7 @@ public sealed class TravianClientHelperTests
     [InlineData("Cropland", "Crop Land", false)]
     public void SameBuildingName_UsesNormalizedComparison(string left, string right, bool expected)
     {
-        Assert.Equal(expected, TravianClient.SameBuildingName(left, right));
+        Assert.Equal(expected, BuildingNames.Same(left, right));
     }
 
     [Fact]
@@ -579,24 +579,24 @@ public sealed class TravianClientHelperTests
             new Building(SlotId: 2, Name: "Warehouse", Level: 12, Url: null),
             new Building(SlotId: 3, Name: "Granary / Silo", Level: 7, Url: null));
 
-        Assert.Equal(12, TravianClient.BuildingLevelByName(status, "Warehouse"));
-        Assert.Equal(7, TravianClient.BuildingLevelByName(status, "Silo")); // alias
-        Assert.Equal(0, TravianClient.BuildingLevelByName(status, "Embassy"));
+        Assert.Equal(12, BuildingNames.LevelByName(status, "Warehouse"));
+        Assert.Equal(7, BuildingNames.LevelByName(status, "Silo")); // alias
+        Assert.Equal(0, BuildingNames.LevelByName(status, "Embassy"));
     }
 
     [Fact]
     public void BuildQueueFingerprint_StableForSameInputs()
     {
         IReadOnlyList<BuildQueueItem> empty = [];
-        Assert.Equal("empty", TravianClient.BuildQueueFingerprint(empty));
+        Assert.Equal("empty", BuildQueueFingerprints.Full(empty));
 
         IReadOnlyList<BuildQueueItem> queue =
         [
             new BuildQueueItem("Warehouse Level 5", "00:05:00"),
             new BuildQueueItem("Granary Level 3", null),
         ];
-        var first = TravianClient.BuildQueueFingerprint(queue);
-        var second = TravianClient.BuildQueueFingerprint(queue);
+        var first = BuildQueueFingerprints.Full(queue);
+        var second = BuildQueueFingerprints.Full(queue);
         Assert.Equal(first, second);
         Assert.Contains("Warehouse Level 5", first);
         Assert.Contains("00:05:00", first);
@@ -616,8 +616,8 @@ public sealed class TravianClientHelperTests
         ];
 
         Assert.Equal(
-            TravianClient.BuildQueueIdentityFingerprint(firstQueue),
-            TravianClient.BuildQueueIdentityFingerprint(secondQueue));
+            BuildQueueFingerprints.Identity(firstQueue),
+            BuildQueueFingerprints.Identity(secondQueue));
     }
 
     [Theory]
@@ -630,7 +630,7 @@ public sealed class TravianClientHelperTests
     [InlineData("/build.php?id=abc", null)]
     public void ExtractSlotIdFromUrl_ParsesIdQuery(string? url, int? expected)
     {
-        Assert.Equal(expected, TravianClient.ExtractSlotIdFromUrl(url));
+        Assert.Equal(expected, TravianUrls.ExtractSlotIdFromUrl(url));
     }
 
     [Theory]
@@ -641,7 +641,7 @@ public sealed class TravianClientHelperTests
     [InlineData("with:colon*and?stars", "with_colon_and_stars")]
     public void SafePathSegment_SanitizesInvalidChars(string input, string expected)
     {
-        Assert.Equal(expected, TravianClient.SafePathSegment(input));
+        Assert.Equal(expected, TravianUrls.SafePathSegment(input));
     }
 
     [Fact]
@@ -651,8 +651,8 @@ public sealed class TravianClientHelperTests
         var withoutGid = new Building(SlotId: 2, Name: "Unknown", Level: 1, Url: null);
 
         var fromCatalog = BuildingCatalogService.MaxLevelFor(10);
-        Assert.Equal(fromCatalog, TravianClient.MaxLevelForBuilding(withGid));
-        Assert.Equal(40, TravianClient.MaxLevelForBuilding(withoutGid));
+        Assert.Equal(fromCatalog, BuildingNames.MaxLevelFor(withGid));
+        Assert.Equal(40, BuildingNames.MaxLevelFor(withoutGid));
     }
 
     [Theory]
@@ -664,7 +664,7 @@ public sealed class TravianClientHelperTests
     [InlineData("   ", "fighting_strength,offence_bonus,defence_bonus,resources")]
     public void ParseHeroStatPriority_NormalizesAndDedupes(string input, string expected)
     {
-        var result = TravianClient.ParseHeroStatPriority(input);
+        var result = HeroCalc.ParseHeroStatPriority(input);
         Assert.Equal(expected, string.Join(",", result));
     }
 
@@ -676,14 +676,14 @@ public sealed class TravianClientHelperTests
     [InlineData("", "")]
     public void NormalizeCacheKeyPart_LowercasesAndTrims(string? input, string expected)
     {
-        Assert.Equal(expected, TravianClient.NormalizeCacheKeyPart(input!));
+        Assert.Equal(expected, CapitalCacheKey.NormalizePart(input!));
     }
 
     [Fact]
     public void BuildCapitalCacheKey_StableAcrossCasingAndWhitespace()
     {
-        var a = TravianClient.BuildCapitalCacheKey("Main", "https://example.com/", "Capital");
-        var b = TravianClient.BuildCapitalCacheKey("  main ", "HTTPS://example.com/", "CAPITAL");
+        var a = CapitalCacheKey.Build("Main", "https://example.com/", "Capital");
+        var b = CapitalCacheKey.Build("  main ", "HTTPS://example.com/", "CAPITAL");
         Assert.Equal(a, b);
         Assert.Contains("|", a);
     }

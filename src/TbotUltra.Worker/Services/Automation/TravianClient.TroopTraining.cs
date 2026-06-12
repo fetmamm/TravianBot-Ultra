@@ -39,10 +39,6 @@ public sealed partial class TravianClient
         int IronCost,
         int CropCost);
 
-    internal sealed record ResourceCapacitySnapshot(
-        long? WarehouseCapacity,
-        long? GranaryCapacity);
-
     private sealed record TroopTrainingResourceSnapshot(
         IReadOnlyDictionary<string, long> Resources,
         ResourceCapacitySnapshot Capacities,
@@ -166,7 +162,7 @@ public sealed partial class TravianClient
                     item,
                     queueStatus,
                     queueRemainingSeconds,
-                    TryParseTroopTrainingQueueLimitSeconds(item.MaxQueueMode));
+                    TroopTrainingCalculator.TryParseTroopTrainingQueueLimitSeconds(item.MaxQueueMode));
             })
             .Where(item => item.QueueStatus.Exists)
             .OrderBy(item => item.QueueRemainingSeconds)
@@ -175,7 +171,7 @@ public sealed partial class TravianClient
 
         if (candidates.Count > 0)
         {
-            Notify($"[troops:verbose]candidates={string.Join(" | ", candidates.Select(item => $"{item.Request.BuildingName}:{item.Request.TroopType}:queue={(item.QueueRemainingSeconds > 0 ? FormatDuration(item.QueueRemainingSeconds) : "Ready")}:limit={(item.QueueLimitSeconds is > 0 ? FormatDuration(item.QueueLimitSeconds.Value) : "NoLimit")}:mode={item.Request.AmountMode}:keep={item.Request.KeepResourcesPercent}%:runMode={item.Request.RunMode}:minTroops={item.Request.MinimumTroops}:minRes={item.Request.MinimumResourcesPercent}%:check=[w={item.Request.CheckWood},c={item.Request.CheckClay},i={item.Request.CheckIron},crop={item.Request.CheckCrop}]"))}.");
+            Notify($"[troops:verbose]candidates={string.Join(" | ", candidates.Select(item => $"{item.Request.BuildingName}:{item.Request.TroopType}:queue={(item.QueueRemainingSeconds > 0 ? TravianParsing.FormatDuration(item.QueueRemainingSeconds) : "Ready")}:limit={(item.QueueLimitSeconds is > 0 ? TravianParsing.FormatDuration(item.QueueLimitSeconds.Value) : "NoLimit")}:mode={item.Request.AmountMode}:keep={item.Request.KeepResourcesPercent}%:runMode={item.Request.RunMode}:minTroops={item.Request.MinimumTroops}:minRes={item.Request.MinimumResourcesPercent}%:check=[w={item.Request.CheckWood},c={item.Request.CheckClay},i={item.Request.CheckIron},crop={item.Request.CheckCrop}]"))}.");
         }
 
         if (candidates.Count <= 0)
@@ -196,7 +192,7 @@ public sealed partial class TravianClient
             if (candidate.QueueLimitSeconds is int limitSeconds
                 && candidate.QueueRemainingSeconds > limitSeconds)
             {
-                Notify($"[troops] skipped {candidate.Request.BuildingName} — queue {FormatDuration(candidate.QueueRemainingSeconds)} exceeds limit {FormatDuration(limitSeconds)}");
+                Notify($"[troops] skipped {candidate.Request.BuildingName} — queue {TravianParsing.FormatDuration(candidate.QueueRemainingSeconds)} exceeds limit {TravianParsing.FormatDuration(limitSeconds)}");
                 var queueLimitWaitSeconds = Math.Max(1, candidate.QueueRemainingSeconds - limitSeconds);
                 var queueLimitOutcome = new TroopTrainingAttemptOutcome(
                     false,
@@ -233,192 +229,6 @@ public sealed partial class TravianClient
         return $"Build troops: no eligible troop could be trained this run. queue_wait_seconds={fallbackCooldownSeconds}";
     }
 
-    internal static int? TryParseTroopTrainingQueueLimitSeconds(string? mode)
-    {
-        if (string.IsNullOrWhiteSpace(mode)
-            || string.Equals(mode, "no_limit", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        return int.TryParse(mode.Trim(), out var hours) && hours > 0
-            ? hours * 3600
-            : null;
-    }
-
-    internal static int ResolveTroopTrainingQueueRemainingSeconds(IReadOnlyList<BuildQueueItem> items)
-    {
-        return items
-            .Select(item => ParseDurationToSeconds(item.TimeLeft))
-            .Where(value => value.HasValue)
-            .Select(value => value!.Value)
-            .DefaultIfEmpty(0)
-            .Sum();
-    }
-
-    internal static int CalculateTroopTrainingAmount(
-        IReadOnlyDictionary<string, long> resources,
-        int woodCost,
-        int clayCost,
-        int ironCost,
-        int cropCost,
-        string amountMode,
-        int keepResourcesPercent)
-    {
-        if (woodCost <= 0 || clayCost <= 0 || ironCost <= 0 || cropCost <= 0)
-        {
-            return 0;
-        }
-
-        var normalizedMode = NormalizeTroopTrainingAmountMode(amountMode);
-        var reserveFactor = normalizedMode == "keep_resources"
-            ? Math.Clamp(keepResourcesPercent, 0, 95) / 100d
-            : 0d;
-
-        var woodAvailable = ComputeAvailableResource(resources, "wood", reserveFactor);
-        var clayAvailable = ComputeAvailableResource(resources, "clay", reserveFactor);
-        var ironAvailable = ComputeAvailableResource(resources, "iron", reserveFactor);
-        var cropAvailable = ComputeAvailableResource(resources, "crop", reserveFactor);
-
-        var trainable = new[]
-        {
-            woodAvailable / woodCost,
-            clayAvailable / clayCost,
-            ironAvailable / ironCost,
-            cropAvailable / cropCost,
-        }.Min();
-
-        return trainable >= int.MaxValue
-            ? int.MaxValue
-            : (int)Math.Max(0L, trainable);
-    }
-
-    internal static string NormalizeTroopTrainingAmountMode(string? amountMode)
-    {
-        return string.Equals(amountMode, "keep_resources", StringComparison.OrdinalIgnoreCase)
-            ? "keep_resources"
-            : "maximum";
-    }
-
-    internal static IReadOnlyDictionary<string, long> CalculateTroopTrainingRequiredResources(
-        int woodCost,
-        int clayCost,
-        int ironCost,
-        int cropCost,
-        string amountMode,
-        int keepResourcesPercent,
-        int troopCount)
-    {
-        var count = Math.Max(1, troopCount);
-        return new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["wood"] = CalculateRequiredCurrentResource(woodCost, count, amountMode, keepResourcesPercent),
-            ["clay"] = CalculateRequiredCurrentResource(clayCost, count, amountMode, keepResourcesPercent),
-            ["iron"] = CalculateRequiredCurrentResource(ironCost, count, amountMode, keepResourcesPercent),
-            ["crop"] = CalculateRequiredCurrentResource(cropCost, count, amountMode, keepResourcesPercent),
-        };
-    }
-
-    internal static int EstimateTroopTrainingWaitSeconds(
-        IReadOnlyDictionary<string, long> currentResources,
-        IReadOnlyDictionary<string, long> requiredResources,
-        IReadOnlyDictionary<string, double?> productionByHour,
-        int fallbackCooldownSeconds = 60)
-    {
-        var hasUnknownWait = false;
-        var longestFiniteWait = 0;
-
-        foreach (var key in new[] { "wood", "clay", "iron", "crop" })
-        {
-            requiredResources.TryGetValue(key, out var requiredValue);
-            currentResources.TryGetValue(key, out var currentValue);
-            var missing = Math.Max(0, requiredValue - currentValue);
-            if (missing <= 0)
-            {
-                continue;
-            }
-
-            productionByHour.TryGetValue(key, out var production);
-            if (production > 0)
-            {
-                var waitSeconds = (int)Math.Ceiling((missing / production.Value) * 3600d);
-                longestFiniteWait = Math.Max(longestFiniteWait, Math.Max(1, waitSeconds));
-                continue;
-            }
-
-            hasUnknownWait = true;
-        }
-
-        if (longestFiniteWait <= 0)
-        {
-            return fallbackCooldownSeconds;
-        }
-
-        return hasUnknownWait
-            ? Math.Max(Math.Min(fallbackCooldownSeconds, 60), Math.Min(longestFiniteWait, 60))
-            : longestFiniteWait;
-    }
-
-    private static long GetResource(IReadOnlyDictionary<string, long> resources, string key)
-    {
-        return resources.TryGetValue(key, out var value) ? Math.Max(0L, value) : 0L;
-    }
-
-    private static long ComputeAvailableResource(IReadOnlyDictionary<string, long> resources, string key, double reserveFactor)
-    {
-        var current = GetResource(resources, key);
-        if (current <= 0)
-        {
-            return 0;
-        }
-
-        var reserve = reserveFactor <= 0
-            ? 0L
-            : (long)Math.Floor(current * reserveFactor);
-        return Math.Max(0L, current - reserve);
-    }
-
-    private static long CalculateRequiredCurrentResource(int unitCost, int troopCount, string amountMode, int keepResourcesPercent)
-    {
-        if (unitCost <= 0 || troopCount <= 0)
-        {
-            return 0;
-        }
-
-        var totalCost = (long)unitCost * troopCount;
-        if (!string.Equals(NormalizeTroopTrainingAmountMode(amountMode), "keep_resources", StringComparison.OrdinalIgnoreCase))
-        {
-            return totalCost;
-        }
-
-        var reserveFactor = Math.Clamp(keepResourcesPercent, 0, 95) / 100d;
-        if (reserveFactor <= 0)
-        {
-            return totalCost;
-        }
-
-        var denominator = Math.Max(0.05d, 1d - reserveFactor);
-        long low = totalCost;
-        long high = Math.Max(low, (long)Math.Ceiling(totalCost / denominator) + 2);
-        while (low < high)
-        {
-            var mid = low + ((high - low) / 2);
-            var available = ComputeAvailableResource(
-                new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase) { ["value"] = mid },
-                "value",
-                reserveFactor);
-            if (available >= totalCost)
-            {
-                high = mid;
-            }
-            else
-            {
-                low = mid + 1;
-            }
-        }
-
-        return low;
-    }
 
     private static IReadOnlyList<TroopTrainingRequest> BuildTroopTrainingRequests(BotOptions options, string? tribe)
     {
@@ -501,8 +311,8 @@ public sealed partial class TravianClient
         await EnsureLoggedInAsync();
 
         var queueItems = await ReadTroopTrainingQueueFromCurrentPageAsync(cancellationToken);
-        var remainingSeconds = ResolveTroopTrainingQueueRemainingSeconds(queueItems);
-        Notify($"[troops:verbose] queue scan:{buildingName} queue items={queueItems.Count}, maxRemaining={(remainingSeconds > 0 ? FormatDuration(remainingSeconds) : "Ready")}.");
+        var remainingSeconds = TroopTrainingCalculator.ResolveTroopTrainingQueueRemainingSeconds(queueItems);
+        Notify($"[troops:verbose] queue scan:{buildingName} queue items={queueItems.Count}, maxRemaining={(remainingSeconds > 0 ? TravianParsing.FormatDuration(remainingSeconds) : "Ready")}.");
         return new TroopTrainingQueueStatus(
             buildingType,
             buildingName,
@@ -510,7 +320,7 @@ public sealed partial class TravianClient
             building.SlotId,
             queueItems,
             remainingSeconds > 0 ? remainingSeconds : null,
-            remainingSeconds > 0 ? FormatDuration(remainingSeconds) : "Ready");
+            remainingSeconds > 0 ? TravianParsing.FormatDuration(remainingSeconds) : "Ready");
     }
 
     private async Task<TroopTrainingAttemptOutcome> TryTrainTroopsAtBuildingAsync(
@@ -591,7 +401,7 @@ public sealed partial class TravianClient
         }
 
         var useMaxShortcut = string.Equals(candidate.Request.AmountMode, "maximum", StringComparison.OrdinalIgnoreCase);
-        var actualTrainableAmount = CalculateTroopTrainingAmount(
+        var actualTrainableAmount = TroopTrainingCalculator.CalculateTroopTrainingAmount(
             parsedResources,
             buildInfo.WoodCost,
             buildInfo.ClayCost,
@@ -599,7 +409,7 @@ public sealed partial class TravianClient
             buildInfo.CropCost,
             candidate.Request.AmountMode,
             candidate.Request.KeepResourcesPercent);
-        var maximumTrainableAmount = CalculateTroopTrainingAmount(
+        var maximumTrainableAmount = TroopTrainingCalculator.CalculateTroopTrainingAmount(
             parsedResources,
             buildInfo.WoodCost,
             buildInfo.ClayCost,
@@ -638,7 +448,7 @@ public sealed partial class TravianClient
                 buildInfo,
                 parsedResources,
                 productionByHour,
-                CalculateTroopTrainingRequiredResources(
+                TroopTrainingCalculator.CalculateTroopTrainingRequiredResources(
                     buildInfo.WoodCost,
                     buildInfo.ClayCost,
                     buildInfo.IronCost,
@@ -660,7 +470,7 @@ public sealed partial class TravianClient
                     buildInfo,
                     parsedResources,
                     productionByHour,
-                    CalculateTroopTrainingRequiredResources(
+                    TroopTrainingCalculator.CalculateTroopTrainingRequiredResources(
                         buildInfo.WoodCost,
                         buildInfo.ClayCost,
                         buildInfo.IronCost,
@@ -684,7 +494,7 @@ public sealed partial class TravianClient
                     buildInfo,
                     parsedResources,
                     productionByHour,
-                    CalculateTroopTrainingRequiredResources(
+                    TroopTrainingCalculator.CalculateTroopTrainingRequiredResources(
                         buildInfo.WoodCost,
                         buildInfo.ClayCost,
                         buildInfo.IronCost,
@@ -715,8 +525,8 @@ public sealed partial class TravianClient
         var resourcesAfterSubmit = await ReadVillageResourcesFromCurrentPageAsync(cancellationToken);
         Notify($"[troops:verbose]resources after submit wood={resourcesAfterSubmit["wood"]}, clay={resourcesAfterSubmit["clay"]}, iron={resourcesAfterSubmit["iron"]}, crop={resourcesAfterSubmit["crop"]}.");
         var queueItems = await ReadTroopTrainingQueueFromCurrentPageAsync(cancellationToken);
-        var queueSeconds = ResolveTroopTrainingQueueRemainingSeconds(queueItems);
-        var queueText = queueSeconds > 0 ? FormatDuration(queueSeconds) : "Ready";
+        var queueSeconds = TroopTrainingCalculator.ResolveTroopTrainingQueueRemainingSeconds(queueItems);
+        var queueText = queueSeconds > 0 ? TravianParsing.FormatDuration(queueSeconds) : "Ready";
         Notify($"[troops:verbose]queue after submit items={queueItems.Count}, remaining='{queueText}'.");
         return new TroopTrainingAttemptOutcome(
             true,
@@ -728,7 +538,7 @@ public sealed partial class TravianClient
         var result = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         foreach (var key in new[] { "wood", "clay", "iron", "crop" })
         {
-            var parsed = TryParseResourceValue(resources.TryGetValue(key, out var raw) ? raw : null) ?? 0;
+            var parsed = TravianParsing.TryParseResourceValue(resources.TryGetValue(key, out var raw) ? raw : null) ?? 0;
             result[key] = Math.Max(0L, parsed);
         }
 
@@ -754,7 +564,7 @@ public sealed partial class TravianClient
     {
         var cachedSnapshot = TryGetCachedVillageResourceSnapshot(villageName);
         var statusCapacities = ResolveVillageStorageCapacities(status);
-        var mergedCapacities = MergeTroopTrainingCapacities(
+        var mergedCapacities = TroopTrainingCalculator.MergeTroopTrainingCapacities(
             liveSnapshot.Capacities,
             statusCapacities,
             cachedSnapshot?.WarehouseCapacity,
@@ -793,25 +603,6 @@ public sealed partial class TravianClient
             status.GranaryCapacity);
     }
 
-    internal static ResourceCapacitySnapshot MergeTroopTrainingCapacities(
-        ResourceCapacitySnapshot liveCapacities,
-        ResourceCapacitySnapshot statusCapacities,
-        long? cachedWarehouseCapacity,
-        long? cachedGranaryCapacity)
-    {
-        return new ResourceCapacitySnapshot(
-            liveCapacities.WarehouseCapacity is > 0
-                ? liveCapacities.WarehouseCapacity
-                : statusCapacities.WarehouseCapacity is > 0
-                    ? statusCapacities.WarehouseCapacity
-                    : cachedWarehouseCapacity,
-            liveCapacities.GranaryCapacity is > 0
-                ? liveCapacities.GranaryCapacity
-                : statusCapacities.GranaryCapacity is > 0
-                    ? statusCapacities.GranaryCapacity
-                    : cachedGranaryCapacity);
-    }
-
     internal static IReadOnlyDictionary<string, double?> MergeTroopTrainingProductionByHour(
         IReadOnlyDictionary<string, double?> liveProductionByHour,
         IReadOnlyDictionary<string, double?> statusProductionByHour,
@@ -846,7 +637,7 @@ public sealed partial class TravianClient
         TroopUnitBuildInfo buildInfo,
         ResourceCapacitySnapshot capacities)
     {
-        var troopRequirement = CalculateTroopTrainingRequiredResources(
+        var troopRequirement = TroopTrainingCalculator.CalculateTroopTrainingRequiredResources(
             buildInfo.WoodCost,
             buildInfo.ClayCost,
             buildInfo.IronCost,
@@ -998,7 +789,7 @@ public sealed partial class TravianClient
             }
         }
 
-        var waitSeconds = EstimateTroopTrainingWaitSeconds(currentResources, requiredResources, productionByHour, fallbackCooldownSeconds);
+        var waitSeconds = TroopTrainingCalculator.EstimateTroopTrainingWaitSeconds(currentResources, requiredResources, productionByHour, fallbackCooldownSeconds);
         return new TroopTrainingWaitEstimate(
             waitSeconds,
             hasUnknownWait ? "recheck_needed" : "estimated_from_status",
@@ -1017,7 +808,7 @@ public sealed partial class TravianClient
 
     private static string BuildTroopTrainingResourceSummary(IReadOnlyDictionary<string, long> resources)
     {
-        return $"wood={GetResource(resources, "wood")}, clay={GetResource(resources, "clay")}, iron={GetResource(resources, "iron")}, crop={GetResource(resources, "crop")}";
+        return $"wood={TroopTrainingCalculator.GetResource(resources, "wood")}, clay={TroopTrainingCalculator.GetResource(resources, "clay")}, iron={TroopTrainingCalculator.GetResource(resources, "iron")}, crop={TroopTrainingCalculator.GetResource(resources, "crop")}";
     }
 
     private static bool MeetsMinimumResourcePercentThreshold(

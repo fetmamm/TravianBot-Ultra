@@ -75,7 +75,7 @@ public sealed partial class TravianClient
         await EnsureLoggedInAsync();
 
         var pageStatus = await ReadBreweryCelebrationStatusFromCurrentPageAsync(cancellationToken);
-        var remainingSeconds = pageStatus.RemainingSeconds ?? ParseDurationToSeconds(pageStatus.RemainingText);
+        var remainingSeconds = pageStatus.RemainingSeconds ?? TravianParsing.ParseDurationToSeconds(pageStatus.RemainingText);
         return new BreweryCelebrationStatus(
             true,
             isCapital,
@@ -83,7 +83,7 @@ public sealed partial class TravianClient
             brewerySlotId,
             pageStatus.CelebrationRunning,
             remainingSeconds,
-            remainingSeconds is > 0 ? FormatDuration(remainingSeconds.Value) : (pageStatus.CanStart ? "Ready" : "N/A"),
+            remainingSeconds is > 0 ? TravianParsing.FormatDuration(remainingSeconds.Value) : (pageStatus.CanStart ? "Ready" : "N/A"),
             pageStatus.StatusText);
     }
 
@@ -212,7 +212,7 @@ public sealed partial class TravianClient
 
         if (status.CelebrationRunning && status.RemainingSeconds is > 0)
         {
-            Notify($"[brewery] already running — {FormatDuration(status.RemainingSeconds.Value)} remaining");
+            Notify($"[brewery] already running — {TravianParsing.FormatDuration(status.RemainingSeconds.Value)} remaining");
             return $"Brewery celebration running. queue_wait_seconds={Math.Max(1, status.RemainingSeconds.Value)}";
         }
 
@@ -238,7 +238,7 @@ public sealed partial class TravianClient
 
         var startedStatus = await ReadBreweryCelebrationStatusFromCurrentPageAsync(cancellationToken);
         var remainingSeconds = startedStatus.RemainingSeconds
-            ?? ParseDurationToSeconds(startedStatus.RemainingText)
+            ?? TravianParsing.ParseDurationToSeconds(startedStatus.RemainingText)
             ?? BreweryCelebrationRetrySeconds;
 
         if (!startedStatus.CelebrationRunning)
@@ -247,7 +247,7 @@ public sealed partial class TravianClient
             return $"Brewery celebration: start did not register, retrying. queue_wait_seconds={BreweryCelebrationRetrySeconds}";
         }
 
-        Notify($"[brewery] celebration started — {FormatDuration(Math.Max(1, remainingSeconds))} remaining");
+        Notify($"[brewery] celebration started — {TravianParsing.FormatDuration(Math.Max(1, remainingSeconds))} remaining");
         return $"Brewery celebration started. queue_wait_seconds={Math.Max(1, remainingSeconds)}";
     }
 

@@ -151,7 +151,7 @@ public sealed partial class TravianClient
         }
 
         var upgrades = 0;
-        var safetyCap = ComputeBuildingUpgradeSafetyCap(targetLevel);
+        var safetyCap = UpgradeMath.ComputeBuildingUpgradeSafetyCap(targetLevel);
         int? lastKnownLevel = null;
         var transientRetries = 0;
         var constructionNpcTradeAttempted = false;
@@ -187,7 +187,7 @@ public sealed partial class TravianClient
                 return $"Slot {slotId}: upgrade to level {targetLevel} already queued and still in progress. Upgrades performed: {upgrades}. queue_wait_seconds={queuedWaitSeconds}";
             }
             var nextLevel = highestKnownLevel + 1;
-            var queueFingerprintBefore = BuildQueueFingerprint(await ReadBuildQueueAsync(cancellationToken));
+            var queueFingerprintBefore = BuildQueueFingerprints.Full(await ReadBuildQueueAsync(cancellationToken));
 
             // Tribe/Plus-aware slot gate: if the build queue is full, defer this task back to
             // the program queue (queue_wait_seconds) rather than blocking the worker thread.
@@ -282,13 +282,13 @@ public sealed partial class TravianClient
                     {
                         var snapshot = await ReadUpgradeResourceWaitSnapshotAsync(
                             $"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}",
-                            ClampResourceWaitSeconds(actionability.QueueWaitSeconds),
+                            UpgradeMath.ClampResourceWaitSeconds(actionability.QueueWaitSeconds),
                             cancellationToken);
                         return BuildUpgradeResourceBlockedResultMessage(snapshot);
                     }
                     if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByQueue)
                     {
-                        var waitSeconds = ClampResourceWaitSeconds(actionability.QueueWaitSeconds);
+                        var waitSeconds = UpgradeMath.ClampResourceWaitSeconds(actionability.QueueWaitSeconds);
                         if (ShouldDeferLongWait(waitSeconds))
                         {
                             return $"Slot {slotId} blocked by queue. queue_wait_seconds={waitSeconds}";
@@ -368,9 +368,6 @@ public sealed partial class TravianClient
         var levelText = lastKnownLevel is int level ? level.ToString() : "unknown";
         return $"Slot {slotId}: hit safety cap of {safetyCap} iterations while targeting level {targetLevel}. Upgrades performed: {upgrades}. Last known level: {levelText}.";
     }
-
-    internal static int ComputeBuildingUpgradeSafetyCap(int targetLevel)
-        => Math.Max(1, targetLevel + 5);
 
     private async Task<UpgradeResourceWaitSnapshot> ReadUpgradeResourceWaitSnapshotAsync(
         string blockedLabel,
@@ -498,7 +495,7 @@ public sealed partial class TravianClient
             required.TryGetValue(key, out var requiredValue);
             currentResources.TryGetValue(key, out var currentRaw);
             productionByHour.TryGetValue(key, out var productionValue);
-            var currentValue = TryParseResourceValue(currentRaw);
+            var currentValue = TravianParsing.TryParseResourceValue(currentRaw);
             var missingValue = requiredValue.HasValue && currentValue.HasValue
                 ? Math.Max(0, requiredValue.Value - currentValue.Value)
                 : (long?)null;
@@ -921,7 +918,7 @@ public sealed partial class TravianClient
                 return $"Slot {slotId}: upgrade toward max already queued and still in progress (max {maxLevel}). Upgrades performed: {upgrades}. queue_wait_seconds={queuedWaitSeconds}";
             }
             var nextLevel = highestKnownLevel + 1;
-            var queueFingerprintBefore = BuildQueueFingerprint(await ReadBuildQueueAsync(cancellationToken));
+            var queueFingerprintBefore = BuildQueueFingerprints.Full(await ReadBuildQueueAsync(cancellationToken));
 
             // Tribe/Plus-aware slot gate: if the build queue is full, defer this task back to
             // the program queue (queue_wait_seconds) rather than blocking the worker thread.
@@ -1012,13 +1009,13 @@ public sealed partial class TravianClient
                     {
                         var snapshot = await ReadUpgradeResourceWaitSnapshotAsync(
                             $"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}",
-                            ClampResourceWaitSeconds(actionability.QueueWaitSeconds),
+                            UpgradeMath.ClampResourceWaitSeconds(actionability.QueueWaitSeconds),
                             cancellationToken);
                         return BuildUpgradeResourceBlockedResultMessage(snapshot);
                     }
                     if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByQueue)
                     {
-                        var waitSeconds = ClampResourceWaitSeconds(actionability.QueueWaitSeconds);
+                        var waitSeconds = UpgradeMath.ClampResourceWaitSeconds(actionability.QueueWaitSeconds);
                         if (ShouldDeferLongWait(waitSeconds))
                         {
                             return $"Slot {slotId} blocked by queue. queue_wait_seconds={waitSeconds}";
@@ -1117,7 +1114,7 @@ public sealed partial class TravianClient
         for (var attempt = 0; attempt < safetyCap; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var queueFingerprintBefore = BuildQueueFingerprint(await ReadBuildQueueAsync(cancellationToken));
+            var queueFingerprintBefore = BuildQueueFingerprints.Full(await ReadBuildQueueAsync(cancellationToken));
 
             // Pre-flight queue gate: defer to program queue if no construction slot is free.
             var deferMessage = await CheckQueueOrDeferAsync(ConstructionKind.Building, slotId, attempt, cancellationToken);
@@ -1194,7 +1191,7 @@ public sealed partial class TravianClient
                     // Temporary block: the building becomes available once the prerequisites are built.
                     // Defer with a wait hint so the task re-checks later instead of burning retries or
                     // being marked permanently blocked.
-                    var waitSeconds = ClampResourceWaitSeconds(null);
+                    var waitSeconds = UpgradeMath.ClampResourceWaitSeconds(null);
                     Notify($"Slot {slotId}: {buildingName} not buildable yet — missing {missingRequirements}.");
                     return $"Slot {slotId}: {buildingName} cannot be built yet. Missing requirements: {missingRequirements}. Upgrades performed: 0. queue_wait_seconds={waitSeconds}";
                 }
@@ -1271,7 +1268,7 @@ public sealed partial class TravianClient
         try
         {
             var queueItems = await ReadBuildQueueAsync(cancellationToken);
-            var queueFingerprintAfter = BuildQueueFingerprint(queueItems);
+            var queueFingerprintAfter = BuildQueueFingerprints.Full(queueItems);
             if (!string.Equals(queueFingerprintBefore, queueFingerprintAfter, StringComparison.Ordinal))
             {
                 return (true, "queue changed");
@@ -1280,7 +1277,7 @@ public sealed partial class TravianClient
             var activeConstructions = await ReadActiveConstructionsAsync(cancellationToken);
             var matchingActiveConstruction = activeConstructions.FirstOrDefault(item =>
                 item.Kind != ConstructionKind.Resource
-                && SameBuildingName(item.Name, buildingName));
+                && BuildingNames.Same(item.Name, buildingName));
             if (matchingActiveConstruction is not null)
             {
                 return (true, $"active construction detected for {matchingActiveConstruction.Name}");
@@ -1297,7 +1294,7 @@ public sealed partial class TravianClient
             if (slots.TryGetValue(slotId, out var slotInfo))
             {
                 var slotGid = ParseGidFromBuildingCode(slotInfo.BuildingCode);
-                var sameBuilding = slotGid == gid || SameBuildingName(slotInfo.BuildingName, buildingName);
+                var sameBuilding = slotGid == gid || BuildingNames.Same(slotInfo.BuildingName, buildingName);
                 if (sameBuilding && slotInfo.Level >= 0)
                 {
                     var slotLabel = string.IsNullOrWhiteSpace(slotInfo.BuildingName) ? buildingName : slotInfo.BuildingName;
@@ -1650,7 +1647,7 @@ public sealed partial class TravianClient
             ActiveUpgradeCount: activeTimers.Count,
             RemainingSeconds: remainingSeconds,
             ActiveUpgradeRemainingSeconds: activeTimers,
-            RemainingText: remainingSeconds is > 0 ? FormatDuration(remainingSeconds.Value) : "Ready",
+            RemainingText: remainingSeconds is > 0 ? TravianParsing.FormatDuration(remainingSeconds.Value) : "Ready",
             StatusText: activeTimers.Count > 0
                 ? $"Smithy upgrade{(activeTimers.Count == 1 ? string.Empty : "s")} active."
                 : "Ready.");
@@ -1676,8 +1673,8 @@ public sealed partial class TravianClient
             return "Smithy queue test: ready. No active Smithy upgrade found on the current page.";
         }
 
-        var timersText = string.Join(", ", activeTimers.Select(FormatDuration));
-        return $"Smithy queue test: active={activeTimers.Count}, next={FormatDuration(activeTimers[0])}, timers=[{timersText}]";
+        var timersText = string.Join(", ", activeTimers.Select(TravianParsing.FormatDuration));
+        return $"Smithy queue test: active={activeTimers.Count}, next={TravianParsing.FormatDuration(activeTimers[0])}, timers=[{timersText}]";
     }
 
     private static int? ResolveKnownSmithySlotId(IReadOnlyList<Building>? knownBuildings)
@@ -2416,7 +2413,7 @@ public sealed partial class TravianClient
     {
         return buildings.Any(item =>
             ParseGidFromBuildingCode(item.BuildingCode) == gid
-            || SameBuildingName(item.BuildingName, name));
+            || BuildingNames.Same(item.BuildingName, name));
     }
 
     private static int? TryParseOverviewLevel(params string?[] candidates)
@@ -2488,7 +2485,7 @@ public sealed partial class TravianClient
     {
         foreach (var candidate in candidates)
         {
-            var normalized = NormalizeBuildingName(candidate ?? string.Empty);
+            var normalized = BuildingNames.Normalize(candidate ?? string.Empty);
             if (string.IsNullOrWhiteSpace(normalized))
             {
                 continue;
@@ -2724,85 +2721,6 @@ public sealed partial class TravianClient
             .ToList();
     }
 
-    internal static int ResolveActiveBuildCount(
-        IReadOnlyList<BuildQueueItem> buildQueue,
-        IReadOnlyList<ActiveConstruction> activeConstructions)
-    {
-        return activeConstructions.Count > 0
-            ? activeConstructions.Count
-            : buildQueue.Count;
-    }
-
-    internal static int? ResolveShortestQueueDurationSeconds(IReadOnlyList<BuildQueueItem> items)
-    {
-        var candidates = items
-            .Select(item => ParseDurationToSeconds(item.TimeLeft))
-            .Where(value => value.HasValue)
-            .Select(value => value!.Value)
-            .ToList();
-
-        if (candidates.Count == 0)
-        {
-            return null;
-        }
-
-        return candidates.Min();
-    }
-
-    internal static int? ParseDurationToSeconds(string? raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw))
-        {
-            return null;
-        }
-
-        var value = raw.Trim();
-        var hms = Regex.Match(value, @"(?:(?<h>\d{1,3})\s*:)?(?<m>\d{1,2})\s*:\s*(?<s>\d{1,2})");
-        if (hms.Success)
-        {
-            var h = hms.Groups["h"].Success ? int.Parse(hms.Groups["h"].Value) : 0;
-            var m = int.Parse(hms.Groups["m"].Value);
-            var s = int.Parse(hms.Groups["s"].Value);
-            return Math.Max(0, h * 3600 + m * 60 + s);
-        }
-
-        var minutes = Regex.Match(value, @"(?<m>\d{1,4})\s*m(?:in|inute)?s?", RegexOptions.IgnoreCase);
-        var seconds = Regex.Match(value, @"(?<s>\d{1,6})\s*s(?:ec|econd)?s?", RegexOptions.IgnoreCase);
-        if (minutes.Success || seconds.Success)
-        {
-            var m = minutes.Success ? int.Parse(minutes.Groups["m"].Value) : 0;
-            var s = seconds.Success ? int.Parse(seconds.Groups["s"].Value) : 0;
-            return Math.Max(0, m * 60 + s);
-        }
-
-        return null;
-    }
-
-    internal static string FormatDuration(int seconds)
-    {
-        var clamped = Math.Max(0, seconds);
-        var ts = TimeSpan.FromSeconds(clamped);
-        if (ts.TotalHours >= 1)
-        {
-            return $"{(int)ts.TotalHours:00}:{ts.Minutes:00}:{ts.Seconds:00}";
-        }
-
-        return $"{ts.Minutes:00}:{ts.Seconds:00}";
-    }
-
-    internal static int ComputeUpgradeWaitSeconds(int? detectedSeconds)
-        => Math.Max(1, Math.Min((detectedSeconds ?? 0) + 1, 12 * 60 * 60));
-
-    internal static int ClampResourceWaitSeconds(int? detectedSeconds)
-    {
-        const int min = 30;
-        const int fallback = 5 * 60;
-        const int max = 12 * 60 * 60;
-        if (detectedSeconds is not int s || s <= 0) return fallback;
-        if (s < min) return min;
-        if (s > max) return max;
-        return s + 1;
-    }
 
     public async Task<IReadOnlyList<ActiveConstruction>> ReadActiveConstructionsAsync(
         CancellationToken cancellationToken = default,
@@ -2845,7 +2763,7 @@ public sealed partial class TravianClient
                 },
                 Name: i.Name!,
                 Level: i.Level,
-                TimeLeftSeconds: i.TimeLeftSeconds ?? ParseDurationToSeconds(i.FinishAtText),
+                TimeLeftSeconds: i.TimeLeftSeconds ?? TravianParsing.ParseDurationToSeconds(i.FinishAtText),
                 FinishAtText: i.FinishAtText))
             .ToList();
 
@@ -2905,56 +2823,7 @@ public sealed partial class TravianClient
     {
         LogFunctionStarted();
         var active = await ReadActiveConstructionsAsync(cancellationToken, allowNavigationToBuildings);
-        return ComputeConstructionSlotStatus(active, tribe, travianPlusActive);
-    }
-
-    internal static ConstructionSlotStatus ComputeConstructionSlotStatus(
-        IReadOnlyList<ActiveConstruction> active,
-        string tribe,
-        bool travianPlusActive)
-    {
-        var isRomans = string.Equals(tribe, "Romans", StringComparison.OrdinalIgnoreCase);
-        var resourceUsed = active.Count(a => a.Kind == ConstructionKind.Resource);
-        var buildingUsed = active.Count(a => a.Kind != ConstructionKind.Resource);
-
-        bool canResource;
-        bool canBuilding;
-        int resourceMax;
-        int buildingMax;
-
-        if (isRomans)
-        {
-            resourceMax = 1;
-            buildingMax = travianPlusActive ? 2 : 1;
-            canResource = resourceUsed < resourceMax;
-            canBuilding = buildingUsed < buildingMax;
-        }
-        else
-        {
-            resourceMax = 1;
-            buildingMax = travianPlusActive ? 2 : 1;
-            var totalUsed = active.Count;
-            canResource = canBuilding = totalUsed < buildingMax;
-        }
-
-        int? shortest = null;
-        foreach (var item in active)
-        {
-            if (item.TimeLeftSeconds is int s && s > 0)
-            {
-                shortest = shortest is null ? s : Math.Min(shortest.Value, s);
-            }
-        }
-
-        return new ConstructionSlotStatus(
-            Active: active,
-            ResourceSlotsUsed: resourceUsed,
-            BuildingSlotsUsed: buildingUsed,
-            ResourceSlotsMax: resourceMax,
-            BuildingSlotsMax: buildingMax,
-            CanStartResource: canResource,
-            CanStartBuilding: canBuilding,
-            ShortestWaitSeconds: shortest);
+        return ConstructionSlots.Compute(active, tribe, travianPlusActive);
     }
 
     private async Task<(string Tribe, bool PlusActive)> GetCachedTribeAndPlusAsync(CancellationToken cancellationToken)
@@ -3151,7 +3020,7 @@ public sealed partial class TravianClient
         {
             try
             {
-                if (!skipNavigationIfOnExpectedSlot || ExtractSlotIdFromUrl(_page.Url) != slotId)
+                if (!skipNavigationIfOnExpectedSlot || TravianUrls.ExtractSlotIdFromUrl(_page.Url) != slotId)
                 {
                     await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
                 }
@@ -3519,7 +3388,7 @@ public sealed partial class TravianClient
                     ? null
                     : JsonSerializer.Deserialize<UpgradeActionabilityJs>(rawJson);
 
-                var outcome = ParseUpgradeOutcome(parsed?.Outcome);
+                var outcome = TravianParsing.ParseUpgradeOutcome(parsed?.Outcome);
                 var reason = string.IsNullOrWhiteSpace(parsed?.Reason)
                     ? "Unknown actionability result."
                     : parsed!.Reason!;
@@ -3584,19 +3453,9 @@ public sealed partial class TravianClient
         throw new InvalidOperationException($"Upgrade analysis failed for slot {slotId}: exhausted retries.");
     }
 
-    internal static int MaxLevelForBuilding(Building building)
-    {
-        if (building.Gid is int gid)
-        {
-            return BuildingCatalogService.MaxLevelFor(gid);
-        }
-
-        return 40;
-    }
-
     private async Task<int> ResolveBuildingMaxLevelAsync(Building building, int slotId, CancellationToken cancellationToken)
     {
-        var configured = MaxLevelForBuilding(building);
+        var configured = BuildingNames.MaxLevelFor(building);
         var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: false);
         if (actionability.DetectedMaxLevel is int detected && detected > 0)
         {
@@ -3662,7 +3521,7 @@ public sealed partial class TravianClient
             }
 
             var queueItems = await ReadBuildQueueAsync(cancellationToken);
-            var queueFingerprintAfter = BuildQueueFingerprint(queueItems);
+            var queueFingerprintAfter = BuildQueueFingerprints.Full(queueItems);
             if (!string.Equals(queueFingerprintBefore, queueFingerprintAfter, StringComparison.Ordinal))
             {
                 return new UpgradeProgressResult(false, true, "queue changed");
@@ -3773,23 +3632,23 @@ public sealed partial class TravianClient
                 .ToList();
             if (buildingTimers.Count == 0)
             {
-                return ComputeUpgradeWaitSeconds(fallbackSeconds);
+                return UpgradeMath.ComputeUpgradeWaitSeconds(fallbackSeconds);
             }
 
             var matchingTimers = buildingTimers
-                .Where(item => SameBuildingName(item.Name, buildingName))
+                .Where(item => BuildingNames.Same(item.Name, buildingName))
                 .Select(item => item.TimeLeftSeconds!.Value)
                 .ToList();
             if (matchingTimers.Count > 0)
             {
-                return ComputeUpgradeWaitSeconds(matchingTimers.Min());
+                return UpgradeMath.ComputeUpgradeWaitSeconds(matchingTimers.Min());
             }
 
-            return ComputeUpgradeWaitSeconds(buildingTimers.Min(item => item.TimeLeftSeconds!.Value));
+            return UpgradeMath.ComputeUpgradeWaitSeconds(buildingTimers.Min(item => item.TimeLeftSeconds!.Value));
         }
         catch
         {
-            return ComputeUpgradeWaitSeconds(fallbackSeconds);
+            return UpgradeMath.ComputeUpgradeWaitSeconds(fallbackSeconds);
         }
     }
 
@@ -3802,7 +3661,7 @@ public sealed partial class TravianClient
         {
             var active = await ReadActiveConstructionsAsync(cancellationToken);
             var highestQueuedLevel = active
-                .Where(item => item.Kind != ConstructionKind.Resource && SameBuildingName(item.Name, buildingName))
+                .Where(item => item.Kind != ConstructionKind.Resource && BuildingNames.Same(item.Name, buildingName))
                 .Select(item => item.Level ?? 0)
                 .DefaultIfEmpty(0)
                 .Max();
@@ -3839,7 +3698,7 @@ public sealed partial class TravianClient
         }
 
         var existing = status.Buildings
-            .Where(building => building.Gid == gid || SameBuildingName(building.Name, name))
+            .Where(building => building.Gid == gid || BuildingNames.Same(building.Name, name))
             .ToList();
         var duplicateAllowed = gid is 23 or 38 or 39;
         var wallGid = gid is 31 or 32 or 33 or 42 or 43;
@@ -3883,7 +3742,7 @@ public sealed partial class TravianClient
         var missing = new List<(string name, int level)>();
         foreach (var requirement in BuildingCatalogService.RequirementsFor(gid))
         {
-            var current = BuildingLevelByName(status, requirement.Name);
+            var current = BuildingNames.LevelByName(status, requirement.Name);
             if (current < requirement.Level)
             {
                 missing.Add((requirement.Name, requirement.Level));
@@ -3891,91 +3750,6 @@ public sealed partial class TravianClient
         }
 
         return missing;
-    }
-
-    internal static int BuildingLevelByName(VillageStatus status, string name)
-    {
-        var matches = status.Buildings
-            .Where(building => SameBuildingName(building.Name, name))
-            .Select(building => building.Level ?? 0)
-            .ToList();
-
-        return matches.Count > 0 ? matches.Max() : 0;
-    }
-
-    internal static bool SameBuildingName(string left, string right)
-    {
-        return NormalizeBuildingName(left) == NormalizeBuildingName(right);
-    }
-
-    internal static string NormalizeBuildingName(string name)
-    {
-        var cleaned = string.Join(" ", name.Split(' ', StringSplitOptions.RemoveEmptyEntries)).Trim().ToLowerInvariant();
-        return cleaned switch
-        {
-            "granary / silo" => "granary",
-            "silo" => "granary",
-            "blacksmith" => "smithy",
-            // Server displays the full names; older catalog/config strings used the short forms.
-            "stonemason's lodge" => "stonemason",
-            "stonemasons lodge" => "stonemason",
-            "hero's mansion" => "hero mansion",
-            "heros mansion" => "hero mansion",
-            "city wall" => "wall",
-            "earth wall" => "wall",
-            "palisade" => "wall",
-            "stone wall" => "wall",
-            "makeshift wall" => "wall",
-            _ => cleaned,
-        };
-    }
-
-    internal static string BuildQueueFingerprint(IReadOnlyList<BuildQueueItem> queue)
-    {
-        if (queue.Count == 0)
-        {
-            return "empty";
-        }
-
-        return string.Join(
-            " || ",
-            queue
-                .Take(5)
-                .Select(item => $"{item.Text.Trim()}|{item.TimeLeft?.Trim() ?? string.Empty}"));
-    }
-
-    internal static string BuildQueueIdentityFingerprint(IReadOnlyList<BuildQueueItem> queue)
-    {
-        if (queue.Count == 0)
-        {
-            return "empty";
-        }
-
-        return string.Join(
-            " || ",
-            queue
-                .Take(5)
-                .Select(item => StripQueueTimerTokens(item.Text)));
-    }
-
-    // The build-queue row text contains a live countdown timer (e.g. "0:08:12") and/or a completion
-    // clock that change on every read. Including them made the queue fingerprint differ each poll,
-    // which WaitForResourceLevelAdvanceAsync misread as "queue changed" -> a false queued=True after a
-    // click that actually did nothing (queue full), spinning the upgrade loop. Strip time-like tokens
-    // so the fingerprint only reflects WHICH items are queued (name + level), not their remaining time.
-    private static readonly Regex QueueTimerTokenRegex = new(
-        @"\b\d{1,3}:\d{1,2}(?::\d{1,2})?\b|\b\d{1,4}\s*(?:h|hours?|m|min|mins?|minutes?|s|sec|secs?|seconds?)\b",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-    internal static string StripQueueTimerTokens(string? text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return string.Empty;
-        }
-
-        var stripped = QueueTimerTokenRegex.Replace(text, " ");
-        return Regex.Replace(stripped, @"\s+", " ").Trim();
     }
 
     internal static IReadOnlyList<Building> ParseBuildingOverviewHtmlForTests(string html)
@@ -4103,7 +3877,7 @@ public sealed partial class TravianClient
                 html,
                 $@"<i\b[^>]*class=[""'][^""']*\b{cssClass}Big\b[^""']*[""'][^>]*>\s*</i>\s*<span\b[^>]*class=[""'][^""']*\bvalue\b[^""']*[""'][^>]*>(?<value>.*?)</span>",
                 RegexOptions.IgnoreCase | RegexOptions.Singleline);
-            result[key] = match.Success ? TryParseResourceValue(CleanHtmlText(match.Groups["value"].Value)) : null;
+            result[key] = match.Success ? TravianParsing.TryParseResourceValue(CleanHtmlText(match.Groups["value"].Value)) : null;
         }
 
         return result;
@@ -4131,7 +3905,7 @@ public sealed partial class TravianClient
             source,
             @"<div\b[^>]*class=[""'][^""']*\bduration\b[^""']*[""'][^>]*>.*?<span\b[^>]*class=[""'][^""']*\bvalue\b[^""']*[""'][^>]*>(?<value>.*?)</span>",
             RegexOptions.IgnoreCase | RegexOptions.Singleline);
-        return match.Success ? ParseDurationToSeconds(CleanHtmlText(match.Groups["value"].Value)) : null;
+        return match.Success ? TravianParsing.ParseDurationToSeconds(CleanHtmlText(match.Groups["value"].Value)) : null;
     }
 
     internal sealed record HtmlButtonCandidate(
@@ -4228,7 +4002,7 @@ public sealed partial class TravianClient
 
     private async Task EnsureExpectedBuildSlotPageAsync(int slotId, string operationLabel, CancellationToken cancellationToken = default)
     {
-        var currentSlotId = ExtractSlotIdFromUrl(_page.Url);
+        var currentSlotId = TravianUrls.ExtractSlotIdFromUrl(_page.Url);
         if (currentSlotId != slotId)
         {
             // A prior read in the upgrade flow (ReadActiveConstructionsAsync / ReadBuildQueueAsync)
@@ -4237,7 +4011,7 @@ public sealed partial class TravianClient
             // (Notably triggered on official Travian, where build.php?id=N redirects to add &gid=.)
             await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
             await EnsureLoggedInAsync();
-            currentSlotId = ExtractSlotIdFromUrl(_page.Url);
+            currentSlotId = TravianUrls.ExtractSlotIdFromUrl(_page.Url);
             if (currentSlotId != slotId)
             {
                 throw new InvalidOperationException(
@@ -4345,24 +4119,6 @@ public sealed partial class TravianClient
         }
     }
 
-    internal static int? ExtractSlotIdFromUrl(string? url)
-    {
-        if (string.IsNullOrWhiteSpace(url))
-        {
-            return null;
-        }
-
-        var match = System.Text.RegularExpressions.Regex.Match(url, @"[?&]id=(\d+)");
-        if (!match.Success)
-        {
-            return null;
-        }
-
-        return int.TryParse(match.Groups[1].Value, out var slotId)
-            ? slotId
-            : null;
-    }
-
     private static readonly Dictionary<string, string> TravianBuildings = new(StringComparer.OrdinalIgnoreCase)
     {
         ["g1"] = "Woodcutter",
@@ -4418,7 +4174,7 @@ public sealed partial class TravianClient
 
         foreach (var entry in TravianBuildings)
         {
-            var normalized = NormalizeBuildingName(entry.Value);
+            var normalized = BuildingNames.Normalize(entry.Value);
             if (string.IsNullOrWhiteSpace(normalized))
             {
                 continue;

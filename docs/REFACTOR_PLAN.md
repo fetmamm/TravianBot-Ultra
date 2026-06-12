@@ -18,7 +18,7 @@ Målet: stegvisa, beteendebevarande refaktoriseringar med låg risk och hög nyt
 | 1 | 🟢 Klar | 2026-06-03 |
 | 2 | 🟢 Klar (lätt variant) | 2026-06-03 |
 | 3 | 🟢 Klar | 2026-06-03 |
-| 4 | ⬜ Ej påbörjad | — |
+| 4 | 🟡 Pågår (steg 4a+4b klara) | 2026-06-12 |
 | 5 | ⬜ Ej påbörjad | — |
 
 ### Rank 1 – delsteg
@@ -53,6 +53,27 @@ Mönster: flytta sammanhängande, helst rena/statiska metodkluster till nya tema
 
 **Rank 3 KLAR.** `MainWindow.xaml.cs` **4042 → 1387 rader** (−2655, **~66%**) fördelat på elva nya tematiska partials (`DeferredWaits`, `ServerAccount`, `LoopIndicators`, `Toolbar`, `Session`, `VillageStatus`, `StatusInfo`, `Warmups`, `ServerClock`, `ManualExecution`, `DeferredRefresh`). Kvar i huvudfilen: konstruktor, fält/typ-deklarationer, config-laddning och diverse småmetoder utan tydligt kluster — det hör hemma där. Alla steg rena relocations, separat committade, build + tester gröna genomgående.
 
+### Rank 4 – `TravianClient`-god-class (pågår)
+Mönster: lyft rena, stateless `internal static`-helpers (som redan har enhetstester i `TravianClientHelperTests.cs`) ut ur `TravianClient`-partialerna till egna dedikerade klasser i samma namnrymd. Beteendebevarande relocation; call-sites + testrefs pekas om. Verifieras med full solution-build + tester per skiva.
+
+- [x] **Steg 4a:** Extraherade åtta sammanhållna helper-grupper till nya klasser under `Services/Automation/`:
+  - `CapitalCacheKey` (`Build`, `NormalizePart`)
+  - `BuildingNames` (`Normalize`, `Same`, `LevelByName`, `MaxLevelFor`)
+  - `BuildQueueFingerprints` (`Full`, `Identity`, `StripQueueTimerTokens`)
+  - `ConstructionSlots` (`Compute`, `ActiveBuildCount`)
+  - `TravianParsing` (`TryParseResourceValue`, `ParseNumericTextToInt`, `ParseDurationToSeconds`, `FormatDuration`, `ResolveShortestQueueDurationSeconds`, `ParseUpgradeOutcome`)
+  - `UpgradeMath` (`ComputeUpgradeWaitSeconds`, `ClampResourceWaitSeconds`, `ComputeBuildingUpgradeSafetyCap`, `ComputeResourceUpgradeSafetyCap`, `ResolveResourceMaxLevelFallback`)
+  - `TravianUrls` (`CanonicalizeVillageSwitchUrl`, `TryParseNewdid`, `ExtractSlotIdFromUrl`, `SafePathSegment`)
+  - `HeroCalc` (`CalculateOintmentsToUse`, `ParseHeroStatPriority`)
+
+  Rena relocations (verbatim metodkroppar). Full solution-build 0 fel/0 varningar; Worker-tester 358/358, Desktop-tester 121/121.
+- [ ] **Lämnat medvetet i `TravianClient` (entanglat — ej låg risk):**
+  - Troop-training-calc-klustret (`CalculateTroopTrainingAmount`, `EstimateTroopTrainingWaitSeconds`, `Merge*`, m.fl.) delar privata helpers (`GetResource`, `MergeProductionByHour`) med kvarvarande instanskod och är bundet till nested-DTO:n `ResourceCapacitySnapshot` (även använd i `NpcTrade.cs` + instans-signaturer). Att lyfta ut kräver att DTO:n promotas till topp-nivå-typ — bredare ändring, separat steg.
+  - `EnsureBuildingCanBeConstructed` (testas via reflection, bunden till `TravianClient`-state).
+  - Nested-enum `UpgradeAttemptOutcome` ligger kvar i `TravianClient`; `TravianParsing.ParseUpgradeOutcome` refererar den kvalificerat.
+- [x] **Steg 4b:** Promoterade `ResourceCapacitySnapshot` (nested → topp-nivå-record, ny fil `ResourceCapacitySnapshot.cs`, samma namnrymd → inga using-ändringar i `NpcTrade.cs`/`TroopTraining.cs`). Extraherade troop-training-calc till ny `TroopTrainingCalculator`: `TryParseTroopTrainingQueueLimitSeconds`, `ResolveTroopTrainingQueueRemainingSeconds`, `CalculateTroopTrainingAmount`, `NormalizeTroopTrainingAmountMode`, `CalculateTroopTrainingRequiredResources`, `EstimateTroopTrainingWaitSeconds`, `MergeTroopTrainingCapacities` + privata helpers `GetResource`/`ComputeAvailableResource`/`CalculateRequiredCurrentResource`. Rena relocations (verbatim). Call-sites + testrefs ompekade. Full solution-build 0 fel/0 varningar; Worker 358/358, Desktop 121/121. _Lämnat kvar i `TravianClient`: `MergeTroopTrainingProductionByHour` (bygger på den generella, delade `MergeProductionByHour` som används av icke-trupp resursläsning)._
+- [ ] **Steg 4c:** Större strukturell uppdelning av `.Buildings`/`.Resources`/`.Hero` (separera ren parsing från sid-I/O) — kvarstår som ursprungligt Rank 4-mål, medel risk.
+
 ## Rekommenderade refaktoriseringar
 
 | Rank | Område | Rader (faktisk) | Problem | Föreslagen åtgärd | Risk | Reward |
@@ -60,8 +81,8 @@ Mönster: flytta sammanhängande, helst rena/statiska metodkluster till nya tema
 | 1 | Threading/loop-state | `LoopController.cs` 193 · `AutomationLoop.Ui.cs` 795 · `ContinuousLoop.cs` 634 · `AutomationLoop.cs` 370 | CTS-fält + `_ = Task.Run` spridda i code-behind; race-/freeze-risk svår att felsöka | Fortsätt påbörjad `LoopController`-extraktion: flytta in `_loopCts`/`_operationCts`/`_autoQueueRunCts`-livscykel och fire-and-forget-körningar bakom dess gate+loggning | Låg | Hög |
 | 2 | `async void`-handlers | `MainWindow.xaml.cs` 3 477 (6 st `async void`) + flera partials | Obevakade undantag i `async void` kan krascha UI | Inför en `SafeInvokeAsync`-hjälpare och låt handlers delegera dit (try/catch→log) | Låg | Hög |
 | 3 | Monolitisk code-behind | `MainWindow.xaml.cs` 3 477 · 28 partials = 15 018 rader totalt · bara 6 VMs | Kvarvarande logik i monolitisk code-behind utöver befintliga partials | Flytta residual-logik till tematiska partials/services enligt befintligt split-mönster | Låg | Medel |
-| 4 | `TravianClient` god-class | `.cs` 4 512 · `.Buildings.cs` 3 528 · `.Resources.cs` 2 090 · `.Hero.cs` 2 058 | Tusentals rader, stateless parsing blandat med I/O → otestbart | Extrahera rena, stateless parsers/helpers till egna klasser med enhetstester | Medel | Hög |
-| 5 | UI/logik-koppling | `TroopTrainingViewModel.cs` 969 (mall) · `MainWindow.TroopTraining.cs` 619 | Code-behind anropar `TravianClient` direkt; ingen VM-gräns | Använd `TroopTrainingViewModel` som mall: flytta en panels logik till VM/service | Medel | Medel |
+| 4 | `TravianClient` god-class | `.cs` 6 263 · `.Buildings.cs` 4 256 · `.Resources.cs` 2 370 · `.Hero.cs` 3 167 (siffror per 2026-06-12) | Tusentals rader, stateless parsing blandat med I/O → otestbart | Extrahera rena, stateless parsers/helpers till egna klasser med enhetstester (**steg 4a klart** — 8 klasser extraherade) | Medel | Hög |
+| 5 | UI/logik-koppling | `TroopTrainingViewModel.cs` 1 113 (mall) · `MainWindow.TroopTraining.cs` 695 (per 2026-06-12) | Code-behind anropar `TravianClient` direkt; ingen VM-gräns | Använd `TroopTrainingViewModel` som mall: flytta en panels logik till VM/service | Medel | Medel |
 
 **Rekommenderad start:** Fortsätt `LoopController`-extraktionen (Rank 1) — lägst risk, störst nytta för stabilitet och felsökning, och mönstret är redan etablerat.
 

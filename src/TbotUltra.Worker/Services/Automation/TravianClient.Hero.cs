@@ -43,7 +43,7 @@ public sealed partial class TravianClient
         if (isOnTheWay)
         {
             var etaSeconds = quick.Status.SecondsUntilReturn ?? await ReadHeroReturnFromRallyPointAsync(cancellationToken);
-            var etaText = etaSeconds is int e ? FormatDuration(e) : "(unknown)";
+            var etaText = etaSeconds is int e ? TravianParsing.FormatDuration(e) : "(unknown)";
             return new HeroAdventureDispatchResult(
                 IsInHomeVillage: false,
                 StatusText: statusText,
@@ -113,7 +113,7 @@ public sealed partial class TravianClient
         // Land back on dorf1 after dispatch so the next status read happens on a fresh page.
         await EnsureFreshDorf1ForHeroAsync(forceReload: false, cancellationToken);
 
-        var returnText = returnSeconds is int rs ? FormatDuration(rs) : "(unknown)";
+        var returnText = returnSeconds is int rs ? TravianParsing.FormatDuration(rs) : "(unknown)";
         Notify($"[hero] adventure dispatched — return in {returnText}");
 
         return new HeroAdventureDispatchResult(
@@ -652,7 +652,7 @@ public sealed partial class TravianClient
             }
             """);
         // Reuse shared parser so we support HH:MM:SS and other duration formats used elsewhere.
-        var reviveDurationSeconds = ParseDurationToSeconds(reviveDurationRaw);
+        var reviveDurationSeconds = TravianParsing.ParseDurationToSeconds(reviveDurationRaw);
 
         // Click the revive button using direct selector first, then a text-based fallback.
         var clickedRevive = await _page.EvaluateAsync<bool>(
@@ -681,7 +681,7 @@ public sealed partial class TravianClient
         {
             // Wait revive duration + 1 second to avoid continuing before the server-side revive is completed.
             var reviveWaitSeconds = Math.Max(1, (reviveDurationSeconds ?? 0) + 1);
-            Notify($"Revive duration detected: {FormatDuration(reviveWaitSeconds)}. Starting countdown.");
+            Notify($"Revive duration detected: {TravianParsing.FormatDuration(reviveWaitSeconds)}. Starting countdown.");
             for (var remaining = reviveWaitSeconds; remaining > 0; remaining--)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -799,7 +799,7 @@ public sealed partial class TravianClient
             using var doc = JsonDocument.Parse(rawJson);
             var root = doc.RootElement;
             var raw = root.TryGetProperty("value", out var valueProp) ? valueProp.GetString() : null;
-            var seconds = ParseDurationToSeconds(raw);
+            var seconds = TravianParsing.ParseDurationToSeconds(raw);
             if (seconds is null)
             {
                 return null;
@@ -813,7 +813,7 @@ public sealed partial class TravianClient
         }
         catch (JsonException)
         {
-            return ParseDurationToSeconds(rawJson);
+            return TravianParsing.ParseDurationToSeconds(rawJson);
         }
     }
 
@@ -1700,23 +1700,6 @@ public sealed partial class TravianClient
         _lastHeroOintmentMissKey = null;
     }
 
-    internal static int CalculateOintmentsToUse(int? currentHpPercent, int minHpForAdventure, int availableOintments)
-    {
-        if (currentHpPercent is null || availableOintments <= 0)
-        {
-            return 0;
-        }
-
-        var targetHp = Math.Clamp(minHpForAdventure, 1, 100);
-        var currentHp = Math.Clamp(currentHpPercent.Value, 0, 100);
-        if (currentHp >= targetHp)
-        {
-            return 0;
-        }
-
-        return Math.Min(targetHp - currentHp, availableOintments);
-    }
-
     private async Task<HeroOintmentUseResult> TryUseHeroOintmentsForAdventureAsync(
         int currentHpPercent,
         int minHpForAdventure,
@@ -1742,7 +1725,7 @@ public sealed partial class TravianClient
             return HeroOintmentUseResult.AttemptedWithoutUse;
         }
 
-        var useCount = CalculateOintmentsToUse(currentHpPercent, minHpForAdventure, info.Count);
+        var useCount = HeroCalc.CalculateOintmentsToUse(currentHpPercent, minHpForAdventure, info.Count);
         if (useCount <= 0)
         {
             ClearHeroOintmentMiss();
@@ -1995,7 +1978,7 @@ public sealed partial class TravianClient
         {
         }
 
-        var fieldOrder = ParseHeroStatPriority(priority)
+        var fieldOrder = HeroCalc.ParseHeroStatPriority(priority)
             .Select(MapStatToOfficialField)
             .Where(field => field is not null)
             .Select(field => field!)
@@ -2183,7 +2166,7 @@ public sealed partial class TravianClient
             return 0;
         }
 
-        var priorities = ParseHeroStatPriority(priority);
+        var priorities = HeroCalc.ParseHeroStatPriority(priority);
         var allocated = 0;
         foreach (var stat in priorities)
         {
@@ -2223,51 +2206,6 @@ public sealed partial class TravianClient
         }
 
         return saved ? allocated : 0;
-    }
-
-    internal static IReadOnlyList<string> ParseHeroStatPriority(string value)
-    {
-        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["fighting_strength"] = "fighting_strength",
-            ["fighting strength"] = "fighting_strength",
-            ["fight"] = "fighting_strength",
-            ["strength"] = "fighting_strength",
-            ["offence_bonus"] = "offence_bonus",
-            ["offence bonus"] = "offence_bonus",
-            ["offense_bonus"] = "offence_bonus",
-            ["offense bonus"] = "offence_bonus",
-            ["offence"] = "offence_bonus",
-            ["offense"] = "offence_bonus",
-            ["off"] = "offence_bonus",
-            ["attack"] = "offence_bonus",
-            ["defence_bonus"] = "defence_bonus",
-            ["defence bonus"] = "defence_bonus",
-            ["defense_bonus"] = "defence_bonus",
-            ["defense bonus"] = "defence_bonus",
-            ["defence"] = "defence_bonus",
-            ["defense"] = "defence_bonus",
-            ["def"] = "defence_bonus",
-            ["resources"] = "resources",
-            ["resource"] = "resources",
-            ["production"] = "resources",
-        };
-
-        var parsed = (value ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(item => map.GetValueOrDefault(item, string.Empty))
-            .Where(item => !string.IsNullOrWhiteSpace(item))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        foreach (var fallback in new[] { "fighting_strength", "offence_bonus", "defence_bonus", "resources" })
-        {
-            if (!parsed.Contains(fallback, StringComparer.OrdinalIgnoreCase))
-            {
-                parsed.Add(fallback);
-            }
-        }
-
-        return parsed;
     }
 
     private async Task EnsureHeroInventoryAttributesTabAsync(CancellationToken cancellationToken)
@@ -3071,7 +3009,7 @@ public sealed partial class TravianClient
             }
             """);
 
-        return ParseDurationToSeconds(raw);
+        return TravianParsing.ParseDurationToSeconds(raw);
     }
 
     private async Task<bool> IsHeroAdventureActivePageAsync(CancellationToken cancellationToken)

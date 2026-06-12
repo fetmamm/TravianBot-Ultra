@@ -265,7 +265,7 @@ public sealed partial class TravianClient
         var resources = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         foreach (var key in ResourceTransferKeys)
         {
-            if (!status.Resources.TryGetValue(key, out var raw) || TryParseResourceValue(raw) is not { } parsed)
+            if (!status.Resources.TryGetValue(key, out var raw) || TravianParsing.TryParseResourceValue(raw) is not { } parsed)
             {
                 return null;
             }

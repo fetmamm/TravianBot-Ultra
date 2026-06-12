@@ -798,7 +798,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         await PauseForManualStepIfVisibleAsync("Manual verification appeared after sending farm list.", cancellationToken);
         await TryClickCaptchaSuccessDialogOkAsync(cancellationToken);
         var remaining = await ReadFarmListTimerSecondsByNameAsync(farmListName, cancellationToken);
-        Notify($"[farm-list] '{farmListName}' sent — next ready in {(remaining is > 0 ? FormatDuration(remaining.Value) : "now")}");
+        Notify($"[farm-list] '{farmListName}' sent — next ready in {(remaining is > 0 ? TravianParsing.FormatDuration(remaining.Value) : "now")}");
         return remaining;
     }
 
@@ -1349,7 +1349,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
         if (!string.IsNullOrWhiteSpace(url))
         {
-            await GotoAsync(CanonicalizeVillageSwitchUrl(url), cancellationToken);
+            await GotoAsync(TravianUrls.CanonicalizeVillageSwitchUrl(url), cancellationToken);
         }
         else if (!string.IsNullOrWhiteSpace(villageName))
         {
@@ -1362,7 +1362,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 throw new InvalidOperationException($"Could not find village '{villageName}' in the village list.");
             }
 
-            await GotoAsync(CanonicalizeVillageSwitchUrl(match.Url!), cancellationToken);
+            await GotoAsync(TravianUrls.CanonicalizeVillageSwitchUrl(match.Url!), cancellationToken);
         }
         else
         {
@@ -1403,33 +1403,6 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             // Re-emit account signals so UI refreshes after a village switch (Plus/Gold can be unchanged but UI may not have them yet).
             await RefreshAccountFeatureSignalsAsync(cancellationToken);
         }
-    }
-
-    private static readonly Regex NewdidUrlRegex =
-        new(@"[?&]newdid=(\d+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
-    // Switching village is driven solely by the newdid. Stored/sidebar URLs can pick up extra query
-    // params from the page they were read on (e.g. a build slot's "id=10"), and a URL like
-    // "?newdid=25471&id=10" navigates to the site root, which the server serves as the LOGIN page —
-    // appearing as a logout and then reading the wrong village. Reduce any URL that carries a newdid
-    // to the canonical "dorf1.php?newdid={id}" so the switch always lands on the right village's overview.
-    internal static string CanonicalizeVillageSwitchUrl(string url)
-    {
-        var newdid = TryParseNewdid(url);
-        return newdid is int id ? $"dorf1.php?newdid={id}" : url;
-    }
-
-    // Stable village id parsed from a switch URL (dorf1.php?newdid=X). Used to match villages across
-    // reads without depending on the (mutable) village name.
-    private static int? TryParseNewdid(string? url)
-    {
-        if (string.IsNullOrWhiteSpace(url))
-        {
-            return null;
-        }
-
-        var match = NewdidUrlRegex.Match(url);
-        return match.Success && int.TryParse(match.Groups[1].Value, out var id) ? id : null;
     }
 
     private static bool IsSameVillageName(string? left, string? right)
@@ -1529,7 +1502,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             : await ReadVillagesPreferCacheAsync(cancellationToken);
         var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
         var buildQueue = await ReadBuildQueueAsync(cancellationToken);
-        var remaining = ResolveShortestQueueDurationSeconds(buildQueue);
+        var remaining = TravianParsing.ResolveShortestQueueDurationSeconds(buildQueue);
         var currency = await ReadCurrencyAsync(cancellationToken);
         var unreadInbox = await ReadUnreadInboxCountsAsync(cancellationToken);
         await WaitForResourceSnapshotWidgetsAsync(cancellationToken);
@@ -1561,7 +1534,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         // parentheses. We are on dorf1/dorf2 after the reads above, both of which carry the list,
         // so no extra navigation is needed.
         var activeConstructions = await ReadActiveConstructionsAsync(cancellationToken, allowNavigationToBuildings: false);
-        var activeBuildCount = ResolveActiveBuildCount(buildQueue, activeConstructions);
+        var activeBuildCount = ConstructionSlots.ActiveBuildCount(buildQueue, activeConstructions);
         if (buildQueue.Count != activeConstructions.Count)
         {
             Notify(
@@ -1584,7 +1557,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             IsBuildingInProgress: activeBuildCount > 0,
             ActiveBuildCount: activeBuildCount,
             BuildQueueRemainingSeconds: remaining,
-            BuildQueueRemainingText: remaining is int left ? FormatDuration(left) : string.Empty,
+            BuildQueueRemainingText: remaining is int left ? TravianParsing.FormatDuration(left) : string.Empty,
             IsCapital: TryGetCachedCapitalState(activeVillage),
             ServerTimeUtc: _serverTimeUtc,
             UnreadMessages: unreadInbox.UnreadMessages,
@@ -2479,7 +2452,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         }
 
         _lastManualVerificationScreenshotAt = now;
-        var safeLabel = SafePathSegment(label);
+        var safeLabel = TravianUrls.SafePathSegment(label);
         var stamp = now.ToString("yyyyMMdd-HHmmssfff", CultureInfo.InvariantCulture);
         var captchaRoot = Path.Combine(
             _projectRoot,
@@ -2773,9 +2746,9 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                             // renamed village still merges with its cached coords/population instead
                             // of being treated as a new village. Fall back to the name only when no
                             // id is available on either side.
-                            var villageId = TryParseNewdid(v.Url);
+                            var villageId = TravianUrls.TryParseNewdid(v.Url);
                             var match = villageId is not null
-                                ? prior.FirstOrDefault(p => TryParseNewdid(p.Url) == villageId)
+                                ? prior.FirstOrDefault(p => TravianUrls.TryParseNewdid(p.Url) == villageId)
                                 : null;
                             match ??= prior.FirstOrDefault(p => string.Equals(p.Name, v.Name, StringComparison.Ordinal));
                             if (match is null)
@@ -3430,7 +3403,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
         raw.TryGetValue("warehouse", out var warehouseRaw);
         raw.TryGetValue("granary", out var granaryRaw);
-        return (TryParseResourceValue(warehouseRaw), TryParseResourceValue(granaryRaw));
+        return (TravianParsing.TryParseResourceValue(warehouseRaw), TravianParsing.TryParseResourceValue(granaryRaw));
     }
 
     private async Task<(int? Gold, int? Silver)> ReadCurrencyAsync(CancellationToken cancellationToken)
@@ -3672,21 +3645,21 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 }
 
                 var text = await locator.InnerTextAsync();
-                var parsed = ParseNumericTextToInt(text);
+                var parsed = TravianParsing.ParseNumericTextToInt(text);
                 if (parsed is not null)
                 {
                     return parsed;
                 }
 
                 var title = await locator.GetAttributeAsync("title");
-                parsed = ParseNumericTextToInt(title);
+                parsed = TravianParsing.ParseNumericTextToInt(title);
                 if (parsed is not null)
                 {
                     return parsed;
                 }
 
                 var aria = await locator.GetAttributeAsync("aria-label");
-                parsed = ParseNumericTextToInt(aria);
+                parsed = TravianParsing.ParseNumericTextToInt(aria);
                 if (parsed is not null)
                 {
                     return parsed;
@@ -3699,29 +3672,6 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         }
 
         return null;
-    }
-
-    internal static int? ParseNumericTextToInt(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        var normalized = Regex.Replace(value, @"\s+", " ").Trim();
-        var match = Regex.Match(normalized, @"(\d[\d\s\.,']*)");
-        if (!match.Success)
-        {
-            return null;
-        }
-
-        var digits = Regex.Replace(match.Groups[1].Value, @"\D", string.Empty);
-        if (digits.Length == 0)
-        {
-            return null;
-        }
-
-        return int.TryParse(digits, out var parsed) ? parsed : null;
     }
 
     private async Task<string> ReadActiveVillageNameAsync(CancellationToken cancellationToken)
@@ -4337,7 +4287,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
     private static int? ResolveFarmListRemainingSeconds(string? timerText, bool disabled)
     {
-        var seconds = ParseDurationToSeconds(timerText);
+        var seconds = TravianParsing.ParseDurationToSeconds(timerText);
         if (seconds is > 0)
         {
             return seconds;
@@ -4577,7 +4527,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             """,
             farmListName);
 
-        return ParseDurationToSeconds(rawTimer);
+        return TravianParsing.ParseDurationToSeconds(rawTimer);
     }
 
     private async Task<NatarCoordinateJs?> ReadFirstNatarFarmCoordinateAsync(CancellationToken cancellationToken)
@@ -5798,18 +5748,6 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         return false;
     }
 
-    internal static UpgradeAttemptOutcome ParseUpgradeOutcome(string? value)
-    {
-        return value?.Trim() switch
-        {
-            "CanUpgrade" => UpgradeAttemptOutcome.CanUpgrade,
-            "BlockedByResources" => UpgradeAttemptOutcome.BlockedByResources,
-            "BlockedByQueue" => UpgradeAttemptOutcome.BlockedByQueue,
-            "BlockedByMaxLevel" => UpgradeAttemptOutcome.BlockedByMaxLevel,
-            _ => UpgradeAttemptOutcome.BlockedUnknown,
-        };
-    }
-
     private async Task<int?> ReadUpgradeDurationSecondsOnCurrentPageAsync(CancellationToken cancellationToken)
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading upgrade duration.", cancellationToken);
@@ -5862,7 +5800,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         }
 
         var candidateSeconds = raw
-            .Select(ParseDurationToSeconds)
+            .Select(TravianParsing.ParseDurationToSeconds)
             .Where(value => value.HasValue && value.Value > 0)
             .Select(value => value!.Value)
             .ToList();
@@ -5983,7 +5921,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             return;
         }
 
-        var safeLabel = SafePathSegment(label);
+        var safeLabel = TravianUrls.SafePathSegment(label);
         var stamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmssfff", CultureInfo.InvariantCulture);
         var diagnosticsRoot = Path.Combine(
             _projectRoot,
@@ -6010,20 +5948,6 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         {
             Notify($"Could not capture diagnostics for '{label}': {ex.Message}");
         }
-    }
-
-    internal static string SafePathSegment(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return "artifact";
-        }
-
-        var invalidChars = Path.GetInvalidFileNameChars();
-        var sanitized = new string(value.Select(ch => invalidChars.Contains(ch) ? '_' : ch).ToArray()).Trim();
-        return string.IsNullOrWhiteSpace(sanitized)
-            ? "artifact"
-            : sanitized;
     }
 
     private string? ResolveUrl(string? href)

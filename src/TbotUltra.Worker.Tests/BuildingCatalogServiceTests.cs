@@ -66,7 +66,7 @@ public sealed class BuildingCatalogServiceTests
     [InlineData("Blacksmith", "Smithy")]
     public void SameBuildingName_TreatsServerAndCatalogVariantsAsEqual(string serverName, string catalogName)
     {
-        Assert.True(TravianClient.SameBuildingName(serverName, catalogName));
+        Assert.True(BuildingNames.Same(serverName, catalogName));
     }
 
     [Fact]

@@ -32,11 +32,13 @@ Tbot Ultra is an automation tool for Travian. It helps players automate repetiti
 
 Compatible with:
 
-- `SS-Travi` — T4.4 — Private server
-
 - `Official Travian` — Travian Legends 4.6+ — Official servers
 
+- `SS-Travi` — T4.4 — Private server
+
 `NOTE:` It is important that the language is set to `English` in the travian browser settings page.
+
+`Way forward:` The goal of the project forward is to focus on the official servers. SS-Travi is not in the same developement anymore.
 
 ## Features:
 
@@ -64,15 +66,14 @@ Compatible with:
 - Clean dark mode UI
 - Multi-village support
 - Calculate building time and resource cost for buildings + resourcefields
+- Oasis scan for whole map (and add to farmlists)
 
 ## Future functions:
 
-– +15% resource production for 8h automatic watch video
-– reduce adventure duration button / video watch
-– increase adventure to hard button / video watch
-– construct 25% faster button / video watch
-- oasis scan for whole map and add to farmlist
-
+- +15% resource production for 8h automatic watch video
+- reduce adventure duration button / video watch
+- increase adventure to hard button / video watch
+- construct 25% faster button / video watch
 
 ## Known bugs:
 
