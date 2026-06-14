@@ -160,6 +160,10 @@ public static class BotOptionPayloadKeys
     public const string SessionPacingMaxRunMinutes = "session_pacing_max_run_minutes";
     public const string SessionPacingSleepMinutes = "session_pacing_sleep_minutes";
     public const string SessionPacingVariationPercent = "session_pacing_variation_percent";
+    public const string SessionPacingAllowedHours = "session_pacing_allowed_hours";
+    public const string SessionPacingDailyMaxHours = "session_pacing_daily_max_hours";
+    public const string SessionPacingRuntimeDate = "session_pacing_runtime_date";
+    public const string SessionPacingRuntimeSeconds = "session_pacing_runtime_seconds";
 
     public const string ActionPacingEnabled = "action_pacing_enabled";
     public const string ActionPacingTaskMinSeconds = "action_pacing_task_min_seconds";

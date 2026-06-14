@@ -1,6 +1,7 @@
 <Window x:Class="TbotUltra.Desktop.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:TbotUltra.Desktop"
         Background="{DynamicResource AppBackgroundBrush}"
         Title="Settings"
         Height="680"
@@ -75,6 +76,7 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="Max run (min)" VerticalAlignment="Center" Margin="0,2" />
                                 <TextBox x:Name="SessionMaxRunMinutesTextBox" Grid.Row="0" Grid.Column="1" Height="24" Margin="0,2" />
@@ -82,7 +84,18 @@
                                 <TextBox x:Name="SessionSleepMinutesTextBox" Grid.Row="1" Grid.Column="1" Height="24" Margin="0,2" />
                                 <TextBlock Grid.Row="2" Grid.Column="0" Text="Variation %" VerticalAlignment="Center" Margin="0,2" />
                                 <TextBox x:Name="SessionVariationPercentTextBox" Grid.Row="2" Grid.Column="1" Height="24" Margin="0,2" />
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Daily max" VerticalAlignment="Center" Margin="0,2" />
+                                <ComboBox x:Name="SessionDailyMaxHoursComboBox" Grid.Row="3" Grid.Column="1" Height="24" Margin="0,2" />
                             </Grid>
+
+                            <StackPanel Orientation="Horizontal" Margin="18,0,0,6">
+                                <TextBlock Text="Allowed hours" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                ToolTip="Checked hours may run. Unchecked hours log out and stay stopped until the next checked hour. Schedule boundaries use the configured variation." />
+                            </StackPanel>
+                            <local:VerticalFirstUniformGrid x:Name="SessionAllowedHoursGrid"
+                                                            Columns="6"
+                                                            Margin="18,0,0,12" />
 
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                 <CheckBox x:Name="ActionPacingEnabledCheckBox"

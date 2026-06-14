@@ -22,6 +22,7 @@ public partial class SettingsWindow : Window
         InitializeComponent();
         _store = store;
         _sessionSleeping = sessionSleeping;
+        InitializeSessionPacingChoices();
         LoadConfig();
         SleepNowButton.IsEnabled = !_sessionSleeping;
     }
@@ -167,6 +168,12 @@ public partial class SettingsWindow : Window
         SessionMaxRunMinutesTextBox.Text = ReadInt(BotOptionPayloadKeys.SessionPacingMaxRunMinutes, PacingDefaults.SessionPacingMaxRunMinutes).ToString();
         SessionSleepMinutesTextBox.Text = Math.Max(30, ReadInt(BotOptionPayloadKeys.SessionPacingSleepMinutes, PacingDefaults.SessionPacingSleepMinutes)).ToString();
         SessionVariationPercentTextBox.Text = ReadInt(BotOptionPayloadKeys.SessionPacingVariationPercent, PacingDefaults.SessionPacingVariationPercent).ToString();
+        SelectDailyMaxHours(ReadInt(BotOptionPayloadKeys.SessionPacingDailyMaxHours, PacingDefaults.SessionPacingDailyMaxHours));
+        var allowedHours = ReadAllowedHours();
+        foreach (var checkBox in SessionAllowedHoursGrid.Children.OfType<CheckBox>())
+        {
+            checkBox.IsChecked = int.TryParse(checkBox.Tag?.ToString(), out var hour) && allowedHours.Contains(hour);
+        }
 
         ActionPacingEnabledCheckBox.IsChecked = ReadBool(BotOptionPayloadKeys.ActionPacingEnabled, PacingDefaults.ActionPacingEnabled);
         ActionTaskMinTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingTaskMinSeconds, PacingDefaults.ActionPacingTaskMinSeconds));
@@ -190,6 +197,12 @@ public partial class SettingsWindow : Window
         _config[BotOptionPayloadKeys.SessionPacingMaxRunMinutes] = ReadIntText(SessionMaxRunMinutesTextBox, PacingDefaults.SessionPacingMaxRunMinutes, 1, 10080);
         _config[BotOptionPayloadKeys.SessionPacingSleepMinutes] = ReadIntText(SessionSleepMinutesTextBox, PacingDefaults.SessionPacingSleepMinutes, 30, 10080);
         _config[BotOptionPayloadKeys.SessionPacingVariationPercent] = ReadIntText(SessionVariationPercentTextBox, PacingDefaults.SessionPacingVariationPercent, 0, 100);
+        _config[BotOptionPayloadKeys.SessionPacingDailyMaxHours] = GetSelectedDailyMaxHours();
+        _config[BotOptionPayloadKeys.SessionPacingAllowedHours] = new JsonArray(
+            SessionAllowedHoursGrid.Children.OfType<CheckBox>()
+                .Where(checkBox => checkBox.IsChecked == true)
+                .Select(checkBox => JsonValue.Create(int.Parse(checkBox.Tag!.ToString()!)))
+                .ToArray());
 
         _config[BotOptionPayloadKeys.ActionPacingEnabled] = ActionPacingEnabledCheckBox.IsChecked == true;
         WriteDelayRange(BotOptionPayloadKeys.ActionPacingTaskMinSeconds, BotOptionPayloadKeys.ActionPacingTaskMaxSeconds, ActionTaskMinTextBox, ActionTaskMaxTextBox, PacingDefaults.ActionPacingTaskMinSeconds, PacingDefaults.ActionPacingTaskMaxSeconds);
@@ -217,6 +230,11 @@ public partial class SettingsWindow : Window
         SessionMaxRunMinutesTextBox.Text = PacingDefaults.SessionPacingMaxRunMinutes.ToString();
         SessionSleepMinutesTextBox.Text = PacingDefaults.SessionPacingSleepMinutes.ToString();
         SessionVariationPercentTextBox.Text = PacingDefaults.SessionPacingVariationPercent.ToString();
+        SelectDailyMaxHours(PacingDefaults.SessionPacingDailyMaxHours);
+        foreach (var checkBox in SessionAllowedHoursGrid.Children.OfType<CheckBox>())
+        {
+            checkBox.IsChecked = true;
+        }
         ActionPacingEnabledCheckBox.IsChecked = PacingDefaults.ActionPacingEnabled;
         ActionTaskMinTextBox.Text = FormatDelay(PacingDefaults.ActionPacingTaskMinSeconds);
         ActionTaskMaxTextBox.Text = FormatDelay(PacingDefaults.ActionPacingTaskMaxSeconds);
@@ -237,6 +255,59 @@ public partial class SettingsWindow : Window
     private int ReadInt(string key, int defaultValue) => _config[key]?.GetValue<int>() ?? defaultValue;
 
     private double ReadDouble(string key, double defaultValue) => _config[key]?.GetValue<double>() ?? defaultValue;
+
+    private void InitializeSessionPacingChoices()
+    {
+        SessionDailyMaxHoursComboBox.Items.Add(new ComboBoxItem { Content = "No limit", Tag = "0" });
+        for (var hour = 1; hour <= 24; hour++)
+        {
+            SessionDailyMaxHoursComboBox.Items.Add(new ComboBoxItem
+            {
+                Content = $"{hour} h",
+                Tag = hour.ToString(CultureInfo.InvariantCulture),
+            });
+        }
+
+        for (var hour = 0; hour < 24; hour++)
+        {
+            SessionAllowedHoursGrid.Children.Add(new CheckBox
+            {
+                Content = $"{hour:00}:00",
+                Tag = hour.ToString(CultureInfo.InvariantCulture),
+                IsChecked = true,
+                Margin = new Thickness(0, 2, 8, 2),
+            });
+        }
+    }
+
+    private HashSet<int> ReadAllowedHours()
+    {
+        if (_config[BotOptionPayloadKeys.SessionPacingAllowedHours] is not JsonArray array)
+        {
+            return Enumerable.Range(0, 24).ToHashSet();
+        }
+
+        return array
+            .Select(node => node?.GetValue<int>() ?? -1)
+            .Where(hour => hour is >= 0 and <= 23)
+            .ToHashSet();
+    }
+
+    private void SelectDailyMaxHours(int hours)
+    {
+        var normalized = Math.Clamp(hours, 0, 24).ToString(CultureInfo.InvariantCulture);
+        SessionDailyMaxHoursComboBox.SelectedItem = SessionDailyMaxHoursComboBox.Items
+            .OfType<ComboBoxItem>()
+            .First(item => string.Equals(item.Tag?.ToString(), normalized, StringComparison.Ordinal));
+    }
+
+    private int GetSelectedDailyMaxHours()
+    {
+        return SessionDailyMaxHoursComboBox.SelectedItem is ComboBoxItem item
+            && int.TryParse(item.Tag?.ToString(), out var hours)
+                ? Math.Clamp(hours, 0, 24)
+                : PacingDefaults.SessionPacingDailyMaxHours;
+    }
 
     private static int ReadIntText(TextBox textBox, int defaultValue, int min, int max)
     {

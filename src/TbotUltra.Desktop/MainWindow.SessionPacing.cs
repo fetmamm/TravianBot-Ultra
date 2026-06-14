@@ -35,6 +35,7 @@ public partial class MainWindow
             SafeSessionPacingInvokeAsync(() => HandleSessionPacingSleepStartingAsync()));
         _sessionPacer.WakeRequested += (_, _) => _backgroundTasks.Track(
             SafeSessionPacingInvokeAsync(HandleSessionPacingWakeRequestedAsync));
+        _sessionPacer.RuntimeStateChanged += (_, _) => PersistSessionPacingRuntimeState();
 
         // Use a mutable brush so the pacing box background can be animated (XAML's literal brush is frozen).
         if (SessionPacingBorder is not null)
@@ -65,7 +66,27 @@ public partial class MainWindow
             ReadBool(config, BotOptionPayloadKeys.SessionPacingEnabled, PacingDefaults.SessionPacingEnabled),
             ReadInt(config, BotOptionPayloadKeys.SessionPacingMaxRunMinutes, PacingDefaults.SessionPacingMaxRunMinutes, 1, 10080),
             ReadInt(config, BotOptionPayloadKeys.SessionPacingSleepMinutes, PacingDefaults.SessionPacingSleepMinutes, 30, 10080),
-            ReadInt(config, BotOptionPayloadKeys.SessionPacingVariationPercent, PacingDefaults.SessionPacingVariationPercent, 0, 100)));
+            ReadInt(config, BotOptionPayloadKeys.SessionPacingVariationPercent, PacingDefaults.SessionPacingVariationPercent, 0, 100),
+            ReadAllowedHours(config),
+            ReadInt(config, BotOptionPayloadKeys.SessionPacingDailyMaxHours, PacingDefaults.SessionPacingDailyMaxHours, 0, 24),
+            ReadRuntimeDate(config),
+            ReadDouble(config, BotOptionPayloadKeys.SessionPacingRuntimeSeconds, 0, 0, 86400)));
+    }
+
+    private void PersistSessionPacingRuntimeState()
+    {
+        try
+        {
+            var state = _sessionPacer.RuntimeState;
+            var config = _botConfigStore.Load();
+            config[BotOptionPayloadKeys.SessionPacingRuntimeDate] = state.Date.ToString("yyyy-MM-dd");
+            config[BotOptionPayloadKeys.SessionPacingRuntimeSeconds] = state.RuntimeSeconds;
+            _botConfigStore.Save(config);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"[pacing] could not save daily runtime: {ex.Message}");
+        }
     }
 
     private void NotifySessionPacingAutomationStarted()
@@ -234,7 +255,7 @@ public partial class MainWindow
         }
 
         SessionPacingStatusTextBlock.Text = _sessionPacer.StatusText;
-        SessionPacingRunNowButton.Visibility = _sessionPacer.Phase == SessionPacerPhase.Sleeping
+        SessionPacingRunNowButton.Visibility = _sessionPacer.CanWakeNow
             ? Visibility.Visible
             : Visibility.Collapsed;
         UpdateSessionPacingTooltip();
@@ -375,5 +396,32 @@ public partial class MainWindow
     {
         var value = config[key]?.GetValue<int>() ?? defaultValue;
         return Math.Clamp(value, min, max);
+    }
+
+    private static double ReadDouble(JsonObject config, string key, double defaultValue, double min, double max)
+    {
+        var value = config[key]?.GetValue<double>() ?? defaultValue;
+        return Math.Clamp(value, min, max);
+    }
+
+    private static IReadOnlyList<int> ReadAllowedHours(JsonObject config)
+    {
+        if (config[BotOptionPayloadKeys.SessionPacingAllowedHours] is not JsonArray array)
+        {
+            return Enumerable.Range(0, 24).ToArray();
+        }
+
+        return array
+            .Select(node => node?.GetValue<int>() ?? -1)
+            .Where(hour => hour is >= 0 and <= 23)
+            .Distinct()
+            .ToArray();
+    }
+
+    private static DateOnly? ReadRuntimeDate(JsonObject config)
+    {
+        return DateOnly.TryParse(config[BotOptionPayloadKeys.SessionPacingRuntimeDate]?.GetValue<string>(), out var date)
+            ? date
+            : null;
     }
 }

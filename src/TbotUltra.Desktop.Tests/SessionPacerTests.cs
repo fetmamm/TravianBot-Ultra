@@ -88,4 +88,111 @@ public sealed class SessionPacerTests
         Assert.Equal(SessionPacerPhase.Running, pacer.Phase);
         Assert.InRange(pacer.TimeUntilSleep!.Value.TotalMinutes, 119, 120);
     }
+
+    [Fact]
+    public void DisabledHour_RequestsScheduleSleepUntilNextAllowedHour()
+    {
+        var now = new DateTimeOffset(2026, 6, 14, 2, 15, 0, TimeSpan.Zero);
+        var pacer = new SessionPacer(() => now);
+        pacer.Configure(new SessionPacerSettings(
+            true,
+            120,
+            30,
+            0,
+            Enumerable.Range(0, 24).Except([2, 3, 4]).ToArray()));
+        pacer.SleepStarting += (_, _) => pacer.BeginSleep();
+
+        pacer.NotifyAutomationStarted();
+
+        Assert.Equal(SessionPacerPhase.Sleeping, pacer.Phase);
+        Assert.Equal(SessionSleepReason.Schedule, pacer.SleepReason);
+        Assert.False(pacer.CanWakeNow);
+        Assert.InRange(pacer.TimeUntilWake!.Value.TotalMinutes, 164, 166);
+    }
+
+    [Fact]
+    public void ScheduleBoundary_ShortensNormalSessionRun()
+    {
+        var now = new DateTimeOffset(2026, 6, 14, 1, 30, 0, TimeSpan.Zero);
+        var pacer = new SessionPacer(() => now);
+        pacer.Configure(new SessionPacerSettings(
+            true,
+            120,
+            30,
+            0,
+            Enumerable.Range(0, 24).Except([2]).ToArray()));
+
+        pacer.NotifyAutomationStarted();
+
+        Assert.InRange(pacer.TimeUntilSleep!.Value.TotalMinutes, 29, 31);
+    }
+
+    [Fact]
+    public void DailyRuntimeFromCurrentDate_TriggersDailyLimit()
+    {
+        var now = new DateTimeOffset(2026, 6, 14, 12, 0, 0, TimeSpan.Zero);
+        var pacer = new SessionPacer(() => now);
+        pacer.Configure(new SessionPacerSettings(
+            true,
+            120,
+            30,
+            0,
+            Enumerable.Range(0, 24).ToArray(),
+            DailyMaxHours: 12,
+            RuntimeDate: new DateOnly(2026, 6, 14),
+            RuntimeSeconds: TimeSpan.FromHours(12).TotalSeconds));
+        pacer.SleepStarting += (_, _) => pacer.BeginSleep();
+
+        pacer.NotifyAutomationStarted();
+
+        Assert.Equal(SessionSleepReason.DailyLimit, pacer.SleepReason);
+        Assert.InRange(pacer.TimeUntilWake!.Value.TotalHours, 11.9, 12.1);
+    }
+
+    [Fact]
+    public void RuntimeFromPreviousDate_IsDiscarded()
+    {
+        var now = new DateTimeOffset(2026, 6, 14, 12, 0, 0, TimeSpan.Zero);
+        var pacer = new SessionPacer(() => now);
+        pacer.Configure(new SessionPacerSettings(
+            true,
+            120,
+            30,
+            0,
+            Enumerable.Range(0, 24).ToArray(),
+            DailyMaxHours: 12,
+            RuntimeDate: new DateOnly(2026, 6, 13),
+            RuntimeSeconds: TimeSpan.FromHours(12).TotalSeconds));
+
+        pacer.NotifyAutomationStarted();
+
+        Assert.Equal(SessionPacerPhase.Running, pacer.Phase);
+        Assert.Equal(0, pacer.RuntimeState.RuntimeSeconds);
+    }
+
+    [Fact]
+    public void Midnight_ResetsDailyRuntimeAndWakes()
+    {
+        var now = new DateTimeOffset(2026, 6, 14, 23, 59, 0, TimeSpan.Zero);
+        var pacer = new SessionPacer(() => now);
+        pacer.Configure(new SessionPacerSettings(
+            true,
+            120,
+            30,
+            0,
+            Enumerable.Range(0, 24).ToArray(),
+            DailyMaxHours: 1,
+            RuntimeDate: new DateOnly(2026, 6, 14),
+            RuntimeSeconds: TimeSpan.FromHours(1).TotalSeconds));
+        pacer.SleepStarting += (_, _) => pacer.BeginSleep();
+        var wakeRequested = false;
+        pacer.WakeRequested += (_, _) => wakeRequested = true;
+        pacer.NotifyAutomationStarted();
+
+        now = now.AddMinutes(1);
+        pacer.TickForTests();
+
+        Assert.True(wakeRequested);
+        Assert.Equal(0, pacer.RuntimeState.RuntimeSeconds);
+    }
 }
