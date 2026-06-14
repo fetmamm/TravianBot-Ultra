@@ -75,6 +75,11 @@ public static class AccountStoragePaths
         return Path.Combine(AccountDirectory(projectRoot, accountName), "travco_lists.json");
     }
 
+    public static string SmithyUpgradePath(string projectRoot, string accountName)
+    {
+        return Path.Combine(AccountDirectory(projectRoot, accountName), "smithy_upgrade.json");
+    }
+
     public static string MapOasisCheckpointPath(string projectRoot, string accountName, string? serverUrl = null)
     {
         return Path.Combine(

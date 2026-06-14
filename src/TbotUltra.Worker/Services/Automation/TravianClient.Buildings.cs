@@ -3,6 +3,8 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Tasks;
+using TbotUltra.Core.Travian;
 using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Worker.Services;
@@ -1459,9 +1461,24 @@ public sealed partial class TravianClient
         }
     }
 
-    public async Task<string> UpgradeAllTroopsAtSmithyAsync(CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Improves only the user-selected troops at the Smithy, each up to its own target level. Reads every
+    /// troop row, classifies it (improvable / already at target / maxed / no resources / queue busy / not
+    /// researched), clicks Improve for an available targeted troop, and defers on the live queue timer when
+    /// the smithy is busy. Robust on both Official ("Improve" buttons) and SS/legacy ("Upgrade") variants:
+    /// rows are identified by unit id (img.unit.uNN) or troop slot (t=tN), never by button text alone.
+    /// </summary>
+    public async Task<string> UpgradeSelectedTroopsAtSmithyAsync(
+        IReadOnlyList<SmithyTroopTarget> targets,
+        CancellationToken cancellationToken = default)
     {
-        Notify("UpgradeAllTroopsAtSmithyAsync started");
+        var targetList = targets ?? [];
+        Notify($"UpgradeSelectedTroopsAtSmithyAsync started with {targetList.Count} target(s): "
+            + string.Join(", ", targetList.Select(t => $"{t.Key}->{t.TargetLevel}")));
+        if (targetList.Count == 0)
+        {
+            return "Smithy: no troops selected for upgrade.";
+        }
 
         var smithySlotId = await TryResolveSmithySlotIdAsync(cancellationToken);
         if (!smithySlotId.HasValue)
@@ -1470,16 +1487,33 @@ public sealed partial class TravianClient
         }
         Notify($"Smithy found at slot {smithySlotId.Value}.");
 
+        // Targets still needing a decision, keyed by their identity (dedupes duplicate selections).
+        var pending = new Dictionary<string, SmithyTroopTarget>(StringComparer.OrdinalIgnoreCase);
+        foreach (var target in targetList)
+        {
+            if (target is not null && !string.IsNullOrWhiteSpace(target.Key))
+            {
+                pending[target.Key] = target;
+            }
+        }
+
         const int safetyCap = 60;
-        var totalUpgradeClicks = 0;
+        // Re-check interval when the page gives no exact ETA (e.g. resource shortage without a countdown).
+        const int DefaultRecheckSeconds = 300;
+        var improved = 0;
+        var skipped = 0;
         var consecutiveEmptyReloads = 0;
         var consecutiveZeroDurationReloads = 0;
+        // Last Smithy research queue we reported to the dashboard ("[smithy-queue]"), to emit on change only.
+        string? lastQueueCsv = null;
+        // Troops we already tried to top up from the hero this run — bounds hero transfers to one attempt
+        // per troop so a partial/ineffective transfer can never drain the hero in a loop.
+        var heroTransferAttempted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        for (var iter = 0; iter < safetyCap; iter++)
+        for (var iter = 0; iter < safetyCap && pending.Count > 0; iter++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            // Always start each iteration on the smithy page.
             var smithyPath = Paths.BuildBySlot(smithySlotId.Value);
             if (!IsCurrentUrlForPath(smithyPath))
             {
@@ -1487,20 +1521,17 @@ public sealed partial class TravianClient
             }
             try
             {
-                await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+                // Official Smithy is React-rendered; wait for the page to be actionable (not just DOM-present)
+                // so the very first read sees real buttons/resources and can improve immediately when possible.
+                await WaitForPageReadyAsync(cancellationToken);
             }
             catch
             {
-                // Continue.
+                // Continue; the row read below is retry-wrapped.
             }
             await Task.Delay(400, cancellationToken);
 
-            // Each Playwright call below is wrapped in RetryAsync so transient navigation
-            // races (ERR_ABORTED / "frame was detached") that fire when Travian reloads or
-            // the bot navigates mid-evaluation don't escalate into ALARMs. Up to 3 retries
-            // with a short backoff, matching the policy used by other Buildings methods.
-
-            // Check for "Improve the blacksmith" — smithy itself needs upgrade before more troops can be improved.
+            // The smithy itself may need an upgrade before more troop levels can be researched.
             var needsSmithyUpgrade = await RetryAsync(
                 "Smithy: detect 'improve the blacksmith'",
                 () => _page.EvaluateAsync<bool>(
@@ -1508,93 +1539,546 @@ public sealed partial class TravianClient
                 cancellationToken: cancellationToken);
             if (needsSmithyUpgrade)
             {
-                Notify($"Smithy capacity exhausted (\"Improve the blacksmith\" detected). Upgrading slot {smithySlotId.Value} to max.");
+                Notify($"Smithy capacity exhausted (\"Improve the blacksmith\" detected). Building slot {smithySlotId.Value}.");
                 var upgradeResult = await UpgradeBuildingToMaxAsync(smithySlotId.Value, cancellationToken: cancellationToken);
-                Notify($"Smithy upgrade result: {upgradeResult}");
+                Notify($"Smithy build result: {upgradeResult}");
                 consecutiveEmptyReloads = 0;
                 consecutiveZeroDurationReloads = 0;
-                continue;
-            }
 
-            // Try to click an Upgrade button for any troop.
-            var clickResult = await RetryAsync(
-                "Smithy: click first upgrade button",
-                () => ClickFirstSmithyUpgradeButtonAsync(cancellationToken),
-                cancellationToken: cancellationToken);
-            if (clickResult.Clicked)
-            {
-                totalUpgradeClicks += 1;
-                consecutiveEmptyReloads = 0;
-                consecutiveZeroDurationReloads = 0;
-                Notify($"Smithy: clicked upgrade for '{clickResult.Label}'. Total clicks: {totalUpgradeClicks}.");
-                // Brief pause then reload to refresh button state.
-                await Task.Delay(500, cancellationToken);
-                continue;
-            }
-
-            var smithyFullyDeveloped = await RetryAsync(
-                "Smithy: check fully developed",
-                () => IsSmithyFullyDevelopedAsync(cancellationToken),
-                cancellationToken: cancellationToken);
-            if (smithyFullyDeveloped)
-            {
-                Notify($"Smithy: fully developed detected. Total clicks: {totalUpgradeClicks}.");
-                await GotoAsync(Paths.Buildings, cancellationToken);
-                return $"Smithy: upgraded {totalUpgradeClicks} troop(s). All done.";
-            }
-
-            // No clickable upgrade button. Inspect research-in-progress duration.
-            var durationSeconds = await RetryAsync(
-                "Smithy: read research duration",
-                () => ReadSmithyResearchDurationSecondsAsync(cancellationToken),
-                cancellationToken: cancellationToken);
-            if (durationSeconds is int dur)
-            {
-                // Also reload when Travian shows its own "auto-reload failed" marker on the timer:
-                // the duration may have ticked into a negative value rather than exactly zero, so
-                // dur<=0 alone misses it. IsPageMarkedStaleAsync catches the visual .timer.no-reload
-                // indicator regardless of the parsed duration.
-                if (dur <= 0 || await IsPageMarkedStaleAsync())
+                // If the construction queue is full/busy, the Smithy can't grow right now. Defer on that
+                // timer (no point retrying while the build queue is full) so the task comes back when the
+                // building finishes — without blocking the other loop groups.
+                if (TryReadQueueWaitSeconds(upgradeResult, out var buildWaitSeconds))
                 {
-                    consecutiveZeroDurationReloads += 1;
-                    if (consecutiveZeroDurationReloads >= 3)
-                    {
-                        return $"Smithy: research timer stuck at 00:00:00 after 3 reloads. Manual review needed. Upgrades clicked: {totalUpgradeClicks}.";
-                    }
-                    Notify($"Smithy: timer at 00:00:00 or page marked stale, reloading (attempt {consecutiveZeroDurationReloads}/3).");
-                    await TryReloadSmithyAsync(cancellationToken);
+                    Notify($"Smithy: build queue busy, deferring {buildWaitSeconds}s before improving more troops.");
+                    return $"Smithy: improved {improved}, skipped {skipped}, {pending.Count} pending. Smithy build queued. queue_wait_seconds={buildWaitSeconds}";
+                }
+                continue;
+            }
+
+            var rowsJson = await RetryAsync(
+                "Smithy: read troop rows",
+                () => ReadSmithyRowsJsonAsync(cancellationToken),
+                cancellationToken: cancellationToken);
+            var rows = SmithyPageParser.ParseRows(rowsJson);
+            if (rows.Count == 0)
+            {
+                consecutiveEmptyReloads += 1;
+                if (consecutiveEmptyReloads >= 3)
+                {
+                    await GotoAsync(Paths.Buildings, cancellationToken);
+                    return $"Smithy: no troop rows found after 3 reloads. Improved {improved}, skipped {skipped}.";
+                }
+                Notify($"Smithy: no troop rows visible, reload {consecutiveEmptyReloads}/3.");
+                await TryReloadSmithyAsync(cancellationToken);
+                continue;
+            }
+            consecutiveEmptyReloads = 0;
+
+            // Report the live Smithy research queue (under_progress timers) so the dashboard shows the real
+            // per-village queue/timers — emitted only when it changes to keep the log clean.
+            var dashQueue = await ReadSmithyQueueTimersAsync(cancellationToken);
+            var dashQueueCsv = string.Join(",", dashQueue);
+            if (!string.Equals(dashQueueCsv, lastQueueCsv, StringComparison.Ordinal))
+            {
+                Notify($"[smithy-queue] timers_seconds={dashQueueCsv}");
+                lastQueueCsv = dashQueueCsv;
+            }
+
+            // Classify every pending target. Terminal outcomes (maxed / already at target / not researched)
+            // are logged and removed. Queue-busy and resource-shortage keep the troop pending and contribute
+            // a wait time so the task defers and re-checks (picking up freed queue slots / incoming resources)
+            // instead of skipping. An improvable troop is remembered to click.
+            SmithyTroopTarget? toClick = null;
+            SmithyTroopTarget? firstNoResourceTarget = null;
+            var firstNoResourceLabel = string.Empty;
+            var anyResearchInProgress = false;
+            var anyWaitingForResources = false;
+            int? minResourceWaitSeconds = null;
+            foreach (var target in pending.Values.ToList())
+            {
+                var row = SmithyPageParser.FindRowForTarget(rows, target);
+                var outcome = SmithyPageParser.Classify(row, target);
+                var label = row?.Name is { Length: > 0 } rowName ? rowName : (target.Name ?? target.Key);
+                switch (outcome)
+                {
+                    case SmithyTroopOutcome.NotResearched:
+                        Notify($"Smithy: '{label}' is not listed on the Smithy page — likely not researched in the Academy yet. Skipping.");
+                        pending.Remove(target.Key);
+                        skipped += 1;
+                        break;
+                    case SmithyTroopOutcome.Maxed:
+                        Notify($"Smithy: '{label}' is already at max level ({SmithyPageParser.MaxLevel}). Skipping.");
+                        pending.Remove(target.Key);
+                        skipped += 1;
+                        break;
+                    case SmithyTroopOutcome.AlreadyAtTarget:
+                        Notify($"Smithy: '{label}' already at level {row!.CurrentLevel} (target {target.TargetLevel}). Skipping.");
+                        pending.Remove(target.Key);
+                        skipped += 1;
+                        break;
+                    case SmithyTroopOutcome.NoResources:
+                        // Keep pending and wait — the bot re-checks and improves the troop as soon as enough
+                        // resources have come in (exact ETA parsed from the page when Travian exposes it).
+                        anyWaitingForResources = true;
+                        if (firstNoResourceTarget is null)
+                        {
+                            firstNoResourceTarget = target;
+                            firstNoResourceLabel = label;
+                        }
+                        if (row?.ResourceWaitSeconds is int rowWait && rowWait > 0)
+                        {
+                            minResourceWaitSeconds = minResourceWaitSeconds is int currentWait
+                                ? Math.Min(currentWait, rowWait)
+                                : rowWait;
+                            Notify($"Smithy: '{label}' lacks resources; enough in ~{rowWait}s. Waiting.");
+                        }
+                        else
+                        {
+                            Notify($"Smithy: '{label}' lacks resources (no exact ETA on the page). Will re-check.");
+                        }
+                        break;
+                    case SmithyTroopOutcome.InProgress:
+                        anyResearchInProgress = true; // smithy busy; keep pending and defer below
+                        break;
+                    case SmithyTroopOutcome.Improve:
+                        toClick ??= target;
+                        break;
+                }
+            }
+
+            if (toClick is not null)
+            {
+                var clicked = await RetryAsync(
+                    $"Smithy: click Improve for {toClick.Key}",
+                    () => ClickSmithyImproveButtonForKeyAsync(toClick.Key, cancellationToken),
+                    cancellationToken: cancellationToken);
+                if (clicked)
+                {
+                    improved += 1;
+                    consecutiveZeroDurationReloads = 0;
+                    Notify($"Smithy: clicked Improve for '{toClick.Name ?? toClick.Key}'. Improvements this run: {improved}.");
+                    // The smithy is now busy with this research; re-evaluate (it will usually defer next).
+                    await Task.Delay(500, cancellationToken);
                     continue;
                 }
-                consecutiveZeroDurationReloads = 0;
-                var waitSec = Math.Clamp(dur + 1, 2, 600);
-                if (ShouldDeferLongWait(waitSec))
+
+                Notify($"Smithy: could not click Improve for '{toClick.Key}'; will re-check after the queue frees.");
+                anyResearchInProgress = true;
+            }
+
+            // Resource shortage + the user enabled hero-inventory resources: top the troop up from the hero
+            // and re-evaluate (Official only, opt-in, best-effort). One attempt per troop per run so an
+            // ineffective transfer can't drain the hero in a loop.
+            if (toClick is null
+                && firstNoResourceTarget is not null
+                && !_config.IsPrivateServer
+                && _config.HeroResourceTransferEnabled
+                && heroTransferAttempted.Add(firstNoResourceTarget.Key))
+            {
+                var transferred = await TryHeroResourceTransferForSmithyTroopAsync(
+                    firstNoResourceTarget.Key, firstNoResourceLabel, cancellationToken);
+                if (transferred)
                 {
-                    Notify($"Smithy: research in progress, deferring for {waitSec}s.");
-                    return $"Smithy: research in progress. queue_wait_seconds={waitSec}";
+                    Notify($"Smithy: topped up '{firstNoResourceLabel}' from the hero inventory; re-checking.");
+                    await Task.Delay(400, cancellationToken);
+                    continue;
+                }
+            }
+
+            if (pending.Count == 0)
+            {
+                break;
+            }
+
+            if (anyResearchInProgress || anyWaitingForResources)
+            {
+                // Use the soonest concrete signal: the active research timer (queue busy) or the resource
+                // ETA. When neither exposes an exact time, re-check on a moderate interval so the task picks
+                // up a freed queue slot / incoming resources. Deferring never blocks the other loop groups.
+                var waitCandidates = new List<int>();
+                if (anyResearchInProgress)
+                {
+                    var timers = await RetryAsync(
+                        "Smithy: read queue timers",
+                        () => ReadSmithyQueueTimersAsync(cancellationToken),
+                        cancellationToken: cancellationToken);
+                    if (timers.Count > 0)
+                    {
+                        waitCandidates.Add(timers[0]);
+                    }
+                }
+                if (minResourceWaitSeconds is int resWait && resWait > 0)
+                {
+                    waitCandidates.Add(resWait);
                 }
 
-                // Emit queue_wait_seconds even on the inline path so the desktop dashboard's
-                // log stream can mirror the countdown to its smithy timer. The task itself
-                // does not defer (waitSec is below the queue wait threshold).
-                Notify($"Smithy: research in progress, waiting {waitSec}s. queue_wait_seconds={waitSec}");
+                var dur = waitCandidates.Count > 0 ? waitCandidates.Min() : 0;
+
+                // Queue busy with no readable timer can mean Travian's auto-reload stalled — reload a few
+                // times before falling back to the periodic re-check.
+                if (dur <= 0 && anyResearchInProgress && await IsPageMarkedStaleAsync())
+                {
+                    consecutiveZeroDurationReloads += 1;
+                    if (consecutiveZeroDurationReloads < 3)
+                    {
+                        Notify($"Smithy: queue busy, timer not ready, reloading (attempt {consecutiveZeroDurationReloads}/3).");
+                        await TryReloadSmithyAsync(cancellationToken);
+                        continue;
+                    }
+                }
+                consecutiveZeroDurationReloads = 0;
+
+                if (dur <= 0)
+                {
+                    dur = DefaultRecheckSeconds; // no exact ETA available — re-check on a moderate interval
+                }
+
+                var waitSec = Math.Clamp(dur + 1, 2, 600);
+                var reasonText = anyResearchInProgress && !anyWaitingForResources
+                    ? "research in progress"
+                    : !anyResearchInProgress && anyWaitingForResources
+                        ? "waiting for resources"
+                        : "queue busy / waiting for resources";
+                if (ShouldDeferLongWait(waitSec))
+                {
+                    Notify($"Smithy: {reasonText}, deferring {waitSec}s for {pending.Count} pending troop(s).");
+                    return $"Smithy: improved {improved}, skipped {skipped}, {pending.Count} pending. queue_wait_seconds={waitSec}";
+                }
+
+                Notify($"Smithy: {reasonText}, waiting {waitSec}s. queue_wait_seconds={waitSec}");
                 await Task.Delay(TimeSpan.FromSeconds(waitSec), cancellationToken);
                 await TryReloadSmithyAsync(cancellationToken);
                 continue;
             }
 
-            // No buttons, no timer. Reload up to 3 times before declaring done.
-            consecutiveEmptyReloads += 1;
-            if (consecutiveEmptyReloads >= 3)
-            {
-                Notify($"Smithy: no upgrade buttons after 3 reloads. All troops appear to be at max. Total clicks: {totalUpgradeClicks}.");
-                await GotoAsync(Paths.Buildings, cancellationToken);
-                return $"Smithy: upgraded {totalUpgradeClicks} troop(s). All done.";
-            }
-            Notify($"Smithy: no buttons visible, reload {consecutiveEmptyReloads}/3.");
-            await TryReloadSmithyAsync(cancellationToken);
+            // Nothing clickable and nothing waiting for the remaining targets — avoid an infinite loop.
+            Notify($"Smithy: no actionable state for {pending.Count} pending troop(s); stopping. Improved {improved}, skipped {skipped}.");
+            break;
         }
 
-        return $"Smithy: hit safety cap of {safetyCap} iterations after {totalUpgradeClicks} click(s).";
+        await GotoAsync(Paths.Buildings, cancellationToken);
+        return $"Smithy: improved {improved} troop(s), skipped {skipped}.";
+    }
+
+    // Emits one raw object per Smithy troop row for the browser-free SmithyPageParser to classify.
+    private async Task<string> ReadSmithyRowsJsonAsync(CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+        try
+        {
+            return await _page.EvaluateAsync<string>(
+                """
+                () => {
+                  const clean = (v) => String(v || '').replace(/\s+/g, ' ').trim();
+                  const rows = Array.from(document.querySelectorAll('.build_details.researches .research'));
+                  const out = [];
+                  for (const row of rows) {
+                    const img = row.querySelector('img.unit');
+                    const unitClass = img ? String(img.className || '') : '';
+
+                    let name = '';
+                    for (const a of Array.from(row.querySelectorAll('.title a'))) {
+                      const t = clean(a.textContent);
+                      if (t) { name = t; break; }
+                    }
+                    if (!name && img) { name = clean(img.getAttribute('alt')); }
+
+                    const levelText = clean(row.querySelector('.title .level')?.textContent
+                      || row.querySelector('.level')?.textContent || '');
+                    const errorText = clean(row.querySelector('.errorMessage')?.textContent || '');
+                    const fullyDeveloped = /fully\s+(developed|researched)/i.test(clean(row.textContent));
+
+                    // Hidden countdown inside the resource-shortage message = seconds until enough resources.
+                    let errorWaitSeconds = null;
+                    const errTimer = row.querySelector('.errorMessage .timer');
+                    const errTimerVal = errTimer ? String(errTimer.getAttribute('value') || '') : '';
+                    if (/^\d+$/.test(errTimerVal)) { errorWaitSeconds = parseInt(errTimerVal, 10); }
+
+                    const candidates = Array.from(row.querySelectorAll('button, input[type="submit"], input[type="button"], a'));
+                    let researchOnClick = '';
+                    let researchValue = '';
+                    let hasResearchButton = false;
+                    let primaryValue = '';
+                    for (const b of candidates) {
+                      const oc = String(b.getAttribute('onclick') || '') + ' ' + String(b.getAttribute('href') || '');
+                      const val = clean(String(b.getAttribute('value') || '') + ' ' + String(b.textContent || '')).toLowerCase();
+                      const cls = String(b.className || '').toLowerCase();
+                      if (!val && !oc.trim()) continue;
+                      if (/\d+\s*%|faster|video/i.test(val)) continue;           // speed-up button
+                      if (!primaryValue && val) primaryValue = val;             // first real button (may be "exchange resources")
+                      if (cls.includes('gold') || /exchange|npc|instant|open shop/i.test(val)) continue;
+                      const isResearch = /action=research/i.test(oc) || /^(improve|upgrade)\b/.test(val);
+                      if (!isResearch) continue;
+                      const disabled = b.disabled === true || cls.includes('disabled') || b.getAttribute('aria-disabled') === 'true';
+                      researchOnClick = oc;
+                      researchValue = clean(b.getAttribute('value') || b.textContent || '');
+                      hasResearchButton = !disabled;
+                      if (!disabled) break;
+                    }
+
+                    out.push({
+                      name,
+                      unitClass,
+                      buttonOnClick: researchOnClick,
+                      levelText,
+                      buttonValue: researchValue || primaryValue,
+                      errorText,
+                      errorWaitSeconds,
+                      hasResearchButton,
+                      fullyDeveloped
+                    });
+                  }
+                  return JSON.stringify(out);
+                }
+                """);
+        }
+        catch
+        {
+            return "[]";
+        }
+    }
+
+    // Clicks the Improve/Upgrade button for the row identified by key ("u21" unit id, or "t1" troop slot).
+    private async Task<bool> ClickSmithyImproveButtonForKeyAsync(string key, CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+        try
+        {
+            return await _page.EvaluateAsync<bool>(
+                """
+                (key) => {
+                  const rows = Array.from(document.querySelectorAll('.build_details.researches .research'));
+                  const wantUnit = key && key[0] === 'u' ? parseInt(key.slice(1), 10) : null;
+                  const wantT = key && key[0] === 't' ? key : null;
+                  for (const row of rows) {
+                    const img = row.querySelector('img.unit');
+                    const um = /\bu(\d+)\b/.exec(img ? String(img.className || '') : '');
+                    const unit = um ? parseInt(um[1], 10) : null;
+
+                    let btn = null;
+                    for (const b of Array.from(row.querySelectorAll('button, input[type="submit"], input[type="button"], a'))) {
+                      const oc = String(b.getAttribute('onclick') || '') + ' ' + String(b.getAttribute('href') || '');
+                      const val = (String(b.getAttribute('value') || '') + ' ' + String(b.textContent || '')).replace(/\s+/g, ' ').trim().toLowerCase();
+                      const cls = String(b.className || '').toLowerCase();
+                      if (/\d+\s*%|faster|video/i.test(val)) continue;
+                      if (cls.includes('gold') || /exchange|npc|instant|open shop/i.test(val)) continue;
+                      const disabled = b.disabled === true || cls.includes('disabled') || b.getAttribute('aria-disabled') === 'true';
+                      if (disabled) continue;
+                      const isResearch = /action=research/i.test(oc) || /^(improve|upgrade)\b/.test(val);
+                      if (!isResearch) continue;
+                      btn = b;
+                      break;
+                    }
+                    if (!btn) continue;
+
+                    const oc = String(btn.getAttribute('onclick') || '') + ' ' + String(btn.getAttribute('href') || '');
+                    const tm = /[?&]t=(t\d+)\b/.exec(oc);
+                    const tkey = tm ? tm[1] : null;
+                    const match = (wantUnit !== null && unit === wantUnit) || (wantT !== null && tkey === wantT);
+                    if (!match) continue;
+                    btn.click();
+                    return true;
+                  }
+                  return false;
+                }
+                """,
+                key);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    // Reads active Smithy research timers strictly from the queue table (table.under_progress), never from
+    // the per-row ".duration" build-time labels — those are how long an upgrade *would* take, not progress.
+    private async Task<IReadOnlyList<int>> ReadSmithyQueueTimersAsync(CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+        try
+        {
+            var values = await _page.EvaluateAsync<int[]>(
+                """
+                () => {
+                  const parseSeconds = (value) => {
+                    if (!value) return null;
+                    const text = String(value).trim();
+                    if (!text) return null;
+                    if (/^\d+$/.test(text)) return parseInt(text, 10);
+                    const m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(text);
+                    if (!m) return null;
+                    const hasH = m[3] !== undefined;
+                    const hh = hasH ? parseInt(m[1], 10) : 0;
+                    const mm = hasH ? parseInt(m[2], 10) : parseInt(m[1], 10);
+                    const ss = hasH ? parseInt(m[3], 10) : parseInt(m[2], 10);
+                    return hh * 3600 + mm * 60 + ss;
+                  };
+                  const timers = Array.from(document.querySelectorAll('table.under_progress .timer, .under_progress .timer'));
+                  return timers
+                    .map(el => parseSeconds(el.getAttribute('value')) ?? parseSeconds(el.textContent))
+                    .filter(v => v !== null && Number.isFinite(v) && v > 0)
+                    .sort((a, b) => a - b);
+                }
+                """);
+            return values.Where(v => v > 0).OrderBy(v => v).ToList();
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    // Extracts a "queue_wait_seconds=N" hint from a result string (e.g. the Smithy building upgrade result
+    // when the construction queue is full), so the troop-upgrade task can defer on that exact timer.
+    private static bool TryReadQueueWaitSeconds(string? text, out int seconds)
+    {
+        seconds = 0;
+        if (string.IsNullOrEmpty(text))
+        {
+            return false;
+        }
+
+        const string token = "queue_wait_seconds=";
+        var index = text.IndexOf(token, StringComparison.OrdinalIgnoreCase);
+        if (index < 0)
+        {
+            return false;
+        }
+
+        var start = index + token.Length;
+        var end = start;
+        while (end < text.Length && char.IsDigit(text[end]))
+        {
+            end++;
+        }
+
+        return end > start
+            && int.TryParse(text.AsSpan(start, end - start), out seconds)
+            && seconds > 0;
+    }
+
+    // Tops the targeted troop up from the hero inventory by opening that troop row's resource-transfer
+    // dialog and confirming it — but only when Travian enables "Transfer selected" (i.e. the hero can
+    // actually cover the cost), so an ineffective partial transfer never spends the hero's resources.
+    // Official-only and opt-in (gated by the caller). Best-effort: any failure returns false and the
+    // caller falls back to waiting for the village to accumulate resources.
+    private async Task<bool> TryHeroResourceTransferForSmithyTroopAsync(string key, string label, CancellationToken cancellationToken)
+    {
+        bool opened;
+        try
+        {
+            opened = await _page.EvaluateAsync<bool>(
+                """
+                (key) => {
+                  const rows = Array.from(document.querySelectorAll('.build_details.researches .research'));
+                  const wantUnit = key && key[0] === 'u' ? parseInt(key.slice(1), 10) : null;
+                  const wantT = key && key[0] === 't' ? key : null;
+                  for (const row of rows) {
+                    const img = row.querySelector('img.unit');
+                    const um = /\bu(\d+)\b/.exec(img ? String(img.className || '') : '');
+                    const unit = um ? parseInt(um[1], 10) : null;
+                    let tkey = null;
+                    const onclicks = Array.from(row.querySelectorAll('[onclick]'))
+                      .map(e => String(e.getAttribute('onclick') || '')).join(' ');
+                    const tm = /[?&]t=(t\d+)\b/.exec(onclicks);
+                    if (tm) tkey = tm[1];
+                    const match = (wantUnit !== null && unit === wantUnit) || (wantT !== null && tkey === wantT);
+                    if (!match) continue;
+                    const icon = row.querySelector('.inlineIcon.resource.transfer');
+                    if (!icon) return false;
+                    icon.click();
+                    return true;
+                  }
+                  return false;
+                }
+                """,
+                key);
+        }
+        catch
+        {
+            return false;
+        }
+
+        if (!opened)
+        {
+            Notify($"[hero-transfer] smithy: no hero transfer offered for '{label}'.");
+            return false;
+        }
+
+        try
+        {
+            await _page.WaitForSelectorAsync(
+                "div.resourceTransferDialog, #dialogContent",
+                new PageWaitForSelectorOptions { Timeout = 8000 });
+        }
+        catch
+        {
+            Notify($"[hero-transfer] smithy: transfer dialog did not appear for '{label}'.");
+            await TryDismissResourceTransferDialogAsync(cancellationToken);
+            return false;
+        }
+
+        await DelayBeforeClickAsync(cancellationToken);
+
+        bool confirmed;
+        try
+        {
+            await _page.WaitForFunctionAsync(
+                """
+                () => {
+                  const dialog = document.querySelector('div.resourceTransferDialog')
+                    || ((document.querySelector('#dialogContent h3')?.textContent || '').trim().toLowerCase() === 'transfer resources'
+                      ? document.querySelector('#dialogContent') : null);
+                  if (!dialog) return false;
+                  let button = dialog.querySelector('.actionButton.preSelected button');
+                  if (!button) {
+                    button = Array.from(dialog.querySelectorAll('button')).find(b => /transfer selected/i.test(b.textContent || ''));
+                  }
+                  return !!button && !button.disabled && button.getAttribute('aria-disabled') !== 'true';
+                }
+                """,
+                null,
+                new PageWaitForFunctionOptions { Timeout = 5000 });
+            confirmed = await _page.EvaluateAsync<bool>(
+                """
+                () => {
+                  const dialog = document.querySelector('div.resourceTransferDialog')
+                    || ((document.querySelector('#dialogContent h3')?.textContent || '').trim().toLowerCase() === 'transfer resources'
+                      ? document.querySelector('#dialogContent') : null);
+                  if (!dialog) return false;
+                  let button = dialog.querySelector('.actionButton.preSelected button');
+                  if (!button) {
+                    button = Array.from(dialog.querySelectorAll('button')).find(b => /transfer selected/i.test(b.textContent || ''));
+                  }
+                  if (!button) return false;
+                  button.click();
+                  return true;
+                }
+                """);
+        }
+        catch (TimeoutException)
+        {
+            Notify($"[hero-transfer] smithy: 'Transfer selected' stayed disabled for '{label}' (hero can't cover). Closing.");
+            await TryDismissResourceTransferDialogAsync(cancellationToken);
+            return false;
+        }
+        catch
+        {
+            await TryDismissResourceTransferDialogAsync(cancellationToken);
+            return false;
+        }
+
+        if (!confirmed)
+        {
+            await TryDismissResourceTransferDialogAsync(cancellationToken);
+            return false;
+        }
+
+        Notify($"[hero-transfer] smithy: transferred hero resources for '{label}'.");
+        await WaitForPageReadyAsync(cancellationToken);
+        await TryDismissResourceTransferDialogAsync(cancellationToken);
+        return true;
     }
 
     private async Task TryReloadSmithyAsync(CancellationToken cancellationToken)
@@ -1733,8 +2217,10 @@ public sealed partial class TravianClient
             await PauseForManualStepIfVisibleAsync("Manual verification appeared while resolving the Smithy slot.", cancellationToken);
 
             var slots = await ReadBuildingInfosAsync(cancellationToken);
+            // Smithy is gid 13 (see ENGINEERING_NOTES §5: no separate Armoury on gid 12). Accept 12 as a
+            // defensive fallback so a mislabeled overview entry still resolves the slot.
             var smithyEntry = slots.FirstOrDefault(kvp =>
-                ParseGidFromBuildingCode(kvp.Value.BuildingCode) == 12 && kvp.Value.Level > 0);
+                ParseGidFromBuildingCode(kvp.Value.BuildingCode) is 13 or 12 && kvp.Value.Level > 0);
             if (smithyEntry.Value is not null)
             {
                 Notify($"Smithy found at slot {smithyEntry.Key} on overview attempt {attempt}/{attempts}.");
@@ -1749,103 +2235,6 @@ public sealed partial class TravianClient
         }
 
         return null;
-    }
-
-    private async Task<(bool Clicked, string Label)> ClickFirstSmithyUpgradeButtonAsync(CancellationToken cancellationToken)
-    {
-        var rawJson = await _page.EvaluateAsync<string>(
-            """
-            () => {
-              const candidates = Array.from(document.querySelectorAll(
-                'button, input[type="submit"], input[type="button"], a, div.addHoverClick, div.button-container'
-              ));
-              for (const el of candidates) {
-                const rawText = (el.textContent || '').replace(/\s+/g, ' ').trim();
-                const text = rawText.toLowerCase();
-                if (!text) continue;
-                if (!/^upgrade\b/.test(text)) continue;
-                if (/upgrade\s+to\s+level/i.test(text)) continue; // skip building-level upgrade buttons
-                if (/improve/i.test(text)) continue;
-                const classes = (el.className || '').toString().toLowerCase();
-                if (el.disabled || classes.includes('disabled') || el.getAttribute('aria-disabled') === 'true') continue;
-                if (classes.includes('gold') || /npc|instant/i.test(text)) continue;
-                // Prefer a unit-row container if present.
-                const row = el.closest('.research, .unit, .researchUnit, tr, li, .contract');
-                let label = rawText;
-                if (row) {
-                  const heading = row.querySelector('.title, h4, h3, .unitName, .name, td.desc');
-                  if (heading && (heading.textContent || '').trim()) {
-                    label = heading.textContent.replace(/\s+/g, ' ').trim();
-                  }
-                }
-                el.click();
-                return JSON.stringify({ clicked: true, label: label.slice(0, 80) });
-              }
-              return JSON.stringify({ clicked: false, label: '' });
-            }
-            """);
-
-        try
-        {
-            using var doc = JsonDocument.Parse(rawJson ?? "{}");
-            var clicked = doc.RootElement.TryGetProperty("clicked", out var c) && c.GetBoolean();
-            var label = doc.RootElement.TryGetProperty("label", out var l) ? l.GetString() ?? string.Empty : string.Empty;
-            return (clicked, label);
-        }
-        catch
-        {
-            return (false, string.Empty);
-        }
-    }
-
-    private async Task<bool> IsSmithyFullyDevelopedAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await _page.EvaluateAsync<bool>(
-                """
-                () => {
-                  const clean = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
-                  const rows = Array.from(document.querySelectorAll('.build_details.researches .research'));
-                  if (rows.length === 0) {
-                    return false;
-                  }
-
-                  let fullyDevelopedRows = 0;
-                  for (const row of rows) {
-                    const ctaText = clean(row.querySelector('.cta')?.textContent || '');
-                    const levelText = clean(row.querySelector('.level')?.textContent || '');
-                    if (ctaText.includes('fully developed') || ctaText.includes('fully researched')) {
-                      fullyDevelopedRows += 1;
-                      continue;
-                    }
-
-                    if (levelText.includes('level 20') && ctaText.includes('none')) {
-                      fullyDevelopedRows += 1;
-                    }
-                  }
-
-                  return fullyDevelopedRows > 0 && fullyDevelopedRows === rows.length;
-                }
-                """);
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private async Task<int?> ReadSmithyResearchDurationSecondsAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            var values = await ReadSmithyResearchDurationsSecondsAsync(cancellationToken);
-            return values.Count > 0 ? values.Min() : null;
-        }
-        catch
-        {
-            return null;
-        }
     }
 
     private async Task<IReadOnlyList<int>> ReadSmithyResearchDurationsSecondsAsync(CancellationToken cancellationToken)

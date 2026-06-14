@@ -61,6 +61,7 @@ public sealed class BotOptionsPayloadApplierTests
             [BotOptionPayloadKeys.HeroAutoAssignPoints] = "false",
             [BotOptionPayloadKeys.HeroAutoUseOintments] = "true",
             [BotOptionPayloadKeys.HeroStatPriority] = "resource,offense",
+            [BotOptionPayloadKeys.SmithyUpgradeTargets] = "u21=20;u24=10",
             [BotOptionPayloadKeys.AutoCollectDailyQuestsEnabled] = "true",
             [BotOptionPayloadKeys.UpgradeSelectorProfile] = "strict_green",
             [BotOptionPayloadKeys.TroopTrainingBarracksEnabled] = "false",
@@ -98,6 +99,7 @@ public sealed class BotOptionsPayloadApplierTests
         Assert.False(result.HeroAutoAssignPoints);
         Assert.True(result.HeroAutoUseOintments);
         Assert.Equal("resource,offense", result.HeroStatPriority);
+        Assert.Equal("u21=20;u24=10", result.SmithyUpgradeTargets);
         Assert.True(result.AutoCollectDailyQuestsEnabled);
         Assert.Equal("strict_green", result.UpgradeSelectorProfile);
         Assert.False(result.TroopTrainingBarracksEnabled);

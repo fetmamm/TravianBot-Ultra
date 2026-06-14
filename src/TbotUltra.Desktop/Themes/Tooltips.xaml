@@ -45,4 +45,39 @@
         </Setter>
     </Style>
 
+    <!--
+        Reusable small "i" info icon that shows a tooltip on hover. Set the help text via the ToolTip
+        property on each usage (the implicit ToolTip style above wraps it):
+            <ContentControl Style="{DynamicResource InfoTooltipIconStyle}" ToolTip="..." />
+    -->
+    <Style x:Key="InfoTooltipIconStyle" TargetType="ContentControl">
+        <Setter Property="Cursor" Value="Help" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="ToolTipService.InitialShowDelay" Value="0" />
+        <Setter Property="ToolTipService.ShowDuration" Value="60000" />
+        <Setter Property="ToolTipService.BetweenShowDelay" Value="0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContentControl">
+                    <Border Width="14"
+                            Height="14"
+                            CornerRadius="7"
+                            Background="{DynamicResource ControlBackgroundBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1"
+                            VerticalAlignment="Center">
+                        <TextBlock Text="i"
+                                   FontSize="10"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   TextAlignment="Center" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
 </ResourceDictionary>

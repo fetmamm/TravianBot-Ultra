@@ -163,6 +163,20 @@ eller sta still, inte vaxa.
 ### Browser och navigation
 
 - Village-switch ska kanoniseras till `dorf1.php?newdid={id}` utan extra `id`-parametrar och verifieras som inloggad.
+- `SwitchToVillageAsync` foredrar sidebar-href:en framfor en inskickad/cachad URL nar bynamnet ar kant —
+  cachade payload-URL:er kan ha fel newdid som tyst inte byter by. Verifiera mot det *begarda* bynamnet
+  (inte bara "andrades nagot"); vid miss: retry via sidebar, annars kasta sa tasken inte kor pa fel by.
+- Official T4.6 bylista ar React-renderad UTAN `dorf1.php?newdid=`-ankare. Ratt newdid finns i
+  `div.listEntry.village[data-did="<id>"]` (aktiv = `.active`) med rent namn i barn-`span.name`. `TryGetVillageHrefFromSidebarAsync`
+  laser `data-did` (exakt namnmatch — korta namn som "BI"/"PI" far inte substring-matcha) och bygger `/dorf1.php?newdid=<id>`.
+  spieler.php-fallbacken kan ge fel id; foredra alltid `data-did`.
+- By-identitet (`GetVillageKey`/`VillageKey`/`VillageSettingsStore`) nycklas pa KOORDINATER (`xy:X|Y`), inte newdid.
+  Koordinater ar stabila och unika per by och overlever omdop; samma by kan annars ses under flera newdid
+  (t.ex. spieler.php-fallbacken) och da splittras dess per-by-installningar i tva poster (dashboard och
+  village settings visar olika). Fallback: newdid (`did:N`), sen namn (`name:..`). `VillageSettingsStore`
+  kanoniserar varje post via koordinater (`CanonicalKey`) och migrerar/slar ihop gamla `did:`-poster vid
+  inlasning (behaller posten med uttryckligt grupp-val, annars senast sedd). Koobjekt bar bara namn/url, sa
+  deras nyckel ar namnbaserad och `NormalizeKey`/`ResolveCanonicalKey` mappar `name:..` till `xy:..`.
 - Login ska anvanda action pacing och vanta pa full sidladdning.
 - Login-state `unknown` under navigation ar normalt en transient ladd-race; captcha, `manual_step` och `logged_out` ar inte det.
 - Session i `Sleeping` far inte vackas av refresh, login/logout, scan, test, bybyte eller auto-run.
@@ -189,6 +203,25 @@ eller sta still, inte vaxa.
 - Construct ska verifiera ratt `build.php?id=<slot>&category=<n>` och renderade `#contract_building*` fore klick.
 - Saknade byggkrav ar temporar defer, inte permanent failure.
 - `gid 13` ar Smithy; det finns ingen separat Armoury pa `gid 12`.
+- Smithy troop-upgrade: Official-knappen ar `button[value="Improve"]` med `onclick ... action=research&t=tN`
+  (SS/legacy: "Upgrade"); matcha pa `action=research`/text, aldrig bara knapptext. Identifiera trupp via
+  `img.unit.uNN` eller `t=tN`, inte radordning (oresearchade trupper saknar rad). Pagaende research lases
+  ENBART fran `table.under_progress .timer`; radens `.inlineIcon.duration` ar byggtid, inte progress.
+  "Research is already being conducted." = ko upptagen; "Exchange resources"/"Enough resources on" = resursbrist.
+  Valda trupper + malnivaer sparas konto-scopeat i `smithy_upgrade.json` och skickas som task-payload
+  `smithy_upgrade_targets="u21=20;..."`; tom payload = no-op. Stateless tolkning i `SmithyPageParser` (Core, enhetstestad).
+  Den kontinuerliga loopen injicerar payloaden per by (`MainWindow.ContinuousLoop`) — utan den blir loop-tasken no-op.
+  Vanta in actionable sida med `WaitForPageReadyAsync` fore radlasning. Resursbrist: om `hero_resource_transfer_enabled`
+  och Official klickas truppens egen `.inlineIcon.resource.transfer` och "Transfer selected" bekraftas endast nar Travian
+  aktiverar den (hero racker); ett forsok per trupp/korning. Maste smithyn sjalv byggas och byggkon ar full -> defer pa
+  `UpgradeBuildingToMaxAsync`-resultatets `queue_wait_seconds` (ingen idé att forsoka nar byggkon ar full). Plus: tva
+  forbattringar kan ko:as om raden fortsatt visar Improve efter forsta klicket.
+  Worker emitterar `[smithy-queue] timers_seconds=...` (verkliga `under_progress`-timers) varje gang den
+  ar pa Smithyn; desktop cachar dem per arbetande by (`_smithyQueueByName`), tander de tva Smithy-ikonerna
+  i village overview och driver Smithy-kortets timer fran den verkliga kon — INTE defer-vantan (gamla
+  buggen visade ~9min defern istallet for 2h/4h-kon).
+- Village settings-popupens "Automation groups"-kolumn speglar dashboardens loop-kort per by och sparas i
+  samma `VillageSettingsStore.EnabledGroups`; avbockad grupp slutar koras for byn (`IsGroupEnabledForVillage`).
 
 ### Hero och React-dialoger
 

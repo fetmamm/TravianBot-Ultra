@@ -6,6 +6,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using TbotUltra.Core.Accounts;
 using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Tasks;
+using TbotUltra.Core.Travian;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop;
@@ -555,9 +558,84 @@ public partial class MainWindow
     /// </summary>
     internal void OnTroopsUpgradeClicked()
     {
-        EnqueueQuickTask("upgrade_troops_at_smithy", "Upgrade all troops at Smithy");
-        _troopTrainingViewModel.InfoText = "Queued: upgrade all troops at Smithy.";
-        AppendLog("Queued upgrade_troops_at_smithy task.");
+        var account = _accountStore.ActiveAccountName();
+        var saved = SmithyUpgradeTargetsStore.Load(_projectRoot, account);
+        if (saved.Count == 0)
+        {
+            _troopTrainingViewModel.InfoText = "No troops selected for Smithy upgrade. Open 'Upgrade options' first.";
+            AppendLog("Smithy upgrade not queued: no troops selected (configure via 'Upgrade options').");
+            return;
+        }
+
+        var targets = saved.Select(s => new SmithyTroopTarget(s.Key, s.TargetLevel, s.Name)).ToList();
+        var payload = new SmithyUpgradePayload(targets).ToDictionary();
+        EnqueueQuickTask("upgrade_troops_at_smithy", "Upgrade selected troops at Smithy", payload);
+        _troopTrainingViewModel.InfoText = $"Queued: upgrade {targets.Count} selected troop(s) at Smithy.";
+        AppendLog($"Queued upgrade_troops_at_smithy task for {targets.Count} troop(s): "
+            + string.Join(", ", targets.Select(t => $"{t.Name ?? t.Key}->{t.TargetLevel}")) + ".");
+    }
+
+    /// <summary>
+    /// Opens the Smithy upgrade-options popup, seeding it from the tribe troop catalog merged with the
+    /// account's saved selection, and persists the result per account on Save. Called by the Troops
+    /// panel's "Upgrade options" button.
+    /// </summary>
+    internal void OnTroopsUpgradeOptionsClicked()
+    {
+        var account = _accountStore.ActiveAccountName();
+        var options = BuildSmithyTroopOptions(account);
+        if (options.Count == 0)
+        {
+            _troopTrainingViewModel.InfoText = "Could not determine the tribe's troops yet. Scan the account first.";
+            AppendLog("Smithy upgrade options: no troops resolved for the current tribe.");
+            return;
+        }
+
+        var window = new SmithyUpgradeOptionsWindow(options) { Owner = this };
+        if (window.ShowDialog() != true)
+        {
+            return;
+        }
+
+        SmithyUpgradeTargetsStore.Save(_projectRoot, account, window.Result);
+        _troopTrainingViewModel.InfoText = window.Result.Count > 0
+            ? $"Saved Smithy upgrade options for {window.Result.Count} troop(s)."
+            : "Saved Smithy upgrade options: no troops selected.";
+        AppendLog($"Saved Smithy upgrade options ({window.Result.Count} troop(s) selected).");
+    }
+
+    // Builds the troop rows for the upgrade-options popup: the tribe's improvable troops (combat + siege,
+    // excluding the expansion units that the Smithy never lists) merged with the saved selection so the
+    // popup reopens with the user's prior choices. Troops are keyed by Travian unit id ("u21") when the
+    // tribe is known, falling back to the troop slot ("t1") otherwise.
+    private List<SmithyTroopOption> BuildSmithyTroopOptions(string? account)
+    {
+        var tribe = ResolveStoredTroopTrainingTribe();
+        var troopNames = TroopCatalog.ResolveTroopTypesForTribe(tribe);
+        if (troopNames.Count == 0)
+        {
+            return [];
+        }
+
+        var saved = SmithyUpgradeTargetsStore.Load(_projectRoot, account)
+            .ToDictionary(s => s.Key, StringComparer.OrdinalIgnoreCase);
+
+        // The Smithy improves combat units, rams and siege — but not the two expansion units (Chief/Senator
+        // and Settler) at the end of every tribe list.
+        var improvable = troopNames.Take(Math.Min(8, troopNames.Count)).ToList();
+
+        var options = new List<SmithyTroopOption>(improvable.Count);
+        for (var index = 0; index < improvable.Count; index++)
+        {
+            var name = improvable[index];
+            var unitId = TroopCatalog.ResolveTravianUnitId(tribe, name);
+            var key = unitId.HasValue ? $"u{unitId.Value}" : $"t{index + 1}";
+            var enabled = saved.TryGetValue(key, out var savedSelection);
+            var targetLevel = enabled ? savedSelection!.TargetLevel : SmithyUpgradeOptionsWindow.MaxLevel;
+            options.Add(new SmithyTroopOption(key, name, enabled, targetLevel));
+        }
+
+        return options;
     }
 
     /// <summary>

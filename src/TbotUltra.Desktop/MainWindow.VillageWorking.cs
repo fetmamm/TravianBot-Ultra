@@ -146,7 +146,7 @@ public partial class MainWindow
             var hasQueueFullEvidence = name is not null && queueFullVillages.Contains(name);
             item.BuildingSlots = BuildBuildingActivitySlots(status, buildingSlotCount, hasQueueFullEvidence);
             item.TroopSlots = BuildTroopActivitySlots(status);
-            item.SmithySlots = BuildSmithyActivitySlots();
+            item.SmithySlots = BuildSmithyActivitySlots(name);
             item.HasQueue = name is not null && queuedVillages.Contains(name);
 
             var isHeroVillage = name is not null
@@ -191,13 +191,117 @@ public partial class MainWindow
     }
 
     // Two idle smithy upgrade slots (two simultaneous upgrades). UI placeholder — not yet wired to live data.
-    private static IReadOnlyList<VillageActivitySlot> BuildSmithyActivitySlots()
+    // Live per-village Smithy research queue (seconds-remaining per occupied slot + capture time), updated
+    // from the worker's "[smithy-queue]" line each time the bot visits a village's Smithy. Decayed on read.
+    private readonly Dictionary<string, (List<int> Timers, DateTimeOffset CapturedUtc)> _smithyQueueByName =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    // Two Smithy research slots per village, lit when occupied — same active/idle convention as the build
+    // slots. The exact remaining time is in the tooltip; the village's overall countdown is the card timer.
+    private IReadOnlyList<VillageActivitySlot> BuildSmithyActivitySlots(string? villageName)
     {
-        return new[]
+        var remaining = ResolveSmithyQueueRemaining(villageName);
+        var slots = new List<VillageActivitySlot>(2);
+        for (var i = 0; i < 2; i++)
         {
-            new VillageActivitySlot { IsActive = false, Label = "", Tooltip = "Smithy upgrade slot (not connected yet)" },
-            new VillageActivitySlot { IsActive = false, Label = "", Tooltip = "Smithy upgrade slot (not connected yet)" },
-        };
+            var isActive = i < remaining.Count;
+            slots.Add(new VillageActivitySlot
+            {
+                IsActive = isActive,
+                Label = "",
+                Tooltip = isActive ? $"Smithy research ({FormatSmithyDuration(remaining[i])})" : "Smithy slot free",
+            });
+        }
+
+        return slots;
+    }
+
+    // Parses the worker's "[smithy-queue] timers_seconds=1305,3673" line and applies it to the village the
+    // bot is currently working in. An empty list clears that village's queue. Returns whether it matched.
+    private bool TryApplySmithyQueueFromLog(string? part)
+    {
+        if (string.IsNullOrWhiteSpace(part))
+        {
+            return false;
+        }
+
+        const string token = "[smithy-queue] timers_seconds=";
+        var index = part.IndexOf(token, StringComparison.OrdinalIgnoreCase);
+        if (index < 0)
+        {
+            return false;
+        }
+
+        var raw = part[(index + token.Length)..].Trim();
+        var timers = new List<int>();
+        foreach (var entry in raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (int.TryParse(entry, out var seconds) && seconds > 0)
+            {
+                timers.Add(seconds);
+            }
+        }
+
+        ApplySmithyQueueForWorkingVillage(timers);
+        return true;
+    }
+
+    // Stores the latest Smithy queue for the active working village and drives the (global) Smithy card
+    // timer from the real queue, then refreshes the dashboard so the icons + timer update immediately.
+    private void ApplySmithyQueueForWorkingVillage(IReadOnlyList<int> timersSeconds)
+    {
+        var timers = (timersSeconds ?? [])
+            .Where(value => value > 0)
+            .OrderBy(value => value)
+            .ToList();
+
+        var name = NormalizeVillageName(_activeWorkingVillageName);
+        if (name is not null)
+        {
+            if (timers.Count > 0)
+            {
+                _smithyQueueByName[name] = (timers, DateTimeOffset.UtcNow);
+            }
+            else
+            {
+                _smithyQueueByName.Remove(name);
+            }
+        }
+
+        _smithyUpgradeRemainingSeconds = timers.ToList();
+        UpdateAutomationLoopRunningIndicators();
+        RefreshVillageActivityIndicatorsOnDashboard();
+    }
+
+    // Remaining seconds per occupied Smithy slot for a village, decayed by elapsed time, capped at 2 slots.
+    private IReadOnlyList<int> ResolveSmithyQueueRemaining(string? villageName)
+    {
+        var name = NormalizeVillageName(villageName);
+        if (name is null || !_smithyQueueByName.TryGetValue(name, out var snapshot))
+        {
+            return [];
+        }
+
+        var elapsed = (int)Math.Max(0, (DateTimeOffset.UtcNow - snapshot.CapturedUtc).TotalSeconds);
+        return snapshot.Timers
+            .Select(value => value - elapsed)
+            .Where(value => value > 0)
+            .OrderBy(value => value)
+            .Take(2)
+            .ToList();
+    }
+
+    private static string FormatSmithyDuration(int seconds)
+    {
+        if (seconds < 0)
+        {
+            seconds = 0;
+        }
+
+        var span = TimeSpan.FromSeconds(seconds);
+        return span.TotalHours >= 1
+            ? $"{(int)span.TotalHours}:{span.Minutes:00}:{span.Seconds:00}"
+            : $"{span.Minutes}:{span.Seconds:00}";
     }
 
     private void RefreshVillageActivityIndicatorsOnDashboard()
@@ -508,13 +612,10 @@ public partial class MainWindow
 
     private string? GetSelectedVillageKey()
     {
-        var (name, url) = GetSelectedVillageSelectionSnapshot();
-        if (string.IsNullOrWhiteSpace(name) && string.IsNullOrWhiteSpace(url))
-        {
-            return null;
-        }
-
-        return GetVillageKey(url, null, null, name);
+        // Build from the selected item (which carries coordinates) so this matches the canonical,
+        // coordinate-based village key used by the settings store and the dashboard list. The name/url
+        // snapshot has no coordinates and would produce a non-canonical key that never matches.
+        return GetSelectedVillageKeyInfoOrNull()?.Key;
     }
 
     // Caches the latest read for a village (keyed by name). Merges so a resource-only read (no buildings)

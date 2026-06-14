@@ -106,10 +106,43 @@ public sealed class VillageSettingsStoreTests : IDisposable
         var second = new Info("did:2", "Second", 5, -3, IsCapital: false);
         store.Merge(new[] { capital, second });
 
-        Assert.True(store.IsEnabledByKey("did:1", defaultIfUnknown: false));   // stored: capital on
-        Assert.False(store.IsEnabledByKey("did:2", defaultIfUnknown: true));   // stored: non-capital off
-        Assert.True(store.IsEnabledByKey("did:999", defaultIfUnknown: true));  // unknown → default
-        Assert.True(store.IsEnabledByKey(null, defaultIfUnknown: true));       // no key → default
+        // Villages are keyed by coordinates, so look them up by their canonical "xy:" key.
+        Assert.True(store.IsEnabledByKey("xy:0|0", defaultIfUnknown: false));   // stored: capital on
+        Assert.False(store.IsEnabledByKey("xy:5|-3", defaultIfUnknown: true));  // stored: non-capital off
+        Assert.True(store.IsEnabledByKey("xy:9|9", defaultIfUnknown: true));    // unknown → default
+        Assert.True(store.IsEnabledByKey(null, defaultIfUnknown: true));        // no key → default
+
+        // A name-based key (as carried by queue items) resolves to the coordinate record.
+        Assert.True(store.IsEnabledByKey("name:capital", defaultIfUnknown: false));
+        Assert.Equal("xy:0|0", store.ResolveCanonicalKey("name:capital"));
+    }
+
+    [Fact]
+    public void Reload_MergesDuplicateNewdidRecords_ByCoordinates()
+    {
+        // Legacy file: the same village ("SLAV") stored under two newdids with divergent group settings.
+        var path = AccountStoragePaths.VillageSettingsPath(_root, _activeAccount);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, """
+        {
+          "villages": [
+            { "key": "did:106838", "name": "SLAV", "coordX": -29, "coordY": -66, "isCapital": true, "isEnabled": true, "enabledGroups": [], "lastSeenUtc": "2026-06-14T07:51:00+00:00" },
+            { "key": "did:25471", "name": "SLAV", "coordX": -29, "coordY": -66, "isCapital": true, "isEnabled": true, "enabledGroups": ["troops"], "lastSeenUtc": "2026-06-14T07:51:32+00:00" }
+          ]
+        }
+        """);
+
+        var store = CreateStore();
+
+        // Collapsed onto one coordinate key; the most recently seen record (with an explicit override) wins.
+        var groups = store.GetEnabledGroups("xy:-29|-66");
+        Assert.NotNull(groups);
+        Assert.Contains("troops", groups!);
+
+        // Both the coordinate key and the name-based key (queue items) resolve to the same record.
+        Assert.Equal("xy:-29|-66", store.ResolveCanonicalKey("name:slav"));
+        Assert.NotNull(store.GetEnabledGroups("name:slav"));
+        Assert.Contains("troops", store.GetEnabledGroups("name:slav")!);
     }
 
     [Fact]

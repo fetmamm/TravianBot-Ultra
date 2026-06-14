@@ -1340,11 +1340,17 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         }
 
         // Most reliable path: read the village's switch URL from the in-page sidebar
-        // (`<a class="village-name" href="dorf1.php?newdid=X">`). It's present on every page
-        // and always carries the correct newdid URL, regardless of server quirks.
-        if (string.IsNullOrWhiteSpace(url) && !string.IsNullOrWhiteSpace(villageName))
+        // (`<a class="village-name" href="dorf1.php?newdid=X">`). It's present on every page and always
+        // carries the correct newdid. Prefer it over a passed-in/cached URL whenever the village name is
+        // known — cached payload URLs can be stale or wrong (wrong newdid silently fails to switch and
+        // desyncs the working village). Fall back to the passed-in URL only if the sidebar has no match.
+        if (!string.IsNullOrWhiteSpace(villageName))
         {
-            url = await TryGetVillageHrefFromSidebarAsync(villageName, cancellationToken);
+            var sidebarUrl = await TryGetVillageHrefFromSidebarAsync(villageName, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(sidebarUrl))
+            {
+                url = sidebarUrl;
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(url))
@@ -1381,6 +1387,40 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         await PauseForManualStepIfVisibleAsync($"Manual verification appeared while switching to village '{villageName}'.", cancellationToken);
         await EnsureLoggedInAsync();
         var activeVillageAfterSwitch = await TryReadActiveVillageNameSafeAsync(cancellationToken);
+
+        // Verify we actually landed on the REQUESTED village — not merely that "something changed". A stale
+        // or wrong newdid in the payload URL navigates but leaves the active village unchanged, which would
+        // desync the program's working village from the browser (it would then run tasks on the wrong
+        // village). When a name was requested and we are not on it, retry once via the in-page sidebar href,
+        // which always carries the correct newdid, then re-verify.
+        if (!string.IsNullOrWhiteSpace(villageName)
+            && !IsSameVillageName(activeVillageAfterSwitch, villageName))
+        {
+            Notify($"[village-switch] expected '{villageName}' but active village reads '{activeVillageAfterSwitch ?? "(unknown)"}' — retrying via sidebar.");
+            var sidebarUrl = await TryGetVillageHrefFromSidebarAsync(villageName, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(sidebarUrl))
+            {
+                var canonicalSidebar = TravianUrls.CanonicalizeVillageSwitchUrl(sidebarUrl);
+                var canonicalUsed = string.IsNullOrWhiteSpace(url) ? string.Empty : TravianUrls.CanonicalizeVillageSwitchUrl(url);
+                if (!string.Equals(canonicalSidebar, canonicalUsed, StringComparison.OrdinalIgnoreCase))
+                {
+                    await GotoAsync(canonicalSidebar, cancellationToken);
+                    await EnsureLoggedInAsync();
+                    activeVillageAfterSwitch = await TryReadActiveVillageNameSafeAsync(cancellationToken);
+                }
+            }
+        }
+
+        // Still not on the requested village after the sidebar retry: abort rather than run the task on the
+        // wrong village. The caller (runtime loop) will retry on the next cycle.
+        if (!string.IsNullOrWhiteSpace(villageName)
+            && !IsSameVillageName(activeVillageAfterSwitch, villageName))
+        {
+            throw new InvalidOperationException(
+                $"Village switch failed: requested '{villageName}' but the browser is on '{activeVillageAfterSwitch ?? "(unknown)"}'. "
+                + "Aborting so the task does not run on the wrong village.");
+        }
+
         if (!IsSameVillageName(activeVillageBeforeSwitch, activeVillageAfterSwitch))
         {
             Notify($"[village-switch] now on '{activeVillageAfterSwitch ?? "(unknown)"}' (was '{activeVillageBeforeSwitch ?? "(unknown)"}')");
@@ -1392,6 +1432,11 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             // resource read to occasionally land mid-navigation (resources/storage not filling). Capital
             // is resolved from cache + fast-detection (resource field > level 10) on the resource read,
             // and at login analysis — so the switch only needs dorf1/dorf2 of the target village.
+        }
+        else if (!string.IsNullOrWhiteSpace(villageName))
+        {
+            // Same name before and after, but it IS the requested village (we were already there or the
+            // sidebar retry confirmed it) — nothing to log as a change.
         }
         else
         {
@@ -1444,9 +1489,29 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             var href = await _page.EvaluateAsync<string?>(
                 """
                 (name) => {
-                  const wanted = (name || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                  const norm = (t) => (t || '')
+                    .replace(/[‪-‮‎‏]/g, '')
+                    .replace(/\s+/g, ' ')
+                    .trim()
+                    .toLowerCase();
+                  const wanted = norm(name);
                   if (!wanted) return null;
 
+                  // Official T4.6: the village switcher is React-rendered with no plain newdid anchors —
+                  // each entry instead carries the real switch id in data-did and the clean name in a child
+                  // ".name". Match on the exact name (short names like "BI"/"PI" must not substring-match)
+                  // and build the canonical switch URL from data-did.
+                  for (const entry of document.querySelectorAll('.listEntry.village[data-did]')) {
+                    const did = entry.getAttribute('data-did');
+                    if (!did) continue;
+                    const nameEl = entry.querySelector('.name');
+                    const text = norm(nameEl ? nameEl.textContent : entry.textContent);
+                    if (text === wanted) {
+                      return '/dorf1.php?newdid=' + did;
+                    }
+                  }
+
+                  // Legacy/SS or other layouts: static anchors carrying newdid in the href.
                   const candidates = [
                     ...document.querySelectorAll('a.village-name'),
                     ...document.querySelectorAll('#sidebarBoxVillagelist a[href*="newdid"]'),
@@ -1458,7 +1523,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
                   const seen = new Set();
                   for (const link of candidates) {
-                    const text = (link.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                    const text = norm(link.textContent);
                     const href = link.getAttribute('href') || '';
                     if (!text || !href || seen.has(link)) continue;
                     seen.add(link);

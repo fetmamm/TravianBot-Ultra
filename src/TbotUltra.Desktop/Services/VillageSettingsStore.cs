@@ -104,7 +104,8 @@ public sealed class VillageSettingsStore
                     continue;
                 }
 
-                if (_cache.TryGetValue(village.Key, out var existing))
+                var key = CanonicalKey(village);
+                if (_cache.TryGetValue(key, out var existing))
                 {
                     // Keep the user's enabled choice; refresh cached identity if it changed.
                     if (!string.Equals(existing.Name, village.Name, StringComparison.Ordinal)
@@ -124,9 +125,9 @@ public sealed class VillageSettingsStore
                 }
                 else
                 {
-                    _cache[village.Key] = new VillageSettingRecord
+                    _cache[key] = new VillageSettingRecord
                     {
-                        Key = village.Key,
+                        Key = key,
                         Name = village.Name,
                         CoordX = village.CoordX,
                         CoordY = village.CoordY,
@@ -161,7 +162,7 @@ public sealed class VillageSettingsStore
         lock (FileIoLock)
         {
             EnsureCacheLoaded();
-            return _cache.TryGetValue(village.Key, out var existing) ? existing.IsEnabled : village.IsCapital;
+            return _cache.TryGetValue(CanonicalKey(village), out var existing) ? existing.IsEnabled : village.IsCapital;
         }
     }
 
@@ -180,7 +181,7 @@ public sealed class VillageSettingsStore
         lock (FileIoLock)
         {
             EnsureCacheLoaded();
-            return _cache.TryGetValue(key, out var existing) ? existing.IsEnabled : defaultIfUnknown;
+            return _cache.TryGetValue(NormalizeKey(key), out var existing) ? existing.IsEnabled : defaultIfUnknown;
         }
     }
 
@@ -200,7 +201,8 @@ public sealed class VillageSettingsStore
         {
             EnsureCacheLoaded();
 
-            if (_cache.TryGetValue(village.Key, out var existing))
+            var key = CanonicalKey(village);
+            if (_cache.TryGetValue(key, out var existing))
             {
                 if (existing.IsEnabled == enabled)
                 {
@@ -216,9 +218,9 @@ public sealed class VillageSettingsStore
             }
             else
             {
-                _cache[village.Key] = new VillageSettingRecord
+                _cache[key] = new VillageSettingRecord
                 {
-                    Key = village.Key,
+                    Key = key,
                     Name = village.Name,
                     CoordX = village.CoordX,
                     CoordY = village.CoordY,
@@ -247,7 +249,7 @@ public sealed class VillageSettingsStore
         lock (FileIoLock)
         {
             EnsureCacheLoaded();
-            return _cache.TryGetValue(key, out var existing) ? existing.EnabledGroups : null;
+            return _cache.TryGetValue(NormalizeKey(key), out var existing) ? existing.EnabledGroups : null;
         }
     }
 
@@ -284,7 +286,7 @@ public sealed class VillageSettingsStore
         lock (FileIoLock)
         {
             EnsureCacheLoaded();
-            return _cache.TryGetValue(key, out var existing) ? existing.NpcTrade ?? true : defaultIfUnknown;
+            return _cache.TryGetValue(NormalizeKey(key), out var existing) ? existing.NpcTrade ?? true : defaultIfUnknown;
         }
     }
 
@@ -292,7 +294,7 @@ public sealed class VillageSettingsStore
     public bool GetNpcTrade(VillageKeyInfo village)
     {
         return village is not null && !string.IsNullOrWhiteSpace(village.Key)
-            && IsNpcTradeEnabledByKey(village.Key, defaultIfUnknown: true);
+            && IsNpcTradeEnabledByKey(CanonicalKey(village), defaultIfUnknown: true);
     }
 
     /// <summary>Sets a village's NPC trade flag and persists it (upserts the record). No-op when unchanged.</summary>
@@ -306,7 +308,8 @@ public sealed class VillageSettingsStore
         lock (FileIoLock)
         {
             EnsureCacheLoaded();
-            if (_cache.TryGetValue(village.Key, out var existing))
+            var key = CanonicalKey(village);
+            if (_cache.TryGetValue(key, out var existing))
             {
                 if ((existing.NpcTrade ?? true) == enabled)
                 {
@@ -318,9 +321,9 @@ public sealed class VillageSettingsStore
             }
             else
             {
-                _cache[village.Key] = new VillageSettingRecord
+                _cache[key] = new VillageSettingRecord
                 {
-                    Key = village.Key,
+                    Key = key,
                     Name = village.Name,
                     CoordX = village.CoordX,
                     CoordY = village.CoordY,
@@ -376,7 +379,8 @@ public sealed class VillageSettingsStore
         {
             EnsureCacheLoaded();
 
-            if (_cache.TryGetValue(village.Key, out var existing))
+            var key = CanonicalKey(village);
+            if (_cache.TryGetValue(key, out var existing))
             {
                 if (existing.EnabledGroups is not null && existing.EnabledGroups.SequenceEqual(list, StringComparer.OrdinalIgnoreCase))
                 {
@@ -389,9 +393,9 @@ public sealed class VillageSettingsStore
             }
             else
             {
-                _cache[village.Key] = new VillageSettingRecord
+                _cache[key] = new VillageSettingRecord
                 {
-                    Key = village.Key,
+                    Key = key,
                     Name = village.Name,
                     CoordX = village.CoordX,
                     CoordY = village.CoordY,
@@ -454,12 +458,43 @@ public sealed class VillageSettingsStore
 
             _heroHomeVillageName = string.IsNullOrWhiteSpace(file.HeroHomeVillageName) ? null : file.HeroHomeVillageName.Trim();
 
+            // Migrate legacy records to the canonical coordinate key and merge any duplicates: the same
+            // village could previously be stored under more than one newdid (e.g. did:106838 and did:25471
+            // for "SLAV") with divergent settings. Collapsing them by coordinate keeps a single source of
+            // truth so the dashboard and the village settings window always agree.
+            var migratedAnything = false;
             foreach (var record in file.Villages)
             {
-                if (record is not null && !string.IsNullOrWhiteSpace(record.Key))
+                if (record is null || string.IsNullOrWhiteSpace(record.Key))
                 {
-                    _cache[record.Key] = record;
+                    continue;
                 }
+
+                var canonicalKey = record.CoordX.HasValue && record.CoordY.HasValue
+                    ? VillageKey.FromCoords(record.CoordX.Value, record.CoordY.Value)
+                    : record.Key;
+
+                if (!string.Equals(canonicalKey, record.Key, StringComparison.Ordinal))
+                {
+                    record.Key = canonicalKey;
+                    migratedAnything = true;
+                }
+
+                if (_cache.TryGetValue(canonicalKey, out var existing))
+                {
+                    _cache[canonicalKey] = MergeDuplicateRecords(existing, record);
+                    migratedAnything = true;
+                }
+                else
+                {
+                    _cache[canonicalKey] = record;
+                }
+            }
+
+            // Persist the cleaned-up file so the duplicates are gone on disk too (one-time, idempotent).
+            if (migratedAnything)
+            {
+                Save();
             }
         }
         catch
@@ -467,6 +502,91 @@ public sealed class VillageSettingsStore
             // Corrupt or unreadable file: start from an empty cache rather than crashing the UI.
             _cache.Clear();
         }
+    }
+
+    // Picks the record to keep when two entries collapse onto the same coordinate key. Prefers the one
+    // with an explicit group override, otherwise the most recently seen; then backfills any missing
+    // group/NPC choice from the other and keeps the village enabled if either copy was enabled.
+    private static VillageSettingRecord MergeDuplicateRecords(VillageSettingRecord a, VillageSettingRecord b)
+    {
+        var aHasGroups = a.EnabledGroups is not null;
+        var bHasGroups = b.EnabledGroups is not null;
+
+        VillageSettingRecord winner;
+        VillageSettingRecord loser;
+        if (aHasGroups != bHasGroups)
+        {
+            winner = aHasGroups ? a : b;
+            loser = aHasGroups ? b : a;
+        }
+        else
+        {
+            winner = a.LastSeenUtc >= b.LastSeenUtc ? a : b;
+            loser = ReferenceEquals(winner, a) ? b : a;
+        }
+
+        winner.EnabledGroups ??= loser.EnabledGroups;
+        winner.NpcTrade ??= loser.NpcTrade;
+        winner.IsEnabled = winner.IsEnabled || loser.IsEnabled;
+        if (winner.LastSeenUtc < loser.LastSeenUtc)
+        {
+            winner.LastSeenUtc = loser.LastSeenUtc;
+        }
+
+        return winner;
+    }
+
+    /// <summary>
+    /// Resolves an arbitrary village key (e.g. a name-based key from a queue item) to the canonical
+    /// coordinate key stored for that village, so callers can group/compare villages consistently with the
+    /// dashboard. Returns the input unchanged when it is already canonical or no match is found.
+    /// </summary>
+    public string? ResolveCanonicalKey(string? key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return key;
+        }
+
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+            return NormalizeKey(key);
+        }
+    }
+
+    // The canonical storage key for a village: its coordinates when known (stable, unique, survives
+    // renames and multiple newdids), otherwise the caller-provided key. Using this everywhere a record is
+    // read or written keeps the in-memory key identical to the one produced on reload, so a village's
+    // settings never split across newdids.
+    private static string CanonicalKey(VillageKeyInfo village)
+    {
+        return village.CoordX.HasValue && village.CoordY.HasValue
+            ? VillageKey.FromCoords(village.CoordX.Value, village.CoordY.Value)
+            : village.Key;
+    }
+
+    // Resolves a non-canonical key to the stored coordinate key. Queue items only carry a village name (and
+    // a newdid url), so their gating key is name-based; map it to the coordinate-keyed record by name so the
+    // same per-village enabled/group choice applies. Coordinate ("xy:") and unknown keys pass through.
+    // Caller already holds FileIoLock.
+    private string NormalizeKey(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key) || !key.StartsWith("name:", StringComparison.OrdinalIgnoreCase))
+        {
+            return key;
+        }
+
+        var name = key.Substring("name:".Length);
+        foreach (var record in _cache.Values)
+        {
+            if (string.Equals((record.Name ?? string.Empty).Trim().ToLowerInvariant(), name, StringComparison.Ordinal))
+            {
+                return record.Key;
+            }
+        }
+
+        return key;
     }
 
     private void Save()

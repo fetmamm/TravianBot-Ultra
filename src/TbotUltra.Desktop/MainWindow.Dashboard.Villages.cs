@@ -134,27 +134,18 @@ public partial class MainWindow
             };
     }
 
-    // Villages are identified by their stable id (newdid from the switch URL), not by name, so a
-    // village that is renamed on the server still maps to its previously cached entry instead of
-    // appearing as a brand-new village. Falls back to coordinates, then to the name, when no id is
-    // available (e.g. a placeholder or a row read without a switch URL).
+    // Villages are identified by their coordinates (stable and unique per village: a village never moves
+    // and keeps its coordinates across renames). This also collapses a village that the page has reported
+    // under more than one newdid into a single identity, so its per-village settings never split in two.
+    // Falls back to the newdid (from the switch URL), then the name, when no coordinate is available.
     private static readonly Regex NewdidRegex =
         new(@"[?&]newdid=(\d+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static string GetVillageKey(string? url, int? coordX, int? coordY, string? name)
     {
         var match = string.IsNullOrWhiteSpace(url) ? Match.Empty : NewdidRegex.Match(url);
-        if (match.Success)
-        {
-            return $"did:{match.Groups[1].Value}";
-        }
-
-        if (coordX.HasValue && coordY.HasValue)
-        {
-            return $"xy:{coordX.Value}|{coordY.Value}";
-        }
-
-        return $"name:{(name ?? string.Empty).Trim().ToLowerInvariant()}";
+        var newdid = match.Success ? match.Groups[1].Value : null;
+        return VillageKey.FromComponents(coordX, coordY, newdid, name);
     }
 
     private static string GetVillageKey(VillageSelectionItem item)
@@ -163,7 +154,7 @@ public partial class MainWindow
     // A queue item's target village is carried in its payload (set by ApplySelectedVillageToPayload at
     // enqueue time). Returns the stable village key, or null when the item is not tied to a village
     // (legacy/global tasks) so rotation treats those as the default group.
-    private static string? GetQueueItemVillageKey(QueueItem item)
+    private string? GetQueueItemVillageKey(QueueItem item)
     {
         var name = GetQueueItemVillageName(item);
         var url = GetQueueItemPayloadValue(item, BotOptionPayloadKeys.TargetVillageUrl);
@@ -172,7 +163,14 @@ public partial class MainWindow
             return null;
         }
 
-        return GetVillageKey(url, null, null, name);
+        // Queue payloads carry no coordinates, so key by the village NAME, then resolve it through the
+        // settings store to the canonical coordinate key. This keeps queue gating AND the per-village queue
+        // rotation pointer (seeded with the coordinate key on Switch village) using one consistent identity.
+        // Fall back to the newdid url only when there is no name.
+        var rawKey = string.IsNullOrWhiteSpace(name)
+            ? GetVillageKey(url, null, null, null)
+            : GetVillageKey(null, null, null, name);
+        return _villageSettingsStore.ResolveCanonicalKey(rawKey);
     }
 
     private static string? GetQueueItemVillageName(QueueItem item)
@@ -466,28 +464,72 @@ public partial class MainWindow
             ?? (VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem>)
             ?? Enumerable.Empty<VillageSelectionItem>();
 
+        // The per-village group toggles mirror the dashboard automation-loop cards (visible ones only).
+        var groupCards = _automationLoopTasks
+            .Where(card => card.IsVisible)
+            .Select(card => (Key: card.TaskName, card.Title, card.Description))
+            .ToList();
+
         var rows = source
             .Where(v => !string.IsNullOrWhiteSpace(v.Name) && !string.Equals(v.Name, "-", StringComparison.Ordinal))
             .Select(v =>
             {
                 var keyInfo = BuildVillageKeyInfo(v);
+                // Seed from the village's per-village override, falling back to the account default so the
+                // checkboxes reflect what actually runs for that village today.
+                var enabledGroups = _villageSettingsStore.GetEnabledGroups(keyInfo.Key) ?? _defaultEnabledGroupKeys;
+                var toggles = groupCards
+                    .Select(card => new VillageGroupToggle
+                    {
+                        GroupKey = card.Key,
+                        Title = card.Title,
+                        Description = card.Description,
+                        IsEnabled = enabledGroups.Contains(card.Key, StringComparer.OrdinalIgnoreCase),
+                    })
+                    .ToList();
+
                 return new VillageSettingsRow
                 {
                     Name = v.Name,
                     PopText = v.PopText,
-                    CoordsText = v.CoordsText,
                     KeyInfo = keyInfo,
                     IsEnabledForAutomation = _villageSettingsStore.GetEnabled(keyInfo),
                     NpcTrade = _villageSettingsStore.GetNpcTrade(keyInfo),
+                    GroupToggles = toggles,
                 };
             })
             .ToList();
 
-        var window = new VillageSettingsWindow(rows, PersistVillageEnabledFromSettingsRow, PersistVillageNpcTradeFromSettingsRow)
+        var window = new VillageSettingsWindow(
+            rows,
+            PersistVillageEnabledFromSettingsRow,
+            PersistVillageNpcTradeFromSettingsRow,
+            PersistVillageGroupsFromSettingsRow)
         {
             Owner = this,
         };
         window.ShowDialog();
+    }
+
+    // Persists a village's per-village automation-group set from the Village settings window, then keeps the
+    // dashboard cards in sync when the changed village is the one currently selected.
+    private void PersistVillageGroupsFromSettingsRow(VillageSettingsRow row)
+    {
+        if (row?.KeyInfo is null)
+        {
+            return;
+        }
+
+        var enabled = row.GroupToggles
+            .Where(toggle => toggle.IsEnabled)
+            .Select(toggle => toggle.GroupKey)
+            .ToList();
+        _villageSettingsStore.SetEnabledGroups(row.KeyInfo, enabled);
+
+        if (string.Equals(GetSelectedVillageKey(), row.KeyInfo.Key, StringComparison.OrdinalIgnoreCase))
+        {
+            ApplyAutomationLoopGroupsForSelectedVillage();
+        }
     }
 
     private void VillageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)

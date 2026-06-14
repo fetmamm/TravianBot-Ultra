@@ -51,7 +51,12 @@
                                 Width="150"
                                 HorizontalAlignment="Left"
                                 Click="UpgradeTroopsButton_Click" />
-                        <TextBlock Text="Smithy upgrades stay separate from troop building."
+                        <Button Content="Upgrade options"
+                                Width="150"
+                                HorizontalAlignment="Left"
+                                Margin="0,8,0,0"
+                                Click="UpgradeOptionsButton_Click" />
+                        <TextBlock Text="Pick troops and target levels in Upgrade options. Smithy upgrades stay separate from troop building."
                                    Foreground="{DynamicResource TextSubtleBrush}"
                                    TextWrapping="Wrap"
                                    Margin="0,8,0,0" />

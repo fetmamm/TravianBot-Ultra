@@ -13,4 +13,5 @@ public enum TaskPayloadKind
     Reinforcements = 8,
     TroopTraining = 9,
     Brewery = 10,
+    SmithyUpgrade = 11,
 }

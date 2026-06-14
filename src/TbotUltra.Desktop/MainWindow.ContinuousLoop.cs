@@ -246,18 +246,35 @@ public partial class MainWindow
         }
 
         // Smithy troop upgrades — generated per enabled village whose Troops group is on. Each item is
-        // tagged with its village so the worker switches there before running (BotTaskRunner).
+        // tagged with its village so the worker switches there before running (BotTaskRunner). The selected
+        // troops + target levels come from the account-scoped store and are snapshotted into the payload, so
+        // the loop-driven task knows what to upgrade (without it the worker would no-op). When nothing is
+        // selected we skip enqueuing entirely instead of queuing a task that does nothing.
         if (!IsTroopsGroupBlocked())
         {
-            foreach (var village in automationVillages)
+            var smithyTargets = SmithyUpgradeTargetsStore.Load(_projectRoot, _accountStore.ActiveAccountName());
+            if (smithyTargets.Count > 0)
             {
-                if (!IsGroupEnabledForVillage(GetVillageKey(village), QueueGroup.Troops)
-                    || HasActiveTaskForVillage("upgrade_troops_at_smithy", village.Name))
-                {
-                    continue;
-                }
+                var smithyPayloadFragment = new SmithyUpgradePayload(
+                        smithyTargets.Select(s => new SmithyTroopTarget(s.Key, s.TargetLevel, s.Name)).ToList())
+                    .ToDictionary();
 
-                _botService.EnqueueRuntime("upgrade_troops_at_smithy", "Troop upgrades", BuildVillageRuntimePayload(village), priority: -50, maxRetries: 0);
+                foreach (var village in automationVillages)
+                {
+                    if (!IsGroupEnabledForVillage(GetVillageKey(village), QueueGroup.Troops)
+                        || HasActiveTaskForVillage("upgrade_troops_at_smithy", village.Name))
+                    {
+                        continue;
+                    }
+
+                    var payload = BuildVillageRuntimePayload(village);
+                    foreach (var pair in smithyPayloadFragment)
+                    {
+                        payload[pair.Key] = pair.Value;
+                    }
+
+                    _botService.EnqueueRuntime("upgrade_troops_at_smithy", "Troop upgrades", payload, priority: -50, maxRetries: 0);
+                }
             }
         }
 

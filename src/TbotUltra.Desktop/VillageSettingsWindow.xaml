@@ -4,9 +4,9 @@
         Background="{DynamicResource AppBackgroundBrush}"
         Title="Village settings"
         Height="460"
-        Width="720"
+        Width="1180"
         MinHeight="320"
-        MinWidth="600"
+        MinWidth="820"
         ResizeMode="CanResize"
         WindowStartupLocation="CenterOwner">
     <Grid Margin="12">
@@ -16,12 +16,11 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Margin="0,0,0,10">
-            <TextBlock Text="Village settings" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-            <TextBlock Text="Per-village automation. &quot;Auto&quot; turns the village on/off for the bot (off = skipped entirely). &quot;NPC&quot; selects which villages NPC trade may run in — the NPC trade master toggle in Auto settings must also be on. Saved per account; capital on by default."
-                       Foreground="{DynamicResource TextSubtleBrush}"
-                       TextWrapping="Wrap"
-                       Margin="0,2,0,0" />
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10" VerticalAlignment="Center">
+            <TextBlock Text="Village settings" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+            <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
+                            Margin="8,2,0,0"
+                            ToolTip="Per-village automation. &quot;Auto&quot; turns the village on/off for the bot (off = skipped entirely). &quot;NPC&quot; selects which villages NPC trade may run in — the NPC trade master toggle in Auto settings must also be on. The automation-group columns mirror the dashboard cards per village: uncheck a group to stop it running in that village. Saved per account; capital on by default." />
         </StackPanel>
 
         <DataGrid x:Name="VillageSettingsDataGrid"
@@ -34,7 +33,14 @@
                   HeadersVisibility="Column"
                   SelectionMode="Single">
             <DataGrid.Columns>
-                <DataGridTemplateColumn Header="Auto" Width="Auto">
+                <DataGridTemplateColumn Width="Auto">
+                    <DataGridTemplateColumn.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Auto" VerticalAlignment="Center" />
+                            <ContentControl Style="{DynamicResource InfoTooltipIconStyle}" Margin="5,0,0,0"
+                                            ToolTip="Turns the village on/off for the bot. Off = the village is skipped entirely." />
+                        </StackPanel>
+                    </DataGridTemplateColumn.Header>
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <CheckBox Style="{DynamicResource ToggleSwitchStyle}"
@@ -45,19 +51,52 @@
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTextColumn Header="Village" Binding="{Binding Name}" Width="*" IsReadOnly="True" />
-                <DataGridTextColumn Header="Pop" Binding="{Binding PopText}" Width="Auto" IsReadOnly="True" />
-                <DataGridTextColumn Header="Coords" Binding="{Binding CoordsText}" Width="Auto" IsReadOnly="True" />
-                <DataGridCheckBoxColumn Header="Hero res" Binding="{Binding HeroResources, UpdateSourceTrigger=PropertyChanged}" Width="Auto" />
-                <DataGridCheckBoxColumn Header="NPC" Binding="{Binding NpcTrade, UpdateSourceTrigger=PropertyChanged}" Width="Auto" />
-                <DataGridCheckBoxColumn Header="Build troops" Binding="{Binding BuildTroops, UpdateSourceTrigger=PropertyChanged}" Width="Auto" />
-                <DataGridCheckBoxColumn Header="Upgrade troops" Binding="{Binding UpgradeTroops, UpdateSourceTrigger=PropertyChanged}" Width="Auto" />
-                <DataGridCheckBoxColumn Header="Farming" Binding="{Binding Farming, UpdateSourceTrigger=PropertyChanged}" Width="Auto" />
+                <DataGridTextColumn Binding="{Binding Name}" Width="Auto" IsReadOnly="True">
+                    <DataGridTextColumn.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Village" VerticalAlignment="Center" />
+                            <ContentControl Style="{DynamicResource InfoTooltipIconStyle}" Margin="5,0,0,0"
+                                            ToolTip="The village name as shown in Travian." />
+                        </StackPanel>
+                    </DataGridTextColumn.Header>
+                </DataGridTextColumn>
+                <DataGridTextColumn Binding="{Binding PopText}" Width="Auto" IsReadOnly="True">
+                    <DataGridTextColumn.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Pop" VerticalAlignment="Center" />
+                            <ContentControl Style="{DynamicResource InfoTooltipIconStyle}" Margin="5,0,0,0"
+                                            ToolTip="Village population." />
+                        </StackPanel>
+                    </DataGridTextColumn.Header>
+                </DataGridTextColumn>
+                <DataGridTemplateColumn Width="Auto">
+                    <DataGridTemplateColumn.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="NPC" VerticalAlignment="Center" />
+                            <ContentControl Style="{DynamicResource InfoTooltipIconStyle}" Margin="5,0,0,0"
+                                            ToolTip="Selects which villages NPC trade may run in. The NPC trade master toggle in Auto settings must also be on for it to run." />
+                        </StackPanel>
+                    </DataGridTemplateColumn.Header>
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <CheckBox Style="{DynamicResource ToggleSwitchBlueStyle}"
+                                      IsChecked="{Binding NpcTrade, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"
+                                      Margin="6,2" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <!-- One toggle column per automation group is generated in code-behind (BuildGroupColumns). -->
             </DataGrid.Columns>
         </DataGrid>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-            <Button Width="100" Content="Close" Click="CloseButton_Click" />
+            <Button Width="100" Content="Close" Click="CloseButton_Click" Margin="0,0,8,0" />
+            <Button Width="140" Content="Save &amp; close" Click="SaveAndCloseButton_Click"
+                    Background="{DynamicResource PrimaryButtonBrush}"
+                    BorderBrush="{DynamicResource AccentBrush}"
+                    Foreground="{DynamicResource OnAccentBrush}" />
         </StackPanel>
     </Grid>
 </Window>

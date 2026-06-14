@@ -1,21 +1,25 @@
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using TbotUltra.Desktop.Services;
 
 namespace TbotUltra.Desktop.Models;
 
-// Row for the Village settings window. Village/Pop/Coords are read-only display values. The "Auto"
-// toggle (IsEnabledForAutomation) is wired to VillageSettingsStore; the remaining flags are per-village
-// toggles that will be wired to config later. INotifyPropertyChanged so the window can persist the Auto
-// toggle the moment the user flips it.
+// Row for the Village settings window. Village/Pop are read-only display values. The "Auto" toggle
+// (IsEnabledForAutomation) and "NPC" toggle are wired to VillageSettingsStore. GroupToggles mirrors the
+// dashboard automation-loop cards per village (enabled-group set), so the user can turn groups on/off for
+// many villages at once. INotifyPropertyChanged so the window can persist each change immediately.
 public sealed class VillageSettingsRow : INotifyPropertyChanged
 {
     public string Name { get; init; } = string.Empty;
     public string PopText { get; init; } = string.Empty;
-    public string CoordsText { get; init; } = string.Empty;
 
     // Stable village identity used to persist the enabled choice. Not displayed.
     public VillageSettingsStore.VillageKeyInfo? KeyInfo { get; init; }
+
+    // Per-village automation-group toggles (one per visible dashboard card). The window subscribes to each
+    // toggle's PropertyChanged to persist the village's enabled-group set.
+    public IReadOnlyList<VillageGroupToggle> GroupToggles { get; init; } = [];
 
     private bool _isEnabledForAutomation;
     public bool IsEnabledForAutomation
@@ -33,8 +37,6 @@ public sealed class VillageSettingsRow : INotifyPropertyChanged
         }
     }
 
-    public bool HeroResources { get; set; }
-
     // NPC trade per village. Notifies so the window can persist the choice the moment it changes.
     private bool _npcTrade;
     public bool NpcTrade
@@ -51,10 +53,6 @@ public sealed class VillageSettingsRow : INotifyPropertyChanged
             OnPropertyChanged();
         }
     }
-
-    public bool BuildTroops { get; set; }
-    public bool UpgradeTroops { get; set; }
-    public bool Farming { get; set; }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

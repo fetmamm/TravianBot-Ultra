@@ -38,6 +38,10 @@ public static class BotOptionPayloadKeys
     public const string BuildingUpgradeMaxAttempts = "building_upgrade_max_attempts";
     public const string BuildingUpgradeName = "building_upgrade_name";
 
+    // Compact list of smithy troop-upgrade targets, e.g. "u21=20;u24=10" (unit/troop key = target level).
+    // Empty/absent means "no troops selected" and the task is a no-op. See SmithyUpgradePayload.
+    public const string SmithyUpgradeTargets = "smithy_upgrade_targets";
+
     public const string BuildingConstructSlotId = "building_construct_slot_id";
     public const string BuildingConstructGid = "building_construct_gid";
     public const string BuildingConstructName = "building_construct_name";

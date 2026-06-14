@@ -1114,7 +1114,7 @@
                                                                 </TextBlock>
                                                             </Border>
 
-                                                            <!-- Smithy: two upgrade slots (UI only for now; not wired to live data). -->
+                                                            <!-- Smithy: two research slots, lit from the live per-village queue ([smithy-queue]); tooltip shows the remaining time. -->
                                                             <ItemsControl Grid.Column="3" ItemsSource="{Binding SmithySlots}" VerticalAlignment="Center" Margin="4,0,0,0">
                                                                 <ItemsControl.ItemsPanel>
                                                                     <ItemsPanelTemplate>

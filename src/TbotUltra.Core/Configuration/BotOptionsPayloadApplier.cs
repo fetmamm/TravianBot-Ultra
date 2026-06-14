@@ -13,6 +13,7 @@ public static class BotOptionsPayloadApplier
         var resourceUpgradeTargetLevel = source.ResourceUpgradeTargetLevel;
         var resourceUpgradeMaxAttempts = source.ResourceUpgradeMaxAttempts;
         var resourceBuildStrategy = source.ResourceBuildStrategy;
+        var smithyUpgradeTargets = source.SmithyUpgradeTargets;
         var buildingUpgradeSlotId = source.BuildingUpgradeSlotId;
         var buildingUpgradeTargetLevel = source.BuildingUpgradeTargetLevel;
         var buildingUpgradeMaxAttempts = source.BuildingUpgradeMaxAttempts;
@@ -261,6 +262,12 @@ public static class BotOptionsPayloadApplier
                 if (key.Equals(BotOptionPayloadKeys.HeroStatPriority, StringComparison.OrdinalIgnoreCase))
                 {
                     heroStatPriority = value;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.SmithyUpgradeTargets, StringComparison.OrdinalIgnoreCase))
+                {
+                    smithyUpgradeTargets = value;
                     continue;
                 }
 
@@ -1027,6 +1034,7 @@ public static class BotOptionsPayloadApplier
             ResourceUpgradeTargetLevel = resourceUpgradeTargetLevel,
             ResourceUpgradeMaxAttempts = resourceUpgradeMaxAttempts,
             ResourceBuildStrategy = resourceBuildStrategy,
+            SmithyUpgradeTargets = smithyUpgradeTargets,
             BuildingUpgradeSlotId = buildingUpgradeSlotId,
             BuildingUpgradeTargetLevel = buildingUpgradeTargetLevel,
             BuildingUpgradeMaxAttempts = buildingUpgradeMaxAttempts,

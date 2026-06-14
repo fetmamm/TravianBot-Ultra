@@ -101,20 +101,15 @@ public partial class MainWindow
                     TryApplyInlineResourceLevelUpdateFromLog(part);
                     TryApplyInlineResourceProductionUpdateFromLog(part);
                     TryApplyPlusStatusFromLog(part);
+                    // The real Smithy research queue ("[smithy-queue]") drives the dashboard Smithy timer and
+                    // the per-village icons — NOT the task's defer wait (that is just when the task retries).
+                    TryApplySmithyQueueFromLog(part);
                     if (TryExtractQueueWaitDelay(part, out var queueWaitDelay))
                     {
                         var waitUntilUtc = DateTimeOffset.UtcNow.Add(queueWaitDelay);
                         if (waitUntilUtc > _inlineWaitUntilUtc)
                         {
                             _inlineWaitUntilUtc = waitUntilUtc;
-                        }
-
-                        // Mirror smithy-side waits into the dashboard timer collection so the
-                        // group card shows a countdown even when the wait is below the queue
-                        // threshold and the task does not formally defer.
-                        if (IsSmithyUpgradeWaitMessage(part))
-                        {
-                            PushSmithyUpgradeRemainingSeconds((int)Math.Ceiling(queueWaitDelay.TotalSeconds));
                         }
                     }
 

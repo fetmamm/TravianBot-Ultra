@@ -1,5 +1,6 @@
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Accounts;
+using TbotUltra.Core.Tasks;
 using TbotUltra.Worker.Configuration;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Infrastructure;
@@ -2042,7 +2043,16 @@ public sealed class BotTaskRunner
 
     private static async Task ExecuteUpgradeTroopsAtSmithyAsync(TaskExecutionContext context)
     {
-        var result = await context.Client.UpgradeAllTroopsAtSmithyAsync(context.CancellationToken);
+        // No selection => no-op (the user hasn't picked any troops in 'Upgrade options'). Old queued tasks
+        // carry no payload and therefore safely do nothing instead of blindly upgrading every troop.
+        var targets = SmithyUpgradePayload.Parse(context.Options.SmithyUpgradeTargets);
+        if (targets.Count == 0)
+        {
+            context.Log("Smithy: no troops selected for upgrade — configure them via 'Upgrade options'. Nothing to do.");
+            return;
+        }
+
+        var result = await context.Client.UpgradeSelectedTroopsAtSmithyAsync(targets, context.CancellationToken);
         context.Log(result);
         await RefreshBuildingsSnapshotAfterTaskAsync(context);
         ThrowIfTroopsGroupBlocked(result);
