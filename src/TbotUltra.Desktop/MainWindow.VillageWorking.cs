@@ -706,6 +706,13 @@ public partial class MainWindow
         if (_villageStatusCacheByName.TryGetValue(name, out var existing))
         {
             status = ConstructionQueueState.PreserveKnownConstructionState(status, existing);
+            status = status with
+            {
+                SmithyUpgradeStatus = status.SmithyUpgradeStatus ?? existing.SmithyUpgradeStatus,
+                BreweryCelebrationStatus = status.BreweryCelebrationStatus ?? existing.BreweryCelebrationStatus,
+                FarmLists = status.FarmLists ?? existing.FarmLists,
+                HeroStatus = status.HeroStatus ?? existing.HeroStatus,
+            };
 
             if ((status.Buildings is null || status.Buildings.Count == 0) && existing.Buildings is { Count: > 0 })
             {
@@ -734,6 +741,18 @@ public partial class MainWindow
         {
             _ = Dispatcher.BeginInvoke(RefreshVillageActivityIndicatorsOnDashboard);
         }
+    }
+
+    private void UpdateCachedTimerStatus(string? villageName, Func<VillageStatus, VillageStatus> update)
+    {
+        var name = NormalizeVillageName(villageName);
+        if (name is null || !_villageStatusCacheByName.TryGetValue(name, out var existing))
+        {
+            return;
+        }
+
+        _villageStatusCacheByName[name] = update(existing);
+        _villageCacheStore.Save(_villageStatusCacheByName);
     }
 
     // Loads the per-village buildings/resource-field cache persisted for the active account so a village
@@ -865,15 +884,46 @@ public partial class MainWindow
             return;
         }
 
-        foreach (var item in items)
+        var itemList = items as IList<VillageSelectionItem> ?? items.ToList();
+
+        // A name is NOT a unique identity: two freshly settled villages can share the same name
+        // (e.g. "New village") until renamed. When a name is shared, only the coordinates (key) can
+        // tell them apart — so for duplicated names we must ignore the name match and require a key
+        // match. Coordinates are unique per village, so this never highlights more than one row.
+        var duplicateNames = itemList
+            .Where(i => !string.IsNullOrWhiteSpace(i.Name))
+            .GroupBy(i => i.Name!.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // Only ONE village may be active at a time. Pick a single best match: name+key beats name beats
+        // key, then clear the rest, so a shared key (or shared name) can never light up multiple rows.
+        VillageSelectionItem? best = null;
+        var bestScore = 0;
+        foreach (var item in itemList)
         {
             // Name is the primary match (robust to key/url differences between reads and the list);
-            // key is a secondary match.
+            // key is a secondary match. The name match is suppressed when the name is ambiguous.
+            var name = item.Name?.Trim();
             var nameMatch = !string.IsNullOrWhiteSpace(_activeWorkingVillageName)
-                && string.Equals(item.Name?.Trim(), _activeWorkingVillageName.Trim(), StringComparison.OrdinalIgnoreCase);
+                && !string.IsNullOrWhiteSpace(name)
+                && !duplicateNames.Contains(name!)
+                && string.Equals(name, _activeWorkingVillageName.Trim(), StringComparison.OrdinalIgnoreCase);
             var keyMatch = !string.IsNullOrWhiteSpace(_activeWorkingVillageKey)
                 && string.Equals(GetVillageKey(item), _activeWorkingVillageKey, StringComparison.OrdinalIgnoreCase);
-            item.IsActiveWorkingVillage = nameMatch || keyMatch;
+
+            var score = (nameMatch ? 2 : 0) + (keyMatch ? 1 : 0);
+            if (score > bestScore)
+            {
+                bestScore = score;
+                best = item;
+            }
+        }
+
+        foreach (var item in itemList)
+        {
+            item.IsActiveWorkingVillage = ReferenceEquals(item, best);
         }
     }
 
@@ -933,6 +983,22 @@ public partial class MainWindow
             _resourcesViewModel.ApplyStorageForecasts(cached);
             _lastBuildingStatus = cached;
             PopulateBuildingsTab(cached);
+            _troopTrainingViewModel.ApplyStatus(cached, cached.TroopTrainingQueues);
+            if (cached.SmithyUpgradeStatus is not null)
+            {
+                ApplySmithyUpgradeStatus(cached.SmithyUpgradeStatus);
+            }
+
+            if (cached.BreweryCelebrationStatus is not null)
+            {
+                _troopTrainingViewModel.ApplyBreweryCelebrationStatus(cached.BreweryCelebrationStatus);
+            }
+
+            if (cached.FarmLists is { Count: > 0 })
+            {
+                _ = ApplyFarmListOverviewToUiAsync(cached.FarmLists);
+            }
+
             BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"selected village '{selected.Name}'");
         }
         else

@@ -66,12 +66,41 @@ public sealed record BuildQueueItem(string Text, string? TimeLeft);
 
 public enum ConstructionKind { Resource, Building, Unknown }
 
+public sealed record TimerSnapshot(
+    int RemainingSeconds,
+    DateTimeOffset ReadAtUtc,
+    DateTimeOffset FinishUtc,
+    bool FromServerTime)
+{
+    public static TimerSnapshot FromRemaining(int remainingSeconds, DateTimeOffset? serverTimeUtc = null)
+    {
+        var normalizedSeconds = Math.Max(0, remainingSeconds);
+        var readAtUtc = serverTimeUtc?.ToUniversalTime() ?? DateTimeOffset.UtcNow;
+        return new TimerSnapshot(
+            normalizedSeconds,
+            readAtUtc,
+            readAtUtc.AddSeconds(normalizedSeconds),
+            serverTimeUtc.HasValue);
+    }
+
+    public int RemainingSecondsAt(DateTimeOffset now)
+    {
+        return Math.Max(0, (int)Math.Ceiling((FinishUtc - now.ToUniversalTime()).TotalSeconds));
+    }
+
+    public bool IsFinishedAt(DateTimeOffset now)
+    {
+        return FinishUtc <= now.ToUniversalTime();
+    }
+}
+
 public sealed record ActiveConstruction(
     ConstructionKind Kind,
     string Name,
     int? Level,
     int? TimeLeftSeconds,
-    string? FinishAtText);
+    string? FinishAtText,
+    TimerSnapshot? Finish = null);
 
 public sealed record ConstructionSlotStatus(
     IReadOnlyList<ActiveConstruction> Active,
@@ -100,7 +129,10 @@ public sealed record HeroStatus(
     int? SecondsUntilAdventureReady = null,
     int? SecondsUntilReturn = null,
     int? ReviveRemainingSeconds = null,
-    int UnassignedPoints = 0);
+    int UnassignedPoints = 0,
+    TimerSnapshot? AdventureReadyFinish = null,
+    TimerSnapshot? ReturnFinish = null,
+    TimerSnapshot? ReviveFinish = null);
 
 public sealed record HeroAttributeSnapshot(
     bool LevelUpAvailable = false,
@@ -143,7 +175,8 @@ public sealed record TroopTrainingQueueStatus(
     int? SlotId,
     IReadOnlyList<BuildQueueItem> QueueItems,
     int? RemainingSeconds,
-    string RemainingText);
+    string RemainingText,
+    TimerSnapshot? Finish = null);
 
 public sealed record BreweryCelebrationStatus(
     bool IsAvailableForTribe,
@@ -153,7 +186,8 @@ public sealed record BreweryCelebrationStatus(
     bool CelebrationRunning,
     int? RemainingSeconds,
     string RemainingText,
-    string StatusText);
+    string StatusText,
+    TimerSnapshot? Finish = null);
 
 public sealed record SmithyUpgradeStatus(
     bool SmithyExists,
@@ -162,7 +196,8 @@ public sealed record SmithyUpgradeStatus(
     int? RemainingSeconds,
     IReadOnlyList<int> ActiveUpgradeRemainingSeconds,
     string RemainingText,
-    string StatusText);
+    string StatusText,
+    IReadOnlyList<TimerSnapshot>? ActiveUpgradeFinishes = null);
 
 public sealed record VillageStatus(
     string ActiveVillage,
@@ -188,7 +223,12 @@ public sealed record VillageStatus(
     IReadOnlyList<ResourceStorageForecast>? ResourceStorageForecasts = null,
     IReadOnlyList<TroopTrainingQueueStatus>? TroopTrainingQueues = null,
     int? AdventureCount = null,
-    IReadOnlyList<ActiveConstruction>? ActiveConstructions = null);
+    IReadOnlyList<ActiveConstruction>? ActiveConstructions = null,
+    TimerSnapshot? BuildQueueFinish = null,
+    SmithyUpgradeStatus? SmithyUpgradeStatus = null,
+    BreweryCelebrationStatus? BreweryCelebrationStatus = null,
+    IReadOnlyList<FarmListOverview>? FarmLists = null,
+    HeroStatus? HeroStatus = null);
 
 public sealed record InboxStatus(
     int UnreadMessages = 0,
@@ -209,7 +249,8 @@ public sealed record FarmListOverview(
     int? RemainingSeconds,
     string? ListId = null,
     int? Capacity = null,
-    IReadOnlyList<string>? FarmCoordinates = null);
+    IReadOnlyList<string>? FarmCoordinates = null,
+    TimerSnapshot? Finish = null);
 
 public sealed record FarmCoordinate(int X, int Y);
 

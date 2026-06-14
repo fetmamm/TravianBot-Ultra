@@ -8,6 +8,7 @@ using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Worker;
 using TbotUltra.Worker.Domain;
+using TbotUltra.Worker.Services;
 
 namespace TbotUltra.Desktop;
 
@@ -345,9 +346,9 @@ public partial class MainWindow
             // A page caught mid-navigation reports login state 'unknown' and self-heals on the next
             // read. It is never user-actionable, so log it as a verbose (non-alarm) line instead of a
             // red FAIL alarm. Real problems (captcha/manual step/logged out) keep alarming.
-            if (IsTransientPageSettlingFailure(ex))
+            if (IsTransientPageReadFailure(ex))
             {
-                AppendLog($"[resource-refresh:verbose] transient page-settling read skipped ({ex.Message})");
+                AppendLog($"[resource-refresh:verbose] transient page read skipped ({ex.Message})");
             }
             else
             {
@@ -362,12 +363,12 @@ public partial class MainWindow
         }
     }
 
-    // True for the benign "page still loading" read race: the page was probed between navigations so
-    // login state could not be classified yet. Distinct from captcha/manual-step/logged-out, which
-    // remain alarms.
-    private static bool IsTransientPageSettlingFailure(Exception ex)
+    // Benign read failures that self-heal on the next operation. Captcha, manual-step and logged-out
+    // remain alarms; a crashed target is discarded by BotTaskRunner before this exception returns.
+    private static bool IsTransientPageReadFailure(Exception ex)
     {
-        return ex.Message.Contains("page state is 'unknown'", StringComparison.OrdinalIgnoreCase);
+        return ex.Message.Contains("page state is 'unknown'", StringComparison.OrdinalIgnoreCase)
+            || BrowserFailureClassifier.IsTargetCrash(ex);
     }
 
     private bool ShouldRunBackgroundResourceSnapshotRefresh()
@@ -406,9 +407,9 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            if (IsTransientPageSettlingFailure(ex))
+            if (IsTransientPageReadFailure(ex))
             {
-                AppendLog($"[resource-refresh:verbose] background refresh skipped — page still settling ({ex.Message})");
+                AppendLog($"[resource-refresh:verbose] background refresh skipped after transient page failure ({ex.Message})");
             }
             else
             {

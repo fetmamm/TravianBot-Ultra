@@ -238,18 +238,11 @@ public sealed partial class TravianClient
 
                 var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: false);
 
-                // Defense-in-depth: a full build queue (not a resource shortage) can also leave us with
-                // no upgrade button while the page still mentions resources. Never spend hero/NPC
-                // resources in that case — re-check the queue from dorf2 (source of truth) and defer if no
-                // slot is free. CheckQueueOrDefer navigates to dorf2, so restore the build page afterwards.
-                var queueDefer = await CheckQueueOrDeferAsync(ConstructionKind.Building, slotId, upgrades, cancellationToken);
-                if (queueDefer is not null)
-                {
-                    return queueDefer;
-                }
-                await EnsureExpectedBuildSlotPageAsync(slotId, "resource recheck after queue gate", cancellationToken);
-
-                if (!heroTransferAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
+                // The current build page already has the exact resource block and hero-transfer control.
+                // Use it before any dorf2 queue probe so a normal top-up does not navigate away and back.
+                if (!heroTransferAttempted
+                    && actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources
+                    && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
                 {
                     heroTransferAttempted = true;
                     if (await TryHeroResourceTransferForConstructionAsync($"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}", cancellationToken))
@@ -266,6 +259,19 @@ public sealed partial class TravianClient
                             "after hero transfer reload");
                         clicked = await ClickUpgradeToLevelButtonAsync(slotId, nextLevel, cancellationToken);
                     }
+                }
+
+                if (!clicked)
+                {
+                    // Defense-in-depth for ambiguous/failed transfer states: verify queue capacity before
+                    // NPC trade or defer classification. This probe may navigate to dorf2, so restore the
+                    // slot page afterwards for the remaining build-page reads.
+                    var queueDefer = await CheckQueueOrDeferAsync(ConstructionKind.Building, slotId, upgrades, cancellationToken);
+                    if (queueDefer is not null)
+                    {
+                        return queueDefer;
+                    }
+                    await EnsureExpectedBuildSlotPageAsync(slotId, "resource recheck after queue gate", cancellationToken);
                 }
 
                 if (!clicked && !constructionNpcTradeAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
@@ -965,18 +971,11 @@ public sealed partial class TravianClient
 
                 var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: false);
 
-                // Defense-in-depth: a full build queue (not a resource shortage) can also leave us with
-                // no upgrade button while the page still mentions resources. Never spend hero/NPC
-                // resources in that case — re-check the queue from dorf2 (source of truth) and defer if no
-                // slot is free. CheckQueueOrDefer navigates to dorf2, so restore the build page afterwards.
-                var queueDefer = await CheckQueueOrDeferAsync(ConstructionKind.Building, slotId, upgrades, cancellationToken);
-                if (queueDefer is not null)
-                {
-                    return queueDefer;
-                }
-                await EnsureExpectedBuildSlotPageAsync(slotId, "resource recheck after queue gate", cancellationToken);
-
-                if (!heroTransferAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
+                // The current build page already has the exact resource block and hero-transfer control.
+                // Use it before any dorf2 queue probe so a normal top-up does not navigate away and back.
+                if (!heroTransferAttempted
+                    && actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources
+                    && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
                 {
                     heroTransferAttempted = true;
                     if (await TryHeroResourceTransferForConstructionAsync($"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}", cancellationToken))
@@ -993,6 +992,19 @@ public sealed partial class TravianClient
                             "after hero transfer reload");
                         clicked = await ClickUpgradeToLevelButtonAsync(slotId, nextLevel, cancellationToken);
                     }
+                }
+
+                if (!clicked)
+                {
+                    // Defense-in-depth for ambiguous/failed transfer states: verify queue capacity before
+                    // NPC trade or defer classification. This probe may navigate to dorf2, so restore the
+                    // slot page afterwards for the remaining build-page reads.
+                    var queueDefer = await CheckQueueOrDeferAsync(ConstructionKind.Building, slotId, upgrades, cancellationToken);
+                    if (queueDefer is not null)
+                    {
+                        return queueDefer;
+                    }
+                    await EnsureExpectedBuildSlotPageAsync(slotId, "resource recheck after queue gate", cancellationToken);
                 }
 
                 if (!clicked && !constructionNpcTradeAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
@@ -2135,7 +2147,8 @@ public sealed partial class TravianClient
             RemainingText: remainingSeconds is > 0 ? TravianParsing.FormatDuration(remainingSeconds.Value) : "Ready",
             StatusText: activeTimers.Count > 0
                 ? $"Smithy upgrade{(activeTimers.Count == 1 ? string.Empty : "s")} active."
-                : "Ready.");
+                : "Ready.",
+            ActiveUpgradeFinishes: activeTimers.Select(value => TimerSnapshot.FromRemaining(value)).ToList());
     }
 
     public async Task<string> ReadSmithyQueueFromCurrentPageTestAsync(CancellationToken cancellationToken = default)
@@ -3144,7 +3157,10 @@ public sealed partial class TravianClient
 
         var result = raw
             .Where(i => !string.IsNullOrWhiteSpace(i.Name))
-            .Select(i => new ActiveConstruction(
+            .Select(i =>
+            {
+                var remainingSeconds = i.TimeLeftSeconds ?? TravianParsing.ParseDurationToSeconds(i.FinishAtText);
+                return new ActiveConstruction(
                 Kind: i.Kind switch
                 {
                     "Resource" => ConstructionKind.Resource,
@@ -3153,8 +3169,10 @@ public sealed partial class TravianClient
                 },
                 Name: i.Name!,
                 Level: i.Level,
-                TimeLeftSeconds: i.TimeLeftSeconds ?? TravianParsing.ParseDurationToSeconds(i.FinishAtText),
-                FinishAtText: i.FinishAtText))
+                TimeLeftSeconds: remainingSeconds,
+                FinishAtText: i.FinishAtText,
+                Finish: remainingSeconds is > 0 ? TimerSnapshot.FromRemaining(remainingSeconds.Value) : null);
+            })
             .ToList();
 
         _cachedActiveConstructions = result;

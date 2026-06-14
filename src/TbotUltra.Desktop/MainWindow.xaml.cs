@@ -1293,8 +1293,20 @@ public partial class MainWindow : Window
         _buildQueueRemainingSeconds = status.BuildQueueRemainingSeconds ?? -1;
         _buildQueueReachedZeroPendingCompletion = false;
         ApplyTroopsAvailabilityFromVillageStatus(status);
-        _troopTrainingViewModel.ApplyStatus(status, _lastBuildingStatus?.TroopTrainingQueues);
-        ApplyLocalBreweryCelebrationStatus(status);
+        _troopTrainingViewModel.ApplyStatus(status, status.TroopTrainingQueues ?? _lastBuildingStatus?.TroopTrainingQueues);
+        if (status.SmithyUpgradeStatus is not null)
+        {
+            ApplySmithyUpgradeStatus(status.SmithyUpgradeStatus);
+        }
+
+        if (status.BreweryCelebrationStatus is not null)
+        {
+            _troopTrainingViewModel.ApplyBreweryCelebrationStatus(status.BreweryCelebrationStatus);
+        }
+        else
+        {
+            ApplyLocalBreweryCelebrationStatus(status);
+        }
         UpdateBuildQueueStatusText();
         UpdateAutomationLoopRunningIndicators();
         RefreshVillagePicker(status);

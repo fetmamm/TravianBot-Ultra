@@ -392,7 +392,11 @@ public partial class MainWindow
             {
                 var options = ApplySelectedVillageToOptions(LoadBotOptions());
                 var smithyStatus = await _botService.ReadSmithyUpgradeStatusAsync(options, AppendLog, knownBuildings, cancellationToken);
-                await Dispatcher.InvokeAsync(() => ApplySmithyUpgradeStatus(smithyStatus));
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    ApplySmithyUpgradeStatus(smithyStatus);
+                    UpdateCachedTimerStatus(GetSelectedVillageName(), status => status with { SmithyUpgradeStatus = smithyStatus });
+                });
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -459,6 +463,7 @@ public partial class MainWindow
                 }
 
                 _troopTrainingViewModel.ApplyBreweryCelebrationStatus(celebrationStatus);
+                UpdateCachedTimerStatus(status.ActiveVillage, cached => cached with { BreweryCelebrationStatus = celebrationStatus });
                 UpdateAutomationLoopRunningIndicators();
             });
         }
@@ -740,6 +745,11 @@ public partial class MainWindow
             {
                 _lastBuildingStatus = effectiveStatus;
                 _troopTrainingViewModel.ApplyStatus(effectiveStatus, queueStatuses);
+                UpdateCachedTimerStatus(effectiveStatus.ActiveVillage, cached => cached with
+                {
+                    TroopTrainingQueues = queueStatuses,
+                    SmithyUpgradeStatus = smithyStatus,
+                });
             }
             else
             {

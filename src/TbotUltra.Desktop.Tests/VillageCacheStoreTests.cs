@@ -64,6 +64,66 @@ public sealed class VillageCacheStoreTests : IDisposable
     }
 
     [Fact]
+    public void SaveThenLoad_RecomputesFutureTimersFromAbsoluteFinish()
+    {
+        var finish = TimerSnapshot.FromRemaining(120);
+        var status = MakeStatus("GREZ") with
+        {
+            ActiveConstructions =
+            [
+                new ActiveConstruction(ConstructionKind.Building, "Warehouse", 4, 120, "00:02:00", finish),
+            ],
+            BuildQueueFinish = finish,
+            TroopTrainingQueues =
+            [
+                new TroopTrainingQueueStatus(
+                    TbotUltra.Core.Travian.TroopTrainingBuildingType.Barracks,
+                    "Barracks",
+                    true,
+                    29,
+                    [],
+                    120,
+                    "00:02:00",
+                    finish),
+            ],
+        };
+
+        CreateStore().Save(new Dictionary<string, VillageStatus> { ["GREZ"] = status });
+        var loaded = CreateStore().Load()["GREZ"];
+
+        Assert.Single(loaded.ActiveConstructions!);
+        Assert.InRange(loaded.ActiveConstructions![0].TimeLeftSeconds!.Value, 1, 120);
+        Assert.InRange(loaded.BuildQueueRemainingSeconds!.Value, 1, 120);
+        Assert.Single(loaded.TroopTrainingQueues!);
+        Assert.InRange(loaded.TroopTrainingQueues![0].RemainingSeconds!.Value, 1, 120);
+    }
+
+    [Fact]
+    public void Load_ClearsExpiredTimersAndLogsStaleState()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var expired = new TimerSnapshot(30, now.AddMinutes(-2), now.AddMinutes(-1), false);
+        var logs = new List<string>();
+        var status = MakeStatus("GREZ") with
+        {
+            ActiveConstructions =
+            [
+                new ActiveConstruction(ConstructionKind.Building, "Warehouse", 4, 30, "00:00:30", expired),
+            ],
+            BuildQueueFinish = expired,
+        };
+
+        new VillageCacheStore(_root, () => _activeAccount, logs.Add)
+            .Save(new Dictionary<string, VillageStatus> { ["GREZ"] = status });
+        var loaded = new VillageCacheStore(_root, () => _activeAccount, logs.Add).Load()["GREZ"];
+
+        Assert.Empty(loaded.ActiveConstructions!);
+        Assert.Null(loaded.BuildQueueRemainingSeconds);
+        Assert.False(loaded.IsBuildingInProgress);
+        Assert.Contains(logs, line => line.Contains("stale timer", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Load_NoFile_ReturnsEmpty()
     {
         Assert.Empty(CreateStore().Load());

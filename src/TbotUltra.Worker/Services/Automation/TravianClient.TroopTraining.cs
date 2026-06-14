@@ -320,7 +320,8 @@ public sealed partial class TravianClient
             building.SlotId,
             queueItems,
             remainingSeconds > 0 ? remainingSeconds : null,
-            remainingSeconds > 0 ? TravianParsing.FormatDuration(remainingSeconds) : "Ready");
+            remainingSeconds > 0 ? TravianParsing.FormatDuration(remainingSeconds) : "Ready",
+            remainingSeconds > 0 ? TimerSnapshot.FromRemaining(remainingSeconds) : null);
     }
 
     private async Task<TroopTrainingAttemptOutcome> TryTrainTroopsAtBuildingAsync(

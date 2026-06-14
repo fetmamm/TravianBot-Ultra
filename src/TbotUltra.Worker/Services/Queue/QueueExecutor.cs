@@ -55,7 +55,15 @@ public sealed class QueueExecutor
         }
         catch (Exception ex)
         {
-            log($"[queue] FAIL id={item.Id} task='{item.TaskName}' after {sw.Elapsed.TotalSeconds:F1}s: {ex.GetType().Name}: {ex.Message}");
+            if (BrowserFailureClassifier.IsTargetCrash(ex))
+            {
+                log($"[queue] DEFER id={item.Id} task='{item.TaskName}' after {sw.Elapsed.TotalSeconds:F1}s — Chromium target crashed");
+            }
+            else
+            {
+                log($"[queue] FAIL id={item.Id} task='{item.TaskName}' after {sw.Elapsed.TotalSeconds:F1}s: {ex.GetType().Name}: {ex.Message}");
+            }
+
             throw;
         }
     }

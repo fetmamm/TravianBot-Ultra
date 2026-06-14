@@ -84,7 +84,8 @@ public sealed partial class TravianClient
             pageStatus.CelebrationRunning,
             remainingSeconds,
             remainingSeconds is > 0 ? TravianParsing.FormatDuration(remainingSeconds.Value) : (pageStatus.CanStart ? "Ready" : "N/A"),
-            pageStatus.StatusText);
+            pageStatus.StatusText,
+            remainingSeconds is > 0 ? TimerSnapshot.FromRemaining(remainingSeconds.Value) : null);
     }
 
     private async Task<int?> TryProbeBrewerySlotOnDorf2Async(CancellationToken cancellationToken)

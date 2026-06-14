@@ -97,6 +97,8 @@ public partial class MainWindow
 
         var lists = await _botService.ReadFarmListsOverviewAsync(options, AppendLog, cancellationToken) ?? [];
         await ApplyFarmListOverviewToUiAsync(lists);
+        await Dispatcher.InvokeAsync(() =>
+            UpdateCachedTimerStatus(GetSelectedVillageName(), status => status with { FarmLists = lists }));
         await SaveFarmListsSnapshotAsync(lists, cancellationToken);
         return true;
     }

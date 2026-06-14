@@ -83,7 +83,8 @@ public sealed partial class TravianClient
             WarehouseCapacity: capacities.Warehouse,
             GranaryCapacity: capacities.Granary,
             ResourceStorageForecasts: forecasts,
-            ActiveConstructions: activeConstructions);
+            ActiveConstructions: activeConstructions,
+            BuildQueueFinish: remaining is > 0 ? TimerSnapshot.FromRemaining(remaining.Value) : null);
     }
 
     public async Task<IReadOnlyList<VillageStatus>> ReadAllVillageResourceStatusesAsync(CancellationToken cancellationToken = default)
@@ -743,7 +744,8 @@ public sealed partial class TravianClient
             GranaryCapacity: capacities.Granary,
             ResourceStorageForecasts: forecasts,
             AdventureCount: adventureCount,
-            ActiveConstructions: activeConstructions);
+            ActiveConstructions: activeConstructions,
+            BuildQueueFinish: remaining is > 0 ? TimerSnapshot.FromRemaining(remaining.Value) : null);
     }
 
     private async Task<(

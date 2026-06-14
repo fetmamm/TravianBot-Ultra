@@ -70,7 +70,7 @@ public sealed class VillageCacheStore
                 {
                     if (!string.IsNullOrWhiteSpace(pair.Key) && pair.Value is not null)
                     {
-                        result[pair.Key] = pair.Value;
+                        result[pair.Key] = ReconcileTimers(pair.Key, pair.Value, DateTimeOffset.UtcNow);
                     }
                 }
             }
@@ -118,10 +118,50 @@ public sealed class VillageCacheStore
         }
     }
 
-    // Keep only the durable structure; reset values that change constantly so the file stays small and
-    // never shows misleading stale amounts (they refresh live after launch).
+    // Keep durable structure and absolute timer finishes. Tick-down values are rebuilt from FinishUtc
+    // on load so a restart or machine sleep cannot freeze an old countdown.
     private static VillageStatus StripVolatile(VillageStatus status)
     {
+        var activeConstructions = status.ActiveConstructions?
+            .Where(item => item.Finish is not null)
+            .Select(item => item with { TimeLeftSeconds = null })
+            .ToList();
+        var troopTrainingQueues = status.TroopTrainingQueues?
+            .Where(item => item.Finish is not null)
+            .Select(item => item with
+            {
+                QueueItems = Array.Empty<BuildQueueItem>(),
+                RemainingSeconds = null,
+                RemainingText = string.Empty,
+            })
+            .ToList();
+        var smithyStatus = status.SmithyUpgradeStatus is null
+            ? null
+            : status.SmithyUpgradeStatus with
+            {
+                RemainingSeconds = null,
+                ActiveUpgradeRemainingSeconds = Array.Empty<int>(),
+                RemainingText = string.Empty,
+            };
+        var breweryStatus = status.BreweryCelebrationStatus is null
+            ? null
+            : status.BreweryCelebrationStatus with
+            {
+                RemainingSeconds = null,
+                RemainingText = string.Empty,
+            };
+        var farmLists = status.FarmLists?
+            .Select(item => item with { RemainingSeconds = null })
+            .ToList();
+        var heroStatus = status.HeroStatus is null
+            ? null
+            : status.HeroStatus with
+            {
+                SecondsUntilAdventureReady = null,
+                SecondsUntilReturn = null,
+                ReviveRemainingSeconds = null,
+            };
+
         // Keep warehouse/granary capacity + the storage forecasts so storage is remembered per village
         // across restarts (current amounts are stale until the first live refresh, which is fine).
         return status with
@@ -137,10 +177,204 @@ public sealed class VillageCacheStore
             ServerTimeUtc = null,
             UnreadMessages = 0,
             UnreadReports = 0,
-            TroopTrainingQueues = null,
+            TroopTrainingQueues = troopTrainingQueues,
             AdventureCount = null,
-            ActiveConstructions = null,
+            ActiveConstructions = activeConstructions,
+            SmithyUpgradeStatus = smithyStatus,
+            BreweryCelebrationStatus = breweryStatus,
+            FarmLists = farmLists,
+            HeroStatus = heroStatus,
         };
+    }
+
+    private VillageStatus ReconcileTimers(string villageName, VillageStatus status, DateTimeOffset now)
+    {
+        var staleCount = 0;
+
+        var activeConstructions = (status.ActiveConstructions ?? [])
+            .Where(item =>
+            {
+                var active = item.Finish is not null && !item.Finish.IsFinishedAt(now);
+                if (!active && item.Finish is not null)
+                {
+                    staleCount++;
+                }
+
+                return active;
+            })
+            .Select(item => item with { TimeLeftSeconds = item.Finish!.RemainingSecondsAt(now) })
+            .ToList();
+
+        var troopTrainingQueues = (status.TroopTrainingQueues ?? [])
+            .Where(item =>
+            {
+                var active = item.Finish is not null && !item.Finish.IsFinishedAt(now);
+                if (!active && item.Finish is not null)
+                {
+                    staleCount++;
+                }
+
+                return active;
+            })
+            .Select(item =>
+            {
+                var remaining = item.Finish!.RemainingSecondsAt(now);
+                return item with
+                {
+                    RemainingSeconds = remaining,
+                    RemainingText = FormatDuration(remaining),
+                };
+            })
+            .ToList();
+
+        var smithyFinishes = (status.SmithyUpgradeStatus?.ActiveUpgradeFinishes ?? [])
+            .Where(finish =>
+            {
+                var active = !finish.IsFinishedAt(now);
+                if (!active)
+                {
+                    staleCount++;
+                }
+
+                return active;
+            })
+            .ToList();
+        var smithyRemaining = smithyFinishes.Select(finish => finish.RemainingSecondsAt(now)).OrderBy(value => value).ToList();
+        var smithyStatus = status.SmithyUpgradeStatus is null
+            ? null
+            : status.SmithyUpgradeStatus with
+            {
+                ActiveUpgradeCount = smithyRemaining.Count,
+                RemainingSeconds = smithyRemaining.FirstOrDefault() is var first && first > 0 ? first : null,
+                ActiveUpgradeRemainingSeconds = smithyRemaining,
+                RemainingText = smithyRemaining.Count > 0 ? FormatDuration(smithyRemaining[0]) : "Ready",
+                ActiveUpgradeFinishes = smithyFinishes,
+            };
+
+        var breweryStatus = ReconcileBrewery(status.BreweryCelebrationStatus, now, ref staleCount);
+        var farmLists = status.FarmLists?
+            .Select(item =>
+            {
+                if (item.Finish is null)
+                {
+                    return item with { RemainingSeconds = null };
+                }
+
+                if (item.Finish.IsFinishedAt(now))
+                {
+                    staleCount++;
+                    return item with { RemainingSeconds = null, Finish = null };
+                }
+
+                return item with { RemainingSeconds = item.Finish.RemainingSecondsAt(now) };
+            })
+            .ToList();
+        var heroStatus = ReconcileHero(status.HeroStatus, now, ref staleCount);
+
+        var buildRemaining = activeConstructions
+            .Where(item => item.TimeLeftSeconds is > 0)
+            .Select(item => item.TimeLeftSeconds!.Value)
+            .DefaultIfEmpty(0)
+            .Min();
+        if (activeConstructions.Count == 0 && status.BuildQueueFinish is not null)
+        {
+            if (status.BuildQueueFinish.IsFinishedAt(now))
+            {
+                staleCount++;
+            }
+            else
+            {
+                buildRemaining = status.BuildQueueFinish.RemainingSecondsAt(now);
+            }
+        }
+
+        if (staleCount > 0)
+        {
+            _log?.Invoke($"[village-cache] cleared {staleCount} stale timer(s) for '{villageName}'; live scan will confirm current state.");
+        }
+
+        return status with
+        {
+            IsBuildingInProgress = activeConstructions.Count > 0,
+            ActiveBuildCount = activeConstructions.Count,
+            BuildQueueRemainingSeconds = buildRemaining > 0 ? buildRemaining : null,
+            BuildQueueRemainingText = buildRemaining > 0 ? FormatDuration(buildRemaining) : string.Empty,
+            BuildQueueFinish = buildRemaining > 0
+                ? status.BuildQueueFinish ?? activeConstructions.OrderBy(item => item.TimeLeftSeconds).FirstOrDefault()?.Finish
+                : null,
+            ActiveConstructions = activeConstructions,
+            TroopTrainingQueues = troopTrainingQueues,
+            SmithyUpgradeStatus = smithyStatus,
+            BreweryCelebrationStatus = breweryStatus,
+            FarmLists = farmLists,
+            HeroStatus = heroStatus,
+        };
+    }
+
+    private static BreweryCelebrationStatus? ReconcileBrewery(
+        BreweryCelebrationStatus? status,
+        DateTimeOffset now,
+        ref int staleCount)
+    {
+        if (status?.Finish is null)
+        {
+            return status;
+        }
+
+        if (status.Finish.IsFinishedAt(now))
+        {
+            staleCount++;
+            return status with
+            {
+                CelebrationRunning = false,
+                RemainingSeconds = null,
+                RemainingText = "Ready",
+                Finish = null,
+            };
+        }
+
+        var remaining = status.Finish.RemainingSecondsAt(now);
+        return status with { RemainingSeconds = remaining, RemainingText = FormatDuration(remaining) };
+    }
+
+    private static HeroStatus? ReconcileHero(HeroStatus? status, DateTimeOffset now, ref int staleCount)
+    {
+        if (status is null)
+        {
+            return null;
+        }
+
+        var adventure = ReconcileFinish(status.AdventureReadyFinish, now, ref staleCount);
+        var heroReturn = ReconcileFinish(status.ReturnFinish, now, ref staleCount);
+        var revive = ReconcileFinish(status.ReviveFinish, now, ref staleCount);
+        return status with
+        {
+            SecondsUntilAdventureReady = adventure?.RemainingSecondsAt(now),
+            SecondsUntilReturn = heroReturn?.RemainingSecondsAt(now),
+            ReviveRemainingSeconds = revive?.RemainingSecondsAt(now),
+            AdventureReadyFinish = adventure,
+            ReturnFinish = heroReturn,
+            ReviveFinish = revive,
+        };
+    }
+
+    private static TimerSnapshot? ReconcileFinish(TimerSnapshot? finish, DateTimeOffset now, ref int staleCount)
+    {
+        if (finish is null || !finish.IsFinishedAt(now))
+        {
+            return finish;
+        }
+
+        staleCount++;
+        return null;
+    }
+
+    private static string FormatDuration(int seconds)
+    {
+        var duration = TimeSpan.FromSeconds(Math.Max(0, seconds));
+        return duration.TotalDays >= 1
+            ? $"{(int)duration.TotalDays}:{duration.Hours:00}:{duration.Minutes:00}:{duration.Seconds:00}"
+            : $"{(int)duration.TotalHours:00}:{duration.Minutes:00}:{duration.Seconds:00}";
     }
 
     private string GetActiveAccountName()

@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Domain;
+using TbotUltra.Worker.Services;
 
 namespace TbotUltra.Desktop;
 
@@ -164,6 +165,18 @@ public partial class MainWindow
         Stopwatch timer,
         QueueExecutionMode mode)
     {
+        if (BrowserFailureClassifier.IsTargetCrash(ex))
+        {
+            var retryDelay = TimeSpan.FromSeconds(15);
+            if (_botService.MarkQueueItemDeferred(item.Id, retryDelay))
+            {
+                AppendLog(
+                    $"{logPrefix} DEFER {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
+                    $"browser target crashed; fresh session retry in {retryDelay.TotalSeconds:F0}s");
+                return true;
+            }
+        }
+
         if (await TryHandleTroopsBlockedExecutionAsync(item, ex, logPrefix))
         {
             return true;

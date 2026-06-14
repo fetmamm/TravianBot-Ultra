@@ -156,6 +156,12 @@ public partial class MainWindow
             ActiveBuildCount = 0,
             BuildQueueRemainingSeconds = null,
             BuildQueueRemainingText = string.Empty,
+            BuildQueueFinish = null,
+            TroopTrainingQueues = null,
+            SmithyUpgradeStatus = null,
+            BreweryCelebrationStatus = null,
+            FarmLists = null,
+            HeroStatus = null,
             ActiveConstructions = [],
         };
     }

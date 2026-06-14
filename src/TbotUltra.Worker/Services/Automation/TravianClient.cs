@@ -1599,6 +1599,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         // parentheses. We are on dorf1/dorf2 after the reads above, both of which carry the list,
         // so no extra navigation is needed.
         var activeConstructions = await ReadActiveConstructionsAsync(cancellationToken, allowNavigationToBuildings: false);
+        var heroStatus = await ReadHeroStatusAsync(cancellationToken);
         var activeBuildCount = ConstructionSlots.ActiveBuildCount(buildQueue, activeConstructions);
         if (buildQueue.Count != activeConstructions.Count)
         {
@@ -1630,7 +1631,9 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             WarehouseCapacity: capacities.Warehouse,
             GranaryCapacity: capacities.Granary,
             ResourceStorageForecasts: forecasts,
-            ActiveConstructions: activeConstructions);
+            ActiveConstructions: activeConstructions,
+            BuildQueueFinish: remaining is > 0 ? TimerSnapshot.FromRemaining(remaining.Value) : null,
+            HeroStatus: heroStatus);
     }
 
     private async Task GotoAsync(string pathOrUrl, CancellationToken cancellationToken)
@@ -3221,8 +3224,6 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                         CropFields: v.CropFields);
                 })
                 .OrderByDescending(v => v.IsCapital == true)
-                .ThenByDescending(v => v.Population ?? -1)
-                .ThenBy(v => v.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             if (villages.Count > 0)
@@ -3323,8 +3324,6 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                     CropFields: null);
             })
             .OrderByDescending(v => v.IsCapital == true)
-            .ThenByDescending(v => v.Population ?? -1)
-            .ThenBy(v => v.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
 
@@ -4339,14 +4338,19 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
         return rawRows
             .Where(row => !string.IsNullOrWhiteSpace(row.Name))
-            .Select(row => new FarmListOverview(
-                Name: row.Name!,
-                ActiveFarmCount: Math.Min(MaxFarmsPerFarmList, Math.Max(0, row.ActiveFarmCount ?? 0)),
-                TotalFarmCount: Math.Min(MaxFarmsPerFarmList, Math.Max(0, row.TotalFarmCount ?? 0)),
-                RemainingSeconds: ResolveFarmListRemainingSeconds(row.TimerText, row.Disabled),
-                ListId: string.IsNullOrWhiteSpace(row.Lid) ? null : row.Lid!.Trim(),
-                Capacity: row.Capacity,
-                FarmCoordinates: row.FarmCoordinates ?? []))
+            .Select(row =>
+            {
+                var remainingSeconds = ResolveFarmListRemainingSeconds(row.TimerText, row.Disabled);
+                return new FarmListOverview(
+                    Name: row.Name!,
+                    ActiveFarmCount: Math.Min(MaxFarmsPerFarmList, Math.Max(0, row.ActiveFarmCount ?? 0)),
+                    TotalFarmCount: Math.Min(MaxFarmsPerFarmList, Math.Max(0, row.TotalFarmCount ?? 0)),
+                    RemainingSeconds: remainingSeconds,
+                    ListId: string.IsNullOrWhiteSpace(row.Lid) ? null : row.Lid!.Trim(),
+                    Capacity: row.Capacity,
+                    FarmCoordinates: row.FarmCoordinates ?? [],
+                    Finish: remainingSeconds is > 0 ? TimerSnapshot.FromRemaining(remainingSeconds.Value) : null);
+            })
             .ToList();
     }
 

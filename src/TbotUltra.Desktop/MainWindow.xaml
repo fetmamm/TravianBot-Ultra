@@ -280,6 +280,18 @@
         </Border>
 
         <Grid Grid.Column="1" Margin="12,8,12,8">
+            <Grid.Resources>
+                <Style x:Key="MetricCard" TargetType="Border">
+                    <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtleBrush}" />
+                    <Setter Property="BorderThickness" Value="1" />
+                    <Setter Property="CornerRadius" Value="8" />
+                    <Setter Property="Padding" Value="11,6" />
+                    <Setter Property="Margin" Value="0,0,8,0" />
+                    <Setter Property="MinWidth" Value="78" />
+                    <Setter Property="VerticalAlignment" Value="Stretch" />
+                </Style>
+            </Grid.Resources>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
@@ -290,16 +302,6 @@
                  Session + Time stay left; the rest are right-aligned with a gap between. -->
             <Grid Grid.Row="0" Margin="0,0,0,8">
                 <Grid.Resources>
-                    <Style x:Key="MetricCard" TargetType="Border">
-                        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
-                        <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtleBrush}" />
-                        <Setter Property="BorderThickness" Value="1" />
-                        <Setter Property="CornerRadius" Value="8" />
-                        <Setter Property="Padding" Value="11,6" />
-                        <Setter Property="Margin" Value="0,0,8,0" />
-                        <Setter Property="MinWidth" Value="78" />
-                        <Setter Property="VerticalAlignment" Value="Stretch" />
-                    </Style>
                     <Style x:Key="MetricLabel" TargetType="TextBlock">
                         <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
                         <Setter Property="FontSize" Value="11" />
@@ -457,38 +459,31 @@
                 </StackPanel>
             </Grid>
 
-            <StatusBar Grid.Row="1" Margin="0,0,0,8" Background="{DynamicResource ControlBackgroundBrush}">
-                <StatusBar.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                        </Grid>
-                    </ItemsPanelTemplate>
-                </StatusBar.ItemsPanel>
+            <!-- Status + Next task styled as rounded cards matching the metric cards above. -->
+            <Grid Grid.Row="1" Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
 
                 <!-- Left half: status mini-log -->
-                <StatusBarItem Grid.Column="0">
+                <Border Grid.Column="0" Style="{StaticResource MetricCard}" Margin="0">
                     <StackPanel Orientation="Horizontal">
                         <Ellipse Width="8" Height="8" Fill="{DynamicResource SuccessBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
                         <TextBlock Text="Status" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0" />
                         <TextBlock x:Name="StatusMiniLogTextBlock" Text="Ready." Foreground="{DynamicResource DataGridCellTextBrush}" VerticalAlignment="Center" />
                     </StackPanel>
-                </StatusBarItem>
-
-                <Separator Grid.Column="1" />
+                </Border>
 
                 <!-- Right half: what the bot will run next (read-only mirror of the loop selector). -->
-                <StatusBarItem Grid.Column="2">
+                <Border Grid.Column="2" Style="{StaticResource MetricCard}" Margin="0">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="Next task" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0" />
                         <TextBlock x:Name="NextTaskTextBlock" Text="-" Foreground="{DynamicResource DataGridCellTextBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                     </StackPanel>
-                </StatusBarItem>
-            </StatusBar>
+                </Border>
+            </Grid>
 
             <Border Grid.Row="2"
                     Margin="0,8,0,0"

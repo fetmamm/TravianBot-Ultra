@@ -1654,7 +1654,16 @@ public sealed partial class TravianClient
             SecondsUntilAdventureReady: parsed.SecondsUntilAdventureReady,
             SecondsUntilReturn: parsed.SecondsUntilReturn,
             ReviveRemainingSeconds: parsed.ReviveRemainingSeconds,
-            UnassignedPoints: parsed.UnassignedPoints ?? 0);
+            UnassignedPoints: parsed.UnassignedPoints ?? 0,
+            AdventureReadyFinish: parsed.SecondsUntilAdventureReady is > 0
+                ? TimerSnapshot.FromRemaining(parsed.SecondsUntilAdventureReady.Value)
+                : null,
+            ReturnFinish: parsed.SecondsUntilReturn is > 0
+                ? TimerSnapshot.FromRemaining(parsed.SecondsUntilReturn.Value)
+                : null,
+            ReviveFinish: parsed.ReviveRemainingSeconds is > 0
+                ? TimerSnapshot.FromRemaining(parsed.ReviveRemainingSeconds.Value)
+                : null);
     }
 
     private async Task<bool> TryReviveHeroAsync(CancellationToken cancellationToken)

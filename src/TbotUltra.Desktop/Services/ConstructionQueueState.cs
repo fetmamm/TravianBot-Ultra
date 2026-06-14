@@ -105,6 +105,7 @@ public static class ConstructionQueueState
             ActiveBuildCount = existing.ActiveBuildCount,
             BuildQueueRemainingSeconds = existing.BuildQueueRemainingSeconds,
             BuildQueueRemainingText = existing.BuildQueueRemainingText,
+            BuildQueueFinish = existing.BuildQueueFinish,
             ActiveConstructions = existing.ActiveConstructions,
         };
     }

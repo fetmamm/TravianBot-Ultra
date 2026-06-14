@@ -116,14 +116,17 @@ For en ny dashboard-bool ska hela configkedjan uppdateras:
 - Async-handlers ska delegera till befintlig guarded async-hjalpare och logga ovantade fel.
 - Loop- och CTS-livscykel ska agas av `LoopController`; skapa inte nya spridda CTS-falt.
 - Dashboard-checkboxar foljer befintligt suppress-flagga + load/save-monster.
-- Dashboard `Clear timers` ar vald-by-scope: gor uppskjutna tasks korbara nu och rensar
-  volatila Construction/Smithy/Troops/Hero-timers, men tar aldrig bort Queue-sidans poster.
+- Aktivitetstimers sparas som absoluta UTC-sluttider och raknas om vid cache-load; utgangna poster
+  rensas som stale. `Clear timers` ar vald-by-scope och tar aldrig bort Queue-sidans poster.
 - En `queue_full`-defer blockerar all senare construction i samma by tills den tidigaste
   aktiva byggnaden ar fardig. Plus ger tva platser, annars en; inga romar-specialfall har.
+- Beständiga Queue-poster ar explicit anvandarkoord arbete och kor oavsett byns automation/group-toggle.
+  Dessa toggles styr endast runtime-poster som den kontinuerliga loopen skapar automatiskt.
 - Queue-full ska loggas med bynamn samt exakt nasta retry i servertid och sekunder kvar.
 - Djup queue-full-diagnostik anvander `[construction-queue:verbose]` och doljs i Clean-laget.
 - Dashboardens byggikoner anvander live `ActiveConstructions` som auktoritativt antal.
   Queue-full-poster ar bara boolesk occupancy-fallback och far aldrig summeras som byggnader.
+- Village Overview och byval visar kapitalen forst; ovriga byar behaller Travian-listans DOM/sidebar-ordning.
 - Queue-sidans `Build time`/`Cost`-kolumner och totalsumman ar best-effort-estimat ur
   `buildings_catalog.json` (1x), skalat med serverhastigheten fran `ResolveServerSpeed()`
   (regex `(\d+)x` ur servernamnet; fallback 1x + engangs-`ALARM:`). Endast construction-tasks
@@ -184,6 +187,7 @@ eller sta still, inte vaxa.
   deras nyckel ar namnbaserad och `NormalizeKey`/`ResolveCanonicalKey` mappar `name:..` till `xy:..`.
 - Login ska anvanda action pacing och vanta pa full sidladdning.
 - Login-state `unknown` under navigation ar normalt en transient ladd-race; captcha, `manual_step` och `logged_out` ar inte det.
+- Playwright `Target crashed` ar transient: kassera shared browser-session, defer:a queue-posten kort och lat nasta operation skapa en frisk session.
 - Session i `Sleeping` far inte vackas av refresh, login/logout, scan, test, bybyte eller auto-run.
 - Portable single-file-builden maste innehalla `.playwright` och satta `PLAYWRIGHT_DRIVER_PATH`.
 
@@ -205,6 +209,7 @@ eller sta still, inte vaxa.
 - Exkludera payment-knappen `Open shop` fran upgrade-/construct-kandidater.
 - Official tom slot identifieras via `#contract_building*` utan `Upgrade to level N`; anvand inte enbart `.upgradeButtonsContainer`.
 - Vid misslyckat construct-klick ska resursbrist och krav lasas innan ko-/progresskontroller som navigerar till `dorf2`.
+- Vid klassad resursbrist pa en befintlig byggnads build-sida ska hero-transfer provas direkt; navigera till `dorf2` endast om direkt transfer inte loser klicket.
 - Construct ska verifiera ratt `build.php?id=<slot>&category=<n>` och renderade `#contract_building*` fore klick.
 - Saknade byggkrav ar temporar defer, inte permanent failure.
 - `gid 13` ar Smithy; det finns ingen separat Armoury pa `gid 12`.

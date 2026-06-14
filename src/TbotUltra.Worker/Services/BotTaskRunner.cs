@@ -193,7 +193,15 @@ public sealed class BotTaskRunner
                     }
                     catch (Exception ex)
                     {
-                        log($"[{taskName} FAILED] after {taskSw.Elapsed.TotalSeconds:F1}s: {ex.GetType().Name}: {ex.Message}");
+                        if (BrowserFailureClassifier.IsTargetCrash(ex))
+                        {
+                            log($"[{taskName} DEFERRED] after {taskSw.Elapsed.TotalSeconds:F1}s: Chromium target crashed");
+                        }
+                        else
+                        {
+                            log($"[{taskName} FAILED] after {taskSw.Elapsed.TotalSeconds:F1}s: {ex.GetType().Name}: {ex.Message}");
+                        }
+
                         throw;
                     }
                 }
@@ -1740,9 +1748,17 @@ public sealed class BotTaskRunner
             {
                 await action(lease.Client);
             }
+            catch (Exception ex) when (lease.KeepOpen && BrowserFailureClassifier.IsTargetCrash(ex))
+            {
+                await InvalidateCrashedSharedSessionAsync(lease, log);
+                throw;
+            }
             finally
             {
-                await FinalizeLeaseAsync(lease, log);
+                if (!lease.Invalidated)
+                {
+                    await FinalizeLeaseAsync(lease, log);
+                }
             }
         }
         finally
@@ -1932,6 +1948,33 @@ public sealed class BotTaskRunner
         if (!lease.KeepOpen)
         {
             await lease.Session.DisposeAsync();
+        }
+    }
+
+    private async Task InvalidateCrashedSharedSessionAsync(ClientLease lease, Action<string> log)
+    {
+        lease.Invalidated = true;
+        log("[browser-session] Chromium target crashed. Discarding shared session; next operation will open a fresh browser.");
+
+        try
+        {
+            await lease.Session.DisposeAsync();
+        }
+        catch (Exception ex)
+        {
+            log($"Crashed browser cleanup failed: {ex.Message}");
+        }
+        finally
+        {
+            if (ReferenceEquals(_sharedVisibleSession, lease.Session))
+            {
+                _sharedVisibleSession = null;
+                _sharedVisiblePage = null;
+                _sharedVisibleAccountName = null;
+                _sharedVisibleBaseUrl = null;
+                _travcoPage = null;
+                _sharedVisibleSessionCache = new TravianSessionCache();
+            }
         }
     }
 
@@ -2468,7 +2511,10 @@ public sealed class BotTaskRunner
     private sealed record ClientLease(
         BrowserSession Session,
         TravianClient Client,
-        bool KeepOpen);
+        bool KeepOpen)
+    {
+        public bool Invalidated { get; set; }
+    }
 
     private static async Task TrySwitchToTargetVillageAsync(
         TravianClient client,

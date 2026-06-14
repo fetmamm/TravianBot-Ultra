@@ -108,8 +108,6 @@ public partial class MainWindow
 
         DashboardVillageList.ItemsSource = EnsureVillageSelectionItems(items)
             .OrderByDescending(item => item.IsCapital)
-            .ThenByDescending(item => item.Population ?? -1)
-            .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         // The list was rebuilt with fresh items; re-apply the active-village border.
@@ -224,8 +222,7 @@ public partial class MainWindow
     {
         return string.Join(";", villages
             .Where(v => !string.IsNullOrWhiteSpace(v.Name))
-            .Select(v => $"{GetVillageKey(v.Url, v.CoordX, v.CoordY, v.Name)}|{v.Name}|{v.CoordX}|{v.CoordY}|{v.IsCapital}|{v.Population}")
-            .OrderBy(s => s, StringComparer.Ordinal));
+            .Select(v => $"{GetVillageKey(v.Url, v.CoordX, v.CoordY, v.Name)}|{v.Name}|{v.CoordX}|{v.CoordY}|{v.IsCapital}|{v.Population}"));
     }
 
     private List<VillageSelectionItem> BuildMergedVillageSelectionItems(
