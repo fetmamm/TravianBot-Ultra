@@ -146,6 +146,46 @@ public sealed class VillageSettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void GetEnabledGroups_ByVillage_ResolvesByNameWhenKeyFormDiffers()
+    {
+        // Record stored coordinate-keyed (xy:5|-3) with an explicit override.
+        var store = CreateStore();
+        var coordVillage = new Info("xy:5|-3", "Second", 5, -3, IsCapital: false);
+        store.Merge(new[] { coordVillage });
+        store.SetEnabledGroups(coordVillage, new[] { "construction" });
+
+        // The Village settings popup and the dashboard can hand us the same village with a different key
+        // form (no coords / newdid / name) depending on which item generation they read. The name must
+        // still resolve to the stored coordinate record so both paths agree.
+        var noCoords = new Info("did:777", "Second", null, null, IsCapital: false);
+        var groups = store.GetEnabledGroups(noCoords);
+
+        Assert.NotNull(groups);
+        Assert.Equal(new[] { "construction" }, groups!);
+    }
+
+    [Fact]
+    public void SetEnabledGroups_ByNameMatch_UpdatesExistingRecordInsteadOfSplitting()
+    {
+        var store = CreateStore();
+        var coordVillage = new Info("xy:5|-3", "Second", 5, -3, IsCapital: false);
+        store.Merge(new[] { coordVillage });
+        store.SetEnabledGroups(coordVillage, new[] { "construction" });
+
+        // A write coming from a coordless item generation must update the SAME record (matched by name),
+        // not create a second one under a newdid/name key.
+        var noCoords = new Info("did:777", "Second", null, null, IsCapital: false);
+        store.SetEnabledGroups(noCoords, new[] { "construction", "troops" });
+
+        var reloaded = CreateStore();
+        var groups = reloaded.GetEnabledGroups(coordVillage);
+        Assert.NotNull(groups);
+        Assert.Equal(new[] { "construction", "troops" }, groups!);
+        // The coordinate key still resolves (no split record shadowing it).
+        Assert.Contains("troops", reloaded.GetEnabledGroups("xy:5|-3")!);
+    }
+
+    [Fact]
     public void VillagesFile_WrittenUnderActiveAccount()
     {
         var store = CreateStore();

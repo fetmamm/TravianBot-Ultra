@@ -12,7 +12,7 @@ public partial class MainWindow
         var selectedVillageName = NormalizeVillageName(GetSelectedVillageName());
         if (string.IsNullOrWhiteSpace(selectedVillageName))
         {
-            MessageBox.Show(
+            AppDialog.Show(
                 this,
                 "Select a village before clearing timers.",
                 "Clear timers",
@@ -21,7 +21,7 @@ public partial class MainWindow
             return;
         }
 
-        var confirmation = MessageBox.Show(
+        var confirmation = AppDialog.Show(
             this,
             $"Clear cached timers and request fresh status reads for '{selectedVillageName}'?\n\nQueue page items will not be removed.",
             "Clear timers",

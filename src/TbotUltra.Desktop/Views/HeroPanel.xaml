@@ -541,28 +541,42 @@
                                 Padding="10"
                                 Margin="0,8,0,0">
                             <StackPanel>
-                                <TextBlock Text="Use hero resources for"
-                                           Foreground="{DynamicResource TextPrimaryBrush}"
-                                           FontWeight="SemiBold" />
-                                <TextBlock Text="Pick which features may top up from the hero inventory when short on resources."
-                                           Foreground="{DynamicResource TextSubtleBrush}"
-                                           FontSize="11"
-                                           TextWrapping="Wrap"
-                                           Margin="0,4,0,8" />
-                                <CheckBox Content="Construction (buildings &amp; resource fields)"
-                                          IsChecked="{Binding HeroResourceUseConstruction}"
-                                          Foreground="{DynamicResource TextPrimaryBrush}"
-                                          VerticalContentAlignment="Center"
-                                          Margin="0,0,0,4" />
-                                <CheckBox Content="Smithy (troop upgrades)"
-                                          IsChecked="{Binding HeroResourceUseSmithy}"
-                                          Foreground="{DynamicResource TextPrimaryBrush}"
-                                          VerticalContentAlignment="Center"
-                                          Margin="0,0,0,4" />
-                                <CheckBox Content="Brewery (celebrations)"
-                                          IsChecked="{Binding HeroResourceUseBrewery}"
-                                          Foreground="{DynamicResource TextPrimaryBrush}"
-                                          VerticalContentAlignment="Center" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <TextBlock Text="Hero resources settings"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               FontWeight="SemiBold"
+                                               VerticalAlignment="Center" />
+                                    <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
+                                                    Margin="6,2,0,0"
+                                                    ToolTip="Pick which features may top up from the hero inventory when short on resources." />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <CheckBox Content="Construction"
+                                              IsChecked="{Binding HeroResourceUseConstruction}"
+                                              Foreground="{DynamicResource TextPrimaryBrush}"
+                                              VerticalContentAlignment="Center" />
+                                    <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
+                                                    Margin="6,2,0,0"
+                                                    ToolTip="Top up from the hero inventory for building and resource-field upgrades when the village runs short." />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <CheckBox Content="Smithy"
+                                              IsChecked="{Binding HeroResourceUseSmithy}"
+                                              Foreground="{DynamicResource TextPrimaryBrush}"
+                                              VerticalContentAlignment="Center" />
+                                    <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
+                                                    Margin="6,2,0,0"
+                                                    ToolTip="Top up from the hero inventory for troop upgrades in the Smithy when short on resources." />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <CheckBox Content="Brewery"
+                                              IsChecked="{Binding HeroResourceUseBrewery}"
+                                              Foreground="{DynamicResource TextPrimaryBrush}"
+                                              VerticalContentAlignment="Center" />
+                                    <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
+                                                    Margin="6,2,0,0"
+                                                    ToolTip="Top up from the hero inventory to start a brewery celebration when short on resources." />
+                                </StackPanel>
                             </StackPanel>
                         </Border>
                     </StackPanel>

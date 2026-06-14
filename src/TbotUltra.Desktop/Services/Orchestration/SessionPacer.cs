@@ -56,7 +56,7 @@ public sealed class SessionPacer
     public SessionPacer(Func<DateTimeOffset>? now = null)
     {
         _now = now ?? (() => DateTimeOffset.Now);
-        _runtimeDate = DateOnly.FromDateTime(_now().LocalDateTime);
+        _runtimeDate = DateOnly.FromDateTime(_now().DateTime);
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _timer.Tick += (_, _) => TickTimer();
     }
@@ -95,7 +95,7 @@ public sealed class SessionPacer
             .ToHashSet();
 
         var now = _now();
-        var today = DateOnly.FromDateTime(now.LocalDateTime);
+        var today = DateOnly.FromDateTime(now.DateTime);
         if (!_runtimeLoaded)
         {
             _runtimeDate = today;
@@ -247,7 +247,7 @@ public sealed class SessionPacer
         }
         else
         {
-            _activeSleepDuration = TimeSpan.FromMinutes(ApplyVariation(_settings.SleepMinutes, "sleep", DateOnly.FromDateTime(now.LocalDateTime)));
+            _activeSleepDuration = TimeSpan.FromMinutes(ApplyVariation(_settings.SleepMinutes, "sleep", DateOnly.FromDateTime(now.DateTime)));
             _wakeAt = now.Add(_activeSleepDuration.Value);
         }
 
@@ -280,7 +280,7 @@ public sealed class SessionPacer
         Phase = SessionPacerPhase.Running;
         SleepReason = SessionSleepReason.None;
         _runStartedAt = now;
-        _activeRunDuration = TimeSpan.FromMinutes(ApplyVariation(_settings.MaxRunMinutes, "run", DateOnly.FromDateTime(now.LocalDateTime)));
+        _activeRunDuration = TimeSpan.FromMinutes(ApplyVariation(_settings.MaxRunMinutes, "run", DateOnly.FromDateTime(now.DateTime)));
         _runDeadline = Earliest(now.Add(_activeRunDuration.Value), GetNextRestrictionAt(now));
         _pausedRunRemaining = null;
         _wakeAt = null;
@@ -435,8 +435,8 @@ public sealed class SessionPacer
     private List<ScheduleTransition> GetScheduleTransitions(DateTimeOffset from, DateTimeOffset to)
     {
         var transitions = new List<ScheduleTransition>();
-        var day = DateOnly.FromDateTime(from.LocalDateTime).AddDays(-1);
-        var lastDay = DateOnly.FromDateTime(to.LocalDateTime).AddDays(1);
+        var day = DateOnly.FromDateTime(from.DateTime).AddDays(-1);
+        var lastDay = DateOnly.FromDateTime(to.DateTime).AddDays(1);
         for (; day <= lastDay; day = day.AddDays(1))
         {
             for (var hour = 0; hour < 24; hour++)
@@ -448,7 +448,7 @@ public sealed class SessionPacer
                     continue;
                 }
 
-                var boundary = LocalDateTime(day, hour);
+                var boundary = WallTime(day, hour, from.Offset);
                 var offsetMinutes = DeterministicSignedFraction($"schedule:{day:yyyyMMdd}:{hour}")
                     * Math.Min(_settings.VariationPercent, 49) / 100.0 * 60;
                 transitions.Add(new ScheduleTransition(boundary.AddMinutes(offsetMinutes), allowed));
@@ -470,7 +470,7 @@ public sealed class SessionPacer
             return double.MaxValue;
         }
 
-        var date = DateOnly.FromDateTime(now.LocalDateTime);
+        var date = DateOnly.FromDateTime(now.DateTime);
         var baseMinutes = _settings.DailyMaxHours * 60.0;
         var spread = baseMinutes * _settings.VariationPercent / 100.0;
         var variedMinutes = baseMinutes + (DeterministicSignedFraction($"daily:{date:yyyyMMdd}") * spread);
@@ -495,7 +495,7 @@ public sealed class SessionPacer
 
     private void UpdateRuntimeDate(DateTimeOffset now)
     {
-        var today = DateOnly.FromDateTime(now.LocalDateTime);
+        var today = DateOnly.FromDateTime(now.DateTime);
         if (_runtimeDate == today)
         {
             return;
@@ -547,16 +547,18 @@ public sealed class SessionPacer
         return (hash / (double)uint.MaxValue * 2) - 1;
     }
 
+    // Start of the wall-clock day in the clock source's own offset (not the machine timezone), so the
+    // pacer stays consistent with the injected clock. With the default clock (DateTimeOffset.Now) the
+    // offset is the local one, so production behavior is unchanged.
     private static DateTimeOffset StartOfLocalDay(DateTimeOffset value)
     {
-        var local = value.LocalDateTime.Date;
-        return new DateTimeOffset(local, TimeZoneInfo.Local.GetUtcOffset(local));
+        return new DateTimeOffset(value.DateTime.Date, value.Offset);
     }
 
-    private static DateTimeOffset LocalDateTime(DateOnly date, int hour)
+    // An hour boundary on a given day, expressed in the supplied offset (the clock source's offset).
+    private static DateTimeOffset WallTime(DateOnly date, int hour, TimeSpan offset)
     {
-        var local = date.ToDateTime(new TimeOnly(hour, 0));
-        return new DateTimeOffset(local, TimeZoneInfo.Local.GetUtcOffset(local));
+        return new DateTimeOffset(date.ToDateTime(new TimeOnly(hour, 0)), offset);
     }
 
     private static DateTimeOffset? Earliest(DateTimeOffset? first, DateTimeOffset? second)

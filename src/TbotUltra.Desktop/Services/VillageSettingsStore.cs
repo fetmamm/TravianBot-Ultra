@@ -236,6 +236,30 @@ public sealed class VillageSettingsStore
     }
 
     /// <summary>
+    /// Returns the per-village enabled automation-loop group keys for a village descriptor, or null when
+    /// the village has no override yet (caller falls back to the global default). Resolves the record by
+    /// the canonical coordinate key first, then by village NAME as a fallback. The name fallback matters
+    /// because the dashboard cards and the Village settings popup read from two different village-item
+    /// generations (the picker vs the list, which update independently), so the same village can arrive
+    /// here with a different key form (xy/newdid/name). Names are stable across those generations, so this
+    /// keeps both read paths resolving to the same stored record — otherwise the popup missed the override
+    /// and showed the global default (e.g. "Upgrade Troops" on) while the dashboard showed the real value.
+    /// </summary>
+    public IReadOnlyList<string>? GetEnabledGroups(VillageKeyInfo? village)
+    {
+        if (village is null)
+        {
+            return null;
+        }
+
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+            return FindRecordByVillage(village)?.EnabledGroups;
+        }
+    }
+
+    /// <summary>
     /// Returns the per-village enabled automation-loop group keys, or null when the village has no
     /// override yet (caller falls back to the global default).
     /// </summary>
@@ -379,8 +403,11 @@ public sealed class VillageSettingsStore
         {
             EnsureCacheLoaded();
 
-            var key = CanonicalKey(village);
-            if (_cache.TryGetValue(key, out var existing))
+            // Resolve the existing record by coordinate key OR village name, so a popup row built from a
+            // stale item generation (no coords) updates the canonical record instead of splitting the
+            // village's settings across a second key. Only create a new record when none exists.
+            var existing = FindRecordByVillage(village);
+            if (existing is not null)
             {
                 if (existing.EnabledGroups is not null && existing.EnabledGroups.SequenceEqual(list, StringComparer.OrdinalIgnoreCase))
                 {
@@ -393,6 +420,7 @@ public sealed class VillageSettingsStore
             }
             else
             {
+                var key = CanonicalKey(village);
                 _cache[key] = new VillageSettingRecord
                 {
                     Key = key,
@@ -570,6 +598,32 @@ public sealed class VillageSettingsStore
     // a newdid url), so their gating key is name-based; map it to the coordinate-keyed record by name so the
     // same per-village enabled/group choice applies. Coordinate ("xy:") and unknown keys pass through.
     // Caller already holds FileIoLock.
+    // Resolves the stored record for a village descriptor: canonical coordinate key first, then a
+    // case-insensitive village-NAME match. The name fallback covers callers whose key form differs from
+    // how the record was stored (e.g. a newdid-only or name-only key when the record is coordinate-keyed),
+    // so a known village always finds its override. Caller already holds FileIoLock.
+    private VillageSettingRecord? FindRecordByVillage(VillageKeyInfo village)
+    {
+        if (_cache.TryGetValue(CanonicalKey(village), out var byKey))
+        {
+            return byKey;
+        }
+
+        if (!string.IsNullOrWhiteSpace(village.Name))
+        {
+            var name = village.Name.Trim();
+            foreach (var record in _cache.Values)
+            {
+                if (string.Equals((record.Name ?? string.Empty).Trim(), name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return record;
+                }
+            }
+        }
+
+        return null;
+    }
+
     private string NormalizeKey(string key)
     {
         if (string.IsNullOrWhiteSpace(key) || !key.StartsWith("name:", StringComparison.OrdinalIgnoreCase))

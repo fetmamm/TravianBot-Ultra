@@ -69,6 +69,40 @@ public partial class MainWindow
         return removedCount;
     }
 
+    // Removes pending/deferred upgrade_troops_at_smithy items, optionally for a single village (by name).
+    // Called when the user changes a village's Smithy selection: an already-queued item carries the OLD
+    // troop snapshot in its payload, and the loop won't enqueue a fresh one while it is still active
+    // (HasActiveTaskForVillage dedup), so the new selection would never run. Dropping the stale item lets
+    // the loop re-enqueue with the updated targets. Pass null to clear smithy items for every village.
+    private int RemoveSmithyQueueItemsForVillage(string? villageName)
+    {
+        var targetName = NormalizeVillageName(villageName);
+        var removedCount = 0;
+        foreach (var item in _botService.GetQueueItemsForDisplay()
+            .Where(item => string.Equals(item.TaskName, "upgrade_troops_at_smithy", StringComparison.OrdinalIgnoreCase))
+            .Where(item => item.Status is QueueStatus.Pending or QueueStatus.Paused)
+            .ToList())
+        {
+            if (targetName is not null
+                && !string.Equals(NormalizeVillageName(GetQueueItemVillageName(item)), targetName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (_botService.RemoveQueueItem(item.Id))
+            {
+                removedCount += 1;
+            }
+        }
+
+        if (removedCount > 0)
+        {
+            RequestQueueUiRefresh();
+        }
+
+        return removedCount;
+    }
+
     private static bool IsDeferredHeroManageTimer(QueueItem item, DateTimeOffset now)
     {
         return IsHeroManageQueueItem(item)

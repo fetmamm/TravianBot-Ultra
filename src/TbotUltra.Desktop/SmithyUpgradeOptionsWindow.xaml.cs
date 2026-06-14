@@ -59,7 +59,7 @@ public partial class SmithyUpgradeOptionsWindow : Window
 
     private void SyncToAllButton_Click(object sender, RoutedEventArgs e)
     {
-        var confirm = MessageBox.Show(
+        var confirm = AppDialog.Show(
             this,
             $"Copy this Smithy upgrade selection from '{_villageName}' to ALL villages?\n\n"
             + "This overwrites every village's selected troops and target levels.",

@@ -587,17 +587,23 @@ public partial class MainWindow
         {
             var keys = GetAllVillageKeyInfos().Select(info => info.Key).ToList();
             SmithyUpgradeTargetsStore.SaveForVillages(_projectRoot, account, keys, window.Result);
+            // Drop every village's stale smithy queue item so the loop re-enqueues with the synced targets.
+            var removedAll = RemoveSmithyQueueItemsForVillage(null);
             _troopTrainingViewModel.InfoText = $"Synced Smithy upgrade options to {keys.Count} village(s).";
             AppendLog($"Synced Smithy upgrade options from '{villageInfo.Name}' to {keys.Count} village(s) "
-                + $"({window.Result.Count} troop(s)).");
+                + $"({window.Result.Count} troop(s)). Cleared {removedAll} queued smithy task(s) to apply the change.");
             return;
         }
 
         SmithyUpgradeTargetsStore.Save(_projectRoot, account, villageInfo.Key, window.Result);
+        // Drop this village's stale smithy queue item (old troop snapshot) so the loop re-enqueues with the
+        // new selection — otherwise the dedup keeps the old targets running until the stale item completes.
+        var removed = RemoveSmithyQueueItemsForVillage(villageInfo.Name);
         _troopTrainingViewModel.InfoText = window.Result.Count > 0
             ? $"Saved Smithy upgrade options for '{villageInfo.Name}' ({window.Result.Count} troop(s))."
             : $"Saved Smithy upgrade options for '{villageInfo.Name}': no troops selected.";
-        AppendLog($"Saved Smithy upgrade options for '{villageInfo.Name}' ({window.Result.Count} troop(s) selected).");
+        AppendLog($"Saved Smithy upgrade options for '{villageInfo.Name}' ({window.Result.Count} troop(s) selected)."
+            + (removed > 0 ? $" Cleared {removed} queued smithy task(s) to apply the change." : string.Empty));
     }
 
     // Builds the troop rows for the upgrade-options popup: the tribe's improvable troops (combat + siege,

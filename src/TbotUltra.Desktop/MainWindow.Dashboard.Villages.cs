@@ -493,7 +493,7 @@ public partial class MainWindow
                 var keyInfo = BuildVillageKeyInfo(v);
                 // Seed from the village's per-village override, falling back to the account default so the
                 // checkboxes reflect what actually runs for that village today.
-                var enabledGroups = _villageSettingsStore.GetEnabledGroups(keyInfo.Key) ?? _defaultEnabledGroupKeys;
+                var enabledGroups = _villageSettingsStore.GetEnabledGroups(keyInfo) ?? _defaultEnabledGroupKeys;
                 var toggles = groupCards
                     .Select(card => new VillageGroupToggle
                     {

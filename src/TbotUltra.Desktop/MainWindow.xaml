@@ -99,7 +99,13 @@
 
                 <Border Grid.Row="3" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
                     <StackPanel>
-                        <TextBlock Text="Village" Foreground="{DynamicResource TextSubtleBrush}" Margin="0,0,0,5" />
+                        <DockPanel Margin="0,0,0,5" LastChildFill="False">
+                            <TextBlock DockPanel.Dock="Left" Text="Village" Foreground="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
+                            <!-- Switch village lives here (next to the dropdown) so the bot's working village can be
+                                 changed from any UI page, not just the Dashboard. Compact to fit the side bar. -->
+                            <Button DockPanel.Dock="Right" x:Name="SwitchVillageButton" Height="22" Padding="8,0" FontSize="11" Content="Switch to" VerticalAlignment="Center" Click="SwitchVillageButton_Click"
+                                    ToolTip="Make the bot work in the village selected in the dropdown. Selecting a village in the list only changes the view/queue target; this button actually moves the bot there." />
+                        </DockPanel>
                         <ComboBox x:Name="VillageComboBox" Height="28">
                             <ComboBox.ItemTemplate>
                                 <DataTemplate>
@@ -364,6 +370,18 @@
                             </StackPanel>
                         </StackPanel>
                     </Border>
+
+                    <!-- The village the bot is currently working in (browser's village), so the user can see it
+                         from any page in the UI. Set from SetActiveWorkingVillage. -->
+                    <Border Style="{StaticResource MetricCard}" Width="180">
+                        <StackPanel>
+                            <TextBlock Text="Active village" Style="{StaticResource MetricLabel}" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE707;" Style="{StaticResource MetricIcon}" />
+                                <TextBlock x:Name="ActiveVillageTextBlock" Text="-" Style="{StaticResource MetricValue}" FontSize="13" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
 
                 <!-- Right group: everything else, right-aligned -->
@@ -571,8 +589,6 @@
                                     ToolTip="Restart the program: stops all running tasks, clears the queue, closes the browser session, and resets to the just-started state. Your saved login is kept — just press Login to start a new session." />
                             <Button DockPanel.Dock="Right" x:Name="VillageSettingsButton" Height="32" Content="Village settings" VerticalAlignment="Center" Margin="12,0,0,0" Click="VillageSettingsButton_Click"
                                     ToolTip="Open per-village settings (hero resources, NPC, build/upgrade troops, farming)." />
-                            <Button DockPanel.Dock="Right" x:Name="SwitchVillageButton" Height="32" Content="Switch village" VerticalAlignment="Center" Margin="12,0,0,0" Click="SwitchVillageButton_Click"
-                                    ToolTip="Make the bot work in the village selected in the dropdown. Selecting a village in the list only changes the view/queue target; this button actually moves the bot there." />
                         </DockPanel>
 
                         <Grid Grid.Row="1" Margin="0,0,0,10" Visibility="Collapsed">

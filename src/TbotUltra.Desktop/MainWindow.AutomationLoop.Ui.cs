@@ -61,7 +61,11 @@ public partial class MainWindow
                     TaskName = groupKey,
                     Title = QueueGroupCatalog.GetTitle(group),
                     Description = QueueGroupCatalog.GetDescription(group),
-                    IsEnabled = configured.Contains(groupKey, StringComparer.OrdinalIgnoreCase),
+                    // Before login the dashboard must show nothing running: keep every group toggle OFF until
+                    // the user logs in. The real per-village/account state is applied on login
+                    // (ApplyAutomationLoopGroupsForSelectedVillage). The configured set still feeds
+                    // _defaultEnabledGroupKeys below so that apply has the right default.
+                    IsEnabled = _isLoggedIn && configured.Contains(groupKey, StringComparer.OrdinalIgnoreCase),
                     IsVisible = visibleGroups.Contains(groupKey, StringComparer.OrdinalIgnoreCase),
                     StateText = "Idle",
                     DetailText = "No queued task.",
@@ -69,10 +73,11 @@ public partial class MainWindow
             }
 
             UpdateAutomationLoopOrders();
-            // Snapshot the loaded enabled set as the global default for villages with no per-village
-            // override yet (so a new village inherits the account's configured groups).
+            // Snapshot the configured enabled set as the global default for villages with no per-village
+            // override yet (so a new village inherits the account's configured groups). Derived from the
+            // configured set (not the cards' IsEnabled) so the login gate above does not blank the default.
             _defaultEnabledGroupKeys = _automationLoopTasks
-                .Where(item => item.IsEnabled)
+                .Where(item => configured.Contains(item.TaskName, StringComparer.OrdinalIgnoreCase))
                 .Select(item => item.TaskName)
                 .ToList();
             RefreshAutomationLoopDashboardUi();
@@ -223,6 +228,23 @@ public partial class MainWindow
 
     private void UpdateAutomationLoopRunningIndicators()
     {
+        // Before login the dashboard shows nothing: no group runs and persisted (deferred) queue items must
+        // not surface their countdown timers. Render every card idle with no timer until the user logs in.
+        if (!_isLoggedIn)
+        {
+            foreach (var item in _automationLoopTasks)
+            {
+                item.IsRunning = false;
+                item.IsBlocked = false;
+                item.StateText = "Idle";
+                item.DetailText = "No queued task.";
+                item.QueuedCount = 0;
+                item.RemainingSeconds = null;
+            }
+
+            return;
+        }
+
         var isRunning = (_loopTask is not null && !_loopTask.IsCompleted) || _autoQueueRunning;
         var hasPausedQueueItems = false;
         string? queueRunningTaskName = null;

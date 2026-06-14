@@ -641,7 +641,7 @@ public partial class MainWindow
             return;
         }
 
-        var groups = _villageSettingsStore.GetEnabledGroups(info.Key) ?? _defaultEnabledGroupKeys;
+        var groups = _villageSettingsStore.GetEnabledGroups(info) ?? _defaultEnabledGroupKeys;
 
         _suppressAutomationLoopConfigWrite = true;
         try
@@ -804,6 +804,8 @@ public partial class MainWindow
         if (name is not null)
         {
             _activeWorkingVillageName = name;
+            // Mirror into the top-bar "Active village" card so the working village is visible from any page.
+            ActiveVillageTextBlock.Text = name;
         }
 
         if (!string.IsNullOrWhiteSpace(resolvedKey))
