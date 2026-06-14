@@ -416,10 +416,11 @@ public partial class MainWindow
             0,
             slotCount);
         var slots = new List<VillageActivitySlot>(slotCount);
+        var hasLiveConstructionQueue = status?.ActiveConstructions is { Count: > 0 };
         for (var i = 0; i < slotCount; i++)
         {
             var isActive = i < active;
-            var isWaiting = !isActive && hasDeferredWork;
+            var isWaiting = !isActive && hasDeferredWork && hasLiveConstructionQueue;
             slots.Add(new VillageActivitySlot
             {
                 IsActive = isActive,

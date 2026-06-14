@@ -325,12 +325,6 @@ public partial class MainWindow
 
             _travianBuildQueueRows.Add(new TravianBuildQueueRow
             {
-                Kind = construction.Kind switch
-                {
-                    ConstructionKind.Resource => "Resource field",
-                    ConstructionKind.Building => "Building",
-                    _ => "Construction",
-                },
                 Name = construction.Name,
                 LevelText = construction.Level.HasValue ? $"Level {construction.Level.Value}" : "-",
                 FinishAtText = finishUtc.HasValue
@@ -339,7 +333,6 @@ public partial class MainWindow
             });
         }
 
-        TravianBuildQueueVillageTextBlock.Text = $"Selected village: {selectedName ?? "-"}";
         TravianBuildQueueEmptyTextBlock.Text = hasStatus
             ? "No active construction in Travian."
             : "No browser status loaded for this village.";
