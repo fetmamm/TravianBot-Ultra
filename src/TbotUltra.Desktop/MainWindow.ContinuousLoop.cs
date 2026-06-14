@@ -247,34 +247,38 @@ public partial class MainWindow
 
         // Smithy troop upgrades — generated per enabled village whose Troops group is on. Each item is
         // tagged with its village so the worker switches there before running (BotTaskRunner). The selected
-        // troops + target levels come from the account-scoped store and are snapshotted into the payload, so
-        // the loop-driven task knows what to upgrade (without it the worker would no-op). When nothing is
-        // selected we skip enqueuing entirely instead of queuing a task that does nothing.
+        // troops + target levels are stored PER VILLAGE and snapshotted into the payload, so the loop-driven
+        // task knows what to upgrade (without it the worker would no-op). A village with no selection is
+        // skipped instead of queuing a task that does nothing.
         if (!IsTroopsGroupBlocked())
         {
-            var smithyTargets = SmithyUpgradeTargetsStore.Load(_projectRoot, _accountStore.ActiveAccountName());
-            if (smithyTargets.Count > 0)
+            var account = _accountStore.ActiveAccountName();
+            foreach (var village in automationVillages)
             {
+                var villageKey = GetVillageKey(village);
+                if (!IsGroupEnabledForVillage(villageKey, QueueGroup.Troops)
+                    || HasActiveTaskForVillage("upgrade_troops_at_smithy", village.Name))
+                {
+                    continue;
+                }
+
+                var villageTargets = SmithyUpgradeTargetsStore.Load(_projectRoot, account, villageKey);
+                if (villageTargets.Count == 0)
+                {
+                    continue;
+                }
+
                 var smithyPayloadFragment = new SmithyUpgradePayload(
-                        smithyTargets.Select(s => new SmithyTroopTarget(s.Key, s.TargetLevel, s.Name)).ToList())
+                        villageTargets.Select(s => new SmithyTroopTarget(s.Key, s.TargetLevel, s.Name)).ToList())
                     .ToDictionary();
 
-                foreach (var village in automationVillages)
+                var payload = BuildVillageRuntimePayload(village);
+                foreach (var pair in smithyPayloadFragment)
                 {
-                    if (!IsGroupEnabledForVillage(GetVillageKey(village), QueueGroup.Troops)
-                        || HasActiveTaskForVillage("upgrade_troops_at_smithy", village.Name))
-                    {
-                        continue;
-                    }
-
-                    var payload = BuildVillageRuntimePayload(village);
-                    foreach (var pair in smithyPayloadFragment)
-                    {
-                        payload[pair.Key] = pair.Value;
-                    }
-
-                    _botService.EnqueueRuntime("upgrade_troops_at_smithy", "Troop upgrades", payload, priority: -50, maxRetries: 0);
+                    payload[pair.Key] = pair.Value;
                 }
+
+                _botService.EnqueueRuntime("upgrade_troops_at_smithy", "Troop upgrades", payload, priority: -50, maxRetries: 0);
             }
         }
 

@@ -42,24 +42,20 @@
                         CornerRadius="8"
                         Padding="12">
                     <StackPanel>
-                        <TextBlock Text="Upgrade"
-                                   FontSize="18"
-                                   FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                   Margin="0,0,0,8" />
-                        <Button Content="Upgrade troops"
-                                Width="150"
-                                HorizontalAlignment="Left"
-                                Click="UpgradeTroopsButton_Click" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <TextBlock Text="Upgrade troops"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       VerticalAlignment="Center" />
+                            <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
+                                            Margin="6,2,0,0"
+                                            ToolTip="Pick troops and target levels in Upgrade options (per village). The Automation Loop's Upgrade Troops group runs the Smithy upgrades. Smithy upgrades stay separate from troop building." />
+                        </StackPanel>
                         <Button Content="Upgrade options"
                                 Width="150"
                                 HorizontalAlignment="Left"
-                                Margin="0,8,0,0"
                                 Click="UpgradeOptionsButton_Click" />
-                        <TextBlock Text="Pick troops and target levels in Upgrade options. Smithy upgrades stay separate from troop building."
-                                   Foreground="{DynamicResource TextSubtleBrush}"
-                                   TextWrapping="Wrap"
-                                   Margin="0,8,0,0" />
                     </StackPanel>
                 </Border>
 

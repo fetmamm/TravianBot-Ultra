@@ -325,6 +325,22 @@ public partial class MainWindow
             item.IsCapital);
     }
 
+    // All known villages as key infos, deduplicated by canonical key. Used to apply a setting to every
+    // village (e.g. "Sync to all villages" for Smithy upgrades).
+    private List<VillageSettingsStore.VillageKeyInfo> GetAllVillageKeyInfos()
+    {
+        var source = (DashboardVillageList.ItemsSource as IEnumerable<VillageSelectionItem>)
+            ?? (VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem>)
+            ?? Enumerable.Empty<VillageSelectionItem>();
+
+        return source
+            .Where(v => !string.IsNullOrWhiteSpace(v.Name) && !string.Equals(v.Name, "-", StringComparison.Ordinal))
+            .Select(BuildVillageKeyInfo)
+            .GroupBy(info => info.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToList();
+    }
+
     // Persists a village's automation toggle from the Village settings window. SetEnabled no-ops when the
     // stored value already matches, so seeding the rows never causes redundant writes.
     private void PersistVillageEnabledFromSettingsRow(VillageSettingsRow row)

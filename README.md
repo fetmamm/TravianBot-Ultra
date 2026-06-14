@@ -50,7 +50,7 @@ Compatible with:
 - Collect daily quests
 - Collect tasks
 - Read messages and reports
-- Upgrade troops in smithy (choose which troops and their target level via the Troops tab's "Upgrade options")
+- Upgrade troops in smithy (choose which troops and their target level **per village** via the Troops tab's "Upgrade options"; "Sync to all villages" copies the selected village's choice to every village). The Automation Loop's *Upgrade Troops* group runs them.
 - Send resources between own villages
 - Send reinforcements between own villages
 - Farming

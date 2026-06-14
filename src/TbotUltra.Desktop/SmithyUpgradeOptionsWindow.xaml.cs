@@ -20,12 +20,19 @@ public partial class SmithyUpgradeOptionsWindow : Window
     public const int MaxLevel = 20;
 
     private readonly ObservableCollection<TroopRow> _rows = new();
+    private readonly string _villageName;
 
     public IReadOnlyList<SmithyUpgradeSelection> Result { get; private set; } = [];
 
-    public SmithyUpgradeOptionsWindow(IReadOnlyList<SmithyTroopOption> troops)
+    // True when the user chose "Sync to all villages": the caller applies Result to every village.
+    public bool SyncRequested { get; private set; }
+
+    public SmithyUpgradeOptionsWindow(IReadOnlyList<SmithyTroopOption> troops, string villageName)
     {
         InitializeComponent();
+
+        _villageName = string.IsNullOrWhiteSpace(villageName) ? "this village" : villageName.Trim();
+        SubtitleTextBlock.Text = $"Selection for village: {_villageName}";
 
         foreach (var troop in troops ?? [])
         {
@@ -35,12 +42,37 @@ public partial class SmithyUpgradeOptionsWindow : Window
         TroopItemsControl.ItemsSource = _rows;
     }
 
-    private void SaveButton_Click(object sender, RoutedEventArgs e)
+    private IReadOnlyList<SmithyUpgradeSelection> BuildSelection()
     {
-        Result = _rows
+        return _rows
             .Where(row => row.IsEnabled)
             .Select(row => new SmithyUpgradeSelection(row.Key, row.Name, row.TargetLevel))
             .ToList();
+    }
+
+    private void SaveButton_Click(object sender, RoutedEventArgs e)
+    {
+        Result = BuildSelection();
+        DialogResult = true;
+        Close();
+    }
+
+    private void SyncToAllButton_Click(object sender, RoutedEventArgs e)
+    {
+        var confirm = MessageBox.Show(
+            this,
+            $"Copy this Smithy upgrade selection from '{_villageName}' to ALL villages?\n\n"
+            + "This overwrites every village's selected troops and target levels.",
+            "Sync to all villages",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+        if (confirm != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        Result = BuildSelection();
+        SyncRequested = true;
         DialogResult = true;
         Close();
     }

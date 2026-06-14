@@ -17,9 +17,8 @@ public sealed record SmithyUpgradeSelection(string Key, string Name, int TargetL
 /// reads/writes the selected village; the loop snapshots each village's selection into its task payload.
 /// Reads never throw — a missing/corrupt file yields an empty selection.
 ///
-/// Backward compatible: an older file with a single account-wide <c>troops</c> list is kept as a read-only
-/// fallback for villages that have no per-village entry yet, so existing setups keep upgrading until the
-/// user customizes a village.
+/// A village with no entry has NO troops selected (every checkbox defaults to off): the user opts each
+/// village in explicitly, or uses "Sync to all villages" to copy one village's choice everywhere.
 /// </summary>
 public static class SmithyUpgradeTargetsStore
 {
@@ -41,12 +40,9 @@ public static class SmithyUpgradeTargetsStore
     {
         // Per-village selections, keyed by the village's coordinate key.
         public List<VillageSmithySelection> Villages { get; set; } = new();
-
-        // Legacy account-wide selection (pre per-village). Read-only fallback for villages without an entry.
-        public List<SmithyUpgradeSelection>? Troops { get; set; }
     }
 
-    /// <summary>Returns the selection for a village, falling back to the legacy account-wide list.</summary>
+    /// <summary>Returns the selection for a village, or an empty list when it has no entry.</summary>
     public static IReadOnlyList<SmithyUpgradeSelection> Load(string projectRoot, string? accountName, string? villageKey)
     {
         if (string.IsNullOrWhiteSpace(accountName) || string.IsNullOrWhiteSpace(villageKey))
@@ -57,15 +53,9 @@ public static class SmithyUpgradeTargetsStore
         lock (FileIoLock)
         {
             var file = ReadFile(projectRoot, accountName);
-            if (file is null)
-            {
-                return [];
-            }
-
-            var match = file.Villages?
+            var match = file?.Villages?
                 .FirstOrDefault(v => v is not null && string.Equals(v.Key, villageKey, StringComparison.OrdinalIgnoreCase));
-            // An explicit per-village entry (even empty) wins; otherwise fall back to the legacy global list.
-            return match is not null ? Clean(match.Troops) : Clean(file.Troops);
+            return match is not null ? Clean(match.Troops) : [];
         }
     }
 

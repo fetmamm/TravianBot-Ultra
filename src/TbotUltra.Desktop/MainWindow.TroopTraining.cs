@@ -553,37 +553,23 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// Queues an "upgrade troops at smithy" runtime task. Called by the
-    /// Troops panel's Upgrade button.
-    /// </summary>
-    internal void OnTroopsUpgradeClicked()
-    {
-        var account = _accountStore.ActiveAccountName();
-        var saved = SmithyUpgradeTargetsStore.Load(_projectRoot, account);
-        if (saved.Count == 0)
-        {
-            _troopTrainingViewModel.InfoText = "No troops selected for Smithy upgrade. Open 'Upgrade options' first.";
-            AppendLog("Smithy upgrade not queued: no troops selected (configure via 'Upgrade options').");
-            return;
-        }
-
-        var targets = saved.Select(s => new SmithyTroopTarget(s.Key, s.TargetLevel, s.Name)).ToList();
-        var payload = new SmithyUpgradePayload(targets).ToDictionary();
-        EnqueueQuickTask("upgrade_troops_at_smithy", "Upgrade selected troops at Smithy", payload);
-        _troopTrainingViewModel.InfoText = $"Queued: upgrade {targets.Count} selected troop(s) at Smithy.";
-        AppendLog($"Queued upgrade_troops_at_smithy task for {targets.Count} troop(s): "
-            + string.Join(", ", targets.Select(t => $"{t.Name ?? t.Key}->{t.TargetLevel}")) + ".");
-    }
-
-    /// <summary>
-    /// Opens the Smithy upgrade-options popup, seeding it from the tribe troop catalog merged with the
-    /// account's saved selection, and persists the result per account on Save. Called by the Troops
-    /// panel's "Upgrade options" button.
+    /// Opens the Smithy upgrade-options popup for the SELECTED village, seeding it from the tribe troop
+    /// catalog merged with that village's saved selection. On Save it persists the village's selection; on
+    /// "Sync to all villages" it copies the selection to every village. Called by the Troops panel's
+    /// "Upgrade options" button.
     /// </summary>
     internal void OnTroopsUpgradeOptionsClicked()
     {
         var account = _accountStore.ActiveAccountName();
-        var options = BuildSmithyTroopOptions(account);
+        var villageInfo = GetSelectedVillageKeyInfoOrNull();
+        if (villageInfo is null)
+        {
+            _troopTrainingViewModel.InfoText = "Select a village on the Dashboard first to configure its Smithy upgrades.";
+            AppendLog("Smithy upgrade options: no village selected.");
+            return;
+        }
+
+        var options = BuildSmithyTroopOptions(account, villageInfo.Key);
         if (options.Count == 0)
         {
             _troopTrainingViewModel.InfoText = "Could not determine the tribe's troops yet. Scan the account first.";
@@ -591,24 +577,34 @@ public partial class MainWindow
             return;
         }
 
-        var window = new SmithyUpgradeOptionsWindow(options) { Owner = this };
+        var window = new SmithyUpgradeOptionsWindow(options, villageInfo.Name) { Owner = this };
         if (window.ShowDialog() != true)
         {
             return;
         }
 
-        SmithyUpgradeTargetsStore.Save(_projectRoot, account, window.Result);
+        if (window.SyncRequested)
+        {
+            var keys = GetAllVillageKeyInfos().Select(info => info.Key).ToList();
+            SmithyUpgradeTargetsStore.SaveForVillages(_projectRoot, account, keys, window.Result);
+            _troopTrainingViewModel.InfoText = $"Synced Smithy upgrade options to {keys.Count} village(s).";
+            AppendLog($"Synced Smithy upgrade options from '{villageInfo.Name}' to {keys.Count} village(s) "
+                + $"({window.Result.Count} troop(s)).");
+            return;
+        }
+
+        SmithyUpgradeTargetsStore.Save(_projectRoot, account, villageInfo.Key, window.Result);
         _troopTrainingViewModel.InfoText = window.Result.Count > 0
-            ? $"Saved Smithy upgrade options for {window.Result.Count} troop(s)."
-            : "Saved Smithy upgrade options: no troops selected.";
-        AppendLog($"Saved Smithy upgrade options ({window.Result.Count} troop(s) selected).");
+            ? $"Saved Smithy upgrade options for '{villageInfo.Name}' ({window.Result.Count} troop(s))."
+            : $"Saved Smithy upgrade options for '{villageInfo.Name}': no troops selected.";
+        AppendLog($"Saved Smithy upgrade options for '{villageInfo.Name}' ({window.Result.Count} troop(s) selected).");
     }
 
     // Builds the troop rows for the upgrade-options popup: the tribe's improvable troops (combat + siege,
-    // excluding the expansion units that the Smithy never lists) merged with the saved selection so the
-    // popup reopens with the user's prior choices. Troops are keyed by Travian unit id ("u21") when the
+    // excluding the expansion units that the Smithy never lists) merged with the village's saved selection so
+    // the popup reopens with the user's prior choices. Troops are keyed by Travian unit id ("u21") when the
     // tribe is known, falling back to the troop slot ("t1") otherwise.
-    private List<SmithyTroopOption> BuildSmithyTroopOptions(string? account)
+    private List<SmithyTroopOption> BuildSmithyTroopOptions(string? account, string? villageKey)
     {
         var tribe = ResolveStoredTroopTrainingTribe();
         var troopNames = TroopCatalog.ResolveTroopTypesForTribe(tribe);
@@ -617,7 +613,7 @@ public partial class MainWindow
             return [];
         }
 
-        var saved = SmithyUpgradeTargetsStore.Load(_projectRoot, account)
+        var saved = SmithyUpgradeTargetsStore.Load(_projectRoot, account, villageKey)
             .ToDictionary(s => s.Key, StringComparer.OrdinalIgnoreCase);
 
         // The Smithy improves combat units, rams and siege — but not the two expansion units (Chief/Senator

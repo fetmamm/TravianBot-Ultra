@@ -33,11 +33,6 @@ public partial class TroopsPanel : UserControl
         }
     }
 
-    private void UpgradeTroopsButton_Click(object sender, RoutedEventArgs e)
-    {
-        Host?.OnTroopsUpgradeClicked();
-    }
-
     private void UpgradeOptionsButton_Click(object sender, RoutedEventArgs e)
     {
         Host?.OnTroopsUpgradeOptionsClicked();
