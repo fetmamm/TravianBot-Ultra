@@ -174,6 +174,86 @@ public partial class MainWindow
         _automationLoopTasksView?.Refresh();
         UpdateAutomationLoopSummaryText();
         UpdateAutomationLoopRunningIndicators();
+        UpdateNextTaskUi();
+    }
+
+    // Top-bar "Next task": shows what the bot is running, what it will pick next, or what it is waiting for
+    // (with a countdown). Read-only — uses the live loop selector in preview mode so it mirrors the real
+    // scheduling exactly without advancing rotation/keys or mutating the queue.
+    private void UpdateNextTaskUi()
+    {
+        if (NextTaskTextBlock is null)
+        {
+            return;
+        }
+
+        NextTaskTextBlock.Text = ResolveNextTaskDisplayText();
+    }
+
+    private string ResolveNextTaskDisplayText()
+    {
+        if (!_isLoggedIn)
+        {
+            return "Idle";
+        }
+
+        IReadOnlyList<QueueItem> items;
+        try
+        {
+            items = GetQueueSnapshotForUi();
+        }
+        catch
+        {
+            return "-";
+        }
+
+        var running = items.FirstOrDefault(item => item.Status == QueueStatus.Running);
+        if (running is not null)
+        {
+            return $"Running: {DescribeNextTask(running)}";
+        }
+
+        // Exact: the item the live loop would pick right now (preview = no side effects).
+        var next = SelectNextQueueItemForContinuousLoop(preview: true);
+        if (next is not null)
+        {
+            return $"Next: {DescribeNextTask(next)}";
+        }
+
+        // Nothing ready now — surface the soonest eligible deferred item and its countdown so the user sees
+        // what the loop is waiting for and when it retries.
+        var now = DateTimeOffset.UtcNow;
+        var soonest = items
+            .Where(item => item.Status == QueueStatus.Pending && item.NextAttemptAt > now)
+            .Where(IsQueueItemVillageEnabled)
+            .Where(IsQueueItemGroupEnabledForItsVillage)
+            .OrderBy(item => item.NextAttemptAt)
+            .FirstOrDefault();
+        if (soonest is not null)
+        {
+            return $"Waiting {FormatNextTaskCountdown(soonest.NextAttemptAt - now)}: {DescribeNextTask(soonest)}";
+        }
+
+        return "Nothing queued";
+    }
+
+    private string DescribeNextTask(QueueItem item)
+    {
+        var name = BuildQueueDisplayName(item);
+        var village = NormalizeVillageName(GetQueueItemVillageName(item));
+        return village is null ? name : $"{name} ({village})";
+    }
+
+    private static string FormatNextTaskCountdown(TimeSpan span)
+    {
+        if (span < TimeSpan.Zero)
+        {
+            span = TimeSpan.Zero;
+        }
+
+        return span.TotalHours >= 1
+            ? $"{(int)span.TotalHours}:{span.Minutes:00}:{span.Seconds:00}"
+            : $"{span.Minutes:00}:{span.Seconds:00}";
     }
 
     private void TickAutomationLoopCountdowns()
@@ -251,7 +331,7 @@ public partial class MainWindow
         IReadOnlyList<QueueItem> queueItems = [];
         try
         {
-            queueItems = _botService.GetQueueItemsForDisplay();
+            queueItems = GetQueueSnapshotForUi();
             hasPausedQueueItems = queueItems.Any(item => item.Status == QueueStatus.Paused);
             queueRunningTaskName = queueItems.FirstOrDefault(item => item.Status == QueueStatus.Running)?.TaskName;
         }

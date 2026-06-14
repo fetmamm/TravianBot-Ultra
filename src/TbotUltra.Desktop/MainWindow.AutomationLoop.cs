@@ -366,7 +366,7 @@ public partial class MainWindow
         try
         {
             var selectedName = NormalizeVillageName(GetSelectedVillageName());
-            var villageWait = _botService.GetQueueItemsForDisplay()
+            var villageWait = GetQueueSnapshotForUi()
                 .Where(item => item.Group == QueueGroup.Construction
                     && item.Status == QueueStatus.Pending
                     && item.NextAttemptAt > now
@@ -388,7 +388,7 @@ public partial class MainWindow
         return remainingSeconds > 0 ? remainingSeconds : null;
     }
 
-    private bool IsConstructionGroupReady(bool allowWorkerValidationForReadyItem = false)
+    private bool IsConstructionGroupReady(bool allowWorkerValidationForReadyItem = false, bool suppressLog = false)
     {
         // NOTE: the construction inline-wait is intentionally NOT a gate here anymore. With multi-village
         // rotation, blocking the whole Construction group on one village's resource wait would stall the
@@ -414,9 +414,13 @@ public partial class MainWindow
         // This prevents a stale/unknown Plus signal from blocking the possible second slot.
         if (allowWorkerValidationForReadyItem)
         {
-            AppendLoopPickVerbose(
-                $"[loop-pick:verbose] group=Construction allowing worker slot validation (active={_buildQueueActiveCount}, remaining={_buildQueueRemainingSeconds}, plus={_travianPlusActive?.ToString() ?? "unknown"})",
-                "group:Construction:worker-slot-validation");
+            if (!suppressLog)
+            {
+                AppendLoopPickVerbose(
+                    $"[loop-pick:verbose] group=Construction allowing worker slot validation (active={_buildQueueActiveCount}, remaining={_buildQueueRemainingSeconds}, plus={_travianPlusActive?.ToString() ?? "unknown"})",
+                    "group:Construction:worker-slot-validation");
+            }
+
             return true;
         }
 

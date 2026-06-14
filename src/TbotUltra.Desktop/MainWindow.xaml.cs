@@ -254,6 +254,11 @@ public partial class MainWindow : Window
     public ResourcesViewModel ResourcesVm => _resourcesViewModel;
     private readonly SemaphoreSlim _inboxRefreshGate = new(1, 1);
     private readonly DispatcherTimer _queueUiRefreshTimer;
+    private int _nextTaskTickCounter;
+    // UI-thread micro-snapshot of the queue (see GetQueueSnapshotForUi): coalesces the per-tick burst of
+    // display reads into one disk read.
+    private IReadOnlyList<QueueItem>? _uiQueueSnapshot;
+    private DateTimeOffset _uiQueueSnapshotAtUtc;
     private Window? _logsPopupWindow;
     private Window? _queuePopupWindow;
     private ListBox? _logsPopupLogList;
@@ -454,6 +459,13 @@ public partial class MainWindow : Window
                 HandleBrowserClosedSignal();
                 TickFarmListCountdowns();
                 TickAutomationLoopCountdowns();
+                // The "Next task" value runs the loop selector (reads the queue/options) — too heavy to do
+                // every second. Recompute every 3rd tick; it is also refreshed on real queue/group changes
+                // via RefreshAutomationLoopDashboardUi.
+                if (++_nextTaskTickCounter % 3 == 0)
+                {
+                    UpdateNextTaskUi();
+                }
                 _troopTrainingViewModel.TickCountdowns();
                 TickSmithyUpgradeCountdown();
                 _resourcesViewModel.TickLiveForecasts();
@@ -492,7 +504,7 @@ public partial class MainWindow : Window
                 TriggerDeferredTroopTrainingWaitRefresh(_lastResourceStatusForUi, "troop_config_changed", force: true);
             }
         };
-        _queueUiRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(280) };
+        _queueUiRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
         _queueUiRefreshTimer.Tick += (_, _) =>
         {
             _queueUiRefreshTimer.Stop();

@@ -458,14 +458,35 @@
             </Grid>
 
             <StatusBar Grid.Row="1" Margin="0,0,0,8" Background="{DynamicResource ControlBackgroundBrush}">
-                <StatusBarItem>
+                <StatusBar.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                        </Grid>
+                    </ItemsPanelTemplate>
+                </StatusBar.ItemsPanel>
+
+                <!-- Left half: status mini-log -->
+                <StatusBarItem Grid.Column="0">
                     <StackPanel Orientation="Horizontal">
                         <Ellipse Width="8" Height="8" Fill="{DynamicResource SuccessBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBlock Text="Status" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <TextBlock Text="Status" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock x:Name="StatusMiniLogTextBlock" Text="Ready." Foreground="{DynamicResource DataGridCellTextBrush}" VerticalAlignment="Center" />
                     </StackPanel>
                 </StatusBarItem>
-                <StatusBarItem>
-                    <TextBlock x:Name="StatusMiniLogTextBlock" Text="Ready." Foreground="{DynamicResource DataGridCellTextBrush}" />
+
+                <Separator Grid.Column="1" />
+
+                <!-- Right half: what the bot will run next (read-only mirror of the loop selector). -->
+                <StatusBarItem Grid.Column="2">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Next task" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock x:Name="NextTaskTextBlock" Text="-" Foreground="{DynamicResource DataGridCellTextBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
                 </StatusBarItem>
             </StatusBar>
 

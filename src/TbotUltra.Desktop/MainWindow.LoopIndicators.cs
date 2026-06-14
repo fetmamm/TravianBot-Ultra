@@ -69,7 +69,7 @@ public partial class MainWindow
         try
         {
             var nowUtc = DateTimeOffset.UtcNow;
-            var queueItems = _botService.GetQueueItemsForDisplay();
+            var queueItems = GetQueueSnapshotForUi();
             var relevantQueueItems = enabledGroups.Count > 0
                 ? queueItems.Where(item => enabledGroups.Contains(item.Group)).ToList()
                 : [];

@@ -177,7 +177,7 @@ public partial class MainWindow
         var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         try
         {
-            foreach (var item in _botService.GetQueueItemsForDisplay())
+            foreach (var item in GetQueueSnapshotForUi())
             {
                 if (!ConstructionQueueState.IsActiveQueueStatus(item.Status)
                     || !IsConstructionQueueTask(item.TaskName))
@@ -209,7 +209,7 @@ public partial class MainWindow
         try
         {
             var now = DateTimeOffset.UtcNow;
-            foreach (var item in _botService.GetQueueItemsForDisplay())
+            foreach (var item in GetQueueSnapshotForUi())
             {
                 if (item.Status != QueueStatus.Pending || item.NextAttemptAt <= now)
                 {
@@ -372,7 +372,7 @@ public partial class MainWindow
         var villages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         try
         {
-            foreach (var item in _botService.GetQueueItemsForDisplay())
+            foreach (var item in GetQueueSnapshotForUi())
             {
                 if (item.Status != QueueStatus.Pending || !IsConstructionQueueTask(item.TaskName))
                 {

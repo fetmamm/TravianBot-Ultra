@@ -14,6 +14,32 @@ public partial class MainWindow
         return status is QueueStatus.Pending or QueueStatus.Paused or QueueStatus.Running;
     }
 
+    // A short-lived, UI-thread-only snapshot of the queue. Every display reader (per-second countdowns,
+    // execution-state indicator, automation-loop cards, next-task, village overview) used to call
+    // _botService.GetQueueItemsForDisplay() independently, and each call reads queue.json from disk under a
+    // file lock. Firing many of those within the same UI tick caused disk churn and lock contention with the
+    // worker loop that writes the file — the source of the stuttering/laggy timers. This caches the result
+    // for ~120 ms so a tick's burst of display reads share one disk read. Background/loop threads and
+    // user-action paths keep calling the store directly (always fresh) — they must never use this cache, so
+    // off the UI thread it falls through to a direct read. 120 ms is short enough that the display never
+    // lags real state noticeably.
+    private IReadOnlyList<QueueItem> GetQueueSnapshotForUi()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            return _botService.GetQueueItemsForDisplay();
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (_uiQueueSnapshot is null || (now - _uiQueueSnapshotAtUtc).TotalMilliseconds > 120)
+        {
+            _uiQueueSnapshot = _botService.GetQueueItemsForDisplay();
+            _uiQueueSnapshotAtUtc = now;
+        }
+
+        return _uiQueueSnapshot;
+    }
+
     private int RemoveCoalescedQueueItems(IEnumerable<QueueItem> candidates, Action<QueueItem>? onRemoved = null)
     {
         var removedCount = 0;

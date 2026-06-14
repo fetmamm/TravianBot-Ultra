@@ -207,7 +207,10 @@ public partial class MainWindow
         // running when only a non-selected village has those groups on. Hero/farming/transfer/reinforcements
         // stay account-global and keep gating on the selected village's toggles via `enabledGroups`.
         var consideredGroups = GetContinuousLoopConsideredGroupsInOrder();
-        var heroPollingEnabled = enabledGroups.Contains(QueueGroup.Hero) || ShouldKeepHeroAdventurePolling();
+        // Hero is global (one hero). Poll/queue adventures when Hero is on for ANY enabled village (the
+        // considered/union set), not just the selected one — otherwise Hero never runs while a village that
+        // has it OFF is selected even though the hero-home village has it ON.
+        var heroPollingEnabled = consideredGroups.Contains(QueueGroup.Hero) || ShouldKeepHeroAdventurePolling();
         if (consideredGroups.Count <= 0 && !heroPollingEnabled)
         {
             return;
@@ -487,10 +490,17 @@ public partial class MainWindow
         }
     }
 
-    private QueueItem? SelectNextQueueItemForContinuousLoop()
+    // preview=true makes this a pure read-only prediction of the NEXT item the live loop would pick, with
+    // ALL side effects suppressed (no queue mutation, no rotation-key advance, no logging, no dedup-state
+    // writes). Used by the top-bar "Next task" display so it mirrors the real selector exactly without
+    // affecting scheduling. preview=false is the live loop path and behaves exactly as before.
+    private QueueItem? SelectNextQueueItemForContinuousLoop(bool preview = false)
     {
         var options = LoadBotOptions();
-        RemoveDisabledAutoCollectUtilityItems(options);
+        if (!preview)
+        {
+            RemoveDisabledAutoCollectUtilityItems(options);
+        }
         var queueItems = _botService.GetQueueItemsForDisplay();
         var now = DateTimeOffset.UtcNow;
         var readyUtilityItems = OrderContinuousLoopGroupItems(
@@ -515,9 +525,13 @@ public partial class MainWindow
         var orderedGroups = GetContinuousLoopConsideredGroupsInOrder().ToList();
         if (orderedGroups.Count <= 0)
         {
-            AppendLoopPickVerbose(
-                "[loop-pick:verbose] no enabled groups — nothing to schedule",
-                "no-enabled-groups");
+            if (!preview)
+            {
+                AppendLoopPickVerbose(
+                    "[loop-pick:verbose] no enabled groups — nothing to schedule",
+                    "no-enabled-groups");
+            }
+
             return null;
         }
 
@@ -541,17 +555,25 @@ public partial class MainWindow
                 var constructionCandidate = QueueVillageRotation.SelectByVillageRotation(
                     orderedGroupItems,
                     GetQueueItemVillageKey,
-                    villageItems => SelectNextConstructionQueueItem(villageItems, now, out _),
+                    villageItems => SelectNextConstructionQueueItem(villageItems, now, out _, preview),
                     ref rotationKey);
-                _continuousConstructionRotationVillageKey = rotationKey;
+                if (!preview)
+                {
+                    _continuousConstructionRotationVillageKey = rotationKey;
+                }
+
                 if (constructionCandidate is not null)
                 {
-                    if (!IsConstructionGroupReady(allowWorkerValidationForReadyItem: true))
+                    if (!IsConstructionGroupReady(allowWorkerValidationForReadyItem: true, suppressLog: preview))
                     {
                         lastSkipReason = $"group={group} skipped (construction group not ready)";
-                        AppendLoopPickVerbose(
-                            $"[loop-pick:verbose] {lastSkipReason}",
-                            $"group:{group}:construction-not-ready");
+                        if (!preview)
+                        {
+                            AppendLoopPickVerbose(
+                                $"[loop-pick:verbose] {lastSkipReason}",
+                                $"group:{group}:construction-not-ready");
+                        }
+
                         continue;
                     }
 
@@ -559,9 +581,13 @@ public partial class MainWindow
                 }
 
                 lastSkipReason = constructionSkipReason ?? $"group={group} skipped (no ready construction items)";
-                AppendLoopPickVerbose(
-                    $"[loop-pick:verbose] {lastSkipReason}",
-                    $"group:{group}:{BuildLoopPickSkipKey(lastSkipReason)}");
+                if (!preview)
+                {
+                    AppendLoopPickVerbose(
+                        $"[loop-pick:verbose] {lastSkipReason}",
+                        $"group:{group}:{BuildLoopPickSkipKey(lastSkipReason)}");
+                }
+
                 continue;
             }
 
@@ -575,22 +601,32 @@ public partial class MainWindow
                 GetQueueItemVillageKey,
                 villageItems => SelectNextReadyGroupHead(villageItems, now),
                 ref groupRotationKey);
-            SetContinuousGroupRotationVillageKey(group, groupRotationKey);
+            if (!preview)
+            {
+                SetContinuousGroupRotationVillageKey(group, groupRotationKey);
+            }
+
             if (candidate is not null)
             {
                 return candidate;
             }
 
             lastSkipReason = $"group={group} skipped (no ready item across villages)";
-            AppendLoopPickVerbose(
-                $"[loop-pick:verbose] {lastSkipReason}",
-                $"group:{group}:{BuildLoopPickSkipKey(lastSkipReason)}");
+            if (!preview)
+            {
+                AppendLoopPickVerbose(
+                    $"[loop-pick:verbose] {lastSkipReason}",
+                    $"group:{group}:{BuildLoopPickSkipKey(lastSkipReason)}");
+            }
         }
 
-        AppendLoopPickVerbose(
-            $"[loop-pick:verbose] no item selected from {orderedGroups.Count} group(s)"
-                + (lastSkipReason is null ? string.Empty : $" — last reason: {lastSkipReason}"),
-            $"no-selected:{orderedGroups.Count}:{BuildLoopPickSkipKey(lastSkipReason)}");
+        if (!preview)
+        {
+            AppendLoopPickVerbose(
+                $"[loop-pick:verbose] no item selected from {orderedGroups.Count} group(s)"
+                    + (lastSkipReason is null ? string.Empty : $" — last reason: {lastSkipReason}"),
+                $"no-selected:{orderedGroups.Count}:{BuildLoopPickSkipKey(lastSkipReason)}");
+        }
         // Collect rewards in the village where the signal was observed. If another village still had
         // ready work, the utility item waited above; switch only after the current work is exhausted.
         return readyUtilityItems.FirstOrDefault();
@@ -608,10 +644,42 @@ public partial class MainWindow
     // to the account default group set). Shared by per-item gating and per-village runtime generation.
     private bool IsGroupEnabledForVillage(string? villageKey, QueueGroup group)
     {
-        var groups = villageKey is null
-            ? _defaultEnabledGroupKeys
-            : (_villageSettingsStore.GetEnabledGroups(villageKey) ?? _defaultEnabledGroupKeys);
+        // Village-less (global) tasks like hero_manage are enabled when the group is on for ANY enabled
+        // village (or the account default) — so e.g. Hero runs while the hero-home village has it on even
+        // though another village is currently selected. Resolve this from the settings store only (no UI
+        // marshalling): this runs on the continuous-loop background thread during item selection, so it must
+        // NOT call GetContinuousLoopConsideredGroupsInOrder (which Dispatcher.Invokes to the UI thread and
+        // would stall the whole loop behind UI work).
+        if (villageKey is null)
+        {
+            return IsGroupEnabledForAnyVillage(group);
+        }
+
+        var groups = _villageSettingsStore.GetEnabledGroups(villageKey) ?? _defaultEnabledGroupKeys;
         return groups.Contains(QueueGroupCatalog.GetKey(group), StringComparer.OrdinalIgnoreCase);
+    }
+
+    // Whether an automation group is enabled for ANY enabled village, or the account default. Store-only and
+    // thread-safe (no Dispatcher), so it is safe to call from the continuous-loop background thread. Used to
+    // gate village-less global tasks (e.g. hero_manage) without depending on the UI-selected village.
+    private bool IsGroupEnabledForAnyVillage(QueueGroup group)
+    {
+        var key = QueueGroupCatalog.GetKey(group);
+        if (_defaultEnabledGroupKeys.Contains(key, StringComparer.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        foreach (var (_, enabledGroups) in _villageSettingsStore.GetEnabledVillagesGroups())
+        {
+            var effective = enabledGroups ?? _defaultEnabledGroupKeys;
+            if (effective.Contains(key, StringComparer.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // Villages currently enabled for automation, deduplicated by village key. Read from the Dashboard
@@ -695,7 +763,8 @@ public partial class MainWindow
     private QueueItem? SelectNextConstructionQueueItem(
         IReadOnlyList<QueueItem> orderedGroupItems,
         DateTimeOffset now,
-        out string? skipReason)
+        out string? skipReason,
+        bool preview = false)
     {
         skipReason = null;
         if (orderedGroupItems.Count <= 0)
@@ -720,10 +789,14 @@ public partial class MainWindow
                 {
                     if (ConstructionQueueState.ShouldLiveValidateLegacyQueueOccupancy(item, queueOccupancyBlockers))
                     {
-                        AppendLoopPickVerbose(
-                            $"[construction-queue:verbose] legacy queue-full classification requires live validation " +
-                            $"id={item.Id} task='{item.TaskName}' village='{NormalizeVillageName(GetQueueItemVillageName(item)) ?? "-"}'; retrying now.",
-                            $"construction-legacy-queue-full:{item.Id}");
+                        if (!preview)
+                        {
+                            AppendLoopPickVerbose(
+                                $"[construction-queue:verbose] legacy queue-full classification requires live validation " +
+                                $"id={item.Id} task='{item.TaskName}' village='{NormalizeVillageName(GetQueueItemVillageName(item)) ?? "-"}'; retrying now.",
+                                $"construction-legacy-queue-full:{item.Id}");
+                        }
+
                         return item;
                     }
 
@@ -731,7 +804,7 @@ public partial class MainWindow
                     // blocker so later tasks do not repeat the same live queue check before the first
                     // active construction completes.
                     queueOccupancyBlockers.Add(item);
-                    if (queueOccupancyBlockers.Count == 1)
+                    if (queueOccupancyBlockers.Count == 1 && !preview)
                     {
                         var blockedItems = orderedGroupItems
                             .Skip(index + 1)
@@ -777,7 +850,7 @@ public partial class MainWindow
                 continue;
             }
 
-            if (ConstructionQueueState.IsQueueOccupancyDeferred(item))
+            if (ConstructionQueueState.IsQueueOccupancyDeferred(item) && !preview)
             {
                 var villageName = NormalizeVillageName(GetQueueItemVillageName(item)) ?? "-";
                 AppendLoopPickVerbose(
@@ -788,7 +861,11 @@ public partial class MainWindow
                     $"construction-queue-selected:{item.Id}:{item.NextAttemptAt.UtcTicks}");
             }
 
-            ClearConstructionQueueFullSummary(item);
+            if (!preview)
+            {
+                ClearConstructionQueueFullSummary(item);
+            }
+
             return item;
         }
 
