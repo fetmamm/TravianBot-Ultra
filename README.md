@@ -46,7 +46,7 @@ Compatible with:
 - Hero adventures
 - Revive hero
 - Spend hero attribute points
-- Use hero inventory resources for building
+- Use hero inventory resources to top up when short (Official only). Per-consumer toggles on the Hero tab pick which features may pull from the hero: **Construction** (buildings & resource fields), **Smithy** (troop upgrades), and **Brewery** (celebrations). The master hero-resource toggle in Auto settings still applies on top.
 - Collect daily quests
 - Collect tasks
 - Read messages and reports

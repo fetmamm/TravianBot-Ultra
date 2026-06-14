@@ -1674,6 +1674,7 @@ public sealed partial class TravianClient
                 && firstNoResourceTarget is not null
                 && !_config.IsPrivateServer
                 && _config.HeroResourceTransferEnabled
+                && _config.HeroResourceUseSmithy
                 && heroTransferAttempted.Add(firstNoResourceTarget.Key))
             {
                 var transferred = await TryHeroResourceTransferForSmithyTroopAsync(

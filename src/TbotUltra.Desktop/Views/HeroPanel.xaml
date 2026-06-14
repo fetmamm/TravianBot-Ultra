@@ -530,6 +530,41 @@
                                 </StackPanel>
                             </StackPanel>
                         </Border>
+
+                        <!-- Per-consumer gates: which automation features may pull from the hero inventory
+                             when they run short on resources. The master hero-resource toggle (Auto settings)
+                             still applies on top of these. -->
+                        <Border BorderBrush="{DynamicResource AppBackgroundBrush}"
+                                BorderThickness="1"
+                                Background="{DynamicResource RowAltBackgroundBrush}"
+                                CornerRadius="6"
+                                Padding="10"
+                                Margin="0,8,0,0">
+                            <StackPanel>
+                                <TextBlock Text="Use hero resources for"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           FontWeight="SemiBold" />
+                                <TextBlock Text="Pick which features may top up from the hero inventory when short on resources."
+                                           Foreground="{DynamicResource TextSubtleBrush}"
+                                           FontSize="11"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,8" />
+                                <CheckBox Content="Construction (buildings &amp; resource fields)"
+                                          IsChecked="{Binding HeroResourceUseConstruction}"
+                                          Foreground="{DynamicResource TextPrimaryBrush}"
+                                          VerticalContentAlignment="Center"
+                                          Margin="0,0,0,4" />
+                                <CheckBox Content="Smithy (troop upgrades)"
+                                          IsChecked="{Binding HeroResourceUseSmithy}"
+                                          Foreground="{DynamicResource TextPrimaryBrush}"
+                                          VerticalContentAlignment="Center"
+                                          Margin="0,0,0,4" />
+                                <CheckBox Content="Brewery (celebrations)"
+                                          IsChecked="{Binding HeroResourceUseBrewery}"
+                                          Foreground="{DynamicResource TextPrimaryBrush}"
+                                          VerticalContentAlignment="Center" />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </Border>
             </Grid>

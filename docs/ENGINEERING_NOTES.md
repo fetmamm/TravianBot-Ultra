@@ -103,6 +103,11 @@ For en ny dashboard-bool ska hela configkedjan uppdateras:
 - Registrera nya tasks via befintlig handler-dictionary i `BotTaskRunner`.
 - Selektorer ska vara additiva och paths flavor-aware.
 - Nya funktioner ska logga tillrackligt med kontext for framtida felsokning.
+- Hero-resurstransfer ar per-konsument gated: master `HeroResourceTransferEnabled` (Auto settings)
+  plus `HeroResourceUse{Construction,Smithy,Brewery}` (Hero-tabben, default true). Den generiska
+  build-sidans transfer-logik ligger i `TryHeroResourceTransferOnCurrentBuildPageAsync`; construction
+  och brewery anropar den via tunna gated wrappers, smithy har egen per-trupp-DOM
+  (`TryHeroResourceTransferForSmithyTroopAsync`). Brewery aterforsoker start efter en lyckad transfer.
 
 ### Desktop
 

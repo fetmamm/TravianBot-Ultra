@@ -69,6 +69,11 @@ public static class BotOptionPayloadKeys
     // the build waits until the village has accumulated enough that the hero share fits the limit.
     public const string HeroResourceMaxUseEnabled = "hero_resource_max_use_enabled";
     public const string HeroResourceMaxUsePerResource = "hero_resource_max_use_per_resource";
+    // Per-consumer gates for the hero inventory top-up (each default true). The master
+    // HeroResourceTransferEnabled still applies on top of these.
+    public const string HeroResourceUseConstruction = "hero_resource_use_construction";
+    public const string HeroResourceUseSmithy = "hero_resource_use_smithy";
+    public const string HeroResourceUseBrewery = "hero_resource_use_brewery";
     public const string ContinuousFarmListNames = "continuous_farm_list_names";
     // Stable Travian farm-list ids (lid) for the selected lists. Persisted alongside the names so
     // the selection survives a village/list rename: the name changes on Travian but the lid does not.

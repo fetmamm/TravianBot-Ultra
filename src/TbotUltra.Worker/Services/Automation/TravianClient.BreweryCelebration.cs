@@ -220,6 +220,19 @@ public sealed partial class TravianClient
         var startAttempt = await TryStartBreweryCelebrationFromCurrentPageAsync(cancellationToken);
         if (!startAttempt.Started)
         {
+            // No start button usually means the celebration's resources aren't covered. If the user enabled
+            // hero resources for brewery, top up from the hero inventory once (Official-only, best-effort)
+            // and retry the start on the reloaded page.
+            if (await TryHeroResourceTransferForBreweryAsync(
+                    $"Brewery celebration (slot {status.BrewerySlotId.Value})", cancellationToken))
+            {
+                Notify("[brewery] topped up from the hero inventory; retrying start.");
+                startAttempt = await TryStartBreweryCelebrationFromCurrentPageAsync(cancellationToken);
+            }
+        }
+
+        if (!startAttempt.Started)
+        {
             Notify($"[brewery] start failed — {startAttempt.Message}");
             return $"{startAttempt.Message} queue_wait_seconds={BreweryCelebrationRetrySeconds}";
         }

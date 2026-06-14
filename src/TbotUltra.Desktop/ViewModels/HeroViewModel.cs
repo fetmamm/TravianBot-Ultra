@@ -44,6 +44,9 @@ public sealed class HeroViewModel : BaseViewModel
 
     private bool _heroResourceMaxUseEnabled = true;
     private int _heroResourceMaxUsePerResource = 5000;
+    private bool _heroResourceUseConstruction = true;
+    private bool _heroResourceUseSmithy = true;
+    private bool _heroResourceUseBrewery = true;
 
     private int _minHpForAdventure = 60;
     private int _heroHpRegenPerDayPercent = 40;
@@ -153,6 +156,27 @@ public sealed class HeroViewModel : BaseViewModel
     {
         get => _heroResourceMaxUsePerResource;
         set => SetProperty(ref _heroResourceMaxUsePerResource, Math.Max(0, value));
+    }
+
+    /// <summary>Per-consumer gate: allow construction (buildings/resource fields) to top up from the hero.</summary>
+    public bool HeroResourceUseConstruction
+    {
+        get => _heroResourceUseConstruction;
+        set => SetProperty(ref _heroResourceUseConstruction, value);
+    }
+
+    /// <summary>Per-consumer gate: allow smithy troop upgrades to top up from the hero.</summary>
+    public bool HeroResourceUseSmithy
+    {
+        get => _heroResourceUseSmithy;
+        set => SetProperty(ref _heroResourceUseSmithy, value);
+    }
+
+    /// <summary>Per-consumer gate: allow brewery celebrations to top up from the hero.</summary>
+    public bool HeroResourceUseBrewery
+    {
+        get => _heroResourceUseBrewery;
+        set => SetProperty(ref _heroResourceUseBrewery, value);
     }
 
     /// <summary>Applies a hero inventory read to the four resource fields.</summary>
@@ -334,6 +358,9 @@ public sealed class HeroViewModel : BaseViewModel
         ContinuousAdventures = options.HeroContinuousAdventures;
         HeroResourceMaxUseEnabled = options.HeroResourceMaxUseEnabled;
         HeroResourceMaxUsePerResource = options.HeroResourceMaxUsePerResource;
+        HeroResourceUseConstruction = options.HeroResourceUseConstruction;
+        HeroResourceUseSmithy = options.HeroResourceUseSmithy;
+        HeroResourceUseBrewery = options.HeroResourceUseBrewery;
         LoadPriorityFromConfig(options.HeroStatPriority);
     }
 

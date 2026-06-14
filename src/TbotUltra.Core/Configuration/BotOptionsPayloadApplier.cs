@@ -38,6 +38,9 @@ public static class BotOptionsPayloadApplier
         var heroResourceTransferEnabled = source.HeroResourceTransferEnabled;
         var heroResourceMaxUseEnabled = source.HeroResourceMaxUseEnabled;
         var heroResourceMaxUsePerResource = source.HeroResourceMaxUsePerResource;
+        var heroResourceUseConstruction = source.HeroResourceUseConstruction;
+        var heroResourceUseSmithy = source.HeroResourceUseSmithy;
+        var heroResourceUseBrewery = source.HeroResourceUseBrewery;
         var upgradeSelectorProfile = source.UpgradeSelectorProfile;
         var natarVillageSelection = source.NatarVillageSelection;
         var continuousFarmListNames = source.ContinuousFarmListNames;
@@ -344,6 +347,27 @@ public static class BotOptionsPayloadApplier
                     && int.TryParse(value, out var heroResourceMaxUseAmount))
                 {
                     heroResourceMaxUsePerResource = Math.Max(0, heroResourceMaxUseAmount);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.HeroResourceUseConstruction, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var heroUseConstruction))
+                {
+                    heroResourceUseConstruction = heroUseConstruction;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.HeroResourceUseSmithy, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var heroUseSmithy))
+                {
+                    heroResourceUseSmithy = heroUseSmithy;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.HeroResourceUseBrewery, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var heroUseBrewery))
+                {
+                    heroResourceUseBrewery = heroUseBrewery;
                     continue;
                 }
 
@@ -1059,6 +1083,9 @@ public static class BotOptionsPayloadApplier
             HeroResourceTransferEnabled = heroResourceTransferEnabled,
             HeroResourceMaxUseEnabled = heroResourceMaxUseEnabled,
             HeroResourceMaxUsePerResource = heroResourceMaxUsePerResource,
+            HeroResourceUseConstruction = heroResourceUseConstruction,
+            HeroResourceUseSmithy = heroResourceUseSmithy,
+            HeroResourceUseBrewery = heroResourceUseBrewery,
             UpgradeSelectorProfile = upgradeSelectorProfile,
             NatarVillageSelection = natarVillageSelection,
         };

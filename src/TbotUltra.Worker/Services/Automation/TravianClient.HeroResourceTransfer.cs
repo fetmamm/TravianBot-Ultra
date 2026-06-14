@@ -27,6 +27,36 @@ public sealed partial class TravianClient
         string label,
         CancellationToken cancellationToken)
     {
+        if (!_config.HeroResourceUseConstruction)
+        {
+            return false;
+        }
+
+        return await TryHeroResourceTransferOnCurrentBuildPageAsync(label, cancellationToken);
+    }
+
+    // Best-effort hero top-up for the celebration on the current brewery build page. Reuses the generic
+    // build-page transfer flow (the brewery page shows the same .inlineIcon.resource.transfer when short
+    // on resources). Gated by the per-consumer brewery toggle on top of the master switch.
+    private async Task<bool> TryHeroResourceTransferForBreweryAsync(
+        string label,
+        CancellationToken cancellationToken)
+    {
+        if (!_config.HeroResourceUseBrewery)
+        {
+            return false;
+        }
+
+        return await TryHeroResourceTransferOnCurrentBuildPageAsync(label, cancellationToken);
+    }
+
+    // Generic Official build-page hero top-up: probes for a transfer icon, applies the per-resource use
+    // limit / cached-inventory gates, then opens and confirms the transfer dialog. Shared by construction
+    // and brewery; the per-consumer gating is done by the callers above.
+    private async Task<bool> TryHeroResourceTransferOnCurrentBuildPageAsync(
+        string label,
+        CancellationToken cancellationToken)
+    {
         _heroTransferOverLimitWaitSeconds = null;
 
         if (_config.IsPrivateServer)

@@ -433,6 +433,17 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.HeroResourceMaxUsePerResource)]
     public int HeroResourceMaxUsePerResource { get; init; } = 5000;
 
+    // Per-consumer gates for the hero inventory top-up. The master HeroResourceTransferEnabled still
+    // applies; these let the user pick which features may pull from the hero (default all on).
+    [ConfigurationKeyName(BotOptionPayloadKeys.HeroResourceUseConstruction)]
+    public bool HeroResourceUseConstruction { get; init; } = true;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.HeroResourceUseSmithy)]
+    public bool HeroResourceUseSmithy { get; init; } = true;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.HeroResourceUseBrewery)]
+    public bool HeroResourceUseBrewery { get; init; } = true;
+
     [ConfigurationKeyName("upgrade_selector_profile")]
     public string UpgradeSelectorProfile { get; init; } = "auto";
 
