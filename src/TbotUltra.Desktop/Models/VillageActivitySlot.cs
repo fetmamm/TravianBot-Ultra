@@ -10,6 +10,9 @@ namespace TbotUltra.Desktop.Models;
 public sealed class VillageActivitySlot
 {
     public bool IsActive { get; init; }
+    // Amber "waiting" state: the village has a deferred/blocked task for this icon (e.g. waiting for
+    // resources or a full build queue) but nothing is actively running. Active (green) wins over waiting.
+    public bool IsWaiting { get; init; }
     public string Label { get; init; } = string.Empty;
     public string Tooltip { get; init; } = string.Empty;
 }

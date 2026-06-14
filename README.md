@@ -114,8 +114,10 @@ The bot manages every village on the account from one **Dashboard → Village ov
 - **Village overview columns:** a green/grey dot left of the name shows if a village is enabled, plus
   per-village indicators for **Buildings** (active construction slots — 2, or 3 for Romans), **Queue**
   (green when something is queued), **Smithy**, **Troops** (Barracks/Stable/Workshop) and **Hero**
-  (green = hero home here, yellow = away, red = dead). A green border marks the village the browser is
-  currently working in.
+  (green = hero home here, yellow = away, red = dead). For Buildings/Smithy/Troops the icons are **green**
+  when something is actively running, **amber** when a task is deferred/waiting (e.g. out of resources or
+  the build queue is full) and grey when idle — so a village waiting on resources isn't mistaken for idle.
+  A green border marks the village the browser is currently working in.
 - **One queue per account:** each task carries its target village, and the bot rotates between enabled
   villages (draining one, then moving on so a village waiting on resources never blocks the others).
 - **Per-village automation groups & NPC trade:** the Automation Loop groups (Construction, Build Troops,

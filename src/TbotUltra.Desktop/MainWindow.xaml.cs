@@ -823,6 +823,11 @@ public partial class MainWindow : Window
         // Select the village the browser actually landed in (active village), not a stale prior selection,
         // so the dropdown matches the browser and Start bot works in the landing village.
         SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage, status.ActiveVillage);
+        // Apply the landing village's per-village automation-group override to the dashboard cards. Without
+        // this the cards keep the global default loaded by LoadAutomationLoopTasks, so on login they could
+        // disagree with the per-village toggles shown in the Village settings window (e.g. Construction on
+        // there but off in the dashboard).
+        ApplyAutomationLoopGroupsForSelectedVillage();
 
         // Cache this full read and mark the village the browser actually logged into as the active
         // working village, so the green border is correct and visible immediately after login (not only

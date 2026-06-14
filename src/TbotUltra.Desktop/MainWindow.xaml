@@ -1019,6 +1019,10 @@
                                                                                     <Setter Property="BorderBrush" Value="{DynamicResource BorderMutedBrush}" />
                                                                                     <Setter Property="BorderThickness" Value="1" />
                                                                                     <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding IsWaiting}" Value="True">
+                                                                                            <Setter Property="Background" Value="{DynamicResource WarningBrush}" />
+                                                                                            <Setter Property="BorderBrush" Value="{DynamicResource WarningBorderBrush}" />
+                                                                                        </DataTrigger>
                                                                                         <DataTrigger Binding="{Binding IsActive}" Value="True">
                                                                                             <Setter Property="Background" Value="{DynamicResource SuccessBrush}" />
                                                                                             <Setter Property="BorderBrush" Value="{DynamicResource SuccessBorderBrush}" />
@@ -1031,6 +1035,9 @@
                                                                                     <Style TargetType="TextBlock">
                                                                                         <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
                                                                                         <Style.Triggers>
+                                                                                            <DataTrigger Binding="{Binding IsWaiting}" Value="True">
+                                                                                                <Setter Property="Foreground" Value="{DynamicResource OnWarningBrush}" />
+                                                                                            </DataTrigger>
                                                                                             <DataTrigger Binding="{Binding IsActive}" Value="True">
                                                                                                 <Setter Property="Foreground" Value="White" />
                                                                                             </DataTrigger>
@@ -1059,6 +1066,10 @@
                                                                                     <Setter Property="BorderBrush" Value="{DynamicResource BorderMutedBrush}" />
                                                                                     <Setter Property="BorderThickness" Value="1" />
                                                                                     <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding IsWaiting}" Value="True">
+                                                                                            <Setter Property="Background" Value="{DynamicResource WarningBrush}" />
+                                                                                            <Setter Property="BorderBrush" Value="{DynamicResource WarningBorderBrush}" />
+                                                                                        </DataTrigger>
                                                                                         <DataTrigger Binding="{Binding IsActive}" Value="True">
                                                                                             <Setter Property="Background" Value="{DynamicResource SuccessBrush}" />
                                                                                             <Setter Property="BorderBrush" Value="{DynamicResource SuccessBorderBrush}" />
@@ -1071,6 +1082,9 @@
                                                                                     <Style TargetType="TextBlock">
                                                                                         <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
                                                                                         <Style.Triggers>
+                                                                                            <DataTrigger Binding="{Binding IsWaiting}" Value="True">
+                                                                                                <Setter Property="Foreground" Value="{DynamicResource OnWarningBrush}" />
+                                                                                            </DataTrigger>
                                                                                             <DataTrigger Binding="{Binding IsActive}" Value="True">
                                                                                                 <Setter Property="Foreground" Value="White" />
                                                                                             </DataTrigger>
@@ -1130,6 +1144,10 @@
                                                                                     <Setter Property="BorderBrush" Value="{DynamicResource BorderMutedBrush}" />
                                                                                     <Setter Property="BorderThickness" Value="1" />
                                                                                     <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding IsWaiting}" Value="True">
+                                                                                            <Setter Property="Background" Value="{DynamicResource WarningBrush}" />
+                                                                                            <Setter Property="BorderBrush" Value="{DynamicResource WarningBorderBrush}" />
+                                                                                        </DataTrigger>
                                                                                         <DataTrigger Binding="{Binding IsActive}" Value="True">
                                                                                             <Setter Property="Background" Value="{DynamicResource SuccessBrush}" />
                                                                                             <Setter Property="BorderBrush" Value="{DynamicResource SuccessBorderBrush}" />
@@ -1142,6 +1160,9 @@
                                                                                     <Style TargetType="TextBlock">
                                                                                         <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
                                                                                         <Style.Triggers>
+                                                                                            <DataTrigger Binding="{Binding IsWaiting}" Value="True">
+                                                                                                <Setter Property="Foreground" Value="{DynamicResource OnWarningBrush}" />
+                                                                                            </DataTrigger>
                                                                                             <DataTrigger Binding="{Binding IsActive}" Value="True">
                                                                                                 <Setter Property="Foreground" Value="White" />
                                                                                             </DataTrigger>

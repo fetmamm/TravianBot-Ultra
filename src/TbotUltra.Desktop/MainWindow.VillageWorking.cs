@@ -134,6 +134,9 @@ public partial class MainWindow
         // live build count).
         var queueFullVillages = BuildVillagesWithQueueFullConstruction();
         var queuedVillages = BuildVillagesWithConstructionQueue();
+        // Per-village set of groups with a deferred/blocked task (Pending but not yet due) — drives the
+        // amber "waiting" state on the matching icons (e.g. construction waiting for resources/queue).
+        var deferredByVillage = BuildVillagesWithDeferredWork();
         foreach (var item in items)
         {
             var name = NormalizeVillageName(item.Name);
@@ -143,10 +146,17 @@ public partial class MainWindow
                 _villageStatusCacheByName.TryGetValue(name, out status);
             }
 
+            HashSet<QueueGroup>? deferredGroups = null;
+            if (name is not null)
+            {
+                deferredByVillage.TryGetValue(name, out deferredGroups);
+            }
+
             var hasQueueFullEvidence = name is not null && queueFullVillages.Contains(name);
-            item.BuildingSlots = BuildBuildingActivitySlots(status, buildingSlotCount, hasQueueFullEvidence);
-            item.TroopSlots = BuildTroopActivitySlots(status);
-            item.SmithySlots = BuildSmithyActivitySlots(name);
+            item.BuildingSlots = BuildBuildingActivitySlots(
+                status, buildingSlotCount, hasQueueFullEvidence, deferredGroups?.Contains(QueueGroup.Construction) == true);
+            item.TroopSlots = BuildTroopActivitySlots(status, deferredGroups?.Contains(QueueGroup.TroopTraining) == true);
+            item.SmithySlots = BuildSmithyActivitySlots(name, deferredGroups?.Contains(QueueGroup.Troops) == true);
             item.HasQueue = name is not null && queuedVillages.Contains(name);
 
             var isHeroVillage = name is not null
@@ -190,6 +200,45 @@ public partial class MainWindow
         return set;
     }
 
+    // Per-village groups that currently have a DEFERRED task (Pending but NextAttemptAt in the future,
+    // e.g. waiting for resources or a full build queue). Drives the amber "waiting" icon state so a village
+    // with blocked-but-pending work isn't shown as fully idle.
+    private Dictionary<string, HashSet<QueueGroup>> BuildVillagesWithDeferredWork()
+    {
+        var map = new Dictionary<string, HashSet<QueueGroup>>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            foreach (var item in _botService.GetQueueItemsForDisplay())
+            {
+                if (item.Status != QueueStatus.Pending || item.NextAttemptAt <= now)
+                {
+                    continue;
+                }
+
+                var villageName = NormalizeVillageName(GetQueueItemVillageName(item));
+                if (villageName is null)
+                {
+                    continue;
+                }
+
+                if (!map.TryGetValue(villageName, out var groups))
+                {
+                    groups = new HashSet<QueueGroup>();
+                    map[villageName] = groups;
+                }
+
+                groups.Add(item.Group);
+            }
+        }
+        catch
+        {
+            // Non-fatal for an overview indicator.
+        }
+
+        return map;
+    }
+
     // Two idle smithy upgrade slots (two simultaneous upgrades). UI placeholder — not yet wired to live data.
     // Live per-village Smithy research queue (seconds-remaining per occupied slot + capture time), updated
     // from the worker's "[smithy-queue]" line each time the bot visits a village's Smithy. Decayed on read.
@@ -198,18 +247,22 @@ public partial class MainWindow
 
     // Two Smithy research slots per village, lit when occupied — same active/idle convention as the build
     // slots. The exact remaining time is in the tooltip; the village's overall countdown is the card timer.
-    private IReadOnlyList<VillageActivitySlot> BuildSmithyActivitySlots(string? villageName)
+    private IReadOnlyList<VillageActivitySlot> BuildSmithyActivitySlots(string? villageName, bool hasDeferredWork = false)
     {
         var remaining = ResolveSmithyQueueRemaining(villageName);
         var slots = new List<VillageActivitySlot>(2);
         for (var i = 0; i < 2; i++)
         {
             var isActive = i < remaining.Count;
+            var isWaiting = !isActive && hasDeferredWork;
             slots.Add(new VillageActivitySlot
             {
                 IsActive = isActive,
+                IsWaiting = isWaiting,
                 Label = "",
-                Tooltip = isActive ? $"Smithy research ({FormatSmithyDuration(remaining[i])})" : "Smithy slot free",
+                Tooltip = isActive
+                    ? $"Smithy research ({FormatSmithyDuration(remaining[i])})"
+                    : isWaiting ? "Smithy waiting (deferred: resources or queue)" : "Smithy slot free",
             });
         }
 
@@ -353,7 +406,8 @@ public partial class MainWindow
     private static IReadOnlyList<VillageActivitySlot> BuildBuildingActivitySlots(
         VillageStatus? status,
         int slotCount,
-        bool hasQueueFullEvidence = false)
+        bool hasQueueFullEvidence = false,
+        bool hasDeferredWork = false)
     {
         var active = Math.Clamp(
             ConstructionQueueState.ResolveDisplayedActiveBuildCount(status, hasQueueFullEvidence),
@@ -363,18 +417,22 @@ public partial class MainWindow
         for (var i = 0; i < slotCount; i++)
         {
             var isActive = i < active;
+            var isWaiting = !isActive && hasDeferredWork;
             slots.Add(new VillageActivitySlot
             {
                 IsActive = isActive,
                 Label = "", // hammer glyph set in XAML; Label unused for build slots — represents a construction slot.
-                Tooltip = isActive ? "Construction in progress" : "Build slot free",
+                IsWaiting = isWaiting,
+                Tooltip = isActive
+                    ? "Construction in progress"
+                    : isWaiting ? "Construction waiting (deferred: resources or build queue full)" : "Build slot free",
             });
         }
 
         return slots;
     }
 
-    private static IReadOnlyList<VillageActivitySlot> BuildTroopActivitySlots(VillageStatus? status)
+    private static IReadOnlyList<VillageActivitySlot> BuildTroopActivitySlots(VillageStatus? status, bool hasDeferredWork = false)
     {
         var defs = new (TroopTrainingBuildingType Type, string Letter, string Label)[]
         {
@@ -389,17 +447,24 @@ public partial class MainWindow
         {
             var queue = queues?.FirstOrDefault(q => q.BuildingType == type);
             var isActive = queue is { RemainingSeconds: > 0 };
+            var exists = queue is { Exists: true };
+            // Amber waiting only on a built-but-idle building when a build_troops task is deferred here.
+            var isWaiting = exists && !isActive && hasDeferredWork;
             string tooltip;
             if (queue is null || !queue.Exists)
             {
                 tooltip = $"{label}: not built";
             }
+            else if (isActive)
+            {
+                tooltip = $"{label}: training ({queue.RemainingText})";
+            }
             else
             {
-                tooltip = isActive ? $"{label}: training ({queue.RemainingText})" : $"{label}: idle";
+                tooltip = isWaiting ? $"{label}: waiting (deferred)" : $"{label}: idle";
             }
 
-            slots.Add(new VillageActivitySlot { IsActive = isActive, Label = letter, Tooltip = tooltip });
+            slots.Add(new VillageActivitySlot { IsActive = isActive, IsWaiting = isWaiting, Label = letter, Tooltip = tooltip });
         }
 
         return slots;
