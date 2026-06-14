@@ -6171,7 +6171,7 @@
           "crop": 90,
           "upkeep": 1,
           "culture_points": 1,
-          "build_seconds_1x": 10025
+          "build_seconds_1x": 5027
         },
         {
           "level": 3,
@@ -6181,7 +6181,7 @@
           "crop": 115,
           "upkeep": 1,
           "culture_points": 2,
-          "build_seconds_1x": 21925
+          "build_seconds_1x": 6131
         },
         {
           "level": 4,
@@ -6191,7 +6191,7 @@
           "crop": 145,
           "upkeep": 1,
           "culture_points": 2,
-          "build_seconds_1x": 45725
+          "build_seconds_1x": 7412
         },
         {
           "level": 5,
@@ -6201,7 +6201,7 @@
           "crop": 190,
           "upkeep": 1,
           "culture_points": 2,
-          "build_seconds_1x": 93325
+          "build_seconds_1x": 8898
         },
         {
           "level": 6,
@@ -6211,7 +6211,7 @@
           "crop": 240,
           "upkeep": 2,
           "culture_points": 3,
-          "build_seconds_1x": 188525
+          "build_seconds_1x": 10622
         },
         {
           "level": 7,
@@ -6221,7 +6221,7 @@
           "crop": 310,
           "upkeep": 2,
           "culture_points": 4,
-          "build_seconds_1x": 378925
+          "build_seconds_1x": 12622
         },
         {
           "level": 8,
@@ -6231,7 +6231,7 @@
           "crop": 395,
           "upkeep": 2,
           "culture_points": 4,
-          "build_seconds_1x": 759725
+          "build_seconds_1x": 14941
         },
         {
           "level": 9,
@@ -6241,7 +6241,7 @@
           "crop": 505,
           "upkeep": 2,
           "culture_points": 5,
-          "build_seconds_1x": 1521325
+          "build_seconds_1x": 17632
         },
         {
           "level": 10,
@@ -6251,7 +6251,7 @@
           "crop": 645,
           "upkeep": 2,
           "culture_points": 6,
-          "build_seconds_1x": 3044525
+          "build_seconds_1x": 20753
         },
         {
           "level": 11,
@@ -6261,7 +6261,7 @@
           "crop": 825,
           "upkeep": 2,
           "culture_points": 7,
-          "build_seconds_1x": 6090925
+          "build_seconds_1x": 24373
         },
         {
           "level": 12,
@@ -6271,7 +6271,7 @@
           "crop": 1060,
           "upkeep": 2,
           "culture_points": 9,
-          "build_seconds_1x": 12183725
+          "build_seconds_1x": 28573
         },
         {
           "level": 13,
@@ -6281,7 +6281,7 @@
           "crop": 1355,
           "upkeep": 2,
           "culture_points": 11,
-          "build_seconds_1x": 24369325
+          "build_seconds_1x": 33444
         },
         {
           "level": 14,
@@ -6291,7 +6291,7 @@
           "crop": 1735,
           "upkeep": 2,
           "culture_points": 13,
-          "build_seconds_1x": 48740525
+          "build_seconds_1x": 39095
         },
         {
           "level": 15,
@@ -6301,7 +6301,7 @@
           "crop": 2220,
           "upkeep": 2,
           "culture_points": 15,
-          "build_seconds_1x": 97482925
+          "build_seconds_1x": 45651
         },
         {
           "level": 16,
@@ -6311,7 +6311,7 @@
           "crop": 2840,
           "upkeep": 3,
           "culture_points": 18,
-          "build_seconds_1x": 194967725
+          "build_seconds_1x": 53255
         },
         {
           "level": 17,
@@ -6321,7 +6321,7 @@
           "crop": 3635,
           "upkeep": 3,
           "culture_points": 22,
-          "build_seconds_1x": 389937325
+          "build_seconds_1x": 62076
         },
         {
           "level": 18,
@@ -6331,7 +6331,7 @@
           "crop": 4650,
           "upkeep": 3,
           "culture_points": 27,
-          "build_seconds_1x": 779876525
+          "build_seconds_1x": 72308
         },
         {
           "level": 19,
@@ -6341,7 +6341,7 @@
           "crop": 5955,
           "upkeep": 3,
           "culture_points": 32,
-          "build_seconds_1x": 1559754925
+          "build_seconds_1x": 84177
         },
         {
           "level": 20,
@@ -6351,7 +6351,7 @@
           "crop": 7620,
           "upkeep": 3,
           "culture_points": 38,
-          "build_seconds_1x": 3119511725
+          "build_seconds_1x": 97945
         }
       ]
     },
@@ -6390,7 +6390,7 @@
           "crop": 2435,
           "upkeep": 3,
           "culture_points": 6,
-          "build_seconds_1x": 21625
+          "build_seconds_1x": 11755
         },
         {
           "level": 3,
@@ -6400,7 +6400,7 @@
           "crop": 3410,
           "upkeep": 3,
           "culture_points": 7,
-          "build_seconds_1x": 45125
+          "build_seconds_1x": 13936
         },
         {
           "level": 4,
@@ -6410,7 +6410,7 @@
           "crop": 4775,
           "upkeep": 3,
           "culture_points": 8,
-          "build_seconds_1x": 92125
+          "build_seconds_1x": 16466
         },
         {
           "level": 5,
@@ -6420,7 +6420,7 @@
           "crop": 6685,
           "upkeep": 3,
           "culture_points": 10,
-          "build_seconds_1x": 186125
+          "build_seconds_1x": 19400
         },
         {
           "level": 6,
@@ -6430,7 +6430,7 @@
           "crop": 9360,
           "upkeep": 4,
           "culture_points": 12,
-          "build_seconds_1x": 374125
+          "build_seconds_1x": 22804
         },
         {
           "level": 7,
@@ -6440,7 +6440,7 @@
           "crop": 13100,
           "upkeep": 4,
           "culture_points": 14,
-          "build_seconds_1x": 750125
+          "build_seconds_1x": 26753
         },
         {
           "level": 8,
@@ -6450,7 +6450,7 @@
           "crop": 18340,
           "upkeep": 4,
           "culture_points": 17,
-          "build_seconds_1x": 1502125
+          "build_seconds_1x": 31333
         },
         {
           "level": 9,
@@ -6460,7 +6460,7 @@
           "crop": 25680,
           "upkeep": 4,
           "culture_points": 21,
-          "build_seconds_1x": 3006125
+          "build_seconds_1x": 36646
         },
         {
           "level": 10,
@@ -6470,7 +6470,7 @@
           "crop": 35950,
           "upkeep": 4,
           "culture_points": 25,
-          "build_seconds_1x": 6014125
+          "build_seconds_1x": 42810
         }
       ]
     },
@@ -6508,7 +6508,7 @@
           "crop": 130,
           "upkeep": 2,
           "culture_points": 1,
-          "build_seconds_1x": 2125
+          "build_seconds_1x": 445
         },
         {
           "level": 3,
@@ -6518,7 +6518,7 @@
           "crop": 165,
           "upkeep": 2,
           "culture_points": 2,
-          "build_seconds_1x": 6125
+          "build_seconds_1x": 816
         },
         {
           "level": 4,
@@ -6528,7 +6528,7 @@
           "crop": 210,
           "upkeep": 2,
           "culture_points": 2,
-          "build_seconds_1x": 14125
+          "build_seconds_1x": 1247
         },
         {
           "level": 5,
@@ -6538,7 +6538,7 @@
           "crop": 270,
           "upkeep": 2,
           "culture_points": 2,
-          "build_seconds_1x": 30125
+          "build_seconds_1x": 1746
         },
         {
           "level": 6,
@@ -6548,7 +6548,7 @@
           "crop": 345,
           "upkeep": 3,
           "culture_points": 3,
-          "build_seconds_1x": 62125
+          "build_seconds_1x": 2326
         },
         {
           "level": 7,
@@ -6558,7 +6558,7 @@
           "crop": 440,
           "upkeep": 3,
           "culture_points": 4,
-          "build_seconds_1x": 126125
+          "build_seconds_1x": 2998
         },
         {
           "level": 8,
@@ -6568,7 +6568,7 @@
           "crop": 565,
           "upkeep": 3,
           "culture_points": 4,
-          "build_seconds_1x": 254125
+          "build_seconds_1x": 3777
         },
         {
           "level": 9,
@@ -6578,7 +6578,7 @@
           "crop": 720,
           "upkeep": 3,
           "culture_points": 5,
-          "build_seconds_1x": 510125
+          "build_seconds_1x": 4682
         },
         {
           "level": 10,
@@ -6588,7 +6588,7 @@
           "crop": 920,
           "upkeep": 3,
           "culture_points": 6,
-          "build_seconds_1x": 1022125
+          "build_seconds_1x": 5731
         },
         {
           "level": 11,
@@ -6598,7 +6598,7 @@
           "crop": 1180,
           "upkeep": 3,
           "culture_points": 7,
-          "build_seconds_1x": 2046125
+          "build_seconds_1x": 6948
         },
         {
           "level": 12,
@@ -6608,7 +6608,7 @@
           "crop": 1510,
           "upkeep": 3,
           "culture_points": 9,
-          "build_seconds_1x": 4094125
+          "build_seconds_1x": 8360
         },
         {
           "level": 13,
@@ -6618,7 +6618,7 @@
           "crop": 1935,
           "upkeep": 3,
           "culture_points": 11,
-          "build_seconds_1x": 8190125
+          "build_seconds_1x": 9997
         },
         {
           "level": 14,
@@ -6628,7 +6628,7 @@
           "crop": 2475,
           "upkeep": 3,
           "culture_points": 13,
-          "build_seconds_1x": 16382125
+          "build_seconds_1x": 11897
         },
         {
           "level": 15,
@@ -6638,7 +6638,7 @@
           "crop": 3170,
           "upkeep": 3,
           "culture_points": 15,
-          "build_seconds_1x": 32766125
+          "build_seconds_1x": 14100
         },
         {
           "level": 16,
@@ -6648,7 +6648,7 @@
           "crop": 4055,
           "upkeep": 4,
           "culture_points": 18,
-          "build_seconds_1x": 65534125
+          "build_seconds_1x": 16656
         },
         {
           "level": 17,
@@ -6658,7 +6658,7 @@
           "crop": 5190,
           "upkeep": 4,
           "culture_points": 22,
-          "build_seconds_1x": 131070125
+          "build_seconds_1x": 19621
         },
         {
           "level": 18,
@@ -6668,7 +6668,7 @@
           "crop": 6645,
           "upkeep": 4,
           "culture_points": 27,
-          "build_seconds_1x": 262142125
+          "build_seconds_1x": 23060
         },
         {
           "level": 19,
@@ -6678,7 +6678,7 @@
           "crop": 8505,
           "upkeep": 4,
           "culture_points": 32,
-          "build_seconds_1x": 524286125
+          "build_seconds_1x": 27050
         },
         {
           "level": 20,
@@ -6688,7 +6688,7 @@
           "crop": 10890,
           "upkeep": 4,
           "culture_points": 38,
-          "build_seconds_1x": 1048574125
+          "build_seconds_1x": 31678
         }
       ]
     },
@@ -6727,7 +6727,7 @@
           "crop": 120,
           "upkeep": 1,
           "culture_points": 1,
-          "build_seconds_1x": 2725
+          "build_seconds_1x": 793
         },
         {
           "level": 3,
@@ -6737,7 +6737,7 @@
           "crop": 160,
           "upkeep": 1,
           "culture_points": 2,
-          "build_seconds_1x": 7325
+          "build_seconds_1x": 1220
         },
         {
           "level": 4,
@@ -6747,7 +6747,7 @@
           "crop": 210,
           "upkeep": 1,
           "culture_points": 2,
-          "build_seconds_1x": 16525
+          "build_seconds_1x": 1715
         },
         {
           "level": 5,
@@ -6757,7 +6757,7 @@
           "crop": 280,
           "upkeep": 1,
           "culture_points": 2,
-          "build_seconds_1x": 34925
+          "build_seconds_1x": 2289
         },
         {
           "level": 6,
@@ -6767,7 +6767,7 @@
           "crop": 375,
           "upkeep": 2,
           "culture_points": 3,
-          "build_seconds_1x": 71725
+          "build_seconds_1x": 2956
         },
         {
           "level": 7,
@@ -6777,7 +6777,7 @@
           "crop": 500,
           "upkeep": 2,
           "culture_points": 4,
-          "build_seconds_1x": 145325
+          "build_seconds_1x": 3729
         },
         {
           "level": 8,
@@ -6787,7 +6787,7 @@
           "crop": 665,
           "upkeep": 2,
           "culture_points": 4,
-          "build_seconds_1x": 292525
+          "build_seconds_1x": 4625
         },
         {
           "level": 9,
@@ -6797,7 +6797,7 @@
           "crop": 880,
           "upkeep": 2,
           "culture_points": 5,
-          "build_seconds_1x": 586925
+          "build_seconds_1x": 5665
         },
         {
           "level": 10,
@@ -6807,7 +6807,7 @@
           "crop": 1170,
           "upkeep": 2,
           "culture_points": 6,
-          "build_seconds_1x": 1175725
+          "build_seconds_1x": 6872
         },
         {
           "level": 11,
@@ -6817,7 +6817,7 @@
           "crop": 1560,
           "upkeep": 2,
           "culture_points": 7,
-          "build_seconds_1x": 2353325
+          "build_seconds_1x": 8271
         },
         {
           "level": 12,
@@ -6827,7 +6827,7 @@
           "crop": 2075,
           "upkeep": 2,
           "culture_points": 9,
-          "build_seconds_1x": 4708525
+          "build_seconds_1x": 9895
         },
         {
           "level": 13,
@@ -6837,7 +6837,7 @@
           "crop": 2755,
           "upkeep": 2,
           "culture_points": 11,
-          "build_seconds_1x": 9418925
+          "build_seconds_1x": 11778
         },
         {
           "level": 14,
@@ -6847,7 +6847,7 @@
           "crop": 3665,
           "upkeep": 2,
           "culture_points": 13,
-          "build_seconds_1x": 18839725
+          "build_seconds_1x": 13962
         },
         {
           "level": 15,
@@ -6857,7 +6857,7 @@
           "crop": 4875,
           "upkeep": 2,
           "culture_points": 15,
-          "build_seconds_1x": 37681325
+          "build_seconds_1x": 16496
         },
         {
           "level": 16,
@@ -6867,7 +6867,7 @@
           "crop": 6485,
           "upkeep": 3,
           "culture_points": 18,
-          "build_seconds_1x": 75364525
+          "build_seconds_1x": 19436
         },
         {
           "level": 17,
@@ -6877,7 +6877,7 @@
           "crop": 8625,
           "upkeep": 3,
           "culture_points": 22,
-          "build_seconds_1x": 150730925
+          "build_seconds_1x": 22845
         },
         {
           "level": 18,
@@ -6887,7 +6887,7 @@
           "crop": 11475,
           "upkeep": 3,
           "culture_points": 27,
-          "build_seconds_1x": 301463725
+          "build_seconds_1x": 26801
         },
         {
           "level": 19,
@@ -6897,7 +6897,7 @@
           "crop": 15260,
           "upkeep": 3,
           "culture_points": 32,
-          "build_seconds_1x": 602929325
+          "build_seconds_1x": 31389
         },
         {
           "level": 20,
@@ -6907,7 +6907,7 @@
           "crop": 20295,
           "upkeep": 3,
           "culture_points": 38,
-          "build_seconds_1x": 1205860525
+          "build_seconds_1x": 36711
         }
       ]
     },
@@ -8398,7 +8398,7 @@
           "crop": 690,
           "upkeep": 3,
           "culture_points": 4,
-          "build_seconds_1x": 10025
+          "build_seconds_1x": 5027
         },
         {
           "level": 3,
@@ -8408,7 +8408,7 @@
           "crop": 885,
           "upkeep": 3,
           "culture_points": 5,
-          "build_seconds_1x": 21925
+          "build_seconds_1x": 6131
         },
         {
           "level": 4,
@@ -8418,7 +8418,7 @@
           "crop": 1130,
           "upkeep": 3,
           "culture_points": 6,
-          "build_seconds_1x": 45725
+          "build_seconds_1x": 7412
         },
         {
           "level": 5,
@@ -8428,7 +8428,7 @@
           "crop": 1450,
           "upkeep": 3,
           "culture_points": 7,
-          "build_seconds_1x": 93325
+          "build_seconds_1x": 8898
         },
         {
           "level": 6,
@@ -8438,7 +8438,7 @@
           "crop": 1855,
           "upkeep": 3,
           "culture_points": 9,
-          "build_seconds_1x": 188525
+          "build_seconds_1x": 10622
         },
         {
           "level": 7,
@@ -8448,7 +8448,7 @@
           "crop": 2375,
           "upkeep": 3,
           "culture_points": 11,
-          "build_seconds_1x": 378925
+          "build_seconds_1x": 12622
         },
         {
           "level": 8,
@@ -8458,7 +8458,7 @@
           "crop": 3040,
           "upkeep": 3,
           "culture_points": 13,
-          "build_seconds_1x": 759725
+          "build_seconds_1x": 14941
         },
         {
           "level": 9,
@@ -8468,7 +8468,7 @@
           "crop": 3890,
           "upkeep": 3,
           "culture_points": 15,
-          "build_seconds_1x": 1521325
+          "build_seconds_1x": 17632
         },
         {
           "level": 10,
@@ -8478,7 +8478,7 @@
           "crop": 4980,
           "upkeep": 3,
           "culture_points": 19,
-          "build_seconds_1x": 3044525
+          "build_seconds_1x": 20753
         },
         {
           "level": 11,
@@ -8488,7 +8488,7 @@
           "crop": 6375,
           "upkeep": 4,
           "culture_points": 22,
-          "build_seconds_1x": 6090925
+          "build_seconds_1x": 24373
         },
         {
           "level": 12,
@@ -8498,7 +8498,7 @@
           "crop": 8160,
           "upkeep": 4,
           "culture_points": 27,
-          "build_seconds_1x": 12183725
+          "build_seconds_1x": 28573
         },
         {
           "level": 13,
@@ -8508,7 +8508,7 @@
           "crop": 10445,
           "upkeep": 4,
           "culture_points": 32,
-          "build_seconds_1x": 24369325
+          "build_seconds_1x": 33444
         },
         {
           "level": 14,
@@ -8518,7 +8518,7 @@
           "crop": 13370,
           "upkeep": 4,
           "culture_points": 39,
-          "build_seconds_1x": 48740525
+          "build_seconds_1x": 39095
         },
         {
           "level": 15,
@@ -8528,7 +8528,7 @@
           "crop": 17115,
           "upkeep": 4,
           "culture_points": 46,
-          "build_seconds_1x": 97482925
+          "build_seconds_1x": 45651
         },
         {
           "level": 16,
@@ -8538,7 +8538,7 @@
           "crop": 21905,
           "upkeep": 4,
           "culture_points": 55,
-          "build_seconds_1x": 194967725
+          "build_seconds_1x": 53255
         },
         {
           "level": 17,
@@ -8548,7 +8548,7 @@
           "crop": 28040,
           "upkeep": 4,
           "culture_points": 67,
-          "build_seconds_1x": 389937325
+          "build_seconds_1x": 62076
         },
         {
           "level": 18,
@@ -8558,7 +8558,7 @@
           "crop": 35890,
           "upkeep": 4,
           "culture_points": 80,
-          "build_seconds_1x": 779876525
+          "build_seconds_1x": 72308
         },
         {
           "level": 19,
@@ -8568,7 +8568,7 @@
           "crop": 45940,
           "upkeep": 4,
           "culture_points": 96,
-          "build_seconds_1x": 1559754925
+          "build_seconds_1x": 84177
         },
         {
           "level": 20,
@@ -8578,7 +8578,7 @@
           "crop": 58800,
           "upkeep": 4,
           "culture_points": 115,
-          "build_seconds_1x": 3119511725
+          "build_seconds_1x": 97945
         }
       ]
     },

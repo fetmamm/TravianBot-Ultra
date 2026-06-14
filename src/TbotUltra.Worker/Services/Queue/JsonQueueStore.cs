@@ -7,11 +7,20 @@ namespace TbotUltra.Worker.Services;
 public sealed class JsonQueueStore : IQueueStore
 {
     // The queue path is resolved per operation so it can follow the active account at runtime (the
-    // Desktop app points this at config/accounts/<account>/queue.json). The store keeps no in-memory
-    // copy of the queue — every call reads/writes the file — so re-resolving the path is enough to
-    // switch accounts; no cache to invalidate.
+    // Desktop app points this at config/accounts/<account>/queue.json).
+    //
+    // Reads are served from an in-memory cache so the hot UI path (per-second GetAll calls for the
+    // dashboard/Next-task) does not hit disk under the file lock and contend with the worker thread.
+    // The cache is keyed by the resolved path: switching account changes the path, which invalidates
+    // the cache automatically (a stale cache for a different account is never returned). Every write
+    // still persists to disk AND refreshes the cache, so the file stays authoritative and closing the
+    // app loses nothing. The cache holds defensive clones; callers get their own clones too.
+    // Assumes a single process owns the file (true for the Desktop app); an external editor changing
+    // queue.json while the app runs would not be observed until the next account switch.
     private readonly Func<string> _queuePathProvider;
     private readonly object _sync = new();
+    private List<QueueItem>? _cache;
+    private string? _cachePath;
 
     private string _queuePath => _queuePathProvider();
     private string _lockPath => $"{_queuePath}.lock";
@@ -401,8 +410,15 @@ public sealed class JsonQueueStore : IQueueStore
 
     private List<QueueItem> LoadMutable()
     {
+        // Serve from cache when it belongs to the current account's path. Return clones so the caller
+        // can mutate freely without touching the cached snapshot (cache is only updated on SaveMutable).
+        if (_cache is not null && string.Equals(_cachePath, _queuePath, StringComparison.OrdinalIgnoreCase))
+        {
+            return _cache.Select(Clone).ToList();
+        }
+
         EnsureFileExists();
-        return WithFileLock(() =>
+        var loaded = WithFileLock(() =>
         {
             var raw = File.ReadAllText(_queuePath);
             if (string.IsNullOrWhiteSpace(raw))
@@ -427,6 +443,10 @@ public sealed class JsonQueueStore : IQueueStore
                     ex);
             }
         });
+
+        _cache = loaded.Select(Clone).ToList();
+        _cachePath = _queuePath;
+        return loaded;
     }
 
     private void SaveMutable(List<QueueItem> items)
@@ -460,6 +480,10 @@ public sealed class JsonQueueStore : IQueueStore
 
             File.Move(tempPath, _queuePath, overwrite: true);
         });
+
+        // Refresh the read cache from what we just persisted so subsequent GetAll calls stay off disk.
+        _cache = items.Select(Clone).ToList();
+        _cachePath = _queuePath;
     }
 
     private void EnsureFileExists()
