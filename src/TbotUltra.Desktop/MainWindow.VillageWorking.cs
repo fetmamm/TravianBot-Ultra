@@ -363,6 +363,8 @@ public partial class MainWindow
         {
             ApplyVillageActivityIndicators(items.ToList());
         }
+
+        RefreshTravianBuildQueueUi();
     }
 
     // Queue-full is occupancy evidence, never an active-construction count. Multiple program queue items

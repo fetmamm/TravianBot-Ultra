@@ -126,6 +126,8 @@ For en ny dashboard-bool ska hela configkedjan uppdateras:
 - Djup queue-full-diagnostik anvander `[construction-queue:verbose]` och doljs i Clean-laget.
 - Dashboardens byggikoner anvander live `ActiveConstructions` som auktoritativt antal.
   Queue-full-poster ar bara boolesk occupancy-fallback och far aldrig summeras som byggnader.
+- Queue-flikens Travian-kö ska använda samma byspecifika `ActiveConstructions`; ingen separat
+  browserläsning eller kökälla. Visa målnivå och `FinishUtc` formaterad med programmets serverklocka.
 - Village Overview och byval visar kapitalen forst; ovriga byar behaller Travian-listans DOM/sidebar-ordning.
 - Queue-sidans `Build time`/`Cost`-kolumner och totalsumman ar best-effort-estimat ur
   `buildings_catalog.json` (1x), skalat med serverhastigheten fran `ResolveServerSpeed()`

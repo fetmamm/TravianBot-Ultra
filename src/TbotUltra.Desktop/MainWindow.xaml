@@ -2765,6 +2765,7 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
@@ -2818,8 +2819,86 @@
                                        ToolTip="The queue below is shown for this village. Choose a village with the dropdown on the Dashboard." />
                         </StackPanel>
 
+                        <Border Grid.Row="2"
+                                Margin="2,0,2,12"
+                                Padding="12"
+                                Background="{DynamicResource SurfaceBrush}"
+                                BorderBrush="{DynamicResource BorderSubtleBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <DockPanel Grid.Row="0" Margin="0,0,0,8">
+                                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                                        <TextBlock Text="&#xE7C3;"
+                                                   FontFamily="Segoe Fluent Icons"
+                                                   FontSize="16"
+                                                   Foreground="{DynamicResource SuccessBrush}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,8,0" />
+                                        <TextBlock Text="Travian build queue"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <TextBlock x:Name="TravianBuildQueueVillageTextBlock"
+                                               Text="Selected village: -"
+                                               Foreground="{DynamicResource TextSubtleBrush}"
+                                               VerticalAlignment="Center"
+                                               HorizontalAlignment="Right" />
+                                </DockPanel>
+                                <Grid Grid.Row="1">
+                                    <DataGrid x:Name="TravianBuildQueueDataGrid"
+                                              AutoGenerateColumns="False"
+                                              IsReadOnly="True"
+                                              CanUserAddRows="False"
+                                              CanUserDeleteRows="False"
+                                              CanUserReorderColumns="False"
+                                              HeadersVisibility="Column"
+                                              GridLinesVisibility="Horizontal"
+                                              HorizontalGridLinesBrush="{DynamicResource AppBackgroundBrush}"
+                                              RowBackground="{DynamicResource SurfaceBrush}"
+                                              AlternatingRowBackground="{DynamicResource RowAltBackgroundBrush}"
+                                              BorderBrush="{DynamicResource BorderSubtleBrush}"
+                                              BorderThickness="1"
+                                              ColumnHeaderHeight="28"
+                                              RowHeight="30"
+                                              MaxHeight="128"
+                                              FontSize="12">
+                                        <DataGrid.Columns>
+                                            <DataGridTemplateColumn Width="38">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding Icon}"
+                                                                   FontFamily="Segoe Fluent Icons"
+                                                                   Foreground="{DynamicResource SuccessBrush}"
+                                                                   HorizontalAlignment="Center"
+                                                                   ToolTip="{Binding Kind}" />
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
+                                            <DataGridTextColumn Header="Construction" Width="*" Binding="{Binding Name}" />
+                                            <DataGridTextColumn Header="Target" Width="110" Binding="{Binding LevelText}" />
+                                            <DataGridTextColumn Header="Finished" Width="170" Binding="{Binding FinishAtText}" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                    <TextBlock x:Name="TravianBuildQueueEmptyTextBlock"
+                                               Text="No browser status loaded for this village."
+                                               Foreground="{DynamicResource TextSubtleBrush}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Margin="12"
+                                               IsHitTestVisible="False" />
+                                </Grid>
+                            </Grid>
+                        </Border>
+
                         <TabControl x:Name="QueueSectionTabControl"
-                                    Grid.Row="2"
+                                    Grid.Row="3"
                                     Margin="2,0,2,2"
                                     SelectionChanged="QueueSectionTabControl_SelectionChanged">
                             <TabItem x:Name="ActiveQueueTabItem" Header="Active queue">

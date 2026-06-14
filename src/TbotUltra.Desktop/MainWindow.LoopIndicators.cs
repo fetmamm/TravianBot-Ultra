@@ -280,6 +280,7 @@ public partial class MainWindow
         }
 
         UpdateBuildQueueStatusText();
+        RefreshTravianBuildQueueUi();
         UpdateAutomationLoopRunningIndicators();
     }
 

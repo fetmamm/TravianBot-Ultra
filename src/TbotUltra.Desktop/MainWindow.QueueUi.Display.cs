@@ -255,6 +255,7 @@ public partial class MainWindow
 
             QueueDataGrid.ItemsSource = displayedActiveRows;
             QueueHistoryDataGrid.ItemsSource = displayedHistoryRows;
+            RefreshTravianBuildQueueUi();
             UpdateQueueEstimateTotals(displayedActiveRows);
             SyncPendingResourceTargetsInUi();
             if (_lastBuildingStatus is not null)
@@ -297,6 +298,53 @@ public partial class MainWindow
         {
             _isRefreshingQueueUi = false;
         }
+    }
+
+    private void RefreshTravianBuildQueueUi()
+    {
+        var selectedName = NormalizeVillageName(GetSelectedVillageName());
+        VillageStatus? status = null;
+        var hasStatus = selectedName is not null
+            && _villageStatusCacheByName.TryGetValue(selectedName, out status);
+        var activeConstructions = hasStatus
+            ? status?.ActiveConstructions ?? []
+            : [];
+        var nowUtc = DateTimeOffset.UtcNow;
+
+        _travianBuildQueueRows.Clear();
+        foreach (var construction in activeConstructions)
+        {
+            var finishUtc = construction.Finish?.FinishUtc
+                ?? (construction.TimeLeftSeconds is > 0
+                    ? nowUtc.AddSeconds(construction.TimeLeftSeconds.Value)
+                    : (DateTimeOffset?)null);
+            if (finishUtc.HasValue && finishUtc.Value <= nowUtc)
+            {
+                continue;
+            }
+
+            _travianBuildQueueRows.Add(new TravianBuildQueueRow
+            {
+                Kind = construction.Kind switch
+                {
+                    ConstructionKind.Resource => "Resource field",
+                    ConstructionKind.Building => "Building",
+                    _ => "Construction",
+                },
+                Name = construction.Name,
+                LevelText = construction.Level.HasValue ? $"Level {construction.Level.Value}" : "-",
+                FinishAtText = finishUtc.HasValue
+                    ? FormatQueueServerTime(finishUtc.Value)
+                    : construction.FinishAtText ?? "-",
+            });
+        }
+
+        TravianBuildQueueVillageTextBlock.Text = $"Selected village: {selectedName ?? "-"}";
+        TravianBuildQueueEmptyTextBlock.Text = hasStatus
+            ? "No active construction in Travian."
+            : "No browser status loaded for this village.";
+        TravianBuildQueueEmptyTextBlock.Visibility =
+            _travianBuildQueueRows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private static Guid? ResolveDisplayRunningQueueItemId(IReadOnlyList<QueueItem> ordered)

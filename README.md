@@ -130,6 +130,8 @@ The bot manages every village on the account from one **Dashboard → Village ov
   the dropdown only changes the view/queue context (it does not navigate).
 - **Clear timers** resets cached activity timers for the selected village and requests fresh status
   reads without removing items from the Queue page.
+- The **Queue** tab shows the selected village's live Travian construction queue with target levels
+  and absolute server-clock finish times, using the same browser status as the village overview icons.
 - Activity timers are stored as absolute UTC finish times, so active construction, troop, smithy,
   hero, brewery, and farm-list countdowns continue correctly after restart or machine sleep.
 - Construction queue waits are reconciled with live village status, so a newly free normal or Plus

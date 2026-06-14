@@ -167,6 +167,7 @@ public partial class MainWindow : Window
     private LogCategory _terminalFilterCategory = LogCategory.All;
     private bool _terminalCleanMode = true;
     private readonly ObservableCollection<AlarmEntryRow> _alarmEntries = [];
+    private readonly ObservableCollection<TravianBuildQueueRow> _travianBuildQueueRows = [];
     private readonly ObservableCollection<LoopTaskOption> _automationLoopTasks = [];
     private ICollectionView? _automationLoopTasksView;
     private readonly ObservableCollection<ResourceTransferVillageItem> _resourceTransferVillages = [];
@@ -518,6 +519,7 @@ public partial class MainWindow : Window
         _alarmView = CollectionViewSource.GetDefaultView(_alarmEntries);
         _alarmView.Filter = AlarmEntryFilter;
         AlarmListBox.ItemsSource = _alarmView;
+        TravianBuildQueueDataGrid.ItemsSource = _travianBuildQueueRows;
         UpdateCaptchaStatsUi();
         UpdateNpcTradeStatsUi();
         _automationLoopTasksView = CollectionViewSource.GetDefaultView(_automationLoopTasks);
