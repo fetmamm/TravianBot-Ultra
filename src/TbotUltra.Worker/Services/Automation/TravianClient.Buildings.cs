@@ -1166,19 +1166,6 @@ public sealed partial class TravianClient
                 var missingRequirements = await ReadConstructRequirementErrorAsync(gid, cancellationToken);
                 if (blockedByResources)
                 {
-                    var snapshot = await ReadUpgradeResourceWaitSnapshotAsync(
-                        $"Building slot {slotId} construct {buildingName}",
-                        60,
-                        cancellationToken);
-
-                    // Defense-in-depth: don't spend hero/NPC resources when the real blocker is a full
-                    // build queue (source of truth = dorf2). Re-check before transferring.
-                    var queueDefer = await CheckQueueOrDeferAsync(ConstructionKind.Building, slotId, attempt, cancellationToken);
-                    if (queueDefer is not null)
-                    {
-                        return queueDefer;
-                    }
-
                     if (!heroTransferAttempted)
                     {
                         heroTransferAttempted = true;
@@ -1187,6 +1174,20 @@ public sealed partial class TravianClient
                             continue;
                         }
                     }
+
+                    // The construct page has the exact resource block and hero-transfer control. Only
+                    // navigate to dorf2 after that direct attempt, matching the upgrade flow and avoiding
+                    // a false "No hero transfer offered" result from probing the overview page.
+                    var queueDefer = await CheckQueueOrDeferAsync(ConstructionKind.Building, slotId, attempt, cancellationToken);
+                    if (queueDefer is not null)
+                    {
+                        return queueDefer;
+                    }
+
+                    var snapshot = await ReadUpgradeResourceWaitSnapshotAsync(
+                        $"Building slot {slotId} construct {buildingName}",
+                        60,
+                        cancellationToken);
 
                     if (!constructionNpcTradeAttempted)
                     {

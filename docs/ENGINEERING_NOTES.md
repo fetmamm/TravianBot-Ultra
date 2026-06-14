@@ -108,6 +108,8 @@ For en ny dashboard-bool ska hela configkedjan uppdateras:
   build-sidans transfer-logik ligger i `TryHeroResourceTransferOnCurrentBuildPageAsync`; construction
   och brewery anropar den via tunna gated wrappers, smithy har egen per-trupp-DOM
   (`TryHeroResourceTransferForSmithyTroopAsync`). Brewery aterforsoker start efter en lyckad transfer.
+  Nybyggnation ska prova hero-transfer direkt pa construct-sidan innan en queue-kontroll navigerar
+  till `dorf2`; annars missas sidans transferkontroll och byggnaden deferred felaktigt.
 
 ### Desktop
 

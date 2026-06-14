@@ -2780,6 +2780,13 @@
                                            Foreground="{DynamicResource TextSubtleBrush}"
                                            FontSize="12"
                                            Margin="0,4,0,0" />
+                                <TextBlock x:Name="QueueSelectedVillageTextBlock"
+                                           Text="Selected village: -"
+                                           Foreground="{DynamicResource TextSubtleBrush}"
+                                           FontSize="12"
+                                           Margin="0,3,0,0"
+                                           ToolTip="The queue below is shown for this village. Choose a village with the dropdown on the Dashboard." />
+                                <TextBlock x:Name="BuildQueueStatusTextBlock" Visibility="Collapsed" />
                             </StackPanel>
                             <Button x:Name="QueuePopoutButton"
                                     DockPanel.Dock="Right"
@@ -2810,22 +2817,8 @@
                             <TextBlock />
                         </DockPanel>
 
-                        <Grid Grid.Row="1" Margin="2,0,2,12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="500" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0"
-                                        VerticalAlignment="Top"
-                                        Margin="0,0,16,0">
-                            <TextBlock x:Name="BuildQueueStatusTextBlock" Visibility="Collapsed" />
-                            <TextBlock x:Name="QueueSelectedVillageTextBlock"
-                                       Text="Selected village: -"
-                                       Foreground="{DynamicResource TextSubtleBrush}"
-                                       ToolTip="The queue below is shown for this village. Choose a village with the dropdown on the Dashboard." />
-                            </StackPanel>
-
-                        <Border Grid.Column="1"
+                        <Border Grid.Row="1"
+                                Margin="2,0,2,12"
                                 Padding="12"
                                 Background="{DynamicResource SurfaceBrush}"
                                 BorderBrush="{DynamicResource BorderSubtleBrush}"
@@ -2859,12 +2852,13 @@
                                               BorderThickness="1"
                                               ColumnHeaderHeight="28"
                                               RowHeight="30"
+                                              MinHeight="58"
                                               MaxHeight="128"
                                               FontSize="12">
                                         <DataGrid.Columns>
                                             <DataGridTextColumn Header="Construction" Width="*" Binding="{Binding Name}" />
-                                            <DataGridTextColumn Header="Target" Width="110" Binding="{Binding LevelText}" />
-                                            <DataGridTextColumn Header="Finished" Width="170" Binding="{Binding FinishAtText}" />
+                                            <DataGridTextColumn Header="Target" Width="140" Binding="{Binding LevelText}" />
+                                            <DataGridTextColumn Header="Finished" Width="220" Binding="{Binding FinishAtText}" />
                                         </DataGrid.Columns>
                                     </DataGrid>
                                     <TextBlock x:Name="TravianBuildQueueEmptyTextBlock"
@@ -2877,7 +2871,6 @@
                                 </Grid>
                             </Grid>
                         </Border>
-                        </Grid>
 
                         <TabControl x:Name="QueueSectionTabControl"
                                     Grid.Row="2"
