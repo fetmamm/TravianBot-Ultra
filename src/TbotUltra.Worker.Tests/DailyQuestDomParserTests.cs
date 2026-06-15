@@ -10,7 +10,7 @@ public sealed class DailyQuestDomParserTests
     [InlineData("daily_quests_1.txt")]
     public void HasClaimableDailyQuests_DetectsTopbarIndicator_InSavedDom(string fileName)
     {
-        var html = File.ReadAllText(Path.Combine(FindRepoRoot(), "temp_build_out", "DOM", fileName));
+        var html = TestDomFixtures.Read(fileName);
 
         Assert.True(DailyQuestDomParser.HasClaimableDailyQuests(html));
     }
@@ -25,21 +25,5 @@ public sealed class DailyQuestDomParserTests
             """;
 
         Assert.False(DailyQuestDomParser.HasClaimableDailyQuests(html));
-    }
-
-    private static string FindRepoRoot()
-    {
-        var current = new DirectoryInfo(AppContext.BaseDirectory);
-        while (current is not null)
-        {
-            if (File.Exists(Path.Combine(current.FullName, "TbotUltra.sln")))
-            {
-                return current.FullName;
-            }
-
-            current = current.Parent;
-        }
-
-        throw new DirectoryNotFoundException("Could not find repository root.");
     }
 }

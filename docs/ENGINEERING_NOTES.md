@@ -265,6 +265,8 @@ eller sta still, inte vaxa.
   Popupen ("Training options") ateranvander `TroopTrainingViewModel` + `TroopTrainingPayload`-serialiseringen.
 - Village settings-popupens "Automation groups"-kolumn speglar dashboardens loop-kort per by och sparas i
   samma `VillageSettingsStore.EnabledGroups`; avbockad grupp slutar koras for byn (`IsGroupEnabledForVillage`).
+- Popupens gruppkolumner har fast ordning oberoende av dashboardens dragordning:
+  Hero, Construction, Upgrade Troops, Build Troops, Farming, Brewery, NPC, Resource Transfer, Reinforcements.
 - Nya byar far explicit `Construction=true`, ovriga grupper och NPC=false. Auto=true endast nar den forsta
   inlasningen innehaller exakt en by; senare nya byar far Auto=false. `Save & close` vacker en pagaende loop.
 

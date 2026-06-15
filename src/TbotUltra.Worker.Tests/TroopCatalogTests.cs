@@ -78,13 +78,12 @@ public sealed class TroopCatalogTests
     // id. This is the invariant the Official troop-training fix relies on: Gaul Ram is form input t7 even
     // though its unit id is u27. Keep slot and unit id distinct.
     [Theory]
-    [InlineData("Romans", "Legionnaire", 1)]
-    [InlineData("Gauls", "Phalanx", 1)]
-    [InlineData("Gauls", "Ram", 7)]
-    [InlineData("Gauls", "Trebuchet", 8)]
-    [InlineData("Teutons", "Ram", 7)]
-    [InlineData("Teutons", "Settler", 10)]
-    public void ResolveTroopIndex_ReturnsTribeRelativeSlot(string tribe, string troopType, int expectedSlot)
+    [InlineData("Legionnaire", 1)]
+    [InlineData("Phalanx", 1)]
+    [InlineData("Ram", 7)]
+    [InlineData("Trebuchet", 8)]
+    [InlineData("Settler", 10)]
+    public void ResolveTroopIndex_ReturnsTribeRelativeSlot(string troopType, int expectedSlot)
     {
         Assert.Equal(expectedSlot, TroopCatalog.ResolveTroopIndex(troopType));
     }

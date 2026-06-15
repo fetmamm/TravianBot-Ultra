@@ -164,19 +164,7 @@ public sealed class TravianOfficialConstructionDomTests
 
     private static string ReadDomFixture(string fileName)
     {
-        var current = new DirectoryInfo(AppContext.BaseDirectory);
-        while (current is not null)
-        {
-            var candidate = Path.Combine(current.FullName, "temp_build_out", "DOM", fileName);
-            if (File.Exists(candidate))
-            {
-                return File.ReadAllText(candidate);
-            }
-
-            current = current.Parent;
-        }
-
-        throw new FileNotFoundException($"Could not find DOM fixture '{fileName}'.");
+        return TestDomFixtures.Read(fileName);
     }
 
     private static string DescribeCandidates(string html)

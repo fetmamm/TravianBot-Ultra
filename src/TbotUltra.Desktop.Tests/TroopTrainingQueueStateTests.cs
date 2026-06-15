@@ -1,3 +1,4 @@
+using TbotUltra.Core.Travian;
 using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Domain;
 using Xunit;

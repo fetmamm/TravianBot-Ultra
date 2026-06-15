@@ -53,23 +53,15 @@
                 </DataGridTemplateColumn>
                 <DataGridTextColumn Binding="{Binding Name}" Width="Auto" IsReadOnly="True">
                     <DataGridTextColumn.Header>
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Village" VerticalAlignment="Center" />
-                            <ContentControl Style="{DynamicResource InfoTooltipIconStyle}" Margin="5,0,0,0"
-                                            ToolTip="The village name as shown in Travian." />
-                        </StackPanel>
+                        <TextBlock Text="Village" VerticalAlignment="Center" />
                     </DataGridTextColumn.Header>
                 </DataGridTextColumn>
                 <DataGridTextColumn Binding="{Binding PopText}" Width="Auto" IsReadOnly="True">
                     <DataGridTextColumn.Header>
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Pop" VerticalAlignment="Center" />
-                            <ContentControl Style="{DynamicResource InfoTooltipIconStyle}" Margin="5,0,0,0"
-                                            ToolTip="Village population." />
-                        </StackPanel>
+                        <TextBlock Text="Pop" VerticalAlignment="Center" />
                     </DataGridTextColumn.Header>
                 </DataGridTextColumn>
-                <DataGridTemplateColumn Width="Auto">
+                <DataGridTemplateColumn x:Name="NpcTradeColumn" Width="Auto">
                     <DataGridTemplateColumn.Header>
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="NPC" VerticalAlignment="Center" />

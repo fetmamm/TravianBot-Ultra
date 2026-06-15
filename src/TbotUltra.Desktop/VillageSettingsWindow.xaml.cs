@@ -4,6 +4,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Markup;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Worker.Domain;
+using TbotUltra.Worker.Services;
 
 namespace TbotUltra.Desktop;
 
@@ -61,6 +63,13 @@ public partial class VillageSettingsWindow : Window
                 CellTemplate = BuildToggleCellTemplate($"GroupToggles[{i}].IsEnabled"),
             });
         }
+
+        var resourceTransferKey = QueueGroupCatalog.GetKey(QueueGroup.ResourceTransfer);
+        var reinforcementsKey = QueueGroupCatalog.GetKey(QueueGroup.Reinforcements);
+        var groupsBeforeNpc = template.TakeWhile(toggle =>
+            !string.Equals(toggle.GroupKey, resourceTransferKey, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(toggle.GroupKey, reinforcementsKey, StringComparison.OrdinalIgnoreCase));
+        NpcTradeColumn.DisplayIndex = 3 + groupsBeforeNpc.Count();
     }
 
     // Builds a column header: the title plus the reusable "i" tooltip icon (InfoTooltipIconStyle) so the

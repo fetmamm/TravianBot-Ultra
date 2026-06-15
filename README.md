@@ -131,9 +131,9 @@ The bot manages every village on the account from one **Dashboard → Village ov
 - **Per-village automation groups & NPC trade:** the Automation Loop groups (Construction, Build Troops,
   …) can be enabled per village. NPC trade has an account-wide master toggle in **Auto settings** plus a
   per-village choice in **Village settings** — it runs only when both are on.
-- **Village settings popup:** *Auto* is the green on/off toggle; every other toggle (NPC and the group
-  columns) is blue when on. Hover the **i** icon next to the title or any column header to read what it
-  does. Changes are applied with **Save & close**; **Close** discards them.
+- **Village settings popup:** *Auto* is the green on/off toggle; every other toggle is blue when on.
+  Group columns use the fixed order Hero, Construction, Upgrade Troops, Build Troops, Farming, Brewery,
+  NPC, Resource Transfer, Reinforcements. Changes apply with **Save & close**; **Close** discards them.
 - **Switch village** moves the browser to the village selected in the dropdown; selecting a village in
   the dropdown only changes the view/queue context (it does not navigate).
 - **Clear timers** resets cached activity timers for the selected village and requests fresh status

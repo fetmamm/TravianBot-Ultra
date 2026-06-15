@@ -13,6 +13,7 @@
         MinHeight="700"
         MinWidth="980"
         ShowInTaskbar="True"
+        Icon="/Assets/Tbot_ultra_appicon_2.png"
         Background="{DynamicResource AppBackgroundBrush}">
     <Grid>
         <Grid.LayoutTransform>
@@ -35,7 +36,7 @@
                 </Grid.RowDefinitions>
 
                 <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
-                    <Image Source="/Assets/Tbot_ultra_appicon.png"
+                    <Image Source="/Assets/Tbot_ultra_appicon_2.png"
                            Width="80"
                            Height="80"
                            VerticalAlignment="Center"

@@ -478,10 +478,33 @@ public partial class MainWindow
             ?? (VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem>)
             ?? Enumerable.Empty<VillageSelectionItem>();
 
-        // The per-village group toggles mirror the dashboard automation-loop cards (visible ones only).
+        var popupGroupOrder = new[]
+        {
+            QueueGroup.Hero,
+            QueueGroup.Construction,
+            QueueGroup.Troops,
+            QueueGroup.TroopTraining,
+            QueueGroup.Farming,
+            QueueGroup.BreweryCelebration,
+            QueueGroup.ResourceTransfer,
+            QueueGroup.Reinforcements,
+        }
+            .Select((group, index) => (Key: QueueGroupCatalog.GetKey(group), Index: index))
+            .ToDictionary(entry => entry.Key, entry => entry.Index, StringComparer.OrdinalIgnoreCase);
+
+        // Keep the popup stable even when the dashboard cards have been reordered by the user.
         var groupCards = _automationLoopTasks
             .Where(card => card.IsVisible)
-            .Select(card => (Key: card.TaskName, card.Title, card.Description))
+            .Select(card => (
+                Key: card.TaskName,
+                Title: string.Equals(
+                    card.TaskName,
+                    QueueGroupCatalog.GetKey(QueueGroup.BreweryCelebration),
+                    StringComparison.OrdinalIgnoreCase)
+                        ? "Brewery"
+                        : card.Title,
+                card.Description))
+            .OrderBy(card => popupGroupOrder.TryGetValue(card.Key, out var index) ? index : int.MaxValue)
             .ToList();
 
         var rows = source
