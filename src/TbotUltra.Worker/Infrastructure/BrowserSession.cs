@@ -156,9 +156,11 @@ public sealed class BrowserSession : IAsyncDisposable
         try
         {
             _playwright = await Playwright.CreateAsync();
+            // The live session must always run with a visible window. Headless is forced off here so a
+            // stale config value (or a missing browser window) can never start the bot headless.
             _browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
             {
-                Headless = _headlessOverride ?? _config.Headless,
+                Headless = false,
             });
 
             var contextOptions = new BrowserNewContextOptions

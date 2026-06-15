@@ -30,7 +30,8 @@ public partial class SettingsWindow : Window
     private void LoadConfig()
     {
         _config = _store.Load();
-        HeadlessCheckBox.IsChecked = _config["headless"]?.GetValue<bool>() ?? false;
+        // Headless is forced off and the checkbox is disabled so the bot can never start headless.
+        HeadlessCheckBox.IsChecked = false;
         AllowSilverSpendingCheckBox.IsChecked = _config["allow_silver_spending"]?.GetValue<bool>() ?? false;
         LoadPacingConfigToUi();
         SelectQueueWaitThresholdMode(_config[BotOptionPayloadKeys.QueueWaitThresholdMode]?.GetValue<string>() ?? "smart");
@@ -63,7 +64,7 @@ public partial class SettingsWindow : Window
     {
         try
         {
-            _config["headless"] = HeadlessCheckBox.IsChecked == false; // False tills vidare så det inte går starta i headless
+            _config["headless"] = false; // Forced false: the bot must not run headless. Checkbox is disabled in the UI.
             _config["allow_silver_spending"] = AllowSilverSpendingCheckBox.IsChecked == true;
             SavePacingConfigFromUi();
             _config[BotOptionPayloadKeys.QueueWaitThresholdMode] = GetSelectedQueueWaitThresholdMode();
