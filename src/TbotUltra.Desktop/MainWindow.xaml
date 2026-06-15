@@ -375,7 +375,7 @@
 
                     <!-- The village the bot is currently working in (browser's village), so the user can see it
                          from any page in the UI. Set from SetActiveWorkingVillage. -->
-                    <Border Style="{StaticResource MetricCard}" Width="180">
+                    <Border Style="{StaticResource MetricCard}" Width="130">
                         <StackPanel>
                             <TextBlock Text="Active village" Style="{StaticResource MetricLabel}" />
                             <StackPanel Orientation="Horizontal">
