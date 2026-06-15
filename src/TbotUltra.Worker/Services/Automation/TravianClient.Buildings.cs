@@ -1717,9 +1717,12 @@ public sealed partial class TravianClient
                         "Smithy: read queue timers",
                         () => ReadSmithyQueueTimersAsync(cancellationToken),
                         cancellationToken: cancellationToken);
-                    if (timers.Count > 0)
+                    // The Smithy research queue is the source of truth: when it's full the next slot only
+                    // frees when the SOONEST queued upgrade finishes, so defer on that timer (not DOM order).
+                    var soonestTimer = timers.Where(t => t > 0).DefaultIfEmpty(0).Min();
+                    if (soonestTimer > 0)
                     {
-                        waitCandidates.Add(timers[0]);
+                        waitCandidates.Add(soonestTimer);
                     }
                 }
                 if (minResourceWaitSeconds is int resWait && resWait > 0)
@@ -1727,7 +1730,9 @@ public sealed partial class TravianClient
                     waitCandidates.Add(resWait);
                 }
 
-                var dur = waitCandidates.Count > 0 ? waitCandidates.Min() : 0;
+                // A concrete page timer (queue slot freeing / resources arriving) is authoritative.
+                var hasConcreteWait = waitCandidates.Count > 0;
+                var dur = hasConcreteWait ? waitCandidates.Min() : 0;
 
                 // Queue busy with no readable timer can mean Travian's auto-reload stalled — reload a few
                 // times before falling back to the periodic re-check.
@@ -1746,9 +1751,14 @@ public sealed partial class TravianClient
                 if (dur <= 0)
                 {
                     dur = DefaultRecheckSeconds; // no exact ETA available — re-check on a moderate interval
+                    hasConcreteWait = false;
                 }
 
-                var waitSec = Math.Clamp(dur + 1, 2, 600);
+                // With a real queue timer, defer on it in full (the queue stays full until then) instead of
+                // waking every 10 min for nothing. Only the no-ETA fallback keeps the short periodic cap.
+                var waitSec = hasConcreteWait
+                    ? Math.Clamp(dur + 1, 2, 12 * 60 * 60)
+                    : Math.Clamp(dur + 1, 2, 600);
                 var reasonText = anyResearchInProgress && !anyWaitingForResources
                     ? "research in progress"
                     : !anyResearchInProgress && anyWaitingForResources

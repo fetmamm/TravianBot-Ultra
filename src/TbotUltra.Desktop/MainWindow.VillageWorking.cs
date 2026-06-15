@@ -129,11 +129,6 @@ public partial class MainWindow
 
         var buildingSlotCount = ResolveIsRomansTribe() ? 3 : 2;
         var heroHome = NormalizeVillageName(_heroHomeVillageName);
-        // Per-village "build queue is occupied" signal from the queue: a construction item deferred with
-        // reason queue_full means the server build queue is full → something IS building there. This lights
-        // the Buildings slots for villages the bot isn't currently scanning (their cached status has no
-        // live build count).
-        var queueFullVillages = BuildVillagesWithQueueFullConstruction();
         var queuedVillages = BuildVillagesWithConstructionQueue();
         // Per-village set of groups with a deferred/blocked task (Pending but not yet due) — drives the
         // amber "waiting" state on the matching icons (e.g. construction waiting for resources/queue).
@@ -153,9 +148,8 @@ public partial class MainWindow
                 deferredByVillage.TryGetValue(name, out deferredGroups);
             }
 
-            var hasQueueFullEvidence = name is not null && queueFullVillages.Contains(name);
             item.BuildingSlots = BuildBuildingActivitySlots(
-                status, buildingSlotCount, hasQueueFullEvidence, deferredGroups?.Contains(QueueGroup.Construction) == true);
+                status, buildingSlotCount, deferredGroups?.Contains(QueueGroup.Construction) == true);
             item.TroopSlots = BuildTroopActivitySlots(status, deferredGroups?.Contains(QueueGroup.TroopTraining) == true);
             item.SmithySlots = BuildSmithyActivitySlots(name, deferredGroups?.Contains(QueueGroup.Troops) == true);
             item.HasQueue = name is not null && queuedVillages.Contains(name);
@@ -395,52 +389,13 @@ public partial class MainWindow
         RefreshTravianSmithyQueueUi();
     }
 
-    // Queue-full is occupancy evidence, never an active-construction count. Multiple program queue items
-    // can defer against the same single server construction, so keep one boolean signal per village.
-    private HashSet<string> BuildVillagesWithQueueFullConstruction()
-    {
-        var villages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        try
-        {
-            foreach (var item in GetQueueSnapshotForUi())
-            {
-                if (item.Status != QueueStatus.Pending || !IsConstructionQueueTask(item.TaskName))
-                {
-                    continue;
-                }
-
-                if (item.Payload is null
-                    || !item.Payload.TryGetValue(BotOptionPayloadKeys.UpgradeDeferReason, out var reason)
-                    || !string.Equals(reason, BotOptionPayloadKeys.UpgradeDeferReasonQueueFull, StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                var villageName = NormalizeVillageName(GetQueueItemVillageName(item));
-                if (villageName is null)
-                {
-                    continue;
-                }
-
-                villages.Add(villageName);
-            }
-        }
-        catch
-        {
-            // Queue read failures are non-fatal for an overview indicator.
-        }
-
-        return villages;
-    }
-
     private static IReadOnlyList<VillageActivitySlot> BuildBuildingActivitySlots(
         VillageStatus? status,
         int slotCount,
-        bool hasQueueFullEvidence = false,
         bool hasDeferredWork = false)
     {
         var active = Math.Clamp(
-            ConstructionQueueState.ResolveDisplayedActiveBuildCount(status, hasQueueFullEvidence),
+            ConstructionQueueState.ResolveDisplayedActiveBuildCount(status),
             0,
             slotCount);
         var slots = new List<VillageActivitySlot>(slotCount);
@@ -660,6 +615,7 @@ public partial class MainWindow
         var timer = ConstructionQueueState.ResolveLiveConstructionTimer(status);
         _buildQueueActiveCount = timer.ActiveCount;
         _buildQueueRemainingSeconds = timer.RemainingSeconds ?? -1;
+        _buildQueueReachedZeroPendingCompletion = false;
         UpdateAutomationLoopRunningIndicators();
     }
 

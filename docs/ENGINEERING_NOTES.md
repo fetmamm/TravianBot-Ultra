@@ -127,14 +127,19 @@ For en ny dashboard-bool ska hela configkedjan uppdateras:
 - Queue-full ska loggas med bynamn samt exakt nasta retry i servertid och sekunder kvar.
 - Djup queue-full-diagnostik anvander `[construction-queue:verbose]` och doljs i Clean-laget.
 - Dashboardens byggikoner anvander live `ActiveConstructions` som auktoritativt antal.
-  Queue-full-poster ar bara boolesk occupancy-fallback och far aldrig summeras som byggnader.
+  Queue-full-poster och lokala retry-timers far aldrig anvandas som bevis pa ett aktivt bygge.
   Gul waiting-status far bara visas medan `ActiveConstructions` innehaller en faktisk Travian-byggko;
   tom browserko ska ge gra lediga byggplatser aven om en programtask fortfarande ar deferred.
+- Construction-status skiljer pa `Unknown`, bekraftat tom och aktiv ko. Endast en bekraftad
+  dorf1/dorf2-lasning far frigora en `queue_full`-blockerare direkt; okand status behaller senaste retry.
 - `ActiveConstructions` far endast rensas av en bekraftad tom dorf1/dorf2-lasning
   (`ActiveConstructionsFromOverview=true`). Lokal `FinishUtc`, cache-load, UI-tick, partial reads och
   `Clear timers` far aldrig rensa browserns senaste construction-snapshot.
+- Nar en lokal construction-timer nar noll ska den endast begara en ny Travian-lasning. Den far inte
+  minska aktivt antal eller markera kon tom lokalt.
 - Construction-kortets live byggtid och aktiva antal ska harledas fran samma `ActiveConstructions`
-  som Queue-fliken; gamla `ActiveBuildCount`/`BuildQueueRemainingSeconds` far inte ensamma visa aktiv ko.
+  som Queue-fliken. Resurs-, krav- och retry-vantan visas separat och far inte blandas in i kotiden;
+  gamla `ActiveBuildCount`/`BuildQueueRemainingSeconds` far inte ensamma visa aktiv ko.
 - Queue-flikens Travian byggkö ska använda samma byspecifika `ActiveConstructions`; Smithy-rutan ska
   använda samma `SmithyUpgradeStatus.ActiveUpgrades` som ikoner och loopstatus. Båda visar målnivå och
   `FinishUtc` med programmets serverklocka; inga separata UI-källor.
@@ -215,6 +220,9 @@ eller sta still, inte vaxa.
   bygguppgifter kan anvanda en ledig Plus-slot. Queue-full retry synkas mot byns levande byggstatus.
   Aldre defer-poster utan aktuell klassificeringsversion ska valideras om av Worker, men hogst en per by
   nar en tidigare post redan har bekraftat full ko; annars orsakas en `dorf2`-reload per gammal post.
+- Continuous Loop och Auto Queue ska anvanda samma byspecifika construction-valjare. En bekraftat ledig
+  Travian-plats gor att en framtida `queue_full`-post valideras direkt av Worker; resurs- och kravvantan
+  behaller ordningen, medan ett redan pagande mal kan hoppas over for en senare Plus-uppgift.
 - `load_buildings_snapshot` ar en lasning och far inte blockeras som ett bygge.
 - Construction-ko ska loggas per tillstandsandring och by, inte per blockerad ko-post. Behall klassificering,
   vald retry och betydande timersynk; lyckad intern persistens och varje enskild blockerad kandidat ar brus.

@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Windows;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop;
@@ -124,17 +125,16 @@ public partial class MainWindow
 
     private void ClearSelectedVillageRuntimeTimerCache(string selectedVillageName)
     {
-        _buildQueueRemainingSeconds = -1;
-        _buildQueueActiveCount = 0;
-        _buildQueueReachedZeroPendingCompletion = false;
         _continuousLoopConstructionStatusNeedsSync = true;
         _smithyUpgradeRemainingSeconds.Clear();
         _troopTrainingViewModel.ClearRuntimeTimers();
         _heroViewModel.AdventureStatusText = "Status refresh requested.";
 
+        VillageStatus? selectedStatus = null;
         if (_villageStatusCacheByName.TryGetValue(selectedVillageName, out var cachedStatus))
         {
-            _villageStatusCacheByName[selectedVillageName] = ClearCachedActivityTimers(cachedStatus);
+            selectedStatus = ClearCachedActivityTimers(cachedStatus);
+            _villageStatusCacheByName[selectedVillageName] = selectedStatus;
         }
 
         if (_lastBuildingStatus is not null &&
@@ -144,7 +144,14 @@ public partial class MainWindow
                 StringComparison.OrdinalIgnoreCase))
         {
             _lastBuildingStatus = ClearCachedActivityTimers(_lastBuildingStatus);
+            selectedStatus = _lastBuildingStatus;
         }
+
+        var constructionTimer = ConstructionQueueState.ResolveLiveConstructionTimer(selectedStatus);
+        _buildQueueActiveCount = constructionTimer.ActiveCount;
+        _buildQueueRemainingSeconds = constructionTimer.RemainingSeconds ?? -1;
+        _buildQueueReachedZeroPendingCompletion = false;
+        UpdateBuildQueueStatusText();
     }
 
     private static VillageStatus ClearCachedActivityTimers(VillageStatus status)

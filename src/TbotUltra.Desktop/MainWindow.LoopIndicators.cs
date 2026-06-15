@@ -243,6 +243,12 @@ public partial class MainWindow
             return;
         }
 
+        if (_buildQueueReachedZeroPendingCompletion)
+        {
+            BuildQueueStatusTextBlock.Text = $"Build queue: active={_buildQueueActiveCount}, checking Travian...";
+            return;
+        }
+
         if (_buildQueueRemainingSeconds >= 0)
         {
             BuildQueueStatusTextBlock.Text = $"Build queue: active={_buildQueueActiveCount}, remaining={FormatCountdown(_buildQueueRemainingSeconds)}";
@@ -257,26 +263,18 @@ public partial class MainWindow
         if (_buildQueueRemainingSeconds > 0)
         {
             _buildQueueRemainingSeconds -= 1;
-            if (_buildQueueRemainingSeconds == 0)
-            {
-                _buildQueueReachedZeroPendingCompletion = true;
-            }
         }
 
-        if (_buildQueueRemainingSeconds == 0 && _buildQueueActiveCount > 0)
+        if (_buildQueueRemainingSeconds == 0
+            && _buildQueueActiveCount > 0
+            && !_buildQueueReachedZeroPendingCompletion)
         {
-            if (_buildQueueReachedZeroPendingCompletion)
-            {
-                _buildQueueReachedZeroPendingCompletion = false;
-            }
-            else
-            {
-                _buildQueueActiveCount = Math.Max(0, _buildQueueActiveCount - 1);
-                if (_buildQueueActiveCount > 0)
-                {
-                    _buildQueueRemainingSeconds = -1;
-                }
-            }
+            _buildQueueReachedZeroPendingCompletion = true;
+            _continuousLoopConstructionStatusNeedsSync = true;
+            Interlocked.Exchange(ref _continuousLoopWakeRequested, 1);
+            AppendLoopPickVerbose(
+                "[construction-queue:verbose] local construction timer reached zero; requesting confirmed Travian status.",
+                "construction-queue:timer-zero");
         }
 
         UpdateBuildQueueStatusText();

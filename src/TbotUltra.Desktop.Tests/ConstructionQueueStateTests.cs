@@ -26,6 +26,13 @@ public sealed class ConstructionQueueStateTests
     }
 
     [Fact]
+    public void IsConstructionInProgressDeferMessage_RecognizesResourceUpgradeStarted()
+    {
+        Assert.True(ConstructionQueueState.IsConstructionInProgressDeferMessage(
+            "Resource slot 4: queued upgrade toward level 10. queue_wait_seconds=900"));
+    }
+
+    [Fact]
     public void IsQueueOccupancyDeferMessage_DoesNotClassifyResourceWait()
     {
         Assert.False(ConstructionQueueState.IsQueueOccupancyDeferMessage(
@@ -111,7 +118,17 @@ public sealed class ConstructionQueueStateTests
     [InlineData(1, true)]
     public void ResolveQueueFullRetryDelay_FreeSlotRetriesImmediately(int activeBuildCount, bool plusActive)
     {
-        var status = CreateStatus([], [], activeBuildCount, remainingSeconds: 900);
+        IReadOnlyList<ActiveConstruction> activeConstructions = activeBuildCount == 0
+            ? []
+            :
+            [
+                new ActiveConstruction(ConstructionKind.Building, "Warehouse", 4, 900, "00:15:00"),
+            ];
+        var status = CreateStatus([], [], activeBuildCount, remainingSeconds: 900) with
+        {
+            ActiveConstructions = activeConstructions,
+            ActiveConstructionsFromOverview = true,
+        };
 
         Assert.Equal(TimeSpan.Zero, ConstructionQueueState.ResolveQueueFullRetryDelay(status, plusActive));
     }
@@ -148,15 +165,27 @@ public sealed class ConstructionQueueStateTests
     }
 
     [Fact]
-    public void ResolveQueueFullRetryDelay_StaleLegacyCountDoesNotKeepVillageBlocked()
+    public void ResolveQueueFullRetryDelay_ConfirmedEmptyIgnoresStaleLegacyCount()
     {
-        var status = CreateStatus([], [], activeBuildCount: 2, remainingSeconds: 900);
+        var status = CreateStatus([], [], activeBuildCount: 2, remainingSeconds: 900) with
+        {
+            ActiveConstructions = [],
+            ActiveConstructionsFromOverview = true,
+        };
 
         Assert.Equal(TimeSpan.Zero, ConstructionQueueState.ResolveQueueFullRetryDelay(status, travianPlusActive: true));
     }
 
     [Fact]
-    public void ResolveDisplayedActiveBuildCount_DoesNotCountDeferredItemsAsConstructions()
+    public void ResolveQueueFullRetryDelay_UnknownStatusKeepsExistingRetry()
+    {
+        var status = CreateStatus([], [], activeBuildCount: 2, remainingSeconds: 900);
+
+        Assert.Null(ConstructionQueueState.ResolveQueueFullRetryDelay(status, travianPlusActive: true));
+    }
+
+    [Fact]
+    public void ResolveDisplayedActiveBuildCount_IgnoresLegacyConstructionFields()
     {
         var status = CreateStatus(
             buildings: [],
@@ -164,14 +193,13 @@ public sealed class ConstructionQueueStateTests
             activeBuildCount: 1,
             remainingSeconds: 2561);
 
-        Assert.Equal(1, ConstructionQueueState.ResolveDisplayedActiveBuildCount(status, hasQueueFullEvidence: true));
+        Assert.Equal(0, ConstructionQueueState.ResolveDisplayedActiveBuildCount(status));
     }
 
     [Fact]
-    public void ResolveDisplayedActiveBuildCount_UsesSingleFallbackWhenLiveStatusIsMissing()
+    public void ResolveDisplayedActiveBuildCount_UnknownStatusIsZero()
     {
-        Assert.Equal(1, ConstructionQueueState.ResolveDisplayedActiveBuildCount(null, hasQueueFullEvidence: true));
-        Assert.Equal(0, ConstructionQueueState.ResolveDisplayedActiveBuildCount(null, hasQueueFullEvidence: false));
+        Assert.Equal(0, ConstructionQueueState.ResolveDisplayedActiveBuildCount(null));
     }
 
     [Fact]
@@ -214,7 +242,14 @@ public sealed class ConstructionQueueStateTests
             buildings: [new Building(19, "Main Building", 5, "g15", 15)],
             buildQueue: [new BuildQueueItem("Main Building level 6", "02:00:00")],
             activeBuildCount: 1,
-            remainingSeconds: 7200);
+            remainingSeconds: 7200) with
+        {
+            ActiveConstructions =
+            [
+                new ActiveConstruction(ConstructionKind.Building, "Main Building", 6, 7200, "02:00:00"),
+            ],
+            ActiveConstructionsFromOverview = true,
+        };
         var partial = CreateStatus(
             buildings: [],
             buildQueue: [],
@@ -235,7 +270,14 @@ public sealed class ConstructionQueueStateTests
             buildings: [new Building(19, "Main Building", 5, "g15", 15)],
             buildQueue: [new BuildQueueItem("Main Building level 6", "02:00:00")],
             activeBuildCount: 1,
-            remainingSeconds: 7200);
+            remainingSeconds: 7200) with
+        {
+            ActiveConstructions =
+            [
+                new ActiveConstruction(ConstructionKind.Building, "Main Building", 6, 7200, "02:00:00"),
+            ],
+            ActiveConstructionsFromOverview = true,
+        };
         var full = CreateStatus(
             buildings: [new Building(19, "Main Building", 6, "g15", 15)],
             buildQueue: [],

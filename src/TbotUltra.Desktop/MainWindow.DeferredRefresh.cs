@@ -222,6 +222,7 @@ public partial class MainWindow
                 && string.Equals(itemVillage, statusVillage, StringComparison.OrdinalIgnoreCase))
             .ToList();
         var queueFullDelay = ConstructionQueueState.ResolveQueueFullRetryDelay(status, _travianPlusActive);
+        var constructionSnapshot = ConstructionQueueState.ResolveSnapshot(status);
         if (queueFullItems.Count > 0 && queueFullDelay is not null)
         {
             if (queueFullDelay == TimeSpan.Zero)
@@ -235,7 +236,7 @@ public partial class MainWindow
                     AppendLog(
                         $"[construction-queue:verbose] live status released queue-full blocker " +
                         $"id={nextBlockedItem.Id} task='{nextBlockedItem.TaskName}' village='{statusVillage ?? "-"}' " +
-                        $"active={status.ActiveBuildCount} plus={_travianPlusActive?.ToString() ?? "unknown"} source='{source}'.");
+                        $"active={constructionSnapshot.ActiveCount} plus={_travianPlusActive?.ToString() ?? "unknown"} source='{source}'.");
                     AppendLog(
                         $"[construction] BUILD SLOT AVAILABLE village='{statusVillage ?? "-"}'. " +
                         $"Next queued construction will retry now.");
@@ -266,7 +267,7 @@ public partial class MainWindow
                     var retryAt = DateTimeOffset.UtcNow + queueFullDelay.Value;
                     AppendLog(
                         $"[construction-queue:verbose] live status synchronized {updatedCount} queue-full blocker(s) " +
-                        $"village='{statusVillage ?? "-"}' active={status.ActiveBuildCount} " +
+                        $"village='{statusVillage ?? "-"}' active={constructionSnapshot.ActiveCount} " +
                         $"plus={_travianPlusActive?.ToString() ?? "unknown"} adjustmentSeconds={largestAdjustmentSeconds:F0} " +
                         $"retryAt='{FormatQueueServerTime(retryAt)}' source='{source}'.");
                 }
@@ -275,10 +276,9 @@ public partial class MainWindow
 
         foreach (var item in deferredItems)
         {
-            // Queue occupancy and an already-running construction are not resource waits. Keep their
-            // timers intact; the selector may skip an in-progress item and use another Plus slot.
-            if (ConstructionQueueState.IsQueueOccupancyDeferred(item)
-                || ConstructionQueueState.IsConstructionInProgressDeferred(item))
+            // Only resource deferrals may be resumed from a resource snapshot. Queue occupancy,
+            // already-running targets, missing requirements and generic retries have different owners.
+            if (ConstructionQueueState.ResolveDeferReason(item) != ConstructionDeferReason.Resources)
             {
                 continue;
             }
@@ -354,14 +354,12 @@ public partial class MainWindow
 
     private void ResetConstructionBuildQueueTimerForManualRefresh()
     {
-        _buildQueueActiveCount = 0;
-        _buildQueueRemainingSeconds = 0;
-        _buildQueueReachedZeroPendingCompletion = false;
         _continuousLoopConstructionStatusNeedsSync = true;
+        _buildQueueReachedZeroPendingCompletion = _buildQueueActiveCount > 0;
 
         UpdateBuildQueueStatusText();
         UpdateAutomationLoopRunningIndicators();
-        AppendLog("Construction group re-enabled. Build queue timer reset to Ready; construction will be re-read.");
+        AppendLog("Construction group re-enabled. Fresh Travian queue status requested; cached queue preserved until confirmed.");
     }
 
     private void TriggerDeferredTroopTrainingWaitRefresh(VillageStatus status, string source, bool force = false)

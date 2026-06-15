@@ -143,8 +143,9 @@ The bot manages every village on the account from one **Dashboard → Village ov
   and absolute server-clock finish times, using the same browser status as the village overview icons.
 - Activity timers are stored as absolute UTC finish times, so active construction, troop, smithy,
   hero, brewery, and farm-list countdowns continue correctly after restart or machine sleep.
-- Construction queue waits are reconciled with live village status, so a newly free normal or Plus
-  building slot wakes the next queued construction instead of waiting on a stale timer.
+- Construction queue waits are reconciled with the confirmed Travian queue in both Continuous Loop and
+  Auto Queue. Local countdowns only trigger a fresh read; they never clear a build locally. Resource,
+  requirement, retry, and queue-full waits are shown separately.
 - A construction already running for one queued item no longer blocks later items from using the
   second Travian Plus building slot.
 

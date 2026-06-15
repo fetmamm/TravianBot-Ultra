@@ -779,110 +779,115 @@ public partial class MainWindow
         out string? skipReason,
         bool preview = false)
     {
-        skipReason = null;
-        if (orderedGroupItems.Count <= 0)
+        var availability = ResolveConstructionQueueAvailability(orderedGroupItems, now);
+        var selection = ConstructionQueueSelector.SelectNext(
+            orderedGroupItems,
+            now,
+            availability,
+            index =>
+            {
+                var item = orderedGroupItems[index];
+                return IsBuildingUpgradeForSlot(item, out var upgradeSlotId)
+                    && HasEarlierPendingConstructForSlot(orderedGroupItems, index, upgradeSlotId);
+            });
+        skipReason = selection.SkipReason;
+
+        if (selection.QueueFullBlocker is not null && !preview)
         {
-            skipReason = "group=Construction skipped (no pending/running/paused items)";
+            var blockerIndex = orderedGroupItems
+                .Select((item, index) => (item, index))
+                .FirstOrDefault(entry => entry.item.Id == selection.QueueFullBlocker.Id)
+                .index;
+            var blockedItems = orderedGroupItems
+                .Skip(blockerIndex + 1)
+                .Count(candidate => candidate.Status == QueueStatus.Pending);
+            LogConstructionQueueFullSummary(selection.QueueFullBlocker, blockedItems, now);
+        }
+
+        if (selection.Item is null)
+        {
             return null;
         }
 
-        var queueOccupancyBlockers = new List<QueueItem>();
-        for (var index = 0; index < orderedGroupItems.Count; index++)
+        if (selection.ForcedLiveValidation && !preview)
         {
-            var item = orderedGroupItems[index];
-            if (item.Status != QueueStatus.Pending)
-            {
-                skipReason = $"group=Construction task='{item.TaskName}' is {item.Status} (not Pending)";
-                return null;
-            }
-
-            if (item.NextAttemptAt > now)
-            {
-                if (ConstructionQueueState.IsQueueOccupancyDeferred(item))
-                {
-                    if (ConstructionQueueState.ShouldLiveValidateLegacyQueueOccupancy(item, queueOccupancyBlockers))
-                    {
-                        if (!preview)
-                        {
-                            AppendLoopPickVerbose(
-                                $"[construction-queue:verbose] legacy queue-full classification requires live validation " +
-                                $"id={item.Id} task='{item.TaskName}' village='{NormalizeVillageName(GetQueueItemVillageName(item)) ?? "-"}'; retrying now.",
-                                $"construction-legacy-queue-full:{item.Id}");
-                        }
-
-                        return item;
-                    }
-
-                    // The server queue is authoritative for the village. Keep the deferred item as a
-                    // blocker so later tasks do not repeat the same live queue check before the first
-                    // active construction completes.
-                    queueOccupancyBlockers.Add(item);
-                    if (queueOccupancyBlockers.Count == 1 && !preview)
-                    {
-                        var blockedItems = orderedGroupItems
-                            .Skip(index + 1)
-                            .Count(candidate => candidate.Status == QueueStatus.Pending);
-                        LogConstructionQueueFullSummary(item, blockedItems, now);
-                    }
-                    var queueFullWaitSec = Math.Max(0, (item.NextAttemptAt - now).TotalSeconds);
-                    skipReason =
-                        $"group=Construction village='{NormalizeVillageName(GetQueueItemVillageName(item)) ?? "-"}' " +
-                        $"build queue full; next retry {FormatQueueServerTime(item.NextAttemptAt)} ({queueFullWaitSec:F0}s)";
-                    continue;
-                }
-
-                if (ConstructionQueueState.IsConstructionInProgressDeferred(item))
-                {
-                    skipReason = $"group=Construction task='{item.TaskName}' already in progress; checking later construction";
-                    continue;
-                }
-
-                // Strict queue order: if the next item in line is waiting (e.g. for resources),
-                // hold the whole Construction group instead of skipping ahead to build something
-                // queued later. The user wants the queue processed in order.
-                var waitSec = (item.NextAttemptAt - now).TotalSeconds;
-                skipReason = $"group=Construction task='{item.TaskName}' waiting {waitSec:F0}s (NextAttemptAt in future); holding queue order";
-                return null;
-            }
-
-            var blockingItem = queueOccupancyBlockers.FirstOrDefault(blocker =>
-                ConstructionQueueState.BlocksAdditionalConstruction(blocker));
-            if (blockingItem is not null)
-            {
-                var waitSec = Math.Max(0, (blockingItem.NextAttemptAt - now).TotalSeconds);
-                skipReason =
-                    $"group=Construction task='{item.TaskName}' blocked {waitSec:F0}s by full server queue " +
-                    $"from earlier task='{blockingItem.TaskName}'";
-                continue;
-            }
-
-            if (IsBuildingUpgradeForSlot(item, out var upgradeSlotId)
-                && HasEarlierPendingConstructForSlot(orderedGroupItems, index, upgradeSlotId))
-            {
-                skipReason = $"group=Construction task='{item.TaskName}' blocked by earlier construct for slot {upgradeSlotId}";
-                continue;
-            }
-
-            if (ConstructionQueueState.IsQueueOccupancyDeferred(item) && !preview)
-            {
-                var villageName = NormalizeVillageName(GetQueueItemVillageName(item)) ?? "-";
-                AppendLoopPickVerbose(
-                    $"[construction-queue:verbose] queue-full retry selected " +
-                    $"id={item.Id} task='{item.TaskName}' village='{villageName}' " +
-                    $"scheduledAt='{FormatQueueServerTime(item.NextAttemptAt)}' " +
-                    $"now='{FormatQueueServerTime(now)}'",
-                    $"construction-queue-selected:{item.Id}:{item.NextAttemptAt.UtcTicks}");
-            }
-
-            if (!preview)
-            {
-                ClearConstructionQueueFullSummary(item);
-            }
-
-            return item;
+            var villageName = NormalizeVillageName(GetQueueItemVillageName(selection.Item)) ?? "-";
+            AppendLoopPickVerbose(
+                $"[construction-queue:verbose] live queue state allows immediate validation " +
+                $"id={selection.Item.Id} task='{selection.Item.TaskName}' village='{villageName}' " +
+                $"availability={availability} scheduledAt='{FormatQueueServerTime(selection.Item.NextAttemptAt)}'",
+                $"construction-queue-live-validation:{selection.Item.Id}:{availability}");
         }
 
-        return null;
+        if (!preview)
+        {
+            ClearConstructionQueueFullSummary(selection.Item);
+        }
+
+        return selection.Item;
+    }
+
+    private ConstructionQueueAvailability ResolveConstructionQueueAvailability(
+        IReadOnlyList<QueueItem> villageItems,
+        DateTimeOffset now)
+    {
+        var villageName = villageItems
+            .Select(GetQueueItemVillageName)
+            .Select(NormalizeVillageName)
+            .FirstOrDefault(name => name is not null)
+            ?? NormalizeVillageName(GetSelectedVillageName());
+        VillageStatus? status = null;
+        if (villageName is not null)
+        {
+            _villageStatusCacheByName.TryGetValue(villageName, out status);
+        }
+
+        return ConstructionQueueState.ResolveAvailability(status, _travianPlusActive, now);
+    }
+
+    private QueueItem? SelectNextQueueItemForAutoQueue(
+        DateTimeOffset now,
+        ref string? rotationVillageKey)
+    {
+        var orderedItems = _botService.GetQueueItemsForDisplay()
+            .Where(item => ConstructionQueueState.IsActiveQueueStatus(item.Status))
+            .Where(item => !item.IsRuntimeOnly || IsQueueItemVillageEnabled(item))
+            .ToList();
+
+        return QueueVillageRotation.SelectByVillageRotation(
+            orderedItems,
+            GetQueueItemVillageKey,
+            villageItems =>
+            {
+                var constructionItems = villageItems
+                    .Where(item => item.Group == QueueGroup.Construction)
+                    .ToList();
+                var constructionCandidate = SelectNextConstructionQueueItem(
+                    constructionItems,
+                    now,
+                    out _);
+
+                foreach (var item in villageItems)
+                {
+                    if (item.Group == QueueGroup.Construction)
+                    {
+                        if (constructionCandidate?.Id == item.Id)
+                        {
+                            return item;
+                        }
+
+                        continue;
+                    }
+
+                    if (item.Status == QueueStatus.Pending && item.NextAttemptAt <= now)
+                    {
+                        return item;
+                    }
+                }
+
+                return null;
+            },
+            ref rotationVillageKey);
     }
 
     private void LogConstructionQueueFullSummary(QueueItem blocker, int blockedItems, DateTimeOffset now)
@@ -1153,7 +1158,7 @@ public partial class MainWindow
 
             if (Interlocked.Exchange(ref _continuousLoopWakeRequested, 0) == 1)
             {
-                AppendLog($"[LOOP {tickId}] WAIT ended early: enabled groups changed.");
+                AppendLog($"[LOOP {tickId}] WAIT ended early: queue state or settings changed.");
                 return;
             }
 
@@ -1231,12 +1236,7 @@ public partial class MainWindow
                 // one village at a time instead of interleaving villages by global priority/FIFO.
                 var previousRotationKey = _autoQueueRotationVillageKey;
                 var rotationKey = _autoQueueRotationVillageKey;
-                next = QueueVillageRotation.SelectNext(
-                    _botService.GetQueueItemsForDisplay(),
-                    DateTimeOffset.UtcNow,
-                    GetQueueItemVillageKey,
-                    item => !item.IsRuntimeOnly || IsQueueItemVillageEnabled(item),
-                    ref rotationKey);
+                next = SelectNextQueueItemForAutoQueue(DateTimeOffset.UtcNow, ref rotationKey);
                 _autoQueueRotationVillageKey = rotationKey;
 
                 if (next is not null && !string.Equals(previousRotationKey, rotationKey, StringComparison.OrdinalIgnoreCase))

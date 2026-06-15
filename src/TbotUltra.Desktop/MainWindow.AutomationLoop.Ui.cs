@@ -12,6 +12,7 @@ using System.Windows.Media;
 using TbotUltra.Core.Accounts;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
 
@@ -349,6 +350,7 @@ public partial class MainWindow
         var runningGroup = string.IsNullOrWhiteSpace(runningTaskName)
             ? (QueueGroup?)null
             : QueueGroupCatalog.ResolveGroup(runningTaskName);
+        var now = DateTimeOffset.UtcNow;
 
         var disabledInvalidResourceTransfer = false;
         var disabledInvalidReinforcements = false;
@@ -372,14 +374,11 @@ public partial class MainWindow
                 .ToList();
             var pendingCount = groupItems.Count(entry => entry.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused);
             var deferred = groupItems
-                .Where(entry => entry.Status == QueueStatus.Pending && entry.NextAttemptAt > DateTimeOffset.UtcNow)
+                .Where(entry => entry.Status == QueueStatus.Pending && entry.NextAttemptAt > now)
                 .OrderBy(entry => entry.NextAttemptAt)
                 .FirstOrDefault();
             var runningItem = groupItems.FirstOrDefault(entry => entry.Status == QueueStatus.Running);
             var paused = groupItems.Any(entry => entry.Status == QueueStatus.Paused);
-            var constructionWaitSeconds = group == QueueGroup.Construction
-                ? ResolveConstructionGroupRemainingSeconds()
-                : (int?)null;
             var smithyUpgradeWaitSeconds = group == QueueGroup.Troops
                 ? ResolveSmithyUpgradeGroupRemainingSeconds()
                 : (int?)null;
@@ -403,7 +402,23 @@ public partial class MainWindow
                     : "Coordinator active.";
                 item.RemainingSeconds = null;
             }
-            else if (deferred is not null || constructionWaitSeconds is > 0 || troopTrainingWaitSeconds is > 0 || breweryCelebrationWaitSeconds is > 0 || hasLiveSmithyWait)
+            else if (group == QueueGroup.Construction && !item.IsEnabled)
+            {
+                item.StateText = "Disabled";
+                item.DetailText = pendingCount > 0 ? $"{pendingCount} queued." : "No queued task.";
+                item.RemainingSeconds = null;
+            }
+            else if (group == QueueGroup.Construction && paused)
+            {
+                item.StateText = "Paused";
+                item.DetailText = "Contains paused task.";
+                item.RemainingSeconds = null;
+            }
+            else if (group == QueueGroup.Construction)
+            {
+                ApplyConstructionLoopCardState(item, groupItems, pendingCount, now);
+            }
+            else if (deferred is not null || troopTrainingWaitSeconds is > 0 || breweryCelebrationWaitSeconds is > 0 || hasLiveSmithyWait)
             {
                 item.StateText = hasLiveSmithyWait && (runningItem is not null || item.IsRunning)
                     ? "Running"
@@ -411,7 +426,7 @@ public partial class MainWindow
                 if (deferred is not null)
                 {
                     item.DetailText = $"Next try {FormatQueueServerTime(deferred.NextAttemptAt)}";
-                    item.RemainingSeconds = Math.Max(0, (int)Math.Ceiling((deferred.NextAttemptAt - DateTimeOffset.UtcNow).TotalSeconds));
+                    item.RemainingSeconds = Math.Max(0, (int)Math.Ceiling((deferred.NextAttemptAt - now).TotalSeconds));
                 }
                 else if (hasLiveSmithyWait)
                 {
@@ -430,11 +445,6 @@ public partial class MainWindow
                 {
                     item.DetailText = "Celebration running.";
                     item.RemainingSeconds = breweryCelebrationWaitSeconds;
-                }
-                else
-                {
-                    item.DetailText = "Build queue active.";
-                    item.RemainingSeconds = constructionWaitSeconds;
                 }
             }
             else if (group == QueueGroup.Troops && IsTroopsGroupBlocked())
@@ -543,12 +553,6 @@ public partial class MainWindow
                 item.DetailText = "Reinforcements configured.";
                 item.RemainingSeconds = null;
             }
-            else if (group == QueueGroup.Construction && pendingCount > 0 && !paused)
-            {
-                item.StateText = "Ready";
-                item.DetailText = pendingCount == 1 ? "1 queued." : $"{pendingCount} queued.";
-                item.RemainingSeconds = null;
-            }
             else if (paused)
             {
                 item.StateText = "Paused";
@@ -591,6 +595,80 @@ public partial class MainWindow
             ThemeColors.Get("BorderMutedBrush"),
             "Idle",
             ThemeColors.Get("TextSubtleBrush"));
+    }
+
+    private void ApplyConstructionLoopCardState(
+        LoopTaskOption item,
+        IReadOnlyList<QueueItem> groupItems,
+        int pendingCount,
+        DateTimeOffset now)
+    {
+        var selectedVillage = NormalizeVillageName(GetSelectedVillageName());
+        VillageStatus? status = null;
+        if (selectedVillage is not null)
+        {
+            _villageStatusCacheByName.TryGetValue(selectedVillage, out status);
+        }
+
+        var snapshot = ConstructionQueueState.ResolveSnapshot(status, now);
+        var availability = ConstructionQueueState.ResolveAvailability(status, _travianPlusActive, now);
+        var readyItem = SelectNextConstructionQueueItem(groupItems, now, out _, preview: true);
+        if (readyItem is not null)
+        {
+            item.StateText = "Ready";
+            item.DetailText = snapshot.ActiveCount > 0
+                ? $"Travian queue: {snapshot.ActiveCount} active; build slot available."
+                : pendingCount == 1 ? "1 queued." : $"{pendingCount} queued.";
+            item.RemainingSeconds = null;
+            return;
+        }
+
+        if (availability == ConstructionQueueAvailability.Full)
+        {
+            item.StateText = "Waiting";
+            item.DetailText = "Travian build queue full.";
+            item.RemainingSeconds = snapshot.RemainingSeconds;
+            return;
+        }
+
+        var deferred = groupItems
+            .Where(entry => entry.Status == QueueStatus.Pending && entry.NextAttemptAt > now)
+            .FirstOrDefault();
+        if (deferred is not null)
+        {
+            var retryLabel = FormatQueueServerTime(deferred.NextAttemptAt);
+            item.StateText = "Waiting";
+            item.DetailText = ConstructionQueueState.ResolveDeferReason(deferred) switch
+            {
+                ConstructionDeferReason.QueueFull =>
+                    $"Travian build queue status not confirmed. Next check {retryLabel}",
+                ConstructionDeferReason.InProgress =>
+                    $"Target already queued in Travian. Next check {retryLabel}",
+                ConstructionDeferReason.Resources =>
+                    $"Waiting for resources. Next try {retryLabel}",
+                ConstructionDeferReason.Requirements =>
+                    $"Waiting for building requirements. Next try {retryLabel}",
+                _ => $"Waiting to retry. Next try {retryLabel}",
+            };
+            item.RemainingSeconds = Math.Max(
+                0,
+                (int)Math.Ceiling((deferred.NextAttemptAt - now).TotalSeconds));
+            return;
+        }
+
+        if (snapshot.Knowledge == ConstructionQueueKnowledge.Active)
+        {
+            item.StateText = "Waiting";
+            item.DetailText = "Travian build queue active.";
+            item.RemainingSeconds = snapshot.RemainingSeconds;
+            return;
+        }
+
+        item.StateText = pendingCount > 0 ? "Ready" : "Idle";
+        item.DetailText = pendingCount > 0
+            ? pendingCount == 1 ? "1 queued." : $"{pendingCount} queued."
+            : "No queued task.";
+        item.RemainingSeconds = null;
     }
 
     private void SetAutomationLoopRunState(Color dotColor, string stateText, Color textColor)

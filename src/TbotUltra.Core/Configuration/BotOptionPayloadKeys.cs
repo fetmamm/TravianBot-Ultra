@@ -25,13 +25,15 @@ public static class BotOptionPayloadKeys
     public const string UpgradeWaitSeconds = "upgrade_wait_seconds";
     public const string UpgradeWaitReason = "upgrade_wait_reason";
     public const string UpgradeBlockedLabel = "upgrade_blocked_label";
-    // Why a construction item last deferred: "queue_full" (no free build slot), "in_progress"
-    // (this exact queued construction is already running), or "resources" (waiting on resources).
+    // Why a construction item last deferred. Queue occupancy is kept separate from resource,
+    // requirement and generic retry waits so scheduling and UI never infer a Travian queue from a timer.
     public const string UpgradeDeferReason = "upgrade_defer_reason";
     public const string UpgradeDeferClassificationVersion = "upgrade_defer_classification_version";
     public const string UpgradeDeferReasonQueueFull = "queue_full";
     public const string UpgradeDeferReasonInProgress = "in_progress";
     public const string UpgradeDeferReasonResources = "resources";
+    public const string UpgradeDeferReasonRequirements = "requirements";
+    public const string UpgradeDeferReasonRetry = "retry";
 
     public const string BuildingUpgradeSlotId = "building_upgrade_slot_id";
     public const string BuildingUpgradeTargetLevel = "building_upgrade_target_level";
