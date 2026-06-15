@@ -126,6 +126,33 @@ public sealed class VillageCacheStoreTests : IDisposable
     }
 
     [Fact]
+    public void SaveThenLoad_RecomputesSmithyQueueFromAbsoluteFinish()
+    {
+        var finish = TimerSnapshot.FromRemaining(120);
+        var status = MakeStatus("GREZ") with
+        {
+            SmithyUpgradeStatus = new SmithyUpgradeStatus(
+                SmithyExists: true,
+                SmithySlotId: 21,
+                ActiveUpgradeCount: 1,
+                RemainingSeconds: 120,
+                ActiveUpgradeRemainingSeconds: [120],
+                RemainingText: "00:02:00",
+                StatusText: "Active",
+                ActiveUpgradeFinishes: [finish],
+                ActiveUpgrades: [new ActiveSmithyUpgrade("Phalanx", 4, 120, finish)]),
+        };
+
+        CreateStore().Save(new Dictionary<string, VillageStatus> { ["GREZ"] = status });
+        var loaded = CreateStore().Load()["GREZ"].SmithyUpgradeStatus!;
+
+        var active = Assert.Single(loaded.ActiveUpgrades!);
+        Assert.Equal("Phalanx", active.Name);
+        Assert.Equal(4, active.TargetLevel);
+        Assert.InRange(active.TimeLeftSeconds!.Value, 1, 120);
+    }
+
+    [Fact]
     public void Load_NoFile_ReturnsEmpty()
     {
         Assert.Empty(CreateStore().Load());

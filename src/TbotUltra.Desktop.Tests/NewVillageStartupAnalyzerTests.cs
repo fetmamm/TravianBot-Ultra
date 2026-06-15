@@ -1,0 +1,51 @@
+using TbotUltra.Desktop.Services;
+using TbotUltra.Worker.Domain;
+using Xunit;
+
+namespace TbotUltra.Desktop.Tests;
+
+public sealed class NewVillageStartupAnalyzerTests
+{
+    [Fact]
+    public void FindVillagesWithoutKnownStatus_ReturnsMissingAndIncompleteVillages()
+    {
+        var villages = new[]
+        {
+            new Village("Capital", "dorf1.php?newdid=1"),
+            new Village("Known", "dorf1.php?newdid=2"),
+            new Village("New village", "dorf1.php?newdid=3"),
+        };
+        var cache = new Dictionary<string, VillageStatus>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Capital"] = CreateStatus("Capital", hasFields: true, hasBuildings: true),
+            ["Known"] = CreateStatus("Known", hasFields: true, hasBuildings: false),
+        };
+
+        var result = NewVillageStartupAnalyzer.FindVillagesWithoutKnownStatus(villages, cache);
+
+        Assert.Equal(new[] { "Known", "New village" }, result.Select(village => village.Name));
+    }
+
+    [Fact]
+    public void FindVillagesWithoutKnownStatus_MatchesNamesCaseInsensitively()
+    {
+        var villages = new[] { new Village(" GREZ ", "dorf1.php?newdid=1") };
+        var cache = new Dictionary<string, VillageStatus>
+        {
+            ["grez"] = CreateStatus("GREZ", hasFields: true, hasBuildings: true),
+        };
+
+        Assert.Empty(NewVillageStartupAnalyzer.FindVillagesWithoutKnownStatus(villages, cache));
+    }
+
+    private static VillageStatus CreateStatus(string name, bool hasFields, bool hasBuildings)
+    {
+        return new VillageStatus(
+            ActiveVillage: name,
+            Villages: [],
+            Resources: new Dictionary<string, string>(),
+            ResourceFields: hasFields ? [new ResourceField(1, "wood", "Woodcutter", 1, "build.php?id=1")] : [],
+            Buildings: hasBuildings ? [new Building(26, "Main Building", 1, "build.php?id=26", 15)] : [],
+            BuildQueue: []);
+    }
+}

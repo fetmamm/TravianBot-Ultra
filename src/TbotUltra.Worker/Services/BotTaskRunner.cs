@@ -774,6 +774,71 @@ public sealed class BotTaskRunner
         return status ?? throw new InvalidOperationException("Could not read village status.");
     }
 
+    public async Task<AccountSnapshot> ReadAccountSnapshotForScanAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        AccountSnapshot? snapshot = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: true,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                snapshot = await client.ReadAccountSnapshotAsync(
+                    forceRefreshVillages: true,
+                    preferCurrentPageVillages: false,
+                    restorePageAfterProfile: true,
+                    suppressEnsureUiSync: true,
+                    cancellationToken: cancellationToken);
+            });
+
+        return snapshot ?? throw new InvalidOperationException("Could not read villages for account scan.");
+    }
+
+    public async Task<VillageStatus> ReadVillageStatusWithSmithyAsync(
+        BotOptions options,
+        Action<string> log,
+        string? villageName = null,
+        string? villageUrl = null,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        VillageStatus? status = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: true,
+            cancellationToken,
+            async client =>
+            {
+                log($"[account-scan] Reading full status for village '{villageName ?? "-"}'.");
+                await client.LoginAsync(cancellationToken);
+                await TrySwitchToTargetVillageAsync(
+                    client,
+                    options,
+                    log,
+                    cancellationToken,
+                    villageName,
+                    villageUrl,
+                    skipFeatureRefresh: true);
+                var villageStatus = await client.ReadVillageStatusAsync(cancellationToken);
+                var smithyStatus = await client.ReadSmithyUpgradeStatusAsync(
+                    villageStatus.Buildings,
+                    cancellationToken);
+                status = villageStatus with { SmithyUpgradeStatus = smithyStatus };
+            });
+
+        return status ?? throw new InvalidOperationException(
+            $"Could not read full account-scan status for village '{villageName ?? "-"}'.");
+    }
+
     public async Task<VillageStatus> ReadVillageResourceStatusAsync(
         BotOptions options,
         Action<string> log,

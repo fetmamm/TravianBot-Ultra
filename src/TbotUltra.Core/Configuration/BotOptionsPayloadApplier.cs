@@ -52,6 +52,7 @@ public static class BotOptionsPayloadApplier
         var postLoginAnalyzeHeroInventory = source.PostLoginAnalyzeHeroInventory;
         var postLoginReadTroopTrainingQueue = source.PostLoginReadTroopTrainingQueue;
         var postLoginAnalyzeBrewery = source.PostLoginAnalyzeBrewery;
+        var postLoginAnalyzeNewVillages = source.PostLoginAnalyzeNewVillages;
         var troopTrainingBarracksEnabled = source.TroopTrainingBarracksEnabled;
         var troopTrainingBarracksTroopType = source.TroopTrainingBarracksTroopType;
         var troopTrainingBarracksMaxQueueHours = source.TroopTrainingBarracksMaxQueueHours;
@@ -442,6 +443,13 @@ public static class BotOptionsPayloadApplier
                     && bool.TryParse(value, out var analyzeBrewery))
                 {
                     postLoginAnalyzeBrewery = analyzeBrewery;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.PostLoginAnalyzeNewVillages, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var analyzeNewVillages))
+                {
+                    postLoginAnalyzeNewVillages = analyzeNewVillages;
                     continue;
                 }
 
@@ -973,6 +981,7 @@ public static class BotOptionsPayloadApplier
             PostLoginAnalyzeHeroInventory = postLoginAnalyzeHeroInventory,
             PostLoginReadTroopTrainingQueue = postLoginReadTroopTrainingQueue,
             PostLoginAnalyzeBrewery = postLoginAnalyzeBrewery,
+            PostLoginAnalyzeNewVillages = postLoginAnalyzeNewVillages,
             TroopTrainingBarracksEnabled = troopTrainingBarracksEnabled,
             TroopTrainingBarracksTroopType = troopTrainingBarracksTroopType,
             TroopTrainingBarracksMaxQueueHours = troopTrainingBarracksMaxQueueHours,

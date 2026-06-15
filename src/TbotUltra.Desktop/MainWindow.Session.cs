@@ -144,10 +144,20 @@ public partial class MainWindow
                 }
             }
 
+            var newVillageAnalysisNavigated = false;
+            if (options.PostLoginAnalyzeNewVillages)
+            {
+                newVillageAnalysisNavigated = await AnalyzeNewVillagesAfterLoginAsync(
+                    options,
+                    snapshot.VillageStatus.Villages,
+                    operationToken);
+            }
+
             var postLoginAnalysisMayNavigate =
                 options.PostLoginAnalyzeFarmlists
                 || options.PostLoginAnalyzeHero
-                || options.PostLoginAnalyzeBrewery;
+                || options.PostLoginAnalyzeBrewery
+                || newVillageAnalysisNavigated;
             if (!officialServer || postLoginAnalysisMayNavigate)
             {
                 await _botService.NavigateToVillageResourceFieldsAsync(
@@ -156,6 +166,9 @@ public partial class MainWindow
                     GetSelectedVillageName(),
                     GetSelectedVillageUrl(),
                     cancellationToken: operationToken);
+                SetActiveWorkingVillage(
+                    GetSelectedVillageKey(),
+                    GetSelectedVillageName());
             }
 
             _browserSessionLikelyOpen = !options.Headless;

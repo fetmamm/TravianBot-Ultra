@@ -7,6 +7,33 @@ namespace TbotUltra.Worker.Tests;
 public sealed class BotOptionsPayloadApplierTests
 {
     [Fact]
+    public void FromConfiguration_NewVillageStartupAnalysis_DefaultsEnabled()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["server_name"] = "srv",
+                ["base_url"] = "https://example.com",
+            })
+            .Build();
+
+        Assert.True(BotOptionsFactory.FromConfiguration(configuration).PostLoginAnalyzeNewVillages);
+    }
+
+    [Fact]
+    public void Apply_OverridesNewVillageStartupAnalysis()
+    {
+        var source = new BotOptions { PostLoginAnalyzeNewVillages = true };
+
+        var result = BotOptionsPayloadApplier.Apply(source, new Dictionary<string, string>
+        {
+            [BotOptionPayloadKeys.PostLoginAnalyzeNewVillages] = "false",
+        });
+
+        Assert.False(result.PostLoginAnalyzeNewVillages);
+    }
+
+    [Fact]
     public void Apply_OverridesConfiguredFields_FromPayload()
     {
         var source = new BotOptions
@@ -263,7 +290,7 @@ public sealed class BotOptionsPayloadApplierTests
     }
 
     [Fact]
-    public void FromConfiguration_KeepsLegacyPrivateServerNpcDefaults()
+    public void FromConfiguration_UsesResourcesFirstHeroPriorityOnPrivateServerByDefault()
     {
         var values = new Dictionary<string, string?>
         {
@@ -280,7 +307,7 @@ public sealed class BotOptionsPayloadApplierTests
         Assert.True(options.NpcTradeConstructionEnabled);
         Assert.False(options.AllowGoldSpending);
         Assert.Equal(800, options.GoldLimit);
-        Assert.Equal("fighting_strength,offence_bonus,defence_bonus,resources", options.HeroStatPriority);
+        Assert.Equal("resources,fighting_strength,offence_bonus,defence_bonus", options.HeroStatPriority);
     }
 
     [Fact]

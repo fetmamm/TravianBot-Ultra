@@ -61,13 +61,14 @@ public static class ConstructionQueueState
     public static TimeSpan? ResolveQueueFullRetryDelay(VillageStatus status, bool? travianPlusActive)
     {
         var capacity = travianPlusActive == true ? 2 : 1;
-        if (status.ActiveBuildCount < capacity)
+        var liveTimer = ResolveLiveConstructionTimer(status);
+        if (liveTimer.ActiveCount < capacity)
         {
             return TimeSpan.Zero;
         }
 
-        return status.BuildQueueRemainingSeconds is > 0
-            ? TimeSpan.FromSeconds(status.BuildQueueRemainingSeconds.Value)
+        return liveTimer.RemainingSeconds is > 0
+            ? TimeSpan.FromSeconds(liveTimer.RemainingSeconds.Value)
             : null;
     }
 
@@ -79,6 +80,23 @@ public static class ConstructionQueueState
         }
 
         return hasQueueFullEvidence ? 1 : 0;
+    }
+
+    public static (int ActiveCount, int? RemainingSeconds) ResolveLiveConstructionTimer(VillageStatus? status)
+    {
+        var activeConstructions = status?.ActiveConstructions ?? [];
+        if (activeConstructions.Count == 0)
+        {
+            return (0, null);
+        }
+
+        var remainingSeconds = activeConstructions
+            .Where(item => item.TimeLeftSeconds is > 0)
+            .Select(item => item.TimeLeftSeconds!.Value)
+            .DefaultIfEmpty(status?.BuildQueueRemainingSeconds ?? 0)
+            .Min();
+
+        return (activeConstructions.Count, remainingSeconds > 0 ? remainingSeconds : null);
     }
 
     public static VillageStatus PreserveKnownConstructionState(VillageStatus incoming, VillageStatus existing)

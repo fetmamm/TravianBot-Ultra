@@ -256,11 +256,18 @@
                                                 ToolTip="Reads current troop training queues from: &#10;Barracks &#10;Stable &#10;Workshop"/>
                             </StackPanel>
 
-                            <StackPanel Orientation="Horizontal">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                 <CheckBox x:Name="PostLoginAnalyzeBreweryCheckBox"
                                         Content="Analyze brewery" />
                                 <ContentControl Style="{StaticResource SettingInfoIconStyle}"
                                                 ToolTip="Reads brewery level and current bonus information/timer." />
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal">
+                                <CheckBox x:Name="PostLoginAnalyzeNewVillagesCheckBox"
+                                          Content="Analyze new village startup" />
+                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                ToolTip="After login, detects villages without cached status and reads their resource fields and buildings from dorf1 and dorf2. Enabled by default." />
                             </StackPanel>
                         </StackPanel>
                     </Border>

@@ -121,6 +121,57 @@ public sealed class SmithyPageParserTests
     }
 
     [Fact]
+    public void ParseQueueEntries_ReadsOnlyRowsWithActiveTimers()
+    {
+        const string json = """
+        [
+          {
+            "timerValue": "3725",
+            "timerText": "1:02:05",
+            "name": "Phalanx",
+            "imageAlt": "",
+            "rowText": "Phalanx to level 4 1:02:05"
+          },
+          {
+            "timerValue": "",
+            "timerText": "",
+            "name": "Swordsman",
+            "imageAlt": "",
+            "rowText": "Swordsman Level 3 Duration 00:20:00"
+          }
+        ]
+        """;
+
+        var entry = Assert.Single(SmithyPageParser.ParseQueueEntries(json));
+
+        Assert.Equal("Phalanx", entry.Name);
+        Assert.Equal(4, entry.TargetLevel);
+        Assert.Equal(3725, entry.RemainingSeconds);
+    }
+
+    [Fact]
+    public void ParseQueueEntries_FallsBackToImageNameAndTimerText()
+    {
+        const string json = """
+        [
+          {
+            "timerValue": "",
+            "timerText": "12:34",
+            "name": "",
+            "imageAlt": "Pathfinder",
+            "rowText": "Level 2 12:34"
+          }
+        ]
+        """;
+
+        var entry = Assert.Single(SmithyPageParser.ParseQueueEntries(json));
+
+        Assert.Equal("Pathfinder", entry.Name);
+        Assert.Equal(2, entry.TargetLevel);
+        Assert.Equal(754, entry.RemainingSeconds);
+    }
+
+    [Fact]
     public void Classify_Improve_WhenButtonAvailableAndBelowTarget()
     {
         var row = new SmithyTroopRow("Phalanx", 21, "t1", CurrentLevel: 3, CanImprove: true, ResearchInProgress: false, NoResources: false, Maxed: false);

@@ -308,6 +308,13 @@ public partial class MainWindow
         SetEnabled(LoadResourcesButton, !sleeping && !_uiBusy);
         SetEnabled(OpenResourceTestFunctionsButton, !sleeping && !_uiBusy);
         SetEnabled(StorageRefreshButton, !sleeping && !_uiBusy);
+        var automationActive = _autoQueueRunning || (_loopTask is not null && !_loopTask.IsCompleted);
+        SetEnabled(
+            AccountScanButton,
+            !sleeping
+            && _isLoggedIn
+            && !_accountScanInProgress
+            && (!_uiBusy || automationActive));
         SetEnabled(VillageComboBox, !sleeping && !_uiBusy);
         SetEnabled(AnalyzeFarmListsButton, !sleeping && !_farmingOperationBusy);
         SetEnabled(AnalyzeNatarsProfileButton, !sleeping && !_farmingOperationBusy && _farmingFeaturesAvailable);

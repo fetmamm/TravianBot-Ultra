@@ -56,6 +56,7 @@ public sealed class BotConfigStore
         BotOptionPayloadKeys.PostLoginAnalyzeHeroInventory,
         BotOptionPayloadKeys.PostLoginReadTroopTrainingQueue,
         BotOptionPayloadKeys.PostLoginAnalyzeBrewery,
+        BotOptionPayloadKeys.PostLoginAnalyzeNewVillages,
         BotOptionPayloadKeys.SessionPacingEnabled,
         BotOptionPayloadKeys.SessionPacingMaxRunMinutes,
         BotOptionPayloadKeys.SessionPacingSleepMinutes,

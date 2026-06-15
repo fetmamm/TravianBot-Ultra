@@ -8,6 +8,7 @@ public partial class BuildingUpgradeTargetWindow : Window
 {
     // Returns the cumulative build time + cost up to the given target level, or null when unavailable.
     private readonly Func<int, BuildingNextLevelEstimate?>? _estimateProvider;
+    private readonly int _currentLevel;
 
     public int SelectedTargetLevel { get; private set; }
 
@@ -19,11 +20,11 @@ public partial class BuildingUpgradeTargetWindow : Window
         InitializeComponent();
 
         _estimateProvider = estimateProvider;
-        var currentLevel = slot.UpgradeBaseLevel;
+        _currentLevel = slot.UpgradeBaseLevel;
         TitleTextBlock.Text = $"Upgrade {slot.UpgradeName}";
-        SubtitleTextBlock.Text = $"{slot.SlotLabel}, level {currentLevel}. Max level: {maxLevel}.";
+        SubtitleTextBlock.Text = $"{slot.SlotLabel}, level {_currentLevel}. Max level: {maxLevel}.";
 
-        for (var level = currentLevel + 1; level <= maxLevel; level++)
+        for (var level = _currentLevel + 1; level <= maxLevel; level++)
         {
             TargetLevelComboBox.Items.Add(level);
         }
@@ -36,7 +37,8 @@ public partial class BuildingUpgradeTargetWindow : Window
     // no catalog data is available.
     private void UpdateEstimate()
     {
-        var estimate = _estimateProvider is not null && TargetLevelComboBox.SelectedItem is int level
+        var targetLevel = TargetLevelComboBox.SelectedItem as int?;
+        var estimate = _estimateProvider is not null && targetLevel is int level
             ? _estimateProvider(level)
             : null;
         if (estimate is null)
@@ -46,6 +48,7 @@ public partial class BuildingUpgradeTargetWindow : Window
         }
 
         TimeTextBlock.Text = estimate.TimeText;
+        EstimateRangeTextBlock.Text = $"Total for levels {_currentLevel + 1}-{targetLevel}";
         WoodTextBlock.Text = estimate.WoodText;
         ClayTextBlock.Text = estimate.ClayText;
         IronTextBlock.Text = estimate.IronText;

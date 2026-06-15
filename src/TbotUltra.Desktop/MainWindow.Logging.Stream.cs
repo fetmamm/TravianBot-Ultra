@@ -101,8 +101,8 @@ public partial class MainWindow
                     TryApplyInlineResourceLevelUpdateFromLog(part);
                     TryApplyInlineResourceProductionUpdateFromLog(part);
                     TryApplyPlusStatusFromLog(part);
-                    // The real Smithy research queue ("[smithy-queue]") drives the dashboard Smithy timer and
-                    // the per-village icons — NOT the task's defer wait (that is just when the task retries).
+                    // The real Smithy research queue drives the Queue page, dashboard timer and village icons.
+                    // The task's defer wait is only its retry time and never becomes Smithy occupancy.
                     TryApplySmithyQueueFromLog(part);
                     if (TryExtractQueueWaitDelay(part, out var queueWaitDelay))
                     {

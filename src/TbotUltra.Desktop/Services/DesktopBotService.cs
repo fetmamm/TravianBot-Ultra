@@ -237,6 +237,22 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
         return _taskRunner.RunReinforcementsTestAsync(options, log, null, cancellationToken);
     }
 
+    public Task<AccountSnapshot> ReadAccountSnapshotForScanAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.ReadAccountSnapshotForScanAsync(options, log, null, cancellationToken);
+    }
+
+    public Task<VillageStatus> ReadVillageStatusWithSmithyAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken)
+    {
+        return _taskRunner.ReadVillageStatusWithSmithyAsync(
+            options,
+            log,
+            villageName,
+            villageUrl,
+            null,
+            cancellationToken);
+    }
+
     public Task<VillageStatus> ReadVillageStatusAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken)
     {
         return _taskRunner.ReadVillageStatusAsync(

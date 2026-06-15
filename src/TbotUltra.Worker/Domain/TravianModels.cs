@@ -189,6 +189,12 @@ public sealed record BreweryCelebrationStatus(
     string StatusText,
     TimerSnapshot? Finish = null);
 
+public sealed record ActiveSmithyUpgrade(
+    string Name,
+    int? TargetLevel,
+    int? TimeLeftSeconds,
+    TimerSnapshot? Finish = null);
+
 public sealed record SmithyUpgradeStatus(
     bool SmithyExists,
     int? SmithySlotId,
@@ -197,7 +203,8 @@ public sealed record SmithyUpgradeStatus(
     IReadOnlyList<int> ActiveUpgradeRemainingSeconds,
     string RemainingText,
     string StatusText,
-    IReadOnlyList<TimerSnapshot>? ActiveUpgradeFinishes = null);
+    IReadOnlyList<TimerSnapshot>? ActiveUpgradeFinishes = null,
+    IReadOnlyList<ActiveSmithyUpgrade>? ActiveUpgrades = null);
 
 public sealed record VillageStatus(
     string ActiveVillage,

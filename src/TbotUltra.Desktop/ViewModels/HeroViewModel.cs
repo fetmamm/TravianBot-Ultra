@@ -29,7 +29,7 @@ namespace TbotUltra.Desktop.ViewModels;
 public sealed class HeroViewModel : BaseViewModel
 {
     private static readonly string[] DefaultPriorityOrder =
-        ["fighting_strength", "offence_bonus", "defence_bonus", "resources"];
+        ["resources", "fighting_strength", "offence_bonus", "defence_bonus"];
 
     private string _attributesStatusText = "Hero stats not loaded.";
     private string _adventureCountText = "?";
@@ -460,7 +460,7 @@ public sealed class HeroViewModel : BaseViewModel
     /// <summary>
     /// Parses a stored priority string into a normalized, deduplicated list
     /// of attribute keys. Unknown / missing keys fall back to the default
-    /// fight/off/def/res order so the list always has all four entries.
+    /// resources/fight/off/def order so the list always has all four entries.
     /// </summary>
     public static List<string> ParsePriorityForUi(string? value)
     {

@@ -85,6 +85,7 @@ public static class BotOptionPayloadKeys
     public const string PostLoginAnalyzeHeroInventory = "post_login_analyze_hero_inventory";
     public const string PostLoginReadTroopTrainingQueue = "post_login_read_troop_training_queue";
     public const string PostLoginAnalyzeBrewery = "post_login_analyze_brewery";
+    public const string PostLoginAnalyzeNewVillages = "post_login_analyze_new_villages";
     public const string TroopTrainingBarracksEnabled = "troop_training_barracks_enabled";
     public const string TroopTrainingBarracksTroopType = "troop_training_barracks_troop_type";
     public const string TroopTrainingBarracksMaxQueueHours = "troop_training_barracks_max_queue_hours";

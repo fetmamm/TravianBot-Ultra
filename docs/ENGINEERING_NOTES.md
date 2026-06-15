@@ -133,8 +133,11 @@ For en ny dashboard-bool ska hela configkedjan uppdateras:
 - `ActiveConstructions` far endast rensas av en bekraftad tom dorf1/dorf2-lasning
   (`ActiveConstructionsFromOverview=true`). Lokal `FinishUtc`, cache-load, UI-tick, partial reads och
   `Clear timers` far aldrig rensa browserns senaste construction-snapshot.
-- Queue-flikens Travian-kö ska använda samma byspecifika `ActiveConstructions`; ingen separat
-  browserläsning eller kökälla. Visa målnivå och `FinishUtc` formaterad med programmets serverklocka.
+- Construction-kortets live byggtid och aktiva antal ska harledas fran samma `ActiveConstructions`
+  som Queue-fliken; gamla `ActiveBuildCount`/`BuildQueueRemainingSeconds` far inte ensamma visa aktiv ko.
+- Queue-flikens Travian byggkö ska använda samma byspecifika `ActiveConstructions`; Smithy-rutan ska
+  använda samma `SmithyUpgradeStatus.ActiveUpgrades` som ikoner och loopstatus. Båda visar målnivå och
+  `FinishUtc` med programmets serverklocka; inga separata UI-källor.
 - Village Overview och byval visar kapitalen forst; ovriga byar behaller Travian-listans DOM/sidebar-ordning.
   Profiltabellens ordning far inte anvandas eftersom Official kan sortera den efter population; las
   sidebarordningen fore profilnavigation och anvand profilen endast for att berika bydata.
@@ -237,10 +240,9 @@ eller sta still, inte vaxa.
   aktiverar den (hero racker); ett forsok per trupp/korning. Maste smithyn sjalv byggas och byggkon ar full -> defer pa
   `UpgradeBuildingToMaxAsync`-resultatets `queue_wait_seconds` (ingen idé att forsoka nar byggkon ar full). Plus: tva
   forbattringar kan ko:as om raden fortsatt visar Improve efter forsta klicket.
-  Worker emitterar `[smithy-queue] timers_seconds=...` (verkliga `under_progress`-timers) varje gang den
-  ar pa Smithyn; desktop cachar dem per arbetande by (`_smithyQueueByName`), tander de tva Smithy-ikonerna
-  i village overview och driver Smithy-kortets timer fran den verkliga kon — INTE defer-vantan (gamla
-  buggen visade ~9min defern istallet for 2h/4h-kon).
+  Worker emitterar `[smithy-queue] entries_json=...` fran verkliga `under_progress`-rader. Desktop lagrar
+  namn, malniva och absolut sluttid i byns `SmithyUpgradeStatus`; Queue-ruta, ikoner och loopkort laser
+  samma SOT. Tom/glitch-lasning far inte radera en aktiv framtida ko; posten forsvinner nar sluttiden passeras.
 - Village settings-popupens "Automation groups"-kolumn speglar dashboardens loop-kort per by och sparas i
   samma `VillageSettingsStore.EnabledGroups`; avbockad grupp slutar koras for byn (`IsGroupEnabledForVillage`).
 - Nya byar far explicit `Construction=true`, ovriga grupper och NPC=false. Auto=true endast nar den forsta
@@ -248,6 +250,8 @@ eller sta still, inte vaxa.
 
 ### Hero och React-dialoger
 
+- Hero-attributens defaultordning ar `resources,fighting_strength,offence_bonus,defence_bonus` pa bada
+  servervarianterna. UI-ordningen sparas konto-scopeat och anvands oforandrad vid poangtilldelning.
 - Hero away avgors av travel-signaler/timer fore `heroHome`.
 - Las `.heroState .timerReact` fore oscope:ad sidtext.
 - Health kan innehalla bidi-tecken; rensa dem fore numerisk parsing.
@@ -267,6 +271,10 @@ eller sta still, inte vaxa.
 ### UI, cache och loggning
 
 - Full village-status ska spara produktionssnapshot; tom ny data far inte skriva over bra cache.
+- After-login-analys av nya byar ska jamfora hela sidebar-listan mot komplett cache (dorf1 fields +
+  dorf2 buildings), isolera fel per by och aterstalla vald by efter att saknade byar har lastes in.
+- Account scan pausar aktiv runner utan att rensa kon, laser komplett dorf1/dorf2 + construction/Smithy
+  per by, aterstaller browserns startby och aterstartar endast om aterstallningen bekraftades.
 - Pause bevarar sessionens aterstaende pacing; endast Stop/reset nollstaller den.
 - Continuous toggle kan vara pa medan runner ar pausad; knappen ska da visa `Start bot`.
 - Huvudfonstrets gemensamma `BusyOverlay` ska alltid doljas i operationens `finally`, aven efter lyckad korning eller cancel.

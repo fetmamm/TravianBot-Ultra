@@ -41,6 +41,12 @@ public sealed record SmithyTroopRow(
     public string Key => UnitId is int id ? $"u{id}" : (TKey ?? string.Empty);
 }
 
+/// <summary>One active troop improvement read from the Smithy under-progress table.</summary>
+public sealed record SmithyQueueEntry(
+    string Name,
+    int? TargetLevel,
+    int RemainingSeconds);
+
 /// <summary>
 /// Stateless parsing + classification for the Smithy troop-upgrade page. The Worker performs a single
 /// browser eval that emits one raw object per troop row; this parser turns that JSON into
@@ -90,6 +96,61 @@ public static class SmithyPageParser
         }
 
         return rows;
+    }
+
+    /// <summary>
+    /// Parses raw rows from the Smithy under-progress table. Rows without a positive timer are ignored,
+    /// so normal troop-row duration labels can never become false active queue entries.
+    /// </summary>
+    public static IReadOnlyList<SmithyQueueEntry> ParseQueueEntries(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return [];
+        }
+
+        List<SmithyQueueEntry> entries = [];
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                return [];
+            }
+
+            foreach (var element in doc.RootElement.EnumerateArray())
+            {
+                if (element.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                var remainingSeconds = ParseDurationSeconds(
+                    GetString(element, "timerValue"),
+                    GetString(element, "timerText"));
+                if (remainingSeconds is not > 0)
+                {
+                    continue;
+                }
+
+                var rowText = GetString(element, "rowText").Trim();
+                var name = FirstNonEmpty(
+                    GetString(element, "name"),
+                    GetString(element, "imageAlt"),
+                    ParseQueueName(rowText),
+                    "Smithy upgrade");
+                var targetLevel = ParseQueueTargetLevel(rowText);
+                entries.Add(new SmithyQueueEntry(name, targetLevel, remainingSeconds.Value));
+            }
+        }
+        catch (JsonException)
+        {
+            return entries;
+        }
+
+        return entries
+            .OrderBy(entry => entry.RemainingSeconds)
+            .ToList();
     }
 
     private static SmithyTroopRow? ParseRow(JsonElement element)
@@ -213,6 +274,63 @@ public static class SmithyPageParser
     {
         var match = LevelRegex.Match(levelText ?? string.Empty);
         return match.Success && int.TryParse(match.Groups[1].Value, out var level) ? level : 0;
+    }
+
+    private static int? ParseDurationSeconds(string timerValue, string timerText)
+    {
+        foreach (var raw in new[] { timerValue, timerText })
+        {
+            var text = (raw ?? string.Empty).Trim();
+            if (int.TryParse(text, out var seconds) && seconds > 0)
+            {
+                return seconds;
+            }
+
+            var parts = text.Split(':');
+            if (parts.Length is 2 or 3
+                && parts.All(part => int.TryParse(part, out _)))
+            {
+                var values = parts.Select(int.Parse).ToArray();
+                seconds = parts.Length == 3
+                    ? values[0] * 3600 + values[1] * 60 + values[2]
+                    : values[0] * 60 + values[1];
+                if (seconds > 0)
+                {
+                    return seconds;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static int? ParseQueueTargetLevel(string rowText)
+    {
+        var match = Regex.Match(
+            rowText ?? string.Empty,
+            @"(?:to\s+)?level\s*(\d+)",
+            RegexOptions.IgnoreCase);
+        return match.Success && int.TryParse(match.Groups[1].Value, out var level)
+            ? level
+            : null;
+    }
+
+    private static string ParseQueueName(string rowText)
+    {
+        var text = Regex.Replace(rowText ?? string.Empty, @"\s+", " ").Trim();
+        if (text.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        text = Regex.Replace(text, @"(?:to\s+)?level\s*\d+.*$", string.Empty, RegexOptions.IgnoreCase).Trim();
+        text = Regex.Replace(text, @"\b\d{1,2}:\d{2}(?::\d{2})?\b.*$", string.Empty).Trim();
+        return text;
+    }
+
+    private static string FirstNonEmpty(params string[] values)
+    {
+        return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? string.Empty;
     }
 
     private static string GetString(JsonElement element, string property)

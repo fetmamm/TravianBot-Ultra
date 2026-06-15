@@ -119,7 +119,15 @@ public sealed class ConstructionQueueStateTests
     [Fact]
     public void ResolveQueueFullRetryDelay_FullQueueUsesLiveShortestTimer()
     {
-        var status = CreateStatus([], [], activeBuildCount: 2, remainingSeconds: 900);
+        var status = CreateStatus([], [], activeBuildCount: 2, remainingSeconds: 900) with
+        {
+            ActiveConstructions =
+            [
+                new ActiveConstruction(ConstructionKind.Building, "Warehouse", 4, 900, "00:15:00"),
+                new ActiveConstruction(ConstructionKind.Building, "Granary", 3, 1200, "00:20:00"),
+            ],
+            ActiveConstructionsFromOverview = true,
+        };
 
         Assert.Equal(TimeSpan.FromSeconds(900), ConstructionQueueState.ResolveQueueFullRetryDelay(status, travianPlusActive: true));
     }
@@ -127,9 +135,24 @@ public sealed class ConstructionQueueStateTests
     [Fact]
     public void ResolveQueueFullRetryDelay_FullQueueWithoutTimerKeepsExistingRetry()
     {
-        var status = CreateStatus([], [], activeBuildCount: 1, remainingSeconds: null);
+        var status = CreateStatus([], [], activeBuildCount: 1, remainingSeconds: null) with
+        {
+            ActiveConstructions =
+            [
+                new ActiveConstruction(ConstructionKind.Building, "Warehouse", 4, null, null),
+            ],
+            ActiveConstructionsFromOverview = true,
+        };
 
         Assert.Null(ConstructionQueueState.ResolveQueueFullRetryDelay(status, travianPlusActive: false));
+    }
+
+    [Fact]
+    public void ResolveQueueFullRetryDelay_StaleLegacyCountDoesNotKeepVillageBlocked()
+    {
+        var status = CreateStatus([], [], activeBuildCount: 2, remainingSeconds: 900);
+
+        Assert.Equal(TimeSpan.Zero, ConstructionQueueState.ResolveQueueFullRetryDelay(status, travianPlusActive: true));
     }
 
     [Fact]
@@ -149,6 +172,39 @@ public sealed class ConstructionQueueStateTests
     {
         Assert.Equal(1, ConstructionQueueState.ResolveDisplayedActiveBuildCount(null, hasQueueFullEvidence: true));
         Assert.Equal(0, ConstructionQueueState.ResolveDisplayedActiveBuildCount(null, hasQueueFullEvidence: false));
+    }
+
+    [Fact]
+    public void ResolveLiveConstructionTimer_IgnoresStaleLegacyTimerWhenActiveQueueIsEmpty()
+    {
+        var status = CreateStatus([], [], activeBuildCount: 1, remainingSeconds: 3600) with
+        {
+            ActiveConstructions = [],
+            ActiveConstructionsFromOverview = true,
+        };
+
+        var result = ConstructionQueueState.ResolveLiveConstructionTimer(status);
+
+        Assert.Equal(0, result.ActiveCount);
+        Assert.Null(result.RemainingSeconds);
+    }
+
+    [Fact]
+    public void ResolveLiveConstructionTimer_UsesActiveConstructionsAsSourceOfTruth()
+    {
+        var status = CreateStatus([], [], activeBuildCount: 2, remainingSeconds: 3600) with
+        {
+            ActiveConstructions =
+            [
+                new ActiveConstruction(ConstructionKind.Building, "Warehouse", 4, 900, "00:15:00"),
+            ],
+            ActiveConstructionsFromOverview = true,
+        };
+
+        var result = ConstructionQueueState.ResolveLiveConstructionTimer(status);
+
+        Assert.Equal(1, result.ActiveCount);
+        Assert.Equal(900, result.RemainingSeconds);
     }
 
     [Fact]

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Travian;
@@ -239,29 +240,24 @@ public partial class MainWindow
         return map;
     }
 
-    // Two idle smithy upgrade slots (two simultaneous upgrades). UI placeholder — not yet wired to live data.
-    // Live per-village Smithy research queue (seconds-remaining per occupied slot + capture time), updated
-    // from the worker's "[smithy-queue]" line each time the bot visits a village's Smithy. Decayed on read.
-    private readonly Dictionary<string, (List<int> Timers, DateTimeOffset CapturedUtc)> _smithyQueueByName =
-        new(StringComparer.OrdinalIgnoreCase);
-
     // Two Smithy research slots per village, lit when occupied — same active/idle convention as the build
-    // slots. The exact remaining time is in the tooltip; the village's overall countdown is the card timer.
+    // slots. Both icons and the Queue page use the same persisted SmithyUpgradeStatus source of truth.
     private IReadOnlyList<VillageActivitySlot> BuildSmithyActivitySlots(string? villageName, bool hasDeferredWork = false)
     {
-        var remaining = ResolveSmithyQueueRemaining(villageName);
+        var activeUpgrades = ResolveActiveSmithyQueue(villageName);
         var slots = new List<VillageActivitySlot>(2);
         for (var i = 0; i < 2; i++)
         {
-            var isActive = i < remaining.Count;
+            var isActive = i < activeUpgrades.Count;
             var isWaiting = !isActive && hasDeferredWork;
+            var active = isActive ? activeUpgrades[i] : null;
             slots.Add(new VillageActivitySlot
             {
                 IsActive = isActive,
                 IsWaiting = isWaiting,
                 Label = "",
                 Tooltip = isActive
-                    ? $"Smithy research ({FormatSmithyDuration(remaining[i])})"
+                    ? $"{active!.Name}{(active.TargetLevel.HasValue ? $" to level {active.TargetLevel.Value}" : string.Empty)} ({FormatSmithyDuration(active.TimeLeftSeconds ?? 0)})"
                     : isWaiting ? "Smithy waiting (deferred: resources or queue)" : "Smithy slot free",
             });
         }
@@ -269,8 +265,8 @@ public partial class MainWindow
         return slots;
     }
 
-    // Parses the worker's "[smithy-queue] timers_seconds=1305,3673" line and applies it to the village the
-    // bot is currently working in. An empty list clears that village's queue. Returns whether it matched.
+    // Parses the worker's live Smithy queue line and applies it to the village currently being worked.
+    // Legacy timer-only lines remain supported; active cached finishes are protected from false empty reads.
     private bool TryApplySmithyQueueFromLog(string? part)
     {
         if (string.IsNullOrWhiteSpace(part))
@@ -278,68 +274,99 @@ public partial class MainWindow
             return false;
         }
 
-        const string token = "[smithy-queue] timers_seconds=";
-        var index = part.IndexOf(token, StringComparison.OrdinalIgnoreCase);
-        if (index < 0)
+        const string entriesToken = "[smithy-queue] entries_json=";
+        var entriesIndex = part.IndexOf(entriesToken, StringComparison.OrdinalIgnoreCase);
+        if (entriesIndex >= 0)
+        {
+            var rawJson = part[(entriesIndex + entriesToken.Length)..].Trim();
+            try
+            {
+                var entries = JsonSerializer.Deserialize<List<SmithyQueueEntry>>(rawJson) ?? [];
+                ApplySmithyQueueForWorkingVillage(entries);
+            }
+            catch (JsonException ex)
+            {
+                AppendLog($"[smithy-queue] Could not parse queue entries: {ex.Message}");
+            }
+
+            return true;
+        }
+
+        const string timersToken = "[smithy-queue] timers_seconds=";
+        var timersIndex = part.IndexOf(timersToken, StringComparison.OrdinalIgnoreCase);
+        if (timersIndex < 0)
         {
             return false;
         }
 
-        var raw = part[(index + token.Length)..].Trim();
-        var timers = new List<int>();
+        var raw = part[(timersIndex + timersToken.Length)..].Trim();
+        var entriesFromTimers = new List<SmithyQueueEntry>();
         foreach (var entry in raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             if (int.TryParse(entry, out var seconds) && seconds > 0)
             {
-                timers.Add(seconds);
+                entriesFromTimers.Add(new SmithyQueueEntry("Smithy upgrade", null, seconds));
             }
         }
 
-        ApplySmithyQueueForWorkingVillage(timers);
+        ApplySmithyQueueForWorkingVillage(entriesFromTimers);
         return true;
     }
 
-    // Stores the latest Smithy queue for the active working village and drives the (global) Smithy card
-    // timer from the real queue, then refreshes the dashboard so the icons + timer update immediately.
-    private void ApplySmithyQueueForWorkingVillage(IReadOnlyList<int> timersSeconds)
+    private void ApplySmithyQueueForWorkingVillage(IReadOnlyList<SmithyQueueEntry> entries)
     {
-        var timers = (timersSeconds ?? [])
-            .Where(value => value > 0)
-            .OrderBy(value => value)
+        var activeUpgrades = (entries ?? [])
+            .Where(entry => entry.RemainingSeconds > 0)
+            .Select(entry => new ActiveSmithyUpgrade(
+                entry.Name,
+                entry.TargetLevel,
+                entry.RemainingSeconds,
+                TimerSnapshot.FromRemaining(entry.RemainingSeconds)))
+            .OrderBy(entry => entry.TimeLeftSeconds)
             .ToList();
-
         var name = NormalizeVillageName(_activeWorkingVillageName);
-        if (name is not null)
+        if (name is not null && _villageStatusCacheByName.TryGetValue(name, out var cached))
         {
-            if (timers.Count > 0)
+            var existing = cached.SmithyUpgradeStatus;
+            var incoming = new SmithyUpgradeStatus(
+                SmithyExists: existing?.SmithyExists ?? true,
+                SmithySlotId: existing?.SmithySlotId,
+                ActiveUpgradeCount: activeUpgrades.Count,
+                RemainingSeconds: activeUpgrades.FirstOrDefault()?.TimeLeftSeconds,
+                ActiveUpgradeRemainingSeconds: activeUpgrades
+                    .Where(entry => entry.TimeLeftSeconds is > 0)
+                    .Select(entry => entry.TimeLeftSeconds!.Value)
+                    .ToList(),
+                RemainingText: activeUpgrades.Count > 0
+                    ? FormatSmithyDuration(activeUpgrades[0].TimeLeftSeconds ?? 0)
+                    : "Ready",
+                StatusText: activeUpgrades.Count > 0 ? "Smithy upgrade active." : "Ready.",
+                ActiveUpgradeFinishes: activeUpgrades.Select(entry => entry.Finish!).ToList(),
+                ActiveUpgrades: activeUpgrades);
+            var preserved = SmithyQueueState.PreserveKnownActiveQueue(incoming, existing, DateTimeOffset.UtcNow);
+            _villageStatusCacheByName[name] = cached with { SmithyUpgradeStatus = preserved };
+            _villageCacheStore.Save(_villageStatusCacheByName);
+
+            var selectedName = NormalizeVillageName(GetSelectedVillageName());
+            if (selectedName is null
+                || string.Equals(name, selectedName, StringComparison.OrdinalIgnoreCase))
             {
-                _smithyQueueByName[name] = (timers, DateTimeOffset.UtcNow);
-            }
-            else
-            {
-                _smithyQueueByName.Remove(name);
+                ApplySmithyUpgradeStatus(preserved);
             }
         }
 
-        _smithyUpgradeRemainingSeconds = timers.ToList();
-        UpdateAutomationLoopRunningIndicators();
         RefreshVillageActivityIndicatorsOnDashboard();
     }
 
-    // Remaining seconds per occupied Smithy slot for a village, decayed by elapsed time, capped at 2 slots.
-    private IReadOnlyList<int> ResolveSmithyQueueRemaining(string? villageName)
+    private IReadOnlyList<ActiveSmithyUpgrade> ResolveActiveSmithyQueue(string? villageName)
     {
         var name = NormalizeVillageName(villageName);
-        if (name is null || !_smithyQueueByName.TryGetValue(name, out var snapshot))
+        if (name is null || !_villageStatusCacheByName.TryGetValue(name, out var status))
         {
             return [];
         }
 
-        var elapsed = (int)Math.Max(0, (DateTimeOffset.UtcNow - snapshot.CapturedUtc).TotalSeconds);
-        return snapshot.Timers
-            .Select(value => value - elapsed)
-            .Where(value => value > 0)
-            .OrderBy(value => value)
+        return SmithyQueueState.ResolveActiveUpgrades(status.SmithyUpgradeStatus, DateTimeOffset.UtcNow)
             .Take(2)
             .ToList();
     }
@@ -365,6 +392,7 @@ public partial class MainWindow
         }
 
         RefreshTravianBuildQueueUi();
+        RefreshTravianSmithyQueueUi();
     }
 
     // Queue-full is occupancy evidence, never an active-construction count. Multiple program queue items
@@ -629,8 +657,9 @@ public partial class MainWindow
     // group's timer shows the selected village (timers differ per village). Pass null to clear (unknown).
     private void ApplyConstructionTimerFromStatus(VillageStatus? status)
     {
-        _buildQueueActiveCount = status?.ActiveBuildCount ?? 0;
-        _buildQueueRemainingSeconds = status?.BuildQueueRemainingSeconds ?? -1;
+        var timer = ConstructionQueueState.ResolveLiveConstructionTimer(status);
+        _buildQueueActiveCount = timer.ActiveCount;
+        _buildQueueRemainingSeconds = timer.RemainingSeconds ?? -1;
         UpdateAutomationLoopRunningIndicators();
     }
 
@@ -710,6 +739,16 @@ public partial class MainWindow
         if (_villageStatusCacheByName.TryGetValue(name, out var existing))
         {
             status = ConstructionQueueState.PreserveKnownConstructionState(status, existing);
+            if (status.SmithyUpgradeStatus is not null)
+            {
+                status = status with
+                {
+                    SmithyUpgradeStatus = SmithyQueueState.PreserveKnownActiveQueue(
+                        status.SmithyUpgradeStatus,
+                        existing.SmithyUpgradeStatus,
+                        DateTimeOffset.UtcNow),
+                };
+            }
             status = status with
             {
                 SmithyUpgradeStatus = status.SmithyUpgradeStatus ?? existing.SmithyUpgradeStatus,
@@ -755,7 +794,19 @@ public partial class MainWindow
             return;
         }
 
-        _villageStatusCacheByName[name] = update(existing);
+        var updated = update(existing);
+        if (updated.SmithyUpgradeStatus is not null)
+        {
+            updated = updated with
+            {
+                SmithyUpgradeStatus = SmithyQueueState.PreserveKnownActiveQueue(
+                    updated.SmithyUpgradeStatus,
+                    existing.SmithyUpgradeStatus,
+                    DateTimeOffset.UtcNow),
+            };
+        }
+
+        _villageStatusCacheByName[name] = updated;
         _villageCacheStore.Save(_villageStatusCacheByName);
     }
 

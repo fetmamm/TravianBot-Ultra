@@ -45,7 +45,7 @@ Compatible with:
 - Automatic building
 - Hero adventures
 - Revive hero
-- Spend hero attribute points
+- Spend hero attribute points using a drag-sortable, per-account priority order (default: Resources, then Fighting strength)
 - Use hero inventory resources to top up when short (Official only). Per-consumer toggles on the Hero tab pick which features may pull from the hero: **Construction** (buildings & resource fields), **Smithy** (troop upgrades), and **Brewery** (celebrations). The master hero-resource toggle in Auto settings still applies on top.
 - Collect daily quests
 - Collect tasks
@@ -112,6 +112,11 @@ The bot manages every village on the account from one **Dashboard → Village ov
   villages the bot works in. Disabled villages are skipped entirely. Auto starts on when the account
   has one village; later discovered villages start off. New villages start with only Construction
   enabled (NPC and all other groups off). Choices are saved per account and survive restarts/renames.
+- **New village startup:** the default-enabled **After login** setting scans dorf1 and dorf2 only for
+  villages that do not already have complete cached resource-field and building status.
+- **Account scan:** the Dashboard button refreshes every village's resource fields, buildings,
+  construction queue and Smithy queue. Running automation pauses, the browser returns to its starting
+  village, and automation then resumes without clearing or unpausing queue items.
 - **Village overview columns:** a green/grey dot left of the name shows if a village is enabled, plus
   per-village indicators for **Buildings** (active construction slots — 2, or 3 for Romans), **Queue**
   (green when something is queued), **Smithy**, **Troops** (Barracks/Stable/Workshop) and **Hero**
@@ -121,6 +126,9 @@ The bot manages every village on the account from one **Dashboard → Village ov
   A green border marks the village the browser is currently working in.
 - **One queue per account:** each task carries its target village, and the bot rotates between enabled
   villages (draining one, then moving on so a village waiting on resources never blocks the others).
+- **Live Travian queues:** the Queue tab shows construction and Smithy upgrades side by side for the
+  selected village. Smithy names, target levels, finish times, overview icons and loop status share the
+  same browser-derived queue state and remain active until their absolute finish time.
 - **Per-village automation groups & NPC trade:** the Automation Loop groups (Construction, Build Troops,
   …) can be enabled per village. NPC trade has an account-wide master toggle in **Auto settings** plus a
   per-village choice in **Village settings** — it runs only when both are on.

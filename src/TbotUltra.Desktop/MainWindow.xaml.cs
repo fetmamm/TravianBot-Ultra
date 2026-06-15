@@ -168,6 +168,7 @@ public partial class MainWindow : Window
     private bool _terminalCleanMode = true;
     private readonly ObservableCollection<AlarmEntryRow> _alarmEntries = [];
     private readonly ObservableCollection<TravianBuildQueueRow> _travianBuildQueueRows = [];
+    private readonly ObservableCollection<TravianSmithyQueueRow> _travianSmithyQueueRows = [];
     private readonly ObservableCollection<LoopTaskOption> _automationLoopTasks = [];
     private ICollectionView? _automationLoopTasksView;
     private readonly ObservableCollection<ResourceTransferVillageItem> _resourceTransferVillages = [];
@@ -520,6 +521,7 @@ public partial class MainWindow : Window
         _alarmView.Filter = AlarmEntryFilter;
         AlarmListBox.ItemsSource = _alarmView;
         TravianBuildQueueDataGrid.ItemsSource = _travianBuildQueueRows;
+        TravianSmithyQueueDataGrid.ItemsSource = _travianSmithyQueueRows;
         UpdateCaptchaStatsUi();
         UpdateNpcTradeStatsUi();
         _automationLoopTasksView = CollectionViewSource.GetDefaultView(_automationLoopTasks);
@@ -894,6 +896,13 @@ public partial class MainWindow : Window
             SetEnabled(QueueRefreshButton, !busy);
             SetEnabled(ResetProgramButton, true);
             SetEnabled(StorageRefreshButton, defaultEnabled);
+            var automationActive = _autoQueueRunning || (_loopTask is not null && !_loopTask.IsCompleted);
+            SetEnabled(
+                AccountScanButton,
+                _isLoggedIn
+                && !sleeping
+                && !_accountScanInProgress
+                && (!busy || automationActive));
             UpdateResourceTransferStatus();
             _resourcesViewModel.ActionsEnabled = !busy;
             _inboxViewModel.ActionsEnabled = defaultEnabled;
@@ -1152,6 +1161,11 @@ public partial class MainWindow : Window
         {
             _ = Dispatcher.BeginInvoke(() =>
             {
+                if (!ReferenceEquals(_loopTask, loopTask))
+                {
+                    return;
+                }
+
                 StartLoopButton.Content = "Start bot";
                 StartLoopButton.IsEnabled = true;
                 SetLoopIndicator(false);
@@ -1291,8 +1305,9 @@ public partial class MainWindow : Window
         var silverText = status.Silver?.ToString() ?? "-";
         SetGoldSilverStatusText(ServerResourcesTextBlock, SilverInfoTextBlock, goldText, silverText);
 
-        _buildQueueActiveCount = status.ActiveBuildCount;
-        _buildQueueRemainingSeconds = status.BuildQueueRemainingSeconds ?? -1;
+        var constructionTimer = ConstructionQueueState.ResolveLiveConstructionTimer(status);
+        _buildQueueActiveCount = constructionTimer.ActiveCount;
+        _buildQueueRemainingSeconds = constructionTimer.RemainingSeconds ?? -1;
         _buildQueueReachedZeroPendingCompletion = false;
         ApplyTroopsAvailabilityFromVillageStatus(status);
         _troopTrainingViewModel.ApplyStatus(status, status.TroopTrainingQueues ?? _lastBuildingStatus?.TroopTrainingQueues);
@@ -1322,6 +1337,7 @@ public partial class MainWindow : Window
     private void UpdateLoginButtonsVisual(bool isLoggedIn)
     {
         StartLoopButton.IsEnabled = isLoggedIn;
+        AccountScanButton.IsEnabled = isLoggedIn && !IsSessionSleeping && !_accountScanInProgress;
 
         // Both buttons use a soft/tinted style (like Start/Pause bot). Only the available action is
         // colored: Login is green when logged out, Logout is red when logged in; the other is neutral.

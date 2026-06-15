@@ -4,8 +4,7 @@ namespace TbotUltra.Core.Configuration;
 
 public static class BotOptionsFactory
 {
-    private const string LegacyHeroStatPriority = "fighting_strength,offence_bonus,defence_bonus,resources";
-    private const string OfficialHeroStatPriority = "resources,fighting_strength,offence_bonus,defence_bonus";
+    private const string DefaultHeroStatPriority = "resources,fighting_strength,offence_bonus,defence_bonus";
 
     public static BotOptions FromConfiguration(IConfiguration configuration)
     {
@@ -24,7 +23,7 @@ public static class BotOptionsFactory
         var serverFlavor = ServerFlavorDetector.FromBaseUrl(baseUrl);
         var isOfficialServer = serverFlavor == ServerFlavor.Official;
         var heroStatPriority = string.IsNullOrWhiteSpace(configuration[BotOptionPayloadKeys.HeroStatPriority])
-            ? (isOfficialServer ? OfficialHeroStatPriority : LegacyHeroStatPriority)
+            ? DefaultHeroStatPriority
             : configuration[BotOptionPayloadKeys.HeroStatPriority]!;
 
         return new BotOptions
@@ -52,6 +51,7 @@ public static class BotOptionsFactory
             PostLoginAnalyzeHeroInventory = configuration.GetValue(BotOptionPayloadKeys.PostLoginAnalyzeHeroInventory, true),
             PostLoginReadTroopTrainingQueue = configuration.GetValue(BotOptionPayloadKeys.PostLoginReadTroopTrainingQueue, false),
             PostLoginAnalyzeBrewery = configuration.GetValue(BotOptionPayloadKeys.PostLoginAnalyzeBrewery, false),
+            PostLoginAnalyzeNewVillages = configuration.GetValue(BotOptionPayloadKeys.PostLoginAnalyzeNewVillages, true),
             TroopTrainingBarracksEnabled = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingBarracksEnabled, false),
             TroopTrainingBarracksTroopType = configuration[BotOptionPayloadKeys.TroopTrainingBarracksTroopType] ?? string.Empty,
             TroopTrainingBarracksMaxQueueHours = configuration[BotOptionPayloadKeys.TroopTrainingBarracksMaxQueueHours] ?? "no_limit",
@@ -202,6 +202,7 @@ public static class BotOptionsFactory
             PostLoginAnalyzeHeroInventory = source.PostLoginAnalyzeHeroInventory,
             PostLoginReadTroopTrainingQueue = source.PostLoginReadTroopTrainingQueue,
             PostLoginAnalyzeBrewery = source.PostLoginAnalyzeBrewery,
+            PostLoginAnalyzeNewVillages = source.PostLoginAnalyzeNewVillages,
             TroopTrainingBarracksEnabled = source.TroopTrainingBarracksEnabled,
             TroopTrainingBarracksTroopType = source.TroopTrainingBarracksTroopType,
             TroopTrainingBarracksMaxQueueHours = source.TroopTrainingBarracksMaxQueueHours,

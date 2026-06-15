@@ -58,7 +58,7 @@ internal static class HeroCalc
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        foreach (var fallback in new[] { "fighting_strength", "offence_bonus", "defence_bonus", "resources" })
+        foreach (var fallback in new[] { "resources", "fighting_strength", "offence_bonus", "defence_bonus" })
         {
             if (!parsed.Contains(fallback, StringComparer.OrdinalIgnoreCase))
             {

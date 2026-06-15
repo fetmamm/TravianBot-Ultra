@@ -95,6 +95,9 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.PostLoginAnalyzeBrewery)]
     public bool PostLoginAnalyzeBrewery { get; init; }
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.PostLoginAnalyzeNewVillages)]
+    public bool PostLoginAnalyzeNewVillages { get; init; } = true;
+
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksEnabled)]
     public bool TroopTrainingBarracksEnabled { get; init; }
 
@@ -398,7 +401,7 @@ public sealed class BotOptions
     public bool HeroAutoUseOintments { get; init; }
 
     [ConfigurationKeyName("hero_stat_priority")]
-    public string HeroStatPriority { get; init; } = "fighting_strength,offence_bonus,defence_bonus,resources";
+    public string HeroStatPriority { get; init; } = "resources,fighting_strength,offence_bonus,defence_bonus";
 
     [ConfigurationKeyName("hero_adventure_pick_order")]
     public string HeroAdventurePickOrder { get; init; } = "shortest"; // "shortest" or "top"

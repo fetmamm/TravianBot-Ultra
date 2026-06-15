@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Tasks;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
 
@@ -256,6 +257,7 @@ public partial class MainWindow
             QueueDataGrid.ItemsSource = displayedActiveRows;
             QueueHistoryDataGrid.ItemsSource = displayedHistoryRows;
             RefreshTravianBuildQueueUi();
+            RefreshTravianSmithyQueueUi();
             UpdateQueueEstimateTotals(displayedActiveRows);
             SyncPendingResourceTargetsInUi();
             if (_lastBuildingStatus is not null)
@@ -334,6 +336,40 @@ public partial class MainWindow
             : "No browser status loaded for this village.";
         TravianBuildQueueEmptyTextBlock.Visibility =
             _travianBuildQueueRows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void RefreshTravianSmithyQueueUi()
+    {
+        var selectedName = NormalizeVillageName(GetSelectedVillageName());
+        VillageStatus? status = null;
+        var hasStatus = selectedName is not null
+            && _villageStatusCacheByName.TryGetValue(selectedName, out status);
+        var activeUpgrades = SmithyQueueState.ResolveActiveUpgrades(
+            status?.SmithyUpgradeStatus,
+            DateTimeOffset.UtcNow);
+
+        _travianSmithyQueueRows.Clear();
+        foreach (var upgrade in activeUpgrades)
+        {
+            var finishUtc = upgrade.Finish?.FinishUtc
+                ?? (upgrade.TimeLeftSeconds is > 0
+                    ? DateTimeOffset.UtcNow.AddSeconds(upgrade.TimeLeftSeconds.Value)
+                    : (DateTimeOffset?)null);
+            _travianSmithyQueueRows.Add(new TravianSmithyQueueRow
+            {
+                Name = upgrade.Name,
+                LevelText = upgrade.TargetLevel.HasValue ? $"Level {upgrade.TargetLevel.Value}" : "-",
+                FinishAtText = finishUtc.HasValue ? FormatQueueServerTime(finishUtc.Value) : "-",
+            });
+        }
+
+        TravianSmithyQueueEmptyTextBlock.Text = !hasStatus
+            ? "No browser status loaded for this village."
+            : status?.SmithyUpgradeStatus is null
+                ? "Smithy queue has not been scanned for this village."
+                : "No active Smithy upgrade in Travian.";
+        TravianSmithyQueueEmptyTextBlock.Visibility =
+            _travianSmithyQueueRows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private static Guid? ResolveDisplayRunningQueueItemId(IReadOnlyList<QueueItem> ordered)

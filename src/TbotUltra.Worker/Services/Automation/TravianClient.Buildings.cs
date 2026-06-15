@@ -1590,12 +1590,12 @@ public sealed partial class TravianClient
 
             // Report the live Smithy research queue (under_progress timers) so the dashboard shows the real
             // per-village queue/timers — emitted only when it changes to keep the log clean.
-            var dashQueue = await ReadSmithyQueueTimersAsync(cancellationToken);
-            var dashQueueCsv = string.Join(",", dashQueue);
-            if (!string.Equals(dashQueueCsv, lastQueueCsv, StringComparison.Ordinal))
+            var dashQueue = await ReadSmithyQueueEntriesAsync(cancellationToken);
+            var dashQueueJson = JsonSerializer.Serialize(dashQueue);
+            if (!string.Equals(dashQueueJson, lastQueueCsv, StringComparison.Ordinal))
             {
-                Notify($"[smithy-queue] timers_seconds={dashQueueCsv}");
-                lastQueueCsv = dashQueueCsv;
+                Notify($"[smithy-queue] entries_json={dashQueueJson}");
+                lastQueueCsv = dashQueueJson;
             }
 
             // Classify every pending target. Terminal outcomes (maxed / already at target / not researched)
@@ -1905,42 +1905,54 @@ public sealed partial class TravianClient
         }
     }
 
-    // Reads active Smithy research timers strictly from the queue table (table.under_progress), never from
-    // the per-row ".duration" build-time labels — those are how long an upgrade *would* take, not progress.
-    private async Task<IReadOnlyList<int>> ReadSmithyQueueTimersAsync(CancellationToken cancellationToken)
+    // Reads active Smithy research strictly from the queue table, never from troop-row duration labels.
+    private async Task<IReadOnlyList<SmithyQueueEntry>> ReadSmithyQueueEntriesAsync(CancellationToken cancellationToken)
     {
         _ = cancellationToken;
         try
         {
-            var values = await _page.EvaluateAsync<int[]>(
+            var rawJson = await _page.EvaluateAsync<string>(
                 """
                 () => {
-                  const parseSeconds = (value) => {
-                    if (!value) return null;
-                    const text = String(value).trim();
-                    if (!text) return null;
-                    if (/^\d+$/.test(text)) return parseInt(text, 10);
-                    const m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(text);
-                    if (!m) return null;
-                    const hasH = m[3] !== undefined;
-                    const hh = hasH ? parseInt(m[1], 10) : 0;
-                    const mm = hasH ? parseInt(m[2], 10) : parseInt(m[1], 10);
-                    const ss = hasH ? parseInt(m[3], 10) : parseInt(m[2], 10);
-                    return hh * 3600 + mm * 60 + ss;
-                  };
-                  const timers = Array.from(document.querySelectorAll('table.under_progress .timer, .under_progress .timer'));
-                  return timers
-                    .map(el => parseSeconds(el.getAttribute('value')) ?? parseSeconds(el.textContent))
-                    .filter(v => v !== null && Number.isFinite(v) && v > 0)
-                    .sort((a, b) => a - b);
+                  const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+                  const roots = Array.from(document.querySelectorAll('table.under_progress, .under_progress'));
+                  const rows = [];
+                  const seenTimers = new Set();
+                  for (const root of roots) {
+                    const timers = Array.from(root.querySelectorAll('.timer, [id^="timer"]'));
+                    for (const timer of timers) {
+                      if (seenTimers.has(timer)) continue;
+                      seenTimers.add(timer);
+                      const row = timer.closest('tr, li, .queueRow, .research') || timer.parentElement;
+                      if (!row) continue;
+                      const image = row.querySelector('img.unit, img[class*="u"]');
+                      const nameNode = row.querySelector('.name, .unitName, .researchName, .title');
+                      rows.push({
+                        timerValue: clean(timer.getAttribute('value')),
+                        timerText: clean(timer.textContent),
+                        name: clean(nameNode && nameNode.textContent),
+                        imageAlt: clean(image && (image.getAttribute('alt') || image.getAttribute('title'))),
+                        rowText: clean(row.innerText || row.textContent)
+                      });
+                    }
+                  }
+                  return JSON.stringify(rows);
                 }
                 """);
-            return values.Where(v => v > 0).OrderBy(v => v).ToList();
+            return SmithyPageParser.ParseQueueEntries(rawJson);
         }
-        catch
+        catch (Exception ex)
         {
+            Notify($"[smithy-queue] read failed: {ex.Message}");
             return [];
         }
+    }
+
+    private async Task<IReadOnlyList<int>> ReadSmithyQueueTimersAsync(CancellationToken cancellationToken)
+    {
+        return (await ReadSmithyQueueEntriesAsync(cancellationToken))
+            .Select(entry => entry.RemainingSeconds)
+            .ToList();
     }
 
     // Extracts a "queue_wait_seconds=N" hint from a result string (e.g. the Smithy building upgrade result
@@ -2133,11 +2145,18 @@ public sealed partial class TravianClient
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading the Smithy queue.", cancellationToken);
         await EnsureLoggedInAsync();
 
-        var activeTimers = (await ReadSmithyResearchDurationsSecondsAsync(cancellationToken))
-            .Where(value => value > 0)
-            .OrderBy(value => value)
+        var activeQueue = (await ReadSmithyQueueEntriesAsync(cancellationToken))
+            .OrderBy(entry => entry.RemainingSeconds)
             .ToList();
+        var activeTimers = activeQueue.Select(entry => entry.RemainingSeconds).ToList();
         var remainingSeconds = activeTimers.Count > 0 ? activeTimers[0] : (int?)null;
+        var activeUpgrades = activeQueue
+            .Select(entry => new ActiveSmithyUpgrade(
+                entry.Name,
+                entry.TargetLevel,
+                entry.RemainingSeconds,
+                TimerSnapshot.FromRemaining(entry.RemainingSeconds)))
+            .ToList();
 
         return new SmithyUpgradeStatus(
             SmithyExists: true,
@@ -2149,7 +2168,8 @@ public sealed partial class TravianClient
             StatusText: activeTimers.Count > 0
                 ? $"Smithy upgrade{(activeTimers.Count == 1 ? string.Empty : "s")} active."
                 : "Ready.",
-            ActiveUpgradeFinishes: activeTimers.Select(value => TimerSnapshot.FromRemaining(value)).ToList());
+            ActiveUpgradeFinishes: activeUpgrades.Select(entry => entry.Finish!).ToList(),
+            ActiveUpgrades: activeUpgrades);
     }
 
     public async Task<string> ReadSmithyQueueFromCurrentPageTestAsync(CancellationToken cancellationToken = default)
@@ -2163,17 +2183,19 @@ public sealed partial class TravianClient
             return "Smithy queue test: current page does not look like the Smithy page.";
         }
 
-        var activeTimers = (await ReadSmithyResearchDurationsSecondsAsync(cancellationToken))
-            .Where(value => value > 0)
-            .OrderBy(value => value)
+        var activeQueue = (await ReadSmithyQueueEntriesAsync(cancellationToken))
+            .OrderBy(entry => entry.RemainingSeconds)
             .ToList();
-        if (activeTimers.Count <= 0)
+        if (activeQueue.Count <= 0)
         {
             return "Smithy queue test: ready. No active Smithy upgrade found on the current page.";
         }
 
-        var timersText = string.Join(", ", activeTimers.Select(TravianParsing.FormatDuration));
-        return $"Smithy queue test: active={activeTimers.Count}, next={TravianParsing.FormatDuration(activeTimers[0])}, timers=[{timersText}]";
+        var entriesText = string.Join(
+            ", ",
+            activeQueue.Select(entry =>
+                $"{entry.Name} -> {(entry.TargetLevel.HasValue ? $"level {entry.TargetLevel.Value}" : "next level")} ({TravianParsing.FormatDuration(entry.RemainingSeconds)})"));
+        return $"Smithy queue test: active={activeQueue.Count}, entries=[{entriesText}]";
     }
 
     private static int? ResolveKnownSmithySlotId(IReadOnlyList<Building>? knownBuildings)
@@ -2250,70 +2272,6 @@ public sealed partial class TravianClient
         }
 
         return null;
-    }
-
-    private async Task<IReadOnlyList<int>> ReadSmithyResearchDurationsSecondsAsync(CancellationToken cancellationToken)
-    {
-        _ = cancellationToken;
-        try
-        {
-            var values = await _page.EvaluateAsync<int[]>(
-                """
-                () => {
-                  const parseSeconds = (value) => {
-                    if (!value) return null;
-                    const text = String(value).trim();
-                    if (!text) return null;
-                    if (/^\d+$/.test(text)) {
-                      return parseInt(text, 10);
-                    }
-
-                    const match = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(text);
-                    if (!match) return null;
-                    const hasHours = match[3] !== undefined;
-                    const hh = hasHours ? parseInt(match[1], 10) : 0;
-                    const mm = hasHours ? parseInt(match[2], 10) : parseInt(match[1], 10);
-                    const ss = hasHours ? parseInt(match[3], 10) : parseInt(match[2], 10);
-                    return hh * 3600 + mm * 60 + ss;
-                  };
-
-                  const progressTimers = Array.from(document.querySelectorAll('table.under_progress .timer'));
-                  const progressValues = progressTimers
-                    .map(el => parseSeconds(el.getAttribute('value')) ?? parseSeconds(el.textContent))
-                    .filter(value => value !== null);
-                  if (progressValues.length > 0) {
-                    return progressValues
-                      .map(value => Number(value))
-                      .filter(value => Number.isFinite(value) && value > 0)
-                      .sort((a, b) => a - b);
-                  }
-
-                  const scoped = Array.from(document.querySelectorAll(
-                    '.under_progress .timer, .under_progress [id^="timer"], .build_details.researches .timer, .build_details.researches [id^="timer"], .research .timer, .research [id^="timer"], .researchDuration, .duration'
-                  ));
-                  const values = scoped
-                    .map(el => parseSeconds(el.getAttribute?.('value')) ?? parseSeconds(el.textContent))
-                    .filter(value => value !== null);
-                  if (values.length > 0) {
-                    return values
-                      .map(value => Number(value))
-                      .filter(value => Number.isFinite(value) && value > 0)
-                      .sort((a, b) => a - b);
-                  }
-
-                  return [];
-                }
-                """);
-
-            return values
-                .Where(value => value > 0)
-                .OrderBy(value => value)
-                .ToList();
-        }
-        catch
-        {
-            return [];
-        }
     }
 
     private bool ShouldDeferLongWait(int waitSeconds)

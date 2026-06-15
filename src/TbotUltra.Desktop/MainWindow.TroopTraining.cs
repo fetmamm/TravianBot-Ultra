@@ -304,11 +304,23 @@ public partial class MainWindow
 
     private void ApplySmithyUpgradeStatus(SmithyUpgradeStatus status)
     {
-        _smithyUpgradeRemainingSeconds = (status.ActiveUpgradeRemainingSeconds ?? [])
-            .Where(value => value > 0)
-            .OrderBy(value => value)
+        var villageName = NormalizeVillageName(GetSelectedVillageName())
+            ?? NormalizeVillageName(_activeWorkingVillageName);
+        if (villageName is not null
+            && _villageStatusCacheByName.TryGetValue(villageName, out var cached))
+        {
+            status = SmithyQueueState.PreserveKnownActiveQueue(
+                status,
+                cached.SmithyUpgradeStatus,
+                DateTimeOffset.UtcNow);
+        }
+
+        _smithyUpgradeRemainingSeconds = SmithyQueueState.ResolveActiveUpgrades(status, DateTimeOffset.UtcNow)
+            .Where(entry => entry.TimeLeftSeconds is > 0)
+            .Select(entry => entry.TimeLeftSeconds!.Value)
             .ToList();
         UpdateAutomationLoopRunningIndicators();
+        RefreshTravianSmithyQueueUi();
     }
 
     /// <summary>
@@ -347,33 +359,29 @@ public partial class MainWindow
 
     private int? ResolveSmithyUpgradeGroupRemainingSeconds()
     {
-        return _smithyUpgradeRemainingSeconds.Count > 0
-            ? _smithyUpgradeRemainingSeconds[0]
-            : null;
+        var villageName = NormalizeVillageName(GetSelectedVillageName())
+            ?? NormalizeVillageName(_activeWorkingVillageName);
+        return ResolveActiveSmithyQueue(villageName).FirstOrDefault()?.TimeLeftSeconds;
     }
 
     private int ResolveSmithyUpgradeActiveCount()
     {
-        return _smithyUpgradeRemainingSeconds.Count;
+        var villageName = NormalizeVillageName(GetSelectedVillageName())
+            ?? NormalizeVillageName(_activeWorkingVillageName);
+        return ResolveActiveSmithyQueue(villageName).Count;
     }
 
     private void TickSmithyUpgradeCountdown()
     {
-        if (_smithyUpgradeRemainingSeconds.Count <= 0)
-        {
-            return;
-        }
-
-        for (var index = 0; index < _smithyUpgradeRemainingSeconds.Count; index++)
-        {
-            _smithyUpgradeRemainingSeconds[index] = Math.Max(0, _smithyUpgradeRemainingSeconds[index] - 1);
-        }
-
-        _smithyUpgradeRemainingSeconds = _smithyUpgradeRemainingSeconds
-            .Where(value => value > 0)
-            .OrderBy(value => value)
+        var villageName = NormalizeVillageName(GetSelectedVillageName())
+            ?? NormalizeVillageName(_activeWorkingVillageName);
+        _smithyUpgradeRemainingSeconds = ResolveActiveSmithyQueue(villageName)
+            .Where(entry => entry.TimeLeftSeconds is > 0)
+            .Select(entry => entry.TimeLeftSeconds!.Value)
             .ToList();
         UpdateAutomationLoopRunningIndicators();
+        RefreshVillageActivityIndicatorsOnDashboard();
+        RefreshTravianSmithyQueueUi();
     }
 
     private void TriggerSmithyUpgradeStatusRefresh(IReadOnlyList<Building>? knownBuildings, string source)

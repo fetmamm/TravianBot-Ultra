@@ -39,7 +39,7 @@ public sealed class VillageSelectionItem : INotifyPropertyChanged
         }
     }
 
-    // Smithy upgrade slots (2 simultaneous). UI-only for now — not yet wired to live data, always idle.
+    // Smithy upgrade slots (2 simultaneous), driven by the village's live SmithyUpgradeStatus queue.
     private IReadOnlyList<VillageActivitySlot> _smithySlots = System.Array.Empty<VillageActivitySlot>();
     public IReadOnlyList<VillageActivitySlot> SmithySlots
     {

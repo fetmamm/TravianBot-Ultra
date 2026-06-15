@@ -142,6 +142,10 @@ public sealed class VillageCacheStore
                 RemainingSeconds = null,
                 ActiveUpgradeRemainingSeconds = Array.Empty<int>(),
                 RemainingText = string.Empty,
+                ActiveUpgrades = status.SmithyUpgradeStatus.ActiveUpgrades?
+                    .Where(entry => entry.Finish is not null)
+                    .Select(entry => entry with { TimeLeftSeconds = null })
+                    .ToList(),
             };
         var breweryStatus = status.BreweryCelebrationStatus is null
             ? null
@@ -222,19 +226,20 @@ public sealed class VillageCacheStore
             })
             .ToList();
 
-        var smithyFinishes = (status.SmithyUpgradeStatus?.ActiveUpgradeFinishes ?? [])
-            .Where(finish =>
-            {
-                var active = !finish.IsFinishedAt(now);
-                if (!active)
-                {
-                    staleCount++;
-                }
-
-                return active;
-            })
+        var previousSmithyCount = status.SmithyUpgradeStatus?.ActiveUpgrades?.Count
+            ?? status.SmithyUpgradeStatus?.ActiveUpgradeFinishes?.Count
+            ?? 0;
+        var smithyUpgrades = SmithyQueueState.ResolveActiveUpgrades(status.SmithyUpgradeStatus, now);
+        staleCount += Math.Max(0, previousSmithyCount - smithyUpgrades.Count);
+        var smithyFinishes = smithyUpgrades
+            .Where(entry => entry.Finish is not null)
+            .Select(entry => entry.Finish!)
             .ToList();
-        var smithyRemaining = smithyFinishes.Select(finish => finish.RemainingSecondsAt(now)).OrderBy(value => value).ToList();
+        var smithyRemaining = smithyUpgrades
+            .Where(entry => entry.TimeLeftSeconds is > 0)
+            .Select(entry => entry.TimeLeftSeconds!.Value)
+            .OrderBy(value => value)
+            .ToList();
         var smithyStatus = status.SmithyUpgradeStatus is null
             ? null
             : status.SmithyUpgradeStatus with
@@ -244,6 +249,7 @@ public sealed class VillageCacheStore
                 ActiveUpgradeRemainingSeconds = smithyRemaining,
                 RemainingText = smithyRemaining.Count > 0 ? FormatDuration(smithyRemaining[0]) : "Ready",
                 ActiveUpgradeFinishes = smithyFinishes,
+                ActiveUpgrades = smithyUpgrades,
             };
 
         var breweryStatus = ReconcileBrewery(status.BreweryCelebrationStatus, now, ref staleCount);

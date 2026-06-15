@@ -77,6 +77,38 @@ public sealed class BotConfigStoreTests : IDisposable
     }
 
     [Fact]
+    public void Save_PreservesHeroPrioritySeparatelyPerAccount()
+    {
+        WriteJson(
+            _configPath,
+            new JsonObject
+            {
+                ["server_name"] = "Global",
+                ["base_url"] = "https://example.com",
+            });
+        var store = CreateStore();
+        var aliceConfig = store.Load();
+        aliceConfig[BotOptionPayloadKeys.HeroStatPriority] =
+            "resources,fighting_strength,offence_bonus,defence_bonus";
+        store.Save(aliceConfig);
+
+        _activeAccount = "bob";
+        var bobConfig = store.Load();
+        bobConfig[BotOptionPayloadKeys.HeroStatPriority] =
+            "fighting_strength,resources,offence_bonus,defence_bonus";
+        store.Save(bobConfig);
+
+        _activeAccount = "alice";
+        Assert.Equal(
+            "resources,fighting_strength,offence_bonus,defence_bonus",
+            store.Load()[BotOptionPayloadKeys.HeroStatPriority]!.GetValue<string>());
+        _activeAccount = "bob";
+        Assert.Equal(
+            "fighting_strength,resources,offence_bonus,defence_bonus",
+            store.Load()[BotOptionPayloadKeys.HeroStatPriority]!.GetValue<string>());
+    }
+
+    [Fact]
     public void Save_WithoutActiveAccountKeepsGlobalAccountScopedValues()
     {
         WriteJson(

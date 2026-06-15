@@ -357,7 +357,9 @@ public partial class MainWindow
     private int? ResolveConstructionGroupRemainingSeconds()
     {
         var now = DateTimeOffset.UtcNow;
-        var remainingSeconds = _buildQueueRemainingSeconds > 0 ? _buildQueueRemainingSeconds : 0;
+        var remainingSeconds = _buildQueueActiveCount > 0 && _buildQueueRemainingSeconds > 0
+            ? _buildQueueRemainingSeconds
+            : 0;
 
         // Per-village timer: use the SELECTED village's deferred construction items (their NextAttemptAt
         // is the real "next try" countdown). The old global inline-wait field was account-wide and showed

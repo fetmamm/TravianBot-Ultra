@@ -1,4 +1,5 @@
 using TbotUltra.Core.Configuration;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop;
@@ -35,6 +36,59 @@ public partial class MainWindow
         VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
         SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage);
         await RefreshResourceSnapshotForUiAsync(options, cancellationToken);
+    }
+
+    private async Task<bool> AnalyzeNewVillagesAfterLoginAsync(
+        BotOptions options,
+        IReadOnlyList<Village> villages,
+        CancellationToken cancellationToken)
+    {
+        var selectedVillageName = GetSelectedVillageName();
+        var missingVillages = NewVillageStartupAnalyzer.FindVillagesWithoutKnownStatus(
+            villages,
+            _villageStatusCacheByName);
+        if (missingVillages.Count == 0)
+        {
+            AppendLog("[new-village-startup] All villages already have cached dorf1/dorf2 status.");
+            return false;
+        }
+
+        AppendLog(
+            $"[new-village-startup] Found {missingVillages.Count} village(s) without cached status: "
+            + string.Join(", ", missingVillages.Select(village => village.Name)));
+
+        var loaded = 0;
+        foreach (var village in missingVillages)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                AppendLog($"[new-village-startup] Reading dorf1/dorf2 for '{village.Name}'.");
+                var status = await _botService.ReadVillageStatusAsync(
+                    options,
+                    AppendLog,
+                    village.Name,
+                    village.Url,
+                    cancellationToken);
+                CacheVillageStatus(status, village.Name);
+                loaded++;
+                AppendLog(
+                    $"[new-village-startup] Cached '{village.Name}': "
+                    + $"fields={status.ResourceFields.Count}, buildings={status.Buildings.Count}.");
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"[new-village-startup] Could not analyze '{village.Name}': {ex.Message}");
+            }
+        }
+
+        SyncDashboardVillageUiFromVillages(villages, selectedVillageName, selectedVillageName);
+        AppendLog($"[new-village-startup] Completed: {loaded}/{missingVillages.Count} village(s) cached.");
+        return true;
     }
 
     private async Task<VillageStatus> ReadVillageStatusWithRetryAsync(BotOptions options, CancellationToken cancellationToken, bool resourceOnly = false, bool forceCurrentVillage = false, bool currentPageOnly = false)

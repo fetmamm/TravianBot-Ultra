@@ -605,6 +605,8 @@
                                     ToolTip="Restart the program: stops all running tasks, clears the queue, closes the browser session, and resets to the just-started state. Your saved login is kept — just press Login to start a new session." />
                             <Button DockPanel.Dock="Right" x:Name="VillageSettingsButton" Height="32" Content="Village settings" VerticalAlignment="Center" Margin="12,0,0,0" Click="VillageSettingsButton_Click"
                                     ToolTip="Open per-village settings (hero resources, NPC, build/upgrade troops, farming)." />
+                            <Button DockPanel.Dock="Right" x:Name="AccountScanButton" Height="32" Content="Account scan" IsEnabled="False" VerticalAlignment="Center" Margin="12,0,0,0" Click="AccountScanButton_Click"
+                                    ToolTip="Analyze dorf1, dorf2, construction queue and Smithy queue for every village. Active automation pauses and resumes automatically." />
                         </DockPanel>
 
                         <Grid Grid.Row="1" Margin="0,0,0,10" Visibility="Collapsed">
@@ -2817,60 +2819,120 @@
                             <TextBlock />
                         </DockPanel>
 
-                        <Border Grid.Row="1"
-                                Margin="2,0,2,12"
-                                Padding="12"
-                                Background="{DynamicResource SurfaceBrush}"
-                                BorderBrush="{DynamicResource BorderSubtleBrush}"
-                                BorderThickness="1"
-                                CornerRadius="8">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <DockPanel Grid.Row="0" Margin="0,0,0,8">
-                                    <TextBlock Text="Travian build queue"
+                        <Grid Grid.Row="1" Margin="2,0,2,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0"
+                                    Margin="0,0,6,0"
+                                    Padding="12"
+                                    Background="{DynamicResource SurfaceBrush}"
+                                    BorderBrush="{DynamicResource BorderSubtleBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0"
+                                               Text="Travian build queue"
                                                FontSize="14"
                                                FontWeight="SemiBold"
                                                Foreground="{DynamicResource TextPrimaryBrush}"
-                                               VerticalAlignment="Center" />
-                                </DockPanel>
-                                <Grid Grid.Row="1">
-                                    <DataGrid x:Name="TravianBuildQueueDataGrid"
-                                              AutoGenerateColumns="False"
-                                              IsReadOnly="True"
-                                              CanUserAddRows="False"
-                                              CanUserDeleteRows="False"
-                                              CanUserReorderColumns="False"
-                                              HeadersVisibility="Column"
-                                              GridLinesVisibility="Horizontal"
-                                              HorizontalGridLinesBrush="{DynamicResource AppBackgroundBrush}"
-                                              RowBackground="{DynamicResource SurfaceBrush}"
-                                              AlternatingRowBackground="{DynamicResource RowAltBackgroundBrush}"
-                                              BorderBrush="{DynamicResource BorderSubtleBrush}"
-                                              BorderThickness="1"
-                                              ColumnHeaderHeight="28"
-                                              RowHeight="30"
-                                              MinHeight="58"
-                                              MaxHeight="128"
-                                              FontSize="12">
-                                        <DataGrid.Columns>
-                                            <DataGridTextColumn Header="Construction" Width="*" Binding="{Binding Name}" />
-                                            <DataGridTextColumn Header="Target" Width="140" Binding="{Binding LevelText}" />
-                                            <DataGridTextColumn Header="Finished" Width="220" Binding="{Binding FinishAtText}" />
-                                        </DataGrid.Columns>
-                                    </DataGrid>
-                                    <TextBlock x:Name="TravianBuildQueueEmptyTextBlock"
-                                               Text="No browser status loaded for this village."
-                                               Foreground="{DynamicResource TextSubtleBrush}"
-                                               HorizontalAlignment="Left"
-                                               VerticalAlignment="Top"
-                                               Margin="10,34,10,8"
-                                               IsHitTestVisible="False" />
+                                               Margin="0,0,0,8" />
+                                    <Grid Grid.Row="1">
+                                        <DataGrid x:Name="TravianBuildQueueDataGrid"
+                                                  AutoGenerateColumns="False"
+                                                  IsReadOnly="True"
+                                                  CanUserAddRows="False"
+                                                  CanUserDeleteRows="False"
+                                                  CanUserReorderColumns="False"
+                                                  HeadersVisibility="Column"
+                                                  GridLinesVisibility="Horizontal"
+                                                  HorizontalGridLinesBrush="{DynamicResource AppBackgroundBrush}"
+                                                  RowBackground="{DynamicResource SurfaceBrush}"
+                                                  AlternatingRowBackground="{DynamicResource RowAltBackgroundBrush}"
+                                                  BorderBrush="{DynamicResource BorderSubtleBrush}"
+                                                  BorderThickness="1"
+                                                  ColumnHeaderHeight="28"
+                                                  RowHeight="30"
+                                                  MinHeight="58"
+                                                  MaxHeight="128"
+                                                  FontSize="12">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="Construction" Width="*" Binding="{Binding Name}" />
+                                                <DataGridTextColumn Header="Target" Width="90" Binding="{Binding LevelText}" />
+                                                <DataGridTextColumn Header="Finished" Width="150" Binding="{Binding FinishAtText}" />
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                        <TextBlock x:Name="TravianBuildQueueEmptyTextBlock"
+                                                   Text="No browser status loaded for this village."
+                                                   Foreground="{DynamicResource TextSubtleBrush}"
+                                                   HorizontalAlignment="Left"
+                                                   VerticalAlignment="Top"
+                                                   Margin="10,34,10,8"
+                                                   IsHitTestVisible="False" />
+                                    </Grid>
                                 </Grid>
-                            </Grid>
-                        </Border>
+                            </Border>
+
+                            <Border Grid.Column="1"
+                                    Margin="6,0,0,0"
+                                    Padding="12"
+                                    Background="{DynamicResource SurfaceBrush}"
+                                    BorderBrush="{DynamicResource BorderSubtleBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0"
+                                               Text="Smithy upgrade queue"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,0,8" />
+                                    <Grid Grid.Row="1">
+                                        <DataGrid x:Name="TravianSmithyQueueDataGrid"
+                                                  AutoGenerateColumns="False"
+                                                  IsReadOnly="True"
+                                                  CanUserAddRows="False"
+                                                  CanUserDeleteRows="False"
+                                                  CanUserReorderColumns="False"
+                                                  HeadersVisibility="Column"
+                                                  GridLinesVisibility="Horizontal"
+                                                  HorizontalGridLinesBrush="{DynamicResource AppBackgroundBrush}"
+                                                  RowBackground="{DynamicResource SurfaceBrush}"
+                                                  AlternatingRowBackground="{DynamicResource RowAltBackgroundBrush}"
+                                                  BorderBrush="{DynamicResource BorderSubtleBrush}"
+                                                  BorderThickness="1"
+                                                  ColumnHeaderHeight="28"
+                                                  RowHeight="30"
+                                                  MinHeight="58"
+                                                  MaxHeight="128"
+                                                  FontSize="12">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="Upgrade" Width="*" Binding="{Binding Name}" />
+                                                <DataGridTextColumn Header="Target" Width="90" Binding="{Binding LevelText}" />
+                                                <DataGridTextColumn Header="Finished" Width="150" Binding="{Binding FinishAtText}" />
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                        <TextBlock x:Name="TravianSmithyQueueEmptyTextBlock"
+                                                   Text="No browser status loaded for this village."
+                                                   Foreground="{DynamicResource TextSubtleBrush}"
+                                                   HorizontalAlignment="Left"
+                                                   VerticalAlignment="Top"
+                                                   Margin="10,34,10,8"
+                                                   IsHitTestVisible="False" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                        </Grid>
 
                         <TabControl x:Name="QueueSectionTabControl"
                                     Grid.Row="2"

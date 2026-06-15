@@ -48,6 +48,11 @@
                     CornerRadius="6"
                     Visibility="Collapsed">
                 <StackPanel>
+                    <TextBlock x:Name="EstimateRangeTextBlock"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,3" />
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="Time "
                                    Foreground="{DynamicResource TextSubtleBrush}"

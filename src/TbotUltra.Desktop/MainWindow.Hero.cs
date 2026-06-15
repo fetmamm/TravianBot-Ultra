@@ -42,7 +42,7 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// Persists the current attribute priority order to <c>bot.json</c>.
+    /// Persists the current attribute priority order to the active account's settings overlay.
     /// Called from <see cref="Views.HeroPanel"/> after a drag-drop reorder.
     /// </summary>
     internal void PersistHeroPriorityToConfig()

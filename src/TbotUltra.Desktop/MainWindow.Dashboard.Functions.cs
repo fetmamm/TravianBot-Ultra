@@ -158,7 +158,6 @@ public partial class MainWindow
             BuildQueueRemainingSeconds = null,
             BuildQueueRemainingText = string.Empty,
             TroopTrainingQueues = null,
-            SmithyUpgradeStatus = null,
             BreweryCelebrationStatus = null,
             FarmLists = null,
             HeroStatus = null,
