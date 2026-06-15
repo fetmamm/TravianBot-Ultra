@@ -13,12 +13,16 @@ namespace TbotUltra.Desktop.Services;
 /// <c>config/accounts/&lt;account&gt;/villages.json</c>.
 ///
 /// Villages are keyed by their stable village key (the same <c>newdid</c>-based key the UI uses), so
-/// a renamed village keeps its enabled choice instead of reappearing as a new village. New villages
-/// default to enabled only when they are the capital; every other newly discovered village defaults
-/// to disabled. The user's explicit choice is always preserved across refreshes and restarts.
+/// a renamed village keeps its enabled choice instead of reappearing as a new village. The only village
+/// on a new account defaults to enabled; villages discovered after that default to disabled. Construction
+/// is the only automation group enabled by default. Explicit choices survive refreshes and restarts.
 /// </summary>
 public sealed class VillageSettingsStore
 {
+    public const string DefaultEnabledGroupKey = "construction";
+
+    public static IReadOnlyList<string> DefaultEnabledGroups { get; } = new[] { DefaultEnabledGroupKey };
+
     // Minimal identity descriptor passed in by the UI. Key is precomputed by the caller (GetVillageKey)
     // so the newdid/coords/name key logic stays in one place.
     public sealed record VillageKeyInfo(string Key, string Name, int? CoordX, int? CoordY, bool IsCapital);
@@ -31,10 +35,10 @@ public sealed class VillageSettingsStore
         public int? CoordY { get; set; }
         public bool IsCapital { get; set; }
         public bool IsEnabled { get; set; }
-        // Per-village automation-loop group keys that are enabled. null = no override yet (use the global
-        // default). An explicit empty list means "all groups disabled for this village".
+        // Per-village automation-loop group keys that are enabled. Legacy null values are migrated to the
+        // village default (Construction only). An explicit empty list means all groups are disabled.
         public List<string>? EnabledGroups { get; set; }
-        // Whether NPC trade may run in this village. null = default enabled (true). The account-wide NPC
+        // Whether NPC trade may run in this village. Legacy null values are migrated to disabled. The account-wide NPC
         // master toggle (Auto settings) still gates everything: NPC runs only when master AND this are on.
         public bool? NpcTrade { get; set; }
         public DateTimeOffset LastSeenUtc { get; set; } = DateTimeOffset.UtcNow;
@@ -77,8 +81,8 @@ public sealed class VillageSettingsStore
     }
 
     /// <summary>
-    /// Merges a freshly read set of villages into the store: new villages are added (capital enabled,
-    /// others disabled by default), known villages keep their enabled choice while their cached
+    /// Merges a freshly read set of villages into the store: the first and only village is enabled,
+    /// later new villages are disabled, and known villages keep their enabled choice while their cached
     /// identity (name/coords/capital) is refreshed. Only persists when something actually changed.
     /// Never removes villages absent from <paramref name="villages"/> (a page read can be partial).
     /// </summary>
@@ -96,14 +100,15 @@ public sealed class VillageSettingsStore
             var added = 0;
             var updated = 0;
             var dirty = false;
+            var validVillages = villages
+                .Where(village => village is not null && !string.IsNullOrWhiteSpace(village.Key))
+                .GroupBy(CanonicalKey, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToList();
+            var enableOnlyVillageByDefault = _cache.Count == 0 && validVillages.Count == 1;
 
-            foreach (var village in villages)
+            foreach (var village in validVillages)
             {
-                if (village is null || string.IsNullOrWhiteSpace(village.Key))
-                {
-                    continue;
-                }
-
                 var key = CanonicalKey(village);
                 if (_cache.TryGetValue(key, out var existing))
                 {
@@ -132,7 +137,9 @@ public sealed class VillageSettingsStore
                         CoordX = village.CoordX,
                         CoordY = village.CoordY,
                         IsCapital = village.IsCapital,
-                        IsEnabled = village.IsCapital, // capital ON by default, every other new village OFF.
+                        IsEnabled = enableOnlyVillageByDefault,
+                        EnabledGroups = CreateDefaultEnabledGroups(),
+                        NpcTrade = false,
                         LastSeenUtc = DateTimeOffset.UtcNow,
                     };
                     added++;
@@ -143,14 +150,15 @@ public sealed class VillageSettingsStore
             if (dirty)
             {
                 Save();
-                _log?.Invoke($"Village settings merged: {added} new (capital enabled by default), {updated} updated.");
+                _log?.Invoke(
+                    $"Village settings merged: {added} new (only-village Auto default={enableOnlyVillageByDefault}, Construction only), {updated} updated.");
             }
         }
     }
 
     /// <summary>
-    /// Returns whether a village is enabled for automation. Unknown villages default to enabled only
-    /// when they are the capital. Does not persist (read-only).
+    /// Returns whether a village is enabled for automation. Unknown villages default to disabled;
+    /// Merge decides whether the first and only village should be enabled. Does not persist (read-only).
     /// </summary>
     public bool GetEnabled(VillageKeyInfo village)
     {
@@ -162,7 +170,7 @@ public sealed class VillageSettingsStore
         lock (FileIoLock)
         {
             EnsureCacheLoaded();
-            return _cache.TryGetValue(CanonicalKey(village), out var existing) ? existing.IsEnabled : village.IsCapital;
+            return _cache.TryGetValue(CanonicalKey(village), out var existing) && existing.IsEnabled;
         }
     }
 
@@ -226,6 +234,8 @@ public sealed class VillageSettingsStore
                     CoordY = village.CoordY,
                     IsCapital = village.IsCapital,
                     IsEnabled = enabled,
+                    EnabledGroups = CreateDefaultEnabledGroups(),
+                    NpcTrade = false,
                     LastSeenUtc = DateTimeOffset.UtcNow,
                 };
             }
@@ -297,7 +307,7 @@ public sealed class VillageSettingsStore
 
     /// <summary>
     /// Whether NPC trade is enabled for a village key (per-village). Unknown keys return
-    /// <paramref name="defaultIfUnknown"/>; villages with no explicit choice default to enabled (true).
+    /// <paramref name="defaultIfUnknown"/>; legacy villages without an explicit choice default to disabled.
     /// The account-wide NPC master toggle is applied separately by the caller.
     /// </summary>
     public bool IsNpcTradeEnabledByKey(string? key, bool defaultIfUnknown)
@@ -310,15 +320,15 @@ public sealed class VillageSettingsStore
         lock (FileIoLock)
         {
             EnsureCacheLoaded();
-            return _cache.TryGetValue(NormalizeKey(key), out var existing) ? existing.NpcTrade ?? true : defaultIfUnknown;
+            return _cache.TryGetValue(NormalizeKey(key), out var existing) ? existing.NpcTrade ?? false : defaultIfUnknown;
         }
     }
 
-    /// <summary>Per-village NPC trade flag for the row (defaults to enabled when not yet stored).</summary>
+    /// <summary>Per-village NPC trade flag for the row (defaults to disabled when not yet stored).</summary>
     public bool GetNpcTrade(VillageKeyInfo village)
     {
         return village is not null && !string.IsNullOrWhiteSpace(village.Key)
-            && IsNpcTradeEnabledByKey(CanonicalKey(village), defaultIfUnknown: true);
+            && IsNpcTradeEnabledByKey(CanonicalKey(village), defaultIfUnknown: false);
     }
 
     /// <summary>Sets a village's NPC trade flag and persists it (upserts the record). No-op when unchanged.</summary>
@@ -335,7 +345,7 @@ public sealed class VillageSettingsStore
             var key = CanonicalKey(village);
             if (_cache.TryGetValue(key, out var existing))
             {
-                if ((existing.NpcTrade ?? true) == enabled)
+                if ((existing.NpcTrade ?? false) == enabled)
                 {
                     return;
                 }
@@ -352,7 +362,8 @@ public sealed class VillageSettingsStore
                     CoordX = village.CoordX,
                     CoordY = village.CoordY,
                     IsCapital = village.IsCapital,
-                    IsEnabled = village.IsCapital,
+                    IsEnabled = false,
+                    EnabledGroups = CreateDefaultEnabledGroups(),
                     NpcTrade = enabled,
                     LastSeenUtc = DateTimeOffset.UtcNow,
                 };
@@ -428,8 +439,9 @@ public sealed class VillageSettingsStore
                     CoordX = village.CoordX,
                     CoordY = village.CoordY,
                     IsCapital = village.IsCapital,
-                    IsEnabled = village.IsCapital,
+                    IsEnabled = false,
                     EnabledGroups = list,
+                    NpcTrade = false,
                     LastSeenUtc = DateTimeOffset.UtcNow,
                 };
             }
@@ -508,6 +520,18 @@ public sealed class VillageSettingsStore
                     migratedAnything = true;
                 }
 
+                if (record.EnabledGroups is null)
+                {
+                    record.EnabledGroups = CreateDefaultEnabledGroups();
+                    migratedAnything = true;
+                }
+
+                if (record.NpcTrade is null)
+                {
+                    record.NpcTrade = false;
+                    migratedAnything = true;
+                }
+
                 if (_cache.TryGetValue(canonicalKey, out var existing))
                 {
                     _cache[canonicalKey] = MergeDuplicateRecords(existing, record);
@@ -563,6 +587,8 @@ public sealed class VillageSettingsStore
 
         return winner;
     }
+
+    private static List<string> CreateDefaultEnabledGroups() => new() { DefaultEnabledGroupKey };
 
     /// <summary>
     /// Resolves an arbitrary village key (e.g. a name-based key from a queue item) to the canonical

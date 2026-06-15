@@ -17,7 +17,20 @@ public sealed class VillageSettingsStoreTests : IDisposable
     }
 
     [Fact]
-    public void Merge_NewVillages_CapitalEnabledOthersDisabled()
+    public void Merge_OnlyInitialVillage_AutoEnabledAndConstructionOnly()
+    {
+        var store = CreateStore();
+        var village = new Info("did:1", "Only", 0, 0, IsCapital: true);
+
+        store.Merge(new[] { village });
+
+        Assert.True(store.GetEnabled(village));
+        Assert.Equal(new[] { "construction" }, store.GetEnabledGroups(village));
+        Assert.False(store.GetNpcTrade(village));
+    }
+
+    [Fact]
+    public void Merge_MultipleInitialVillages_AllAutoDisabledAndConstructionOnly()
     {
         var store = CreateStore();
         var capital = new Info("did:1", "Capital", 0, 0, IsCapital: true);
@@ -25,16 +38,34 @@ public sealed class VillageSettingsStoreTests : IDisposable
 
         store.Merge(new[] { capital, second });
 
-        Assert.True(store.GetEnabled(capital));
+        Assert.False(store.GetEnabled(capital));
         Assert.False(store.GetEnabled(second));
+        Assert.Equal(new[] { "construction" }, store.GetEnabledGroups(capital));
+        Assert.Equal(new[] { "construction" }, store.GetEnabledGroups(second));
     }
 
     [Fact]
-    public void GetEnabled_UnknownVillage_DefaultsToCapitalOnly()
+    public void Merge_VillageDiscoveredLater_AutoDisabled()
+    {
+        var store = CreateStore();
+        var first = new Info("did:1", "First", 0, 0, IsCapital: true);
+        var later = new Info("did:2", "Later", 5, -3, IsCapital: false);
+
+        store.Merge(new[] { first });
+        store.Merge(new[] { first, later });
+
+        Assert.True(store.GetEnabled(first));
+        Assert.False(store.GetEnabled(later));
+        Assert.Equal(new[] { "construction" }, store.GetEnabledGroups(later));
+        Assert.False(store.GetNpcTrade(later));
+    }
+
+    [Fact]
+    public void GetEnabled_UnknownVillage_DefaultsToDisabled()
     {
         var store = CreateStore();
 
-        Assert.True(store.GetEnabled(new Info("did:9", "New capital", null, null, IsCapital: true)));
+        Assert.False(store.GetEnabled(new Info("did:9", "New capital", null, null, IsCapital: true)));
         Assert.False(store.GetEnabled(new Info("did:10", "New village", null, null, IsCapital: false)));
     }
 
@@ -104,6 +135,7 @@ public sealed class VillageSettingsStoreTests : IDisposable
         var store = CreateStore();
         var capital = new Info("did:1", "Capital", 0, 0, IsCapital: true);
         var second = new Info("did:2", "Second", 5, -3, IsCapital: false);
+        store.Merge(new[] { capital });
         store.Merge(new[] { capital, second });
 
         // Villages are keyed by coordinates, so look them up by their canonical "xy:" key.
@@ -115,6 +147,30 @@ public sealed class VillageSettingsStoreTests : IDisposable
         // A name-based key (as carried by queue items) resolves to the coordinate record.
         Assert.True(store.IsEnabledByKey("name:capital", defaultIfUnknown: false));
         Assert.Equal("xy:0|0", store.ResolveCanonicalKey("name:capital"));
+    }
+
+    [Fact]
+    public void Reload_MigratesMissingGroupsAndNpcToNewDefaults()
+    {
+        var path = AccountStoragePaths.VillageSettingsPath(_root, _activeAccount);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, """
+        {
+          "villages": [
+            { "key": "did:1", "name": "Legacy", "coordX": 0, "coordY": 0, "isCapital": true, "isEnabled": true, "lastSeenUtc": "2026-06-14T07:51:00+00:00" }
+          ]
+        }
+        """);
+
+        var village = new Info("did:1", "Legacy", 0, 0, IsCapital: true);
+        var store = CreateStore();
+
+        Assert.Equal(new[] { "construction" }, store.GetEnabledGroups(village));
+        Assert.False(store.GetNpcTrade(village));
+
+        var reloaded = CreateStore();
+        Assert.Equal(new[] { "construction" }, reloaded.GetEnabledGroups(village));
+        Assert.False(reloaded.GetNpcTrade(village));
     }
 
     [Fact]

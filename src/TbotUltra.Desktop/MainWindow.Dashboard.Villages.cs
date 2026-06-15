@@ -11,6 +11,7 @@ using TbotUltra.Core.Travian;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Domain;
+using TbotUltra.Worker.Services;
 
 namespace TbotUltra.Desktop;
 
@@ -290,7 +291,7 @@ public partial class MainWindow
         return items;
     }
 
-    // Persists newly discovered villages (capital enabled by default, others disabled) and applies the
+    // Persists newly discovered villages (only village enabled, later villages disabled) and applies the
     // stored enabled choice onto each item so the Dashboard toggle reflects the saved per-account state
     // across refreshes, restarts and renames.
     private void ApplyVillageEnabledState(List<VillageSelectionItem> items)
@@ -366,7 +367,7 @@ public partial class MainWindow
             master = false;
         }
 
-        return master && _villageSettingsStore.IsNpcTradeEnabledByKey(villageKey, defaultIfUnknown: true);
+        return master && _villageSettingsStore.IsNpcTradeEnabledByKey(villageKey, defaultIfUnknown: false);
     }
 
     // Persists a village's per-village NPC trade choice from the Village settings window.
@@ -391,7 +392,7 @@ public partial class MainWindow
 
         foreach (var item in items)
         {
-            item.IsEnabledForAutomation = _villageSettingsStore.IsEnabledByKey(GetVillageKey(item), defaultIfUnknown: item.IsCapital);
+            item.IsEnabledForAutomation = _villageSettingsStore.IsEnabledByKey(GetVillageKey(item), defaultIfUnknown: false);
         }
     }
 
@@ -466,8 +467,8 @@ public partial class MainWindow
     }
 
     // Opens the central per-village settings window, seeded with the currently known villages
-    // (name/pop/coords). The "Auto" toggle is wired to VillageSettingsStore (capital on by default,
-    // new villages off); the remaining per-village toggle columns are placeholders for later.
+    // (name/pop/coords). The first and only village starts with Auto on; later villages start off.
+    // Construction is the only automation group enabled by default.
     private void VillageSettingsButton_Click(object sender, RoutedEventArgs e)
     {
         _ = sender;
@@ -488,9 +489,8 @@ public partial class MainWindow
             .Select(v =>
             {
                 var keyInfo = BuildVillageKeyInfo(v);
-                // Seed from the village's per-village override, falling back to the account default so the
-                // checkboxes reflect what actually runs for that village today.
-                var enabledGroups = _villageSettingsStore.GetEnabledGroups(keyInfo) ?? _defaultEnabledGroupKeys;
+                var enabledGroups = _villageSettingsStore.GetEnabledGroups(keyInfo)
+                    ?? VillageSettingsStore.DefaultEnabledGroups;
                 var toggles = groupCards
                     .Select(card => new VillageGroupToggle
                     {
@@ -517,7 +517,8 @@ public partial class MainWindow
             rows,
             PersistVillageEnabledFromSettingsRow,
             PersistVillageNpcTradeFromSettingsRow,
-            PersistVillageGroupsFromSettingsRow)
+            PersistVillageGroupsFromSettingsRow,
+            OnVillageSettingsSaved)
         {
             Owner = this,
         };
@@ -533,15 +534,39 @@ public partial class MainWindow
             return;
         }
 
+        var previouslyEnabled = _villageSettingsStore.GetEnabledGroups(row.KeyInfo)
+            ?? VillageSettingsStore.DefaultEnabledGroups;
         var enabled = row.GroupToggles
             .Where(toggle => toggle.IsEnabled)
             .Select(toggle => toggle.GroupKey)
             .ToList();
         _villageSettingsStore.SetEnabledGroups(row.KeyInfo, enabled);
 
+        var constructionKey = QueueGroupCatalog.GetKey(QueueGroup.Construction);
+        if (!previouslyEnabled.Contains(constructionKey, StringComparer.OrdinalIgnoreCase)
+            && enabled.Contains(constructionKey, StringComparer.OrdinalIgnoreCase))
+        {
+            ResetConstructionBuildQueueTimerForManualRefresh();
+            ResetDeferredConstructionWaitsNow("construction group enabled in village settings");
+        }
+
         if (string.Equals(GetSelectedVillageKey(), row.KeyInfo.Key, StringComparison.OrdinalIgnoreCase))
         {
             ApplyAutomationLoopGroupsForSelectedVillage();
+        }
+    }
+
+    private void OnVillageSettingsSaved()
+    {
+        RefreshVillageEnabledStateOnDashboard();
+        RefreshAutomationLoopDashboardUi();
+
+        if (ContinuousRunToggleButton?.IsChecked == true
+            && _loopTask is not null
+            && !_loopTask.IsCompleted)
+        {
+            Interlocked.Exchange(ref _continuousLoopWakeRequested, 1);
+            AppendLog("Village settings saved. Continuous loop will refresh the queue now.");
         }
     }
 

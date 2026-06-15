@@ -644,7 +644,8 @@ public partial class MainWindow
             return;
         }
 
-        var groups = _villageSettingsStore.GetEnabledGroups(info) ?? _defaultEnabledGroupKeys;
+        var groups = _villageSettingsStore.GetEnabledGroups(info)
+            ?? VillageSettingsStore.DefaultEnabledGroups;
 
         _suppressAutomationLoopConfigWrite = true;
         try

@@ -17,18 +17,21 @@ public partial class VillageSettingsWindow : Window
     private readonly Action<VillageSettingsRow>? _onEnabledChanged;
     private readonly Action<VillageSettingsRow>? _onNpcTradeChanged;
     private readonly Action<VillageSettingsRow>? _onGroupsChanged;
+    private readonly Action? _onSaved;
 
     public VillageSettingsWindow(
         IReadOnlyList<VillageSettingsRow> rows,
         Action<VillageSettingsRow>? onEnabledChanged = null,
         Action<VillageSettingsRow>? onNpcTradeChanged = null,
-        Action<VillageSettingsRow>? onGroupsChanged = null)
+        Action<VillageSettingsRow>? onGroupsChanged = null,
+        Action? onSaved = null)
     {
         InitializeComponent();
         _rows = rows;
         _onEnabledChanged = onEnabledChanged;
         _onNpcTradeChanged = onNpcTradeChanged;
         _onGroupsChanged = onGroupsChanged;
+        _onSaved = onSaved;
         BuildGroupColumns(rows);
         VillageSettingsDataGrid.ItemsSource = rows;
     }
@@ -103,6 +106,7 @@ public partial class VillageSettingsWindow : Window
             _onGroupsChanged?.Invoke(row);
         }
 
+        _onSaved?.Invoke();
         Close();
     }
 

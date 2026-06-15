@@ -73,9 +73,16 @@ public sealed partial class TravianClient
     // on every navigation — so the cache is always re-seeded fresh at the top of each iteration.
     private IReadOnlyList<ActiveConstruction>? _cachedActiveConstructions;
     private DateTimeOffset _cachedActiveConstructionsAt = DateTimeOffset.MinValue;
+    private bool _cachedActiveConstructionsFromOverview;
+    private bool _lastActiveConstructionsFromOverview;
     private static readonly TimeSpan ActiveConstructionsCacheTtl = TimeSpan.FromMilliseconds(2500);
 
-    internal void InvalidateActiveConstructionsCache() => _cachedActiveConstructions = null;
+    internal void InvalidateActiveConstructionsCache()
+    {
+        _cachedActiveConstructions = null;
+        _cachedActiveConstructionsFromOverview = false;
+        _lastActiveConstructionsFromOverview = false;
+    }
 
     private sealed class CaptchaClipRegion
     {
@@ -1633,7 +1640,8 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             ResourceStorageForecasts: forecasts,
             ActiveConstructions: activeConstructions,
             BuildQueueFinish: remaining is > 0 ? TimerSnapshot.FromRemaining(remaining.Value) : null,
-            HeroStatus: heroStatus);
+            HeroStatus: heroStatus,
+            ActiveConstructionsFromOverview: _lastActiveConstructionsFromOverview);
     }
 
     private async Task GotoAsync(string pathOrUrl, CancellationToken cancellationToken)
@@ -3028,9 +3036,21 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading villages.", cancellationToken);
         var previousUrl = _page.Url;
         string? activeVillageBeforeProfile = null;
+        IReadOnlyList<Village> sidebarOrder = [];
         try
         {
             activeVillageBeforeProfile = await ReadActiveVillageNameAsync(cancellationToken);
+            try
+            {
+                // The profile table may be population-sorted. Capture the user's Travian sidebar
+                // order before navigating away; profile data will enrich these rows, not order them.
+                sidebarOrder = await ReadVillagesFromCurrentPageAsync(cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                Notify($"[scan:verbose] could not capture sidebar village order before profile read: {ex.Message}");
+            }
+
             await GotoAsync(Paths.PlayerProfile, cancellationToken);
             await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading villages on spieler.php.", cancellationToken);
             await EnsureLoggedInAsync();
@@ -3205,7 +3225,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             // old village marked as capital after the capital is moved.
             var trustScanCapital = rawList.Any(v => v.IsCapital);
 
-            var villages = rawList
+            var profileVillages = rawList
                 .Select(v =>
                 {
                     var cachedCapital = TryGetCachedCapitalState(v.Name!);
@@ -3223,11 +3243,31 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                         Population: v.Population,
                         CropFields: v.CropFields);
                 })
-                .OrderByDescending(v => v.IsCapital == true)
                 .ToList();
 
-            if (villages.Count > 0)
+            if (profileVillages.Count > 0)
             {
+                var ordered = new List<Village>(profileVillages.Count);
+                foreach (var sidebarVillage in sidebarOrder)
+                {
+                    var sidebarId = TravianUrls.TryParseNewdid(sidebarVillage.Url);
+                    var match = sidebarId is not null
+                        ? profileVillages.FirstOrDefault(v => TravianUrls.TryParseNewdid(v.Url) == sidebarId)
+                        : null;
+                    match ??= profileVillages.FirstOrDefault(v =>
+                        string.Equals(v.Name, sidebarVillage.Name, StringComparison.OrdinalIgnoreCase));
+                    if (match is not null && !ordered.Contains(match))
+                    {
+                        ordered.Add(match);
+                    }
+                }
+
+                ordered.AddRange(profileVillages.Where(v => !ordered.Contains(v)));
+                var villages = ordered
+                    .OrderByDescending(v => v.IsCapital == true)
+                    .ToList();
+                Notify($"[villages] order source={(sidebarOrder.Count > 0 ? "sidebar" : "profile")} "
+                    + $"villages={string.Join(" > ", villages.Select(v => v.Name))}");
                 return villages;
             }
         }

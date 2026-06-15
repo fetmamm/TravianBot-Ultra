@@ -130,9 +130,14 @@ For en ny dashboard-bool ska hela configkedjan uppdateras:
   Queue-full-poster ar bara boolesk occupancy-fallback och far aldrig summeras som byggnader.
   Gul waiting-status far bara visas medan `ActiveConstructions` innehaller en faktisk Travian-byggko;
   tom browserko ska ge gra lediga byggplatser aven om en programtask fortfarande ar deferred.
+- `ActiveConstructions` far endast rensas av en bekraftad tom dorf1/dorf2-lasning
+  (`ActiveConstructionsFromOverview=true`). Lokal `FinishUtc`, cache-load, UI-tick, partial reads och
+  `Clear timers` far aldrig rensa browserns senaste construction-snapshot.
 - Queue-flikens Travian-kö ska använda samma byspecifika `ActiveConstructions`; ingen separat
   browserläsning eller kökälla. Visa målnivå och `FinishUtc` formaterad med programmets serverklocka.
 - Village Overview och byval visar kapitalen forst; ovriga byar behaller Travian-listans DOM/sidebar-ordning.
+  Profiltabellens ordning far inte anvandas eftersom Official kan sortera den efter population; las
+  sidebarordningen fore profilnavigation och anvand profilen endast for att berika bydata.
 - Queue-sidans `Build time`/`Cost`-kolumner och totalsumman ar best-effort-estimat ur
   `buildings_catalog.json` (1x), skalat med serverhastigheten fran `ResolveServerSpeed()`
   (regex `(\d+)x` ur servernamnet; fallback 1x + engangs-`ALARM:`). Endast construction-tasks
@@ -238,6 +243,8 @@ eller sta still, inte vaxa.
   buggen visade ~9min defern istallet for 2h/4h-kon).
 - Village settings-popupens "Automation groups"-kolumn speglar dashboardens loop-kort per by och sparas i
   samma `VillageSettingsStore.EnabledGroups`; avbockad grupp slutar koras for byn (`IsGroupEnabledForVillage`).
+- Nya byar far explicit `Construction=true`, ovriga grupper och NPC=false. Auto=true endast nar den forsta
+  inlasningen innehaller exakt en by; senare nya byar far Auto=false. `Save & close` vacker en pagaende loop.
 
 ### Hero och React-dialoger
 

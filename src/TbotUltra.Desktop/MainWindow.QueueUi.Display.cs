@@ -318,10 +318,6 @@ public partial class MainWindow
                 ?? (construction.TimeLeftSeconds is > 0
                     ? nowUtc.AddSeconds(construction.TimeLeftSeconds.Value)
                     : (DateTimeOffset?)null);
-            if (finishUtc.HasValue && finishUtc.Value <= nowUtc)
-            {
-                continue;
-            }
 
             _travianBuildQueueRows.Add(new TravianBuildQueueRow
             {

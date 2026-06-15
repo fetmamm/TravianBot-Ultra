@@ -109,8 +109,9 @@ instances from the same folder.
 The bot manages every village on the account from one **Dashboard → Village overview** list.
 
 - **Per-village on/off:** open **Village settings** and use the *Auto* toggle to choose which
-  villages the bot works in. Disabled villages are skipped entirely. The capital is on by default;
-  newly discovered villages start off. Choices are saved per account and survive restarts/renames.
+  villages the bot works in. Disabled villages are skipped entirely. Auto starts on when the account
+  has one village; later discovered villages start off. New villages start with only Construction
+  enabled (NPC and all other groups off). Choices are saved per account and survive restarts/renames.
 - **Village overview columns:** a green/grey dot left of the name shows if a village is enabled, plus
   per-village indicators for **Buildings** (active construction slots — 2, or 3 for Romans), **Queue**
   (green when something is queued), **Smithy**, **Troops** (Barracks/Stable/Workshop) and **Hero**

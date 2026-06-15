@@ -99,7 +99,7 @@ public sealed class VillageCacheStoreTests : IDisposable
     }
 
     [Fact]
-    public void Load_ClearsExpiredTimersAndLogsStaleState()
+    public void Load_KeepsExpiredConstructionUntilOverviewConfirmsQueueIsEmpty()
     {
         var now = DateTimeOffset.UtcNow;
         var expired = new TimerSnapshot(30, now.AddMinutes(-2), now.AddMinutes(-1), false);
@@ -117,10 +117,12 @@ public sealed class VillageCacheStoreTests : IDisposable
             .Save(new Dictionary<string, VillageStatus> { ["GREZ"] = status });
         var loaded = new VillageCacheStore(_root, () => _activeAccount, logs.Add).Load()["GREZ"];
 
-        Assert.Empty(loaded.ActiveConstructions!);
+        Assert.Single(loaded.ActiveConstructions!);
         Assert.Null(loaded.BuildQueueRemainingSeconds);
-        Assert.False(loaded.IsBuildingInProgress);
-        Assert.Contains(logs, line => line.Contains("stale timer", StringComparison.OrdinalIgnoreCase));
+        Assert.True(loaded.IsBuildingInProgress);
+        Assert.DoesNotContain(logs, line =>
+            line.Contains("stale timer", StringComparison.OrdinalIgnoreCase)
+            && line.Contains("GREZ", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

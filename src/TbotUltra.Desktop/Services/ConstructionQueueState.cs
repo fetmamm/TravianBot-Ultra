@@ -83,7 +83,6 @@ public static class ConstructionQueueState
 
     public static VillageStatus PreserveKnownConstructionState(VillageStatus incoming, VillageStatus existing)
     {
-        var isPartialRead = incoming.Buildings.Count == 0;
         var hasNoConstructionEvidence = incoming.ActiveBuildCount == 0
             && incoming.BuildQueue.Count == 0
             && (incoming.ActiveConstructions?.Count ?? 0) == 0
@@ -93,7 +92,7 @@ public static class ConstructionQueueState
             || (existing.ActiveConstructions?.Count ?? 0) > 0
             || existing.BuildQueueRemainingSeconds is > 0;
 
-        if (!isPartialRead || !hasNoConstructionEvidence || !existingHasConstruction)
+        if (incoming.ActiveConstructionsFromOverview || !hasNoConstructionEvidence || !existingHasConstruction)
         {
             return incoming;
         }
@@ -107,6 +106,7 @@ public static class ConstructionQueueState
             BuildQueueRemainingText = existing.BuildQueueRemainingText,
             BuildQueueFinish = existing.BuildQueueFinish,
             ActiveConstructions = existing.ActiveConstructions,
+            ActiveConstructionsFromOverview = existing.ActiveConstructionsFromOverview,
         };
     }
 }

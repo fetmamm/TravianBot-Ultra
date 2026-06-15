@@ -188,7 +188,7 @@ public partial class MainWindow
 
         foreach (var (_, enabledGroups) in _villageSettingsStore.GetEnabledVillagesGroups())
         {
-            foreach (var key in enabledGroups ?? _defaultEnabledGroupKeys)
+            foreach (var key in enabledGroups ?? VillageSettingsStore.DefaultEnabledGroups)
             {
                 if (QueueGroupCatalog.TryParse(key, out var group) && seen.Add(group))
                 {
@@ -663,7 +663,7 @@ public partial class MainWindow
     private bool IsGroupEnabledForVillage(string? villageKey, QueueGroup group)
     {
         // Village-less (global) tasks like hero_manage are enabled when the group is on for ANY enabled
-        // village (or the account default) — so e.g. Hero runs while the hero-home village has it on even
+        // village — so e.g. Hero runs while the hero-home village has it on even
         // though another village is currently selected. Resolve this from the settings store only (no UI
         // marshalling): this runs on the continuous-loop background thread during item selection, so it must
         // NOT call GetContinuousLoopConsideredGroupsInOrder (which Dispatcher.Invokes to the UI thread and
@@ -673,24 +673,20 @@ public partial class MainWindow
             return IsGroupEnabledForAnyVillage(group);
         }
 
-        var groups = _villageSettingsStore.GetEnabledGroups(villageKey) ?? _defaultEnabledGroupKeys;
+        var groups = _villageSettingsStore.GetEnabledGroups(villageKey)
+            ?? VillageSettingsStore.DefaultEnabledGroups;
         return groups.Contains(QueueGroupCatalog.GetKey(group), StringComparer.OrdinalIgnoreCase);
     }
 
-    // Whether an automation group is enabled for ANY enabled village, or the account default. Store-only and
-    // thread-safe (no Dispatcher), so it is safe to call from the continuous-loop background thread. Used to
-    // gate village-less global tasks (e.g. hero_manage) without depending on the UI-selected village.
+    // Whether an automation group is enabled for ANY enabled village. Store-only and thread-safe (no
+    // Dispatcher), so it is safe to call from the continuous-loop background thread. Used to gate
+    // village-less global tasks (e.g. hero_manage) without depending on the UI-selected village.
     private bool IsGroupEnabledForAnyVillage(QueueGroup group)
     {
         var key = QueueGroupCatalog.GetKey(group);
-        if (_defaultEnabledGroupKeys.Contains(key, StringComparer.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
         foreach (var (_, enabledGroups) in _villageSettingsStore.GetEnabledVillagesGroups())
         {
-            var effective = enabledGroups ?? _defaultEnabledGroupKeys;
+            var effective = enabledGroups ?? VillageSettingsStore.DefaultEnabledGroups;
             if (effective.Contains(key, StringComparer.OrdinalIgnoreCase))
             {
                 return true;
@@ -718,7 +714,7 @@ public partial class MainWindow
             .Where(v => !string.IsNullOrWhiteSpace(v.Name) && !string.Equals(v.Name, "-", StringComparison.Ordinal))
             .GroupBy(GetVillageKey, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.First())
-            .Where(v => _villageSettingsStore.IsEnabledByKey(GetVillageKey(v), defaultIfUnknown: v.IsCapital))
+            .Where(v => _villageSettingsStore.IsEnabledByKey(GetVillageKey(v), defaultIfUnknown: false))
             .ToList();
     }
 

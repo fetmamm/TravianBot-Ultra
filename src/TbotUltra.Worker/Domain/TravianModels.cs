@@ -228,7 +228,8 @@ public sealed record VillageStatus(
     SmithyUpgradeStatus? SmithyUpgradeStatus = null,
     BreweryCelebrationStatus? BreweryCelebrationStatus = null,
     IReadOnlyList<FarmListOverview>? FarmLists = null,
-    HeroStatus? HeroStatus = null);
+    HeroStatus? HeroStatus = null,
+    bool ActiveConstructionsFromOverview = false);
 
 public sealed record InboxStatus(
     int UnreadMessages = 0,

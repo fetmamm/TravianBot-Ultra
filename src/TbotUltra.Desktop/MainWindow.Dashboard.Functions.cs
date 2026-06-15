@@ -149,20 +149,19 @@ public partial class MainWindow
 
     private static VillageStatus ClearCachedActivityTimers(VillageStatus status)
     {
+        var activeConstructions = status.ActiveConstructions ?? [];
+        var activeBuildCount = activeConstructions.Count;
         return status with
         {
-            BuildQueue = [],
-            IsBuildingInProgress = false,
-            ActiveBuildCount = 0,
+            IsBuildingInProgress = activeBuildCount > 0,
+            ActiveBuildCount = activeBuildCount,
             BuildQueueRemainingSeconds = null,
             BuildQueueRemainingText = string.Empty,
-            BuildQueueFinish = null,
             TroopTrainingQueues = null,
             SmithyUpgradeStatus = null,
             BreweryCelebrationStatus = null,
             FarmLists = null,
             HeroStatus = null,
-            ActiveConstructions = [],
         };
     }
 }

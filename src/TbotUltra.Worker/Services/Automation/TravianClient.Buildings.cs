@@ -3136,11 +3136,13 @@ public sealed partial class TravianClient
         if (_cachedActiveConstructions is not null
             && DateTimeOffset.UtcNow - _cachedActiveConstructionsAt < ActiveConstructionsCacheTtl)
         {
+            _lastActiveConstructionsFromOverview = _cachedActiveConstructionsFromOverview;
             return _cachedActiveConstructions;
         }
 
         LogFunctionStarted();
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading active constructions.", cancellationToken);
+        _lastActiveConstructionsFromOverview = false;
 
         var raw = await ReadActiveConstructionsOnCurrentPageAsync();
         // The construction queue only renders on dorf1/dorf2 (source of truth). If the current page
@@ -3154,6 +3156,17 @@ public sealed partial class TravianClient
         {
             await GotoAsync(Paths.Buildings, cancellationToken);
             raw = await ReadActiveConstructionsOnCurrentPageAsync();
+        }
+
+        var readFromOverview =
+            IsCurrentUrlForPath(Paths.Buildings) || IsCurrentUrlForPath(Paths.Resources);
+        if (readFromOverview && raw.Count == 0)
+        {
+            // Empty is destructive state. Confirm it twice on a page that actually owns Travian's
+            // construction queue before allowing desktop cache merge to clear a prior non-empty list.
+            await Task.Delay(350, cancellationToken);
+            raw = await ReadActiveConstructionsOnCurrentPageAsync();
+            Notify($"[construction-status:verbose] confirmed empty overview queue with second DOM read.");
         }
 
         var result = raw
@@ -3178,6 +3191,8 @@ public sealed partial class TravianClient
 
         _cachedActiveConstructions = result;
         _cachedActiveConstructionsAt = DateTimeOffset.UtcNow;
+        _cachedActiveConstructionsFromOverview = readFromOverview;
+        _lastActiveConstructionsFromOverview = readFromOverview;
         return result;
 
         async Task<List<ActiveConstructionJs>> ReadActiveConstructionsOnCurrentPageAsync()

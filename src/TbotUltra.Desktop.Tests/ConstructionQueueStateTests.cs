@@ -184,13 +184,51 @@ public sealed class ConstructionQueueStateTests
             buildings: [new Building(19, "Main Building", 6, "g15", 15)],
             buildQueue: [],
             activeBuildCount: 0,
-            remainingSeconds: null);
+            remainingSeconds: null) with
+        {
+            ActiveConstructionsFromOverview = true,
+        };
 
         var result = ConstructionQueueState.PreserveKnownConstructionState(full, existing);
 
         Assert.Equal(0, result.ActiveBuildCount);
         Assert.Null(result.BuildQueueRemainingSeconds);
         Assert.Empty(result.BuildQueue);
+    }
+
+    [Fact]
+    public void PreserveKnownConstructionState_FullNonOverviewReadCannotClearBrowserQueue()
+    {
+        var finish = TimerSnapshot.FromRemaining(600);
+        var existing = CreateStatus(
+            buildings: [new Building(19, "Main Building", 5, "g15", 15)],
+            buildQueue: [new BuildQueueItem("Main Building level 6", "00:10:00")],
+            activeBuildCount: 1,
+            remainingSeconds: 600) with
+        {
+            ActiveConstructions =
+            [
+                new ActiveConstruction(
+                    ConstructionKind.Building,
+                    "Main Building",
+                    6,
+                    600,
+                    "00:10:00",
+                    finish),
+            ],
+            ActiveConstructionsFromOverview = true,
+        };
+        var nonOverview = CreateStatus(
+            buildings: [new Building(19, "Main Building", 5, "g15", 15)],
+            buildQueue: [],
+            activeBuildCount: 0,
+            remainingSeconds: null);
+
+        var result = ConstructionQueueState.PreserveKnownConstructionState(nonOverview, existing);
+
+        Assert.Single(result.ActiveConstructions!);
+        Assert.Equal(1, result.ActiveBuildCount);
+        Assert.True(result.ActiveConstructionsFromOverview);
     }
 
     private static VillageStatus CreateStatus(

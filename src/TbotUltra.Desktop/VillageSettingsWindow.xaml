@@ -20,7 +20,7 @@
             <TextBlock Text="Village settings" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
             <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
                             Margin="8,2,0,0"
-                            ToolTip="Per-village automation. &quot;Auto&quot; turns the village on/off for the bot (off = skipped entirely). &quot;NPC&quot; selects which villages NPC trade may run in — the NPC trade master toggle in Auto settings must also be on. The automation-group columns mirror the dashboard cards per village: uncheck a group to stop it running in that village. Saved per account; capital on by default." />
+                            ToolTip="Per-village automation. &quot;Auto&quot; turns the village on/off for the bot (off = skipped entirely). &quot;NPC&quot; selects which villages NPC trade may run in — the NPC trade master toggle in Auto settings must also be on. The automation-group columns mirror the dashboard cards per village. New villages start with Construction on and everything else off; Auto is on only when the account has one village. Saved per account." />
         </StackPanel>
 
         <DataGrid x:Name="VillageSettingsDataGrid"

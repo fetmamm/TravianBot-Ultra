@@ -191,18 +191,13 @@ public sealed class VillageCacheStore
     {
         var staleCount = 0;
 
+        // ActiveConstructions is a browser snapshot, not a local timer prediction. Keep entries until
+        // a confirmed dorf1/dorf2 read says the queue is empty; an elapsed FinishUtc alone cannot clear it.
         var activeConstructions = (status.ActiveConstructions ?? [])
-            .Where(item =>
+            .Select(item => item with
             {
-                var active = item.Finish is not null && !item.Finish.IsFinishedAt(now);
-                if (!active && item.Finish is not null)
-                {
-                    staleCount++;
-                }
-
-                return active;
+                TimeLeftSeconds = item.Finish?.RemainingSecondsAt(now) ?? item.TimeLeftSeconds,
             })
-            .Select(item => item with { TimeLeftSeconds = item.Finish!.RemainingSecondsAt(now) })
             .ToList();
 
         var troopTrainingQueues = (status.TroopTrainingQueues ?? [])
