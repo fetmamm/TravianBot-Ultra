@@ -32,7 +32,6 @@
 - Gör små, lokala ändringar hellre än stora omskrivningar.
 - Om en funktion redan fungerar, bygg vidare på den istället för att skriva om den.
 - Ändra endast de filer och metoder som är direkt relevanta för uppgiften.
-- README ska uppdateras när något ändras som är värt att beskriva.
 
 ## Felsökning och robusthet
 - Hantera vanliga felfall om det är relevant.

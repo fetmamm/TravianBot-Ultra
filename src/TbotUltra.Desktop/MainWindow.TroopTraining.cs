@@ -9,6 +9,7 @@ using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Tasks;
 using TbotUltra.Core.Travian;
 using TbotUltra.Desktop.Services;
+using TbotUltra.Desktop.ViewModels;
 using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop;
@@ -619,6 +620,62 @@ public partial class MainWindow
             + (removed > 0 ? $" Cleared {removed} queued smithy task(s) to apply the change." : string.Empty));
     }
 
+    /// <summary>
+    /// Opens the per-village troop-training settings popup for the SELECTED village, seeded from that
+    /// village's saved override (or the global config when it has none). On Save it persists the village's
+    /// override; on "Sync to all villages" it copies the settings to every village. Stale build_troops
+    /// queue items for the affected village(s) are dropped so the loop re-enqueues with the new settings.
+    /// Called by the Troops panel's "Training options" button.
+    /// </summary>
+    internal void OnTroopsTrainingOptionsClicked()
+    {
+        var account = _accountStore.ActiveAccountName();
+        var villageInfo = GetSelectedVillageKeyInfoOrNull();
+        if (villageInfo is null)
+        {
+            _troopTrainingViewModel.InfoText = "Select a village on the Dashboard first to configure its troop training.";
+            AppendLog("Troop training options: no village selected.");
+            return;
+        }
+
+        var tribe = ResolveStoredTroopTrainingTribe();
+        var globalOptions = LoadBotOptions();
+        var saved = TroopTrainingSettingsStore.Load(_projectRoot, account, villageInfo.Key);
+        // When the village has an override, overlay it on the global options so the popup opens on that
+        // village's own settings; otherwise it opens on the global defaults.
+        var effectiveOptions = saved is null
+            ? globalOptions
+            : BotOptionsPayloadApplier.Apply(globalOptions, saved.ToDictionary());
+
+        var popupViewModel = new TroopTrainingViewModel();
+        popupViewModel.Initialize();
+        popupViewModel.UpdateTroopOptions(tribe);
+        popupViewModel.ApplyConfigToBuildings(effectiveOptions, hasExplicitAutoCelebrationSetting: false);
+
+        var window = new TroopTrainingOptionsWindow(popupViewModel, villageInfo.Name) { Owner = this };
+        if (window.ShowDialog() != true)
+        {
+            return;
+        }
+
+        if (window.SyncRequested)
+        {
+            var keys = GetAllVillageKeyInfos().Select(info => info.Key).ToList();
+            TroopTrainingSettingsStore.SaveForVillages(_projectRoot, account, keys, window.Result);
+            var removedAll = RemoveTroopTrainingQueueItemsForVillage(null);
+            _troopTrainingViewModel.InfoText = $"Synced troop-training settings to {keys.Count} village(s).";
+            AppendLog($"Synced troop-training settings from '{villageInfo.Name}' to {keys.Count} village(s). "
+                + $"Cleared {removedAll} queued build_troops task(s) to apply the change.");
+            return;
+        }
+
+        TroopTrainingSettingsStore.Save(_projectRoot, account, villageInfo.Key, window.Result);
+        var removed = RemoveTroopTrainingQueueItemsForVillage(villageInfo.Name);
+        _troopTrainingViewModel.InfoText = $"Saved troop-training settings for '{villageInfo.Name}'.";
+        AppendLog($"Saved troop-training settings for '{villageInfo.Name}'."
+            + (removed > 0 ? $" Cleared {removed} queued build_troops task(s) to apply the change." : string.Empty));
+    }
+
     // Builds the troop rows for the upgrade-options popup: the tribe's improvable troops (combat + siege,
     // excluding the expansion units that the Smithy never lists) merged with the village's saved selection so
     // the popup reopens with the user's prior choices. Troops are keyed by Travian unit id ("u21") when the
@@ -746,6 +803,18 @@ public partial class MainWindow
         var smithyStatus = await _botService.ReadSmithyUpgradeStatusAsync(options, AppendLog, effectiveBuildings, cancellationToken);
         await Dispatcher.InvokeAsync(() =>
         {
+            // The in-building training queue is the source of truth: keep a still-ticking queue from the
+            // per-village cache when this read came back empty (a partial / off-village read), so the
+            // dashboard timer doesn't vanish. Mirrors ApplySmithyUpgradeStatus.
+            var queueVillageName = NormalizeVillageName(GetSelectedVillageName())
+                ?? NormalizeVillageName(_activeWorkingVillageName);
+            if (queueVillageName is not null
+                && _villageStatusCacheByName.TryGetValue(queueVillageName, out var cachedVillageStatus))
+            {
+                queueStatuses = TroopTrainingQueueState.PreserveKnownActiveQueue(
+                    queueStatuses, cachedVillageStatus.TroopTrainingQueues, GetServerNow());
+            }
+
             var effectiveStatus = _lastBuildingStatus is null
                 ? null
                 : _lastBuildingStatus with { TroopTrainingQueues = queueStatuses };

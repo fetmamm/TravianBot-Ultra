@@ -191,6 +191,10 @@
                                     Orientation="Horizontal"
                                     HorizontalAlignment="Right"
                                     Margin="16,0,0,0">
+                            <Button Content="Training options"
+                                    Width="120"
+                                    Margin="0,0,8,0"
+                                    Click="TrainingOptionsButton_Click" />
                             <Button Content="Build now"
                                     Width="92"
                                     Margin="0,0,8,0"

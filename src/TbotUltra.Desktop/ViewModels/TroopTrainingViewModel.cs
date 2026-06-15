@@ -685,6 +685,7 @@ public sealed class TroopTrainingViewModel : BaseViewModel
             {
                 option.Exists = queueStatus.Exists;
                 option.QueueRemainingSeconds = queueStatus.RemainingSeconds;
+                option.QueueFinish = queueStatus.Finish;
                 option.QueueStatusText = queueStatus.Exists
                     ? $"Queue: {queueStatus.RemainingText}"
                     : "Building not found";
@@ -711,6 +712,7 @@ public sealed class TroopTrainingViewModel : BaseViewModel
             if (!buildingExists)
             {
                 option.QueueRemainingSeconds = null;
+                option.QueueFinish = null;
                 option.QueueStatusText = "Building not found";
             }
             else if (string.IsNullOrWhiteSpace(option.QueueStatusText))
@@ -727,6 +729,7 @@ public sealed class TroopTrainingViewModel : BaseViewModel
         {
             option.Exists = false;
             option.QueueRemainingSeconds = null;
+            option.QueueFinish = null;
             option.QueueStatusText = "Queue not loaded.";
         }
     }
@@ -736,6 +739,7 @@ public sealed class TroopTrainingViewModel : BaseViewModel
         foreach (var option in Buildings)
         {
             option.QueueRemainingSeconds = null;
+            option.QueueFinish = null;
             option.QueueStatusText = option.Exists
                 ? "Queue refresh requested."
                 : "Building not available in this village.";
@@ -863,8 +867,11 @@ public sealed class TroopTrainingViewModel : BaseViewModel
             : null;
     }
 
-    /// <summary>Decrements every row's countdown by one second. Called by the clock timer.</summary>
-    public void TickCountdowns()
+    /// <summary>
+    /// Recomputes every row's queue countdown from its absolute finish against the server clock (source of
+    /// truth), falling back to a 1s decrement when no finish is known. Called by the 1Hz clock timer.
+    /// </summary>
+    public void TickCountdowns(DateTimeOffset serverNow)
     {
         if (Buildings.Count <= 0)
         {
@@ -873,7 +880,7 @@ public sealed class TroopTrainingViewModel : BaseViewModel
 
         foreach (var option in Buildings)
         {
-            option.TickOneSecond();
+            option.Tick(serverNow);
         }
 
         if (AutoCelebrationRemainingSeconds is > 0)

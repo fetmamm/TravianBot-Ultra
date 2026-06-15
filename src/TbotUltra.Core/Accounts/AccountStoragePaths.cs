@@ -80,6 +80,14 @@ public static class AccountStoragePaths
         return Path.Combine(AccountDirectory(projectRoot, accountName), "smithy_upgrade.json");
     }
 
+    // Per-account, per-village troop-training overrides (which troop/amount/run-mode per building).
+    // Kept as its own file, keyed by village coordinate key, like smithy_upgrade.json — a village without
+    // an entry falls back to the global troop-training config in bot.json/settings.json.
+    public static string TroopTrainingPath(string projectRoot, string accountName)
+    {
+        return Path.Combine(AccountDirectory(projectRoot, accountName), "troop_training.json");
+    }
+
     public static string MapOasisCheckpointPath(string projectRoot, string accountName, string? serverUrl = null)
     {
         return Path.Combine(

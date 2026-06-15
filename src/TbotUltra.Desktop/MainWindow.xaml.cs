@@ -464,7 +464,7 @@ public partial class MainWindow : Window
                 // come from the in-memory cache, so recompute every second; also refreshed on real
                 // queue/group changes via RefreshAutomationLoopDashboardUi.
                 UpdateNextTaskUi();
-                _troopTrainingViewModel.TickCountdowns();
+                _troopTrainingViewModel.TickCountdowns(GetServerNow());
                 TickSmithyUpgradeCountdown();
                 _resourcesViewModel.TickLiveForecasts();
                 TickResourceTransferVillageForecasts();

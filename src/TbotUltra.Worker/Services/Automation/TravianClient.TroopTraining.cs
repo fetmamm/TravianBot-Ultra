@@ -321,7 +321,9 @@ public sealed partial class TravianClient
             queueItems,
             remainingSeconds > 0 ? remainingSeconds : null,
             remainingSeconds > 0 ? TravianParsing.FormatDuration(remainingSeconds) : "Ready",
-            remainingSeconds > 0 ? TimerSnapshot.FromRemaining(remainingSeconds) : null);
+            // Anchor the finish to server time so the dashboard timer ticks against the real clock and the
+            // queue stays the source of truth across reads (the in-building queue can't just vanish).
+            remainingSeconds > 0 ? TimerSnapshot.FromRemaining(remainingSeconds, _serverTimeUtc) : null);
     }
 
     private async Task<TroopTrainingAttemptOutcome> TryTrainTroopsAtBuildingAsync(
@@ -331,7 +333,11 @@ public sealed partial class TravianClient
         CancellationToken cancellationToken)
     {
         var troopUnitId = TroopCatalog.ResolveTravianUnitId(status.Tribe, candidate.Request.TroopType);
-        Notify($"[troops:verbose]resolved unit id for '{candidate.Request.TroopType}' in tribe '{status.Tribe}' => {(troopUnitId?.ToString() ?? "null")}.");
+        // Tribe-relative slot (1..10) — this is what the training form keys its amount inputs by (t1..t10),
+        // unlike the global unit id used everywhere else. Both are used below: the slot to find the input
+        // directly, the unit id to find the troop's row by its icon when the slot name differs.
+        var troopSlot = TroopCatalog.ResolveTroopIndex(candidate.Request.TroopType);
+        Notify($"[troops:verbose]resolved ids for '{candidate.Request.TroopType}' in tribe '{status.Tribe}' => unit={(troopUnitId?.ToString() ?? "null")}, slot={(troopSlot?.ToString() ?? "null")}.");
         if (troopUnitId is null
             || !TroopCatalog.IsTroopTypeAllowedForBuilding(status.Tribe, candidate.Request.TroopType, candidate.Request.BuildingType))
         {
@@ -351,7 +357,16 @@ public sealed partial class TravianClient
         await EnsureLoggedInAsync();
         Notify($"[troops:verbose]page after navigation url='{_page.Url}'.");
 
-        var buildInfo = await ReadTroopUnitBuildInfoFromCurrentPageAsync(troopUnitId.Value, cancellationToken);
+        // Resolve the real amount-input name once (slot first, then the unit-id icon's row, then the legacy
+        // unit-id name). Every step below targets this exact input so it works on both server variants.
+        var inputName = await ResolveTroopTrainingInputNameAsync(troopUnitId.Value, troopSlot);
+        Notify($"[troops:verbose]resolved training input name='{inputName ?? "null"}' for unit {troopUnitId.Value}/slot {(troopSlot?.ToString() ?? "null")}.");
+        if (string.IsNullOrWhiteSpace(inputName))
+        {
+            return new TroopTrainingAttemptOutcome(false, $"Skip {candidate.Request.BuildingName}: training input for '{candidate.Request.TroopType}' not found on the page.");
+        }
+
+        var buildInfo = await ReadTroopUnitBuildInfoFromCurrentPageAsync(inputName, cancellationToken);
         Notify($"[troops:verbose]build info found={buildInfo.Found}, canTrain={buildInfo.CanTrain}, troopType='{buildInfo.TroopType}', costs=({buildInfo.WoodCost},{buildInfo.ClayCost},{buildInfo.IronCost},{buildInfo.CropCost}).");
         if (!buildInfo.Found || !buildInfo.CanTrain)
         {
@@ -510,7 +525,7 @@ public sealed partial class TravianClient
 
         Notify($"[troops:verbose]submitting training for unitId={troopUnitId.Value}, amount={amount}, useMaxShortcut={useMaxShortcut}.");
         var submitted = await SubmitTroopTrainingFromCurrentPageAsync(
-            troopUnitId.Value,
+            inputName,
             Math.Max(0, amount),
             useMaxShortcut,
             cancellationToken);
@@ -915,10 +930,24 @@ public sealed partial class TravianClient
               const rows = [];
               const seen = new Set();
 
+              const fmtSeconds = (raw) => {
+                const total = Math.max(0, parseInt(raw, 10) || 0);
+                const h = Math.floor(total / 3600);
+                const m = Math.floor((total % 3600) / 60);
+                const s = total % 60;
+                const pad = (n) => String(n).padStart(2, '0');
+                return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+              };
+
               for (const row of document.querySelectorAll('table.under_progress tbody tr')) {
                 const desc = normalize(row.querySelector('td.desc')?.textContent || '');
                 const durCell = row.querySelector('td.dur');
-                const duration = normalize(durCell?.querySelector('.timer')?.textContent || durCell?.textContent || '');
+                const timerEl = durCell?.querySelector('.timer');
+                // Prefer the countdown text, but fall back to the timer's `value`/`data-value` (the remaining
+                // seconds Travian renders client-side) so the queue still reads if the text hasn't hydrated.
+                const timerValue = timerEl?.getAttribute('value') || timerEl?.getAttribute('data-value') || '';
+                const duration = normalize(timerEl?.textContent || durCell?.textContent || '')
+                  || (/^\d+$/.test(timerValue.trim()) ? fmtSeconds(timerValue.trim()) : '');
                 if (!desc || !duration) continue;
                 const key = `${desc}|${duration}`;
                 if (seen.has(key)) continue;
@@ -971,14 +1000,14 @@ public sealed partial class TravianClient
             .ToList();
     }
 
-    private async Task<TroopUnitBuildInfo> ReadTroopUnitBuildInfoFromCurrentPageAsync(int troopIndex, CancellationToken cancellationToken)
+    private async Task<TroopUnitBuildInfo> ReadTroopUnitBuildInfoFromCurrentPageAsync(string inputName, CancellationToken cancellationToken)
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading troop build costs.", cancellationToken);
-        Notify($"[troops:verbose]reading troop unit build info for t{troopIndex}.");
+        Notify($"[troops:verbose]reading troop unit build info for input '{inputName}'.");
         var rawJson = await _page.EvaluateAsync<string>(
             """
-            (troopIndex) => {
-              const input = document.querySelector(`input[name="t${troopIndex}"], input[id="t${troopIndex}"]`);
+            (inputName) => {
+              const input = document.querySelector(`input[name="${inputName}"], input[id="${inputName}"]`);
               if (!input) {
                 return JSON.stringify({ found: false });
               }
@@ -1008,7 +1037,7 @@ public sealed partial class TravianClient
               };
 
               const nameNode = row.querySelector('.tit a:last-of-type, .title, h1, h2, h3, h4, .name, .desc, .unitName');
-              const name = nameNode ? (nameNode.textContent || '').replace(/\s+/g, ' ').trim() : `Troop ${troopIndex}`;
+              const name = nameNode ? (nameNode.textContent || '').replace(/\s+/g, ' ').trim() : `Troop ${inputName}`;
               const disabled = input.disabled || input.getAttribute('aria-disabled') === 'true' || input.closest('.disabled');
               const submitButton = (input.form || row.closest('form') || document).querySelector('button[type="submit"], input[type="submit"], .green, .button-container');
 
@@ -1023,9 +1052,9 @@ public sealed partial class TravianClient
               });
             }
             """,
-            troopIndex);
+            inputName);
 
-        Notify($"[troops:verbose]raw build info payload for t{troopIndex}: {rawJson}");
+        Notify($"[troops:verbose]raw build info payload for '{inputName}': {rawJson}");
 
         try
         {
@@ -1046,34 +1075,32 @@ public sealed partial class TravianClient
         }
     }
 
-    private async Task<bool> SubmitTroopTrainingFromCurrentPageAsync(int troopIndex, int amount, bool useMaxShortcut, CancellationToken cancellationToken)
+    private async Task<bool> SubmitTroopTrainingFromCurrentPageAsync(string inputName, int amount, bool useMaxShortcut, CancellationToken cancellationToken)
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while submitting troop training.", cancellationToken);
-        Notify($"[troops:verbose] submit:locating input t{troopIndex}. amount={amount}, useMaxShortcut={useMaxShortcut}.");
-        var input = _page.Locator($"input[name='t{troopIndex}'], input[id='t{troopIndex}']").First;
+        Notify($"[troops:verbose] submit:locating input '{inputName}'. amount={amount}, useMaxShortcut={useMaxShortcut}.");
+        var input = _page.Locator($"input[name='{inputName}'], input[id='{inputName}']").First;
         if (await input.CountAsync() <= 0)
         {
-            Notify($"Troop training submit skipped: input t{troopIndex} not found.");
+            Notify($"Troop training submit skipped: input '{inputName}' not found.");
             return false;
         }
 
-        var action = input.Locator("xpath=ancestor::*[contains(@class,'action')][1]").First;
-        Notify($"[troops:verbose] submit:located action container for t{troopIndex}.");
         if (useMaxShortcut)
         {
-            Notify($"[troops:verbose] submit:resolving max value for t{troopIndex} from action link.");
-            var maxAmount = await ResolveTroopTrainingMaxAmountAsync(troopIndex);
-            Notify($"[troops:verbose] submit:resolved max value for t{troopIndex} => {(maxAmount?.ToString() ?? "null")}.");
+            Notify($"[troops:verbose] submit:resolving max value for '{inputName}' from action link.");
+            var maxAmount = await ResolveTroopTrainingMaxAmountAsync(inputName);
+            Notify($"[troops:verbose] submit:resolved max value for '{inputName}' => {(maxAmount?.ToString() ?? "null")}.");
             if (maxAmount is not > 0)
             {
-                Notify($"Troop training submit skipped: max value for t{troopIndex} was not found.");
+                Notify($"Troop training submit skipped: max value for '{inputName}' was not found.");
                 return false;
             }
 
             await _page.EvaluateAsync(
                 """
                 (payload) => {
-                  const input = document.querySelector(`input[name="t${payload.troopIndex}"], input[id="t${payload.troopIndex}"]`);
+                  const input = document.querySelector(`input[name="${payload.inputName}"], input[id="${payload.inputName}"]`);
                   if (!input) {
                     return false;
                   }
@@ -1084,65 +1111,100 @@ public sealed partial class TravianClient
                   return true;
                 }
                 """,
-                new { troopIndex, maxAmount = maxAmount.Value });
-            Notify($"[troops:verbose] submit:set t{troopIndex} directly to max value '{maxAmount.Value}'.");
-            Notify($"[troops:verbose] submit: clicked max shortcut value {maxAmount.Value}");
+                new { inputName, maxAmount = maxAmount.Value });
+            Notify($"[troops:verbose] submit:set '{inputName}' directly to max value '{maxAmount.Value}'.");
         }
         else
         {
             var integerAmount = Math.Max(0, amount);
             if (integerAmount <= 0)
             {
-                Notify($"[troops:verbose] submit:integer amount for t{troopIndex} was <= 0.");
+                Notify($"[troops:verbose] submit:integer amount for '{inputName}' was <= 0.");
                 return false;
             }
 
             await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
             await input.ClickAsync();
             await input.FillAsync(integerAmount.ToString());
-            Notify($"[troops:verbose] submit:filled t{troopIndex} with '{integerAmount}'.");
+            Notify($"[troops:verbose] submit:filled '{inputName}' with '{integerAmount}'.");
         }
 
         await Task.Delay(150, cancellationToken);
         var parsedValueRaw = await input.InputValueAsync();
         var parsedDigits = new string(parsedValueRaw.Where(char.IsDigit).ToArray());
-        Notify($"[troops:verbose] submit:input t{troopIndex} now has raw='{parsedValueRaw}', digits='{parsedDigits}'.");
+        Notify($"[troops:verbose] submit:input '{inputName}' now has raw='{parsedValueRaw}', digits='{parsedDigits}'.");
         if (!int.TryParse(parsedDigits, out var parsedValue) || parsedValue <= 0)
         {
-            Notify($"Troop training submit skipped: input t{troopIndex} stayed at '{parsedValueRaw}'.");
+            Notify($"Troop training submit skipped: input '{inputName}' stayed at '{parsedValueRaw}'.");
             return false;
         }
 
         var form = input.Locator("xpath=ancestor::form[1]").First;
-        Notify($"[troops:verbose] submit:located form for t{troopIndex}.");
+        Notify($"[troops:verbose] submit:located form for '{inputName}'.");
         var submitButton = form.Locator("button.startTraining, button.green.startTraining, button[type='submit'].startTraining, button[type='submit'].green").First;
-        Notify($"[troops:verbose] submit:locating Train button for t{troopIndex}.");
+        Notify($"[troops:verbose] submit:locating Train button for '{inputName}'.");
         if (await submitButton.CountAsync() <= 0)
         {
-            Notify($"Troop training submit skipped: Train button not found for t{troopIndex}.");
+            Notify($"Troop training submit skipped: Train button not found for '{inputName}'.");
             return false;
         }
 
         var submitText = (await submitButton.InnerTextAsync()).Trim();
-        Notify($"[troops:verbose] submit:Train button text='{submitText}' for t{troopIndex}.");
+        Notify($"[troops:verbose] submit:Train button text='{submitText}' for '{inputName}'.");
         await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         await submitButton.ClickAsync();
-        Notify($"[troops:verbose] submit:clicked Train button for t{troopIndex} with parsedValue={parsedValue}.");
-        Notify("[troops:verbose] submit: Train button clicked");
+        Notify($"[troops:verbose] submit:clicked Train button for '{inputName}' with parsedValue={parsedValue}.");
         return true;
     }
 
-    private async Task<int?> ResolveTroopTrainingMaxAmountAsync(int troopIndex)
+    // Resolves the training form's amount-input NAME for a troop, robust across both server variants.
+    // Travian keys these inputs by the tribe-relative slot (t1..t10 on Official); the global unit id is
+    // only used to find the troop's row by its icon. Tries, in order: the slot name, the input inside the
+    // row carrying the u{unitId} icon, then the legacy unit-id name (older SS markup). Returns "" if none.
+    private async Task<string?> ResolveTroopTrainingInputNameAsync(int troopUnitId, int? troopSlot)
+    {
+        var resolved = await _page.EvaluateAsync<string>(
+            """
+            (payload) => {
+              const pick = (el) => (el && (el.getAttribute('name') || el.id)) || '';
+              const slot = payload.slot;
+              const unitId = payload.unitId;
+
+              if (slot) {
+                const bySlot = document.querySelector(`input[name="t${slot}"], input[id="t${slot}"]`);
+                if (bySlot) return pick(bySlot);
+              }
+
+              if (unitId) {
+                const icon = document.querySelector(`img.u${unitId}, .u${unitId}Section, .u${unitId}`);
+                if (icon) {
+                  const row = icon.closest('.action, .innerTroopWrapper, tr, li, form') || icon.parentElement;
+                  const inRow = row && row.querySelector('input[name^="t"], input[id^="t"]');
+                  if (inRow) return pick(inRow);
+                }
+                const byUnit = document.querySelector(`input[name="t${unitId}"], input[id="t${unitId}"]`);
+                if (byUnit) return pick(byUnit);
+              }
+
+              return '';
+            }
+            """,
+            new { slot = troopSlot, unitId = troopUnitId });
+
+        return string.IsNullOrWhiteSpace(resolved) ? null : resolved;
+    }
+
+    private async Task<int?> ResolveTroopTrainingMaxAmountAsync(string inputName)
     {
         var rawValue = await _page.EvaluateAsync<string>(
             """
-            (troopIndex) => {
-              const input = document.querySelector(`input[name="t${troopIndex}"], input[id="t${troopIndex}"]`);
+            (inputName) => {
+              const input = document.querySelector(`input[name="${inputName}"], input[id="${inputName}"]`);
               if (!input) {
                 return "";
               }
 
-              const action = input.closest('.action') || input.parentElement;
+              const action = input.closest('.action, .innerTroopWrapper, .details') || input.parentElement;
               if (!action) {
                 return "";
               }
@@ -1150,7 +1212,8 @@ public sealed partial class TravianClient
               const links = Array.from(action.querySelectorAll('a[href="#"], a'));
               for (const link of links) {
                 const onclick = link.getAttribute('onclick') || '';
-                const onclickMatch = onclick.match(new RegExp(`t${troopIndex}\\.value=(\\d+)`));
+                // SS markup: "t7.value=123"; Official markup: "...find('input').val(123)" or "...value=123".
+                const onclickMatch = onclick.match(/(?:\.value\s*=\s*|\.val\(\s*)(\d+)/);
                 if (onclickMatch && onclickMatch[1]) {
                   return onclickMatch[1];
                 }
@@ -1164,14 +1227,14 @@ public sealed partial class TravianClient
               return "";
             }
             """,
-            troopIndex);
+            inputName);
 
         if (int.TryParse(rawValue, out var maxAmount) && maxAmount > 0)
         {
             return maxAmount;
         }
 
-        Notify($"[troops:verbose] submit:failed to parse max value for t{troopIndex} from raw='{rawValue}'.");
+        Notify($"[troops:verbose] submit:failed to parse max value for '{inputName}' from raw='{rawValue}'.");
 
         return null;
     }

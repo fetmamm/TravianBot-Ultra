@@ -46,17 +46,15 @@ Compatible with:
 - Hero adventures
 - Revive hero
 - Spend hero attribute points using a drag-sortable, per-account priority order (default: Resources, then Fighting strength)
-- Use hero inventory resources to top up when short (Official only). Per-consumer toggles on the Hero tab pick which features may pull from the hero: **Construction** (buildings & resource fields), **Smithy** (troop upgrades), and **Brewery** (celebrations). The master hero-resource toggle in Auto settings still applies on top.
+- Use hero inventory resources for buildings, smithy and brewery
 - Collect daily quests
 - Collect tasks
 - Read messages and reports
-- Upgrade troops in smithy (choose which troops and their target level **per village** via the Troops tab's "Upgrade options"; "Sync to all villages" copies the selected village's choice to every village). The Automation Loop's *Upgrade Troops* group runs them.
+- Upgrade troops in smithy
 - Send resources between own villages
 - Send reinforcements between own villages
 - Farming
-- Create multiple Official farmlists with selected village and default troops
-- Configure the Official Add Farms internal step delay in Settings (default 0.1-0.3 seconds)
-- Scan the authenticated Travian map for oases by resource type and save them as reusable farm-source lists
+- Create multiple farmlists with selected village and default troops
 - Send catapult waves
 - Session pacing
 - Auto sleep
@@ -67,6 +65,7 @@ Compatible with:
 - Multi-village support
 - Calculate building time and resource cost for buildings + resourcefields
 - Oasis scan for whole map (and add to farmlists)
+- Travco inactive search (and add to farmlists)
 
 ## Future functions:
 

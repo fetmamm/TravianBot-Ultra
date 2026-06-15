@@ -251,6 +251,18 @@ eller sta still, inte vaxa.
   Worker emitterar `[smithy-queue] entries_json=...` fran verkliga `under_progress`-rader. Desktop lagrar
   namn, malniva och absolut sluttid i byns `SmithyUpgradeStatus`; Queue-ruta, ikoner och loopkort laser
   samma SOT. Tom/glitch-lasning far inte radera en aktiv framtida ko; posten forsvinner nar sluttiden passeras.
+- Bygg trupper (Barracks/Stable/Workshop): traningsformularet keyar mangd-inputen pa det tribe-relativa
+  truppslotet `t1..t10` (Official: Ram = `t7`), INTE det globala unit-id:t (Ram = `u27`). Identifiera raden
+  via unit-id-ikonen (`img.uNN`) och las radens verkliga input-namn — fungerar pa bada varianter. Anvand
+  `TroopCatalog.ResolveTroopIndex` for slotet och `ResolveTravianUnitId` enbart for ikonidentifiering.
+  Max-lanken: SS `tN.value=NN`, Official `...val(NN)`; matcha bada plus numerisk lanktext, scopeat till raden.
+- Traningskon ar SOT for traningstimers, precis som construction: las kvarvarande sekunder ur
+  `table.under_progress td.dur .timer` (`value`/`data-value` eller text), ankra som absolut `TimerSnapshot`
+  pa servertid (`_serverTimeUtc`). `TroopTrainingQueueState.PreserveKnownActiveQueue` behaller en levande ko
+  vid tom/partiell lasning; UI tickar ned via `Tick(serverNow)` och posten forsvinner forst nar sluttiden passeras.
+- Per-by-traning sparas konto-scopeat i `troop_training.json` (`TroopTrainingSettingsStore`, nyckel = bykoord).
+  Loopen snapshotar override:n in i `build_troops`-payloaden; saknad override = global config (bakatkompatibelt).
+  Popupen ("Training options") ateranvander `TroopTrainingViewModel` + `TroopTrainingPayload`-serialiseringen.
 - Village settings-popupens "Automation groups"-kolumn speglar dashboardens loop-kort per by och sparas i
   samma `VillageSettingsStore.EnabledGroups`; avbockad grupp slutar koras for byn (`IsGroupEnabledForVillage`).
 - Nya byar far explicit `Construction=true`, ovriga grupper och NPC=false. Auto=true endast nar den forsta

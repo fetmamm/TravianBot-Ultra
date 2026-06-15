@@ -101,11 +101,20 @@ public partial class MainWindow
     // (HasActiveTaskForVillage dedup), so the new selection would never run. Dropping the stale item lets
     // the loop re-enqueue with the updated targets. Pass null to clear smithy items for every village.
     private int RemoveSmithyQueueItemsForVillage(string? villageName)
+        => RemoveQueueItemsForVillage("upgrade_troops_at_smithy", villageName);
+
+    // Same rationale as the Smithy version, for build_troops: a queued item carries the OLD per-village
+    // troop-training snapshot, and the loop won't re-enqueue while it is active, so drop it after the user
+    // changes that village's training settings. Pass null to clear build_troops items for every village.
+    private int RemoveTroopTrainingQueueItemsForVillage(string? villageName)
+        => RemoveQueueItemsForVillage("build_troops", villageName);
+
+    private int RemoveQueueItemsForVillage(string taskName, string? villageName)
     {
         var targetName = NormalizeVillageName(villageName);
         var removedCount = 0;
         foreach (var item in _botService.GetQueueItemsForDisplay()
-            .Where(item => string.Equals(item.TaskName, "upgrade_troops_at_smithy", StringComparison.OrdinalIgnoreCase))
+            .Where(item => string.Equals(item.TaskName, taskName, StringComparison.OrdinalIgnoreCase))
             .Where(item => item.Status is QueueStatus.Pending or QueueStatus.Paused)
             .ToList())
         {

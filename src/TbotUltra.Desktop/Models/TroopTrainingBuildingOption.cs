@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Media;
 using TbotUltra.Core.Travian;
+using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop.Models;
 
@@ -272,6 +273,12 @@ public sealed class TroopTrainingBuildingOption : INotifyPropertyChanged
         }
     }
 
+    // Absolute finish of the building's training queue (the in-game `under_progress` countdown), anchored
+    // to server time. When set, the dashboard countdown is recomputed from it each tick instead of being
+    // blindly decremented — so it stays accurate and survives missed/off-village reads (the queue is the
+    // source of truth, same model as construction timers).
+    public TimerSnapshot? QueueFinish { get; set; }
+
     public string QueueStatusText
     {
         get => _queueStatusText;
@@ -389,6 +396,27 @@ public sealed class TroopTrainingBuildingOption : INotifyPropertyChanged
 
         QueueRemainingSeconds = Math.Max(0, QueueRemainingSeconds.Value - 1);
         return true;
+    }
+
+    /// <summary>
+    /// Recomputes the displayed queue countdown from the absolute <see cref="QueueFinish"/> against the
+    /// supplied server-time clock (source of truth). Falls back to a plain 1s decrement when no finish is
+    /// known. Clears the finish once it has elapsed so a stale snapshot can't keep re-showing 0.
+    /// </summary>
+    public void Tick(DateTimeOffset serverNow)
+    {
+        if (QueueFinish is null)
+        {
+            TickOneSecond();
+            return;
+        }
+
+        var remaining = QueueFinish.RemainingSecondsAt(serverNow);
+        QueueRemainingSeconds = remaining > 0 ? remaining : null;
+        if (remaining <= 0)
+        {
+            QueueFinish = null;
+        }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

@@ -73,4 +73,28 @@ public sealed class TroopCatalogTests
     {
         Assert.Equal(expected, TroopCatalog.ResolveTravianUnitId(tribe, troopType));
     }
+
+    // The training form keys its amount inputs by the tribe-relative slot (t1..t10), NOT the global unit
+    // id. This is the invariant the Official troop-training fix relies on: Gaul Ram is form input t7 even
+    // though its unit id is u27. Keep slot and unit id distinct.
+    [Theory]
+    [InlineData("Romans", "Legionnaire", 1)]
+    [InlineData("Gauls", "Phalanx", 1)]
+    [InlineData("Gauls", "Ram", 7)]
+    [InlineData("Gauls", "Trebuchet", 8)]
+    [InlineData("Teutons", "Ram", 7)]
+    [InlineData("Teutons", "Settler", 10)]
+    public void ResolveTroopIndex_ReturnsTribeRelativeSlot(string tribe, string troopType, int expectedSlot)
+    {
+        Assert.Equal(expectedSlot, TroopCatalog.ResolveTroopIndex(troopType));
+    }
+
+    [Fact]
+    public void ResolveTroopIndex_DiffersFromGlobalUnitId_ForNonRomanTribes()
+    {
+        // Gaul Ram: form slot t7, but unit id u27 — the bug the Official fix addresses (using the unit id
+        // as the form index found input t27, which doesn't exist).
+        Assert.Equal(7, TroopCatalog.ResolveTroopIndex("Ram"));
+        Assert.Equal(27, TroopCatalog.ResolveTravianUnitId("Gauls", "Ram"));
+    }
 }

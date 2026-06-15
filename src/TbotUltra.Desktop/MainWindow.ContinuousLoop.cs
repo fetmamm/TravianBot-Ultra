@@ -286,7 +286,10 @@ public partial class MainWindow
         }
 
         // Troop training (Barracks/Stable/Workshop) — generated per enabled village whose Build Troops
-        // group is on. Per village by design (each village trains independently).
+        // group is on. Per village by design (each village trains independently). When the village has a
+        // saved per-village override it is snapshotted into the payload so the worker trains that village's
+        // own troops; otherwise the task runs on the global troop-training config (backwards-compatible).
+        var troopTrainingAccount = _accountStore.ActiveAccountName();
         foreach (var village in automationVillages)
         {
             if (!IsGroupEnabledForVillage(GetVillageKey(village), QueueGroup.TroopTraining)
@@ -295,7 +298,17 @@ public partial class MainWindow
                 continue;
             }
 
-            _botService.EnqueueRuntime("build_troops", "Build troops", BuildVillageRuntimePayload(village), priority: -50, maxRetries: 0);
+            var trainingPayload = BuildVillageRuntimePayload(village);
+            var villageTraining = TroopTrainingSettingsStore.Load(_projectRoot, troopTrainingAccount, GetVillageKey(village));
+            if (villageTraining is not null)
+            {
+                foreach (var pair in villageTraining.ToDictionary())
+                {
+                    trainingPayload[pair.Key] = pair.Value;
+                }
+            }
+
+            _botService.EnqueueRuntime("build_troops", "Build troops", trainingPayload, priority: -50, maxRetries: 0);
         }
 
         // Brewery celebration — capital only (the brewery exists only in the capital). Generated for the
