@@ -71,6 +71,20 @@ public sealed class ConstructionQueueSelectorTests
     }
 
     [Fact]
+    public void SelectNext_StorageCapacityDependencyAllowsLaterConstruction()
+    {
+        var capacityWait = CreateDeferredItem(BotOptionPayloadKeys.UpgradeDeferReasonStorageCapacity);
+        var dependency = CreateReadyItem();
+
+        var result = ConstructionQueueSelector.SelectNext(
+            [capacityWait, dependency],
+            Now,
+            ConstructionQueueAvailability.Available);
+
+        Assert.Same(dependency, result.Item);
+    }
+
+    [Fact]
     public void SelectNext_UnknownQueueValidatesOnlyLegacyQueueFullImmediately()
     {
         var legacy = CreateDeferredItem(BotOptionPayloadKeys.UpgradeDeferReasonQueueFull);

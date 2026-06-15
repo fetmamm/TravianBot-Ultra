@@ -312,30 +312,25 @@ public partial class MainWindow
             ? status?.ActiveConstructions ?? []
             : [];
         var nowUtc = DateTimeOffset.UtcNow;
+        var tribe = !string.IsNullOrWhiteSpace(status?.Tribe)
+            && !string.Equals(status.Tribe, "Unknown", StringComparison.OrdinalIgnoreCase)
+                ? status.Tribe
+                : ResolveStoredTroopTrainingTribe();
+        var slotCount = tribe.Contains("Roman", StringComparison.OrdinalIgnoreCase)
+            || ResolveIsRomansTribe()
+                ? 3
+                : 2;
 
         _travianBuildQueueRows.Clear();
-        foreach (var construction in activeConstructions)
+        foreach (var row in LiveQueueRowFactory.BuildConstructionRows(
+                     activeConstructions,
+                     slotCount,
+                     hasStatus,
+                     nowUtc,
+                     FormatQueueServerTime))
         {
-            var finishUtc = construction.Finish?.FinishUtc
-                ?? (construction.TimeLeftSeconds is > 0
-                    ? nowUtc.AddSeconds(construction.TimeLeftSeconds.Value)
-                    : (DateTimeOffset?)null);
-
-            _travianBuildQueueRows.Add(new TravianBuildQueueRow
-            {
-                Name = construction.Name,
-                LevelText = construction.Level.HasValue ? $"Level {construction.Level.Value}" : "-",
-                FinishAtText = finishUtc.HasValue
-                    ? FormatQueueServerTime(finishUtc.Value)
-                    : construction.FinishAtText ?? "-",
-            });
+            _travianBuildQueueRows.Add(row);
         }
-
-        TravianBuildQueueEmptyTextBlock.Text = hasStatus
-            ? "No active construction in Travian."
-            : "No browser status loaded for this village.";
-        TravianBuildQueueEmptyTextBlock.Visibility =
-            _travianBuildQueueRows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void RefreshTravianSmithyQueueUi()
@@ -347,29 +342,18 @@ public partial class MainWindow
         var activeUpgrades = SmithyQueueState.ResolveActiveUpgrades(
             status?.SmithyUpgradeStatus,
             DateTimeOffset.UtcNow);
+        var nowUtc = DateTimeOffset.UtcNow;
 
         _travianSmithyQueueRows.Clear();
-        foreach (var upgrade in activeUpgrades)
+        foreach (var row in LiveQueueRowFactory.BuildSmithyRows(
+                     activeUpgrades,
+                     slotCount: 2,
+                     hasStatus,
+                     nowUtc,
+                     FormatQueueServerTime))
         {
-            var finishUtc = upgrade.Finish?.FinishUtc
-                ?? (upgrade.TimeLeftSeconds is > 0
-                    ? DateTimeOffset.UtcNow.AddSeconds(upgrade.TimeLeftSeconds.Value)
-                    : (DateTimeOffset?)null);
-            _travianSmithyQueueRows.Add(new TravianSmithyQueueRow
-            {
-                Name = upgrade.Name,
-                LevelText = upgrade.TargetLevel.HasValue ? $"Level {upgrade.TargetLevel.Value}" : "-",
-                FinishAtText = finishUtc.HasValue ? FormatQueueServerTime(finishUtc.Value) : "-",
-            });
+            _travianSmithyQueueRows.Add(row);
         }
-
-        TravianSmithyQueueEmptyTextBlock.Text = !hasStatus
-            ? "No browser status loaded for this village."
-            : status?.SmithyUpgradeStatus is null
-                ? "Smithy queue has not been scanned for this village."
-                : "No active Smithy upgrade in Travian.";
-        TravianSmithyQueueEmptyTextBlock.Visibility =
-            _travianSmithyQueueRows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private static Guid? ResolveDisplayRunningQueueItemId(IReadOnlyList<QueueItem> ordered)

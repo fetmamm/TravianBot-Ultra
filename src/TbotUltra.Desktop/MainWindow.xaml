@@ -2772,51 +2772,14 @@
                         </Grid.RowDefinitions>
 
                         <!-- Header -->
-                        <DockPanel Grid.Row="0" Margin="2,2,2,12">
+                        <DockPanel Grid.Row="0" Margin="2,2,2,8">
                             <StackPanel DockPanel.Dock="Left">
                                 <TextBlock Text="Queue"
                                            FontSize="22"
                                            FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimaryBrush}" />
-                                <TextBlock x:Name="QueueInfoTextBlock"
-                                           Text="Queue loaded."
-                                           Foreground="{DynamicResource TextSubtleBrush}"
-                                           FontSize="12"
-                                           Margin="0,4,0,0" />
-                                <TextBlock x:Name="QueueSelectedVillageTextBlock"
-                                           Text="Selected village: -"
-                                           Foreground="{DynamicResource TextSubtleBrush}"
-                                           FontSize="12"
-                                           Margin="0,3,0,0"
-                                           ToolTip="The queue below is shown for this village. Choose a village with the dropdown on the Dashboard." />
                                 <TextBlock x:Name="BuildQueueStatusTextBlock" Visibility="Collapsed" />
                             </StackPanel>
-                            <Button x:Name="QueuePopoutButton"
-                                    DockPanel.Dock="Right"
-                                    Content="Pop out"
-                                    Width="92"
-                                    Click="QueuePopoutButton_Click"
-                                    Background="{DynamicResource SurfaceBrush}"
-                                    BorderBrush="{DynamicResource BorderSubtleBrush}" />
-                            <Button x:Name="QueueClearButton"
-                                    DockPanel.Dock="Right"
-                                    Content="Clear account queue"
-                                    Width="140"
-                                    Margin="0,0,8,0"
-                                    Click="QueueClearButton_Click"
-                                    Background="{DynamicResource DangerBgBrush}"
-                                    BorderBrush="{DynamicResource DangerBorderBrush}"
-                                    Foreground="{DynamicResource DangerTextBrush}" />
-                            <Button x:Name="ClearVillageQueueButton"
-                                    DockPanel.Dock="Right"
-                                    Content="Clear village queue"
-                                    Width="140"
-                                    Margin="0,0,8,0"
-                                    Click="ClearVillageQueueButton_Click"
-                                    ToolTip="Clears only the queued tasks for the village selected in the Dashboard dropdown."
-                                    Background="{DynamicResource DangerBgBrush}"
-                                    BorderBrush="{DynamicResource DangerBorderBrush}"
-                                    Foreground="{DynamicResource DangerTextBrush}" />
                             <TextBlock />
                         </DockPanel>
 
@@ -2860,22 +2823,16 @@
                                                   BorderThickness="1"
                                                   ColumnHeaderHeight="28"
                                                   RowHeight="30"
-                                                  MinHeight="58"
-                                                  MaxHeight="128"
+                                                  MinHeight="90"
+                                                  MaxHeight="120"
                                                   FontSize="12">
                                             <DataGrid.Columns>
                                                 <DataGridTextColumn Header="Construction" Width="*" Binding="{Binding Name}" />
-                                                <DataGridTextColumn Header="Target" Width="90" Binding="{Binding LevelText}" />
-                                                <DataGridTextColumn Header="Finished" Width="150" Binding="{Binding FinishAtText}" />
+                                                <DataGridTextColumn Header="Target" Width="78" Binding="{Binding LevelText}" />
+                                                <DataGridTextColumn Header="Timer" Width="82" Binding="{Binding CountdownText}" />
+                                                <DataGridTextColumn Header="Finished" Width="132" Binding="{Binding FinishAtText}" />
                                             </DataGrid.Columns>
                                         </DataGrid>
-                                        <TextBlock x:Name="TravianBuildQueueEmptyTextBlock"
-                                                   Text="No browser status loaded for this village."
-                                                   Foreground="{DynamicResource TextSubtleBrush}"
-                                                   HorizontalAlignment="Left"
-                                                   VerticalAlignment="Top"
-                                                   Margin="10,34,10,8"
-                                                   IsHitTestVisible="False" />
                                     </Grid>
                                 </Grid>
                             </Border>
@@ -2914,22 +2871,16 @@
                                                   BorderThickness="1"
                                                   ColumnHeaderHeight="28"
                                                   RowHeight="30"
-                                                  MinHeight="58"
-                                                  MaxHeight="128"
+                                                  MinHeight="90"
+                                                  MaxHeight="90"
                                                   FontSize="12">
                                             <DataGrid.Columns>
                                                 <DataGridTextColumn Header="Upgrade" Width="*" Binding="{Binding Name}" />
-                                                <DataGridTextColumn Header="Target" Width="90" Binding="{Binding LevelText}" />
-                                                <DataGridTextColumn Header="Finished" Width="150" Binding="{Binding FinishAtText}" />
+                                                <DataGridTextColumn Header="Target" Width="78" Binding="{Binding LevelText}" />
+                                                <DataGridTextColumn Header="Timer" Width="82" Binding="{Binding CountdownText}" />
+                                                <DataGridTextColumn Header="Finished" Width="132" Binding="{Binding FinishAtText}" />
                                             </DataGrid.Columns>
                                         </DataGrid>
-                                        <TextBlock x:Name="TravianSmithyQueueEmptyTextBlock"
-                                                   Text="No browser status loaded for this village."
-                                                   Foreground="{DynamicResource TextSubtleBrush}"
-                                                   HorizontalAlignment="Left"
-                                                   VerticalAlignment="Top"
-                                                   Margin="10,34,10,8"
-                                                   IsHitTestVisible="False" />
                                     </Grid>
                                 </Grid>
                             </Border>
@@ -3210,6 +3161,63 @@
 
                             </TabItem>
                         </TabControl>
+
+                        <Border Grid.Row="2"
+                                Panel.ZIndex="10"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Height="30"
+                                Padding="6,0,0,0"
+                                Background="{DynamicResource AppBackgroundBrush}">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock x:Name="QueueInfoTextBlock"
+                                           Text="Queue loaded."
+                                           Width="118"
+                                           TextTrimming="CharacterEllipsis"
+                                           Foreground="{DynamicResource TextSubtleBrush}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Text=" | "
+                                           Foreground="{DynamicResource TextSubtleBrush}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center" />
+                                <TextBlock x:Name="QueueSelectedVillageTextBlock"
+                                           Text="Selected village: -"
+                                           Width="150"
+                                           TextTrimming="CharacterEllipsis"
+                                           Foreground="{DynamicResource TextSubtleBrush}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center"
+                                           ToolTip="The queue below is shown for this village. Choose a village with the dropdown on the Dashboard." />
+                                <Button x:Name="ClearVillageQueueButton"
+                                        Content="Clear village queue"
+                                        Width="124"
+                                        Height="26"
+                                        Margin="8,0,0,0"
+                                        Click="ClearVillageQueueButton_Click"
+                                        ToolTip="Clears only the queued tasks for the village selected in the Dashboard dropdown."
+                                        Background="{DynamicResource DangerBgBrush}"
+                                        BorderBrush="{DynamicResource DangerBorderBrush}"
+                                        Foreground="{DynamicResource DangerTextBrush}" />
+                                <Button x:Name="QueueClearButton"
+                                        Content="Clear account queue"
+                                        Width="132"
+                                        Height="26"
+                                        Margin="6,0,0,0"
+                                        Click="QueueClearButton_Click"
+                                        Background="{DynamicResource DangerBgBrush}"
+                                        BorderBrush="{DynamicResource DangerBorderBrush}"
+                                        Foreground="{DynamicResource DangerTextBrush}" />
+                                <Button x:Name="QueuePopoutButton"
+                                        Content="Pop out"
+                                        Width="74"
+                                        Height="26"
+                                        Margin="6,0,0,0"
+                                        Click="QueuePopoutButton_Click"
+                                        Background="{DynamicResource SurfaceBrush}"
+                                        BorderBrush="{DynamicResource BorderSubtleBrush}" />
+                            </StackPanel>
+                        </Border>
                     </Grid>
                 </TabItem>
 

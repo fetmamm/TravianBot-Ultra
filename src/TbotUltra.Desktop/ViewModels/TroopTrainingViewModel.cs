@@ -734,6 +734,16 @@ public sealed class TroopTrainingViewModel : BaseViewModel
         }
     }
 
+    public void ResetRuntimeState()
+    {
+        InfoText = "Configure troop building rules and refresh queues when needed.";
+        ResetQueueStatus();
+        BreweryExists = false;
+        AutoCelebrationCanStart = false;
+        AutoCelebrationRemainingSeconds = null;
+        AutoCelebrationStatusText = "Status not loaded.";
+    }
+
     public void ClearRuntimeTimers()
     {
         foreach (var option in Buildings)

@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
 
@@ -99,6 +100,36 @@ public partial class MainWindow
             var currentLevel = villageLoaded && slotId.HasValue ? ResolveResourceLevel(slotId.Value) : null;
             var fromLevel = currentLevel.HasValue ? currentLevel.Value + 1 : target.Value;
             return SumLevels(item, gid, fromLevel, target.Value, serverSpeed, mainBuildingLevel);
+        }
+
+        if (string.Equals(taskName, "upgrade_all_resources_to_level", StringComparison.OrdinalIgnoreCase))
+        {
+            var target = TryGetIntPayloadValue(payload, BotOptionPayloadKeys.ResourceUpgradeTargetLevel)
+                ?? TryGetIntPayloadValue(payload, BotOptionPayloadKeys.TargetLevel);
+            if (target is null || !villageLoaded)
+            {
+                return QueueEstimate.None;
+            }
+
+            if (!ResourceFieldUpgradeEstimator.TryEstimate(
+                    _resourcesViewModel.AllFields,
+                    target.Value,
+                    serverSpeed,
+                    mainBuildingLevel,
+                    out var estimate,
+                    out var failureReason))
+            {
+                RaiseEstimateAlarm(item, failureReason ?? "resource field estimate failed");
+                return QueueEstimate.None;
+            }
+
+            return new QueueEstimate(
+                true,
+                estimate.Seconds,
+                estimate.Wood,
+                estimate.Clay,
+                estimate.Iron,
+                estimate.Crop);
         }
 
         // Everything else (farming, hero, transfers, demolish, ...) is not estimable.

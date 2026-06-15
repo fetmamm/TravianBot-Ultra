@@ -2,7 +2,6 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using TbotUltra.Core.Accounts;
-using TbotUltra.Core.Configuration;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
 
@@ -35,57 +34,34 @@ public sealed class AccountDeletionService
 
     public void DeleteAccount(string accountName)
     {
-        ThrowIfQueueHasActiveItems();
+        ThrowIfDeletingActiveAccountWithQueue(accountName);
         PruneAccountFromBotConfig(accountName);
         _accountStore.DeleteAccount(accountName);
         DeleteAccountArtifacts(accountName);
     }
 
-    private void ThrowIfQueueHasActiveItems()
+    private void ThrowIfDeletingActiveAccountWithQueue(string accountName)
     {
+        if (!string.Equals(
+                AccountStoragePaths.NormalizeAccountKey(accountName),
+                AccountStoragePaths.NormalizeAccountKey(_accountStore.ActiveAccountName()),
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
         var activeCount = _queueStore.GetAll().Count(item =>
             item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused);
         if (activeCount > 0)
         {
             throw new InvalidOperationException(
-                $"Cannot delete account while {activeCount} queue item(s) are pending, running, or paused. Clear or finish the queue first.");
+                $"Cannot delete the active account while {activeCount} queue item(s) are pending, running, or paused. Clear or finish that account's queue first.");
         }
     }
 
     private void PruneAccountFromBotConfig(string accountName)
     {
-        var accountKey = AccountStoragePaths.NormalizeAccountKey(accountName);
-        var config = _botConfigStore.Load();
-        if (config[BotOptionPayloadKeys.ReinforcementsTroopRules] is not JsonArray rules)
-        {
-            return;
-        }
-
-        var kept = rules
-            .OfType<JsonObject>()
-            .Where(rule =>
-            {
-                var ruleAccount = rule["accountName"]?.GetValue<string>() ?? string.Empty;
-                if (string.IsNullOrWhiteSpace(ruleAccount))
-                {
-                    return true;
-                }
-
-                return !string.Equals(
-                    AccountStoragePaths.NormalizeAccountKey(ruleAccount),
-                    accountKey,
-                    StringComparison.Ordinal);
-            })
-            .Select(rule => rule.DeepClone())
-            .ToArray();
-
-        if (kept.Length == rules.Count)
-        {
-            return;
-        }
-
-        config[BotOptionPayloadKeys.ReinforcementsTroopRules] = new JsonArray(kept);
-        _botConfigStore.Save(config);
+        _botConfigStore.RemoveLegacyReinforcementRulesForAccount(accountName);
     }
 
     private void DeleteAccountArtifacts(string accountName)

@@ -322,6 +322,7 @@ public partial class MainWindow
                 AppendLog($"Active account changed to '{activeAccountAfterDialog}'. Previous session closed and state reset.");
                 ResetVillageSelectionUi();
                 LoadConfigToUi();
+                ConfigureSessionPacerFromConfig();
 
                 if (previousLoggedIn)
                 {
@@ -390,6 +391,7 @@ public partial class MainWindow
             SyncServerFromActiveAccount();
             UpdateCaptchaCardVisibility();
             LoadConfigToUi();
+            ConfigureSessionPacerFromConfig();
 
             if (previousLoggedIn)
             {
@@ -523,14 +525,24 @@ public partial class MainWindow
         _collectTasksLastQueuedAtByVillage.Clear();
         _resourceLastQueuedTargetBySlot.Clear();
         _resourcesViewModel.ClearPendingTargets();
+        _resourcesViewModel.InfoText = "Resources not loaded yet.";
         _buildingClickCooldownBySlot.Clear();
         _buildingLastQueuedTargetBySlot.Clear();
         _buildingLastQueuedConstructBySlot.Clear();
+        _buildingDemolishingSlots.Clear();
         _buildQueueActiveCount = 0;
         _buildQueueRemainingSeconds = -1;
+        _buildQueueReachedZeroPendingCompletion = false;
         _activeVillageResourceMaxLevel = NonCapitalResourceMaxLevel;
         _lastBuildingStatus = null;
         _lastResourceStatusForUi = null;
+        _uiQueueSnapshot = null;
+        _uiQueueSnapshotAtUtc = DateTimeOffset.MinValue;
+        _pendingQueueUiSelectId = null;
+        _travianBuildQueueRows.Clear();
+        _travianSmithyQueueRows.Clear();
+        _estimateAlarmedKeys.Clear();
+        _serverSpeedAlarmRaised = false;
 
         SetResourceRows([]);
         _resourcesViewModel.ResetStorageForecasts();
@@ -543,14 +555,105 @@ public partial class MainWindow
         // previous account's villages. The on-disk village_cache.json per account is kept.
         _villageStatusCacheByName.Clear();
         _buildingRows.Clear();
+        _buildingCatalogOptions.Clear();
         _demolishableBuildings.Clear();
+        BuildingsInfoTextBlock.Text = "Buildings not loaded yet.";
+        VillagesInfoTextBlock.Text = "Villages: 0";
         ForceClearVillageSelectionUi();
         BuildQueueStatusTextBlock.Text = "Build queue: idle";
+
+        _heroViewModel.ResetRuntimeState();
+        _heroHomeVillageName = null;
+        _heroIsAway = false;
+        _heroIsDead = false;
+        _heroIsReviving = false;
+
+        _troopTrainingViewModel.ResetRuntimeState();
+        _smithyUpgradeRemainingSeconds.Clear();
+        _smithyUpgradeStatusRefreshRunning = false;
+        _pendingSmithyUpgradeStatusBuildings = null;
+        _knownBrewerySlotByVillage.Clear();
+
+        foreach (var row in _farmLists)
+        {
+            row.PropertyChanged -= FarmListStatusRow_PropertyChanged;
+        }
+        _farmLists.Clear();
+        _analyzedFarmCoordinates.Clear();
+        _farmListCapacitiesByName.Clear();
+        _lastFarmListsAnalysisAt = DateTimeOffset.MinValue;
+        _farmingFeaturesAvailable = true;
+        SetNatarsProfileAnalyzed(false);
+        if (FarmingStatusTextBlock is not null)
+        {
+            FarmingStatusTextBlock.Text = "No farm lists loaded. Click Analyze Farmlists.";
+        }
+
+        foreach (var village in _resourceTransferVillages)
+        {
+            village.PropertyChanged -= ResourceTransferVillage_PropertyChanged;
+        }
+        _resourceTransferVillages.Clear();
+        ResourceTransferTargetVillageComboBox.SelectedItem = null;
+        ResourceTransferStatusTextBlock.Text = "No villages loaded.";
+
+        foreach (var village in _reinforcementVillages)
+        {
+            village.PropertyChanged -= ReinforcementVillage_PropertyChanged;
+        }
+        _reinforcementVillages.Clear();
+        ClearReinforcementTroopRules();
+        _configuredReinforcementTroopRules = [];
+        ReinforcementTargetVillageComboBox.SelectedItem = null;
+        ReinforcementStatusTextBlock.Text = "No villages loaded.";
+
+        _activeWorkingVillageKey = null;
+        _activeWorkingVillageName = null;
+        lock (_pendingSwitchVillageLock)
+        {
+            _pendingSwitchVillageName = null;
+            _pendingSwitchVillageUrl = null;
+        }
+        _continuousGroupRotationVillageKeys.Clear();
+        _defaultEnabledGroupKeys.Clear();
+
+        _troopsBlockedReasonKey = null;
+        _troopsBlockedReasonText = null;
+        _troopsBlockedPreviouslyEnabled = false;
+        _farmingBlockedReasonKey = null;
+        _farmingBlockedReasonText = null;
+        _farmingBlockedPreviouslyEnabled = false;
+        _heroBlockedReasonKey = null;
+        _heroBlockedReasonText = null;
+        _heroBlockedPreviouslyEnabled = false;
+        _breweryBlockedReasonKey = null;
+        _breweryBlockedReasonText = null;
+        _breweryBlockedPreviouslyEnabled = false;
+
+        _lastContinuousInboxCheckUtc = DateTimeOffset.MinValue;
+        _lastContinuousBrowserActivityUtc = DateTimeOffset.MinValue;
+        _inlineWaitUntilUtc = DateTimeOffset.MinValue;
+        _manualFarmSessionExecutionCount = 0;
+        UpdateManualFarmingExecutionCounter();
+        _captchaSessionSeenCount = 0;
+        _captchaSessionSolvedCount = 0;
+        _captchaSessionActive = false;
+        _npcTradeSessionCount = 0;
+        _npcTradeTroopSessionCount = 0;
+        _npcTradeBuildingSessionCount = 0;
+        _pendingManualOperationId = null;
+        _operationNamesById.Clear();
+        _activeManualExecution = null;
+        _activeAutomationTaskName = null;
+        _activeFunctionDisplayName = null;
 
         // Return login/session state to startup: not logged in, browser closed, inbox idle.
         _isLoggedIn = false;
         _browserSessionLikelyOpen = false;
         _inboxAutoEnabled = false;
+        UpdatePlusInfo(null);
+        UpdateGoldClubInfo(null);
+        TribeInfoTextBlock.Text = "-";
         UpdateLoginButtonsVisual(false);
         UpdateInboxButtons(0, 0);
 

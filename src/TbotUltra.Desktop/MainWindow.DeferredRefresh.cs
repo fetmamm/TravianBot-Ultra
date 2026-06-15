@@ -276,6 +276,19 @@ public partial class MainWindow
 
         foreach (var item in deferredItems)
         {
+            if (ConstructionQueueState.ResolveDeferReason(item) == ConstructionDeferReason.StorageCapacity)
+            {
+                var block = ResolveStorageCapacityBlock(item.Payload, status, preferLiveStatus: true);
+                if (block is null
+                    && _botService.UpdateDeferredQueueItem(item.Id, item.Payload, TimeSpan.Zero))
+                {
+                    AppendLog(
+                        $"Deferred upgrade resumed from {source}: storage capacity now satisfies {DescribeDeferredUpgrade(item.Payload)}.");
+                }
+
+                continue;
+            }
+
             // Only resource deferrals may be resumed from a resource snapshot. Queue occupancy,
             // already-running targets, missing requirements and generic retries have different owners.
             if (ConstructionQueueState.ResolveDeferReason(item) != ConstructionDeferReason.Resources)

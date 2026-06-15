@@ -24,6 +24,7 @@ public enum ConstructionDeferReason
     InProgress,
     Resources,
     Requirements,
+    StorageCapacity,
     Retry,
 }
 
@@ -99,6 +100,11 @@ public static class ConstructionQueueState
         return ResolveDeferReason(item) == ConstructionDeferReason.InProgress;
     }
 
+    public static bool IsStorageCapacityDeferred(QueueItem item)
+    {
+        return ResolveDeferReason(item) == ConstructionDeferReason.StorageCapacity;
+    }
+
     public static bool BlocksAdditionalConstruction(QueueItem queueOccupancyDeferredItem)
     {
         return IsQueueOccupancyDeferred(queueOccupancyDeferredItem);
@@ -129,6 +135,11 @@ public static class ConstructionQueueState
         if (string.Equals(reason, BotOptionPayloadKeys.UpgradeDeferReasonRequirements, StringComparison.OrdinalIgnoreCase))
         {
             return ConstructionDeferReason.Requirements;
+        }
+
+        if (string.Equals(reason, BotOptionPayloadKeys.UpgradeDeferReasonStorageCapacity, StringComparison.OrdinalIgnoreCase))
+        {
+            return ConstructionDeferReason.StorageCapacity;
         }
 
         return ConstructionDeferReason.Retry;

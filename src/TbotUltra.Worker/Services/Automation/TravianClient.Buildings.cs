@@ -394,7 +394,9 @@ public sealed partial class TravianClient
                 blockedLabel,
                 new Dictionary<string, UpgradeResourceWaitValue>(StringComparer.OrdinalIgnoreCase),
                 Math.Max(1, heroUseLimitWait),
-                "hero_use_limit");
+                "hero_use_limit",
+                null,
+                null);
             Notify(FormatUpgradeResourceWaitLog(heroLimitSnapshot));
             return heroLimitSnapshot;
         }
@@ -456,6 +458,16 @@ public sealed partial class TravianClient
               return result;
             }
             """);
+        (long? Warehouse, long? Granary) capacities;
+        try
+        {
+            capacities = await ReadStorageCapacitiesAsync(cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Notify($"Storage capacity read for blocked construction skipped: {ex.Message}");
+            capacities = (null, null);
+        }
 
         var hasProductionTable = await CurrentPageHasProductionTableAsync(cancellationToken);
         if (!hasProductionTable)
@@ -468,7 +480,9 @@ public sealed partial class TravianClient
                 currentResourcesFromStockBar,
                 cachedProductionByHour,
                 fallbackWaitSeconds,
-                HasAnyProduction(cachedProductionByHour) ? "cached_production" : "page_timer");
+                HasAnyProduction(cachedProductionByHour) ? "cached_production" : "page_timer",
+                capacities.Warehouse,
+                capacities.Granary);
             Notify(FormatUpgradeResourceWaitLog(snapshot));
             return snapshot;
         }
@@ -481,7 +495,9 @@ public sealed partial class TravianClient
             currentResources,
             productionByHour,
             fallbackWaitSeconds,
-            "estimated_from_page");
+            "estimated_from_page",
+            capacities.Warehouse,
+            capacities.Granary);
         Notify(FormatUpgradeResourceWaitLog(liveSnapshot));
         return liveSnapshot;
     }
@@ -492,7 +508,9 @@ public sealed partial class TravianClient
         IReadOnlyDictionary<string, string> currentResources,
         IReadOnlyDictionary<string, double?> productionByHour,
         int fallbackWaitSeconds,
-        string waitReasonWhenEstimated)
+        string waitReasonWhenEstimated,
+        long? warehouseCapacity,
+        long? granaryCapacity)
     {
         var values = new Dictionary<string, UpgradeResourceWaitValue>(StringComparer.OrdinalIgnoreCase);
         var longestFiniteSeconds = 0;
@@ -555,7 +573,9 @@ public sealed partial class TravianClient
             blockedLabel,
             values,
             resolvedWaitSeconds,
-            hasUnknownWait && fallbackWaitSeconds <= 0 ? "recheck_needed" : resolvedWaitReason);
+            hasUnknownWait && fallbackWaitSeconds <= 0 ? "recheck_needed" : resolvedWaitReason,
+            warehouseCapacity,
+            granaryCapacity);
     }
 
     private async Task<IReadOnlyDictionary<string, double?>> ReadCachedProductionByHourForActiveVillageAsync(CancellationToken cancellationToken)
@@ -653,6 +673,8 @@ public sealed partial class TravianClient
         AppendUpgradeWaitValueTokens(builder, "clay", snapshot.Values);
         AppendUpgradeWaitValueTokens(builder, "iron", snapshot.Values);
         AppendUpgradeWaitValueTokens(builder, "crop", snapshot.Values);
+        AppendLongToken(builder, BotOptionPayloadKeys.UpgradeWarehouseCapacity, snapshot.WarehouseCapacity);
+        AppendLongToken(builder, BotOptionPayloadKeys.UpgradeGranaryCapacity, snapshot.GranaryCapacity);
         return builder.ToString();
     }
 
@@ -750,7 +772,9 @@ public sealed partial class TravianClient
         string BlockedLabel,
         IReadOnlyDictionary<string, UpgradeResourceWaitValue> Values,
         int WaitSeconds,
-        string WaitReason);
+        string WaitReason,
+        long? WarehouseCapacity,
+        long? GranaryCapacity);
 
     private sealed record UpgradeResourceWaitValue(
         long? Required,

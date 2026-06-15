@@ -1,5 +1,6 @@
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.ViewModels;
+using TbotUltra.Worker.Domain;
 using Xunit;
 
 namespace TbotUltra.Desktop.Tests;
@@ -49,5 +50,27 @@ public sealed class HeroViewModelTests
         vm.LoadSettingsFromConfig(options);
 
         Assert.Equal(enabled, vm.AutoUseOintments);
+    }
+
+    [Fact]
+    public void ResetRuntimeState_ClearsPreviousAccountValues()
+    {
+        var vm = new HeroViewModel();
+        vm.LoadPriorityFromConfig(null);
+        vm.ApplyAttributeSnapshot(new HeroAttributeSnapshot(
+            FreePoints: 5,
+            FightingStrength: 10,
+            OffenceBonus: 20,
+            DefenceBonus: 30,
+            Resources: 40));
+        vm.ApplyInventory(new HeroInventoryResources(1, 2, 3, 4));
+        vm.AdventureCountText = "7";
+
+        vm.ResetRuntimeState();
+
+        Assert.Equal("?", vm.AdventureCountText);
+        Assert.Equal("-", vm.HeroInventoryWood);
+        Assert.Equal("Hero stats not loaded.", vm.AttributesStatusText);
+        Assert.All(vm.AttributePriorityItems, item => Assert.Equal("-", item.PointsText));
     }
 }

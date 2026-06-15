@@ -114,6 +114,7 @@ public partial class MainWindow
         {
             await RefreshConstructionStatusAsync(cancellationToken);
             await RefreshCurrentPageStorageStatusAsync(options, "construction_success", cancellationToken);
+            await HandleStorageDependencySucceededAsync(item);
         }
         else if (IsResourceUpgradeTask(item.TaskName))
         {
@@ -285,6 +286,11 @@ public partial class MainWindow
                     }
                 }
 
+                if (IsConstructionQueueTask(item.TaskName))
+                {
+                    await TryHandleStorageCapacityDependencyAsync(item, updatedPayload);
+                }
+
                 await RefreshFarmListsUiAfterAutoSendIfNeededAsync(item, ex.Message);
                 AppendLog($"{logPrefix} DEFER {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | next try in {queueWaitDelay.TotalSeconds:F0}s{constructionSuffix}");
                 // A building-mutation task can start one build (e.g. via hero resource transfer) and then defer
@@ -312,6 +318,7 @@ public partial class MainWindow
         }
 
         _botService.MarkQueueItemExecutionFailed(item.Id);
+        HandleStorageDependencyFailed(item, ex.Message);
         AppendLog(FormatQueueFailureLog(logPrefix, timer, item, ex, mode));
         RaiseAlarmIfQueueItemPermanentlyFailed(item, ex.Message);
         return true;

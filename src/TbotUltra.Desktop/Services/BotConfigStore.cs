@@ -43,7 +43,11 @@ public sealed class BotConfigStore
         BotOptionPayloadKeys.HeroContinuousAdventures,
         BotOptionPayloadKeys.AutoCollectTasksEnabled,
         BotOptionPayloadKeys.AutoCollectDailyQuestsEnabled,
+        BotOptionPayloadKeys.CollectStepDelayMinMs,
+        BotOptionPayloadKeys.CollectStepDelayMaxMs,
         BotOptionPayloadKeys.HeroResourceTransferEnabled,
+        BotOptionPayloadKeys.HeroResourceMaxUseEnabled,
+        BotOptionPayloadKeys.HeroResourceMaxUsePerResource,
         BotOptionPayloadKeys.HeroResourceUseConstruction,
         BotOptionPayloadKeys.HeroResourceUseSmithy,
         BotOptionPayloadKeys.HeroResourceUseBrewery,
@@ -123,6 +127,8 @@ public sealed class BotConfigStore
         BotOptionPayloadKeys.NpcTradeAnalyzeCrop,
         BotOptionPayloadKeys.NpcTradeBuildTimeLimitEnabled,
         BotOptionPayloadKeys.NpcTradeBuildTimeLimitSeconds,
+        BotOptionPayloadKeys.AllowGoldSpending,
+        BotOptionPayloadKeys.GoldLimit,
         BotOptionPayloadKeys.ResourceTransferEnabled,
         BotOptionPayloadKeys.ResourceTransferTargetVillageName,
         BotOptionPayloadKeys.ResourceTransferSourceVillageNames,
@@ -157,6 +163,14 @@ public sealed class BotConfigStore
         BotOptionPayloadKeys.ActionPacingLoopMaxSeconds,
         BotOptionPayloadKeys.FarmListStepDelayMinSeconds,
         BotOptionPayloadKeys.FarmListStepDelayMaxSeconds,
+        BotOptionPayloadKeys.CaptchaAutoSolveEnabled,
+        BotOptionPayloadKeys.CaptchaSolverTimeoutSeconds,
+        BotOptionPayloadKeys.CaptchaSolverMaxAttempts,
+        "loop_interval_seconds",
+        "human_like_enabled",
+        "human_like_speed",
+        "allow_silver_spending",
+        "silver_limit",
         "loop_tasks",
         "continuous_loop_groups",
         "continuous_loop_group_order",
@@ -200,7 +214,9 @@ public sealed class BotConfigStore
             return config;
         }
 
-        foreach (var pair in LoadAccountSettings(accountName))
+        var accountConfig = LoadAccountSettings(accountName);
+        MigrateLegacyAccountScopedValues(accountName, config, accountConfig);
+        foreach (var pair in accountConfig)
         {
             config[pair.Key] = pair.Value?.DeepClone();
         }
@@ -260,6 +276,37 @@ public sealed class BotConfigStore
         SaveJson(_configPath, globalConfig);
     }
 
+    public void RemoveLegacyReinforcementRulesForAccount(string accountName)
+    {
+        var accountKey = AccountStoragePaths.NormalizeAccountKey(accountName);
+        var globalConfig = LoadGlobal();
+        if (globalConfig[BotOptionPayloadKeys.ReinforcementsTroopRules] is not JsonArray rules)
+        {
+            return;
+        }
+
+        var kept = rules
+            .OfType<JsonObject>()
+            .Where(rule =>
+            {
+                var ruleAccount = rule["accountName"]?.GetValue<string>() ?? string.Empty;
+                return string.IsNullOrWhiteSpace(ruleAccount)
+                    || !string.Equals(
+                        AccountStoragePaths.NormalizeAccountKey(ruleAccount),
+                        accountKey,
+                        StringComparison.Ordinal);
+            })
+            .Select(rule => rule.DeepClone())
+            .ToArray();
+        if (kept.Length == rules.Count)
+        {
+            return;
+        }
+
+        globalConfig[BotOptionPayloadKeys.ReinforcementsTroopRules] = new JsonArray(kept);
+        SaveJson(_configPath, globalConfig);
+    }
+
     // Resets settings to defaults for the ACTIVE account only: global non-identity keys (shared program
     // settings) plus the active account's own settings file. Other accounts' settings are left untouched
     // so a reset on one account doesn't wipe the rest.
@@ -293,6 +340,116 @@ public sealed class BotConfigStore
         RemoveDeprecatedTechnicalKeys(accountConfig);
         var path = AccountStoragePaths.AccountSettingsPath(_projectRoot!, accountName);
         SaveJson(path, accountConfig);
+    }
+
+    private void MigrateLegacyAccountScopedValues(
+        string accountName,
+        JsonObject globalConfig,
+        JsonObject accountConfig)
+    {
+        var globalChanged = false;
+        var accountChanged = false;
+        foreach (var key in AccountScopedKeys)
+        {
+            if (!globalConfig.TryGetPropertyValue(key, out var value))
+            {
+                continue;
+            }
+
+            if (string.Equals(key, BotOptionPayloadKeys.ReinforcementsTroopRules, StringComparison.OrdinalIgnoreCase)
+                && value is JsonArray rules)
+            {
+                if (!accountConfig.ContainsKey(key))
+                {
+                    accountConfig[key] = CloneAccountScopedValueForAccount(key, value, accountName);
+                    accountChanged = true;
+                }
+
+                MigrateLegacyReinforcementRulesForOtherAccounts(rules, accountName);
+                globalConfig.Remove(key);
+                globalChanged = true;
+                continue;
+            }
+
+            if (!accountConfig.ContainsKey(key))
+            {
+                accountConfig[key] = CloneAccountScopedValueForAccount(key, value, accountName);
+                accountChanged = true;
+            }
+
+            globalConfig.Remove(key);
+            globalChanged = true;
+        }
+
+        if (accountChanged)
+        {
+            var accountPath = AccountStoragePaths.AccountSettingsPath(_projectRoot!, accountName);
+            SaveJson(accountPath, accountConfig);
+        }
+
+        if (globalChanged)
+        {
+            SaveJson(_configPath, globalConfig);
+        }
+    }
+
+    private static JsonNode? CloneAccountScopedValueForAccount(string key, JsonNode? value, string accountName)
+    {
+        if (!string.Equals(key, BotOptionPayloadKeys.ReinforcementsTroopRules, StringComparison.OrdinalIgnoreCase)
+            || value is not JsonArray rules)
+        {
+            return value?.DeepClone();
+        }
+
+        var accountKey = AccountStoragePaths.NormalizeAccountKey(accountName);
+        var matchingRules = rules
+            .OfType<JsonObject>()
+            .Where(rule =>
+            {
+                var ruleAccount = rule["accountName"]?.GetValue<string>() ?? string.Empty;
+                return string.IsNullOrWhiteSpace(ruleAccount)
+                    || string.Equals(
+                        AccountStoragePaths.NormalizeAccountKey(ruleAccount),
+                        accountKey,
+                        StringComparison.Ordinal);
+            })
+            .Select(rule => rule.DeepClone())
+            .ToArray();
+        return new JsonArray(matchingRules);
+    }
+
+    private void MigrateLegacyReinforcementRulesForOtherAccounts(JsonArray rules, string activeAccountName)
+    {
+        var activeAccountKey = AccountStoragePaths.NormalizeAccountKey(activeAccountName);
+        var accountGroups = rules
+            .OfType<JsonObject>()
+            .Select(rule => new
+            {
+                Rule = rule,
+                AccountName = rule["accountName"]?.GetValue<string>()?.Trim() ?? string.Empty,
+            })
+            .Where(item => !string.IsNullOrWhiteSpace(item.AccountName))
+            .GroupBy(
+                item => AccountStoragePaths.NormalizeAccountKey(item.AccountName),
+                StringComparer.Ordinal)
+            .Where(group => !string.Equals(group.Key, activeAccountKey, StringComparison.Ordinal));
+
+        foreach (var group in accountGroups)
+        {
+            var targetAccountName = group.First().AccountName;
+            var targetConfig = LoadAccountSettings(targetAccountName);
+            if (targetConfig.ContainsKey(BotOptionPayloadKeys.ReinforcementsTroopRules))
+            {
+                continue;
+            }
+
+            var accountRules = group
+                .Select(item => item.Rule.DeepClone())
+                .ToArray();
+            targetConfig[BotOptionPayloadKeys.ReinforcementsTroopRules] = new JsonArray(accountRules);
+            var targetPath = AccountStoragePaths.AccountSettingsPath(_projectRoot!, targetAccountName);
+            SaveJson(targetPath, targetConfig);
+        }
     }
 
     private JsonObject LoadAccountSettings(string accountName)

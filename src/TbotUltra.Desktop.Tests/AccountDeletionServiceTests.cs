@@ -13,7 +13,6 @@ public sealed class AccountDeletionServiceTests : IDisposable
     private readonly string _root;
     private readonly string _envPath;
     private readonly string _configPath;
-    private readonly string _queuePath;
 
     public AccountDeletionServiceTests()
     {
@@ -22,8 +21,6 @@ public sealed class AccountDeletionServiceTests : IDisposable
         Directory.CreateDirectory(Path.Combine(_root, "config"));
         _envPath = Path.Combine(_root, ".env");
         _configPath = Path.Combine(_root, "config", "bot.json");
-        _queuePath = Path.Combine(_root, "config", "queue.json");
-        File.WriteAllText(_queuePath, "[]");
     }
 
     [Fact]
@@ -56,27 +53,57 @@ public sealed class AccountDeletionServiceTests : IDisposable
     {
         WriteEnv("alice", "alice");
         WriteBotConfigWithReinforcementRules();
-        var queueStore = new JsonQueueStore(_queuePath);
+        var accountStore = new EnvAccountStore(_envPath);
+        var queueStore = CreateQueueStore(accountStore);
         queueStore.Add("status", null, priority: 0, maxRetries: 0);
         var service = new AccountDeletionService(
             _root,
-            new EnvAccountStore(_envPath),
-            new BotConfigStore(_configPath),
+            accountStore,
+            new BotConfigStore(_configPath, _root, accountStore.ActiveAccountName),
             queueStore);
 
         var ex = Assert.Throws<InvalidOperationException>(() => service.DeleteAccount("alice"));
 
-        Assert.Contains("Cannot delete account while", ex.Message);
+        Assert.Contains("Cannot delete the active account while", ex.Message);
         Assert.Contains("TBOT_ALICE_USERNAME=alice@example.com", File.ReadAllText(_envPath));
+    }
+
+    [Fact]
+    public void DeleteAccount_AllowsInactiveAccountWhenActiveAccountHasQueue()
+    {
+        WriteEnv("alice,bob", "alice");
+        WriteBotConfigWithReinforcementRules();
+        WriteAccountArtifacts("bob");
+        var accountStore = new EnvAccountStore(_envPath);
+        var queueStore = CreateQueueStore(accountStore);
+        queueStore.Add("status", null, priority: 0, maxRetries: 0);
+        var service = new AccountDeletionService(
+            _root,
+            accountStore,
+            new BotConfigStore(_configPath, _root, accountStore.ActiveAccountName),
+            queueStore);
+
+        service.DeleteAccount("bob");
+
+        Assert.False(Directory.Exists(AccountStoragePaths.AccountDirectory(_root, "bob")));
+        Assert.Contains("TBOT_ACTIVE_ACCOUNT=alice", File.ReadAllText(_envPath));
+        Assert.Single(queueStore.GetAll());
     }
 
     private AccountDeletionService CreateService()
     {
+        var accountStore = new EnvAccountStore(_envPath);
         return new AccountDeletionService(
             _root,
-            new EnvAccountStore(_envPath),
-            new BotConfigStore(_configPath),
-            new JsonQueueStore(_queuePath));
+            accountStore,
+            new BotConfigStore(_configPath, _root, accountStore.ActiveAccountName),
+            CreateQueueStore(accountStore));
+    }
+
+    private JsonQueueStore CreateQueueStore(EnvAccountStore accountStore)
+    {
+        return new JsonQueueStore(
+            () => AccountStoragePaths.AccountQueuePath(_root, accountStore.ActiveAccountName()));
     }
 
     private void WriteEnv(string accounts, string active)

@@ -196,6 +196,24 @@ public sealed class HeroViewModel : BaseViewModel
         HeroInventoryStatusText = string.Empty;
     }
 
+    public void ResetRuntimeState()
+    {
+        AttributesStatusText = "Hero stats not loaded.";
+        AdventureCountText = "?";
+        AdventureStatusText = "Adventures not loaded.";
+        HeroStatusText = "Hero status: Unknown";
+        HeroInventoryWood = "-";
+        HeroInventoryClay = "-";
+        HeroInventoryIron = "-";
+        HeroInventoryCrop = "-";
+        HeroInventoryStatusText = "Hero inventory not loaded.";
+
+        foreach (var item in AttributePriorityItems)
+        {
+            item.PointsText = "-";
+        }
+    }
+
     /// <summary>
     /// Minimum hero HP required before an adventure is queued (1-100).
     /// Bound to the min-HP TextBox in HeroPanel.xaml.

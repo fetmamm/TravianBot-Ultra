@@ -22,6 +22,8 @@ public static class BotOptionPayloadKeys
     public const string UpgradeProductionClay = "upgrade_production_clay";
     public const string UpgradeProductionIron = "upgrade_production_iron";
     public const string UpgradeProductionCrop = "upgrade_production_crop";
+    public const string UpgradeWarehouseCapacity = "upgrade_warehouse_capacity";
+    public const string UpgradeGranaryCapacity = "upgrade_granary_capacity";
     public const string UpgradeWaitSeconds = "upgrade_wait_seconds";
     public const string UpgradeWaitReason = "upgrade_wait_reason";
     public const string UpgradeBlockedLabel = "upgrade_blocked_label";
@@ -33,7 +35,11 @@ public static class BotOptionPayloadKeys
     public const string UpgradeDeferReasonInProgress = "in_progress";
     public const string UpgradeDeferReasonResources = "resources";
     public const string UpgradeDeferReasonRequirements = "requirements";
+    public const string UpgradeDeferReasonStorageCapacity = "storage_capacity";
     public const string UpgradeDeferReasonRetry = "retry";
+    public const string StorageDependencyParentId = "storage_dependency_parent_id";
+    public const string StorageDependencyItemId = "storage_dependency_item_id";
+    public const string StorageDependencyKind = "storage_dependency_kind";
 
     public const string BuildingUpgradeSlotId = "building_upgrade_slot_id";
     public const string BuildingUpgradeTargetLevel = "building_upgrade_target_level";

@@ -109,6 +109,90 @@ public sealed class BotConfigStoreTests : IDisposable
     }
 
     [Fact]
+    public void Load_MigratesLegacyAccountSettingsWithoutLeakingToNewAccount()
+    {
+        WriteJson(
+            _configPath,
+            new JsonObject
+            {
+                ["server_name"] = "Global",
+                ["base_url"] = "https://example.com",
+                [BotOptionPayloadKeys.HeroMinHpForAdventure] = 75,
+                [BotOptionPayloadKeys.HeroResourceMaxUsePerResource] = 4000,
+                [BotOptionPayloadKeys.CollectStepDelayMinMs] = 250,
+                ["allow_silver_spending"] = true,
+                [BotOptionPayloadKeys.ReinforcementsTroopRules] = new JsonArray(
+                    new JsonObject { ["accountName"] = "alice", ["troopType"] = "Clubswinger" },
+                    new JsonObject { ["accountName"] = "bob", ["troopType"] = "Spearman" }),
+            });
+        var store = CreateStore();
+
+        var alice = store.Load();
+
+        Assert.Equal(75, alice[BotOptionPayloadKeys.HeroMinHpForAdventure]!.GetValue<int>());
+        Assert.Equal(4000, alice[BotOptionPayloadKeys.HeroResourceMaxUsePerResource]!.GetValue<int>());
+        Assert.True(alice["allow_silver_spending"]!.GetValue<bool>());
+        Assert.Single(alice[BotOptionPayloadKeys.ReinforcementsTroopRules]!.AsArray());
+
+        var globalAfterAlice = JsonNode.Parse(File.ReadAllText(_configPath))!.AsObject();
+        Assert.False(globalAfterAlice.ContainsKey(BotOptionPayloadKeys.HeroMinHpForAdventure));
+        Assert.False(globalAfterAlice.ContainsKey(BotOptionPayloadKeys.HeroResourceMaxUsePerResource));
+        Assert.False(globalAfterAlice.ContainsKey(BotOptionPayloadKeys.CollectStepDelayMinMs));
+        Assert.False(globalAfterAlice.ContainsKey("allow_silver_spending"));
+        Assert.False(globalAfterAlice.ContainsKey(BotOptionPayloadKeys.ReinforcementsTroopRules));
+
+        _activeAccount = "bob";
+        var bob = store.Load();
+
+        Assert.False(bob.ContainsKey(BotOptionPayloadKeys.HeroMinHpForAdventure));
+        Assert.False(bob.ContainsKey(BotOptionPayloadKeys.HeroResourceMaxUsePerResource));
+        Assert.False(bob.ContainsKey(BotOptionPayloadKeys.CollectStepDelayMinMs));
+        Assert.False(bob.ContainsKey("allow_silver_spending"));
+        Assert.Equal(
+            "bob",
+            bob[BotOptionPayloadKeys.ReinforcementsTroopRules]![0]!["accountName"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void Save_MovesAllUserSettingsToActiveAccountSettings()
+    {
+        WriteJson(
+            _configPath,
+            new JsonObject
+            {
+                ["server_name"] = "Global",
+                ["base_url"] = "https://example.com",
+            });
+        var store = CreateStore();
+        var config = store.Load();
+        config[BotOptionPayloadKeys.HeroResourceMaxUseEnabled] = false;
+        config[BotOptionPayloadKeys.HeroResourceMaxUsePerResource] = 3000;
+        config[BotOptionPayloadKeys.CollectStepDelayMaxMs] = 900;
+        config[BotOptionPayloadKeys.AllowGoldSpending] = true;
+        config[BotOptionPayloadKeys.GoldLimit] = 500;
+        config["allow_silver_spending"] = true;
+        config["silver_limit"] = 250;
+        config["loop_interval_seconds"] = 90;
+
+        store.Save(config);
+
+        var global = JsonNode.Parse(File.ReadAllText(_configPath))!.AsObject();
+        Assert.False(global.ContainsKey(BotOptionPayloadKeys.HeroResourceMaxUseEnabled));
+        Assert.False(global.ContainsKey(BotOptionPayloadKeys.CollectStepDelayMaxMs));
+        Assert.False(global.ContainsKey(BotOptionPayloadKeys.AllowGoldSpending));
+        Assert.False(global.ContainsKey("allow_silver_spending"));
+        Assert.False(global.ContainsKey("loop_interval_seconds"));
+
+        var account = JsonNode.Parse(File.ReadAllText(AccountStoragePaths.AccountSettingsPath(_root, "alice")))!.AsObject();
+        Assert.False(account[BotOptionPayloadKeys.HeroResourceMaxUseEnabled]!.GetValue<bool>());
+        Assert.Equal(3000, account[BotOptionPayloadKeys.HeroResourceMaxUsePerResource]!.GetValue<int>());
+        Assert.Equal(900, account[BotOptionPayloadKeys.CollectStepDelayMaxMs]!.GetValue<int>());
+        Assert.Equal(500, account[BotOptionPayloadKeys.GoldLimit]!.GetValue<int>());
+        Assert.Equal(250, account["silver_limit"]!.GetValue<int>());
+        Assert.Equal(90, account["loop_interval_seconds"]!.GetValue<int>());
+    }
+
+    [Fact]
     public void Save_WithoutActiveAccountKeepsGlobalAccountScopedValues()
     {
         WriteJson(

@@ -45,7 +45,7 @@ Compatible with:
 - Automatic building
 - Hero adventures
 - Revive hero
-- Spend hero attribute points using a drag-sortable, per-account priority order (default: Resources, then Fighting strength)
+- Spend hero attribute points
 - Use hero inventory resources for buildings, smithy and brewery
 - Collect daily quests
 - Collect tasks
@@ -125,6 +125,10 @@ The bot manages every village on the account from one **Dashboard → Village ov
   A green border marks the village the browser is currently working in.
 - **One queue per account:** each task carries its target village, and the bot rotates between enabled
   villages (draining one, then moving on so a village waiting on resources never blocks the others).
+  Deleting an inactive account is not blocked by work queued on the active account.
+- **Strict account isolation:** settings, queues, village/building/resource snapshots, hero state,
+  Smithy targets and troop-training rules are stored under the account directory. New accounts use
+  defaults and never inherit another account's settings.
 - **Live Travian queues:** the Queue tab shows construction and Smithy upgrades side by side for the
   selected village. Smithy names, target levels, finish times, overview icons and loop status share the
   same browser-derived queue state and remain active until their absolute finish time.
@@ -140,11 +144,18 @@ The bot manages every village on the account from one **Dashboard → Village ov
   reads without removing items from the Queue page.
 - The **Queue** tab shows the selected village's live Travian construction queue with target levels
   and absolute server-clock finish times, using the same browser status as the village overview icons.
+- The live construction and Smithy panels keep their queue slots visible at all times and show a
+  per-slot countdown; Romans have three construction rows, other tribes have two.
+- Queue estimates for **Upgrade all resources** sum every resource field from its current level to the
+  selected target, including cumulative resource cost and construction time.
 - Activity timers are stored as absolute UTC finish times, so active construction, troop, smithy,
   hero, brewery, and farm-list countdowns continue correctly after restart or machine sleep.
 - Construction queue waits are reconciled with the confirmed Travian queue in both Continuous Loop and
   Auto Queue. Local countdowns only trigger a fresh read; they never clear a build locally. Resource,
   requirement, retry, and queue-full waits are shown separately.
+- If a construction cost exceeds Warehouse or Granary capacity, the original task waits while the bot
+  upgrades that storage building one level. Missing or maxed storage creates a new one in a free slot;
+  without a free slot the original task is paused and an alarm is raised.
 - A construction already running for one queued item no longer blocks later items from using the
   second Travian Plus building slot.
 
@@ -281,14 +292,17 @@ xUnit. Each test file targets one class (e.g.
 ## `config/` — runtime state
 
 ```
-bot.json                   active bot options (UI writes here)
+bot.json                   global program/server options only
 buildings_catalog.json     static building data
 servers.user.json          user's saved server list
 accounts/<account>/        per-account state:
+                             settings.json       account automation/UI settings
                              queue.json          persisted task queue (one per account)
                              queue.json.lock     file lock to serialize queue writes
                              villages.json       per-village enable / NPC / group choices + hero home
                              village_cache.json  remembered buildings/fields/storage per village
+                             smithy_upgrade.json per-village Smithy targets
+                             troop_training.json per-village troop-training rules
 account-analysis/          cached account snapshots
 cache/                     capital-state, manual-farming prefs, natar-farms
 ```

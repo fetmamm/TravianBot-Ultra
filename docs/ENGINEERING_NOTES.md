@@ -80,10 +80,13 @@ document.querySelector(
 
 ## 3. Konfiguration och konto-state
 
-- `bot.json` ar global fallback.
+- `bot.json` innehaller endast verkligt globala program-/servervarden.
 - Konto-/byspecifika val sparas i `config/accounts/<account>/settings.json`.
-- Konto-overlay appliceras ovanpa global config.
+- Konto-overlay appliceras ovanpa global config; saknad overlay betyder defaults, aldrig ett annat kontos varden.
+- Aldre konto-scopeade varden i `bot.json` migreras en gang till kontots `settings.json` och tas bort globalt.
+- Ko, bycache, Smithy, troop training, hero/cache och ovrig runtime-state anvander kontoavgransade paths.
 - Kontobyte ar full UI/cache-reset, men respektive kontos separata ko och settings ska bevaras.
+- Borttagning av ett inaktivt konto far inte blockeras av det aktiva kontots ko. Aktivt konto skyddas medan dess ko har arbete.
 - All ko- och slotbaserad UI-harledning ska filtreras till vald by eller uttryckligen globala items.
 - Settings-fonstret far inte skriva konto-scopeade overlay-varden tillbaka till global config.
 - `ServerFlavor` ar aldrig en sparad setting.
@@ -142,7 +145,9 @@ For en ny dashboard-bool ska hela configkedjan uppdateras:
   gamla `ActiveBuildCount`/`BuildQueueRemainingSeconds` far inte ensamma visa aktiv ko.
 - Queue-flikens Travian byggkö ska använda samma byspecifika `ActiveConstructions`; Smithy-rutan ska
   använda samma `SmithyUpgradeStatus.ActiveUpgrades` som ikoner och loopstatus. Båda visar målnivå och
-  `FinishUtc` med programmets serverklocka; inga separata UI-källor.
+  `FinishUtc` med programmets serverklocka; inga separata UI-källor. Queue-rutorna visar fasta platser:
+  två construction-platser (tre för romare) och två Smithy-platser, med sekundvis nedräkning från
+  samma absoluta sluttider. Lediga bekräftade platser visas som `Ready`.
 - Village Overview och byval visar kapitalen forst; ovriga byar behaller Travian-listans DOM/sidebar-ordning.
   Profiltabellens ordning far inte anvandas eftersom Official kan sortera den efter population; las
   sidebarordningen fore profilnavigation och anvand profilen endast for att berika bydata.
@@ -150,8 +155,10 @@ For en ny dashboard-bool ska hela configkedjan uppdateras:
   `buildings_catalog.json` (1x), skalat med serverhastigheten fran `ResolveServerSpeed()`
   (regex `(\d+)x` ur servernamnet; fallback 1x + engangs-`ALARM:`). Endast construction-tasks
   estimeras (`EstimateForQueueItem`); ovriga lamnas blanka. Saknad nivadata/okand byggnad ger blank
-  + engangslarm, aldrig blockering. Kosidan visar numera endast `Cost` (Build time-kolumn/total borttagna);
-  byggtid visas bara i slot-popupen och `Upgrade to...`-fonstret.
+  + engangslarm, aldrig blockering. Kosidan visar både `Time` och `Cost` per post samt totalsummor.
+  Byggtid visas även i slot-popupen och `Upgrade to...`-fonstret.
+  `upgrade_all_resources_to_level` summerar alla nivåsteg för exakt 18 kända fält i den laddade byn;
+  en ofullständig fältsnapshot lämnas blank för att undvika en för låg totalsumma.
   Nuvarande niva for fleruppgraderingar finns bara for den laddade byn; annars estimeras endast malnivan.
 - Byggtiden skalas ocksa med huvudbyggnadens rabatt `0.964^(MB-1)` i `BuildSecondsFor`
   (`mainBuildingLevel`). MB lases byspecifikt fran den laddade byns slots (`ResolveMainBuildingLevel`,
@@ -228,6 +235,11 @@ eller sta still, inte vaxa.
   vald retry och betydande timersynk; lyckad intern persistens och varje enskild blockerad kandidat ar brus.
 - `BuildQueueIdentityFingerprint` far inte innehalla tickande countdown-text.
 - Resource upgrade-all ska returnera `queue_wait_seconds` direkt vid resursbrist.
+- Om exakt byggkostnad overskrider live Warehouse-/Granary-kapacitet klassas vantan som
+  `storage_capacity`. Originaltasken defer:as medan en markerad dependency med hogre prioritet
+  uppgraderar relevant lager en niva. Saknas lagret eller ar alla exemplar maxade konstrueras ett nytt
+  i forsta lediga vanliga byggslot (19-38). Ingen ledig slot pausar originaltasken och skriver `ALARM:`.
+  Parent aterupptas forst nar dependency-nivan ar bekraftad fardig; aktiva Travian-byggen styr vantetiden.
 - Exkludera payment-knappen `Open shop` fran upgrade-/construct-kandidater.
 - Official tom slot identifieras via `#contract_building*` utan `Upgrade to level N`; anvand inte enbart `.upgradeButtonsContainer`.
 - Vid misslyckat construct-klick ska resursbrist och krav lasas innan ko-/progresskontroller som navigerar till `dorf2`.
