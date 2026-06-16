@@ -191,10 +191,14 @@
                                     Orientation="Horizontal"
                                     HorizontalAlignment="Right"
                                     Margin="16,0,0,0">
-                            <Button Content="Training options"
-                                    Width="120"
+                            <Button Content="Sync settings"
+                                    Width="110"
                                     Margin="0,0,8,0"
-                                    Click="TrainingOptionsButton_Click" />
+                                    Click="SyncSettingsButton_Click"
+                                    Background="{DynamicResource PrimaryButtonBrush}"
+                                    BorderBrush="{DynamicResource AccentBrush}"
+                                    Foreground="{DynamicResource OnAccentBrush}"
+                                    ToolTip="Copy the troop-training settings shown here to all villages (asks for confirmation first)." />
                             <Button Content="Build now"
                                     Width="92"
                                     Margin="0,0,8,0"
@@ -211,56 +215,106 @@
                                TextWrapping="Wrap"
                                Margin="0,0,0,10" />
 
-                    <StackPanel Margin="0,0,0,10">
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                            <TextBlock Text="Resources to check for % resources"
-                                       Foreground="{DynamicResource TextSubtleBrush}"
-                                       FontSize="11"
-                                       VerticalAlignment="Center" />
-                            <Border Width="14"
-                                    Height="14"
-                                    Margin="6,0,0,0"
-                                    CornerRadius="7"
-                                    Background="{DynamicResource ControlBackgroundBrush}"
-                                    BorderBrush="{DynamicResource BorderBrush}"
-                                    BorderThickness="1"
-                                    VerticalAlignment="Center"
-                                    ToolTipService.InitialShowDelay="0">
-                                <Border.ToolTip>
-                                    <ToolTip MaxWidth="340">
-                                        <StackPanel Width="300">
-                                            <TextBlock Text="Resources to check"
+                    <Grid Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <TextBlock Text="Resources to check for % resources"
+                                           Foreground="{DynamicResource TextSubtleBrush}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center" />
+                                <Border Width="14"
+                                        Height="14"
+                                        Margin="6,0,0,0"
+                                        CornerRadius="7"
+                                        Background="{DynamicResource ControlBackgroundBrush}"
+                                        BorderBrush="{DynamicResource BorderBrush}"
+                                        BorderThickness="1"
+                                        VerticalAlignment="Center"
+                                        ToolTipService.InitialShowDelay="0">
+                                    <Border.ToolTip>
+                                        <ToolTip MaxWidth="340">
+                                            <StackPanel Width="300">
+                                                <TextBlock Text="Resources to check"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TooltipForegroundBrush}"
+                                                           Margin="0,0,0,6" />
+                                                <TextBlock TextWrapping="Wrap"
+                                                           Text="Only selected resources are checked when Run trigger is set to % resources." />
+                                            </StackPanel>
+                                        </ToolTip>
+                                    </Border.ToolTip>
+                                    <TextBlock Text="i"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               TextAlignment="Center" />
+                                </Border>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <CheckBox Content="Wood"
+                                          Margin="0,0,12,0"
+                                          IsChecked="{Binding CheckWood, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <CheckBox Content="Clay"
+                                          Margin="0,0,12,0"
+                                          IsChecked="{Binding CheckClay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <CheckBox Content="Iron"
+                                          Margin="0,0,12,0"
+                                          IsChecked="{Binding CheckIron, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <CheckBox Content="Crop"
+                                          IsChecked="{Binding CheckCrop, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- Compact per-building queue timers, placed right of the resource checkboxes to save height. -->
+                        <ItemsControl Grid.Column="1"
+                                      ItemsSource="{Binding Buildings}"
+                                      VerticalAlignment="Center"
+                                      HorizontalAlignment="Right">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border BorderBrush="{DynamicResource BorderSubtleBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="10"
+                                            Padding="11,6"
+                                            Margin="8,0,0,0"
+                                            Background="{DynamicResource SurfaceBrush}">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Title}"
+                                                       FontSize="14"
                                                        FontWeight="SemiBold"
-                                                       Foreground="{DynamicResource TooltipForegroundBrush}"
-                                                       Margin="0,0,0,6" />
-                                            <TextBlock TextWrapping="Wrap"
-                                                       Text="Only selected resources are checked when Run trigger is set to % resources." />
+                                                       Foreground="{DynamicResource TextSubtleBrush}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,8,0" />
+                                            <Border Padding="8,3"
+                                                    CornerRadius="8"
+                                                    Background="{Binding QueueBadgeBackground}"
+                                                    BorderBrush="{Binding QueueBadgeBorderBrush}"
+                                                    BorderThickness="1">
+                                                <TextBlock Text="{Binding QueueTimerText}"
+                                                           FontSize="14"
+                                                           Foreground="{Binding QueueBadgeForeground}"
+                                                           FontWeight="SemiBold"
+                                                           HorizontalAlignment="Center"
+                                                           TextAlignment="Center" />
+                                            </Border>
                                         </StackPanel>
-                                    </ToolTip>
-                                </Border.ToolTip>
-                                <TextBlock Text="i"
-                                           FontSize="10"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextMutedBrush}"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"
-                                           TextAlignment="Center" />
-                            </Border>
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal">
-                            <CheckBox Content="Wood"
-                                      Margin="0,0,12,0"
-                                      IsChecked="{Binding CheckWood, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                            <CheckBox Content="Clay"
-                                      Margin="0,0,12,0"
-                                      IsChecked="{Binding CheckClay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                            <CheckBox Content="Iron"
-                                      Margin="0,0,12,0"
-                                      IsChecked="{Binding CheckIron, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                            <CheckBox Content="Crop"
-                                      IsChecked="{Binding CheckCrop, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                        </StackPanel>
-                    </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Grid>
 
                     <StackPanel Margin="0,0,0,10">
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
@@ -310,48 +364,6 @@
                             <ComboBoxItem Content="10 min" Tag="600" />
                         </ComboBox>
                     </StackPanel>
-
-                    <ItemsControl ItemsSource="{Binding Buildings}"
-                                  Margin="0,0,0,10">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <UniformGrid Columns="3" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Border BorderBrush="{DynamicResource BorderSubtleBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="8"
-                                        Padding="10"
-                                        Margin="0,0,8,0"
-                                        Background="{DynamicResource SurfaceBrush}">
-                                    <StackPanel>
-                                        <TextBlock Text="{Binding Title}"
-                                                   FontSize="13"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                                   HorizontalAlignment="Center"
-                                                   TextAlignment="Center" />
-                                        <Border Margin="0,8,0,0"
-                                                HorizontalAlignment="Center"
-                                                Width="96"
-                                                Padding="8,4"
-                                                CornerRadius="8"
-                                                Background="{Binding QueueBadgeBackground}"
-                                                BorderBrush="{Binding QueueBadgeBorderBrush}"
-                                                BorderThickness="1">
-                                            <TextBlock Text="{Binding QueueTimerText}"
-                                                       Foreground="{Binding QueueBadgeForeground}"
-                                                       FontWeight="SemiBold"
-                                                       HorizontalAlignment="Center"
-                                                       TextAlignment="Center" />
-                                        </Border>
-                                    </StackPanel>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
 
                     <ItemsControl ItemsSource="{Binding Buildings}">
                         <ItemsControl.ItemTemplate>

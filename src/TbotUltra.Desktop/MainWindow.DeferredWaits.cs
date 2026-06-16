@@ -76,6 +76,7 @@ public partial class MainWindow
         var enabledRequests = requests
             .Where(item => item.Enabled)
             .Where(item => string.Equals(item.RunMode, "resource_percent", StringComparison.OrdinalIgnoreCase))
+            .Where(item => Math.Clamp(item.MinimumResourcesPercent, 0, 100) > 0)
             .Where(item => knownBuildings.Count == 0 || knownBuildings.Any(building =>
                 string.Equals(building.Name, item.BuildingName, StringComparison.OrdinalIgnoreCase)
                 || (item.BuildingName == "Barracks" && (building.Gid ?? 0) == 19)
@@ -84,6 +85,9 @@ public partial class MainWindow
             .ToList();
         if (enabledRequests.Count == 0)
         {
+            // No request has a meaningful % threshold to resume on (e.g. all set to 0%). Resuming on a
+            // trivially-met 0% gate reset the deferred item to retry-now every refresh and spammed the
+            // worker; leave the item's worker-assigned wait (its fallback cooldown) untouched instead.
             return new DeferredTroopTrainingEvaluation(false, fallbackCooldownSeconds, "skip_refresh");
         }
 

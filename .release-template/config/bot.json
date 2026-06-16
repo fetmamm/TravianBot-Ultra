@@ -21,7 +21,7 @@
   "troop_training_barracks_run_mode": "resource_percent",
   "troop_training_stable_run_mode": "resource_percent",
   "troop_training_workshop_run_mode": "resource_percent",
-  "troop_training_fallback_cooldown_seconds": 120,
+  "troop_training_fallback_cooldown_seconds": 300,
   "resource_build_strategy": "smart",
   "natar_village_selection": "farm_villages"
 }

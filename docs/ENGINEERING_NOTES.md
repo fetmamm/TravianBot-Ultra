@@ -279,8 +279,14 @@ eller sta still, inte vaxa.
   vid tom/partiell lasning; UI tickar ned via `Tick(serverNow)` och posten forsvinner forst nar sluttiden passeras.
 - Per-by-traning sparas konto-scopeat i `troop_training.json` (`TroopTrainingSettingsStore`, nyckel = bykoord).
   Loopen snapshotar override:n in i `build_troops`-payloaden; saknad override = global config (bakatkompatibelt).
-  Troops-tabben ags av `TroopTrainingViewModel`; "Training options"-popupen ar en snabb byoversikt som
-  bara andrar byggnadens enabled/troop-val och bevarar ovriga `TroopTrainingPayload`-falt.
+  Troops-tabben (`TroopTrainingViewModel`) redigerar VALD bys override: load/bybyte laser byns payload via
+  `ApplyTroopTrainingForSelectedVillage` (`ApplyVillageTrainingPayload`), och byggnadsregel-andringar sparas
+  per by (`PersistTroopTrainingForSelectedVillage` -> `BuildVillageTrainingPayload`). Konto-vida falt (NPC
+  trade, guld, brewery celebration) ligger kvar i `settings.json` (`WriteToConfig`/`PersistTroopTrainingConfig`)
+  och skrivs INTE per by. "Training options"-popupen ar samma per-by-data i en byoversikt och bara enabled/
+  troop-val; bada ytor synkar (popup-save -> reload tab; tab-edit -> popup laser override vid oppning).
+  Truppdropdownen ar per byggnad: `TroopCatalog.ResolveTroopTypesForTribe(tribe, buildingType)` (Barracks far
+  inte visa Stable/Workshop-trupper) — galler bade tab och popup. Popup-toggles anvander `ToggleSwitchBlueStyle`.
 - Village settings-popupens "Automation groups"-kolumn speglar dashboardens loop-kort per by och sparas i
   samma `VillageSettingsStore.EnabledGroups`; avbockad grupp slutar koras for byn (`IsGroupEnabledForVillage`).
 - Popupens gruppkolumner har fast ordning oberoende av dashboardens dragordning:

@@ -3,158 +3,174 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Background="{DynamicResource AppBackgroundBrush}"
         Title="Training options"
-        Width="960"
-        MinHeight="360"
-        Height="560"
+        Width="980"
+        MinHeight="380"
+        Height="600"
         ResizeMode="CanResize"
         WindowStartupLocation="CenterOwner">
-    <Grid Margin="12">
+    <Grid Margin="18">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6" VerticalAlignment="Center">
-            <TextBlock Text="Troop training by village"
-                       FontSize="16"
-                       FontWeight="SemiBold"
-                       Foreground="{DynamicResource TextPrimaryBrush}"
-                       VerticalAlignment="Center" />
-            <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
-                            Margin="8,2,0,0"
-                            ToolTip="Quick per-village controls for which training buildings are active and which troop each one builds. Other troop settings stay unchanged." />
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="Troop training by village"
+                           FontSize="18"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
+                           VerticalAlignment="Center" />
+                <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
+                                Margin="8,2,0,0"
+                                ToolTip="Quick per-village overview: toggle which training buildings are active and pick the troop each one builds. When to build and other advanced settings stay on the Troops tab and are preserved on save." />
+            </StackPanel>
+            <TextBlock x:Name="SubtitleTextBlock"
+                       Foreground="{DynamicResource TextSubtleBrush}"
+                       TextWrapping="Wrap"
+                       Margin="0,4,0,0" />
         </StackPanel>
 
-        <TextBlock x:Name="SubtitleTextBlock"
-                   Grid.Row="1"
-                   Foreground="{DynamicResource TextSubtleBrush}"
-                   TextWrapping="Wrap"
-                   Margin="0,0,0,10" />
-
-        <Border Grid.Row="2"
-                BorderBrush="{DynamicResource BorderSubtleBrush}"
-                BorderThickness="0,0,0,1"
-                Padding="8,0,8,6"
-                Margin="0,0,0,2">
+        <!-- Village rows card with the column headers as its own top row -->
+        <Border Grid.Row="1"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="8">
             <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="190" />
-                    <ColumnDefinition Width="240" />
-                    <ColumnDefinition Width="240" />
-                    <ColumnDefinition Width="240" />
-                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
 
-                <TextBlock Text="Village"
-                           FontSize="11"
-                           FontWeight="SemiBold"
-                           Foreground="{DynamicResource TextSubtleBrush}" />
-                <TextBlock Grid.Column="1"
-                           Text="Barracks"
-                           FontSize="11"
-                           FontWeight="SemiBold"
-                           Foreground="{DynamicResource TextSubtleBrush}" />
-                <TextBlock Grid.Column="2"
-                           Text="Stable"
-                           FontSize="11"
-                           FontWeight="SemiBold"
-                           Foreground="{DynamicResource TextSubtleBrush}" />
-                <TextBlock Grid.Column="3"
-                           Text="Workshop"
-                           FontSize="11"
-                           FontWeight="SemiBold"
-                           Foreground="{DynamicResource TextSubtleBrush}" />
+                <!-- Column headers -->
+                <Border Grid.Row="0"
+                        BorderBrush="{DynamicResource BorderSubtleBrush}"
+                        BorderThickness="0,0,0,1"
+                        Padding="14,12,14,10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="200" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="VILLAGE"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextMutedBrush}" />
+                        <TextBlock Grid.Column="1"
+                                   Text="BARRACKS"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextMutedBrush}" />
+                        <TextBlock Grid.Column="2"
+                                   Text="STABLE"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextMutedBrush}" />
+                        <TextBlock Grid.Column="3"
+                                   Text="WORKSHOP"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextMutedBrush}" />
+                    </Grid>
+                </Border>
+
+                <ScrollViewer Grid.Row="1"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <ItemsControl ItemsSource="{Binding Rows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="{DynamicResource BorderSubtleBrush}"
+                                        BorderThickness="0,0,0,1"
+                                        Padding="14,12">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="200" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                    <TextBlock Text="{Binding VillageName}"
+                                               VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,12,0" />
+
+                                    <StackPanel Grid.Column="1"
+                                                Orientation="Horizontal"
+                                                VerticalAlignment="Center"
+                                                Margin="0,0,14,0">
+                                        <CheckBox Style="{DynamicResource ToggleSwitchStyle}"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,0,10,0"
+                                                  ToolTip="Enable Barracks training for this village."
+                                                  IsChecked="{Binding Barracks.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <ComboBox Width="160"
+                                                  ItemsSource="{Binding Barracks.TroopOptions}"
+                                                  SelectedItem="{Binding Barracks.SelectedTroop, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  IsEnabled="{Binding Barracks.IsEnabled}"
+                                                  HorizontalContentAlignment="Left" />
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="2"
+                                                Orientation="Horizontal"
+                                                VerticalAlignment="Center"
+                                                Margin="0,0,14,0">
+                                        <CheckBox Style="{DynamicResource ToggleSwitchStyle}"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,0,10,0"
+                                                  ToolTip="Enable Stable training for this village."
+                                                  IsChecked="{Binding Stable.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <ComboBox Width="160"
+                                                  ItemsSource="{Binding Stable.TroopOptions}"
+                                                  SelectedItem="{Binding Stable.SelectedTroop, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  IsEnabled="{Binding Stable.IsEnabled}"
+                                                  HorizontalContentAlignment="Left" />
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="3"
+                                                Orientation="Horizontal"
+                                                VerticalAlignment="Center">
+                                        <CheckBox Style="{DynamicResource ToggleSwitchStyle}"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,0,10,0"
+                                                  ToolTip="Enable Workshop training for this village."
+                                                  IsChecked="{Binding Workshop.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <ComboBox Width="160"
+                                                  ItemsSource="{Binding Workshop.TroopOptions}"
+                                                  SelectedItem="{Binding Workshop.SelectedTroop, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  IsEnabled="{Binding Workshop.IsEnabled}"
+                                                  HorizontalContentAlignment="Left" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
             </Grid>
         </Border>
 
-        <ScrollViewer Grid.Row="3"
-                      VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Auto"
-                      Padding="0,0,4,0">
-            <ItemsControl ItemsSource="{Binding Rows}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Border BorderBrush="{DynamicResource BorderSubtleBrush}"
-                                BorderThickness="0,0,0,1"
-                                Padding="8,8">
-                            <Grid MinWidth="910">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="190" />
-                                    <ColumnDefinition Width="240" />
-                                    <ColumnDefinition Width="240" />
-                                    <ColumnDefinition Width="240" />
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Text="{Binding VillageName}"
-                                           VerticalAlignment="Center"
-                                           TextTrimming="CharacterEllipsis"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextPrimaryBrush}"
-                                           Margin="0,0,12,0" />
-
-                                <StackPanel Grid.Column="1"
-                                            Orientation="Horizontal"
-                                            VerticalAlignment="Center"
-                                            Margin="0,0,14,0">
-                                    <CheckBox Width="22"
-                                              VerticalAlignment="Center"
-                                              ToolTip="Enable Barracks training for this village."
-                                              IsChecked="{Binding Barracks.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    <ComboBox Width="180"
-                                              ItemsSource="{Binding Barracks.TroopOptions}"
-                                              SelectedItem="{Binding Barracks.SelectedTroop, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              IsEnabled="{Binding Barracks.IsEnabled}"
-                                              HorizontalContentAlignment="Left" />
-                                </StackPanel>
-
-                                <StackPanel Grid.Column="2"
-                                            Orientation="Horizontal"
-                                            VerticalAlignment="Center"
-                                            Margin="0,0,14,0">
-                                    <CheckBox Width="22"
-                                              VerticalAlignment="Center"
-                                              ToolTip="Enable Stable training for this village."
-                                              IsChecked="{Binding Stable.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    <ComboBox Width="180"
-                                              ItemsSource="{Binding Stable.TroopOptions}"
-                                              SelectedItem="{Binding Stable.SelectedTroop, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              IsEnabled="{Binding Stable.IsEnabled}"
-                                              HorizontalContentAlignment="Left" />
-                                </StackPanel>
-
-                                <StackPanel Grid.Column="3"
-                                            Orientation="Horizontal"
-                                            VerticalAlignment="Center">
-                                    <CheckBox Width="22"
-                                              VerticalAlignment="Center"
-                                              ToolTip="Enable Workshop training for this village."
-                                              IsChecked="{Binding Workshop.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    <ComboBox Width="180"
-                                              ItemsSource="{Binding Workshop.TroopOptions}"
-                                              SelectedItem="{Binding Workshop.SelectedTroop, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              IsEnabled="{Binding Workshop.IsEnabled}"
-                                              HorizontalContentAlignment="Left" />
-                                </StackPanel>
-                            </Grid>
-                        </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </ScrollViewer>
-
-        <StackPanel Grid.Row="4"
+        <!-- Actions -->
+        <StackPanel Grid.Row="2"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
-                    Margin="0,12,0,0">
-            <Button Width="72"
-                    Height="28"
+                    Margin="0,16,0,0">
+            <Button Width="80"
+                    Height="30"
                     Content="Cancel"
                     Margin="0,0,8,0"
                     Click="CancelButton_Click" />
-            <Button Width="110"
-                    Height="28"
+            <Button Width="120"
+                    Height="30"
                     Content="Save &amp; close"
                     Click="SaveButton_Click"
                     Background="{DynamicResource PrimaryButtonBrush}"

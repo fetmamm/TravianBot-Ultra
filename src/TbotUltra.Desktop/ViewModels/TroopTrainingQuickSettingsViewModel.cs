@@ -12,15 +12,17 @@ public sealed class TroopTrainingQuickVillageRow
         string villageKey,
         string villageName,
         TroopTrainingPayload basePayload,
-        IReadOnlyList<string> troopOptions)
+        string? tribe)
     {
         VillageKey = villageKey;
         VillageName = string.IsNullOrWhiteSpace(villageName) ? villageKey : villageName.Trim();
         BasePayload = basePayload;
 
-        Barracks = CreateCell(TroopTrainingBuildingType.Barracks, "Barracks", basePayload, troopOptions);
-        Stable = CreateCell(TroopTrainingBuildingType.Stable, "Stable", basePayload, troopOptions);
-        Workshop = CreateCell(TroopTrainingBuildingType.Workshop, "Workshop", basePayload, troopOptions);
+        // Each training building only trains its own troops, so resolve the dropdown per building
+        // (the Barracks list must not show Stable/Workshop units) — same source the Troops tab uses.
+        Barracks = CreateCell(TroopTrainingBuildingType.Barracks, "Barracks", basePayload, tribe);
+        Stable = CreateCell(TroopTrainingBuildingType.Stable, "Stable", basePayload, tribe);
+        Workshop = CreateCell(TroopTrainingBuildingType.Workshop, "Workshop", basePayload, tribe);
     }
 
     public string VillageKey { get; }
@@ -46,9 +48,10 @@ public sealed class TroopTrainingQuickVillageRow
         TroopTrainingBuildingType buildingType,
         string title,
         TroopTrainingPayload payload,
-        IReadOnlyList<string> troopOptions)
+        string? tribe)
     {
         var building = TroopTrainingQuickSettings.BuildingPayloadFor(payload, buildingType);
+        var troopOptions = TroopCatalog.ResolveTroopTypesForTribe(tribe, buildingType);
         return new TroopTrainingQuickBuildingCell(
             buildingType,
             title,

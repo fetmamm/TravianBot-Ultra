@@ -717,6 +717,20 @@ public sealed partial class TravianClient
         string label)
     {
         var waitEstimate = BuildTroopTrainingWaitEstimate(currentResources, requiredResources, productionByHour, fallbackCooldownSeconds);
+
+        // With a "% resources" trigger at 0% there is no threshold to wait for, so the production ETA is
+        // meaningless and the task would otherwise be re-run every loop (the % gate is trivially met).
+        // Re-check on the user's fallback cooldown instead so it doesn't spam.
+        if (string.Equals(candidate.Request.RunMode, "resource_percent", StringComparison.OrdinalIgnoreCase)
+            && candidate.Request.MinimumResourcesPercent <= 0)
+        {
+            waitEstimate = waitEstimate with
+            {
+                WaitSeconds = Math.Max(1, fallbackCooldownSeconds),
+                WaitReason = "fallback_cooldown",
+            };
+        }
+
         return BuildTroopTrainingWaitOutcome(
             candidate.Request.BuildingName,
             buildInfo.TroopType,

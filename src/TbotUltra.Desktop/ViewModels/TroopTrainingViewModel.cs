@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text.Json.Nodes;
 using System.Windows.Media;
 using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Tasks;
 using TbotUltra.Core.Travian;
 using TbotUltra.Desktop.Common;
 using TbotUltra.Desktop.Models;
@@ -45,7 +46,7 @@ public sealed class TroopTrainingViewModel : BaseViewModel
     private bool _checkClay = true;
     private bool _checkIron = true;
     private bool _checkCrop = true;
-    private int _fallbackCooldownSeconds = 120;
+    private int _fallbackCooldownSeconds = 300;
     private bool _autoCelebrationEnabled;
     private bool _autoCelebrationExplicitlyConfigured;
     private bool _isAutoCelebrationAvailableForCurrentTribe;
@@ -505,61 +506,87 @@ public sealed class TroopTrainingViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// Writes current rows back into a freshly loaded config <see cref="JsonObject"/>.
-    /// Caller is responsible for persisting (e.g. <c>BotConfigStore.Save</c>).
+    /// Applies a per-village troop-training override onto the building rows (enable / troop / amount mode /
+    /// run trigger / checks / fallback). Account-wide settings (NPC trade, gold, celebration) are left
+    /// untouched. Suppresses change events so loading a village's settings never re-persists them. Used
+    /// when the selected village changes or after the "Training options" popup saves.
+    /// </summary>
+    public void ApplyVillageTrainingPayload(TroopTrainingPayload payload)
+    {
+        _isConfigSuppressed = true;
+        try
+        {
+            foreach (var option in Buildings)
+            {
+                var building = option.BuildingType switch
+                {
+                    TroopTrainingBuildingType.Barracks => payload.Barracks,
+                    TroopTrainingBuildingType.Stable => payload.Stable,
+                    _ => payload.Workshop,
+                };
+
+                option.IsEnabled = building.Enabled;
+                option.SelectedTroop = building.TroopType;
+                option.MaxQueueMode = building.MaxQueueHours;
+                option.AmountMode = building.AmountMode;
+                option.KeepResourcesPercent = building.KeepResourcesPercent;
+                option.RunMode = building.RunMode;
+                option.MinimumTroops = building.MinimumTroops;
+                option.MinimumResourcesPercent = building.MinimumResourcesPercent;
+            }
+
+            // The Troops tab shows one Wood/Clay/Iron/Crop set shared by all buildings; the payload stores
+            // the same flags per building, so read them from Barracks.
+            CheckWood = payload.Barracks.CheckWood;
+            CheckClay = payload.Barracks.CheckClay;
+            CheckIron = payload.Barracks.CheckIron;
+            CheckCrop = payload.Barracks.CheckCrop;
+            FallbackCooldownSeconds = payload.FallbackCooldownSeconds;
+        }
+        finally
+        {
+            _isConfigSuppressed = false;
+        }
+    }
+
+    /// <summary>
+    /// Builds a per-village troop-training override from the current building rows, so the Troops tab's
+    /// edits can be persisted as the selected village's override (mirrors the "Training options" popup).
+    /// </summary>
+    public TroopTrainingPayload BuildVillageTrainingPayload()
+    {
+        TroopTrainingBuildingPayload BuildFor(TroopTrainingBuildingType buildingType)
+        {
+            var option = Buildings.First(item => item.BuildingType == buildingType);
+            return new TroopTrainingBuildingPayload(
+                option.IsEnabled,
+                option.SelectedTroop,
+                option.MaxQueueMode,
+                option.AmountMode,
+                option.KeepResourcesPercent,
+                option.RunMode,
+                option.MinimumTroops,
+                option.MinimumResourcesPercent,
+                CheckWood,
+                CheckClay,
+                CheckIron,
+                CheckCrop);
+        }
+
+        return new TroopTrainingPayload(
+            BuildFor(TroopTrainingBuildingType.Barracks),
+            BuildFor(TroopTrainingBuildingType.Stable),
+            BuildFor(TroopTrainingBuildingType.Workshop),
+            FallbackCooldownSeconds);
+    }
+
+    /// <summary>
+    /// Writes the account-wide troop-related settings (NPC trade, gold, brewery celebration) into a freshly
+    /// loaded config <see cref="JsonObject"/>. Per-village building rules are stored separately via
+    /// <see cref="BuildVillageTrainingPayload"/>. Caller persists (e.g. <c>BotConfigStore.Save</c>).
     /// </summary>
     public void WriteToConfig(JsonObject config)
     {
-        foreach (var option in Buildings)
-        {
-            switch (option.BuildingType)
-            {
-                case TroopTrainingBuildingType.Barracks:
-                    config[BotOptionPayloadKeys.TroopTrainingBarracksEnabled] = option.IsEnabled;
-                    config[BotOptionPayloadKeys.TroopTrainingBarracksTroopType] = option.SelectedTroop;
-                    config[BotOptionPayloadKeys.TroopTrainingBarracksMaxQueueHours] = option.MaxQueueMode;
-                    config[BotOptionPayloadKeys.TroopTrainingBarracksAmountMode] = option.AmountMode;
-                    config[BotOptionPayloadKeys.TroopTrainingBarracksKeepResourcesPercent] = option.KeepResourcesPercent;
-                    config[BotOptionPayloadKeys.TroopTrainingBarracksRunMode] = option.RunMode;
-                    config[BotOptionPayloadKeys.TroopTrainingBarracksMinimumTroops] = option.MinimumTroops;
-                    config[BotOptionPayloadKeys.TroopTrainingBarracksMinimumResourcesPercent] = option.MinimumResourcesPercent;
-                    config[BotOptionPayloadKeys.TroopTrainingBarracksCheckWood] = CheckWood;
-                    config[BotOptionPayloadKeys.TroopTrainingBarracksCheckClay] = CheckClay;
-                    config[BotOptionPayloadKeys.TroopTrainingBarracksCheckIron] = CheckIron;
-                    config[BotOptionPayloadKeys.TroopTrainingBarracksCheckCrop] = CheckCrop;
-                    break;
-                case TroopTrainingBuildingType.Stable:
-                    config[BotOptionPayloadKeys.TroopTrainingStableEnabled] = option.IsEnabled;
-                    config[BotOptionPayloadKeys.TroopTrainingStableTroopType] = option.SelectedTroop;
-                    config[BotOptionPayloadKeys.TroopTrainingStableMaxQueueHours] = option.MaxQueueMode;
-                    config[BotOptionPayloadKeys.TroopTrainingStableAmountMode] = option.AmountMode;
-                    config[BotOptionPayloadKeys.TroopTrainingStableKeepResourcesPercent] = option.KeepResourcesPercent;
-                    config[BotOptionPayloadKeys.TroopTrainingStableRunMode] = option.RunMode;
-                    config[BotOptionPayloadKeys.TroopTrainingStableMinimumTroops] = option.MinimumTroops;
-                    config[BotOptionPayloadKeys.TroopTrainingStableMinimumResourcesPercent] = option.MinimumResourcesPercent;
-                    config[BotOptionPayloadKeys.TroopTrainingStableCheckWood] = CheckWood;
-                    config[BotOptionPayloadKeys.TroopTrainingStableCheckClay] = CheckClay;
-                    config[BotOptionPayloadKeys.TroopTrainingStableCheckIron] = CheckIron;
-                    config[BotOptionPayloadKeys.TroopTrainingStableCheckCrop] = CheckCrop;
-                    break;
-                case TroopTrainingBuildingType.Workshop:
-                    config[BotOptionPayloadKeys.TroopTrainingWorkshopEnabled] = option.IsEnabled;
-                    config[BotOptionPayloadKeys.TroopTrainingWorkshopTroopType] = option.SelectedTroop;
-                    config[BotOptionPayloadKeys.TroopTrainingWorkshopMaxQueueHours] = option.MaxQueueMode;
-                    config[BotOptionPayloadKeys.TroopTrainingWorkshopAmountMode] = option.AmountMode;
-                    config[BotOptionPayloadKeys.TroopTrainingWorkshopKeepResourcesPercent] = option.KeepResourcesPercent;
-                    config[BotOptionPayloadKeys.TroopTrainingWorkshopRunMode] = option.RunMode;
-                    config[BotOptionPayloadKeys.TroopTrainingWorkshopMinimumTroops] = option.MinimumTroops;
-                    config[BotOptionPayloadKeys.TroopTrainingWorkshopMinimumResourcesPercent] = option.MinimumResourcesPercent;
-                    config[BotOptionPayloadKeys.TroopTrainingWorkshopCheckWood] = CheckWood;
-                    config[BotOptionPayloadKeys.TroopTrainingWorkshopCheckClay] = CheckClay;
-                    config[BotOptionPayloadKeys.TroopTrainingWorkshopCheckIron] = CheckIron;
-                    config[BotOptionPayloadKeys.TroopTrainingWorkshopCheckCrop] = CheckCrop;
-                    break;
-            }
-        }
-
-        config[BotOptionPayloadKeys.TroopTrainingFallbackCooldownSeconds] = FallbackCooldownSeconds;
         config[BotOptionPayloadKeys.BreweryAutoCelebrationEnabled] = AutoCelebrationEnabled;
         config[BotOptionPayloadKeys.NpcTradeEnabled] = NpcTradeEnabled;
         config[BotOptionPayloadKeys.NpcTradeConstructionEnabled] = NpcTradeConstructionEnabled;

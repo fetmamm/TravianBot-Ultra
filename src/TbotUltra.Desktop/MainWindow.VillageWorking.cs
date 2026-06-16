@@ -1024,6 +1024,8 @@ public partial class MainWindow
         RefreshQueueUi();
         // Show this village's auto-loop group toggles + construction timer.
         ApplyAutomationLoopGroupsForSelectedVillage();
+        // Load this village's troop-training override into the Troops tab so it tracks the selection.
+        ApplyTroopTrainingForSelectedVillage();
         ApplyConstructionTimerFromStatus(
             name is not null && _villageStatusCacheByName.TryGetValue(name, out var timerStatus) ? timerStatus : null);
         // Light up Switch village when the selected village differs from the one the bot works in.

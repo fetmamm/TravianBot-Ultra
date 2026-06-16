@@ -514,6 +514,28 @@
                                         Content="Test functions"
                                         Padding="10,4"
                                         Click="OpenResourceTestFunctionsButton_Click" />
+                                <Button x:Name="TroopSettingsButton"
+                                        DockPanel.Dock="Right"
+                                        Content="Troop settings"
+                                        Padding="10,4"
+                                        Margin="0,0,8,0"
+                                        Click="TroopSettingsButton_Click"
+                                        ToolTip="Open the per-village troop training overview (which buildings train and which troop). Available on every page." />
+                                <Button x:Name="VillageSettingsButton"
+                                        DockPanel.Dock="Right"
+                                        Content="Village settings"
+                                        Padding="10,4"
+                                        Margin="0,0,8,0"
+                                        Click="VillageSettingsButton_Click"
+                                        ToolTip="Open per-village settings (hero resources, NPC, build/upgrade troops, farming)." />
+                                <Button x:Name="AccountScanButton"
+                                        DockPanel.Dock="Right"
+                                        Content="Account scan"
+                                        IsEnabled="False"
+                                        Padding="10,4"
+                                        Margin="0,0,8,0"
+                                        Click="AccountScanButton_Click"
+                                        ToolTip="Analyze dorf1, dorf2, construction queue and Smithy queue for every village. Active automation pauses and resumes automatically." />
                                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                                 <TextBlock Text="Storage"
                                            FontWeight="SemiBold"
@@ -604,10 +626,6 @@
                             <TextBlock DockPanel.Dock="Left" Text="Dashboard" FontSize="32" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
                             <Button DockPanel.Dock="Right" x:Name="ResetProgramButton" Height="32" Content="Reset program" Background="{DynamicResource WarningButtonBgBrush}" Foreground="{DynamicResource OnWarningBrush}" BorderBrush="{DynamicResource WarningBorderBrush}" VerticalAlignment="Center" Margin="12,0,0,0" Click="ResetProgramButton_Click"
                                     ToolTip="Restart the program: stops all running tasks, clears the queue, closes the browser session, and resets to the just-started state. Your saved login is kept — just press Login to start a new session." />
-                            <Button DockPanel.Dock="Right" x:Name="VillageSettingsButton" Height="32" Content="Village settings" VerticalAlignment="Center" Margin="12,0,0,0" Click="VillageSettingsButton_Click"
-                                    ToolTip="Open per-village settings (hero resources, NPC, build/upgrade troops, farming)." />
-                            <Button DockPanel.Dock="Right" x:Name="AccountScanButton" Height="32" Content="Account scan" IsEnabled="False" VerticalAlignment="Center" Margin="12,0,0,0" Click="AccountScanButton_Click"
-                                    ToolTip="Analyze dorf1, dorf2, construction queue and Smithy queue for every village. Active automation pauses and resumes automatically." />
                         </DockPanel>
 
                         <Grid Grid.Row="1" Margin="0,0,0,10" Visibility="Collapsed">

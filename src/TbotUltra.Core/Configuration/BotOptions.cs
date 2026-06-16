@@ -207,7 +207,7 @@ public sealed class BotOptions
     public bool TroopTrainingWorkshopCheckCrop { get; init; } = true;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingFallbackCooldownSeconds)]
-    public int TroopTrainingFallbackCooldownSeconds { get; init; } = 120;
+    public int TroopTrainingFallbackCooldownSeconds { get; init; } = 300;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.BreweryAutoCelebrationEnabled)]
     public bool BreweryAutoCelebrationEnabled { get; init; }

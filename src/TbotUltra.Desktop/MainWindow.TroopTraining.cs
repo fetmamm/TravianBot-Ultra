@@ -115,13 +115,17 @@ public partial class MainWindow
         var troopOptionsChanged = _troopTrainingViewModel.UpdateTroopOptions(tribe);
         var celebrationChanged = _troopTrainingViewModel.UpdateAutoCelebrationAvailability(tribe);
         RefreshReinforcementTroopRules(tribe);
-        if (troopOptionsChanged || celebrationChanged)
+        if (troopOptionsChanged)
+        {
+            // A tribe change can swap an invalid troop selection for a fallback in the building rows —
+            // persist that to the selected village's override.
+            PersistTroopTrainingForSelectedVillage();
+        }
+
+        if (celebrationChanged)
         {
             PersistTroopTrainingConfig();
-            if (celebrationChanged)
-            {
-                PersistAutoCelebrationPreferenceForActiveAccount(_troopTrainingViewModel.AutoCelebrationEnabled);
-            }
+            PersistAutoCelebrationPreferenceForActiveAccount(_troopTrainingViewModel.AutoCelebrationEnabled);
         }
 
         SyncTeutonsOnlyAutomationGroups(tribe, persistChanges: true);
@@ -129,7 +133,11 @@ public partial class MainWindow
 
     private void OnTroopTrainingConfigChanged()
     {
+        // Account-wide settings (NPC trade, gold, celebration) go to the account config; the per-building
+        // training rules go to the selected village's override so the Troops tab and the per-village
+        // "Training options" popup edit the same data.
         PersistTroopTrainingConfig();
+        PersistTroopTrainingForSelectedVillage();
         PersistAutoCelebrationPreferenceForActiveAccount(_troopTrainingViewModel.AutoCelebrationEnabled);
         UpdateAutomationLoopRunningIndicators();
         if (_lastResourceStatusForUi is not null)
@@ -626,6 +634,15 @@ public partial class MainWindow
     /// or global defaults. Stale build_troops queue items are dropped so the loop re-enqueues fresh payloads.
     /// Called by the Troops panel's "Training options" button.
     /// </summary>
+    // Top-bar "Troop settings" button (always visible). Opens the same per-village training overview as
+    // the Troops panel's "Training options" button.
+    private void TroopSettingsButton_Click(object sender, System.Windows.RoutedEventArgs e)
+    {
+        _ = sender;
+        _ = e;
+        OnTroopsTrainingOptionsClicked();
+    }
+
     internal void OnTroopsTrainingOptionsClicked()
     {
         var account = _accountStore.ActiveAccountName();
@@ -667,7 +684,7 @@ public partial class MainWindow
                 village.Key,
                 village.Name,
                 TroopTrainingQuickSettings.FromOptions(effectiveOptions),
-                troopOptions));
+                tribe));
         }
 
         var window = new TroopTrainingOptionsWindow(rows) { Owner = this };
@@ -682,9 +699,96 @@ public partial class MainWindow
         }
 
         var removed = RemoveTroopTrainingQueueItemsForVillage(null);
+        // Reload the Troops tab from the (possibly just-changed) selected village's override so the
+        // two surfaces stay in sync.
+        ApplyTroopTrainingForSelectedVillage();
         _troopTrainingViewModel.InfoText = $"Saved troop-training settings for {window.Results.Count} village(s).";
         AppendLog($"Saved troop-training settings for {window.Results.Count} village(s). "
             + $"Cleared {removed} queued build_troops task(s) to apply the change.");
+    }
+
+    /// <summary>
+    /// Troops panel's "Sync settings" button. After a confirmation, copies the settings currently shown on
+    /// the Troops tab (the building rules / troop / amount / run trigger / checks / fallback) to EVERY
+    /// village's per-village override, and drops stale build_troops queue items so the loop re-enqueues with
+    /// the synced settings.
+    /// </summary>
+    internal void OnTroopsSyncSettingsClicked()
+    {
+        var account = _accountStore.ActiveAccountName();
+        if (string.IsNullOrWhiteSpace(account))
+        {
+            _troopTrainingViewModel.InfoText = "Select an account before syncing troop training.";
+            AppendLog("Sync troop settings: no active account.");
+            return;
+        }
+
+        var keys = GetAllVillageKeyInfos().Select(info => info.Key).ToList();
+        if (keys.Count == 0)
+        {
+            _troopTrainingViewModel.InfoText = "Load villages before syncing troop training.";
+            AppendLog("Sync troop settings: no villages loaded.");
+            return;
+        }
+
+        var confirm = AppDialog.Show(
+            this,
+            $"Sync the troop-training settings shown here to all {keys.Count} village(s)? This overwrites each village's build-troops settings.",
+            "Sync troop settings",
+            System.Windows.MessageBoxButton.YesNo,
+            System.Windows.MessageBoxImage.Question,
+            System.Windows.MessageBoxResult.No);
+        if (confirm != System.Windows.MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        TroopTrainingSettingsStore.SaveForVillages(_projectRoot, account, keys, _troopTrainingViewModel.BuildVillageTrainingPayload());
+        var removed = RemoveTroopTrainingQueueItemsForVillage(null);
+        _troopTrainingViewModel.InfoText = $"Synced troop-training settings to {keys.Count} village(s).";
+        AppendLog($"Synced troop-training settings to {keys.Count} village(s). "
+            + $"Cleared {removed} queued build_troops task(s) to apply the change.");
+    }
+
+    // Loads the selected village's per-village troop-training override into the Troops tab's building
+    // rows (or the account-wide defaults when the village has no override). Keeps the tab and the
+    // "Training options" popup showing the same per-village settings. Does not persist.
+    private void ApplyTroopTrainingForSelectedVillage()
+    {
+        var account = _accountStore.ActiveAccountName();
+        var key = GetSelectedVillageKey();
+        if (string.IsNullOrWhiteSpace(account) || string.IsNullOrWhiteSpace(key))
+        {
+            return;
+        }
+
+        var payload = TroopTrainingSettingsStore.Load(_projectRoot, account, key)
+            ?? TroopTrainingQuickSettings.FromOptions(LoadBotOptions());
+        _troopTrainingViewModel.ApplyVillageTrainingPayload(payload);
+    }
+
+    // Persists the Troops tab's building rules (enable/troop/amount/run trigger/checks/fallback) as the
+    // selected village's per-village override. Account-wide settings (NPC trade, gold, celebration) are
+    // saved separately by PersistTroopTrainingConfig. Falls back to the account-wide config when no
+    // village is selected so a stray edit before login still lands somewhere sensible.
+    private void PersistTroopTrainingForSelectedVillage()
+    {
+        var account = _accountStore.ActiveAccountName();
+        var key = GetSelectedVillageKey();
+        if (string.IsNullOrWhiteSpace(account) || string.IsNullOrWhiteSpace(key))
+        {
+            PersistTroopTrainingConfig();
+            return;
+        }
+
+        try
+        {
+            TroopTrainingSettingsStore.Save(_projectRoot, account, key, _troopTrainingViewModel.BuildVillageTrainingPayload());
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Could not save troop training for selected village: {ex.Message}");
+        }
     }
 
     // Builds the troop rows for the upgrade-options popup: the tribe's improvable troops (combat + siege,

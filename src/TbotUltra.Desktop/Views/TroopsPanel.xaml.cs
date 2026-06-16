@@ -38,9 +38,9 @@ public partial class TroopsPanel : UserControl
         Host?.OnTroopsUpgradeOptionsClicked();
     }
 
-    private void TrainingOptionsButton_Click(object sender, RoutedEventArgs e)
+    private void SyncSettingsButton_Click(object sender, RoutedEventArgs e)
     {
-        Host?.OnTroopsTrainingOptionsClicked();
+        Host?.OnTroopsSyncSettingsClicked();
     }
 
     private void BuildTroopsNowButton_Click(object sender, RoutedEventArgs e)

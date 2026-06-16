@@ -498,6 +498,10 @@ public partial class MainWindow : Window
         _troopTrainingDeferredRefreshDebounceTimer.Tick += (_, _) =>
         {
             _troopTrainingDeferredRefreshDebounceTimer.Stop();
+            // The user changed troop-training settings. A queued build_troops item still carries the OLD
+            // per-village snapshot and the loop won't re-enqueue while it is active, so drop the selected
+            // village's item to force a fresh enqueue with the new settings (e.g. a lowered % threshold).
+            RemoveTroopTrainingQueueItemsForVillage(GetSelectedVillageName());
             if (_lastResourceStatusForUi is not null)
             {
                 TriggerDeferredTroopTrainingWaitRefresh(_lastResourceStatusForUi, "troop_config_changed", force: true);
@@ -615,6 +619,9 @@ public partial class MainWindow : Window
         var hasExplicitAutoCelebrationSetting = storedAutoCelebration.HasValue;
         LoadAutomationLoopTasks(options);
         _troopTrainingViewModel.ApplyConfigToBuildings(options, hasExplicitAutoCelebrationSetting, storedAutoCelebration.Value);
+        // Overlay the selected village's per-village training override (if any) onto the building rows so
+        // the Troops tab shows that village's settings, not just the account-wide defaults.
+        ApplyTroopTrainingForSelectedVillage();
         ApplyTroopTrainingTribeState(ResolveStoredTroopTrainingTribe());
         _troopTrainingViewModel.InfoText = "Configure troop building rules and refresh queues when needed.";
         _suppressHeroHideModeApply = true;

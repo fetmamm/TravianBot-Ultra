@@ -432,12 +432,18 @@ public partial class MainWindow
             return;
         }
 
-        var options = ApplySelectedVillageToOptions(LoadBotOptions());
-        var fallbackCooldownSeconds = ResolveTroopTrainingFallbackCooldownSeconds(options.TroopTrainingFallbackCooldownSeconds);
+        var baseOptions = ApplySelectedVillageToOptions(LoadBotOptions());
+        // Only re-evaluate items for the village this status was read for; the resources belong to ONE
+        // village, so judging another village's deferred item against them is wrong (mirrors the
+        // construction refresh).
+        var statusVillage = NormalizeVillageName(status.ActiveVillage);
         var deferredItems = _botService
             .GetQueueItemsForDisplay()
             .Where(item => item.Status == QueueStatus.Pending)
             .Where(item => string.Equals(item.TaskName, "build_troops", StringComparison.OrdinalIgnoreCase))
+            .Where(item => statusVillage is null
+                || NormalizeVillageName(GetQueueItemVillageName(item)) is not string itemVillage
+                || string.Equals(itemVillage, statusVillage, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
         if (deferredItems.Count == 0)
@@ -445,10 +451,15 @@ public partial class MainWindow
             return;
         }
 
-        var requests = BuildDeferredTroopTrainingRequests(options);
         var knownBuildings = _lastBuildingStatus?.Buildings ?? [];
         foreach (var item in deferredItems)
         {
+            // Build the threshold/run-mode from the item's OWN per-village snapshot (the loop injects the
+            // village override into the payload), not the global config — otherwise a per-village % limit
+            // is judged against the account-wide default.
+            var itemOptions = BotOptionsPayloadApplier.Apply(baseOptions, item.Payload);
+            var fallbackCooldownSeconds = ResolveTroopTrainingFallbackCooldownSeconds(itemOptions.TroopTrainingFallbackCooldownSeconds);
+            var requests = BuildDeferredTroopTrainingRequests(itemOptions);
             var evaluation = EvaluateDeferredTroopTrainingWait(
                 requests,
                 knownBuildings,
