@@ -3980,6 +3980,14 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             return;
         }
 
+        // Farm lists require a built Rally Point. When it is still level 0 (not built) the rally point
+        // page shows the construct view instead of the farm lists — abort with a clear message rather
+        // than auto-building it, so the user decides when to build it.
+        if (await IsRallyPointLevelZeroAsync(cancellationToken))
+        {
+            throw new InvalidOperationException("Rally Point is level 0 (not built) in this village. Build the Rally Point before using farm lists.");
+        }
+
         await GotoAsync(Paths.FarmListFastUp, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening rally point slot.", cancellationToken);
         await EnsureLoggedInAsync();
@@ -4135,6 +4143,32 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             }
             """);
         return isFarmListPage;
+    }
+
+    // True when the current page is the Rally Point build view showing "Level 0" — i.e. the Rally Point
+    // is not built yet, so farm lists are unavailable. Scoped to the rally point construct view
+    // (#content.buildRallyPoint), so an open farm list (built rally point) never matches.
+    private async Task<bool> IsRallyPointLevelZeroAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        try
+        {
+            return await _page.EvaluateAsync<bool>(
+                """
+                () => {
+                  const content = document.querySelector('#content.buildRallyPoint');
+                  if (!content) return false;
+                  const levelEl = content.querySelector('.titleInHeader .level');
+                  const match = (levelEl?.textContent || '').match(/(\d+)/);
+                  return match ? parseInt(match[1], 10) === 0 : false;
+                }
+                """);
+        }
+        catch (PlaywrightException ex)
+        {
+            Notify($"[farm-list] could not read Rally Point level: {ex.Message}");
+            return false;
+        }
     }
 
     private async Task<bool> IsSendTroopsPageAsync(CancellationToken cancellationToken)

@@ -34,9 +34,12 @@ public partial class BuildingsPanel : UserControl
         }
     }
 
-    private void LoadBuildingsButton_Click(object sender, RoutedEventArgs e)
+    private async void LoadBuildingsButton_Click(object sender, RoutedEventArgs e)
     {
-        Host?.OnLoadBuildingsClicked();
+        if (Host is { } host)
+        {
+            await host.OnLoadBuildingsClicked();
+        }
     }
 
     private void UpgradeAllBuildingsToMaxButton_Click(object sender, RoutedEventArgs e)

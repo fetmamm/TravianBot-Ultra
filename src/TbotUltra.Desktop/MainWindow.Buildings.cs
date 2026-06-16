@@ -22,7 +22,7 @@ public partial class MainWindow
     private static readonly HashSet<int> WallGids = [31, 32, 33, 42, 43];
     private static readonly HashSet<int> DuplicateAllowedGids = [10, 11, 23, 38, 39];
 
-    internal void OnLoadBuildingsClicked()
+    internal async Task OnLoadBuildingsClicked()
     {
         // Clear any stale pending/queued state so the upcoming snapshot is the source of truth.
         _buildingLastQueuedTargetBySlot.Clear();
@@ -30,8 +30,63 @@ public partial class MainWindow
         _buildingClickCooldownBySlot.Clear();
         _buildingDemolishingSlots.Clear();
 
-        EnqueueQuickTask("load_buildings_snapshot", "Load buildings snapshot");
-        BuildingsInfoTextBlock.Text = "Queued buildings load.";
+        // When the bot is running it owns the browser session, so enqueue the snapshot to run inside the
+        // loop (queuing it mid-run is safe). When it's idle/paused the queue isn't draining, so a queued
+        // task would never run ("nothing happens") — read the buildings directly instead.
+        var loopRunning = _autoQueueRunning || (_loopTask is not null && !_loopTask.IsCompleted);
+        if (loopRunning)
+        {
+            EnqueueQuickTask("load_buildings_snapshot", "Load buildings snapshot");
+            BuildingsInfoTextBlock.Text = "Queued buildings load.";
+            return;
+        }
+
+        if (BlockIfSessionSleeping("Load buildings"))
+        {
+            return;
+        }
+
+        if (!_isLoggedIn || !_browserSessionLikelyOpen)
+        {
+            BuildingsInfoTextBlock.Text = "Log in first to load buildings.";
+            return;
+        }
+
+        if (_uiBusy)
+        {
+            BuildingsInfoTextBlock.Text = "Busy — try again in a moment.";
+            return;
+        }
+
+        ToggleUiBusy(true);
+        try
+        {
+            await EnsureChromiumInstalledAsync();
+            var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            var status = await ReadVillageStatusWithRetryAsync(
+                options,
+                CancellationToken.None,
+                resourceOnly: false,
+                forceCurrentVillage: false);
+
+            SetActiveWorkingVillageFromStatus(status);
+            CacheVillageStatus(status);
+            ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: true);
+            _resourcesViewModel.ApplyStorageForecasts(status);
+            _lastBuildingStatus = status;
+            PopulateBuildingsTab(status);
+            ApplyConstructionTimerFromStatus(status);
+            BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"village '{status.ActiveVillage}'");
+        }
+        catch (Exception ex)
+        {
+            BuildingsInfoTextBlock.Text = $"Could not load buildings: {ex.Message}";
+            AppendLog($"Load buildings failed: {ex.Message}");
+        }
+        finally
+        {
+            ToggleUiBusy(false);
+        }
     }
 
     internal void OnUpgradeAllBuildingsToMaxClicked()
