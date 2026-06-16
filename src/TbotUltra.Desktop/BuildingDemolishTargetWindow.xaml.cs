@@ -10,6 +10,7 @@ public partial class BuildingDemolishTargetWindow : Window
     public BuildingDemolishTargetWindow(BuildingSlotRow slot)
     {
         InitializeComponent();
+        ThemeChrome.EnableEarlyDarkTitleBar(this);
 
         var currentLevel = slot.Level ?? 0;
         TitleTextBlock.Text = $"Demolish {slot.Name}";

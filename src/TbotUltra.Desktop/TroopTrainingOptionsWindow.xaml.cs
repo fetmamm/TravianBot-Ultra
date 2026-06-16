@@ -27,6 +27,7 @@ public partial class TroopTrainingOptionsWindow : Window
     public TroopTrainingOptionsWindow(TroopTrainingViewModel viewModel, string villageName)
     {
         InitializeComponent();
+        ThemeChrome.EnableEarlyDarkTitleBar(this);
 
         _viewModel = viewModel;
         DataContext = viewModel;

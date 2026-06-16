@@ -16,6 +16,7 @@ public partial class FunctionTestWindow : Window
     public FunctionTestWindow()
     {
         InitializeComponent();
+        ThemeChrome.EnableEarlyDarkTitleBar(this);
     }
 
     private void TestResourceProductionButton_Click(object sender, RoutedEventArgs e)

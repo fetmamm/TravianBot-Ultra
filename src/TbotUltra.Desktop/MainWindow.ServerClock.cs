@@ -69,4 +69,12 @@ public partial class MainWindow
         var serverTime = utc.ToOffset(_queueServerTimeOffset);
         return serverTime.ToString("yyyy-MM-dd HH:mm:ss");
     }
+
+    // Compact finish time for the small build/smithy queue boxes: time of day only (no date) to save column space.
+    private string FormatQueueFinishTime(DateTimeOffset utcTimestamp)
+    {
+        var utc = utcTimestamp.ToUniversalTime();
+        var serverTime = utc.ToOffset(_queueServerTimeOffset);
+        return serverTime.ToString("HH:mm:ss");
+    }
 }

@@ -13,7 +13,7 @@
         MinHeight="700"
         MinWidth="980"
         ShowInTaskbar="True"
-        Icon="/Assets/Tbot_ultra_appicon_2.png"
+        Icon="/Assets/icon_windows.ico"
         Background="{DynamicResource AppBackgroundBrush}">
     <Grid>
         <Grid.LayoutTransform>
@@ -37,8 +37,8 @@
 
                 <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
                     <Image Source="/Assets/Tbot_ultra_appicon_2.png"
-                           Width="80"
-                           Height="80"
+                           Width="56"
+                           Height="56"
                            VerticalAlignment="Center"
                            Margin="0,0,10,0"
                            RenderOptions.BitmapScalingMode="HighQuality" />
@@ -2825,12 +2825,14 @@
                                                   RowHeight="30"
                                                   MinHeight="90"
                                                   MaxHeight="120"
+                                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                  ScrollViewer.VerticalScrollBarVisibility="Disabled"
                                                   FontSize="12">
                                             <DataGrid.Columns>
                                                 <DataGridTextColumn Header="Construction" Width="*" Binding="{Binding Name}" />
                                                 <DataGridTextColumn Header="Target" Width="78" Binding="{Binding LevelText}" />
                                                 <DataGridTextColumn Header="Timer" Width="82" Binding="{Binding CountdownText}" />
-                                                <DataGridTextColumn Header="Finished" Width="132" Binding="{Binding FinishAtText}" />
+                                                <DataGridTextColumn Header="Finished" Width="80" Binding="{Binding FinishAtText}" />
                                             </DataGrid.Columns>
                                         </DataGrid>
                                     </Grid>
@@ -2873,12 +2875,14 @@
                                                   RowHeight="30"
                                                   MinHeight="90"
                                                   MaxHeight="90"
+                                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                  ScrollViewer.VerticalScrollBarVisibility="Disabled"
                                                   FontSize="12">
                                             <DataGrid.Columns>
                                                 <DataGridTextColumn Header="Upgrade" Width="*" Binding="{Binding Name}" />
                                                 <DataGridTextColumn Header="Target" Width="78" Binding="{Binding LevelText}" />
                                                 <DataGridTextColumn Header="Timer" Width="82" Binding="{Binding CountdownText}" />
-                                                <DataGridTextColumn Header="Finished" Width="132" Binding="{Binding FinishAtText}" />
+                                                <DataGridTextColumn Header="Finished" Width="80" Binding="{Binding FinishAtText}" />
                                             </DataGrid.Columns>
                                         </DataGrid>
                                     </Grid>
@@ -2912,6 +2916,26 @@
                                                    FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextPrimaryBrush}"
                                                    VerticalAlignment="Center" />
+                                        <Rectangle Width="1" Fill="{DynamicResource BorderSubtleBrush}" Margin="12,3,12,3" />
+                                        <TextBlock x:Name="QueueInfoTextBlock"
+                                                   Text="Queue loaded."
+                                                   Width="118"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Foreground="{DynamicResource TextSubtleBrush}"
+                                                   FontSize="11"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Text=" | "
+                                                   Foreground="{DynamicResource TextSubtleBrush}"
+                                                   FontSize="11"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock x:Name="QueueSelectedVillageTextBlock"
+                                                   Text="Selected village: -"
+                                                   Width="150"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Foreground="{DynamicResource TextSubtleBrush}"
+                                                   FontSize="11"
+                                                   VerticalAlignment="Center"
+                                                   ToolTip="The queue below is shown for this village. Choose a village with the dropdown on the Dashboard." />
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                         <Button x:Name="QueueRemoveButton" Content="Remove" Width="76" Click="QueueRemoveButton_Click" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" />
@@ -3167,28 +3191,10 @@
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Top"
                                 Height="30"
+                                Margin="0,0,16,0"
                                 Padding="6,0,0,0"
                                 Background="{DynamicResource AppBackgroundBrush}">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock x:Name="QueueInfoTextBlock"
-                                           Text="Queue loaded."
-                                           Width="118"
-                                           TextTrimming="CharacterEllipsis"
-                                           Foreground="{DynamicResource TextSubtleBrush}"
-                                           FontSize="11"
-                                           VerticalAlignment="Center" />
-                                <TextBlock Text=" | "
-                                           Foreground="{DynamicResource TextSubtleBrush}"
-                                           FontSize="11"
-                                           VerticalAlignment="Center" />
-                                <TextBlock x:Name="QueueSelectedVillageTextBlock"
-                                           Text="Selected village: -"
-                                           Width="150"
-                                           TextTrimming="CharacterEllipsis"
-                                           Foreground="{DynamicResource TextSubtleBrush}"
-                                           FontSize="11"
-                                           VerticalAlignment="Center"
-                                           ToolTip="The queue below is shown for this village. Choose a village with the dropdown on the Dashboard." />
                                 <Button x:Name="ClearVillageQueueButton"
                                         Content="Clear village queue"
                                         Width="124"

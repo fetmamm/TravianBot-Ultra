@@ -20,6 +20,7 @@ public partial class SavePageHtmlWindow : Window
     {
         _saveDirectory = saveDirectory;
         InitializeComponent();
+        ThemeChrome.EnableEarlyDarkTitleBar(this);
         FileNameTextBox.Text = $"page_{DateTime.Now:yyyyMMdd_HHmmss}";
         RefreshUiState();
         Loaded += (_, _) =>

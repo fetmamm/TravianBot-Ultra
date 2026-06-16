@@ -13,6 +13,7 @@ public partial class DashboardFunctionListWindow : Window
     public DashboardFunctionListWindow(IEnumerable<DashboardFunctionOption> options)
     {
         InitializeComponent();
+        ThemeChrome.EnableEarlyDarkTitleBar(this);
         _options = options?.Select(option => new DashboardFunctionOption
         {
             Key = option.Key,

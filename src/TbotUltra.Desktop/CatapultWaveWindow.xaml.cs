@@ -36,6 +36,7 @@ public partial class CatapultWaveWindow : Window
     public CatapultWaveWindow(string tribe, IReadOnlyDictionary<string, long>? availableTroops = null, int? rallyPointLevel = null)
     {
         InitializeComponent();
+        ThemeChrome.EnableEarlyDarkTitleBar(this);
         _troopTypes = TroopCatalog.ResolveTroopTypesForTribe(tribe);
         _availableTroops = availableTroops is null
             ? new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase)

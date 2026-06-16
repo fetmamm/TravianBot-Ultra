@@ -25,6 +25,7 @@ public partial class BuildingConstructChoiceWindow : Window
         Func<int, int, BuildingNextLevelEstimate?>? estimateProvider = null)
     {
         InitializeComponent();
+        ThemeChrome.EnableEarlyDarkTitleBar(this);
 
         _estimateProvider = estimateProvider;
         TitleTextBlock.Text = $"Build in slot {slotId}";

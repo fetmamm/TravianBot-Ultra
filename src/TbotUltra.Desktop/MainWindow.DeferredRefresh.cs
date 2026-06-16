@@ -278,7 +278,8 @@ public partial class MainWindow
         {
             if (ConstructionQueueState.ResolveDeferReason(item) == ConstructionDeferReason.StorageCapacity)
             {
-                var block = ResolveStorageCapacityBlock(item.Payload, status, preferLiveStatus: true);
+                var block = ResolveStorageCapacityBlock(item.Payload, status, preferLiveStatus: true)
+                    ?? ResolveExplicitStorageCapacityBlock(item.Payload, status);
                 if (block is null
                     && _botService.UpdateDeferredQueueItem(item.Id, item.Payload, TimeSpan.Zero))
                 {

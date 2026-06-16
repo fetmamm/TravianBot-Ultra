@@ -125,8 +125,8 @@ For en ny dashboard-bool ska hela configkedjan uppdateras:
   rensas som stale. `Clear timers` ar vald-by-scope och tar aldrig bort Queue-sidans poster.
 - En `queue_full`-defer blockerar all senare construction i samma by tills den tidigaste
   aktiva byggnaden ar fardig. Plus ger tva platser, annars en; inga romar-specialfall har.
-- Beständiga Queue-poster ar explicit anvandarkoord arbete och kor oavsett byns automation/group-toggle.
-  Dessa toggles styr endast runtime-poster som den kontinuerliga loopen skapar automatiskt.
+- Queue-poster kor bara nar byns Auto-toggle ar pa och postens automation group ar pa for samma by.
+  Avstangda byar/grupper ignoreras i scheduler/auto-queue och ligger kvar tills anvandaren slar pa dem igen.
 - Queue-full ska loggas med bynamn samt exakt nasta retry i servertid och sekunder kvar.
 - Djup queue-full-diagnostik anvander `[construction-queue:verbose]` och doljs i Clean-laget.
 - Dashboardens byggikoner anvander live `ActiveConstructions` som auktoritativt antal.
@@ -138,6 +138,8 @@ For en ny dashboard-bool ska hela configkedjan uppdateras:
 - `ActiveConstructions` far endast rensas av en bekraftad tom dorf1/dorf2-lasning
   (`ActiveConstructionsFromOverview=true`). Lokal `FinishUtc`, cache-load, UI-tick, partial reads och
   `Clear timers` far aldrig rensa browserns senaste construction-snapshot.
+- Utgangen `ActiveConstructions` fran cache ar `Unknown`, inte aktiv ko: behall snapshoten for senare
+  bekraftelse men visa den inte som aktiv rad/ikon och rakna inte `ActiveBuildCount`.
 - Nar en lokal construction-timer nar noll ska den endast begara en ny Travian-lasning. Den far inte
   minska aktivt antal eller markera kon tom lokalt.
 - Construction-kortets live byggtid och aktiva antal ska harledas fran samma `ActiveConstructions`
@@ -148,6 +150,9 @@ For en ny dashboard-bool ska hela configkedjan uppdateras:
   `FinishUtc` med programmets serverklocka; inga separata UI-källor. Queue-rutorna visar fasta platser:
   två construction-platser (tre för romare) och två Smithy-platser, med sekundvis nedräkning från
   samma absoluta sluttider. Lediga bekräftade platser visas som `Ready`.
+- Official `upgradeBlocked` med `Extend warehouse/granary first` ar storage-capacity, inte vanlig
+  resource-wait. Worker ska returnera `wait_reason=storage_capacity` och desktop ska lata
+  `StorageCapacityDependencyPlanner` kopa Warehouse/Granary-dependency fore originaltasken.
 - Village Overview och byval visar kapitalen forst; ovriga byar behaller Travian-listans DOM/sidebar-ordning.
   Profiltabellens ordning far inte anvandas eftersom Official kan sortera den efter population; las
   sidebarordningen fore profilnavigation och anvand profilen endast for att berika bydata.

@@ -308,10 +308,11 @@ public partial class MainWindow
         VillageStatus? status = null;
         var hasStatus = selectedName is not null
             && _villageStatusCacheByName.TryGetValue(selectedName, out status);
-        var activeConstructions = hasStatus
-            ? status?.ActiveConstructions ?? []
-            : [];
         var nowUtc = DateTimeOffset.UtcNow;
+        var snapshot = ConstructionQueueState.ResolveSnapshot(status, nowUtc);
+        var activeConstructions = snapshot.Knowledge == ConstructionQueueKnowledge.Active
+            ? ConstructionQueueState.ResolveCurrentActiveConstructions(status, nowUtc)
+            : [];
         var tribe = !string.IsNullOrWhiteSpace(status?.Tribe)
             && !string.Equals(status.Tribe, "Unknown", StringComparison.OrdinalIgnoreCase)
                 ? status.Tribe
@@ -325,9 +326,9 @@ public partial class MainWindow
         foreach (var row in LiveQueueRowFactory.BuildConstructionRows(
                      activeConstructions,
                      slotCount,
-                     hasStatus,
+                     snapshot.Knowledge != ConstructionQueueKnowledge.Unknown,
                      nowUtc,
-                     FormatQueueServerTime))
+                     FormatQueueFinishTime))
         {
             _travianBuildQueueRows.Add(row);
         }
@@ -350,7 +351,7 @@ public partial class MainWindow
                      slotCount: 2,
                      hasStatus,
                      nowUtc,
-                     FormatQueueServerTime))
+                     FormatQueueFinishTime))
         {
             _travianSmithyQueueRows.Add(row);
         }

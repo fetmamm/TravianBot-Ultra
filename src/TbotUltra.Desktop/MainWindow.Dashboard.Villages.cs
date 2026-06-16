@@ -175,9 +175,9 @@ public partial class MainWindow
     private static string? GetQueueItemVillageName(QueueItem item)
         => GetQueueItemPayloadValue(item, BotOptionPayloadKeys.TargetVillageName);
 
-    // Whether a queue item's target village is enabled for automation. Items without a village (legacy /
-    // global tasks) are always allowed. Unknown villages default to allowed so user-queued work for a
-    // not-yet-discovered village is never silently blocked.
+    // Whether a queue item's target village is enabled for automation. Items without a village pass the
+    // village gate here; their group is still gated separately. Unknown villages default to allowed so a
+    // not-yet-discovered legacy queue item is not silently blocked.
     private bool IsQueueItemVillageEnabled(QueueItem item)
     {
         var key = GetQueueItemVillageKey(item);

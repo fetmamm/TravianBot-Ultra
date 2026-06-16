@@ -33,6 +33,7 @@ public partial class CreateFarmListsWindow : Window
         CancellationToken externalToken)
     {
         InitializeComponent();
+        ThemeChrome.EnableEarlyDarkTitleBar(this);
         _runner = runner;
         _runCts = CancellationTokenSource.CreateLinkedTokenSource(externalToken);
 

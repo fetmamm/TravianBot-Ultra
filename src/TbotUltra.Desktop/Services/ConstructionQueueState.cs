@@ -75,6 +75,19 @@ public static class ConstructionQueueState
                 || message.Contains("upgrade_required_", StringComparison.OrdinalIgnoreCase));
     }
 
+    public static bool IsConstructionStorageCapacityDeferMessage(string? message)
+    {
+        return !string.IsNullOrWhiteSpace(message)
+            && (message.Contains($"wait_reason={BotOptionPayloadKeys.UpgradeDeferReasonStorageCapacity}", StringComparison.OrdinalIgnoreCase)
+                || message.Contains(BotOptionPayloadKeys.UpgradeStorageCapacityKind, StringComparison.OrdinalIgnoreCase)
+                || message.Contains("Extend warehouse", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("Extend granary", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("Extend silo", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("warehouse first", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("granary first", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("silo first", StringComparison.OrdinalIgnoreCase));
+    }
+
     public static bool IsQueueOccupancyDeferred(QueueItem item)
     {
         return ResolveDeferReason(item) == ConstructionDeferReason.QueueFull;
@@ -154,7 +167,8 @@ public static class ConstructionQueueState
             return new ConstructionQueueSnapshot(ConstructionQueueKnowledge.Unknown, 0, null);
         }
 
-        var activeConstructions = status.ActiveConstructions ?? [];
+        var allConstructions = status.ActiveConstructions ?? [];
+        var activeConstructions = ResolveCurrentActiveConstructions(status, now);
         if (activeConstructions.Count > 0)
         {
             var capturedAt = now ?? DateTimeOffset.UtcNow;
@@ -169,9 +183,37 @@ public static class ConstructionQueueState
                 remainingSeconds > 0 ? remainingSeconds : null);
         }
 
+        if (allConstructions.Count > 0)
+        {
+            return new ConstructionQueueSnapshot(ConstructionQueueKnowledge.Unknown, 0, null);
+        }
+
         return status.ActiveConstructionsFromOverview
             ? new ConstructionQueueSnapshot(ConstructionQueueKnowledge.ConfirmedEmpty, 0, null)
             : new ConstructionQueueSnapshot(ConstructionQueueKnowledge.Unknown, 0, null);
+    }
+
+    public static IReadOnlyList<ActiveConstruction> ResolveCurrentActiveConstructions(
+        VillageStatus? status,
+        DateTimeOffset? now = null)
+    {
+        if (status?.ActiveConstructions is not { Count: > 0 } activeConstructions)
+        {
+            return [];
+        }
+
+        var capturedAt = now ?? DateTimeOffset.UtcNow;
+        return activeConstructions
+            .Where(item =>
+            {
+                if (item.Finish is not null)
+                {
+                    return !item.Finish.IsFinishedAt(capturedAt);
+                }
+
+                return item.TimeLeftSeconds is not int seconds || seconds > 0;
+            })
+            .ToList();
     }
 
     public static ConstructionQueueAvailability ResolveAvailability(

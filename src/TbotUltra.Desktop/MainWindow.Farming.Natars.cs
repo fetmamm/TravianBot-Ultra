@@ -280,6 +280,7 @@ public partial class MainWindow
             },
         };
 
+        ThemeChrome.EnableEarlyDarkTitleBar(popup);
         DockPanel.SetDock(buttonRow, Dock.Bottom);
         DockPanel.SetDock(summaryText, Dock.Top);
 

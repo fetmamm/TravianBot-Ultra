@@ -20,6 +20,7 @@ public partial class SettingsWindow : Window
     public SettingsWindow(BotConfigStore store, bool sessionSleeping = false)
     {
         InitializeComponent();
+        ThemeChrome.EnableEarlyDarkTitleBar(this);
         _store = store;
         _sessionSleeping = sessionSleeping;
         InitializeSessionPacingChoices();

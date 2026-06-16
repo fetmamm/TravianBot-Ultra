@@ -39,6 +39,7 @@ public partial class AccountsWindow : Window
         IEnumerable<ServerOption> defaultServerOptions)
     {
         InitializeComponent();
+        ThemeChrome.EnableEarlyDarkTitleBar(this);
         _store = store;
         _deletionService = deletionService;
         _serverCatalogStore = serverCatalogStore;

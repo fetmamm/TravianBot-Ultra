@@ -18,6 +18,7 @@ public partial class BuildingUpgradeTargetWindow : Window
         Func<int, BuildingNextLevelEstimate?>? estimateProvider = null)
     {
         InitializeComponent();
+        ThemeChrome.EnableEarlyDarkTitleBar(this);
 
         _estimateProvider = estimateProvider;
         _currentLevel = slot.UpgradeBaseLevel;

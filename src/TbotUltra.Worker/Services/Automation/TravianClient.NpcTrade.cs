@@ -342,12 +342,54 @@ public sealed partial class TravianClient
             () => {
               const text = (document.body?.innerText || document.body?.textContent || '').replace(/\s+/g, ' ').toLowerCase();
               return !!document.querySelector('.upgradeBlocked .inlineIcon.resource.transfer, .inlineIcon.resource.transfer.fillUp')
-                || /resources\s*will\s*be\s*available|enough\s*resources\s*on|not\s*enough|insufficient|missing\s*resources|requires\s*more/.test(text);
+                || /resources\s*will\s*be\s*available|enough\s*resources\s*on|not\s*enough|insufficient|missing\s*resources|requires\s*more|extend\s+(?:warehouse|granary|silo)|(?:warehouse|granary|silo)\s+first/.test(text);
             }
             """);
 
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while checking resource block state.", cancellationToken);
         return blocked;
+    }
+
+    private async Task<string?> ReadStorageCapacityBlockKindOnCurrentPageAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var kind = await _page.EvaluateAsync<string?>(
+            """
+            () => {
+              const clean = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+              const nodes = Array.from(document.querySelectorAll(
+                '.upgradeBlocked .errorMessage, .upgradeBlocked, .errorMessage, .error, .none'
+              ));
+
+              for (const node of nodes) {
+                const text = clean(node.textContent || '');
+                if (!text) {
+                  continue;
+                }
+
+                const mentionsWarehouse = /\bwarehouse\b/.test(text);
+                const mentionsGranary = /\bgranary\b|\bsilo\b/.test(text);
+                if (!mentionsWarehouse && !mentionsGranary) {
+                  continue;
+                }
+
+                const isStorageBlock =
+                  /extend\s+(?:the\s+)?(?:warehouse|granary|silo)/.test(text)
+                  || /(?:warehouse|granary|silo)(?:\s+and\s+(?:warehouse|granary|silo))?\s+first/.test(text)
+                  || /(capacity|storage|level).*(warehouse|granary|silo)|(warehouse|granary|silo).*(capacity|storage|level)/.test(text);
+                if (!isStorageBlock) {
+                  continue;
+                }
+
+                return mentionsWarehouse ? 'warehouse' : 'granary';
+              }
+
+              return null;
+            }
+            """);
+
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while checking storage capacity block state.", cancellationToken);
+        return string.IsNullOrWhiteSpace(kind) ? null : kind;
     }
 
     private async Task<int?> ReadConstructionResourceWaitSecondsAsync(CancellationToken cancellationToken)

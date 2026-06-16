@@ -27,6 +27,7 @@ public static class BotOptionPayloadKeys
     public const string UpgradeWaitSeconds = "upgrade_wait_seconds";
     public const string UpgradeWaitReason = "upgrade_wait_reason";
     public const string UpgradeBlockedLabel = "upgrade_blocked_label";
+    public const string UpgradeStorageCapacityKind = "upgrade_storage_capacity_kind";
     // Why a construction item last deferred. Queue occupancy is kept separate from resource,
     // requirement and generic retry waits so scheduling and UI never infer a Travian queue from a timer.
     public const string UpgradeDeferReason = "upgrade_defer_reason";

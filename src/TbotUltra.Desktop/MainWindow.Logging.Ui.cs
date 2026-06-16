@@ -610,6 +610,7 @@ public partial class MainWindow
             Top = Top + 30,
         };
 
+        ThemeChrome.EnableEarlyDarkTitleBar(_logsPopupWindow);
         _logsPopupWindow.Closed += (_, _) =>
         {
             _logsPopupWindow = null;

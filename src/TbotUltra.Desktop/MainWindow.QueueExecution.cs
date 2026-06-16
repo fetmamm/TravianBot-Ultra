@@ -233,11 +233,13 @@ public partial class MainWindow
                             ? BotOptionPayloadKeys.UpgradeDeferReasonQueueFull
                             : ConstructionQueueState.IsConstructionInProgressDeferMessage(ex.Message)
                                 ? BotOptionPayloadKeys.UpgradeDeferReasonInProgress
-                                : ConstructionQueueState.IsConstructionRequirementDeferMessage(ex.Message)
-                                    ? BotOptionPayloadKeys.UpgradeDeferReasonRequirements
-                                    : ConstructionQueueState.IsConstructionResourceDeferMessage(ex.Message)
-                                        ? BotOptionPayloadKeys.UpgradeDeferReasonResources
-                                        : BotOptionPayloadKeys.UpgradeDeferReasonRetry;
+                                : ConstructionQueueState.IsConstructionStorageCapacityDeferMessage(ex.Message)
+                                    ? BotOptionPayloadKeys.UpgradeDeferReasonStorageCapacity
+                                    : ConstructionQueueState.IsConstructionRequirementDeferMessage(ex.Message)
+                                        ? BotOptionPayloadKeys.UpgradeDeferReasonRequirements
+                                        : ConstructionQueueState.IsConstructionResourceDeferMessage(ex.Message)
+                                            ? BotOptionPayloadKeys.UpgradeDeferReasonResources
+                                            : BotOptionPayloadKeys.UpgradeDeferReasonRetry;
                     updatedPayload[BotOptionPayloadKeys.UpgradeDeferClassificationVersion] =
                         ConstructionQueueState.CurrentDeferClassificationVersion;
                     payloadChanged = true;

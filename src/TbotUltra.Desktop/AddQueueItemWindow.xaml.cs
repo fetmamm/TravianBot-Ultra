@@ -13,6 +13,7 @@ public partial class AddQueueItemWindow : Window
     public AddQueueItemWindow(IEnumerable<string> allowedTasks)
     {
         InitializeComponent();
+        ThemeChrome.EnableEarlyDarkTitleBar(this);
         TaskComboBox.ItemsSource = allowedTasks.ToList();
         TaskComboBox.SelectedIndex = 0;
     }

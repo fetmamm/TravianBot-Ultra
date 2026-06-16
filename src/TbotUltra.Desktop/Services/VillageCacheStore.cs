@@ -203,6 +203,10 @@ public sealed class VillageCacheStore
                 TimeLeftSeconds = item.Finish?.RemainingSecondsAt(now) ?? item.TimeLeftSeconds,
             })
             .ToList();
+        var currentActiveConstructions = ConstructionQueueState.ResolveCurrentActiveConstructions(
+            status with { ActiveConstructions = activeConstructions },
+            now);
+        staleCount += Math.Max(0, activeConstructions.Count - currentActiveConstructions.Count);
 
         var troopTrainingQueues = (status.TroopTrainingQueues ?? [])
             .Where(item =>
@@ -272,12 +276,12 @@ public sealed class VillageCacheStore
             .ToList();
         var heroStatus = ReconcileHero(status.HeroStatus, now, ref staleCount);
 
-        var buildRemaining = activeConstructions
+        var buildRemaining = currentActiveConstructions
             .Where(item => item.TimeLeftSeconds is > 0)
             .Select(item => item.TimeLeftSeconds!.Value)
             .DefaultIfEmpty(0)
             .Min();
-        if (activeConstructions.Count == 0 && status.BuildQueueFinish is not null)
+        if (currentActiveConstructions.Count == 0 && status.BuildQueueFinish is not null)
         {
             if (status.BuildQueueFinish.IsFinishedAt(now))
             {
@@ -296,12 +300,12 @@ public sealed class VillageCacheStore
 
         return status with
         {
-            IsBuildingInProgress = activeConstructions.Count > 0,
-            ActiveBuildCount = activeConstructions.Count,
+            IsBuildingInProgress = currentActiveConstructions.Count > 0,
+            ActiveBuildCount = currentActiveConstructions.Count,
             BuildQueueRemainingSeconds = buildRemaining > 0 ? buildRemaining : null,
             BuildQueueRemainingText = buildRemaining > 0 ? FormatDuration(buildRemaining) : string.Empty,
             BuildQueueFinish = buildRemaining > 0
-                ? status.BuildQueueFinish ?? activeConstructions.OrderBy(item => item.TimeLeftSeconds).FirstOrDefault()?.Finish
+                ? status.BuildQueueFinish ?? currentActiveConstructions.OrderBy(item => item.TimeLeftSeconds).FirstOrDefault()?.Finish
                 : null,
             ActiveConstructions = activeConstructions,
             TroopTrainingQueues = troopTrainingQueues,

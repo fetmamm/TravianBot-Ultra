@@ -19,6 +19,7 @@ public partial class SupportWindow : Window
     public SupportWindow(string projectRoot, IReadOnlyList<string> terminalEntries)
     {
         InitializeComponent();
+        ThemeChrome.EnableEarlyDarkTitleBar(this);
         _projectRoot = projectRoot;
         _terminalEntries = terminalEntries;
     }
@@ -154,6 +155,7 @@ public partial class SupportWindow : Window
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             ResizeMode = ResizeMode.NoResize,
         };
+        ThemeChrome.EnableEarlyDarkTitleBar(dialog);
 
         var text = new TextBlock
         {

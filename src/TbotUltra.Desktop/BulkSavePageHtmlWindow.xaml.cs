@@ -37,6 +37,7 @@ public partial class BulkSavePageHtmlWindow : Window
     {
         _saveDirectory = saveDirectory;
         InitializeComponent();
+        ThemeChrome.EnableEarlyDarkTitleBar(this);
         DataContext = this;
     }
 

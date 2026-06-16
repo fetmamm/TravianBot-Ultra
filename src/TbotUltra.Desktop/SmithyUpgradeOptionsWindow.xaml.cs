@@ -30,6 +30,7 @@ public partial class SmithyUpgradeOptionsWindow : Window
     public SmithyUpgradeOptionsWindow(IReadOnlyList<SmithyTroopOption> troops, string villageName)
     {
         InitializeComponent();
+        ThemeChrome.EnableEarlyDarkTitleBar(this);
 
         _villageName = string.IsNullOrWhiteSpace(villageName) ? "this village" : villageName.Trim();
         SubtitleTextBlock.Text = $"Selection for village: {_villageName}";

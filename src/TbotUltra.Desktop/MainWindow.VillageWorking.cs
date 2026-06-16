@@ -399,7 +399,7 @@ public partial class MainWindow
             0,
             slotCount);
         var slots = new List<VillageActivitySlot>(slotCount);
-        var hasLiveConstructionQueue = status?.ActiveConstructions is { Count: > 0 };
+        var hasLiveConstructionQueue = ConstructionQueueState.ResolveSnapshot(status).Knowledge == ConstructionQueueKnowledge.Active;
         for (var i = 0; i < slotCount; i++)
         {
             var isActive = i < active;

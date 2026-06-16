@@ -35,7 +35,11 @@ public partial class MainWindow
         var block = ResolveStorageCapacityBlock(updatedPayload, status);
         if (block is null)
         {
-            return false;
+            block = ResolveExplicitStorageCapacityBlock(updatedPayload, status);
+            if (block is null)
+            {
+                return false;
+            }
         }
 
         if (status is null || status.Buildings.Count == 0)
@@ -250,6 +254,25 @@ public partial class MainWindow
             preferLiveStatus
                 ? status?.GranaryCapacity ?? payloadGranaryCapacity
                 : payloadGranaryCapacity ?? status?.GranaryCapacity);
+    }
+
+    private static StorageCapacityBlock? ResolveExplicitStorageCapacityBlock(
+        IReadOnlyDictionary<string, string> payload,
+        VillageStatus? status)
+    {
+        if (!payload.TryGetValue(BotOptionPayloadKeys.UpgradeStorageCapacityKind, out var rawKind)
+            || !Enum.TryParse<StorageCapacityKind>(rawKind, true, out var kind))
+        {
+            return null;
+        }
+
+        var currentCapacity = kind == StorageCapacityKind.Warehouse
+            ? status?.WarehouseCapacity
+            : status?.GranaryCapacity;
+        return new StorageCapacityBlock(
+            kind,
+            (currentCapacity ?? 0) + 1,
+            currentCapacity ?? 0);
     }
 
     private void PersistStorageCapacityWait(

@@ -394,6 +394,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        ThemeChrome.EnableEarlyDarkTitleBar(this);
         TryApplyWindowIcon();
 
         _loopController = App.Services.GetRequiredService<LoopController>();

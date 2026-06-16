@@ -99,7 +99,7 @@ public sealed class VillageCacheStoreTests : IDisposable
     }
 
     [Fact]
-    public void Load_KeepsExpiredConstructionUntilOverviewConfirmsQueueIsEmpty()
+    public void Load_KeepsExpiredConstructionSnapshotButDoesNotCountItActive()
     {
         var now = DateTimeOffset.UtcNow;
         var expired = new TimerSnapshot(30, now.AddMinutes(-2), now.AddMinutes(-1), false);
@@ -119,8 +119,9 @@ public sealed class VillageCacheStoreTests : IDisposable
 
         Assert.Single(loaded.ActiveConstructions!);
         Assert.Null(loaded.BuildQueueRemainingSeconds);
-        Assert.True(loaded.IsBuildingInProgress);
-        Assert.DoesNotContain(logs, line =>
+        Assert.False(loaded.IsBuildingInProgress);
+        Assert.Equal(0, loaded.ActiveBuildCount);
+        Assert.Contains(logs, line =>
             line.Contains("stale timer", StringComparison.OrdinalIgnoreCase)
             && line.Contains("GREZ", StringComparison.OrdinalIgnoreCase));
     }

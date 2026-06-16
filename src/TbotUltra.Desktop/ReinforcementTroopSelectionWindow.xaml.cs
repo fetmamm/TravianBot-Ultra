@@ -12,6 +12,7 @@ public partial class ReinforcementTroopSelectionWindow : Window
     public ReinforcementTroopSelectionWindow(ObservableCollection<ReinforcementTroopRuleItem> troopRules, string villageName)
     {
         InitializeComponent();
+        ThemeChrome.EnableEarlyDarkTitleBar(this);
         _troopRules = troopRules;
         VillageNameTextBlock.Text = villageName;
         TroopRulesItemsControl.ItemsSource = troopRules;

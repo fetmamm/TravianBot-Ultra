@@ -387,7 +387,8 @@ public sealed partial class TravianClient
         // limit). Return it directly without any page reads — on a build page the production/resource
         // widgets aren't present, so reading them here would trigger slow failing retries. The construction
         // defer (queue_wait_seconds) drives the countdown timer, and the build retries when it elapses.
-        if (_heroTransferOverLimitWaitSeconds is int heroUseLimitWait)
+        var serverStorageBlockKind = await ReadStorageCapacityBlockKindOnCurrentPageAsync(cancellationToken);
+        if (_heroTransferOverLimitWaitSeconds is int heroUseLimitWait && serverStorageBlockKind is null)
         {
             _heroTransferOverLimitWaitSeconds = null;
             var heroLimitSnapshot = new UpgradeResourceWaitSnapshot(
@@ -396,10 +397,13 @@ public sealed partial class TravianClient
                 Math.Max(1, heroUseLimitWait),
                 "hero_use_limit",
                 null,
+                null,
                 null);
             Notify(FormatUpgradeResourceWaitLog(heroLimitSnapshot));
             return heroLimitSnapshot;
         }
+
+        _heroTransferOverLimitWaitSeconds = null;
 
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading upgrade resource requirements.", cancellationToken);
         var required = await _page.EvaluateAsync<Dictionary<string, long?>>(
@@ -482,7 +486,8 @@ public sealed partial class TravianClient
                 fallbackWaitSeconds,
                 HasAnyProduction(cachedProductionByHour) ? "cached_production" : "page_timer",
                 capacities.Warehouse,
-                capacities.Granary);
+                capacities.Granary,
+                serverStorageBlockKind);
             Notify(FormatUpgradeResourceWaitLog(snapshot));
             return snapshot;
         }
@@ -497,7 +502,8 @@ public sealed partial class TravianClient
             fallbackWaitSeconds,
             "estimated_from_page",
             capacities.Warehouse,
-            capacities.Granary);
+            capacities.Granary,
+            serverStorageBlockKind);
         Notify(FormatUpgradeResourceWaitLog(liveSnapshot));
         return liveSnapshot;
     }
@@ -510,7 +516,8 @@ public sealed partial class TravianClient
         int fallbackWaitSeconds,
         string waitReasonWhenEstimated,
         long? warehouseCapacity,
-        long? granaryCapacity)
+        long? granaryCapacity,
+        string? serverStorageBlockKind = null)
     {
         var values = new Dictionary<string, UpgradeResourceWaitValue>(StringComparer.OrdinalIgnoreCase);
         var longestFiniteSeconds = 0;
@@ -568,14 +575,81 @@ public sealed partial class TravianClient
         var resolvedWaitReason = fallbackWaitSeconds > 0
             ? "page_timer"
             : waitReasonWhenEstimated;
+        var storageCapacityKind = ResolveStorageCapacityBlockKind(
+            required,
+            warehouseCapacity,
+            granaryCapacity,
+            serverStorageBlockKind);
+        if (storageCapacityKind is not null)
+        {
+            resolvedWaitReason = "storage_capacity";
+        }
 
         return new UpgradeResourceWaitSnapshot(
             blockedLabel,
             values,
             resolvedWaitSeconds,
-            hasUnknownWait && fallbackWaitSeconds <= 0 ? "recheck_needed" : resolvedWaitReason,
+            storageCapacityKind is not null
+                ? resolvedWaitReason
+                : hasUnknownWait && fallbackWaitSeconds <= 0
+                    ? "recheck_needed"
+                    : resolvedWaitReason,
             warehouseCapacity,
-            granaryCapacity);
+            granaryCapacity,
+            storageCapacityKind);
+    }
+
+    private static string? ResolveStorageCapacityBlockKind(
+        IReadOnlyDictionary<string, long?> required,
+        long? warehouseCapacity,
+        long? granaryCapacity,
+        string? serverStorageBlockKind)
+    {
+        var normalizedServerKind = NormalizeStorageCapacityKind(serverStorageBlockKind);
+        if (normalizedServerKind is not null
+            && (warehouseCapacity is not > 0 || granaryCapacity is not > 0))
+        {
+            return normalizedServerKind;
+        }
+
+        required.TryGetValue("wood", out var wood);
+        required.TryGetValue("clay", out var clay);
+        required.TryGetValue("iron", out var iron);
+        required.TryGetValue("crop", out var crop);
+        var requiredWarehouse = Math.Max(wood ?? 0, Math.Max(clay ?? 0, iron ?? 0));
+        if (warehouseCapacity is > 0 && requiredWarehouse > warehouseCapacity.Value)
+        {
+            return "warehouse";
+        }
+
+        if (granaryCapacity is > 0 && crop is long requiredCrop && requiredCrop > granaryCapacity.Value)
+        {
+            return "granary";
+        }
+
+        return normalizedServerKind;
+    }
+
+    private static string? NormalizeStorageCapacityKind(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = value.Trim().ToLowerInvariant();
+        if (normalized.Contains("warehouse", StringComparison.OrdinalIgnoreCase))
+        {
+            return "warehouse";
+        }
+
+        if (normalized.Contains("granary", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("silo", StringComparison.OrdinalIgnoreCase))
+        {
+            return "granary";
+        }
+
+        return null;
     }
 
     private async Task<IReadOnlyDictionary<string, double?>> ReadCachedProductionByHourForActiveVillageAsync(CancellationToken cancellationToken)
@@ -623,9 +697,10 @@ public sealed partial class TravianClient
             parts.Add($"{key}: req={FormatValue(value.Required)}, cur={FormatValue(value.Current)}, miss={FormatValue(value.Missing)}, prod/h={FormatProduction(value.ProductionPerHour)}, wait_s={FormatWait(value.WaitSeconds)}, reason={value.WaitReason}");
         }
 
-        // Clear human-readable headline first (e.g. "Not enough resources to build Warehouse level 5.
-        // Waiting 240s."), then the per-resource diagnostics for debugging.
-        var headline = $"Not enough resources to build {FriendlyUpgradeTarget(snapshot.BlockedLabel)}. Waiting {snapshot.WaitSeconds}s.";
+        // Clear human-readable headline first, then the per-resource diagnostics for debugging.
+        var headline = string.Equals(snapshot.WaitReason, "storage_capacity", StringComparison.OrdinalIgnoreCase)
+            ? $"Storage capacity too low for {FriendlyUpgradeTarget(snapshot.BlockedLabel)} ({snapshot.StorageCapacityKind ?? "storage"}). Waiting {snapshot.WaitSeconds}s."
+            : $"Not enough resources to build {FriendlyUpgradeTarget(snapshot.BlockedLabel)}. Waiting {snapshot.WaitSeconds}s.";
         var details = parts.Count > 0 ? $" | {string.Join(" | ", parts)}" : string.Empty;
         return $"{headline}{details} | wait_reason={snapshot.WaitReason}";
     }
@@ -675,6 +750,7 @@ public sealed partial class TravianClient
         AppendUpgradeWaitValueTokens(builder, "crop", snapshot.Values);
         AppendLongToken(builder, BotOptionPayloadKeys.UpgradeWarehouseCapacity, snapshot.WarehouseCapacity);
         AppendLongToken(builder, BotOptionPayloadKeys.UpgradeGranaryCapacity, snapshot.GranaryCapacity);
+        AppendStringToken(builder, BotOptionPayloadKeys.UpgradeStorageCapacityKind, snapshot.StorageCapacityKind);
         return builder.ToString();
     }
 
@@ -743,6 +819,19 @@ public sealed partial class TravianClient
         builder.Append(value.Value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture));
     }
 
+    private static void AppendStringToken(System.Text.StringBuilder builder, string key, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        builder.Append(' ');
+        builder.Append(key);
+        builder.Append('=');
+        builder.Append(SanitizePayloadToken(value));
+    }
+
     private static string SanitizePayloadToken(string value)
     {
         return Regex.Replace(value ?? string.Empty, @"\s+", "_");
@@ -774,7 +863,8 @@ public sealed partial class TravianClient
         int WaitSeconds,
         string WaitReason,
         long? WarehouseCapacity,
-        long? GranaryCapacity);
+        long? GranaryCapacity,
+        string? StorageCapacityKind);
 
     private sealed record UpgradeResourceWaitValue(
         long? Required,
@@ -3708,7 +3798,10 @@ public sealed partial class TravianClient
                       if (upgradeBlockedEl) {
                         const blockText = clean(upgradeBlockedEl.textContent || '').toLowerCase();
                         const isResourceBlock = /enough\s*resources\s*on|not\s*enough|insufficient|missing\s*resources/i.test(blockText);
-                        if (isResourceBlock) {
+                        const isStorageCapacityBlock =
+                          /extend\s+(?:the\s+)?(?:warehouse|granary|silo)/i.test(blockText)
+                          || /(?:warehouse|granary|silo)(?:\s+and\s+(?:warehouse|granary|silo))?\s+first/i.test(blockText);
+                        if (isResourceBlock || isStorageCapacityBlock) {
                           let blockedSeconds = null;
                           const timerEl = upgradeBlockedEl.querySelector('.timer[value], .timer[data-value]');
                           if (timerEl) {
@@ -3722,7 +3815,9 @@ public sealed partial class TravianClient
                           }
                           return JSON.stringify({
                             outcome: 'BlockedByResources',
-                            reason: 'Upgrade blocked: not enough resources yet (upgradeBlocked panel).',
+                            reason: isStorageCapacityBlock
+                              ? 'Upgrade blocked: storage capacity is too low (upgradeBlocked panel).'
+                              : 'Upgrade blocked: not enough resources yet (upgradeBlocked panel).',
                             detectedMaxLevel: detectMaxLevel(),
                             queueWaitSeconds: blockedSeconds,
                             summary: picked.slice(0, 8)

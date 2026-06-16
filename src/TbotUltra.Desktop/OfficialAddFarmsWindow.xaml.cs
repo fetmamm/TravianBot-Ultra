@@ -139,6 +139,7 @@ public partial class OfficialAddFarmsWindow : Window
         string? selectedVillageName = null)
     {
         InitializeComponent();
+        ThemeChrome.EnableEarlyDarkTitleBar(this);
         _loader = loader;
         _runner = runner;
         _runCts = CancellationTokenSource.CreateLinkedTokenSource(externalToken);

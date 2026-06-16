@@ -82,7 +82,7 @@ public partial class MainWindow
 
     private IReadOnlyList<QueueItem> GetContinuousLoopRelevantQueueItems()
     {
-        var enabledGroups = GetContinuousLoopEnabledGroupsInOrder().ToHashSet();
+        var enabledGroups = GetContinuousLoopConsideredGroupsInOrder().ToHashSet();
         if (enabledGroups.Count <= 0)
         {
             return [];
@@ -90,6 +90,7 @@ public partial class MainWindow
 
         return _botService.GetQueueItemsForDisplay()
             .Where(item => enabledGroups.Contains(item.Group))
+            .Where(IsQueueItemAllowedByAutomationSettings)
             .ToList();
     }
 

@@ -130,6 +130,23 @@ public sealed class StorageCapacityDependencyPlannerTests
         Assert.Equal(21, plan.SlotId);
     }
 
+    [Fact]
+    public void Plan_ExplicitWarehouseBlockQueuesExistingWarehouseUpgrade()
+    {
+        var status = CreateStatus(
+            [new Building(19, "Warehouse", 1, null, 10)]);
+
+        var plan = StorageCapacityDependencyPlanner.Plan(
+            StorageCapacityKind.Warehouse,
+            status,
+            [],
+            DateTimeOffset.UtcNow);
+
+        Assert.Equal(StorageDependencyAction.Upgrade, plan.Action);
+        Assert.Equal(19, plan.SlotId);
+        Assert.Equal(2, plan.TargetLevel);
+    }
+
     private static VillageStatus CreateStatus(
         IReadOnlyList<Building> buildings,
         IReadOnlyList<ActiveConstruction>? activeConstructions = null)

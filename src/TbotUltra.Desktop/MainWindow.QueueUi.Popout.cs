@@ -82,6 +82,7 @@ public partial class MainWindow
             Left = Left + Width + 10,
             Top = Top + 30,
         };
+        ThemeChrome.EnableEarlyDarkTitleBar(_queuePopupWindow);
         closeButton.Click += (_, _) => _queuePopupWindow?.Close();
         _queuePopupWindow.Closed += (_, _) => _queuePopupWindow = null;
         _queuePopupWindow.Show();

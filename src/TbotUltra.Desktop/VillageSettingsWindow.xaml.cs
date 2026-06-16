@@ -29,6 +29,7 @@ public partial class VillageSettingsWindow : Window
         Action? onSaved = null)
     {
         InitializeComponent();
+        ThemeChrome.EnableEarlyDarkTitleBar(this);
         _rows = rows;
         _onEnabledChanged = onEnabledChanged;
         _onNpcTradeChanged = onNpcTradeChanged;

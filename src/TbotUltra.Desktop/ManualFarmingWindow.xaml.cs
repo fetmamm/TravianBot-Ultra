@@ -17,6 +17,7 @@ public partial class ManualFarmingWindow : Window
     public ManualFarmingWindow(string tribe, string natarVillageSelection, long troopCount, int troopVariancePercent)
     {
         InitializeComponent();
+        ThemeChrome.EnableEarlyDarkTitleBar(this);
         TroopTypeComboBox.ItemsSource = TroopCatalog.ResolveTroopTypesForTribe(tribe);
         TroopTypeComboBox.SelectedIndex = 0;
         VarianceComboBox.ItemsSource = VarianceOptions.Select(value => $"{value}%").ToList();

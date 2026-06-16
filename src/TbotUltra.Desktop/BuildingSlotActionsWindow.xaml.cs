@@ -16,6 +16,7 @@ public partial class BuildingSlotActionsWindow : Window
         BuildingNextLevelEstimate? nextLevel = null)
     {
         InitializeComponent();
+        ThemeChrome.EnableEarlyDarkTitleBar(this);
 
         TitleTextBlock.Text = $"{slot.SlotLabel} actions";
         DemolishButton.IsEnabled = slot.IsOccupied && canDemolish;

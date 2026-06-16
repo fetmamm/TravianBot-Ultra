@@ -430,8 +430,8 @@ public partial class MainWindow
     }
 
     // Official only: cheap current-page check (no navigation) for claimable Questmaster task
-    // rewards. When found, queues the collect_tasks runtime task. Gated by the user setting and
-    // de-duplicated so the same collection is never queued twice.
+    // rewards. When found, queues the collect_tasks runtime task. Gated by the user setting, village
+    // automation settings, and de-duplicated so the same collection is never queued twice.
     private async Task TryQueueAutoCollectTasksAsync(BotOptions options, VillageStatus? observedStatus = null)
     {
         if (!IsAutoCollectTasksEnabledNow(options))
@@ -447,6 +447,16 @@ public partial class MainWindow
         }
 
         var payload = BuildCurrentVillageUtilityPayload(observedStatus);
+        if (payload is null)
+        {
+            return;
+        }
+
+        if (!IsUtilityTaskAllowedByAutomationSettings("collect_tasks", payload))
+        {
+            return;
+        }
+
         var villageCooldownKey = GetUtilityTaskVillageKey(payload);
         var now = DateTimeOffset.UtcNow;
         if (villageCooldownKey is not null
@@ -460,12 +470,6 @@ public partial class MainWindow
         {
             if (await _botService.HasClaimableTasksOnCurrentPageAsync(options, AppendLog, CancellationToken.None))
             {
-                if (payload is null)
-                {
-                    AppendLog("[tasks:verbose] claimable rewards detected, but current village could not be identified; retrying on the next refresh.");
-                    return;
-                }
-
                 _botService.EnqueueRuntime("collect_tasks", "Collect tasks", payload, priority: -40, maxRetries: 1);
                 if (villageCooldownKey is not null)
                 {
@@ -481,8 +485,8 @@ public partial class MainWindow
     }
 
     // Official only: cheap current-page check (no navigation) for claimable Daily Quests rewards.
-    // When found, queues the collect_daily_quests runtime task. Gated by the user setting and
-    // de-duplicated so the same collection is never queued twice.
+    // When found, queues the collect_daily_quests runtime task. Gated by the user setting, village
+    // automation settings, and de-duplicated so the same collection is never queued twice.
     private async Task TryQueueAutoCollectDailyQuestsAsync(BotOptions options, VillageStatus? observedStatus = null)
     {
         if (!IsAutoCollectDailyQuestsEnabledNow(options))
@@ -496,17 +500,21 @@ public partial class MainWindow
             return;
         }
 
+        var payload = BuildCurrentVillageUtilityPayload(observedStatus);
+        if (payload is null)
+        {
+            return;
+        }
+
+        if (!IsUtilityTaskAllowedByAutomationSettings("collect_daily_quests", payload))
+        {
+            return;
+        }
+
         try
         {
             if (await _botService.HasClaimableDailyQuestsOnCurrentPageAsync(options, AppendLog, CancellationToken.None))
             {
-                var payload = BuildCurrentVillageUtilityPayload(observedStatus);
-                if (payload is null)
-                {
-                    AppendLog("[daily-quests:verbose] claimable rewards detected, but current village could not be identified; retrying on the next refresh.");
-                    return;
-                }
-
                 _botService.EnqueueRuntime("collect_daily_quests", "Collect daily quests", payload, priority: -40, maxRetries: 1);
                 AppendLog("Daily quests: claimable rewards detected - queued collect_daily_quests.");
             }
@@ -553,6 +561,16 @@ public partial class MainWindow
         }
 
         return payload;
+    }
+
+    private bool IsUtilityTaskAllowedByAutomationSettings(string taskName, Dictionary<string, string> payload)
+    {
+        return IsQueueItemAllowedByAutomationSettings(new QueueItem
+        {
+            TaskName = taskName,
+            Group = QueueGroupCatalog.ResolveGroup(taskName),
+            Payload = payload,
+        });
     }
 
     private static string? GetUtilityTaskVillageKey(IReadOnlyDictionary<string, string>? payload)

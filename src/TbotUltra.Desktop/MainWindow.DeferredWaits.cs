@@ -346,6 +346,7 @@ public partial class MainWindow
         BotOptionPayloadKeys.UpgradeProductionCrop,
         BotOptionPayloadKeys.UpgradeWarehouseCapacity,
         BotOptionPayloadKeys.UpgradeGranaryCapacity,
+        BotOptionPayloadKeys.UpgradeStorageCapacityKind,
         BotOptionPayloadKeys.UpgradeWaitSeconds,
         BotOptionPayloadKeys.UpgradeWaitReason,
     ];

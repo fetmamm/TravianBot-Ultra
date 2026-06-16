@@ -17,12 +17,13 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <ApplicationIcon>..\..\assets\icons\Tbot_ultra_appicon_2.ico</ApplicationIcon>
+    <ApplicationIcon>..\..\assets\icons\icon_windows.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
-    <Resource Include="..\..\assets\icons\Tbot_ultra_appicon_2.ico" Link="Assets\Tbot_ultra_appicon_2.ico" />
+    <Resource Include="..\..\assets\icons\icon_windows.ico" Link="Assets\icon_windows.ico" />
     <Resource Include="..\..\assets\icons\Tbot_ultra_appicon_2.png" Link="Assets\Tbot_ultra_appicon_2.png" />
+    <Resource Include="..\..\assets\icons\Tbot_ultra_2.png" Link="Assets\Tbot_ultra_2.png" />
   </ItemGroup>
 
 </Project>

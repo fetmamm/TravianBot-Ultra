@@ -26,6 +26,7 @@ public partial class AppDialog : Window
         IReadOnlyList<(string Label, MessageBoxResult Result)>? customButtons = null)
     {
         InitializeComponent();
+        ThemeChrome.EnableEarlyDarkTitleBar(this);
 
         Owner = owner;
         Title = string.IsNullOrWhiteSpace(title) ? "Dialog" : title;

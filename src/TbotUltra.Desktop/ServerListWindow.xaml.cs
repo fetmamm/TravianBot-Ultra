@@ -21,6 +21,7 @@ public partial class ServerListWindow : Window
     public ServerListWindow(IEnumerable<ServerOption> serverOptions, IEnumerable<ServerOption> defaultServers, ServerCatalogStore serverCatalogStore)
     {
         InitializeComponent();
+        ThemeChrome.EnableEarlyDarkTitleBar(this);
         _sourceServers = serverOptions.ToList();
         _defaultServers = defaultServers.ToList();
         _serverCatalogStore = serverCatalogStore;

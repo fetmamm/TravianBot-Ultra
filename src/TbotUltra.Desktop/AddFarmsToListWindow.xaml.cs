@@ -40,6 +40,7 @@ public partial class AddFarmsToListWindow : Window
         CancellationToken externalToken)
     {
         InitializeComponent();
+        ThemeChrome.EnableEarlyDarkTitleBar(this);
         _tribe = tribe;
         _defaultTroopCount = Math.Max(1, defaultTroopCount);
         _loader = loader;

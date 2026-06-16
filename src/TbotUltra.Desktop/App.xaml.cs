@@ -1,8 +1,6 @@
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
-using System.Windows.Interop;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using TbotUltra.Desktop.Services.Orchestration;
@@ -33,48 +31,20 @@ public partial class App : Application
         _serviceProvider = ConfigureServices();
         Services = _serviceProvider;
 
-        // Dark OS title bar for every window in the app (the WPF chrome we can't restyle in XAML).
+        // Fallback: dark OS title bar for any window that isn't wired through ThemeChrome in its
+        // constructor. Windows apply it earlier (at SourceInitialized) via ThemeChrome to avoid the
+        // brief light-title-bar flash; this Loaded hook just guarantees nothing is left light.
         EventManager.RegisterClassHandler(typeof(Window), FrameworkElement.LoadedEvent,
             new RoutedEventHandler(OnAnyWindowLoaded));
 
         base.OnStartup(e);
     }
 
-    private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
-    private const int DWMWA_USE_IMMERSIVE_DARK_MODE_OLD = 19;
-
-    [DllImport("dwmapi.dll", SetLastError = true)]
-    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
-
     private static void OnAnyWindowLoaded(object sender, RoutedEventArgs e)
     {
         if (sender is Window window)
         {
-            TryEnableDarkTitleBar(window);
-        }
-    }
-
-    /// <summary>Switches a window's OS title bar to dark. Cosmetic only — failures are ignored.</summary>
-    private static void TryEnableDarkTitleBar(Window window)
-    {
-        try
-        {
-            var hwnd = new WindowInteropHelper(window).Handle;
-            if (hwnd == IntPtr.Zero)
-            {
-                return;
-            }
-
-            var useDark = 1;
-            // Attribute 20 on Windows 10 1903+; fall back to 19 on older builds.
-            if (DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref useDark, sizeof(int)) != 0)
-            {
-                DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE_OLD, ref useDark, sizeof(int));
-            }
-        }
-        catch
-        {
-            // Dark title bar is purely cosmetic; never let it break window creation.
+            ThemeChrome.TryEnableDarkTitleBar(window);
         }
     }
 

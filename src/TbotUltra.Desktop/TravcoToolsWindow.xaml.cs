@@ -35,6 +35,7 @@ public partial class TravcoToolsWindow : Window
         _store = store;
         _log = log;
         InitializeComponent();
+        ThemeChrome.EnableEarlyDarkTitleBar(this);
         DataContext = _viewModel;
         foreach (var village in villages)
         {
