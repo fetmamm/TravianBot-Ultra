@@ -113,6 +113,30 @@ public sealed class VillageSettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void DisableVillagesMissingFromConfirmedList_DisablesOnlyAbsentVillages()
+    {
+        var store = CreateStore();
+        var capital = new Info("did:1", "Capital", 0, 0, IsCapital: true);
+        var live = new Info("did:2", "Live", 5, -3, IsCapital: false);
+        var missing = new Info("did:3", "Missing", 7, -4, IsCapital: false);
+        store.Merge(new[] { capital, live, missing });
+        store.SetEnabled(capital, enabled: true);
+        store.SetEnabled(live, enabled: true);
+        store.SetEnabled(missing, enabled: true);
+
+        var disabled = store.DisableVillagesMissingFromConfirmedList(new[] { capital, live });
+
+        Assert.Equal(new[] { "Missing" }, disabled);
+        Assert.True(store.GetEnabled(capital));
+        Assert.True(store.GetEnabled(live));
+        Assert.False(store.GetEnabled(missing));
+        Assert.Equal("xy:7|-4", store.ResolveCanonicalKey("name:missing"));
+
+        var reloaded = CreateStore();
+        Assert.False(reloaded.GetEnabled(missing));
+    }
+
+    [Fact]
     public void Choices_AreScopedPerAccount()
     {
         var store = CreateStore();

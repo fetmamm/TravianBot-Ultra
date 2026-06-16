@@ -157,6 +157,66 @@ public sealed class VillageSettingsStore
     }
 
     /// <summary>
+    /// Applies a confirmed full village list from login/account scan: known villages missing from that
+    /// list are no longer safe automation targets, so disable them without deleting their settings.
+    /// Ordinary partial reads must keep using Merge only.
+    /// </summary>
+    public IReadOnlyList<string> DisableVillagesMissingFromConfirmedList(IReadOnlyList<VillageKeyInfo> villages)
+    {
+        if (villages is null || villages.Count == 0)
+        {
+            return Array.Empty<string>();
+        }
+
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+
+            var liveKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var liveNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var village in villages.Where(village => village is not null && !string.IsNullOrWhiteSpace(village.Key)))
+            {
+                liveKeys.Add(CanonicalKey(village));
+                if (!string.IsNullOrWhiteSpace(village.Name))
+                {
+                    liveNames.Add(village.Name.Trim());
+                }
+            }
+
+            if (liveKeys.Count == 0 && liveNames.Count == 0)
+            {
+                return Array.Empty<string>();
+            }
+
+            var disabled = new List<string>();
+            foreach (var record in _cache.Values)
+            {
+                if (!record.IsEnabled)
+                {
+                    continue;
+                }
+
+                var keyStillLive = !string.IsNullOrWhiteSpace(record.Key) && liveKeys.Contains(record.Key);
+                var nameStillLive = !string.IsNullOrWhiteSpace(record.Name) && liveNames.Contains(record.Name.Trim());
+                if (keyStillLive || nameStillLive)
+                {
+                    continue;
+                }
+
+                record.IsEnabled = false;
+                disabled.Add(string.IsNullOrWhiteSpace(record.Name) ? record.Key : record.Name);
+            }
+
+            if (disabled.Count > 0)
+            {
+                Save();
+            }
+
+            return disabled;
+        }
+    }
+
+    /// <summary>
     /// Returns whether a village is enabled for automation. Unknown villages default to disabled;
     /// Merge decides whether the first and only village should be enabled. Does not persist (read-only).
     /// </summary>

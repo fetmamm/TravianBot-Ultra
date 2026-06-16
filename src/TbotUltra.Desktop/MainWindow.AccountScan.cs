@@ -177,6 +177,7 @@ public partial class MainWindow
                 villages,
                 startingVillageName,
                 selectedVillageName);
+            ReconcileConfirmedVillageList(villages, "account_scan");
             AppendLog(
                 $"[account-scan] Started. villages={villages.Count}, "
                 + $"returnVillage='{startingVillageName ?? "-"}'.");

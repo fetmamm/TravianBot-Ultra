@@ -279,7 +279,8 @@ eller sta still, inte vaxa.
   vid tom/partiell lasning; UI tickar ned via `Tick(serverNow)` och posten forsvinner forst nar sluttiden passeras.
 - Per-by-traning sparas konto-scopeat i `troop_training.json` (`TroopTrainingSettingsStore`, nyckel = bykoord).
   Loopen snapshotar override:n in i `build_troops`-payloaden; saknad override = global config (bakatkompatibelt).
-  Popupen ("Training options") ateranvander `TroopTrainingViewModel` + `TroopTrainingPayload`-serialiseringen.
+  Troops-tabben ags av `TroopTrainingViewModel`; "Training options"-popupen ar en snabb byoversikt som
+  bara andrar byggnadens enabled/troop-val och bevarar ovriga `TroopTrainingPayload`-falt.
 - Village settings-popupens "Automation groups"-kolumn speglar dashboardens loop-kort per by och sparas i
   samma `VillageSettingsStore.EnabledGroups`; avbockad grupp slutar koras for byn (`IsGroupEnabledForVillage`).
 - Popupens gruppkolumner har fast ordning oberoende av dashboardens dragordning:
@@ -312,6 +313,8 @@ eller sta still, inte vaxa.
 - Full village-status ska spara produktionssnapshot; tom ny data far inte skriva over bra cache.
 - After-login-analys av nya byar ska jamfora hela sidebar-listan mot komplett cache (dorf1 fields +
   dorf2 buildings), isolera fel per by och aterstalla vald by efter att saknade byar har lastes in.
+- En bekräftad login-/account-scan-bylista får karantänsätta saknade byar: disable:a deras automation
+  och pausa pending queue-poster, men ta inte bort historik/cache eller retarget:a till annan by.
 - Account scan pausar aktiv runner utan att rensa kon, laser komplett dorf1/dorf2 + construction/Smithy
   per by, aterstaller browserns startby och aterstartar endast om aterstallningen bekraftades.
 - Pause bevarar sessionens aterstaende pacing; endast Stop/reset nollstaller den.

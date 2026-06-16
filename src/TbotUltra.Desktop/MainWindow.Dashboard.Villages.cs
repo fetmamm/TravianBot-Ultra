@@ -226,6 +226,66 @@ public partial class MainWindow
             .Select(v => $"{GetVillageKey(v.Url, v.CoordX, v.CoordY, v.Name)}|{v.Name}|{v.CoordX}|{v.CoordY}|{v.IsCapital}|{v.Population}"));
     }
 
+    private void ReconcileConfirmedVillageList(IReadOnlyList<Village> villages, string source)
+    {
+        var confirmed = villages
+            .Where(village => !string.IsNullOrWhiteSpace(village.Name))
+            .Select(village => new VillageSettingsStore.VillageKeyInfo(
+                GetVillageKey(village.Url, village.CoordX, village.CoordY, village.Name),
+                village.Name!,
+                village.CoordX,
+                village.CoordY,
+                village.IsCapital ?? false))
+            .ToList();
+        if (confirmed.Count == 0)
+        {
+            return;
+        }
+
+        var disabledVillages = _villageSettingsStore.DisableVillagesMissingFromConfirmedList(confirmed);
+        var liveKeys = BuildConfirmedLiveVillageKeys(villages);
+        var pausedQueueItems = ConfirmedVillageQueueReconciler.PausePendingItemsForMissingVillages(
+            _botService.GetQueueItemsForDisplay(),
+            liveKeys,
+            GetQueueItemVillageKey,
+            id => _botService.PauseQueueItem(id));
+
+        if (disabledVillages.Count > 0)
+        {
+            RefreshVillageEnabledStateOnDashboard();
+        }
+
+        if (pausedQueueItems > 0)
+        {
+            RequestQueueUiRefresh();
+        }
+
+        if (disabledVillages.Count > 0 || pausedQueueItems > 0)
+        {
+            AppendLog(
+                $"[village-reconcile] source={source} confirmedVillages={confirmed.Count} " +
+                $"disabledVillages={disabledVillages.Count} " +
+                $"pausedQueueItems={pausedQueueItems}" +
+                (disabledVillages.Count == 0 ? string.Empty : $" names='{string.Join(", ", disabledVillages)}'"));
+        }
+    }
+
+    private static HashSet<string> BuildConfirmedLiveVillageKeys(IReadOnlyList<Village> villages)
+    {
+        var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var village in villages.Where(village => !string.IsNullOrWhiteSpace(village.Name)))
+        {
+            keys.Add(GetVillageKey(village.Url, village.CoordX, village.CoordY, village.Name));
+            keys.Add(GetVillageKey(null, null, null, village.Name));
+            if (!string.IsNullOrWhiteSpace(village.Url))
+            {
+                keys.Add(GetVillageKey(village.Url, null, null, null));
+            }
+        }
+
+        return keys;
+    }
+
     private List<VillageSelectionItem> BuildMergedVillageSelectionItems(
         IReadOnlyList<Village> villages,
         string? activeVillageName = null)

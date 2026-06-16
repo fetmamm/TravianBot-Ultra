@@ -621,59 +621,70 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// Opens the per-village troop-training settings popup for the SELECTED village, seeded from that
-    /// village's saved override (or the global config when it has none). On Save it persists the village's
-    /// override; on "Sync to all villages" it copies the settings to every village. Stale build_troops
-    /// queue items for the affected village(s) are dropped so the loop re-enqueues with the new settings.
+    /// Opens the quick per-village troop-training settings popup for all known villages. The popup only
+    /// edits each building's enabled/troop choice and preserves advanced settings from the village override
+    /// or global defaults. Stale build_troops queue items are dropped so the loop re-enqueues fresh payloads.
     /// Called by the Troops panel's "Training options" button.
     /// </summary>
     internal void OnTroopsTrainingOptionsClicked()
     {
         var account = _accountStore.ActiveAccountName();
-        var villageInfo = GetSelectedVillageKeyInfoOrNull();
-        if (villageInfo is null)
+        if (string.IsNullOrWhiteSpace(account))
         {
-            _troopTrainingViewModel.InfoText = "Select a village on the Dashboard first to configure its troop training.";
-            AppendLog("Troop training options: no village selected.");
+            _troopTrainingViewModel.InfoText = "Select an account before configuring troop training.";
+            AppendLog("Troop training options: no active account.");
             return;
         }
 
         var tribe = ResolveStoredTroopTrainingTribe();
+        var troopOptions = TroopCatalog.ResolveTroopTypesForTribe(tribe);
+        if (troopOptions.Count == 0)
+        {
+            _troopTrainingViewModel.InfoText = "Could not determine the tribe's troops yet. Scan the account first.";
+            AppendLog("Troop training options: no troops resolved for the current tribe.");
+            return;
+        }
+
+        var villages = GetAllVillageKeyInfos();
+        if (villages.Count == 0)
+        {
+            _troopTrainingViewModel.InfoText = "Load villages before configuring troop training.";
+            AppendLog("Troop training options: no villages loaded.");
+            return;
+        }
+
         var globalOptions = LoadBotOptions();
-        var saved = TroopTrainingSettingsStore.Load(_projectRoot, account, villageInfo.Key);
-        // When the village has an override, overlay it on the global options so the popup opens on that
-        // village's own settings; otherwise it opens on the global defaults.
-        var effectiveOptions = saved is null
-            ? globalOptions
-            : BotOptionsPayloadApplier.Apply(globalOptions, saved.ToDictionary());
+        var rows = new List<TroopTrainingQuickVillageRow>(villages.Count);
+        foreach (var village in villages)
+        {
+            var saved = TroopTrainingSettingsStore.Load(_projectRoot, account, village.Key);
+            // When the village has an override, overlay it on the global options so the row opens on that
+            // village's own settings; otherwise it opens on the global defaults.
+            var effectiveOptions = saved is null
+                ? globalOptions
+                : BotOptionsPayloadApplier.Apply(globalOptions, saved.ToDictionary());
+            rows.Add(new TroopTrainingQuickVillageRow(
+                village.Key,
+                village.Name,
+                TroopTrainingQuickSettings.FromOptions(effectiveOptions),
+                troopOptions));
+        }
 
-        var popupViewModel = new TroopTrainingViewModel();
-        popupViewModel.Initialize();
-        popupViewModel.UpdateTroopOptions(tribe);
-        popupViewModel.ApplyConfigToBuildings(effectiveOptions, hasExplicitAutoCelebrationSetting: false);
-
-        var window = new TroopTrainingOptionsWindow(popupViewModel, villageInfo.Name) { Owner = this };
+        var window = new TroopTrainingOptionsWindow(rows) { Owner = this };
         if (window.ShowDialog() != true)
         {
             return;
         }
 
-        if (window.SyncRequested)
+        foreach (var result in window.Results)
         {
-            var keys = GetAllVillageKeyInfos().Select(info => info.Key).ToList();
-            TroopTrainingSettingsStore.SaveForVillages(_projectRoot, account, keys, window.Result);
-            var removedAll = RemoveTroopTrainingQueueItemsForVillage(null);
-            _troopTrainingViewModel.InfoText = $"Synced troop-training settings to {keys.Count} village(s).";
-            AppendLog($"Synced troop-training settings from '{villageInfo.Name}' to {keys.Count} village(s). "
-                + $"Cleared {removedAll} queued build_troops task(s) to apply the change.");
-            return;
+            TroopTrainingSettingsStore.Save(_projectRoot, account, result.VillageKey, result.Settings);
         }
 
-        TroopTrainingSettingsStore.Save(_projectRoot, account, villageInfo.Key, window.Result);
-        var removed = RemoveTroopTrainingQueueItemsForVillage(villageInfo.Name);
-        _troopTrainingViewModel.InfoText = $"Saved troop-training settings for '{villageInfo.Name}'.";
-        AppendLog($"Saved troop-training settings for '{villageInfo.Name}'."
-            + (removed > 0 ? $" Cleared {removed} queued build_troops task(s) to apply the change." : string.Empty));
+        var removed = RemoveTroopTrainingQueueItemsForVillage(null);
+        _troopTrainingViewModel.InfoText = $"Saved troop-training settings for {window.Results.Count} village(s).";
+        AppendLog($"Saved troop-training settings for {window.Results.Count} village(s). "
+            + $"Cleared {removed} queued build_troops task(s) to apply the change.");
     }
 
     // Builds the troop rows for the upgrade-options popup: the tribe's improvable troops (combat + siege,

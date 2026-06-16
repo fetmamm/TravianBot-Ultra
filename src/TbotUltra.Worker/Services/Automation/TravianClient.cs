@@ -1423,6 +1423,9 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         if (!string.IsNullOrWhiteSpace(villageName)
             && !IsSameVillageName(activeVillageAfterSwitch, villageName))
         {
+            Notify(
+                $"[village-switch] village_missing_suspected requested='{villageName}' " +
+                $"active='{activeVillageAfterSwitch ?? "(unknown)"}'; aborting before task execution.");
             throw new InvalidOperationException(
                 $"Village switch failed: requested '{villageName}' but the browser is on '{activeVillageAfterSwitch ?? "(unknown)"}'. "
                 + "Aborting so the task does not run on the wrong village.");
