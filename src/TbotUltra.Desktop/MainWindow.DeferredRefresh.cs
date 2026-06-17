@@ -1,11 +1,7 @@
-using System.Diagnostics;
-using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Services;
-using TbotUltra.Worker;
 using TbotUltra.Worker.Domain;
-using TbotUltra.Worker.Services;
 
 namespace TbotUltra.Desktop;
 
@@ -15,112 +11,6 @@ namespace TbotUltra.Desktop;
 // MainWindow.xaml.cs to keep that file focused; same class, pure relocation.
 public partial class MainWindow
 {
-    private bool IsBuildingUpgradeQueueTask(string taskName)
-    {
-        return string.Equals(taskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(taskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsResourceAwareQueueTask(string taskName)
-    {
-        return string.Equals(taskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(taskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(taskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(taskName, "construct_building", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(taskName, "build_troops", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private void ScheduleDeferredBuildingsMidWaitRefresh(QueueItem item, TimeSpan queueWaitDelay)
-    {
-        if (!IsBuildingUpgradeQueueTask(item.TaskName) || queueWaitDelay.TotalSeconds < 3)
-        {
-            return;
-        }
-
-        var halfDelay = TimeSpan.FromSeconds(Math.Max(1, Math.Floor(queueWaitDelay.TotalSeconds / 2d)));
-        var baseOptions = ApplySelectedVillageToOptions(LoadBotOptions());
-        var itemOptions = BotOptionsPayloadApplier.Apply(baseOptions, item.Payload);
-
-        _backgroundTasks.Run(async cancellationToken =>
-        {
-            try
-            {
-                await Task.Delay(halfDelay, cancellationToken);
-                var status = await _botService.ReadBuildingsStatusAsync(itemOptions, AppendLog, cancellationToken);
-                await Dispatcher.InvokeAsync(() =>
-                {
-                    _lastBuildingStatus = status;
-                    PopulateBuildingsTab(status);
-                });
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-            }
-            catch (Exception ex)
-            {
-                AppendLog($"Deferred dorf2 refresh skipped: {ex.Message}");
-            }
-        });
-    }
-
-    private void ScheduleDeferredResourcesMidWaitRefresh(QueueItem item, TimeSpan queueWaitDelay)
-    {
-        if (!IsResourceAwareQueueTask(item.TaskName) || queueWaitDelay.TotalSeconds < 10)
-        {
-            return;
-        }
-
-        var baseOptions = ApplySelectedVillageToOptions(LoadBotOptions());
-        var itemOptions = BotOptionsPayloadApplier.Apply(baseOptions, item.Payload);
-        var deadlineUtc = DateTimeOffset.UtcNow + queueWaitDelay;
-
-        _backgroundTasks.Run(async cancellationToken =>
-        {
-            try
-            {
-                while (DateTimeOffset.UtcNow < deadlineUtc && IsQueueItemStillDeferred(item.Id))
-                {
-                    var remaining = deadlineUtc - DateTimeOffset.UtcNow;
-                    var delaySeconds = Math.Clamp(
-                        Math.Floor(remaining.TotalSeconds / 2d),
-                        1d,
-                        120d);
-                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
-
-                    if (!IsQueueItemStillDeferred(item.Id))
-                    {
-                        return;
-                    }
-
-                    await RefreshCurrentPageStorageStatusAsync(
-                        itemOptions,
-                        "deferred_queue_wait",
-                        cancellationToken);
-                }
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-            }
-            catch (Exception ex)
-            {
-                AppendLog($"Deferred storage refresh skipped: {ex.Message}");
-            }
-        });
-    }
-
-    private bool IsQueueItemStillDeferred(Guid itemId)
-    {
-        try
-        {
-            var item = _botService.GetQueueItemsForDisplay().FirstOrDefault(candidate => candidate.Id == itemId);
-            return item is { Status: QueueStatus.Pending } && item.NextAttemptAt > DateTimeOffset.UtcNow;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
     private static bool TryExtractQueueWaitDelay(string message, out TimeSpan delay)
     {
         delay = TimeSpan.Zero;
