@@ -10,8 +10,8 @@ using TbotUltra.Worker.Domain;
 namespace TbotUltra.Desktop.ViewModels;
 
 /// <summary>
-/// View model backing the Hero / Adventures panel. First MVVM-migrated panel
-/// in the desktop app — see <c>MainViewModel</c> doc-comment for context.
+/// View model backing the Hero / Adventures panel. It owns the panel state
+/// that has moved out of MainWindow while service-bound work remains hosted there.
 ///
 /// Owns:
 ///   - <see cref="AttributePriorityItems"/> — drag-orderable hero attributes.

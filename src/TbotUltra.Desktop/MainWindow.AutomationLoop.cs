@@ -75,11 +75,6 @@ public partial class MainWindow
         _ = TrackLoopCompletionAsync(_loopTask);
     }
 
-    private bool IsContinuousLoopGroupEnabled(QueueGroup group)
-    {
-        return GetContinuousLoopEnabledGroupsInOrder().Contains(group);
-    }
-
     private IReadOnlyList<QueueItem> GetContinuousLoopRelevantQueueItems()
     {
         var enabledGroups = GetContinuousLoopConsideredGroupsInOrder().ToHashSet();

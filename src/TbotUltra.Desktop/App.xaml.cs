@@ -64,11 +64,11 @@ public partial class App : Application
     {
         var services = new ServiceCollection();
 
-        // View models. Transient so each window/control gets its own instance.
+        // View models. Keep shared panel view models in the app provider until
+        // constructor injection is introduced for MainWindow and child panels.
         // Services that MainWindow currently new()s in its constructor (BotConfigStore,
         // DesktopBotService, etc.) will move here in follow-up commits as their owners
         // are migrated to constructor injection.
-        services.AddTransient<MainViewModel>();
         services.AddSingleton<HeroViewModel>();
         services.AddSingleton<InboxViewModel>();
         services.AddSingleton<TroopTrainingViewModel>();

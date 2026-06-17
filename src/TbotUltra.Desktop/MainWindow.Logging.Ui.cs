@@ -73,11 +73,6 @@ public partial class MainWindow
         }
     }
 
-    private void CloseTerminalAlarmPopupButton_Click(object sender, RoutedEventArgs e)
-    {
-        MainTabControl.SelectedIndex = 0;
-    }
-
     private void AcknowledgeAlarmButton_Click(object sender, RoutedEventArgs e)
     {
         if (_unacknowledgedAlarmCount == 0)

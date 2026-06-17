@@ -12,18 +12,6 @@ public partial class MainWindow
     private bool _shutdownInProgress;
     private bool _shutdownCompleted;
 
-    private void OpenVerificationBrowserButton_Click(object sender, RoutedEventArgs e)
-    {
-        _ = sender;
-        _ = e;
-        if (BlockIfSessionSleeping("Open verification browser"))
-        {
-            return;
-        }
-
-        OpenVerificationBrowser();
-    }
-
     private void StartLoopButton_Click(object sender, RoutedEventArgs e)
     {
         if (BlockIfSessionSleeping("Start bot"))
@@ -166,22 +154,6 @@ public partial class MainWindow
         StartLoopButton.Content = "Start bot";
         StartLoopButton.IsEnabled = true;
         AppendLog("Continuous run disabled. Running actions were stopped.");
-    }
-
-    private void HelpButton_Click(object sender, RoutedEventArgs e)
-    {
-        AppDialog.Show(this,
-            "Use Login first.\nCheck village status and Scan all villages add tasks to queue.\nStart/Stop controls loop execution.",
-            "Help",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
-    }
-
-    private void ReloadButton_Click(object sender, RoutedEventArgs e)
-    {
-        LoadConfigToUi();
-        AppendLog("Config reloaded from config/bot.json.");
-        _backgroundTasks.Track(RefreshInboxIndicatorsAsync(logErrors: false));
     }
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)

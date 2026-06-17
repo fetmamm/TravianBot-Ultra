@@ -334,40 +334,6 @@ public partial class MainWindow
         RefreshTravianSmithyQueueUi();
     }
 
-    /// <summary>
-    /// Pushes a freshly observed smithy wait (from the log stream when the worker emits
-    /// queue_wait_seconds for an inline-wait iteration) into the dashboard timer collection.
-    /// Replaces the head value so the countdown stays in sync with the worker's reload cycle.
-    /// </summary>
-    private void PushSmithyUpgradeRemainingSeconds(int seconds)
-    {
-        if (seconds <= 0)
-        {
-            return;
-        }
-
-        if (_smithyUpgradeRemainingSeconds.Count == 0)
-        {
-            _smithyUpgradeRemainingSeconds.Add(seconds);
-        }
-        else
-        {
-            _smithyUpgradeRemainingSeconds[0] = seconds;
-        }
-
-        UpdateAutomationLoopRunningIndicators();
-    }
-
-    private static bool IsSmithyUpgradeWaitMessage(string? message)
-    {
-        if (string.IsNullOrWhiteSpace(message))
-        {
-            return false;
-        }
-
-        return message.IndexOf("Smithy:", StringComparison.OrdinalIgnoreCase) >= 0;
-    }
-
     private int? ResolveSmithyUpgradeGroupRemainingSeconds()
     {
         var villageName = NormalizeVillageName(GetSelectedVillageName())

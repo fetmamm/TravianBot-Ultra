@@ -2637,28 +2637,6 @@ public sealed class BotTaskRunner
         return true;
     }
 
-    private static int ResolveQueueWaitDelaySeconds(BotOptions options, int waitSeconds)
-    {
-        if (waitSeconds <= 0)
-        {
-            return 1;
-        }
-
-        var mode = options.QueueWaitThresholdMode?.Trim();
-        if (string.Equals(mode, "smart", StringComparison.OrdinalIgnoreCase))
-        {
-            return waitSeconds;
-        }
-
-        if (!int.TryParse(mode, out var thresholdSeconds) || thresholdSeconds < 0)
-        {
-            thresholdSeconds = 10;
-        }
-
-        thresholdSeconds = Math.Max(1, thresholdSeconds);
-        return Math.Max(1, Math.Min(thresholdSeconds, waitSeconds));
-    }
-
     private sealed record TaskExecutionContext(
         BotTaskRunner Runner,
         BotOptions Options,

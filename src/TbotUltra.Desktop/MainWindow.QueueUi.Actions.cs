@@ -11,45 +11,6 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
-    private void QueueAddButton_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var window = new AddQueueItemWindow(TbotUltra.Core.Tasks.TaskCatalog.AllowedTaskNames)
-            {
-                Owner = this,
-            };
-            if (window.ShowDialog() != true)
-            {
-                return;
-            }
-
-            var payload = window.Payload is null
-                ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                : new Dictionary<string, string>(window.Payload, StringComparer.OrdinalIgnoreCase);
-            var selectedVillageName = GetSelectedVillageName();
-            var selectedVillageUrl = GetSelectedVillageUrl();
-            if (!string.IsNullOrWhiteSpace(selectedVillageName))
-            {
-                payload[BotOptionPayloadKeys.TargetVillageName] = selectedVillageName;
-            }
-
-            if (!string.IsNullOrWhiteSpace(selectedVillageUrl))
-            {
-                payload[BotOptionPayloadKeys.TargetVillageUrl] = selectedVillageUrl;
-            }
-
-            var item = _botService.Enqueue(window.TaskName, payload, window.Priority, window.MaxRetries);
-            AppendLog($"Queue item added: {item.TaskName} (priority={item.Priority}).");
-            RefreshQueueUi();
-            TriggerQueueAutoRunFromEnqueue();
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Could not add queue item: {ex.Message}");
-        }
-    }
-
     private void QueueRemoveButton_Click(object sender, RoutedEventArgs e)
     {
         if (QueueDataGrid.SelectedItem is not QueueItemRow selected)
@@ -157,24 +118,6 @@ public partial class MainWindow
             && IsBuildingConstructForSlot(current, out var constructSlotId)
             && IsBuildingUpgradeForSlot(next, out var upgradeSlotId)
             && constructSlotId == upgradeSlotId;
-    }
-
-    private void QueueRetryButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (QueueDataGrid.SelectedItem is not QueueItemRow selected)
-        {
-            AppendLog("Select a queue item first.");
-            return;
-        }
-
-        if (_botService.RetryQueueItem(selected.Id))
-        {
-            AppendLog($"Queue item reset for retry: {selected.TaskName}.");
-            RefreshQueueUi(selectId: selected.Id);
-            return;
-        }
-
-        AppendLog("Retry is only available for failed or paused items.");
     }
 
     private void QueueClearButton_Click(object sender, RoutedEventArgs e)

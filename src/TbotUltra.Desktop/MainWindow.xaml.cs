@@ -807,17 +807,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private void BeginInlineWait(int seconds)
-    {
-        var until = DateTimeOffset.UtcNow.AddSeconds(Math.Max(0, seconds));
-        if (until > _inlineWaitUntilUtc)
-        {
-            _inlineWaitUntilUtc = until;
-        }
-        ToggleUiBusy(false);
-        UpdateExecutionStateIndicator();
-    }
-
     private void EndInlineWait()
     {
         _inlineWaitUntilUtc = DateTimeOffset.MinValue;

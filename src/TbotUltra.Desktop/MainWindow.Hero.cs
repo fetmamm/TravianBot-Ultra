@@ -269,36 +269,6 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// Refreshes the adventure count after a successful login. Called from
-    /// the post-login flow (not from the panel).
-    /// </summary>
-    private async Task RefreshAdventureCountAfterLoginAsync(BotOptions options, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var count = await _botService.RefreshAdventureCountAsync(options, AppendLog, cancellationToken);
-            if (count is null)
-            {
-                ApplyHeroAdventureAvailability(null);
-                AppendLog("Adventure count: not found on current page.");
-            }
-            else
-            {
-                ApplyHeroAdventureAvailability(count.Value);
-                AppendLog($"Adventure count after login: {count.Value}.");
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // Login flow was cancelled — leave the count unchanged.
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Adventure count refresh after login failed: {ex.Message}");
-        }
-    }
-
-    /// <summary>
     /// Operation-bracketed refresh of the available-adventures count.
     /// Called by the panel's Refresh-adventures button (the panel toggles
     /// its own IsEnabled around the call).

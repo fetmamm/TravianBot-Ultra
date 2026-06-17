@@ -279,17 +279,4 @@ public partial class MainWindow
             : System.Windows.Visibility.Collapsed;
     }
 
-    private string ExtractServerSpeedLabel()
-    {
-        try
-        {
-            var serverName = LoadBotOptions().ServerName ?? string.Empty;
-            var match = Regex.Match(serverName, @"(\d+)\s*[xX]");
-            return match.Success ? $"{match.Groups[1].Value}x" : "-";
-        }
-        catch
-        {
-            return "-";
-        }
-    }
 }

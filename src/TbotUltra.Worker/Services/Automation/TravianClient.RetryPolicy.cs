@@ -110,38 +110,4 @@ public sealed partial class TravianClient
         throw new InvalidOperationException($"{label} failed after {attempts} attempts: {lastError?.Message}", lastError);
     }
 
-    private async Task<bool> RetryTruthyAsync(string label, Func<Task<bool>> action, int attempts = 3, CancellationToken cancellationToken = default)
-    {
-        for (var attempt = 1; attempt <= attempts; attempt++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            await TryDismissContinuePromptAsync();
-
-            try
-            {
-                var result = await action();
-                if (result)
-                {
-                    return true;
-                }
-
-                if (attempt < attempts)
-                {
-                    Notify($"{label} was not available on attempt {attempt}/{attempts}. Retrying...");
-                    await Task.Delay(400 * attempt, cancellationToken);
-                }
-            }
-            catch (ManualVerificationRequiredException)
-            {
-                throw;
-            }
-            catch (Exception ex) when (IsTransientExecutionContextException(ex) && attempt < attempts)
-            {
-                Notify($"{label} hit transient navigation context on attempt {attempt}/{attempts}. Retrying...");
-                await Task.Delay(250 * attempt, cancellationToken);
-            }
-        }
-
-        return false;
-    }
 }

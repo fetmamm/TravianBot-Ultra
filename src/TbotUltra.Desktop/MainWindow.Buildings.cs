@@ -147,16 +147,6 @@ public partial class MainWindow
         AppendLog($"Upgrade-all-to-max: queued load_buildings_snapshot + {queued} upgrade_building_to_max task(s).");
     }
 
-    private void BuildingCategoryComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_lastBuildingStatus is null)
-        {
-            return;
-        }
-
-        PopulateBuildingCatalogOptions(_lastBuildingStatus);
-    }
-
     internal void BuildingSlotCircleButton_Click(object sender, RoutedEventArgs e)
     {
         if (_lastBuildingStatus is null)
@@ -456,20 +446,6 @@ public partial class MainWindow
             BuildingsInfoTextBlock.Text = $"Queued construct + upgrade to level {clamped} for {selected.Name} in slot {slotId}.";
         }
     }
-
-    private IReadOnlyList<BuildingCatalogOption> GetConstructableOptionsForSlot(int slotId)
-    {
-        if (_lastBuildingStatus is null)
-        {
-            return [];
-        }
-
-        return _buildingCatalogOptions
-            .Where(option => CanQueueConstructBuilding(slotId, option, out _))
-            .OrderBy(option => option.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-    }
-
 
     private static string NormalizeBuildingName(string? name)
     {
@@ -811,40 +787,6 @@ public partial class MainWindow
         return true;
     }
 
-
-    private void QueueConstructBuildingButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_lastBuildingStatus is null)
-        {
-            BuildingsInfoTextBlock.Text = "Load buildings first.";
-            return;
-        }
-
-        if (!int.TryParse(ConstructSlotTextBox.Text.Trim(), out var slotId) || slotId < 19)
-        {
-            BuildingsInfoTextBlock.Text = "Construct slot must be an integer >= 19.";
-            return;
-        }
-
-        if (ConstructBuildingComboBox.SelectedItem is not BuildingCatalogOption selectedBuilding)
-        {
-            BuildingsInfoTextBlock.Text = "Select a building to construct.";
-            return;
-        }
-
-        _ = TryQueueConstructBuilding(slotId, selectedBuilding);
-    }
-
-    private void QueueUpgradeBuildingMaxButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (!int.TryParse(UpgradeSlotTextBox.Text.Trim(), out var slotId) || slotId < 19)
-        {
-            BuildingsInfoTextBlock.Text = "Upgrade slot must be an integer >= 19.";
-            return;
-        }
-
-        TryQueueBuildingUpgradeToMax(slotId);
-    }
 
     private bool TryQueueBuildingUpgradeToMax(int slotId)
     {
