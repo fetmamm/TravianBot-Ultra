@@ -317,6 +317,7 @@ public partial class MainWindow
             && (!_uiBusy || automationActive));
         SetEnabled(VillageComboBox, !sleeping && !_uiBusy);
         SetEnabled(AnalyzeFarmListsButton, !sleeping && !_farmingOperationBusy);
+        SetEnabled(FarmListSendAllNowButton, !sleeping && !_farmingOperationBusy && _farmingFeaturesAvailable && _farmLists.Any(IsRealFarmListRow));
         SetEnabled(AnalyzeNatarsProfileButton, !sleeping && !_farmingOperationBusy && _farmingFeaturesAvailable);
         SetEnabled(ShowNatarsListButton, !sleeping && !_farmingOperationBusy && _farmingFeaturesAvailable && _natarsProfileAnalyzed);
         SetEnabled(StartManualFarmingButton, false);

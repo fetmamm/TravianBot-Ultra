@@ -38,7 +38,6 @@ public partial class MainWindow
                 _farmLists.Remove(row);
             }
 
-            UpdateFarmListSendAllButtonState();
             return;
         }
 
@@ -49,19 +48,6 @@ public partial class MainWindow
                 IsPlaceholder = true,
                 IsEnabled = false,
             });
-        }
-
-        UpdateFarmListSendAllButtonState();
-    }
-
-    private void UpdateFarmListSendAllButtonState()
-    {
-        var assigned = false;
-        foreach (var row in _farmLists)
-        {
-            var show = !assigned && IsRealFarmListRow(row);
-            row.ShowSendAllNow = show;
-            assigned |= show;
         }
     }
 
@@ -268,7 +254,6 @@ public partial class MainWindow
                 }
 
                 EnsureFarmListPlaceholderRow();
-                UpdateFarmListSendAllButtonState();
             }
             finally
             {
@@ -1026,6 +1011,7 @@ public partial class MainWindow
         SetEnabled(AddFarmsToListButton, farmControlsEnabled);
         SetEnabled(CreateFarmListButton, farmControlsEnabled);
         SetEnabled(FarmListsItemsControl, farmControlsEnabled);
+        SetEnabled(FarmListSendAllNowButton, farmControlsEnabled && _farmLists.Any(IsRealFarmListRow));
         SetEnabled(AnalyzeFarmListsButton, sleepAllowsActions && !_farmingOperationBusy);
         SetEnabled(AnalyzeNatarsProfileButton, farmControlsEnabled);
         SetEnabled(ShowNatarsListButton, farmControlsEnabled && _natarsProfileAnalyzed);
@@ -1055,9 +1041,9 @@ public partial class MainWindow
             }
 
             EnsureFarmListPlaceholderRow();
-            UpdateFarmListSendAllButtonState();
             var view = CollectionViewSource.GetDefaultView(FarmListsItemsControl.ItemsSource);
             view?.Refresh();
+            SyncFarmingControlsEnabledState();
         }
         catch (Exception ex)
         {
@@ -1205,7 +1191,7 @@ public partial class MainWindow
             }
         }
 
-        FarmDispatchDelayComboBox.SelectedIndex = 5;
+        FarmDispatchDelayComboBox.SelectedIndex = 6;
     }
 
     private int GetSelectedFarmDispatchDelayMinutes()
@@ -1236,7 +1222,7 @@ public partial class MainWindow
             }
         }
 
-        FarmDispatchDelayVariationComboBox.SelectedIndex = 0;
+        FarmDispatchDelayVariationComboBox.SelectedIndex = 3;
     }
 
     private int GetSelectedFarmDispatchDelayVariationPercent()

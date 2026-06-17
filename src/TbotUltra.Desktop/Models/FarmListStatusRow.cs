@@ -14,7 +14,6 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
     private int? _remainingSeconds;
     private bool _isProcessing;
     private bool _isPlaceholder;
-    private bool _showSendAllNow;
 
     public string Name
     {
@@ -137,21 +136,6 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
     }
 
     public bool HasFarmList => !IsPlaceholder;
-
-    public bool ShowSendAllNow
-    {
-        get => _showSendAllNow;
-        set
-        {
-            if (_showSendAllNow == value)
-            {
-                return;
-            }
-
-            _showSendAllNow = value;
-            OnPropertyChanged();
-        }
-    }
 
     public int? RemainingSeconds
     {

@@ -4,8 +4,8 @@ public static class FarmingDefaults
 {
     public const string SendModeListPerList = "list_per_list";
     public const string SendModeAllAtOnce = "all_at_once";
-    public const int DefaultDispatchDelayMinutes = 15;
-    public const int DefaultDispatchDelayVariationPercent = 0;
+    public const int DefaultDispatchDelayMinutes = 20;
+    public const int DefaultDispatchDelayVariationPercent = 20;
 
     public static readonly int[] DispatchDelayMinuteChoices = [1, 2, 3, 5, 10, 15, 20, 30, 45, 60, 90];
     public static readonly int[] DispatchDelayVariationPercentChoices = [0, 5, 10, 20, 50];

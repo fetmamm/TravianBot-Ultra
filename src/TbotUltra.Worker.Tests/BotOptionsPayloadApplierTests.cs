@@ -403,6 +403,19 @@ public sealed class BotOptionsPayloadApplierTests
     [Fact]
     public void FromConfiguration_LoadsFarmingDefaultsAndNormalizesDelay()
     {
+        var defaultConfiguration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["server_name"] = "srv",
+                ["base_url"] = "https://example.com",
+            })
+            .Build();
+
+        var defaultOptions = BotOptionsFactory.FromConfiguration(defaultConfiguration);
+
+        Assert.Equal(20, defaultOptions.ContinuousFarmDispatchDelayMinutes);
+        Assert.Equal(20, defaultOptions.ContinuousFarmDispatchDelayVariationPercent);
+
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
