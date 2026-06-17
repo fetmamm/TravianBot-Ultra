@@ -50,16 +50,6 @@ public partial class MainWindow
         ApplyReinforcementVillageItems(ensuredItems);
     }
 
-    private void UpdateDashboardVillageList(IReadOnlyList<Village> villages)
-    {
-        ApplyDashboardVillageListItems(BuildMergedVillageSelectionItems(villages));
-    }
-
-    private void RefreshVillagePickerFromVillages(IReadOnlyList<Village> villages, string? preferredVillageName)
-    {
-        ApplyVillagePickerItems(BuildMergedVillageSelectionItems(villages), preferredVillageName, null);
-    }
-
     private void ApplyVillagePickerItems(
         IReadOnlyList<VillageSelectionItem> items,
         string? preferredVillageName,
@@ -494,36 +484,6 @@ public partial class MainWindow
             Population = resolvedPopulation,
             CropFields = cropFields ?? existing?.CropFields,
         };
-    }
-
-    private void SelectVillageInPicker(string? activeVillageName)
-    {
-        if (string.IsNullOrWhiteSpace(activeVillageName))
-        {
-            return;
-        }
-
-        if (VillageComboBox.ItemsSource is not IEnumerable<VillageSelectionItem> villages)
-        {
-            return;
-        }
-
-        var selected = villages.FirstOrDefault(v =>
-            string.Equals(v.Name, activeVillageName, StringComparison.OrdinalIgnoreCase));
-        if (selected is null)
-        {
-            return;
-        }
-
-        _suppressVillageSelectionChange = true;
-        try
-        {
-            VillageComboBox.SelectedItem = selected;
-        }
-        finally
-        {
-            _suppressVillageSelectionChange = false;
-        }
     }
 
     // Opens the central per-village settings window, seeded with the currently known villages
