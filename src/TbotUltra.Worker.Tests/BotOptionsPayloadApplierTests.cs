@@ -409,12 +409,14 @@ public sealed class BotOptionsPayloadApplierTests
                 ["server_name"] = "srv",
                 ["base_url"] = "https://example.com",
                 [BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes] = "4",
+                [BotOptionPayloadKeys.ContinuousFarmDispatchDelayVariationPercent] = "18",
             })
             .Build();
 
         var options = BotOptionsFactory.FromConfiguration(configuration);
 
         Assert.Equal(3, options.ContinuousFarmDispatchDelayMinutes);
+        Assert.Equal(20, options.ContinuousFarmDispatchDelayVariationPercent);
         Assert.Equal(FarmingDefaults.SendModeListPerList, options.ContinuousFarmSendMode);
         Assert.False(options.ContinuousFarmDeactivateLosses);
         Assert.False(options.ContinuousFarmDeactivateOasisLosses);
@@ -426,12 +428,14 @@ public sealed class BotOptionsPayloadApplierTests
         var source = new BotOptions
         {
             ContinuousFarmDispatchDelayMinutes = FarmingDefaults.DefaultDispatchDelayMinutes,
+            ContinuousFarmDispatchDelayVariationPercent = FarmingDefaults.DefaultDispatchDelayVariationPercent,
             ContinuousFarmSendMode = FarmingDefaults.SendModeListPerList,
         };
 
         var result = BotOptionsPayloadApplier.Apply(source, new Dictionary<string, string>
         {
             [BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes] = "90",
+            [BotOptionPayloadKeys.ContinuousFarmDispatchDelayVariationPercent] = "50",
             [BotOptionPayloadKeys.ContinuousFarmSendMode] = FarmingDefaults.SendModeAllAtOnce,
             [BotOptionPayloadKeys.ContinuousFarmDeactivateLosses] = "true",
             [BotOptionPayloadKeys.ContinuousFarmDeactivateOasisLosses] = "true",
@@ -439,6 +443,7 @@ public sealed class BotOptionsPayloadApplierTests
         });
 
         Assert.Equal(90, result.ContinuousFarmDispatchDelayMinutes);
+        Assert.Equal(50, result.ContinuousFarmDispatchDelayVariationPercent);
         Assert.Equal(FarmingDefaults.SendModeAllAtOnce, result.ContinuousFarmSendMode);
         Assert.True(result.ContinuousFarmDeactivateLosses);
         Assert.True(result.ContinuousFarmDeactivateOasisLosses);

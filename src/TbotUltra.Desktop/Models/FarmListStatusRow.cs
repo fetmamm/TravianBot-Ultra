@@ -13,6 +13,8 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
     private int? _capacity;
     private int? _remainingSeconds;
     private bool _isProcessing;
+    private bool _isPlaceholder;
+    private bool _showSendAllNow;
 
     public string Name
     {
@@ -115,6 +117,42 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
         }
     }
 
+    public bool IsPlaceholder
+    {
+        get => _isPlaceholder;
+        set
+        {
+            if (_isPlaceholder == value)
+            {
+                return;
+            }
+
+            _isPlaceholder = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasFarmList));
+            OnPropertyChanged(nameof(FarmCountText));
+            OnPropertyChanged(nameof(ReadyText));
+            OnPropertyChanged(nameof(CanSendNow));
+        }
+    }
+
+    public bool HasFarmList => !IsPlaceholder;
+
+    public bool ShowSendAllNow
+    {
+        get => _showSendAllNow;
+        set
+        {
+            if (_showSendAllNow == value)
+            {
+                return;
+            }
+
+            _showSendAllNow = value;
+            OnPropertyChanged();
+        }
+    }
+
     public int? RemainingSeconds
     {
         get => _remainingSeconds;
@@ -150,7 +188,9 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
         }
     }
 
-    public string FarmCountText => $"{TotalFarmCount}/{Capacity ?? TotalFarmCount} farms";
+    public string FarmCountText => HasFarmList
+        ? $"{TotalFarmCount}/{Capacity ?? TotalFarmCount} farms"
+        : string.Empty;
 
     public double FillPercent
     {
@@ -170,7 +210,7 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
 
     public bool IsReady => !HasTimer;
 
-    public string ReadyText => "Ready";
+    public string ReadyText => HasFarmList ? "Ready" : string.Empty;
 
     public string TimerText
     {
@@ -188,7 +228,7 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
         }
     }
 
-    public bool CanSendNow => IsEnabled && IsReady;
+    public bool CanSendNow => HasFarmList && IsEnabled && IsReady;
 
     public bool TickOneSecond()
     {

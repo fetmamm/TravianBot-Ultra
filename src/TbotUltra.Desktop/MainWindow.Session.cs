@@ -579,6 +579,7 @@ public partial class MainWindow
             row.PropertyChanged -= FarmListStatusRow_PropertyChanged;
         }
         _farmLists.Clear();
+        EnsureFarmListPlaceholderRow();
         _analyzedFarmCoordinates.Clear();
         _farmListCapacitiesByName.Clear();
         _lastFarmListsAnalysisAt = DateTimeOffset.MinValue;

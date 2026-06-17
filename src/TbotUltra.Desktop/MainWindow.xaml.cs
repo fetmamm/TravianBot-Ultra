@@ -538,6 +538,7 @@ public partial class MainWindow : Window
         ReinforcementTargetVillageComboBox.ItemsSource = _reinforcementVillages;
         ReinforcementSourceVillagesItemsControl.ItemsSource = _reinforcementVillages;
         FarmListsItemsControl.ItemsSource = _farmLists;
+        EnsureFarmListPlaceholderRow();
         _troopTrainingViewModel.Initialize();
         _troopTrainingViewModel.UpdateTroopOptions(ResolveStoredTroopTrainingTribe());
         _troopTrainingViewModel.ResetQueueStatus();
@@ -678,6 +679,11 @@ public partial class MainWindow : Window
 
     private void RefreshNatarsProfileAnalyzedFromCache()
     {
+        if (!IsNatarFarmingAvailable())
+        {
+            return;
+        }
+
         AppendLog("[RefreshNatarsProfileAnalyzedFromCache] Started");
         try
         {

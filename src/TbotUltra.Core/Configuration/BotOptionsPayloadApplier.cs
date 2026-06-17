@@ -46,6 +46,7 @@ public static class BotOptionsPayloadApplier
         var continuousFarmListNames = source.ContinuousFarmListNames;
         var continuousFarmListIds = source.ContinuousFarmListIds;
         var continuousFarmDispatchDelayMinutes = source.ContinuousFarmDispatchDelayMinutes;
+        var continuousFarmDispatchDelayVariationPercent = source.ContinuousFarmDispatchDelayVariationPercent;
         var continuousFarmSendMode = source.ContinuousFarmSendMode;
         var continuousFarmDeactivateLosses = source.ContinuousFarmDeactivateLosses;
         var continuousFarmDeactivateOasisLosses = source.ContinuousFarmDeactivateOasisLosses;
@@ -406,6 +407,13 @@ public static class BotOptionsPayloadApplier
                     && int.TryParse(value, out var dispatchDelayMinutes))
                 {
                     continuousFarmDispatchDelayMinutes = FarmingDefaults.NormalizeDispatchDelayMinutes(dispatchDelayMinutes);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ContinuousFarmDispatchDelayVariationPercent, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var dispatchDelayVariationPercent))
+                {
+                    continuousFarmDispatchDelayVariationPercent = FarmingDefaults.NormalizeDispatchDelayVariationPercent(dispatchDelayVariationPercent);
                     continue;
                 }
 
@@ -1006,6 +1014,7 @@ public static class BotOptionsPayloadApplier
             ContinuousFarmListNames = continuousFarmListNames,
             ContinuousFarmListIds = continuousFarmListIds,
             ContinuousFarmDispatchDelayMinutes = continuousFarmDispatchDelayMinutes,
+            ContinuousFarmDispatchDelayVariationPercent = continuousFarmDispatchDelayVariationPercent,
             ContinuousFarmSendMode = continuousFarmSendMode,
             ContinuousFarmDeactivateLosses = continuousFarmDeactivateLosses,
             ContinuousFarmDeactivateOasisLosses = continuousFarmDeactivateOasisLosses,

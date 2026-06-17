@@ -88,6 +88,7 @@ public static class BotOptionPayloadKeys
     // the selection survives a village/list rename: the name changes on Travian but the lid does not.
     public const string ContinuousFarmListIds = "continuous_farm_list_ids";
     public const string ContinuousFarmDispatchDelayMinutes = "continuous_farm_dispatch_delay_minutes";
+    public const string ContinuousFarmDispatchDelayVariationPercent = "continuous_farm_dispatch_delay_variation_percent";
     public const string ContinuousFarmSendMode = "continuous_farm_send_mode";
     public const string ContinuousFarmDeactivateLosses = "continuous_farm_deactivate_losses";
     public const string ContinuousFarmDeactivateOasisLosses = "continuous_farm_deactivate_oasis_losses";

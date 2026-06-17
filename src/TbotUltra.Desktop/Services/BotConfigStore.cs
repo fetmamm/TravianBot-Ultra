@@ -54,6 +54,7 @@ public sealed class BotConfigStore
         BotOptionPayloadKeys.ContinuousFarmListNames,
         BotOptionPayloadKeys.ContinuousFarmListIds,
         BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes,
+        BotOptionPayloadKeys.ContinuousFarmDispatchDelayVariationPercent,
         BotOptionPayloadKeys.ContinuousFarmSendMode,
         BotOptionPayloadKeys.ContinuousFarmDeactivateLosses,
         BotOptionPayloadKeys.ContinuousFarmDeactivateOasisLosses,

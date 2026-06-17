@@ -18,6 +18,8 @@ public static class BotOptionsFactory
             configuration.GetSection(BotOptionPayloadKeys.ReinforcementsTroopRules).Get<List<ReinforcementTroopRule>>() ?? []);
         var continuousFarmDispatchDelayMinutes = FarmingDefaults.NormalizeDispatchDelayMinutes(
             configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes, FarmingDefaults.DefaultDispatchDelayMinutes));
+        var continuousFarmDispatchDelayVariationPercent = FarmingDefaults.NormalizeDispatchDelayVariationPercent(
+            configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDispatchDelayVariationPercent, FarmingDefaults.DefaultDispatchDelayVariationPercent));
         var continuousFarmSendMode = FarmingDefaults.NormalizeSendMode(configuration[BotOptionPayloadKeys.ContinuousFarmSendMode]);
         var queueWaitThresholdMode = configuration[BotOptionPayloadKeys.QueueWaitThresholdMode] ?? "smart";
 
@@ -47,6 +49,7 @@ public static class BotOptionsFactory
             ContinuousFarmListNames = continuousFarmListNames,
             ContinuousFarmListIds = continuousFarmListIds,
             ContinuousFarmDispatchDelayMinutes = continuousFarmDispatchDelayMinutes,
+            ContinuousFarmDispatchDelayVariationPercent = continuousFarmDispatchDelayVariationPercent,
             ContinuousFarmSendMode = continuousFarmSendMode,
             ContinuousFarmDeactivateLosses = configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDeactivateLosses, false),
             ContinuousFarmDeactivateOasisLosses = configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDeactivateOasisLosses, false),
@@ -201,6 +204,7 @@ public static class BotOptionsFactory
             ContinuousFarmListNames = source.ContinuousFarmListNames,
             ContinuousFarmListIds = source.ContinuousFarmListIds,
             ContinuousFarmDispatchDelayMinutes = source.ContinuousFarmDispatchDelayMinutes,
+            ContinuousFarmDispatchDelayVariationPercent = source.ContinuousFarmDispatchDelayVariationPercent,
             ContinuousFarmSendMode = source.ContinuousFarmSendMode,
             ContinuousFarmDeactivateLosses = source.ContinuousFarmDeactivateLosses,
             ContinuousFarmDeactivateOasisLosses = source.ContinuousFarmDeactivateOasisLosses,

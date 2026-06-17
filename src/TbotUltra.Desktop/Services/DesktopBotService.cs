@@ -95,6 +95,11 @@ public sealed class DesktopBotService : IDesktopBotService
         return _taskRunner.SendFarmListNowAsync(options, farmListName, log, null, cancellationToken);
     }
 
+    public Task<int> SendAllFarmListsNowAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.SendAllFarmListsNowAsync(options, log, null, cancellationToken);
+    }
+
     public Task<FarmAddResult> AddSingleFarmFromNatarsAsync(BotOptions options, string farmListName, string troopType, int troopCount, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.AddSingleFarmFromNatarsAsync(options, farmListName, troopType, troopCount, log, null, cancellationToken);

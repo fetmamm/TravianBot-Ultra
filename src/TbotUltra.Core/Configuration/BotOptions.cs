@@ -77,6 +77,9 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes)]
     public int ContinuousFarmDispatchDelayMinutes { get; init; } = FarmingDefaults.DefaultDispatchDelayMinutes;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmDispatchDelayVariationPercent)]
+    public int ContinuousFarmDispatchDelayVariationPercent { get; init; } = FarmingDefaults.DefaultDispatchDelayVariationPercent;
+
     [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmSendMode)]
     public string ContinuousFarmSendMode { get; init; } = FarmingDefaults.SendModeListPerList;
 

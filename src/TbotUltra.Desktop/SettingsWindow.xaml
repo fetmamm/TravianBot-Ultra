@@ -192,36 +192,6 @@
                                 </ComboBox>
                             </Grid>
 
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="160" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" Margin="0,0,12,0">
-                                    <TextBlock Text="Delay between farm sends" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4" />
-                                    <TextBlock Text="Adds spacing between continuous farmlist sends."
-                                               Foreground="{DynamicResource MutedSlateBrush}"
-                                               TextWrapping="Wrap" />
-                                </StackPanel>
-                                <ComboBox x:Name="FarmDispatchDelayComboBox"
-                                          Grid.Column="1"
-                                          Width="150"
-                                          HorizontalAlignment="Left"
-                                          VerticalAlignment="Top">
-                                    <ComboBoxItem Content="1 min" Tag="1" />
-                                    <ComboBoxItem Content="2 min" Tag="2" />
-                                    <ComboBoxItem Content="3 min" Tag="3" />
-                                    <ComboBoxItem Content="5 min" Tag="5" />
-                                    <ComboBoxItem Content="10 min" Tag="10" />
-                                    <ComboBoxItem Content="15 min" Tag="15" />
-                                    <ComboBoxItem Content="20 min" Tag="20" />
-                                    <ComboBoxItem Content="30 min" Tag="30" />
-                                    <ComboBoxItem Content="45 min" Tag="45" />
-                                    <ComboBoxItem Content="60 min" Tag="60" />
-                                    <ComboBoxItem Content="90 min" Tag="90" />
-                                </ComboBox>
-                            </Grid>
-
                             <StackPanel Orientation="Horizontal" Margin="0,14,0,8">
                                 <TextBlock Text="After login"
                                         FontWeight="SemiBold"

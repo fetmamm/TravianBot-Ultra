@@ -1658,6 +1658,7 @@
                                                                                   Style="{StaticResource ContinuousRunToggleStyle}"
                                                                                   VerticalAlignment="Center"
                                                                                   Margin="0,0,10,0"
+                                                                                  IsEnabled="{Binding HasFarmList}"
                                                                                   IsChecked="{Binding IsEnabled, Mode=TwoWay}" />
 
                                                                     <Border Grid.Column="1" BorderBrush="{DynamicResource InfoBrush}" BorderThickness="3,0,0,0" Padding="10,0,0,0">
@@ -1709,17 +1710,36 @@
                                                                         </TextBlock>
                                                                     </Border>
 
-                                                                    <Button Grid.Column="3"
-                                                                            Content="Send Now"
-                                                                            MinWidth="90"
-                                                                            Height="32"
-                                                                            Background="{DynamicResource AccentBrush}"
-                                                                            Foreground="White"
-                                                                            BorderBrush="{DynamicResource AccentBrush}"
-                                                                            VerticalAlignment="Center"
-                                                                            Tag="{Binding}"
-                                                                            IsEnabled="{Binding CanSendNow}"
-                                                                            Click="FarmListSendNowButton_Click" />
+                                                                    <StackPanel Grid.Column="3" VerticalAlignment="Center">
+                                                                        <Button Content="Send all Now"
+                                                                                MinWidth="90"
+                                                                                Height="30"
+                                                                                Margin="0,0,0,6"
+                                                                                Background="{DynamicResource AccentBrush}"
+                                                                                Foreground="White"
+                                                                                BorderBrush="{DynamicResource AccentBrush}"
+                                                                                Click="FarmListSendAllNowButton_Click">
+                                                                            <Button.Style>
+                                                                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding ShowSendAllNow}" Value="True">
+                                                                                            <Setter Property="Visibility" Value="Visible" />
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </Button.Style>
+                                                                        </Button>
+                                                                        <Button Content="Send Now"
+                                                                                MinWidth="90"
+                                                                                Height="32"
+                                                                                Background="{DynamicResource AccentBrush}"
+                                                                                Foreground="White"
+                                                                                BorderBrush="{DynamicResource AccentBrush}"
+                                                                                Tag="{Binding}"
+                                                                                IsEnabled="{Binding CanSendNow}"
+                                                                                Click="FarmListSendNowButton_Click" />
+                                                                    </StackPanel>
                                                                 </Grid>
                                                             </Border>
                                                         </DataTemplate>
@@ -1859,26 +1879,95 @@
                                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                                        Margin="0,0,0,8" />
                                             <StackPanel Margin="0,0,0,10">
-                                                <RadioButton x:Name="FarmSendListPerListRadioButton"
-                                                             Content="Send list per list"
-                                                             GroupName="FarmSendMode"
-                                                             Margin="0,0,0,6"
-                                                             Checked="FarmingSettings_Changed" />
-                                                <RadioButton x:Name="FarmSendAllAtOnceRadioButton"
-                                                             Content="Send all lists at once"
-                                                             GroupName="FarmSendMode"
-                                                             Margin="0,0,0,8"
-                                                             Checked="FarmingSettings_Changed" />
-                                                <CheckBox x:Name="DeactivateFarmLossesCheckBox"
-                                                          Content="Deactivate red/yellow attacks"
-                                                          Margin="0,0,0,6"
-                                                          Checked="FarmingSettings_Changed"
-                                                          Unchecked="FarmingSettings_Changed" />
-                                                <CheckBox x:Name="DeactivateFarmOasisLossesCheckBox"
-                                                          Content="Deactivate oasis with losses"
-                                                          Margin="0,0,0,0"
-                                                          Checked="FarmingSettings_Changed"
-                                                          Unchecked="FarmingSettings_Changed" />
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                    <RadioButton x:Name="FarmSendListPerListRadioButton"
+                                                                 Content="Send list per list"
+                                                                 GroupName="FarmSendMode"
+                                                                 Margin="0,0,16,0"
+                                                                 Checked="FarmingSettings_Changed" />
+                                                    <RadioButton x:Name="FarmSendAllAtOnceRadioButton"
+                                                                 Content="Send all lists at once"
+                                                                 GroupName="FarmSendMode"
+                                                                 Margin="0,0,8,0"
+                                                                 Checked="FarmingSettings_Changed" />
+                                                    <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                                    VerticalAlignment="Center"
+                                                                    ToolTip="Choose whether continuous farming sends one selected farmlist per run or clicks Travian's start-all button for all farmlists at once." />
+                                                </StackPanel>
+                                                <Grid Margin="0,0,0,8">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="120" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,8,0">
+                                                        <TextBlock Text="Delay between farm sends"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                                        VerticalAlignment="Center"
+                                                                        ToolTip="Adds spacing between continuous farmlist sends before the next farming run is queued." />
+                                                    </StackPanel>
+                                                    <ComboBox x:Name="FarmDispatchDelayComboBox"
+                                                              Grid.Column="1"
+                                                              Height="26"
+                                                              SelectionChanged="FarmingSettings_Changed">
+                                                        <ComboBoxItem Content="1 min" Tag="1" />
+                                                        <ComboBoxItem Content="2 min" Tag="2" />
+                                                        <ComboBoxItem Content="3 min" Tag="3" />
+                                                        <ComboBoxItem Content="5 min" Tag="5" />
+                                                        <ComboBoxItem Content="10 min" Tag="10" />
+                                                        <ComboBoxItem Content="15 min" Tag="15" />
+                                                        <ComboBoxItem Content="20 min" Tag="20" />
+                                                        <ComboBoxItem Content="30 min" Tag="30" />
+                                                        <ComboBoxItem Content="45 min" Tag="45" />
+                                                        <ComboBoxItem Content="60 min" Tag="60" />
+                                                        <ComboBoxItem Content="90 min" Tag="90" />
+                                                    </ComboBox>
+                                                </Grid>
+                                                <Grid Margin="0,0,0,8">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="120" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,8,0">
+                                                        <TextBlock Text="Random delay"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                                        VerticalAlignment="Center"
+                                                                        ToolTip="Applies random variation around the delay between farm sends. Example: 10 min with 20% becomes a random wait from 8 to 12 min." />
+                                                    </StackPanel>
+                                                    <ComboBox x:Name="FarmDispatchDelayVariationComboBox"
+                                                              Grid.Column="1"
+                                                              Height="26"
+                                                              SelectionChanged="FarmingSettings_Changed">
+                                                        <ComboBoxItem Content="0%" Tag="0" />
+                                                        <ComboBoxItem Content="5%" Tag="5" />
+                                                        <ComboBoxItem Content="10%" Tag="10" />
+                                                        <ComboBoxItem Content="20%" Tag="20" />
+                                                        <ComboBoxItem Content="50%" Tag="50" />
+                                                    </ComboBox>
+                                                </Grid>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                                    <CheckBox x:Name="DeactivateFarmLossesCheckBox"
+                                                              Content="Deactivate red/yellow attacks"
+                                                              Margin="0,0,8,0"
+                                                              Checked="FarmingSettings_Changed"
+                                                              Unchecked="FarmingSettings_Changed" />
+                                                    <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                                    VerticalAlignment="Center"
+                                                                    ToolTip="Before sending farmlists, disable targets whose last raid shows red or yellow losses." />
+                                                </StackPanel>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <CheckBox x:Name="DeactivateFarmOasisLossesCheckBox"
+                                                              Content="Deactivate oasis with losses"
+                                                              Margin="0,0,8,0"
+                                                              Checked="FarmingSettings_Changed"
+                                                              Unchecked="FarmingSettings_Changed" />
+                                                    <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                                    VerticalAlignment="Center"
+                                                                    ToolTip="When loss deactivation is enabled, also disable oasis targets that show losses." />
+                                                </StackPanel>
                                             </StackPanel>
                                             <Button x:Name="TravcoInactiveSearchButton"
                                                     Content="Inactive / oasis analysis"

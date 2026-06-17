@@ -36,9 +36,6 @@ public partial class SettingsWindow : Window
         AllowSilverSpendingCheckBox.IsChecked = _config["allow_silver_spending"]?.GetValue<bool>() ?? false;
         LoadPacingConfigToUi();
         SelectQueueWaitThresholdMode(_config[BotOptionPayloadKeys.QueueWaitThresholdMode]?.GetValue<string>() ?? "smart");
-        SelectFarmDispatchDelayMinutes(
-            _config[BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes]?.GetValue<int>()
-            ?? FarmingDefaults.DefaultDispatchDelayMinutes);
         PostLoginAnalyzeFarmlistsCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginAnalyzeFarmlists]?.GetValue<bool>() ?? false;
         PostLoginAnalyzeHeroCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginAnalyzeHero]?.GetValue<bool>() ?? false;
         PostLoginReadTroopTrainingQueueCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginReadTroopTrainingQueue]?.GetValue<bool>() ?? false;
@@ -71,7 +68,6 @@ public partial class SettingsWindow : Window
             _config["allow_silver_spending"] = AllowSilverSpendingCheckBox.IsChecked == true;
             SavePacingConfigFromUi();
             _config[BotOptionPayloadKeys.QueueWaitThresholdMode] = GetSelectedQueueWaitThresholdMode();
-            _config[BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes] = GetSelectedFarmDispatchDelayMinutes();
             _config[BotOptionPayloadKeys.PostLoginAnalyzeFarmlists] = PostLoginAnalyzeFarmlistsCheckBox.IsChecked == true;
             _config[BotOptionPayloadKeys.PostLoginAnalyzeHero] = PostLoginAnalyzeHeroCheckBox.IsChecked == true;
             _config[BotOptionPayloadKeys.PostLoginReadTroopTrainingQueue] = PostLoginReadTroopTrainingQueueCheckBox.IsChecked == true;
@@ -378,29 +374,4 @@ public partial class SettingsWindow : Window
         return "10";
     }
 
-    private void SelectFarmDispatchDelayMinutes(int minutes)
-    {
-        var normalized = FarmingDefaults.NormalizeDispatchDelayMinutes(minutes).ToString(CultureInfo.InvariantCulture);
-        foreach (var item in FarmDispatchDelayComboBox.Items.OfType<ComboBoxItem>())
-        {
-            if (string.Equals(item.Tag?.ToString(), normalized, StringComparison.OrdinalIgnoreCase))
-            {
-                FarmDispatchDelayComboBox.SelectedItem = item;
-                return;
-            }
-        }
-
-        FarmDispatchDelayComboBox.SelectedIndex = 5;
-    }
-
-    private int GetSelectedFarmDispatchDelayMinutes()
-    {
-        if (FarmDispatchDelayComboBox.SelectedItem is ComboBoxItem item
-            && int.TryParse(item.Tag?.ToString(), out var minutes))
-        {
-            return FarmingDefaults.NormalizeDispatchDelayMinutes(minutes);
-        }
-
-        return FarmingDefaults.DefaultDispatchDelayMinutes;
-    }
 }

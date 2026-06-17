@@ -494,6 +494,29 @@ public sealed class BotTaskRunner
         return remainingSeconds;
     }
 
+    public async Task<int> SendAllFarmListsNowAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        var listCount = 0;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                await RunFarmListLossDeactivationIfEnabledAsync(new TaskExecutionContext(this, options, client, log, cancellationToken));
+                listCount = await client.SendAllFarmListsNowAsync(cancellationToken);
+            });
+
+        return listCount;
+    }
+
     public async Task<FarmAddResult> AddSingleFarmFromNatarsAsync(
         BotOptions options,
         string farmListName,
@@ -2304,9 +2327,19 @@ public sealed class BotTaskRunner
     private static async Task ExecuteSendFarmlistsAsync(TaskExecutionContext context)
     {
         var mode = FarmingDefaults.NormalizeSendMode(context.Options.ContinuousFarmSendMode);
-        var dispatchDelaySeconds = ResolveContinuousFarmDispatchDelaySeconds(context.Options);
+        var baseDispatchDelaySeconds = ResolveContinuousFarmDispatchDelaySeconds(context.Options);
+        var dispatchDelayVariationPercent = FarmingDefaults.NormalizeDispatchDelayVariationPercent(
+            context.Options.ContinuousFarmDispatchDelayVariationPercent);
+        var dispatchDelaySeconds = ResolveContinuousFarmDispatchDelaySecondsWithVariation(
+            baseDispatchDelaySeconds,
+            dispatchDelayVariationPercent);
+        var (minDelaySeconds, maxDelaySeconds) = ResolveContinuousFarmDispatchDelayRangeSeconds(
+            baseDispatchDelaySeconds,
+            dispatchDelayVariationPercent);
         context.Log(
-            $"Continuous farming mode={mode}; delay={dispatchDelaySeconds}s; " +
+            $"Continuous farming mode={mode}; baseDelay={baseDispatchDelaySeconds}s; " +
+            $"variation={dispatchDelayVariationPercent}%; delayRange={minDelaySeconds}-{maxDelaySeconds}s; " +
+            $"selectedDelay={dispatchDelaySeconds}s; " +
             $"deactivateLosses={context.Options.ContinuousFarmDeactivateLosses}; " +
             $"deactivateOasis={context.Options.ContinuousFarmDeactivateOasisLosses}.");
 
@@ -2414,6 +2447,35 @@ public sealed class BotTaskRunner
     private static int ResolveContinuousFarmDispatchDelaySeconds(BotOptions options)
     {
         return FarmingDefaults.NormalizeDispatchDelayMinutes(options.ContinuousFarmDispatchDelayMinutes) * 60;
+    }
+
+    private static (int MinSeconds, int MaxSeconds) ResolveContinuousFarmDispatchDelayRangeSeconds(
+        int baseDelaySeconds,
+        int variationPercent)
+    {
+        var safeBaseDelaySeconds = Math.Max(1, baseDelaySeconds);
+        var normalizedPercent = FarmingDefaults.NormalizeDispatchDelayVariationPercent(variationPercent);
+        if (normalizedPercent <= 0)
+        {
+            return (safeBaseDelaySeconds, safeBaseDelaySeconds);
+        }
+
+        var deltaSeconds = (int)Math.Round(
+            safeBaseDelaySeconds * (normalizedPercent / 100d),
+            MidpointRounding.AwayFromZero);
+        var minSeconds = Math.Max(1, safeBaseDelaySeconds - deltaSeconds);
+        var maxSeconds = Math.Max(minSeconds, safeBaseDelaySeconds + deltaSeconds);
+        return (minSeconds, maxSeconds);
+    }
+
+    private static int ResolveContinuousFarmDispatchDelaySecondsWithVariation(
+        int baseDelaySeconds,
+        int variationPercent)
+    {
+        var (minSeconds, maxSeconds) = ResolveContinuousFarmDispatchDelayRangeSeconds(baseDelaySeconds, variationPercent);
+        return minSeconds == maxSeconds
+            ? minSeconds
+            : Random.Shared.Next(minSeconds, maxSeconds + 1);
     }
 
     private static void LogContinuousFarmNextSchedule(TaskExecutionContext context, int waitSeconds, int nextIndex)

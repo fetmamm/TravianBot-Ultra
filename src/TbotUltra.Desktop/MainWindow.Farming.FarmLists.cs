@@ -24,6 +24,47 @@ public partial class MainWindow
     private readonly HashSet<string> _analyzedFarmCoordinates = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, int?> _farmListCapacitiesByName = new(StringComparer.OrdinalIgnoreCase);
 
+    private static bool IsRealFarmListRow(FarmListStatusRow row)
+    {
+        return !row.IsPlaceholder;
+    }
+
+    private void EnsureFarmListPlaceholderRow()
+    {
+        if (_farmLists.Any(IsRealFarmListRow))
+        {
+            foreach (var row in _farmLists.Where(row => row.IsPlaceholder).ToList())
+            {
+                _farmLists.Remove(row);
+            }
+
+            UpdateFarmListSendAllButtonState();
+            return;
+        }
+
+        if (!_farmLists.Any(row => row.IsPlaceholder))
+        {
+            _farmLists.Add(new FarmListStatusRow
+            {
+                IsPlaceholder = true,
+                IsEnabled = false,
+            });
+        }
+
+        UpdateFarmListSendAllButtonState();
+    }
+
+    private void UpdateFarmListSendAllButtonState()
+    {
+        var assigned = false;
+        foreach (var row in _farmLists)
+        {
+            var show = !assigned && IsRealFarmListRow(row);
+            row.ShowSendAllNow = show;
+            assigned |= show;
+        }
+    }
+
     private void UpdateFarmingUiState()
     {
         if (!_farmingFeaturesAvailable || FarmingStatusTextBlock is null)
@@ -31,14 +72,15 @@ public partial class MainWindow
             return;
         }
 
-        if (_farmLists.Count <= 0)
+        var realFarmLists = _farmLists.Where(IsRealFarmListRow).ToList();
+        if (realFarmLists.Count <= 0)
         {
             FarmingStatusTextBlock.Text = "No farm lists loaded. Click Analyze Farmlists.";
             return;
         }
 
-        var readyCount = _farmLists.Count(item => item.IsReady);
-        FarmingStatusTextBlock.Text = $"Loaded {_farmLists.Count} farm list(s). Ready: {readyCount}.";
+        var readyCount = realFarmLists.Count(item => item.IsReady);
+        FarmingStatusTextBlock.Text = $"Loaded {realFarmLists.Count} farm list(s). Ready: {readyCount}.";
     }
 
     private void SetFarmingFeatureAvailability(bool enabled, string? reason = null)
@@ -90,6 +132,7 @@ public partial class MainWindow
             await Dispatcher.InvokeAsync(() =>
             {
                 _farmLists.Clear();
+                EnsureFarmListPlaceholderRow();
                 SetFarmingFeatureAvailability(false, "Farming unavailable: Gold Club is not active on this account.");
             });
             return false;
@@ -223,6 +266,9 @@ public partial class MainWindow
                     _farmListCapacitiesByName[pair.Key] = pair.Value.Capacity;
                     displayedRows++;
                 }
+
+                EnsureFarmListPlaceholderRow();
+                UpdateFarmListSendAllButtonState();
             }
             finally
             {
@@ -231,7 +277,7 @@ public partial class MainWindow
 
             SetFarmingFeatureAvailability(true);
             _lastFarmListsAnalysisAt = DateTimeOffset.UtcNow;
-            if (_farmLists.Count > 0)
+            if (_farmLists.Any(IsRealFarmListRow))
             {
                 if (string.Equals(_farmingBlockedReasonKey, FarmingBlockedReasonNoFarmLists, StringComparison.OrdinalIgnoreCase))
                 {
@@ -384,8 +430,9 @@ public partial class MainWindow
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
             await EnsureChromiumInstalledAsync();
             var available = await RefreshFarmListsFromServerAsync(options, operationToken);
+            var loadedCount = _farmLists.Count(IsRealFarmListRow);
             CompleteOperation(operationId, operationSw, available
-                ? $"Loaded {_farmLists.Count} farm list(s)."
+                ? $"Loaded {loadedCount} farm list(s)."
                 : "Gold Club is not active.");
         }
         catch (OperationCanceledException)
@@ -458,6 +505,7 @@ public partial class MainWindow
                     }
 
                     var targetLists = _farmLists
+                        .Where(IsRealFarmListRow)
                         .Select(item => new FarmListSelectionOption
                         {
                             Name = item.Name,
@@ -624,12 +672,13 @@ public partial class MainWindow
                     return new AddFarmsLoadResult(false, null, [], 0);
                 }
 
-                if (_farmLists.Count <= 0)
+                if (!_farmLists.Any(IsRealFarmListRow))
                 {
                     return new AddFarmsLoadResult(false, "No farm lists found on farmpage.", [], 0);
                 }
 
                 var optionsForDialog = _farmLists
+                    .Where(IsRealFarmListRow)
                     .Select(item => new FarmListSelectionOption
                     {
                         Name = item.Name,
@@ -927,6 +976,49 @@ public partial class MainWindow
         }
     }
 
+    private async void FarmListSendAllNowButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (BlockIfSessionSleeping("Farm send all now"))
+        {
+            return;
+        }
+
+        if (!_farmLists.Any(IsRealFarmListRow))
+        {
+            AppendLog("[farm-list] Send all now ignored: no farm lists loaded.");
+            return;
+        }
+
+        var operationId = BeginOperation("Farm Send All Now");
+        var operationSw = Stopwatch.StartNew();
+        var operationToken = _loopController.StartOperation("operation");
+        SetFarmingFunctionRunning(true, showCancelButton: false);
+        BusyOverlay.ShowCancel = true;
+        ShowBusyOverlay("Send all now", "Sending all farmlists...");
+        try
+        {
+            var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            await EnsureChromiumInstalledAsync();
+            var sentCount = await _botService.SendAllFarmListsNowAsync(options, AppendLog, operationToken);
+            await RefreshFarmListsFromServerAsync(options, operationToken);
+            CompleteOperation(operationId, operationSw, $"Sent all farmlists ({sentCount} list(s)).");
+        }
+        catch (OperationCanceledException)
+        {
+            AppendLog("Farm list send-all paused.");
+        }
+        catch (Exception ex)
+        {
+            FailOperation(operationId, operationSw, ex);
+        }
+        finally
+        {
+            HideBusyOverlay();
+            SetFarmingFunctionRunning(false);
+            DisposeOperationCts();
+        }
+    }
+
     private void SyncFarmingControlsEnabledState()
     {
         var sleepAllowsActions = !IsSessionSleeping;
@@ -962,6 +1054,8 @@ public partial class MainWindow
                 FarmListsItemsControl.ItemsSource = _farmLists;
             }
 
+            EnsureFarmListPlaceholderRow();
+            UpdateFarmListSendAllButtonState();
             var view = CollectionViewSource.GetDefaultView(FarmListsItemsControl.ItemsSource);
             view?.Refresh();
         }
@@ -1045,6 +1139,9 @@ public partial class MainWindow
                 FarmSendAllAtOnceRadioButton.IsChecked = string.Equals(mode, FarmingDefaults.SendModeAllAtOnce, StringComparison.Ordinal);
             }
 
+            SelectFarmDispatchDelayMinutes(options.ContinuousFarmDispatchDelayMinutes);
+            SelectFarmDispatchDelayVariationPercent(options.ContinuousFarmDispatchDelayVariationPercent);
+
             if (DeactivateFarmLossesCheckBox is not null)
             {
                 DeactivateFarmLossesCheckBox.IsChecked = options.ContinuousFarmDeactivateLosses;
@@ -1074,17 +1171,83 @@ public partial class MainWindow
             var mode = FarmSendAllAtOnceRadioButton?.IsChecked == true
                 ? FarmingDefaults.SendModeAllAtOnce
                 : FarmingDefaults.SendModeListPerList;
+            var delayMinutes = GetSelectedFarmDispatchDelayMinutes();
+            var delayVariationPercent = GetSelectedFarmDispatchDelayVariationPercent();
             config[BotOptionPayloadKeys.ContinuousFarmSendMode] = mode;
+            config[BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes] = delayMinutes;
+            config[BotOptionPayloadKeys.ContinuousFarmDispatchDelayVariationPercent] = delayVariationPercent;
             config[BotOptionPayloadKeys.ContinuousFarmDeactivateLosses] = DeactivateFarmLossesCheckBox?.IsChecked == true;
             config[BotOptionPayloadKeys.ContinuousFarmDeactivateOasisLosses] = DeactivateFarmOasisLossesCheckBox?.IsChecked == true;
             _botConfigStore.Save(config);
-            AppendLog($"[farm-settings] mode={mode}; deactivateLosses={DeactivateFarmLossesCheckBox?.IsChecked == true}; deactivateOasis={DeactivateFarmOasisLossesCheckBox?.IsChecked == true}");
+            AppendLog($"[farm-settings] mode={mode}; delay={delayMinutes}m; variation={delayVariationPercent}%; deactivateLosses={DeactivateFarmLossesCheckBox?.IsChecked == true}; deactivateOasis={DeactivateFarmOasisLossesCheckBox?.IsChecked == true}");
             UpdateAutomationLoopRunningIndicators();
         }
         catch (Exception ex)
         {
             AppendLog($"Could not save farm settings: {ex.Message}");
         }
+    }
+
+    private void SelectFarmDispatchDelayMinutes(int minutes)
+    {
+        if (FarmDispatchDelayComboBox is null)
+        {
+            return;
+        }
+
+        var normalized = FarmingDefaults.NormalizeDispatchDelayMinutes(minutes).ToString();
+        foreach (var item in FarmDispatchDelayComboBox.Items.OfType<ComboBoxItem>())
+        {
+            if (string.Equals(item.Tag?.ToString(), normalized, StringComparison.OrdinalIgnoreCase))
+            {
+                FarmDispatchDelayComboBox.SelectedItem = item;
+                return;
+            }
+        }
+
+        FarmDispatchDelayComboBox.SelectedIndex = 5;
+    }
+
+    private int GetSelectedFarmDispatchDelayMinutes()
+    {
+        if (FarmDispatchDelayComboBox?.SelectedItem is ComboBoxItem item
+            && int.TryParse(item.Tag?.ToString(), out var minutes))
+        {
+            return FarmingDefaults.NormalizeDispatchDelayMinutes(minutes);
+        }
+
+        return FarmingDefaults.DefaultDispatchDelayMinutes;
+    }
+
+    private void SelectFarmDispatchDelayVariationPercent(int percent)
+    {
+        if (FarmDispatchDelayVariationComboBox is null)
+        {
+            return;
+        }
+
+        var normalized = FarmingDefaults.NormalizeDispatchDelayVariationPercent(percent).ToString();
+        foreach (var item in FarmDispatchDelayVariationComboBox.Items.OfType<ComboBoxItem>())
+        {
+            if (string.Equals(item.Tag?.ToString(), normalized, StringComparison.OrdinalIgnoreCase))
+            {
+                FarmDispatchDelayVariationComboBox.SelectedItem = item;
+                return;
+            }
+        }
+
+        FarmDispatchDelayVariationComboBox.SelectedIndex = 0;
+    }
+
+    private int GetSelectedFarmDispatchDelayVariationPercent()
+    {
+        if (FarmDispatchDelayVariationComboBox?.SelectedItem is ComboBoxItem item
+            && int.TryParse(item.Tag?.ToString(), out var percent))
+        {
+            return FarmingDefaults.NormalizeDispatchDelayVariationPercent(percent);
+        }
+
+        return FarmingDefaults.DefaultDispatchDelayVariationPercent;
     }
 
     private const string AddFarmsTroopCountConfigKey = "addFarmsTroopCount";
@@ -1135,7 +1298,7 @@ public partial class MainWindow
     {
         try
         {
-            var enabledRows = _farmLists.Where(item => item.IsEnabled).ToList();
+            var enabledRows = _farmLists.Where(item => IsRealFarmListRow(item) && item.IsEnabled).ToList();
             var selectedNames = enabledRows
                 .Select(item => item.Name)
                 .Where(name => !string.IsNullOrWhiteSpace(name))

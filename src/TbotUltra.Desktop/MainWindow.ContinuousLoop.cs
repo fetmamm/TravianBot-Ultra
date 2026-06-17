@@ -353,7 +353,7 @@ public partial class MainWindow
                 await EnsureContinuousFarmListsReadyAsync(options);
                 (List<string> Names, List<string> Ids) GatherSelectedFarmLists()
                 {
-                    var enabled = _farmLists.Where(item => item.IsEnabled).ToList();
+                    var enabled = _farmLists.Where(item => IsRealFarmListRow(item) && item.IsEnabled).ToList();
                     var names = enabled
                         .Select(item => item.Name)
                         .Where(name => !string.IsNullOrWhiteSpace(name))
@@ -375,8 +375,8 @@ public partial class MainWindow
                 var farmSendMode = FarmingDefaults.NormalizeSendMode(options.ContinuousFarmSendMode);
                 var sendsAllListsAtOnce = string.Equals(farmSendMode, FarmingDefaults.SendModeAllAtOnce, StringComparison.Ordinal);
                 var availableFarmListCount = Dispatcher.CheckAccess()
-                    ? _farmLists.Count
-                    : Dispatcher.Invoke(() => _farmLists.Count);
+                    ? _farmLists.Count(IsRealFarmListRow)
+                    : Dispatcher.Invoke(() => _farmLists.Count(IsRealFarmListRow));
                 if (availableFarmListCount <= 0)
                 {
                     SetFarmingBlockedState(FarmingBlockedReasonNoFarmLists, "No farmlists available");
@@ -493,15 +493,15 @@ public partial class MainWindow
         var farmSnapshot = Dispatcher.CheckAccess()
             ? new
             {
-                TotalCount = _farmLists.Count,
-                SelectedNames = _farmLists.Where(item => item.IsEnabled).Select(item => item.Name).Where(name => !string.IsNullOrWhiteSpace(name)).ToList(),
-                AvailableNames = _farmLists.Select(item => item.Name).Where(name => !string.IsNullOrWhiteSpace(name)).ToList(),
+                TotalCount = _farmLists.Count(IsRealFarmListRow),
+                SelectedNames = _farmLists.Where(item => IsRealFarmListRow(item) && item.IsEnabled).Select(item => item.Name).Where(name => !string.IsNullOrWhiteSpace(name)).ToList(),
+                AvailableNames = _farmLists.Where(IsRealFarmListRow).Select(item => item.Name).Where(name => !string.IsNullOrWhiteSpace(name)).ToList(),
             }
             : await Dispatcher.InvokeAsync(() => new
             {
-                TotalCount = _farmLists.Count,
-                SelectedNames = _farmLists.Where(item => item.IsEnabled).Select(item => item.Name).Where(name => !string.IsNullOrWhiteSpace(name)).ToList(),
-                AvailableNames = _farmLists.Select(item => item.Name).Where(name => !string.IsNullOrWhiteSpace(name)).ToList(),
+                TotalCount = _farmLists.Count(IsRealFarmListRow),
+                SelectedNames = _farmLists.Where(item => IsRealFarmListRow(item) && item.IsEnabled).Select(item => item.Name).Where(name => !string.IsNullOrWhiteSpace(name)).ToList(),
+                AvailableNames = _farmLists.Where(IsRealFarmListRow).Select(item => item.Name).Where(name => !string.IsNullOrWhiteSpace(name)).ToList(),
             });
 
         var needsAnalyze = farmSnapshot.TotalCount <= 0
