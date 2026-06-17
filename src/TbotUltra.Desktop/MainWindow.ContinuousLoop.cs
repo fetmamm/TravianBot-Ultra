@@ -372,6 +372,8 @@ public partial class MainWindow
                     ? GatherSelectedFarmLists()
                     : Dispatcher.Invoke(GatherSelectedFarmLists);
                 var selectedFarmLists = selectedSnapshot.Names;
+                var farmSendMode = FarmingDefaults.NormalizeSendMode(options.ContinuousFarmSendMode);
+                var sendsAllListsAtOnce = string.Equals(farmSendMode, FarmingDefaults.SendModeAllAtOnce, StringComparison.Ordinal);
                 var availableFarmListCount = Dispatcher.CheckAccess()
                     ? _farmLists.Count
                     : Dispatcher.Invoke(() => _farmLists.Count);
@@ -387,10 +389,11 @@ public partial class MainWindow
                     }
                 }
 
-                if (selectedFarmLists.Count > 0)
+                if (selectedFarmLists.Count > 0 || (sendsAllListsAtOnce && availableFarmListCount > 0))
                 {
                     var payload = new FarmingPayload(selectedFarmLists, selectedSnapshot.Ids).ToDictionary();
-                    _botService.EnqueueRuntime("send_farmlists", "Send selected farmlists", payload, priority: -50, maxRetries: 0);
+                    var displayName = sendsAllListsAtOnce ? "Send all farmlists" : "Send selected farmlists";
+                    _botService.EnqueueRuntime("send_farmlists", displayName, payload, priority: -50, maxRetries: 0);
                 }
             }
             else

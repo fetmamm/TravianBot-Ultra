@@ -353,6 +353,7 @@ public partial class MainWindow
         BotOptionPayloadKeys.UpgradeStorageCapacityKind,
         BotOptionPayloadKeys.UpgradeWaitSeconds,
         BotOptionPayloadKeys.UpgradeWaitReason,
+        BotOptionPayloadKeys.ContinuousFarmNextListIndex,
     ];
 
     private static readonly IReadOnlyDictionary<string, string> DeferredRequirementKeys = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)

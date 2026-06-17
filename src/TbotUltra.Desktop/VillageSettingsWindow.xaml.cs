@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Markup;
+using System.Windows.Media;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
@@ -19,6 +21,7 @@ public partial class VillageSettingsWindow : Window
     private readonly Action<VillageSettingsRow>? _onEnabledChanged;
     private readonly Action<VillageSettingsRow>? _onNpcTradeChanged;
     private readonly Action<VillageSettingsRow>? _onGroupsChanged;
+    private readonly Action<IReadOnlyList<VillageSettingsRow>>? _onTroopSettingsRequested;
     private readonly Action? _onSaved;
 
     public VillageSettingsWindow(
@@ -26,6 +29,7 @@ public partial class VillageSettingsWindow : Window
         Action<VillageSettingsRow>? onEnabledChanged = null,
         Action<VillageSettingsRow>? onNpcTradeChanged = null,
         Action<VillageSettingsRow>? onGroupsChanged = null,
+        Action<IReadOnlyList<VillageSettingsRow>>? onTroopSettingsRequested = null,
         Action? onSaved = null)
     {
         InitializeComponent();
@@ -34,6 +38,7 @@ public partial class VillageSettingsWindow : Window
         _onEnabledChanged = onEnabledChanged;
         _onNpcTradeChanged = onNpcTradeChanged;
         _onGroupsChanged = onGroupsChanged;
+        _onTroopSettingsRequested = onTroopSettingsRequested;
         _onSaved = onSaved;
         BuildGroupColumns(rows);
         VillageSettingsDataGrid.ItemsSource = rows;
@@ -61,7 +66,9 @@ public partial class VillageSettingsWindow : Window
             {
                 Header = BuildColumnHeader(toggle.Title, tooltip),
                 Width = DataGridLength.Auto,
-                CellTemplate = BuildToggleCellTemplate($"GroupToggles[{i}].IsEnabled"),
+                CellTemplate = string.Equals(toggle.GroupKey, QueueGroupCatalog.GetKey(QueueGroup.TroopTraining), StringComparison.OrdinalIgnoreCase)
+                    ? BuildBuildTroopsCellTemplate($"GroupToggles[{i}].IsEnabled")
+                    : BuildToggleCellTemplate($"GroupToggles[{i}].IsEnabled"),
             });
         }
 
@@ -103,6 +110,46 @@ public partial class VillageSettingsWindow : Window
             + $"IsChecked=\"{{Binding {bindingPath}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}}\" />"
             + "</DataTemplate>";
         return (DataTemplate)XamlReader.Parse(xaml);
+    }
+
+    private DataTemplate BuildBuildTroopsCellTemplate(string bindingPath)
+    {
+        var template = new DataTemplate();
+        var panel = new FrameworkElementFactory(typeof(StackPanel));
+        panel.SetValue(StackPanel.OrientationProperty, Orientation.Horizontal);
+        panel.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+        panel.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+
+        var toggle = new FrameworkElementFactory(typeof(CheckBox));
+        toggle.SetResourceReference(FrameworkElement.StyleProperty, "ToggleSwitchBlueStyle");
+        toggle.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+        toggle.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+        toggle.SetValue(FrameworkElement.MarginProperty, new Thickness(6, 2, 2, 2));
+        toggle.SetBinding(ToggleButton.IsCheckedProperty, new System.Windows.Data.Binding(bindingPath)
+        {
+            Mode = System.Windows.Data.BindingMode.TwoWay,
+            UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged,
+        });
+        panel.AppendChild(toggle);
+
+        var button = new FrameworkElementFactory(typeof(Button));
+        button.SetValue(FrameworkElement.WidthProperty, 24d);
+        button.SetValue(FrameworkElement.HeightProperty, 24d);
+        button.SetValue(Control.PaddingProperty, new Thickness(0));
+        button.SetValue(FrameworkElement.MarginProperty, new Thickness(4, 0, 6, 0));
+        button.SetValue(Control.FontFamilyProperty, new FontFamily("Segoe MDL2 Assets"));
+        button.SetValue(ContentControl.ContentProperty, "\uE713");
+        button.SetValue(FrameworkElement.ToolTipProperty, "Open troop settings");
+        button.AddHandler(ButtonBase.ClickEvent, new RoutedEventHandler(TroopSettingsButton_Click));
+        panel.AppendChild(button);
+
+        template.VisualTree = panel;
+        return template;
+    }
+
+    private void TroopSettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        _onTroopSettingsRequested?.Invoke(_rows);
     }
 
     // Persists every row's current state (Auto / NPC / groups) via the callbacks, then closes. The persist

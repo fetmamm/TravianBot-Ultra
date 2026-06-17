@@ -69,6 +69,8 @@ Anropa helpern i `GotoAsync(...)`; hardkoda inte en variants path i flodeslogike
 - DOM-narvaro ensam ar inte tillracklig for klick pa React-sidor.
 - Verifiera nya Official-selektorer live och gor en snabb SS-regressionskontroll.
 - Anvand `await WaitForPageReadyAsync(cancellationToken)` nar hela sidan maste vara laddad.
+- Official farmlist loss cleanup laser `tr.slot`, `td.target`, `td.openContextMenu` och last-raid
+  klasser (`attack_lost*`, `attack_won_withLosses*`); matcha inte SVG-paths for loss state.
 
 Exempel:
 

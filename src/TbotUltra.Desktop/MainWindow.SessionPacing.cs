@@ -319,7 +319,7 @@ public partial class MainWindow
         SetEnabled(AnalyzeFarmListsButton, !sleeping && !_farmingOperationBusy);
         SetEnabled(AnalyzeNatarsProfileButton, !sleeping && !_farmingOperationBusy && _farmingFeaturesAvailable);
         SetEnabled(ShowNatarsListButton, !sleeping && !_farmingOperationBusy && _farmingFeaturesAvailable && _natarsProfileAnalyzed);
-        SetEnabled(StartManualFarmingButton, !sleeping && _farmingFeaturesAvailable);
+        SetEnabled(StartManualFarmingButton, false);
         SetEnabled(StartCatapultWavesButton, !sleeping && !_farmingOperationBusy && _farmingFeaturesAvailable);
         SetEnabled(ReinforcementRefreshVillagesButton, !sleeping && !_uiBusy);
         SetEnabled(ResourceTransferScanVillagesButton, !sleeping && !_uiBusy && !_resourceTransferScanRunning);

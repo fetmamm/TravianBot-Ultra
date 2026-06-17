@@ -337,6 +337,7 @@ public partial class MainWindow : Window
     private LoopTaskOption? _automationLoopDragSource;
     private bool _suppressAutomationLoopConfigWrite;
     private bool _suppressFarmListUiRefresh;
+    private bool _suppressFarmingSettingsConfigWrite;
     private bool _farmingOperationBusy;
     private bool _natarsProfileAnalyzed;
     private DateTimeOffset _lastFarmListsAnalysisAt = DateTimeOffset.MinValue;
@@ -637,6 +638,7 @@ public partial class MainWindow : Window
         _resourcesViewModel.LoadSettingsFromConfig(options);
         ApplyResourceTransferConfigToUi(options);
         ApplyReinforcementConfigToUi(options);
+        ApplyFarmingSettingsToUi(options);
         ApplyAutoCollectTasksConfigToUi(options);
         ApplyAutoCollectDailyQuestsConfigToUi(options);
         ApplyHeroResourceTransferConfigToUi(options);

@@ -1822,6 +1822,7 @@
                                                         Content="Start manual farming"
                                                         Width="170"
                                                         HorizontalAlignment="Center"
+                                                        IsEnabled="False"
                                                         ToolTip="Starts manual farming with the selected farming settings."
                                                         Click="StartManualFarmingButton_Click" />
 
@@ -1841,23 +1842,6 @@
                                                              VerticalAlignment="Center"
                                                              Fill="{DynamicResource BorderMutedBrush}" />
                                                 </StackPanel>
-
-                                                <StackPanel Grid.Row="2"
-                                                            Grid.Column="1"
-                                                            Orientation="Horizontal"
-                                                            VerticalAlignment="Center"
-                                                            Margin="10,0,0,0">
-                                                    <TextBlock x:Name="ManualFarmingStateTextBlock"
-                                                               Text="State:"
-                                                               Foreground="{DynamicResource TextSubtleBrush}"
-                                                               Margin="0,0,8,0"
-                                                               VerticalAlignment="Center" />
-                                                    <Ellipse x:Name="ManualFarmingStateDot"
-                                                             Width="12"
-                                                             Height="12"
-                                                             VerticalAlignment="Center"
-                                                             Fill="{DynamicResource BorderMutedBrush}" />
-                                                </StackPanel>
                                             </Grid>
                                         </StackPanel>
                                     </Border>
@@ -1869,11 +1853,33 @@
                                             CornerRadius="8"
                                             Padding="12">
                                         <StackPanel>
-                                            <TextBlock Text="Settings"
+                                            <TextBlock Text="Farm settings"
                                                        FontSize="22"
                                                        FontWeight="SemiBold"
                                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                                        Margin="0,0,0,8" />
+                                            <StackPanel Margin="0,0,0,10">
+                                                <RadioButton x:Name="FarmSendListPerListRadioButton"
+                                                             Content="Send list per list"
+                                                             GroupName="FarmSendMode"
+                                                             Margin="0,0,0,6"
+                                                             Checked="FarmingSettings_Changed" />
+                                                <RadioButton x:Name="FarmSendAllAtOnceRadioButton"
+                                                             Content="Send all lists at once"
+                                                             GroupName="FarmSendMode"
+                                                             Margin="0,0,0,8"
+                                                             Checked="FarmingSettings_Changed" />
+                                                <CheckBox x:Name="DeactivateFarmLossesCheckBox"
+                                                          Content="Deactivate red/yellow attacks"
+                                                          Margin="0,0,0,6"
+                                                          Checked="FarmingSettings_Changed"
+                                                          Unchecked="FarmingSettings_Changed" />
+                                                <CheckBox x:Name="DeactivateFarmOasisLossesCheckBox"
+                                                          Content="Deactivate oasis with losses"
+                                                          Margin="0,0,0,0"
+                                                          Checked="FarmingSettings_Changed"
+                                                          Unchecked="FarmingSettings_Changed" />
+                                            </StackPanel>
                                             <Button x:Name="TravcoInactiveSearchButton"
                                                     Content="Inactive / oasis analysis"
                                                     MinWidth="170"

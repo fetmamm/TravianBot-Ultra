@@ -8,6 +8,7 @@ namespace TbotUltra.Desktop;
 public sealed record TroopTrainingQuickVillageResult(
     string VillageKey,
     string VillageName,
+    bool IsBuildTroopsEnabled,
     TroopTrainingPayload Settings);
 
 /// <summary>
@@ -37,6 +38,7 @@ public partial class TroopTrainingOptionsWindow : Window
             .Select(row => new TroopTrainingQuickVillageResult(
                 row.VillageKey,
                 row.VillageName,
+                row.IsBuildTroopsEnabled,
                 row.BuildPayload()))
             .ToList();
     }

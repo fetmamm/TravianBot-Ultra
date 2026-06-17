@@ -137,11 +137,17 @@ public partial class MainWindow
 
         if (string.Equals(item.TaskName, "send_farmlists", StringComparison.OrdinalIgnoreCase))
         {
+            if (!string.IsNullOrWhiteSpace(item.DisplayName)
+                && item.DisplayName.Contains("all farmlists", StringComparison.OrdinalIgnoreCase))
+            {
+                return item.DisplayName;
+            }
+
             var names = (GetPayloadValue(payload, BotOptionPayloadKeys.ContinuousFarmListNames) ?? string.Empty)
                 .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             return names.Length > 0
                 ? $"Send farmlists: {string.Join(", ", names)}"
-                : "Send selected farmlists";
+                : string.IsNullOrWhiteSpace(item.DisplayName) ? "Send selected farmlists" : item.DisplayName;
         }
 
         return string.IsNullOrWhiteSpace(item.DisplayName) ? HumanizeTaskName(item.TaskName) : item.DisplayName;

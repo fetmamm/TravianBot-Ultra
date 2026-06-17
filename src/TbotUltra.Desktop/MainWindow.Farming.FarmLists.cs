@@ -144,6 +144,7 @@ public partial class MainWindow
         var selectedFarmLists = LoadConfiguredContinuousFarmListNames();
         var selectedFarmListIds = LoadConfiguredContinuousFarmListIds();
         var mergedByName = new Dictionary<string, (int Active, int Total, int? RemainingSeconds, string? ListId, int? Capacity, IReadOnlyList<string> Coordinates)>(StringComparer.OrdinalIgnoreCase);
+        var orderedNames = new List<string>();
         var analyzedCoordinates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var list in lists)
         {
@@ -162,6 +163,7 @@ public partial class MainWindow
             analyzedCoordinates.UnionWith(incomingCoordinates);
             if (!mergedByName.TryGetValue(normalizedName, out var existing))
             {
+                orderedNames.Add(normalizedName);
                 mergedByName[normalizedName] = (
                     Active: Math.Max(0, list.ActiveFarmCount),
                     Total: Math.Max(0, list.TotalFarmCount),
@@ -194,13 +196,16 @@ public partial class MainWindow
                 _analyzedFarmCoordinates.UnionWith(analyzedCoordinates);
                 _farmListCapacitiesByName.Clear();
                 var displayedRows = 0;
-                foreach (var pair in mergedByName.OrderBy(pair => pair.Key))
+                foreach (var name in orderedNames)
                 {
                     if (displayedRows >= MaxFarmListsShown)
                     {
                         break;
                     }
 
+                    var pair = new KeyValuePair<string, (int Active, int Total, int? RemainingSeconds, string? ListId, int? Capacity, IReadOnlyList<string> Coordinates)>(
+                        name,
+                        mergedByName[name]);
                     var hasSelection = selectedFarmLists.Count > 0 || selectedFarmListIds.Count > 0;
                     var isSelected = !hasSelection
                         || (pair.Value.ListId is not null && selectedFarmListIds.Contains(pair.Value.ListId))
@@ -932,7 +937,7 @@ public partial class MainWindow
         SetEnabled(AnalyzeFarmListsButton, sleepAllowsActions && !_farmingOperationBusy);
         SetEnabled(AnalyzeNatarsProfileButton, farmControlsEnabled);
         SetEnabled(ShowNatarsListButton, farmControlsEnabled && _natarsProfileAnalyzed);
-        SetEnabled(StartManualFarmingButton, sleepAllowsActions && _farmingFeaturesAvailable);
+        SetEnabled(StartManualFarmingButton, false);
         SetEnabled(StartCatapultWavesButton, farmControlsEnabled);
         UpdateManualFarmingRunningState();
     }
@@ -1021,6 +1026,64 @@ public partial class MainWindow
         catch
         {
             return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    private void ApplyFarmingSettingsToUi(BotOptions options)
+    {
+        _suppressFarmingSettingsConfigWrite = true;
+        try
+        {
+            var mode = FarmingDefaults.NormalizeSendMode(options.ContinuousFarmSendMode);
+            if (FarmSendListPerListRadioButton is not null)
+            {
+                FarmSendListPerListRadioButton.IsChecked = string.Equals(mode, FarmingDefaults.SendModeListPerList, StringComparison.Ordinal);
+            }
+
+            if (FarmSendAllAtOnceRadioButton is not null)
+            {
+                FarmSendAllAtOnceRadioButton.IsChecked = string.Equals(mode, FarmingDefaults.SendModeAllAtOnce, StringComparison.Ordinal);
+            }
+
+            if (DeactivateFarmLossesCheckBox is not null)
+            {
+                DeactivateFarmLossesCheckBox.IsChecked = options.ContinuousFarmDeactivateLosses;
+            }
+
+            if (DeactivateFarmOasisLossesCheckBox is not null)
+            {
+                DeactivateFarmOasisLossesCheckBox.IsChecked = options.ContinuousFarmDeactivateOasisLosses;
+            }
+        }
+        finally
+        {
+            _suppressFarmingSettingsConfigWrite = false;
+        }
+    }
+
+    private void FarmingSettings_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_suppressFarmingSettingsConfigWrite)
+        {
+            return;
+        }
+
+        try
+        {
+            var config = _botConfigStore.Load();
+            var mode = FarmSendAllAtOnceRadioButton?.IsChecked == true
+                ? FarmingDefaults.SendModeAllAtOnce
+                : FarmingDefaults.SendModeListPerList;
+            config[BotOptionPayloadKeys.ContinuousFarmSendMode] = mode;
+            config[BotOptionPayloadKeys.ContinuousFarmDeactivateLosses] = DeactivateFarmLossesCheckBox?.IsChecked == true;
+            config[BotOptionPayloadKeys.ContinuousFarmDeactivateOasisLosses] = DeactivateFarmOasisLossesCheckBox?.IsChecked == true;
+            _botConfigStore.Save(config);
+            AppendLog($"[farm-settings] mode={mode}; deactivateLosses={DeactivateFarmLossesCheckBox?.IsChecked == true}; deactivateOasis={DeactivateFarmOasisLossesCheckBox?.IsChecked == true}");
+            UpdateAutomationLoopRunningIndicators();
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Could not save farm settings: {ex.Message}");
         }
     }
 

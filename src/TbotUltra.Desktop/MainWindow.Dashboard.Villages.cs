@@ -601,6 +601,7 @@ public partial class MainWindow
             PersistVillageEnabledFromSettingsRow,
             PersistVillageNpcTradeFromSettingsRow,
             PersistVillageGroupsFromSettingsRow,
+            OpenTroopSettingsFromVillageSettings,
             OnVillageSettingsSaved)
         {
             Owner = this,

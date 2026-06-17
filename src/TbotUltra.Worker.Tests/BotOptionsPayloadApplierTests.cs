@@ -399,4 +399,49 @@ public sealed class BotOptionsPayloadApplierTests
         Assert.Equal(10, sourceRule.Amount);
         Assert.True(sourceRule.IsEnabled);
     }
+
+    [Fact]
+    public void FromConfiguration_LoadsFarmingDefaultsAndNormalizesDelay()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["server_name"] = "srv",
+                ["base_url"] = "https://example.com",
+                [BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes] = "4",
+            })
+            .Build();
+
+        var options = BotOptionsFactory.FromConfiguration(configuration);
+
+        Assert.Equal(3, options.ContinuousFarmDispatchDelayMinutes);
+        Assert.Equal(FarmingDefaults.SendModeListPerList, options.ContinuousFarmSendMode);
+        Assert.False(options.ContinuousFarmDeactivateLosses);
+        Assert.False(options.ContinuousFarmDeactivateOasisLosses);
+    }
+
+    [Fact]
+    public void Apply_OverridesFarmingRuntimeSettings()
+    {
+        var source = new BotOptions
+        {
+            ContinuousFarmDispatchDelayMinutes = FarmingDefaults.DefaultDispatchDelayMinutes,
+            ContinuousFarmSendMode = FarmingDefaults.SendModeListPerList,
+        };
+
+        var result = BotOptionsPayloadApplier.Apply(source, new Dictionary<string, string>
+        {
+            [BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes] = "90",
+            [BotOptionPayloadKeys.ContinuousFarmSendMode] = FarmingDefaults.SendModeAllAtOnce,
+            [BotOptionPayloadKeys.ContinuousFarmDeactivateLosses] = "true",
+            [BotOptionPayloadKeys.ContinuousFarmDeactivateOasisLosses] = "true",
+            [BotOptionPayloadKeys.ContinuousFarmNextListIndex] = "7",
+        });
+
+        Assert.Equal(90, result.ContinuousFarmDispatchDelayMinutes);
+        Assert.Equal(FarmingDefaults.SendModeAllAtOnce, result.ContinuousFarmSendMode);
+        Assert.True(result.ContinuousFarmDeactivateLosses);
+        Assert.True(result.ContinuousFarmDeactivateOasisLosses);
+        Assert.Equal(7, result.ContinuousFarmNextListIndex);
+    }
 }

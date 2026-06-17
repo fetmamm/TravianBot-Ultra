@@ -809,6 +809,104 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         return remaining;
     }
 
+    public async Task<int> SendAllFarmListsNowAsync(CancellationToken cancellationToken = default)
+    {
+        LogFunctionStarted();
+        await EnsureLoggedInAsync();
+        if (!await ReadGoldClubEnabledAsync(cancellationToken))
+        {
+            throw new InvalidOperationException("Gold Club is not enabled for this account.");
+        }
+
+        await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken);
+        await WaitForFarmListsRenderedAsync(cancellationToken);
+        await WaitForDispatchLimitToClearAsync(cancellationToken);
+
+        var clickState = await TryClickStartAllFarmListsAsync(cancellationToken);
+        if (clickState.ListCount <= 0)
+        {
+            throw new InvalidOperationException("No farm lists were found for start-all farming.");
+        }
+
+        if (!clickState.Clicked)
+        {
+            throw new InvalidOperationException($"Could not click Travian Start all farmlists button: {clickState.Reason ?? "unknown reason"}.");
+        }
+
+        Notify($"[farm-list] send-all started for {clickState.ListCount} list(s).");
+        await WaitForFarmListStartButtonsDisabledAsync(clickState.ListIds ?? [], cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared after starting all farmlists.", cancellationToken);
+        await TryClickCaptchaSuccessDialogOkAsync(cancellationToken);
+        await WaitForFarmListStartButtonsEnabledAsync(clickState.ListIds ?? [], cancellationToken);
+        Notify($"[farm-list] send-all completed for {clickState.ListCount} list(s).");
+        return clickState.ListCount;
+    }
+
+    public async Task<FarmListLossDeactivationResult> DeactivateFarmListLossTargetsAsync(
+        bool includeUnoccupiedOasis,
+        CancellationToken cancellationToken = default)
+    {
+        LogFunctionStarted();
+        await EnsureLoggedInAsync();
+        if (!await ReadGoldClubEnabledAsync(cancellationToken))
+        {
+            throw new InvalidOperationException("Gold Club is not enabled for this account.");
+        }
+
+        await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken);
+        await WaitForFarmListsRenderedAsync(cancellationToken);
+        await EnsureOfficialFarmListsExpandedAsync(cancellationToken);
+
+        var initialRows = await ReadFarmListLossRowsFromCurrentPageAsync(cancellationToken);
+        var lossRows = initialRows.Where(IsFarmListLossRow).ToList();
+        var skippedOasisRows = lossRows.Count(row =>
+            !includeUnoccupiedOasis && FarmListLossStateClassifier.IsUnoccupiedOasis(row.TargetName));
+        var unknownRaidClasses = initialRows
+            .Where(row => !string.IsNullOrWhiteSpace(row.RaidClass))
+            .Where(row => row.RaidClass!.Contains("attack_", StringComparison.OrdinalIgnoreCase))
+            .Where(row => FarmListLossStateClassifier.Classify(row.RaidClass) == FarmListLossState.Unknown)
+            .Select(row => row.RaidClass!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(10)
+            .ToList();
+        if (unknownRaidClasses.Count > 0)
+        {
+            Notify($"[farm-list] red/yellow scan saw unknown raid state class(es): {string.Join(", ", unknownRaidClasses)}");
+        }
+
+        Notify($"[farm-list] red/yellow loss scan found {lossRows.Count} active row(s); skipped oasis={skippedOasisRows}; includeOasis={includeUnoccupiedOasis}.");
+
+        var deactivated = 0;
+        for (var attempt = 1; attempt <= MaxFarmsPerFarmList * 2; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var rows = attempt == 1
+                ? initialRows
+                : await ReadFarmListLossRowsFromCurrentPageAsync(cancellationToken);
+            var candidate = rows.FirstOrDefault(row => IsFarmListLossDeactivationCandidate(row, includeUnoccupiedOasis));
+            if (candidate is null)
+            {
+                break;
+            }
+
+            var clicked = await TryDeactivateFarmListLossRowAsync(candidate, cancellationToken);
+            if (!clicked)
+            {
+                Notify($"[farm-list] could not deactivate loss row target='{candidate.TargetName}' slot='{candidate.SlotId}' list='{candidate.ListName}'.");
+                break;
+            }
+
+            deactivated++;
+            Notify($"[farm-list] deactivated loss row target='{candidate.TargetName}' slot='{candidate.SlotId}' list='{candidate.ListName}' state='{candidate.RaidClass}'.");
+            await Task.Delay(300, cancellationToken);
+        }
+
+        Notify($"[farm-list] red/yellow loss deactivation done: found={lossRows.Count}, deactivated={deactivated}, skippedOasis={skippedOasisRows}.");
+        return new FarmListLossDeactivationResult(lossRows.Count, deactivated, skippedOasisRows);
+    }
+
     public async Task<FarmAddResult> AddSingleFarmFromNatarsAsync(
         string farmListName,
         string troopType,
@@ -4485,6 +4583,215 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         throw new InvalidOperationException($"Farm dispatch limit active. queue_wait_seconds={waitSeconds}");
     }
 
+    private async Task<FarmListSendAllClickStateJs> TryClickStartAllFarmListsAsync(CancellationToken cancellationToken)
+    {
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared before starting all farmlists.", cancellationToken);
+        var state = await _page.EvaluateAsync<FarmListSendAllClickStateJs>(
+            """
+            () => {
+              const readListId = (wrapper) =>
+                wrapper?.querySelector('.dragAndDrop[data-list]')?.getAttribute('data-list') ||
+                wrapper?.querySelector('[data-farm-list-id]')?.getAttribute('data-farm-list-id') ||
+                '';
+              const isDisabled = (node) => {
+                const cls = (node?.getAttribute('class') || '').toLowerCase();
+                return !node || node.disabled || node.getAttribute('disabled') !== null || cls.includes('disabled');
+              };
+
+              const wrappers = Array.from(document.querySelectorAll('#rallyPointFarmList .farmListWrapper'));
+              const listIds = wrappers
+                .filter(wrapper => wrapper.querySelector('button.startFarmList'))
+                .map(readListId)
+                .filter(id => id && id.length > 0);
+              const allButton = document.querySelector('#rallyPointFarmList button.startAllFarmLists, button.startAllFarmLists');
+              if (!allButton) {
+                return { clicked: false, reason: 'start-all button not found', listIds, listCount: listIds.length };
+              }
+
+              if (isDisabled(allButton)) {
+                return { clicked: false, reason: 'start-all button disabled', listIds, listCount: listIds.length };
+              }
+
+              allButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+              allButton.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+              allButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+              return { clicked: true, reason: '', listIds, listCount: listIds.length };
+            }
+            """).WaitAsync(cancellationToken);
+        return state ?? new FarmListSendAllClickStateJs { Clicked = false, Reason = "start-all state could not be read" };
+    }
+
+    private async Task WaitForFarmListStartButtonsDisabledAsync(IReadOnlyList<string> listIds, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _page.WaitForFunctionAsync(
+                FarmListStartButtonsDisabledScript,
+                listIds.ToArray(),
+                new PageWaitForFunctionOptions { Timeout = 15000 }).WaitAsync(cancellationToken);
+        }
+        catch (TimeoutException)
+        {
+            Notify("[farm-list] send-all buttons did not visibly disable within 15 seconds; continuing to completion wait.");
+        }
+    }
+
+    private async Task WaitForFarmListStartButtonsEnabledAsync(IReadOnlyList<string> listIds, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _page.WaitForFunctionAsync(
+                FarmListStartButtonsEnabledScript,
+                listIds.ToArray(),
+                new PageWaitForFunctionOptions { Timeout = 120000 }).WaitAsync(cancellationToken);
+        }
+        catch (TimeoutException ex)
+        {
+            throw new InvalidOperationException("Start all farmlists did not finish within 120 seconds; Start buttons were still disabled.", ex);
+        }
+    }
+
+    private const string FarmListStartButtonsDisabledScript =
+        """
+        (ids) => {
+          const wanted = new Set((ids || []).map(String).filter(Boolean));
+          const readListId = (button) => {
+            const wrapper = button.closest('.farmListWrapper');
+            return wrapper?.querySelector('.dragAndDrop[data-list]')?.getAttribute('data-list') ||
+              wrapper?.querySelector('[data-farm-list-id]')?.getAttribute('data-farm-list-id') ||
+              '';
+          };
+          const isDisabled = (node) => {
+            const cls = (node?.getAttribute('class') || '').toLowerCase();
+            return !!node && (node.disabled || node.getAttribute('disabled') !== null || cls.includes('disabled'));
+          };
+          const buttons = Array.from(document.querySelectorAll('#rallyPointFarmList button.startFarmList, button.startFarmList'))
+            .filter(button => wanted.size === 0 || wanted.has(readListId(button)));
+          return buttons.length === 0 || buttons.some(isDisabled);
+        }
+        """;
+
+    private const string FarmListStartButtonsEnabledScript =
+        """
+        (ids) => {
+          const wanted = new Set((ids || []).map(String).filter(Boolean));
+          const readListId = (button) => {
+            const wrapper = button.closest('.farmListWrapper');
+            return wrapper?.querySelector('.dragAndDrop[data-list]')?.getAttribute('data-list') ||
+              wrapper?.querySelector('[data-farm-list-id]')?.getAttribute('data-farm-list-id') ||
+              '';
+          };
+          const isDisabled = (node) => {
+            const cls = (node?.getAttribute('class') || '').toLowerCase();
+            return !!node && (node.disabled || node.getAttribute('disabled') !== null || cls.includes('disabled'));
+          };
+          const buttons = Array.from(document.querySelectorAll('#rallyPointFarmList button.startFarmList, button.startFarmList'))
+            .filter(button => wanted.size === 0 || wanted.has(readListId(button)));
+          return buttons.length === 0 || buttons.every(button => !isDisabled(button));
+        }
+        """;
+
+    private async Task<IReadOnlyList<FarmListLossRowJs>> ReadFarmListLossRowsFromCurrentPageAsync(CancellationToken cancellationToken)
+    {
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while scanning farm losses.", cancellationToken);
+        var rows = await _page.EvaluateAsync<FarmListLossRowJs[]>(
+            """
+            () => {
+              const clean = (value) => (value || '')
+                .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+              const classText = (node) => {
+                if (!node) return '';
+                const value = node.getAttribute ? node.getAttribute('class') : '';
+                return typeof value === 'string' ? value : '';
+              };
+              const rows = Array.from(document.querySelectorAll('#rallyPointFarmList tr.slot, tr.slot'));
+              return rows.map((row, rowIndex) => {
+                const raidClasses = [];
+                const lastRaid = row.querySelector('td.lastRaid');
+                if (lastRaid) {
+                  raidClasses.push(classText(lastRaid));
+                  lastRaid.querySelectorAll('[class]').forEach(node => raidClasses.push(classText(node)));
+                }
+
+                const input = row.querySelector('input[data-slot-id]');
+                const wrapper = row.closest('.farmListWrapper');
+                return {
+                  rowIndex,
+                  slotId: input?.getAttribute('data-slot-id') || '',
+                  listName: clean(wrapper?.querySelector('.farmListName .name')?.textContent || ''),
+                  targetName: clean(row.querySelector('td.target a')?.textContent || row.querySelector('td.target')?.textContent || ''),
+                  rowClass: classText(row),
+                  raidClass: raidClasses.filter(Boolean).join(' '),
+                  disabled: row.classList.contains('disabled')
+                };
+              });
+            }
+            """).WaitAsync(cancellationToken);
+        return rows ?? [];
+    }
+
+    private static bool IsFarmListLossRow(FarmListLossRowJs row)
+    {
+        return row is { Disabled: false }
+            && FarmListLossStateClassifier.Classify(row.RaidClass) == FarmListLossState.Loss;
+    }
+
+    private static bool IsFarmListLossDeactivationCandidate(FarmListLossRowJs row, bool includeUnoccupiedOasis)
+    {
+        return IsFarmListLossRow(row)
+            && (includeUnoccupiedOasis || !FarmListLossStateClassifier.IsUnoccupiedOasis(row.TargetName));
+    }
+
+    private async Task<bool> TryDeactivateFarmListLossRowAsync(FarmListLossRowJs row, CancellationToken cancellationToken)
+    {
+        var menuOpened = await _page.EvaluateAsync<bool>(
+            """
+            (candidate) => {
+              const findRow = () => {
+                if (candidate.slotId) {
+                  const bySlot = document.querySelector(`#rallyPointFarmList tr.slot input[data-slot-id="${CSS.escape(candidate.slotId)}"], tr.slot input[data-slot-id="${CSS.escape(candidate.slotId)}"]`);
+                  if (bySlot) return bySlot.closest('tr.slot');
+                }
+
+                const rows = Array.from(document.querySelectorAll('#rallyPointFarmList tr.slot, tr.slot'));
+                return rows[candidate.rowIndex] || null;
+              };
+              const row = findRow();
+              if (!row) return false;
+              row.scrollIntoView({ block: 'center' });
+              const trigger = row.querySelector('td.openContextMenu a, td.openContextMenu button, td.openContextMenu');
+              if (!trigger) return false;
+              trigger.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+              trigger.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+              trigger.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+              return true;
+            }
+            """,
+            new { slotId = row.SlotId ?? string.Empty, rowIndex = row.RowIndex }).WaitAsync(cancellationToken);
+        if (!menuOpened)
+        {
+            return false;
+        }
+
+        await Task.Delay(150, cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared before deactivating farm loss row.", cancellationToken);
+        return await _page.EvaluateAsync<bool>(
+            """
+            () => {
+              const clean = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+              const entries = Array.from(document.querySelectorAll('.entry.deactivate, button.entry.deactivate, [class~="deactivate"]'));
+              const entry = entries.find(node => clean(node.textContent).includes('deactivate'));
+              if (!entry) return false;
+              entry.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+              entry.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+              entry.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+              return true;
+            }
+            """).WaitAsync(cancellationToken);
+    }
+
     private async Task<bool> TryClickFarmListSendNowAsync(string farmListName, CancellationToken cancellationToken)
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared before sending farm list.", cancellationToken);
@@ -6334,6 +6641,45 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
         [JsonPropertyName("minTimerSeconds")]
         public int? MinTimerSeconds { get; init; }
+    }
+
+    private sealed class FarmListSendAllClickStateJs
+    {
+        [JsonPropertyName("clicked")]
+        public bool Clicked { get; init; }
+
+        [JsonPropertyName("reason")]
+        public string? Reason { get; init; }
+
+        [JsonPropertyName("listIds")]
+        public string[]? ListIds { get; init; }
+
+        [JsonPropertyName("listCount")]
+        public int ListCount { get; init; }
+    }
+
+    private sealed class FarmListLossRowJs
+    {
+        [JsonPropertyName("rowIndex")]
+        public int RowIndex { get; init; }
+
+        [JsonPropertyName("slotId")]
+        public string? SlotId { get; init; }
+
+        [JsonPropertyName("listName")]
+        public string? ListName { get; init; }
+
+        [JsonPropertyName("targetName")]
+        public string? TargetName { get; init; }
+
+        [JsonPropertyName("rowClass")]
+        public string? RowClass { get; init; }
+
+        [JsonPropertyName("raidClass")]
+        public string? RaidClass { get; init; }
+
+        [JsonPropertyName("disabled")]
+        public bool Disabled { get; init; }
     }
 
     private sealed class NatarCoordinateJs

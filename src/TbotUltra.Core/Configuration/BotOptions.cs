@@ -75,7 +75,19 @@ public sealed class BotOptions
     public List<string> ContinuousFarmListIds { get; init; } = [];
 
     [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes)]
-    public int ContinuousFarmDispatchDelayMinutes { get; init; } = 3;
+    public int ContinuousFarmDispatchDelayMinutes { get; init; } = FarmingDefaults.DefaultDispatchDelayMinutes;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmSendMode)]
+    public string ContinuousFarmSendMode { get; init; } = FarmingDefaults.SendModeListPerList;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmDeactivateLosses)]
+    public bool ContinuousFarmDeactivateLosses { get; init; }
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmDeactivateOasisLosses)]
+    public bool ContinuousFarmDeactivateOasisLosses { get; init; }
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmNextListIndex)]
+    public int ContinuousFarmNextListIndex { get; init; }
 
     [ConfigurationKeyName(BotOptionPayloadKeys.QueueWaitThresholdMode)]
     public string QueueWaitThresholdMode { get; init; } = "smart";

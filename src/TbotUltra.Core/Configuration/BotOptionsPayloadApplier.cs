@@ -46,6 +46,10 @@ public static class BotOptionsPayloadApplier
         var continuousFarmListNames = source.ContinuousFarmListNames;
         var continuousFarmListIds = source.ContinuousFarmListIds;
         var continuousFarmDispatchDelayMinutes = source.ContinuousFarmDispatchDelayMinutes;
+        var continuousFarmSendMode = source.ContinuousFarmSendMode;
+        var continuousFarmDeactivateLosses = source.ContinuousFarmDeactivateLosses;
+        var continuousFarmDeactivateOasisLosses = source.ContinuousFarmDeactivateOasisLosses;
+        var continuousFarmNextListIndex = source.ContinuousFarmNextListIndex;
         var queueWaitThresholdMode = source.QueueWaitThresholdMode;
         var postLoginAnalyzeFarmlists = source.PostLoginAnalyzeFarmlists;
         var postLoginAnalyzeHero = source.PostLoginAnalyzeHero;
@@ -401,7 +405,34 @@ public static class BotOptionsPayloadApplier
                 if (key.Equals(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes, StringComparison.OrdinalIgnoreCase)
                     && int.TryParse(value, out var dispatchDelayMinutes))
                 {
-                    continuousFarmDispatchDelayMinutes = Math.Clamp(dispatchDelayMinutes, 1, 5);
+                    continuousFarmDispatchDelayMinutes = FarmingDefaults.NormalizeDispatchDelayMinutes(dispatchDelayMinutes);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ContinuousFarmSendMode, StringComparison.OrdinalIgnoreCase))
+                {
+                    continuousFarmSendMode = FarmingDefaults.NormalizeSendMode(value);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ContinuousFarmDeactivateLosses, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var deactivateLosses))
+                {
+                    continuousFarmDeactivateLosses = deactivateLosses;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ContinuousFarmDeactivateOasisLosses, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var deactivateOasisLosses))
+                {
+                    continuousFarmDeactivateOasisLosses = deactivateOasisLosses;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ContinuousFarmNextListIndex, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var nextListIndex))
+                {
+                    continuousFarmNextListIndex = Math.Max(0, nextListIndex);
                     continue;
                 }
 
@@ -975,6 +1006,10 @@ public static class BotOptionsPayloadApplier
             ContinuousFarmListNames = continuousFarmListNames,
             ContinuousFarmListIds = continuousFarmListIds,
             ContinuousFarmDispatchDelayMinutes = continuousFarmDispatchDelayMinutes,
+            ContinuousFarmSendMode = continuousFarmSendMode,
+            ContinuousFarmDeactivateLosses = continuousFarmDeactivateLosses,
+            ContinuousFarmDeactivateOasisLosses = continuousFarmDeactivateOasisLosses,
+            ContinuousFarmNextListIndex = continuousFarmNextListIndex,
             QueueWaitThresholdMode = queueWaitThresholdMode,
             PostLoginAnalyzeFarmlists = postLoginAnalyzeFarmlists,
             PostLoginAnalyzeHero = postLoginAnalyzeHero,

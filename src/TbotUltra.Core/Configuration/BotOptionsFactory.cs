@@ -16,7 +16,9 @@ public static class BotOptionsFactory
         var reinforcementSourceVillageNames = configuration.GetSection(BotOptionPayloadKeys.ReinforcementsSourceVillageNames).Get<List<string>>() ?? [];
         var reinforcementTroopRules = NormalizeReinforcementTroopRules(
             configuration.GetSection(BotOptionPayloadKeys.ReinforcementsTroopRules).Get<List<ReinforcementTroopRule>>() ?? []);
-        var continuousFarmDispatchDelayMinutes = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes, 3), 1, 5);
+        var continuousFarmDispatchDelayMinutes = FarmingDefaults.NormalizeDispatchDelayMinutes(
+            configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes, FarmingDefaults.DefaultDispatchDelayMinutes));
+        var continuousFarmSendMode = FarmingDefaults.NormalizeSendMode(configuration[BotOptionPayloadKeys.ContinuousFarmSendMode]);
         var queueWaitThresholdMode = configuration[BotOptionPayloadKeys.QueueWaitThresholdMode] ?? "smart";
 
         var baseUrl = (configuration["base_url"] ?? string.Empty).TrimEnd('/');
@@ -45,6 +47,9 @@ public static class BotOptionsFactory
             ContinuousFarmListNames = continuousFarmListNames,
             ContinuousFarmListIds = continuousFarmListIds,
             ContinuousFarmDispatchDelayMinutes = continuousFarmDispatchDelayMinutes,
+            ContinuousFarmSendMode = continuousFarmSendMode,
+            ContinuousFarmDeactivateLosses = configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDeactivateLosses, false),
+            ContinuousFarmDeactivateOasisLosses = configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDeactivateOasisLosses, false),
             QueueWaitThresholdMode = queueWaitThresholdMode,
             PostLoginAnalyzeFarmlists = configuration.GetValue(BotOptionPayloadKeys.PostLoginAnalyzeFarmlists, false),
             PostLoginAnalyzeHero = configuration.GetValue(BotOptionPayloadKeys.PostLoginAnalyzeHero, false),
@@ -196,6 +201,10 @@ public static class BotOptionsFactory
             ContinuousFarmListNames = source.ContinuousFarmListNames,
             ContinuousFarmListIds = source.ContinuousFarmListIds,
             ContinuousFarmDispatchDelayMinutes = source.ContinuousFarmDispatchDelayMinutes,
+            ContinuousFarmSendMode = source.ContinuousFarmSendMode,
+            ContinuousFarmDeactivateLosses = source.ContinuousFarmDeactivateLosses,
+            ContinuousFarmDeactivateOasisLosses = source.ContinuousFarmDeactivateOasisLosses,
+            ContinuousFarmNextListIndex = source.ContinuousFarmNextListIndex,
             QueueWaitThresholdMode = source.QueueWaitThresholdMode,
             PostLoginAnalyzeFarmlists = source.PostLoginAnalyzeFarmlists,
             PostLoginAnalyzeHero = source.PostLoginAnalyzeHero,

@@ -6,16 +6,20 @@ using TbotUltra.Desktop.Services;
 
 namespace TbotUltra.Desktop.ViewModels;
 
-public sealed class TroopTrainingQuickVillageRow
+public sealed class TroopTrainingQuickVillageRow : BaseViewModel
 {
+    private bool _isBuildTroopsEnabled;
+
     public TroopTrainingQuickVillageRow(
         string villageKey,
         string villageName,
+        bool isBuildTroopsEnabled,
         TroopTrainingPayload basePayload,
         string? tribe)
     {
         VillageKey = villageKey;
         VillageName = string.IsNullOrWhiteSpace(villageName) ? villageKey : villageName.Trim();
+        _isBuildTroopsEnabled = isBuildTroopsEnabled;
         BasePayload = basePayload;
 
         // Each training building only trains its own troops, so resolve the dropdown per building
@@ -31,6 +35,12 @@ public sealed class TroopTrainingQuickVillageRow
     public TroopTrainingQuickBuildingCell Barracks { get; }
     public TroopTrainingQuickBuildingCell Stable { get; }
     public TroopTrainingQuickBuildingCell Workshop { get; }
+
+    public bool IsBuildTroopsEnabled
+    {
+        get => _isBuildTroopsEnabled;
+        set => SetProperty(ref _isBuildTroopsEnabled, value);
+    }
 
     public TroopTrainingPayload BuildPayload()
     {

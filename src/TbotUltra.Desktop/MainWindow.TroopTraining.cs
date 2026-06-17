@@ -8,9 +8,11 @@ using TbotUltra.Core.Accounts;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Tasks;
 using TbotUltra.Core.Travian;
+using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
 using TbotUltra.Desktop.ViewModels;
 using TbotUltra.Worker.Domain;
+using TbotUltra.Worker.Services;
 
 namespace TbotUltra.Desktop;
 
@@ -135,7 +137,7 @@ public partial class MainWindow
     {
         // Account-wide settings (NPC trade, gold, celebration) go to the account config; the per-building
         // training rules go to the selected village's override so the Troops tab and the per-village
-        // "Training options" popup edit the same data.
+        // "Troop settings" popup edits the same data.
         PersistTroopTrainingConfig();
         PersistTroopTrainingForSelectedVillage();
         PersistAutoCelebrationPreferenceForActiveAccount(_troopTrainingViewModel.AutoCelebrationEnabled);
@@ -632,10 +634,10 @@ public partial class MainWindow
     /// Opens the quick per-village troop-training settings popup for all known villages. The popup only
     /// edits each building's enabled/troop choice and preserves advanced settings from the village override
     /// or global defaults. Stale build_troops queue items are dropped so the loop re-enqueues fresh payloads.
-    /// Called by the Troops panel's "Training options" button.
+    /// Called by the Troops panel's "Troop settings" button.
     /// </summary>
     // Top-bar "Troop settings" button (always visible). Opens the same per-village training overview as
-    // the Troops panel's "Training options" button.
+    // the Troops panel's "Troop settings" button.
     private void TroopSettingsButton_Click(object sender, System.Windows.RoutedEventArgs e)
     {
         _ = sender;
@@ -645,11 +647,21 @@ public partial class MainWindow
 
     internal void OnTroopsTrainingOptionsClicked()
     {
+        OpenTroopSettingsWindow(null);
+    }
+
+    private void OpenTroopSettingsFromVillageSettings(IReadOnlyList<VillageSettingsRow> villageSettingsRows)
+    {
+        OpenTroopSettingsWindow(villageSettingsRows);
+    }
+
+    private void OpenTroopSettingsWindow(IReadOnlyList<VillageSettingsRow>? villageSettingsRows)
+    {
         var account = _accountStore.ActiveAccountName();
         if (string.IsNullOrWhiteSpace(account))
         {
             _troopTrainingViewModel.InfoText = "Select an account before configuring troop training.";
-            AppendLog("Troop training options: no active account.");
+            AppendLog("Troop settings: no active account.");
             return;
         }
 
@@ -658,7 +670,7 @@ public partial class MainWindow
         if (troopOptions.Count == 0)
         {
             _troopTrainingViewModel.InfoText = "Could not determine the tribe's troops yet. Scan the account first.";
-            AppendLog("Troop training options: no troops resolved for the current tribe.");
+            AppendLog("Troop settings: no troops resolved for the current tribe.");
             return;
         }
 
@@ -666,11 +678,12 @@ public partial class MainWindow
         if (villages.Count == 0)
         {
             _troopTrainingViewModel.InfoText = "Load villages before configuring troop training.";
-            AppendLog("Troop training options: no villages loaded.");
+            AppendLog("Troop settings: no villages loaded.");
             return;
         }
 
         var globalOptions = LoadBotOptions();
+        var troopTrainingGroupKey = QueueGroupCatalog.GetKey(QueueGroup.TroopTraining);
         var rows = new List<TroopTrainingQuickVillageRow>(villages.Count);
         foreach (var village in villages)
         {
@@ -683,6 +696,7 @@ public partial class MainWindow
             rows.Add(new TroopTrainingQuickVillageRow(
                 village.Key,
                 village.Name,
+                ResolveBuildTroopsEnabledForVillage(village, villageSettingsRows, troopTrainingGroupKey),
                 TroopTrainingQuickSettings.FromOptions(effectiveOptions),
                 tribe));
         }
@@ -696,6 +710,10 @@ public partial class MainWindow
         foreach (var result in window.Results)
         {
             TroopTrainingSettingsStore.Save(_projectRoot, account, result.VillageKey, result.Settings);
+            var village = villages.FirstOrDefault(v => string.Equals(v.Key, result.VillageKey, StringComparison.OrdinalIgnoreCase))
+                ?? new VillageSettingsStore.VillageKeyInfo(result.VillageKey, result.VillageName, null, null, false);
+            PersistBuildTroopsGroupEnabled(village, result.IsBuildTroopsEnabled, troopTrainingGroupKey);
+            UpdateVillageSettingsBuildTroopsRow(villageSettingsRows, result, troopTrainingGroupKey);
         }
 
         var removed = RemoveTroopTrainingQueueItemsForVillage(null);
@@ -705,6 +723,86 @@ public partial class MainWindow
         _troopTrainingViewModel.InfoText = $"Saved troop-training settings for {window.Results.Count} village(s).";
         AppendLog($"Saved troop-training settings for {window.Results.Count} village(s). "
             + $"Cleared {removed} queued build_troops task(s) to apply the change.");
+    }
+
+    private bool ResolveBuildTroopsEnabledForVillage(
+        VillageSettingsStore.VillageKeyInfo village,
+        IReadOnlyList<VillageSettingsRow>? villageSettingsRows,
+        string troopTrainingGroupKey)
+    {
+        var row = FindVillageSettingsRow(villageSettingsRows, village);
+        var rowToggle = row?.GroupToggles.FirstOrDefault(toggle =>
+            string.Equals(toggle.GroupKey, troopTrainingGroupKey, StringComparison.OrdinalIgnoreCase));
+        if (rowToggle is not null)
+        {
+            return rowToggle.IsEnabled;
+        }
+
+        var groups = _villageSettingsStore.GetEnabledGroups(village)
+            ?? VillageSettingsStore.DefaultEnabledGroups;
+        return groups.Contains(troopTrainingGroupKey, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private void PersistBuildTroopsGroupEnabled(
+        VillageSettingsStore.VillageKeyInfo village,
+        bool enabled,
+        string troopTrainingGroupKey)
+    {
+        var groups = (_villageSettingsStore.GetEnabledGroups(village)
+            ?? VillageSettingsStore.DefaultEnabledGroups)
+            .Where(group => !string.IsNullOrWhiteSpace(group))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (enabled)
+        {
+            if (!groups.Contains(troopTrainingGroupKey, StringComparer.OrdinalIgnoreCase))
+            {
+                groups.Add(troopTrainingGroupKey);
+            }
+        }
+        else
+        {
+            groups.RemoveAll(group => string.Equals(group, troopTrainingGroupKey, StringComparison.OrdinalIgnoreCase));
+        }
+
+        _villageSettingsStore.SetEnabledGroups(village, groups);
+
+        if (string.Equals(GetSelectedVillageKey(), village.Key, StringComparison.OrdinalIgnoreCase))
+        {
+            ApplyAutomationLoopGroupsForSelectedVillage();
+        }
+        else
+        {
+            RefreshAutomationLoopDashboardUi();
+        }
+    }
+
+    private static void UpdateVillageSettingsBuildTroopsRow(
+        IReadOnlyList<VillageSettingsRow>? villageSettingsRows,
+        TroopTrainingQuickVillageResult result,
+        string troopTrainingGroupKey)
+    {
+        var row = villageSettingsRows?.FirstOrDefault(candidate =>
+            candidate.KeyInfo is not null
+            && (string.Equals(candidate.KeyInfo.Key, result.VillageKey, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(candidate.KeyInfo.Name, result.VillageName, StringComparison.OrdinalIgnoreCase)));
+        var toggle = row?.GroupToggles.FirstOrDefault(item =>
+            string.Equals(item.GroupKey, troopTrainingGroupKey, StringComparison.OrdinalIgnoreCase));
+        if (toggle is not null)
+        {
+            toggle.IsEnabled = result.IsBuildTroopsEnabled;
+        }
+    }
+
+    private static VillageSettingsRow? FindVillageSettingsRow(
+        IReadOnlyList<VillageSettingsRow>? rows,
+        VillageSettingsStore.VillageKeyInfo village)
+    {
+        return rows?.FirstOrDefault(row =>
+            row.KeyInfo is not null
+            && (string.Equals(row.KeyInfo.Key, village.Key, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(row.KeyInfo.Name, village.Name, StringComparison.OrdinalIgnoreCase)));
     }
 
     /// <summary>
@@ -752,7 +850,7 @@ public partial class MainWindow
 
     // Loads the selected village's per-village troop-training override into the Troops tab's building
     // rows (or the account-wide defaults when the village has no override). Keeps the tab and the
-    // "Training options" popup showing the same per-village settings. Does not persist.
+    // "Troop settings" popup showing the same per-village settings. Does not persist.
     private void ApplyTroopTrainingForSelectedVillage()
     {
         var account = _accountStore.ActiveAccountName();

@@ -36,7 +36,9 @@ public partial class SettingsWindow : Window
         AllowSilverSpendingCheckBox.IsChecked = _config["allow_silver_spending"]?.GetValue<bool>() ?? false;
         LoadPacingConfigToUi();
         SelectQueueWaitThresholdMode(_config[BotOptionPayloadKeys.QueueWaitThresholdMode]?.GetValue<string>() ?? "smart");
-        SelectFarmDispatchDelayMinutes(_config[BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes]?.GetValue<int>() ?? 3);
+        SelectFarmDispatchDelayMinutes(
+            _config[BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes]?.GetValue<int>()
+            ?? FarmingDefaults.DefaultDispatchDelayMinutes);
         PostLoginAnalyzeFarmlistsCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginAnalyzeFarmlists]?.GetValue<bool>() ?? false;
         PostLoginAnalyzeHeroCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginAnalyzeHero]?.GetValue<bool>() ?? false;
         PostLoginReadTroopTrainingQueueCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginReadTroopTrainingQueue]?.GetValue<bool>() ?? false;
@@ -378,7 +380,7 @@ public partial class SettingsWindow : Window
 
     private void SelectFarmDispatchDelayMinutes(int minutes)
     {
-        var normalized = Math.Clamp(minutes, 1, 5).ToString();
+        var normalized = FarmingDefaults.NormalizeDispatchDelayMinutes(minutes).ToString(CultureInfo.InvariantCulture);
         foreach (var item in FarmDispatchDelayComboBox.Items.OfType<ComboBoxItem>())
         {
             if (string.Equals(item.Tag?.ToString(), normalized, StringComparison.OrdinalIgnoreCase))
@@ -388,7 +390,7 @@ public partial class SettingsWindow : Window
             }
         }
 
-        FarmDispatchDelayComboBox.SelectedIndex = 0;
+        FarmDispatchDelayComboBox.SelectedIndex = 5;
     }
 
     private int GetSelectedFarmDispatchDelayMinutes()
@@ -396,9 +398,9 @@ public partial class SettingsWindow : Window
         if (FarmDispatchDelayComboBox.SelectedItem is ComboBoxItem item
             && int.TryParse(item.Tag?.ToString(), out var minutes))
         {
-            return Math.Clamp(minutes, 1, 5);
+            return FarmingDefaults.NormalizeDispatchDelayMinutes(minutes);
         }
 
-        return 1;
+        return FarmingDefaults.DefaultDispatchDelayMinutes;
     }
 }

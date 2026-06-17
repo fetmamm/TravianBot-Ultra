@@ -2303,6 +2303,24 @@ public sealed class BotTaskRunner
 
     private static async Task ExecuteSendFarmlistsAsync(TaskExecutionContext context)
     {
+        var mode = FarmingDefaults.NormalizeSendMode(context.Options.ContinuousFarmSendMode);
+        var dispatchDelaySeconds = ResolveContinuousFarmDispatchDelaySeconds(context.Options);
+        context.Log(
+            $"Continuous farming mode={mode}; delay={dispatchDelaySeconds}s; " +
+            $"deactivateLosses={context.Options.ContinuousFarmDeactivateLosses}; " +
+            $"deactivateOasis={context.Options.ContinuousFarmDeactivateOasisLosses}.");
+
+        if (string.Equals(mode, FarmingDefaults.SendModeAllAtOnce, StringComparison.Ordinal))
+        {
+            await ExecuteSendAllFarmlistsAsync(context, dispatchDelaySeconds);
+            return;
+        }
+
+        await ExecuteSendFarmlistsListPerListAsync(context, dispatchDelaySeconds);
+    }
+
+    private static async Task ExecuteSendFarmlistsListPerListAsync(TaskExecutionContext context, int dispatchDelaySeconds)
+    {
         var selectedNames = (context.Options.ContinuousFarmListNames ?? [])
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .Select(name => name.Trim())
@@ -2326,8 +2344,6 @@ public sealed class BotTaskRunner
         var overview = await context.Client.ReadFarmListsOverviewAsync(context.CancellationToken);
         var matchingLists = overview
             .Where(item => item is not null && IsSelected(item))
-            .OrderBy(item => item.RemainingSeconds is > 0 ? item.RemainingSeconds.Value : 0)
-            .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
         if (matchingLists.Count <= 0)
         {
@@ -2335,66 +2351,81 @@ public sealed class BotTaskRunner
             // Travian, the saved names no longer match the freshly read page. Don't raise a hard
             // alarm — defer quietly so the desktop UI can re-analyze and surface the current names
             // for re-selection. Embedding queue_wait_seconds routes this through the defer path.
-            var retryWaitSeconds = Math.Clamp(context.Options.ContinuousFarmDispatchDelayMinutes, 1, 5) * 60;
+            var retryWaitSeconds = dispatchDelaySeconds;
             context.Log(overview.Count > 0
                 ? $"Continuous farming: none of the selected farm lists ({string.Join(", ", selectedNames)}) were found on the farm page. They may have been renamed — re-analyze and re-select. Retrying in {retryWaitSeconds}s."
                 : $"Continuous farming: no farm lists were found on the farm page. Retrying in {retryWaitSeconds}s.");
-            throw new InvalidOperationException($"Selected farm lists were not found on the farm page. queue_wait_seconds={Math.Max(1, retryWaitSeconds)}");
+            throw BuildContinuousFarmDefer("Selected farm lists were not found on the farm page.", retryWaitSeconds, 0);
         }
 
-        var readyLists = matchingLists
-            .Where(item => item.RemainingSeconds is null or <= 0)
-            .ToList();
-        if (readyLists.Count > 0)
+        var currentIndex = Math.Clamp(context.Options.ContinuousFarmNextListIndex, 0, matchingLists.Count - 1);
+        var current = matchingLists[currentIndex];
+        context.Log($"Continuous farming selected farmlist index={currentIndex + 1}/{matchingLists.Count} name='{current.Name}'.");
+        if (current.RemainingSeconds is > 0)
         {
-            context.Log($"Continuous farming ready lists: {string.Join(", ", readyLists.Select(item => item.Name))}");
+            var waitSeconds = Math.Max(1, current.RemainingSeconds.Value);
+            context.Log($"Continuous farming: selected list '{current.Name}' is not ready. Remaining time={waitSeconds}s.");
+            throw BuildContinuousFarmDefer($"Selected farm list '{current.Name}' is not ready.", waitSeconds, currentIndex);
         }
 
-        var ready = readyLists.FirstOrDefault();
-        if (ready is null)
-        {
-            var waitSeconds = matchingLists
-                .Where(item => item.RemainingSeconds is > 0)
-                .Min(item => item.RemainingSeconds) ?? 60;
-            context.Log($"Continuous farming: no selected list is ready. Shortest remaining time={waitSeconds}s.");
-            throw new InvalidOperationException($"No selected farm list is ready. queue_wait_seconds={Math.Max(1, waitSeconds)}");
-        }
-
-        var remainingSeconds = await context.Client.SendFarmListNowAsync(ready.Name, context.CancellationToken);
-        var dispatchDelaySeconds = Math.Clamp(context.Options.ContinuousFarmDispatchDelayMinutes, 1, 5) * 60;
-        context.Log($"Continuous farming sending list '{ready.Name}'. Delay between sends={dispatchDelaySeconds}s.");
+        await RunFarmListLossDeactivationIfEnabledAsync(context);
+        await context.Client.SendFarmListNowAsync(current.Name, context.CancellationToken);
+        context.Log($"Continuous farming sent list '{current.Name}'. Delay between sends={dispatchDelaySeconds}s.");
 
         var refreshedOverview = await context.Client.ReadFarmListsOverviewAsync(context.CancellationToken);
         // Persist the freshly read page so the desktop can update its farm-list UI instantly after
         // the send, without paying for the extra navigations a full re-analyze would cost.
         await WriteFarmListsSnapshotAsync(context, refreshedOverview);
-        var refreshedMatching = refreshedOverview
-            .Where(item => item is not null && IsSelected(item))
-            .OrderBy(item => item.RemainingSeconds is > 0 ? item.RemainingSeconds.Value : 0)
-            .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        var otherReadyLists = refreshedMatching
-            .Where(item => !string.Equals(item.Name, ready.Name, StringComparison.OrdinalIgnoreCase))
-            .Where(item => item.RemainingSeconds is null or <= 0)
-            .Select(item => item.Name)
-            .ToList();
 
-        int nextWaitSeconds;
-        if (otherReadyLists.Count > 0)
+        var nextIndex = (currentIndex + 1) % matchingLists.Count;
+        LogContinuousFarmNextSchedule(context, dispatchDelaySeconds, nextIndex);
+        throw BuildContinuousFarmDefer("Continuous farming cooldown active.", dispatchDelaySeconds, nextIndex);
+    }
+
+    private static async Task ExecuteSendAllFarmlistsAsync(TaskExecutionContext context, int dispatchDelaySeconds)
+    {
+        await RunFarmListLossDeactivationIfEnabledAsync(context);
+        context.Log("Continuous farming send-all started.");
+        var listCount = await context.Client.SendAllFarmListsNowAsync(context.CancellationToken);
+        context.Log($"Continuous farming send-all completed. Lists considered={listCount}.");
+
+        var refreshedOverview = await context.Client.ReadFarmListsOverviewAsync(context.CancellationToken);
+        await WriteFarmListsSnapshotAsync(context, refreshedOverview);
+        LogContinuousFarmNextSchedule(context, dispatchDelaySeconds, 0);
+        throw BuildContinuousFarmDefer("Continuous farming cooldown active.", dispatchDelaySeconds, 0);
+    }
+
+    private static async Task RunFarmListLossDeactivationIfEnabledAsync(TaskExecutionContext context)
+    {
+        if (!context.Options.ContinuousFarmDeactivateLosses)
         {
-            context.Log($"Continuous farming: more ready lists found after send: {string.Join(", ", otherReadyLists)}. Waiting configured delay {dispatchDelaySeconds}s.");
-            nextWaitSeconds = dispatchDelaySeconds;
-        }
-        else
-        {
-            nextWaitSeconds = refreshedMatching
-                .Where(item => item.RemainingSeconds is > 0)
-                .Min(item => item.RemainingSeconds) ?? Math.Max(1, remainingSeconds ?? dispatchDelaySeconds);
-            context.Log($"Continuous farming: no additional list is ready. Shortest remaining time={nextWaitSeconds}s.");
+            context.Log("Continuous farming loss deactivation disabled.");
+            return;
         }
 
-        context.Log($"Continuous farming becomes ready again in {nextWaitSeconds}s.");
-        throw new InvalidOperationException($"Continuous farming cooldown active. queue_wait_seconds={Math.Max(1, nextWaitSeconds)}");
+        var result = await context.Client.DeactivateFarmListLossTargetsAsync(
+            context.Options.ContinuousFarmDeactivateOasisLosses,
+            context.CancellationToken);
+        context.Log(
+            "Continuous farming loss deactivation result: " +
+            $"found={result.RowsFound}, deactivated={result.RowsDeactivated}, skippedOasis={result.SkippedOasisRows}.");
+    }
+
+    private static int ResolveContinuousFarmDispatchDelaySeconds(BotOptions options)
+    {
+        return FarmingDefaults.NormalizeDispatchDelayMinutes(options.ContinuousFarmDispatchDelayMinutes) * 60;
+    }
+
+    private static void LogContinuousFarmNextSchedule(TaskExecutionContext context, int waitSeconds, int nextIndex)
+    {
+        var nextTime = DateTimeOffset.Now.AddSeconds(Math.Max(1, waitSeconds));
+        context.Log($"Continuous farming next scheduled send time={nextTime:yyyy-MM-dd HH:mm:ss zzz}; nextListIndex={nextIndex}; wait={waitSeconds}s.");
+    }
+
+    private static InvalidOperationException BuildContinuousFarmDefer(string message, int waitSeconds, int nextIndex)
+    {
+        return new InvalidOperationException(
+            $"{message} queue_wait_seconds={Math.Max(1, waitSeconds)} {BotOptionPayloadKeys.ContinuousFarmNextListIndex}={Math.Max(0, nextIndex)}");
     }
 
     private static async Task ExecuteSendResourcesBetweenVillagesAsync(TaskExecutionContext context)

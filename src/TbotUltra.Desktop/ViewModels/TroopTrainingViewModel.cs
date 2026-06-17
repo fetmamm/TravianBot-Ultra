@@ -509,7 +509,7 @@ public sealed class TroopTrainingViewModel : BaseViewModel
     /// Applies a per-village troop-training override onto the building rows (enable / troop / amount mode /
     /// run trigger / checks / fallback). Account-wide settings (NPC trade, gold, celebration) are left
     /// untouched. Suppresses change events so loading a village's settings never re-persists them. Used
-    /// when the selected village changes or after the "Training options" popup saves.
+    /// when the selected village changes or after the "Troop settings" popup saves.
     /// </summary>
     public void ApplyVillageTrainingPayload(TroopTrainingPayload payload)
     {
@@ -551,7 +551,7 @@ public sealed class TroopTrainingViewModel : BaseViewModel
 
     /// <summary>
     /// Builds a per-village troop-training override from the current building rows, so the Troops tab's
-    /// edits can be persisted as the selected village's override (mirrors the "Training options" popup).
+    /// edits can be persisted as the selected village's override (mirrors the "Troop settings" popup).
     /// </summary>
     public TroopTrainingPayload BuildVillageTrainingPayload()
     {

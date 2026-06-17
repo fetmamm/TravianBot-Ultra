@@ -12,17 +12,7 @@ public partial class MainWindow
 {
     private void StartManualFarmingButton_Click(object sender, System.Windows.RoutedEventArgs e)
     {
-        if (BlockIfSessionSleeping("Manual farming"))
-        {
-            return;
-        }
-
-        if (_farmingOperationBusy)
-        {
-            return;
-        }
-
-        _backgroundTasks.Track(StartManualFarmingAsync());
+        AppendLog("[farm-manual] Start manual farming is disabled for now.");
     }
 
     private async Task StartManualFarmingAsync()
@@ -200,20 +190,7 @@ public partial class MainWindow
         if (StartManualFarmingButton is not null)
         {
             StartManualFarmingButton.Content = "Start manual farming";
-            StartManualFarmingButton.IsEnabled = _farmingFeaturesAvailable && !_farmingOperationBusy;
-        }
-
-        if (ManualFarmingStateTextBlock is not null)
-        {
-            ManualFarmingStateTextBlock.Text = "State:";
-            ManualFarmingStateTextBlock.Foreground = new SolidColorBrush(ThemeColors.Get("TextSubtleBrush"));
-        }
-
-        if (ManualFarmingStateDot is not null)
-        {
-            ManualFarmingStateDot.Fill = _farmingOperationBusy
-                ? new SolidColorBrush(ThemeColors.Get("SuccessBrush"))
-                : new SolidColorBrush(ThemeColors.Get("BorderMutedBrush"));
+            StartManualFarmingButton.IsEnabled = false;
         }
     }
 

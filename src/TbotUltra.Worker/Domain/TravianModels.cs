@@ -260,6 +260,11 @@ public sealed record FarmListOverview(
     IReadOnlyList<string>? FarmCoordinates = null,
     TimerSnapshot? Finish = null);
 
+public sealed record FarmListLossDeactivationResult(
+    int RowsFound,
+    int RowsDeactivated,
+    int SkippedOasisRows);
+
 public sealed record FarmCoordinate(int X, int Y);
 
 public sealed record FarmAddProgress(
