@@ -40,7 +40,7 @@ Returnera endast:
 
 # Rapport
 
-| Typ | Fil/Klass | Metod/Fält/Property | Problem | Rekommenderad åtgärd | Säkerhet |
+| Typ | Fil/Klass | Metod/Fält/Property | Problem | Rekommenderad åtgärd | Säkerhet | Risk/reward |
 |------|------|------|------|------|------|
 
 Säkerhet:
@@ -53,7 +53,7 @@ Gruppera resultat per fil där det är möjligt.
 
 Avsluta med:
 
-Kod som sannolikt kan tas bort direkt: ...
+Kod som sannolikt kan tas bort direkt säkert: ...
 
 Största helper-städningen: ...
 
