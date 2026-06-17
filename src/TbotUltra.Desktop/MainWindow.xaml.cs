@@ -620,6 +620,13 @@ public partial class MainWindow : Window
         var storedAutoCelebration = TryGetStoredAutoCelebrationPreference();
         var hasExplicitAutoCelebrationSetting = storedAutoCelebration.HasValue;
         LoadAutomationLoopTasks(options);
+        // Settings saves reload the account/global config. Keep the dashboard group toggles on the
+        // selected village's saved state so they do not drift from the Village settings popup.
+        if (_isLoggedIn)
+        {
+            ApplyAutomationLoopGroupsForSelectedVillage();
+        }
+
         _troopTrainingViewModel.ApplyConfigToBuildings(options, hasExplicitAutoCelebrationSetting, storedAutoCelebration.Value);
         // Overlay the selected village's per-village training override (if any) onto the building rows so
         // the Troops tab shows that village's settings, not just the account-wide defaults.
