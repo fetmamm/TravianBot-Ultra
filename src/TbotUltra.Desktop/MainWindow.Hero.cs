@@ -75,6 +75,7 @@ public partial class MainWindow
             config[BotOptionPayloadKeys.HeroHideMode] = _heroViewModel.HideMode;
             config[BotOptionPayloadKeys.HeroContinuousAdventures] = _heroViewModel.ContinuousAdventures;
             config[BotOptionPayloadKeys.IncreaseAdventuresToHard] = _heroViewModel.IncreaseAdventuresToHard;
+            config[BotOptionPayloadKeys.ReduceAdventureTime] = _heroViewModel.ReduceAdventureTime;
             config[BotOptionPayloadKeys.HeroResourceMaxUseEnabled] = _heroViewModel.HeroResourceMaxUseEnabled;
             config[BotOptionPayloadKeys.HeroResourceMaxUsePerResource] = _heroViewModel.HeroResourceMaxUsePerResource;
             config[BotOptionPayloadKeys.HeroResourceUseConstruction] = _heroViewModel.HeroResourceUseConstruction;

@@ -60,6 +60,7 @@ public sealed class HeroViewModel : BaseViewModel
     private bool _isHideModeHide = true;
     private bool _continuousAdventures;
     private bool _increaseAdventuresToHard;
+    private bool _reduceAdventureTime;
 
     /// <summary>
     /// Optional sink for [ui-apply] trace lines. Defaulted to a no-op so
@@ -343,6 +344,14 @@ public sealed class HeroViewModel : BaseViewModel
         set => SetProperty(ref _increaseAdventuresToHard, value);
     }
 
+    /// <summary>True to activate "Reduce adventure duration by 25%" (bonus video) before each
+    /// adventure dispatch, after the increase-danger step. Official Travian only.</summary>
+    public bool ReduceAdventureTime
+    {
+        get => _reduceAdventureTime;
+        set => SetProperty(ref _reduceAdventureTime, value);
+    }
+
     /// <summary>String form of the adventure pick order, "top" or "shortest".</summary>
     public string AdventurePickOrder => IsAdventurePickTop ? "top" : "shortest";
 
@@ -384,6 +393,7 @@ public sealed class HeroViewModel : BaseViewModel
 
         ContinuousAdventures = options.HeroContinuousAdventures;
         IncreaseAdventuresToHard = options.IncreaseAdventuresToHard;
+        ReduceAdventureTime = options.ReduceAdventureTime;
         HeroResourceMaxUseEnabled = options.HeroResourceMaxUseEnabled;
         HeroResourceMaxUsePerResource = options.HeroResourceMaxUsePerResource;
         HeroResourceUseConstruction = options.HeroResourceUseConstruction;

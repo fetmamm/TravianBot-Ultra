@@ -435,6 +435,12 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.IncreaseAdventuresToHard)]
     public bool IncreaseAdventuresToHard { get; init; }
 
+    /// <summary>When true, the adventure function also activates "Reduce adventure duration by 25%"
+    /// (via the bonus video) before dispatching the hero, after the increase-danger step. Official
+    /// Travian only.</summary>
+    [ConfigurationKeyName(BotOptionPayloadKeys.ReduceAdventureTime)]
+    public bool ReduceAdventureTime { get; init; }
+
     [ConfigurationKeyName(BotOptionPayloadKeys.AutoCollectTasksEnabled)]
     public bool AutoCollectTasksEnabled { get; init; }
 

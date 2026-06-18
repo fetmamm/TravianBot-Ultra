@@ -85,6 +85,12 @@ public sealed partial class TravianClient
             Notify($"[hero] increase-adventures-to-hard: {hardResult}");
         }
 
+        if (_config.ReduceAdventureTime)
+        {
+            var reduceResult = await ReduceAdventuresTimeAsync(cancellationToken);
+            Notify($"[hero] reduce-adventure-time: {reduceResult}");
+        }
+
         await OpenAdventureListWithFallbackAsync(cancellationToken);
 
         var openedDetail = await ClickFirstAdventureEntryAsync(cancellationToken);
@@ -1218,6 +1224,13 @@ public sealed partial class TravianClient
                 var hardResult = await IncreaseAdventuresToHardAsync(cancellationToken);
                 Notify($"[hero] increase-adventures-to-hard: {hardResult}");
                 actions.Add("increase_danger_to_hard");
+            }
+
+            if (_config.ReduceAdventureTime)
+            {
+                var reduceResult = await ReduceAdventuresTimeAsync(cancellationToken);
+                Notify($"[hero] reduce-adventure-time: {reduceResult}");
+                actions.Add("reduce_adventure_time");
             }
 
             var (sent, durationSeconds, returnSeconds) = await TrySendHeroToAdventureAsync(adventurePickOrder, cancellationToken);

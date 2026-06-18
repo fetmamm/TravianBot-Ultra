@@ -83,7 +83,11 @@
                                               Margin="0,0,0,6" />
                                     <CheckBox Content="Increase adventures to hard"
                                               IsChecked="{Binding IncreaseAdventuresToHard}"
+                                              Margin="0,0,0,6"
                                               ToolTip="When on, the adventure function first watches the bonus video to raise the next adventure's danger to hard (Official Travian only). Skipped automatically if it is already active." />
+                                    <CheckBox Content="Reduce adventure time 25%"
+                                              IsChecked="{Binding ReduceAdventureTime}"
+                                              ToolTip="When on, the adventure function also watches the bonus video to reduce the next adventure's duration by 25% (after the increase-danger step). Official Travian only. Skipped automatically if it is already active." />
                                 </StackPanel>
                             </Border>
                         </Grid>
