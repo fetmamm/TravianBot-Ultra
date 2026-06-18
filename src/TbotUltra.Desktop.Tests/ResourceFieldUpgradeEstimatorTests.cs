@@ -75,4 +75,36 @@ public sealed class ResourceFieldUpgradeEstimatorTests
         Assert.False(success);
         Assert.Contains("expected 18 resource fields", failureReason);
     }
+
+    [Fact]
+    public void TryEstimate_LevelZeroFields_SumsFromLevelOne()
+    {
+        var fields = new List<ResourceFieldRow>();
+        for (var slotId = 1; slotId <= 18; slotId++)
+        {
+            fields.Add(new ResourceFieldRow
+            {
+                SlotId = slotId,
+                Name = "Woodcutter",
+                FieldType = "wood",
+                Level = 0,
+            });
+        }
+
+        var success = ResourceFieldUpgradeEstimator.TryEstimate(
+            fields,
+            targetLevel: 1,
+            serverSpeed: 1,
+            mainBuildingLevel: 1,
+            out var estimate,
+            out var failureReason);
+
+        Assert.True(success, failureReason);
+
+        var levelOneCost = BuildingCatalogService.CostFor(BuildingCatalogService.GidForName("Woodcutter")!.Value, 1)!;
+        Assert.Equal(levelOneCost.Wood * 18L, estimate.Wood);
+        Assert.Equal(levelOneCost.Clay * 18L, estimate.Clay);
+        Assert.Equal(levelOneCost.Iron * 18L, estimate.Iron);
+        Assert.Equal(levelOneCost.Crop * 18L, estimate.Crop);
+    }
 }

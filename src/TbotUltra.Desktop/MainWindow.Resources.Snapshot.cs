@@ -187,7 +187,9 @@ public partial class MainWindow
 
     private VillageStatus MergeResourceStatusForUi(VillageStatus status)
     {
-        if (HasCompleteResourceUiSnapshot(status))
+        var hasCompleteStorageSnapshot = HasCompleteResourceUiSnapshot(status);
+        var hasCompleteFieldSnapshot = HasCompleteResourceFieldSnapshot(status.ResourceFields);
+        if (hasCompleteStorageSnapshot && hasCompleteFieldSnapshot)
         {
             _lastResourceStatusForUi = status;
             return status;
@@ -196,22 +198,36 @@ public partial class MainWindow
         var previous = _lastResourceStatusForUi;
         if (previous is null)
         {
+            if (hasCompleteStorageSnapshot)
+            {
+                _lastResourceStatusForUi = status;
+            }
+
             return status;
         }
 
-        if (!string.Equals(previous.ActiveVillage, status.ActiveVillage, StringComparison.OrdinalIgnoreCase))
+        if (!IsSameOrUnknownVillage(previous.ActiveVillage, status.ActiveVillage))
         {
+            if (hasCompleteStorageSnapshot)
+            {
+                _lastResourceStatusForUi = status;
+            }
+
             return status;
         }
 
         var mergedWarehouse = status.WarehouseCapacity ?? previous.WarehouseCapacity;
         var mergedGranary = status.GranaryCapacity ?? previous.GranaryCapacity;
         var mergedForecasts = BuildMergedResourceForecasts(status, previous, mergedWarehouse, mergedGranary);
+        var mergedResourceFields = hasCompleteFieldSnapshot || !HasCompleteResourceFieldSnapshot(previous.ResourceFields)
+            ? status.ResourceFields
+            : previous.ResourceFields;
         var mergedStatus = status with
         {
             WarehouseCapacity = mergedWarehouse,
             GranaryCapacity = mergedGranary,
             ResourceStorageForecasts = mergedForecasts,
+            ResourceFields = mergedResourceFields,
         };
 
         _lastResourceStatusForUi = mergedStatus;
@@ -232,6 +248,40 @@ public partial class MainWindow
         }
 
         return status.ResourceStorageForecasts.Any(item => item.Capacity is not null || item.ProductionPerHour is not null);
+    }
+
+    private static bool HasCompleteResourceFieldSnapshot(IReadOnlyList<ResourceField>? fields)
+    {
+        if (fields is null)
+        {
+            return false;
+        }
+
+        var bySlot = fields
+            .Where(field => field.SlotId is >= 1 and <= 18)
+            .GroupBy(field => field.SlotId!.Value)
+            .ToList();
+        if (bySlot.Count != 18)
+        {
+            return false;
+        }
+
+        return bySlot.All(group =>
+        {
+            var field = group.First();
+            return field.Level is >= 0
+                && (BuildingCatalogService.GidForName(field.Name) is not null
+                    || BuildingCatalogService.GidForName(field.FieldType) is not null);
+        });
+    }
+
+    private static bool IsSameOrUnknownVillage(string? left, string? right)
+    {
+        var normalizedLeft = NormalizeVillageName(left);
+        var normalizedRight = NormalizeVillageName(right);
+        return normalizedLeft is null
+            || normalizedRight is null
+            || string.Equals(normalizedLeft, normalizedRight, StringComparison.OrdinalIgnoreCase);
     }
 
     private static IReadOnlyList<ResourceStorageForecast> BuildMergedResourceForecasts(
@@ -417,6 +467,8 @@ public partial class MainWindow
             }
         }
 
+        await TryQueueHeroManageForLevelUpIndicatorAsync(options);
+
         if (officialServer && refreshedStatus is not null)
         {
             await TryQueueAutoCollectTasksAsync(options, refreshedStatus);
@@ -427,6 +479,76 @@ public partial class MainWindow
             await TryReviveDeadHeroFromCurrentPageAsync();
             await RefreshInboxIndicatorsQuickAsync();
         }
+    }
+
+    private async Task TryQueueHeroManageForLevelUpIndicatorAsync(BotOptions options)
+    {
+        if (!IsHeroAutoAssignPointsEnabledNow(options) || HasActiveHeroManageTask())
+        {
+            return;
+        }
+
+        if (!IsQueueItemAllowedByAutomationSettings(new QueueItem
+            {
+                TaskName = "hero_manage",
+                Group = QueueGroup.Hero,
+            }))
+        {
+            return;
+        }
+
+        bool hasLevelUpIndicator;
+        try
+        {
+            hasLevelUpIndicator = await _botService.HasHeroLevelUpIndicatorOnCurrentPageAsync(
+                options,
+                AppendLog,
+                CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            if (IsTransientPageReadFailure(ex))
+            {
+                AppendLog($"[hero:verbose] level-up indicator check skipped after transient page failure ({ex.Message})");
+            }
+            else
+            {
+                AppendLog($"Hero level-up indicator check skipped: {ex.Message}");
+            }
+
+            return;
+        }
+
+        if (!hasLevelUpIndicator || HasActiveHeroManageTask())
+        {
+            return;
+        }
+
+        _botService.EnqueueRuntime("hero_manage", "Hero attribute points", null, priority: -50, maxRetries: 0);
+        AppendLog("Hero attributes: queued hero_manage because levelUp indicator is visible.");
+    }
+
+    private bool IsHeroAutoAssignPointsEnabledNow(BotOptions options)
+    {
+        if (!options.HeroAutoAssignPoints)
+        {
+            return false;
+        }
+
+        if (Dispatcher.CheckAccess())
+        {
+            return _heroViewModel.AutoAssignPoints;
+        }
+
+        return Dispatcher.Invoke(() => _heroViewModel.AutoAssignPoints);
+    }
+
+    private bool HasActiveHeroManageTask()
+    {
+        return _botService.GetQueueItemsForDisplay()
+            .Any(item =>
+                string.Equals(item.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase)
+                && item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused);
     }
 
     // Official only: cheap current-page check (no navigation) for claimable Questmaster task

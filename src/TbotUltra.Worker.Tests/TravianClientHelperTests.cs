@@ -186,6 +186,39 @@ public sealed class TravianClientHelperTests
     }
 
     [Fact]
+    public void BuildQueueContainsBuilding_IgnoresLevelAndTimer()
+    {
+        IReadOnlyList<BuildQueueItem> queue =
+        [
+            new BuildQueueItem("Palace Level 1 0:02:30", "0:02:30"),
+        ];
+
+        Assert.True(BuildQueueFingerprints.ContainsBuilding(queue, "Palace"));
+    }
+
+    [Fact]
+    public void BuildQueueContainsBuilding_DoesNotMatchOtherBuilding()
+    {
+        IReadOnlyList<BuildQueueItem> queue =
+        [
+            new BuildQueueItem("Main Building Level 5 0:02:30", "0:02:30"),
+        ];
+
+        Assert.False(BuildQueueFingerprints.ContainsBuilding(queue, "Palace"));
+    }
+
+    [Fact]
+    public void BuildQueueContainsBuilding_DoesNotMatchSuffixBuildingName()
+    {
+        IReadOnlyList<BuildQueueItem> queue =
+        [
+            new BuildQueueItem("Great Warehouse Level 5 0:02:30", "0:02:30"),
+        ];
+
+        Assert.False(BuildQueueFingerprints.ContainsBuilding(queue, "Warehouse"));
+    }
+
+    [Fact]
     public void ResolveTroopTrainingQueueRemainingSeconds_ReturnsLongestOrZero()
     {
         IReadOnlyList<BuildQueueItem> queue =

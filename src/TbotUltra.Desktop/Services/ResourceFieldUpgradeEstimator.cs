@@ -39,7 +39,7 @@ public static class ResourceFieldUpgradeEstimator
         long wood = 0, clay = 0, iron = 0, crop = 0;
         foreach (var field in fields)
         {
-            if (field.Level is not int currentLevel)
+            if (field.Level is not int currentLevel || currentLevel < 0)
             {
                 failureReason = $"resource slot {field.SlotId} has no current level";
                 return false;

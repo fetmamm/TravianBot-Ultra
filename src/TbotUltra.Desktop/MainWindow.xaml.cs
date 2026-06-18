@@ -272,6 +272,7 @@ public partial class MainWindow : Window
     private bool _loginInProgress;
     private DateTimeOffset _lastContinuousInboxCheckUtc = DateTimeOffset.MinValue;
     private DateTimeOffset _lastContinuousBrowserActivityUtc = DateTimeOffset.MinValue;
+    private DateTimeOffset _lastContinuousKeepAliveFailureUtc = DateTimeOffset.MinValue;
     private volatile bool _isLoggedIn;
     private volatile bool _browserSessionLikelyOpen;
     // True only while a visible (non-headless) login is running. Lets the captcha/manual-verification

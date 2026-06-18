@@ -250,6 +250,8 @@ eller sta still, inte vaxa.
 - Exkludera payment-knappen `Open shop` fran upgrade-/construct-kandidater.
 - Official tom slot identifieras via `#contract_building*` utan `Upgrade to level N`; anvand inte enbart `.upgradeButtonsContainer`.
 - Vid misslyckat construct-klick ska resursbrist och krav lasas innan ko-/progresskontroller som navigerar till `dorf2`.
+- Construct/upgrade-success ska vara malspecifik: slot-level, matchande aktiv konstruktion eller timerfri
+  kotext for samma byggnad. Annan byggko eller tickande timer ar inte bevis.
 - Vid klassad resursbrist pa en befintlig byggnads build-sida ska hero-transfer provas direkt; navigera till `dorf2` endast om direkt transfer inte loser klicket.
 - Construct ska verifiera ratt `build.php?id=<slot>&category=<n>` och renderade `#contract_building*` fore klick.
 - Saknade byggkrav ar temporar defer, inte permanent failure.
@@ -300,6 +302,8 @@ eller sta still, inte vaxa.
 
 - Hero-attributens defaultordning ar `resources,fighting_strength,offence_bonus,defence_bonus` pa bada
   servervarianterna. UI-ordningen sparas konto-scopeat och anvands oforandrad vid poangtilldelning.
+- Background resource-refresh far no-navigation-kolla `i.levelUp.show` och ko:a `hero_manage`
+  for attribute points nar auto-assign och Hero-gruppen ar pa; dedupe:a aktiv `hero_manage`.
 - Hero away avgors av travel-signaler/timer fore `heroHome`.
 - Las `.heroState .timerReact` fore oscope:ad sidtext.
 - Health kan innehalla bidi-tecken; rensa dem fore numerisk parsing.
@@ -319,6 +323,8 @@ eller sta still, inte vaxa.
 ### UI, cache och loggning
 
 - Full village-status ska spara produktionssnapshot; tom ny data far inte skriva over bra cache.
+- Resource-field snapshots ar kompletta forst vid 18 kanda slots med niva `>= 0`; niva 0 ar giltig
+  for ny by, men `null`/okand typ far inte skriva over cache eller driva ko-estimat.
 - After-login-analys av nya byar ska jamfora hela sidebar-listan mot komplett cache (dorf1 fields +
   dorf2 buildings), isolera fel per by och aterstalla vald by efter att saknade byar har lastes in.
 - En bekräftad login-/account-scan-bylista får karantänsätta saknade byar: disable:a deras automation

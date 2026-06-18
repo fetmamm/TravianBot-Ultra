@@ -104,6 +104,11 @@ public partial class MainWindow
                 return QueueItemEstimate.None;
             }
 
+            if (!HasCompleteResourceEstimateRows(_resourcesViewModel.AllFields))
+            {
+                return QueueItemEstimate.None;
+            }
+
             if (!ResourceFieldUpgradeEstimator.TryEstimate(
                     _resourcesViewModel.AllFields,
                     target.Value,
@@ -189,6 +194,26 @@ public partial class MainWindow
 
     private int? ResolveResourceLevel(int slotId)
         => _resourcesViewModel.AllFields.FirstOrDefault(r => r.SlotId == slotId)?.Level;
+
+    private static bool HasCompleteResourceEstimateRows(IReadOnlyList<ResourceFieldRow> rows)
+    {
+        var bySlot = rows
+            .Where(row => row.SlotId is >= 1 and <= 18)
+            .GroupBy(row => row.SlotId)
+            .ToList();
+        if (bySlot.Count != 18)
+        {
+            return false;
+        }
+
+        return bySlot.All(group =>
+        {
+            var row = group.First();
+            return row.Level is >= 0
+                && (BuildingCatalogService.GidForName(row.Name) is not null
+                    || BuildingCatalogService.GidForName(row.FieldType) is not null);
+        });
+    }
 
     private bool IsQueueItemForLoadedVillage(QueueItem item)
     {

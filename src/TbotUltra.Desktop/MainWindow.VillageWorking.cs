@@ -718,7 +718,8 @@ public partial class MainWindow
                 status = status with { Buildings = existing.Buildings };
             }
 
-            if ((status.ResourceFields is null || status.ResourceFields.Count == 0) && existing.ResourceFields is { Count: > 0 })
+            if (!HasCompleteResourceFieldSnapshot(status.ResourceFields)
+                && HasCompleteResourceFieldSnapshot(existing.ResourceFields))
             {
                 status = status with { ResourceFields = existing.ResourceFields };
             }

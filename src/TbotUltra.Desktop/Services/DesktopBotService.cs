@@ -353,6 +353,11 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
         return _taskRunner.RefreshAdventureCountAsync(options, log, null, cancellationToken);
     }
 
+    public Task<bool> HasHeroLevelUpIndicatorOnCurrentPageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.HasHeroLevelUpIndicatorOnCurrentPageAsync(options, log, null, cancellationToken);
+    }
+
     public Task<bool> HasClaimableTasksOnCurrentPageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.HasClaimableTasksOnCurrentPageAsync(options, log, null, cancellationToken);

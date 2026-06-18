@@ -633,6 +633,7 @@ public partial class MainWindow
 
         _lastContinuousInboxCheckUtc = DateTimeOffset.MinValue;
         _lastContinuousBrowserActivityUtc = DateTimeOffset.MinValue;
+        _lastContinuousKeepAliveFailureUtc = DateTimeOffset.MinValue;
         _inlineWaitUntilUtc = DateTimeOffset.MinValue;
         _manualFarmSessionExecutionCount = 0;
         UpdateManualFarmingExecutionCounter();

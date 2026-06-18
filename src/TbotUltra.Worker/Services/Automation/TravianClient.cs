@@ -570,19 +570,52 @@ public sealed partial class TravianClient
     // logout. Returns true as soon as the page state is confirmed "logged_out".
     private async Task<bool> WaitForLoggedOutAsync(CancellationToken cancellationToken)
     {
-        const int attempts = 10;
+        const int attempts = 20;
         for (var i = 0; i < attempts; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if ((await LoginStateAsync()) == "logged_out")
+            if (await IsLoggedOutPageVisibleAsync(cancellationToken))
             {
                 return true;
             }
 
-            await Task.Delay(500, cancellationToken);
+            await Task.Delay(250, cancellationToken);
         }
 
         Notify("[logout] sign-out not confirmed yet (no login page detected).");
+        return false;
+    }
+
+    private async Task<bool> IsLoggedOutPageVisibleAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var currentUrl = _page.Url.ToLowerInvariant();
+        if (currentUrl.Contains("login.php", StringComparison.Ordinal))
+        {
+            Notify("You are logged out");
+            return true;
+        }
+
+        try
+        {
+            foreach (var selector in Selectors.LoggedOutIndicators)
+            {
+                if (await _page.Locator(selector).CountAsync() > 0)
+                {
+                    Notify("You are logged out");
+                    return true;
+                }
+            }
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            return false;
+        }
+        catch (TimeoutException)
+        {
+            return false;
+        }
+
         return false;
     }
 
@@ -2487,14 +2520,22 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         {
             return null;
         }
+        catch (TimeoutException)
+        {
+            return null;
+        }
     }
 
     private static async Task<bool> IsLocatorVisibleAsync(ILocator locator, int timeoutMs)
     {
         try
         {
-            _ = timeoutMs;
-            return await locator.IsVisibleAsync();
+            await locator.WaitForAsync(new LocatorWaitForOptions
+            {
+                State = WaitForSelectorState.Visible,
+                Timeout = timeoutMs,
+            });
+            return true;
         }
         catch (PlaywrightException)
         {
@@ -6150,11 +6191,12 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
         await EnsureExpectedBuildSlotPageAsync(slotId, "click detected upgrade candidate", cancellationToken);
 
-        if (await TryClickOfficialPrimaryUpgradeButtonAsync(cancellationToken))
+        if (await TryClickOfficialPrimaryUpgradeButtonAsync(slotId, cancellationToken))
         {
             return;
         }
 
+        await EnsureExpectedBuildSlotPageAsync(slotId, "click detected upgrade candidate fallback", cancellationToken);
         var locator = _page.Locator("button, input[type='submit'], input[type='button'], a, div.addHoverClick, div.button-container").Nth(candidateIndex.Value);
         await RetryAsync($"click detected upgrade candidate index {candidateIndex.Value} for slot {slotId}", async () =>
         {
@@ -6164,7 +6206,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         await PauseForManualStepIfVisibleAsync("Manual verification appeared after clicking detected upgrade candidate.", cancellationToken);
     }
 
-    private async Task<bool> TryClickOfficialPrimaryUpgradeButtonAsync(CancellationToken cancellationToken)
+    private async Task<bool> TryClickOfficialPrimaryUpgradeButtonAsync(int slotId, CancellationToken cancellationToken)
     {
         var pattern = new Regex(@"upgrade\s+to\s+level", RegexOptions.IgnoreCase);
         var selectors = new[]
@@ -6194,7 +6236,13 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             }
             catch (Exception ex)
             {
-                Notify($"Could not click official primary upgrade button '{selector}': {ex.Message}");
+                if (TravianUrls.ExtractSlotIdFromUrl(_page.Url) != slotId)
+                {
+                    Notify($"[upgrade-click:verbose] official primary button '{selector}' left slot {slotId}; verifying progress. Last click status: {ex.Message}");
+                    return true;
+                }
+
+                Notify($"[upgrade-click:verbose] official primary button '{selector}' did not confirm click: {ex.Message}");
             }
         }
 

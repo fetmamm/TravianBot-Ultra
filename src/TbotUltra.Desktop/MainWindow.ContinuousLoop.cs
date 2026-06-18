@@ -1052,6 +1052,18 @@ public partial class MainWindow
             return;
         }
 
+        if (now - _lastContinuousKeepAliveFailureUtc < TimeSpan.FromMinutes(2))
+        {
+            return;
+        }
+
+        if (_resourceSnapshotRefreshRunning)
+        {
+            MarkContinuousBrowserActivity();
+            AppendLog("[keep-alive:verbose] skipped because resource refresh is already reading the browser.");
+            return;
+        }
+
         MarkContinuousBrowserActivity();
 
         try
@@ -1064,8 +1076,22 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
+            _lastContinuousKeepAliveFailureUtc = DateTimeOffset.UtcNow;
+            if (IsTransientKeepAliveFailure(ex))
+            {
+                AppendLog($"[keep-alive:verbose] refresh skipped after transient failure: {ex.Message}");
+                return;
+            }
+
             AppendLog($"Continuous loop keep-alive refresh failed: {ex.Message}");
         }
+    }
+
+    private static bool IsTransientKeepAliveFailure(Exception ex)
+    {
+        return ex.GetType().Name.Contains("TimeoutException", StringComparison.OrdinalIgnoreCase)
+            || ex.Message.Contains("Timeout", StringComparison.OrdinalIgnoreCase)
+            || IsTransientPageReadFailure(ex);
     }
 
     private async Task RunContinuousLoopAsync(CancellationToken token)

@@ -69,6 +69,22 @@ public sealed class TravianOfficialConstructionDomTests
     }
 
     [Fact]
+    public void OfficialConstructDom_DoesNotTreatRequirementTextAsConstructButton()
+    {
+        const string html = """
+            <div id="contract_building26" data-gid="26">
+              <div class="upgradeButtonsContainer">
+                <div class="section1">
+                  <span class="buildingCondition error">Main Building Level 5</span>
+                </div>
+              </div>
+            </div>
+            """;
+
+        Assert.Null(BuildingDomParser.SelectConstructButtonCandidateFromHtmlForTests(html, gid: 26));
+    }
+
+    [Fact]
     public void OfficialDorf2Dom_ParsesOfficialDataAttributes()
     {
         var html = ReadDomFixture("TS50_Village - Buildings.txt");

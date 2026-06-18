@@ -695,7 +695,16 @@ public sealed partial class TravianClient
         Notify($"Resource read: storage wh={FormatResourceLogNumber(capacities.Warehouse)} gr={FormatResourceLogNumber(capacities.Granary)} | stock {BuildResourceValueLog(resources)} | prod {BuildProductionValueLog(productionByHour)}{(usingCachedProduction ? " (cached production)" : string.Empty)}");
 
         var liveResourceFields = await ReadResourceFieldsAsync(cancellationToken);
-        var resourceFields = HasMeaningfulResourceFields(liveResourceFields)
+        var liveResourceFieldsComplete = HasCompleteResourceFieldSnapshot(liveResourceFields);
+        if (!liveResourceFieldsComplete)
+        {
+            Notify(
+                $"[resources:verbose] partial resource field snapshot ignored for cache " +
+                $"village='{activeVillage}' fields={liveResourceFields.Count} " +
+                $"knownLevels={liveResourceFields.Count(field => field.Level is >= 0)}.");
+        }
+
+        var resourceFields = liveResourceFieldsComplete
             ? liveResourceFields
             : cachedSnapshot?.ResourceFields ?? liveResourceFields;
 
@@ -1295,8 +1304,34 @@ public sealed partial class TravianClient
         return result;
     }
 
-    private static bool HasMeaningfulResourceFields(IReadOnlyList<ResourceField> fields)
-        => fields.Any(field => field.Level is not null || !string.Equals(field.FieldType, "unknown", StringComparison.OrdinalIgnoreCase));
+    private static bool HasCompleteResourceFieldSnapshot(IReadOnlyList<ResourceField> fields)
+    {
+        var bySlot = fields
+            .Where(field => field.SlotId is >= 1 and <= 18)
+            .GroupBy(field => field.SlotId!.Value)
+            .ToList();
+        if (bySlot.Count != 18)
+        {
+            return false;
+        }
+
+        return bySlot.All(group =>
+        {
+            var field = group.First();
+            return field.Level is >= 0
+                && IsKnownResourceFieldType(field.FieldType);
+        });
+    }
+
+    private static bool IsKnownResourceFieldType(string? fieldType)
+        => string.Equals(fieldType, "wood", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(fieldType, "clay", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(fieldType, "iron", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(fieldType, "crop", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsKnownVillageName(string villageName)
+        => !string.IsNullOrWhiteSpace(villageName)
+            && !string.Equals(villageName.Trim(), "Unknown village", StringComparison.OrdinalIgnoreCase);
 
     private string BuildVillageResourceCacheKey(string villageName)
     {
@@ -1305,7 +1340,7 @@ public sealed partial class TravianClient
 
     private CachedVillageResourceSnapshot? TryGetCachedVillageResourceSnapshot(string villageName)
     {
-        if (string.IsNullOrWhiteSpace(villageName))
+        if (!IsKnownVillageName(villageName))
         {
             return null;
         }
@@ -1325,7 +1360,7 @@ public sealed partial class TravianClient
         (long? Warehouse, long? Granary) capacities,
         IReadOnlyDictionary<string, double?> productionByHour)
     {
-        if (string.IsNullOrWhiteSpace(villageName))
+        if (!IsKnownVillageName(villageName))
         {
             return;
         }
@@ -1335,7 +1370,7 @@ public sealed partial class TravianClient
         {
             CachedVillageResourceSnapshotsByKey.TryGetValue(key, out var existing);
 
-            var fieldsToStore = HasMeaningfulResourceFields(resourceFields)
+            var fieldsToStore = HasCompleteResourceFieldSnapshot(resourceFields)
                 ? resourceFields.Select(field => field with { }).ToList()
                 : existing?.ResourceFields ?? [];
 

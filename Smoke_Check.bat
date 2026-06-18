@@ -1,19 +1,27 @@
 @echo off
 setlocal
 cd /d "%~dp0"
+set "SMOKE_EXIT_CODE=0"
 
 echo Running smoke check...
 "C:\Program Files\dotnet\dotnet.exe" build TbotUltra.sln -c Debug
 if errorlevel 1 (
   echo Build failed.
-  exit /b 1
+  set "SMOKE_EXIT_CODE=1"
+  goto done
 )
 
 "C:\Program Files\dotnet\dotnet.exe" test src\TbotUltra.Worker.Tests\TbotUltra.Worker.Tests.csproj -c Debug --no-build
 if errorlevel 1 (
   echo Tests failed.
-  exit /b 1
+  set "SMOKE_EXIT_CODE=1"
+  goto done
 )
 
 echo Smoke check OK.
-exit /b 0
+
+:done
+echo.
+echo Smoke check finished. Press any key to close this window.
+pause >nul
+exit /b %SMOKE_EXIT_CODE%

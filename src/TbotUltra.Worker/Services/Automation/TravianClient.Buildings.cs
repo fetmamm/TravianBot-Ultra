@@ -189,7 +189,7 @@ public sealed partial class TravianClient
                 return $"Slot {slotId}: upgrade to level {targetLevel} already queued and still in progress. Upgrades performed: {upgrades}. queue_wait_seconds={queuedWaitSeconds}";
             }
             var nextLevel = highestKnownLevel + 1;
-            var queueFingerprintBefore = BuildQueueFingerprints.Full(await ReadBuildQueueAsync(cancellationToken));
+            var queueFingerprintBefore = BuildQueueFingerprints.Identity(await ReadBuildQueueAsync(cancellationToken));
 
             // Tribe/Plus-aware slot gate: if the build queue is full, defer this task back to
             // the program queue (queue_wait_seconds) rather than blocking the worker thread.
@@ -323,7 +323,7 @@ public sealed partial class TravianClient
             await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
             var postClickWaitSeconds = await ReadQueuedBuildingWaitSecondsAsync(buildingName, durationSeconds, cancellationToken);
             transientRetries = 0;
-            var progress = await WaitForBuildingLevelAdvanceAsync(slotId, currentLevel, queueFingerprintBefore, cancellationToken);
+            var progress = await WaitForBuildingLevelAdvanceAsync(slotId, currentLevel, buildingName, queueFingerprintBefore, cancellationToken);
             if (!progress.Advanced && !progress.QueuedOrInProgress)
             {
                 // Final dorf2 probe before deferring — instant servers complete builds before the
@@ -1040,7 +1040,7 @@ public sealed partial class TravianClient
                 return $"Slot {slotId}: upgrade toward max already queued and still in progress (max {maxLevel}). Upgrades performed: {upgrades}. queue_wait_seconds={queuedWaitSeconds}";
             }
             var nextLevel = highestKnownLevel + 1;
-            var queueFingerprintBefore = BuildQueueFingerprints.Full(await ReadBuildQueueAsync(cancellationToken));
+            var queueFingerprintBefore = BuildQueueFingerprints.Identity(await ReadBuildQueueAsync(cancellationToken));
 
             // Tribe/Plus-aware slot gate: if the build queue is full, defer this task back to
             // the program queue (queue_wait_seconds) rather than blocking the worker thread.
@@ -1170,7 +1170,7 @@ public sealed partial class TravianClient
             await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
             var postClickWaitSeconds = await ReadQueuedBuildingWaitSecondsAsync(buildingName, durationSeconds, cancellationToken);
             transientRetries = 0;
-            var progress = await WaitForBuildingLevelAdvanceAsync(slotId, currentLevel, queueFingerprintBefore, cancellationToken);
+            var progress = await WaitForBuildingLevelAdvanceAsync(slotId, currentLevel, buildingName, queueFingerprintBefore, cancellationToken);
             if (!progress.Advanced && !progress.QueuedOrInProgress)
             {
                 // Final dorf2 probe before deferring — see UpgradeBuildingToLevelAsync for rationale.
@@ -1242,7 +1242,7 @@ public sealed partial class TravianClient
         for (var attempt = 0; attempt < safetyCap; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var queueFingerprintBefore = BuildQueueFingerprints.Full(await ReadBuildQueueAsync(cancellationToken));
+            var queueFingerprintBefore = BuildQueueFingerprints.Identity(await ReadBuildQueueAsync(cancellationToken));
 
             // Pre-flight queue gate: defer to program queue if no construction slot is free.
             var deferMessage = await CheckQueueOrDeferAsync(ConstructionKind.Building, slotId, attempt, cancellationToken);
@@ -1364,7 +1364,7 @@ public sealed partial class TravianClient
                 await AddPopulationToActiveVillageCacheAsync(popDelta, cancellationToken);
             }
 
-            var progress = await WaitForBuildingLevelAdvanceAsync(slotId, 0, queueFingerprintBefore, cancellationToken);
+            var progress = await WaitForBuildingLevelAdvanceAsync(slotId, 0, buildingName, queueFingerprintBefore, cancellationToken);
             if (!progress.Advanced && !progress.QueuedOrInProgress)
             {
                 // Final dorf2 probe: an instant-build server can finish a level-1 construct
@@ -1397,10 +1397,15 @@ public sealed partial class TravianClient
         try
         {
             var queueItems = await ReadBuildQueueAsync(cancellationToken);
-            var queueFingerprintAfter = BuildQueueFingerprints.Full(queueItems);
+            var queueFingerprintAfter = BuildQueueFingerprints.Identity(queueItems);
+            if (BuildQueueFingerprints.ContainsBuilding(queueItems, buildingName))
+            {
+                return (true, $"build queue contains {buildingName}");
+            }
+
             if (!string.Equals(queueFingerprintBefore, queueFingerprintAfter, StringComparison.Ordinal))
             {
-                return (true, "queue changed");
+                Notify($"Construct progress check for slot {slotId}: queue changed but no {buildingName} entry was found.");
             }
 
             var activeConstructions = await ReadActiveConstructionsAsync(cancellationToken);
@@ -1410,11 +1415,6 @@ public sealed partial class TravianClient
             if (matchingActiveConstruction is not null)
             {
                 return (true, $"active construction detected for {matchingActiveConstruction.Name}");
-            }
-
-            if (queueItems.Count > 0 && activeConstructions.Any(item => item.Kind != ConstructionKind.Resource))
-            {
-                return (true, "building queue has entries");
             }
 
             await GotoAsync(Paths.Buildings, cancellationToken);
@@ -1454,7 +1454,7 @@ public sealed partial class TravianClient
         try
         {
             await _page.WaitForFunctionAsync(
-                "() => /construct\\s+building|build\\s+building|bauen|bygg|costruisci|build/i.test(document.body.innerText || '')",
+                "() => /\\bconstruct(?:\\s+building)?\\b|\\bbuild(?:\\s+building)?\\b|\\bbauen\\b|\\bbygg\\b|\\bcostruisci\\b/i.test(document.body.innerText || '')",
                 null,
                 new PageWaitForFunctionOptions { Timeout = 10000 });
         }
@@ -1475,12 +1475,16 @@ public sealed partial class TravianClient
               const matches = [];
               // Match `?a=N`, `&a=N`, `?gid=N`, `&gid=N`, plus Cyrillic 'а' (U+0430) used by some private servers.
               const otherGidRe = /[?&](?:[aа]|gid)=(\d+)/gi;
+              const constructActionRe = /\bconstruct(?:\s+building)?\b|\bbuild(?:\s+building)?\b|\bbauen\b|\bbygg\b|\bcostruisci\b/i;
               for (const el of candidates) {
                 const rawText = (el.textContent || '').replace(/\s+/g, ' ').trim();
-                const text = rawText.toLowerCase();
+                const value = (el.getAttribute('value') || '').replace(/\s+/g, ' ').trim();
+                const actionText = `${rawText} ${value}`.replace(/\s+/g, ' ').trim();
+                const text = actionText.toLowerCase();
                 const classes = (el.className || '').toString().toLowerCase();
-                if (rawText) seen.push({ text: rawText.slice(0, 60), classes: classes.slice(0, 60) });
-                if (!/(construct|build|bauen|bygg)/.test(text)) continue;
+                const seenText = rawText || value;
+                if (seenText) seen.push({ text: seenText.slice(0, 60), classes: classes.slice(0, 60) });
+                if (!constructActionRe.test(actionText)) continue;
                 const disabled = el.disabled || classes.includes('disabled') || el.getAttribute('aria-disabled') === 'true';
                 if (disabled) continue;
                 const inOfficialPrimarySection = !!el.closest('.upgradeButtonsContainer .section1');
@@ -1496,7 +1500,6 @@ public sealed partial class TravianClient
                 const wrapperMatchesGid = wrapper !== null;
                 const onclick = (el.getAttribute('onclick') || '');
                 const href = (el.getAttribute('href') || '');
-                const value = (el.getAttribute('value') || '');
                 const combined = `${onclick} ${href} ${value}`.toLowerCase();
                 const onclickMentionsGid =
                   combined.includes(`gid=${gidText}`)
@@ -1519,9 +1522,11 @@ public sealed partial class TravianClient
                   const otherId = (otherWrapper.id || '').toLowerCase();
                   if (otherId !== `contract_building${gidText}` && otherId !== `building${gidText}`) continue;
                 }
-                const isConstruct = /construct\s+building/i.test(rawText) || /build\s+building/i.test(rawText);
-                const rank = (wrapperMatchesGid ? 10 : 0) + (inOfficialPrimarySection ? 8 : 0) + (onclickMentionsGid ? 5 : 0) + (isConstruct ? 3 : 0) + (classes.includes('green') ? 2 : 0) + 1;
-                matches.push({ index: candidates.indexOf(el), rank, text: rawText.slice(0, 60), gidContext: { wrapper: wrapperMatchesGid, onclick: onclickMentionsGid } });
+                if (!wrapperMatchesGid && !onclickMentionsGid) continue;
+                const isConstruct = constructActionRe.test(actionText);
+                const isDirectAction = el.matches('button, input[type="submit"], input[type="button"], a, div.addHoverClick');
+                const rank = (wrapperMatchesGid ? 10 : 0) + (inOfficialPrimarySection ? 8 : 0) + (onclickMentionsGid ? 5 : 0) + (isDirectAction ? 4 : 0) + (isConstruct ? 3 : 0) + (classes.includes('green') ? 2 : 0) + 1;
+                matches.push({ index: candidates.indexOf(el), rank, text: actionText.slice(0, 60), gidContext: { wrapper: wrapperMatchesGid, onclick: onclickMentionsGid } });
               }
               matches.sort((a, b) => b.rank - a.rank);
               return JSON.stringify({ clicked: false, clickIndex: matches.length > 0 ? matches[0].index : null, matches: matches.slice(0, 5), seen: seen.slice(0, 20) });
@@ -3984,6 +3989,7 @@ public sealed partial class TravianClient
     private async Task<UpgradeProgressResult> WaitForBuildingLevelAdvanceAsync(
         int slotId,
         int previousLevel,
+        string buildingName,
         string queueFingerprintBefore,
         CancellationToken cancellationToken)
     {
@@ -4032,21 +4038,24 @@ public sealed partial class TravianClient
             }
 
             var queueItems = await ReadBuildQueueAsync(cancellationToken);
-            var queueFingerprintAfter = BuildQueueFingerprints.Full(queueItems);
-            if (!string.Equals(queueFingerprintBefore, queueFingerprintAfter, StringComparison.Ordinal))
+            var queueFingerprintAfter = BuildQueueFingerprints.Identity(queueItems);
+            if (BuildQueueFingerprints.ContainsBuilding(queueItems, buildingName))
             {
-                return new UpgradeProgressResult(false, true, "queue changed");
+                return new UpgradeProgressResult(false, true, $"build queue contains {buildingName}");
             }
 
-            if (queueItems.Count > 0)
+            if (!string.Equals(queueFingerprintBefore, queueFingerprintAfter, StringComparison.Ordinal))
             {
-                return new UpgradeProgressResult(false, true, "queue has entries");
+                Notify($"Build progress check for slot {slotId}: queue changed but no {buildingName} entry was found.");
             }
 
             var activeConstructions = await ReadActiveConstructionsAsync(cancellationToken);
-            if (activeConstructions.Any(item => item.Kind != ConstructionKind.Resource))
+            var matchingActiveConstruction = activeConstructions.FirstOrDefault(item =>
+                item.Kind != ConstructionKind.Resource
+                && BuildingNames.Same(item.Name, buildingName));
+            if (matchingActiveConstruction is not null)
             {
-                return new UpgradeProgressResult(false, true, "active building construction detected");
+                return new UpgradeProgressResult(false, true, $"active construction detected for {matchingActiveConstruction.Name}");
             }
         }
 

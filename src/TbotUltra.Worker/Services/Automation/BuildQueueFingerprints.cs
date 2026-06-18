@@ -39,6 +39,33 @@ internal static class BuildQueueFingerprints
                 .Select(item => StripQueueTimerTokens(item.Text)));
     }
 
+    internal static bool ContainsBuilding(IReadOnlyList<BuildQueueItem> queue, string buildingName)
+    {
+        return queue.Any(item => TextMatchesBuilding(item.Text, buildingName));
+    }
+
+    internal static bool TextMatchesBuilding(string? text, string buildingName)
+    {
+        if (string.IsNullOrWhiteSpace(text) || string.IsNullOrWhiteSpace(buildingName))
+        {
+            return false;
+        }
+
+        var normalizedName = BuildingNames.Normalize(buildingName);
+        if (string.IsNullOrWhiteSpace(normalizedName))
+        {
+            return false;
+        }
+
+        var cleaned = StripQueueTimerTokens(text);
+        cleaned = Regex.Replace(cleaned, @"\b(?:level|lvl)\s*\d+\b", " ", RegexOptions.IgnoreCase);
+        cleaned = Regex.Replace(cleaned, @"\s+", " ").Trim();
+        var normalizedText = BuildingNames.Normalize(cleaned);
+
+        return normalizedText.Equals(normalizedName, StringComparison.OrdinalIgnoreCase)
+            || normalizedText.StartsWith(normalizedName + " ", StringComparison.OrdinalIgnoreCase);
+    }
+
     // The build-queue row text contains a live countdown timer (e.g. "0:08:12") and/or a completion
     // clock that change on every read. Including them made the queue fingerprint differ each poll,
     // which WaitForResourceLevelAdvanceAsync misread as "queue changed" -> a false queued=True after a

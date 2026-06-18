@@ -158,6 +158,28 @@ public sealed partial class TravianClient
         return sidebar.AdventureCount;
     }
 
+    // Cheap, no-navigation probe used by the periodic desktop refresh. Official Travian shows this
+    // icon on ordinary pages when the hero has unspent attribute points.
+    public async Task<bool> HasHeroLevelUpIndicatorOnCurrentPageAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        try
+        {
+            return await _page.EvaluateAsync<bool>(
+                """
+                () => !!document.querySelector('i.levelUp.show')
+                """);
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     // Reads the hero home village + away/dead state from the dorf1 hero widget (the rally-point link in the
     // hero box points to the hero's HOME village; the icon class shows the state). Emits a [herohome] log
     // line the desktop parses. Best-effort: silent when the widget/village name isn't present.
