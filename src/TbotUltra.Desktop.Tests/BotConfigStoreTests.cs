@@ -21,6 +21,55 @@ public sealed class BotConfigStoreTests : IDisposable
     }
 
     [Fact]
+    public void AccountScopedKeys_AreUniqueAndCoverConfigChainSettings()
+    {
+        var keys = BotConfigStore.AccountScopedKeyValues;
+        var duplicates = keys
+            .GroupBy(key => key, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToArray();
+
+        Assert.True(duplicates.Length == 0, $"Duplicate account-scoped keys: {string.Join(", ", duplicates)}");
+
+        var requiredKeys = new[]
+        {
+            BotOptionPayloadKeys.PostLoginAnalyzeFarmlists,
+            BotOptionPayloadKeys.PostLoginAnalyzeHero,
+            BotOptionPayloadKeys.PostLoginAnalyzeHeroInventory,
+            BotOptionPayloadKeys.PostLoginReadTroopTrainingQueue,
+            BotOptionPayloadKeys.PostLoginAnalyzeBrewery,
+            BotOptionPayloadKeys.PostLoginAnalyzeNewVillages,
+            BotOptionPayloadKeys.SessionPacingEnabled,
+            BotOptionPayloadKeys.SessionPacingMaxRunMinutes,
+            BotOptionPayloadKeys.SessionPacingSleepMinutes,
+            BotOptionPayloadKeys.SessionPacingVariationPercent,
+            BotOptionPayloadKeys.SessionPacingAllowedHours,
+            BotOptionPayloadKeys.SessionPacingDailyMaxHours,
+            BotOptionPayloadKeys.SessionPacingRuntimeDate,
+            BotOptionPayloadKeys.SessionPacingRuntimeSeconds,
+            BotOptionPayloadKeys.ActionPacingEnabled,
+            BotOptionPayloadKeys.ActionPacingTaskMinSeconds,
+            BotOptionPayloadKeys.ActionPacingTaskMaxSeconds,
+            BotOptionPayloadKeys.ActionPacingPageLoadMinSeconds,
+            BotOptionPayloadKeys.ActionPacingPageLoadMaxSeconds,
+            BotOptionPayloadKeys.ActionPacingClickMinSeconds,
+            BotOptionPayloadKeys.ActionPacingClickMaxSeconds,
+            BotOptionPayloadKeys.ActionPacingLoopMinSeconds,
+            BotOptionPayloadKeys.ActionPacingLoopMaxSeconds,
+            BotOptionPayloadKeys.FarmListStepDelayMinSeconds,
+            BotOptionPayloadKeys.FarmListStepDelayMaxSeconds,
+        };
+
+        foreach (var key in requiredKeys)
+        {
+            Assert.True(
+                keys.Contains(key, StringComparer.OrdinalIgnoreCase),
+                $"Missing account-scoped key: {key}");
+        }
+    }
+
+    [Fact]
     public void Load_OverlaysActiveAccountSettingsOnGlobalConfig()
     {
         WriteJson(

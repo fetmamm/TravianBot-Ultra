@@ -127,197 +127,165 @@ public partial class MainWindow
     }
 
     private void SetTroopsBlockedState(string reasonKey, string reasonText)
-    {
-        if (!Dispatcher.CheckAccess())
-        {
-            Dispatcher.Invoke(() => SetTroopsBlockedState(reasonKey, reasonText));
-            return;
-        }
-
-        var troopsOption = _automationLoopTasks.FirstOrDefault(item =>
-            string.Equals(item.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Troops), StringComparison.OrdinalIgnoreCase));
-        if (troopsOption is not null)
-        {
-            _troopsBlockedPreviouslyEnabled = troopsOption.IsEnabled;
-            troopsOption.IsEnabled = false;
-        }
-
-        _troopsBlockedReasonKey = reasonKey;
-        _troopsBlockedReasonText = reasonText;
-        UpdateAutomationLoopRunningIndicators();
-        PersistAutomationLoopTasksToConfig();
-    }
+        => SetAutomationGroupBlockedState(
+            QueueGroup.Troops,
+            reasonKey,
+            reasonText,
+            (key, text) =>
+            {
+                _troopsBlockedReasonKey = key;
+                _troopsBlockedReasonText = text;
+            },
+            value => _troopsBlockedPreviouslyEnabled = value);
 
     private void SetFarmingBlockedState(string reasonKey, string reasonText)
-    {
-        if (!Dispatcher.CheckAccess())
-        {
-            Dispatcher.Invoke(() => SetFarmingBlockedState(reasonKey, reasonText));
-            return;
-        }
-
-        var farmingOption = _automationLoopTasks.FirstOrDefault(item =>
-            string.Equals(item.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Farming), StringComparison.OrdinalIgnoreCase));
-        if (farmingOption is not null)
-        {
-            _farmingBlockedPreviouslyEnabled = farmingOption.IsEnabled;
-            farmingOption.IsEnabled = false;
-        }
-
-        _farmingBlockedReasonKey = reasonKey;
-        _farmingBlockedReasonText = reasonText;
-        UpdateAutomationLoopRunningIndicators();
-        PersistAutomationLoopTasksToConfig();
-    }
+        => SetAutomationGroupBlockedState(
+            QueueGroup.Farming,
+            reasonKey,
+            reasonText,
+            (key, text) =>
+            {
+                _farmingBlockedReasonKey = key;
+                _farmingBlockedReasonText = text;
+            },
+            value => _farmingBlockedPreviouslyEnabled = value);
 
     private void SetHeroBlockedState(string reasonKey, string reasonText)
-    {
-        if (!Dispatcher.CheckAccess())
-        {
-            Dispatcher.Invoke(() => SetHeroBlockedState(reasonKey, reasonText));
-            return;
-        }
-
-        var heroOption = _automationLoopTasks.FirstOrDefault(item =>
-            string.Equals(item.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Hero), StringComparison.OrdinalIgnoreCase));
-        if (heroOption is not null)
-        {
-            _heroBlockedPreviouslyEnabled = heroOption.IsEnabled;
-            heroOption.IsEnabled = false;
-        }
-
-        _heroBlockedReasonKey = reasonKey;
-        _heroBlockedReasonText = reasonText;
-        UpdateAutomationLoopRunningIndicators();
-        PersistAutomationLoopTasksToConfig();
-    }
+        => SetAutomationGroupBlockedState(
+            QueueGroup.Hero,
+            reasonKey,
+            reasonText,
+            (key, text) =>
+            {
+                _heroBlockedReasonKey = key;
+                _heroBlockedReasonText = text;
+            },
+            value => _heroBlockedPreviouslyEnabled = value);
 
     private void SetBreweryBlockedState(string reasonKey, string reasonText)
-    {
-        if (!Dispatcher.CheckAccess())
-        {
-            Dispatcher.Invoke(() => SetBreweryBlockedState(reasonKey, reasonText));
-            return;
-        }
-
-        var breweryOption = _automationLoopTasks.FirstOrDefault(item =>
-            string.Equals(item.TaskName, QueueGroupCatalog.GetKey(QueueGroup.BreweryCelebration), StringComparison.OrdinalIgnoreCase));
-        if (breweryOption is not null)
-        {
-            _breweryBlockedPreviouslyEnabled = breweryOption.IsEnabled;
-            breweryOption.IsEnabled = false;
-        }
-
-        _breweryBlockedReasonKey = reasonKey;
-        _breweryBlockedReasonText = reasonText;
-        UpdateAutomationLoopRunningIndicators();
-        PersistAutomationLoopTasksToConfig();
-    }
+        => SetAutomationGroupBlockedState(
+            QueueGroup.BreweryCelebration,
+            reasonKey,
+            reasonText,
+            (key, text) =>
+            {
+                _breweryBlockedReasonKey = key;
+                _breweryBlockedReasonText = text;
+            },
+            value => _breweryBlockedPreviouslyEnabled = value);
 
     private void ClearTroopsBlockedState()
-    {
-        if (!Dispatcher.CheckAccess())
-        {
-            Dispatcher.Invoke(ClearTroopsBlockedState);
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(_troopsBlockedReasonKey) && string.IsNullOrWhiteSpace(_troopsBlockedReasonText))
-        {
-            return;
-        }
-
-        _troopsBlockedReasonKey = null;
-        _troopsBlockedReasonText = null;
-        var troopsOption = _automationLoopTasks.FirstOrDefault(item =>
-            string.Equals(item.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Troops), StringComparison.OrdinalIgnoreCase));
-        if (troopsOption is not null && _troopsBlockedPreviouslyEnabled)
-        {
-            troopsOption.IsEnabled = true;
-        }
-
-        _troopsBlockedPreviouslyEnabled = false;
-        UpdateAutomationLoopRunningIndicators();
-        PersistAutomationLoopTasksToConfig();
-    }
+        => ClearAutomationGroupBlockedState(
+            QueueGroup.Troops,
+            () => _troopsBlockedReasonKey,
+            () => _troopsBlockedReasonText,
+            (key, text) =>
+            {
+                _troopsBlockedReasonKey = key;
+                _troopsBlockedReasonText = text;
+            },
+            () => _troopsBlockedPreviouslyEnabled,
+            value => _troopsBlockedPreviouslyEnabled = value);
 
     private void ClearFarmingBlockedState()
-    {
-        if (!Dispatcher.CheckAccess())
-        {
-            Dispatcher.Invoke(ClearFarmingBlockedState);
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(_farmingBlockedReasonKey) && string.IsNullOrWhiteSpace(_farmingBlockedReasonText))
-        {
-            return;
-        }
-
-        _farmingBlockedReasonKey = null;
-        _farmingBlockedReasonText = null;
-        var farmingOption = _automationLoopTasks.FirstOrDefault(item =>
-            string.Equals(item.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Farming), StringComparison.OrdinalIgnoreCase));
-        if (farmingOption is not null && _farmingBlockedPreviouslyEnabled)
-        {
-            farmingOption.IsEnabled = true;
-        }
-
-        _farmingBlockedPreviouslyEnabled = false;
-        UpdateAutomationLoopRunningIndicators();
-        PersistAutomationLoopTasksToConfig();
-    }
+        => ClearAutomationGroupBlockedState(
+            QueueGroup.Farming,
+            () => _farmingBlockedReasonKey,
+            () => _farmingBlockedReasonText,
+            (key, text) =>
+            {
+                _farmingBlockedReasonKey = key;
+                _farmingBlockedReasonText = text;
+            },
+            () => _farmingBlockedPreviouslyEnabled,
+            value => _farmingBlockedPreviouslyEnabled = value);
 
     private void ClearHeroBlockedState()
+        => ClearAutomationGroupBlockedState(
+            QueueGroup.Hero,
+            () => _heroBlockedReasonKey,
+            () => _heroBlockedReasonText,
+            (key, text) =>
+            {
+                _heroBlockedReasonKey = key;
+                _heroBlockedReasonText = text;
+            },
+            () => _heroBlockedPreviouslyEnabled,
+            value => _heroBlockedPreviouslyEnabled = value);
+
+    private void ClearBreweryBlockedState()
+        => ClearAutomationGroupBlockedState(
+            QueueGroup.BreweryCelebration,
+            () => _breweryBlockedReasonKey,
+            () => _breweryBlockedReasonText,
+            (key, text) =>
+            {
+                _breweryBlockedReasonKey = key;
+                _breweryBlockedReasonText = text;
+            },
+            () => _breweryBlockedPreviouslyEnabled,
+            value => _breweryBlockedPreviouslyEnabled = value);
+
+    private void SetAutomationGroupBlockedState(
+        QueueGroup group,
+        string reasonKey,
+        string reasonText,
+        Action<string?, string?> setReason,
+        Action<bool> setPreviouslyEnabled)
     {
         if (!Dispatcher.CheckAccess())
         {
-            Dispatcher.Invoke(ClearHeroBlockedState);
+            Dispatcher.Invoke(() => SetAutomationGroupBlockedState(group, reasonKey, reasonText, setReason, setPreviouslyEnabled));
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(_heroBlockedReasonKey) && string.IsNullOrWhiteSpace(_heroBlockedReasonText))
+        var option = _automationLoopTasks.FirstOrDefault(item =>
+            string.Equals(item.TaskName, QueueGroupCatalog.GetKey(group), StringComparison.OrdinalIgnoreCase));
+        if (option is not null)
         {
-            return;
+            setPreviouslyEnabled(option.IsEnabled);
+            option.IsEnabled = false;
         }
 
-        _heroBlockedReasonKey = null;
-        _heroBlockedReasonText = null;
-        var heroOption = _automationLoopTasks.FirstOrDefault(item =>
-            string.Equals(item.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Hero), StringComparison.OrdinalIgnoreCase));
-        if (heroOption is not null && _heroBlockedPreviouslyEnabled)
-        {
-            heroOption.IsEnabled = true;
-        }
-
-        _heroBlockedPreviouslyEnabled = false;
+        setReason(reasonKey, reasonText);
         UpdateAutomationLoopRunningIndicators();
         PersistAutomationLoopTasksToConfig();
     }
 
-    private void ClearBreweryBlockedState()
+    private void ClearAutomationGroupBlockedState(
+        QueueGroup group,
+        Func<string?> getReasonKey,
+        Func<string?> getReasonText,
+        Action<string?, string?> setReason,
+        Func<bool> wasPreviouslyEnabled,
+        Action<bool> setPreviouslyEnabled)
     {
         if (!Dispatcher.CheckAccess())
         {
-            Dispatcher.Invoke(ClearBreweryBlockedState);
+            Dispatcher.Invoke(() => ClearAutomationGroupBlockedState(
+                group,
+                getReasonKey,
+                getReasonText,
+                setReason,
+                wasPreviouslyEnabled,
+                setPreviouslyEnabled));
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(_breweryBlockedReasonKey) && string.IsNullOrWhiteSpace(_breweryBlockedReasonText))
+        if (string.IsNullOrWhiteSpace(getReasonKey()) && string.IsNullOrWhiteSpace(getReasonText()))
         {
             return;
         }
 
-        _breweryBlockedReasonKey = null;
-        _breweryBlockedReasonText = null;
-        var breweryOption = _automationLoopTasks.FirstOrDefault(item =>
-            string.Equals(item.TaskName, QueueGroupCatalog.GetKey(QueueGroup.BreweryCelebration), StringComparison.OrdinalIgnoreCase));
-        if (breweryOption is not null && _breweryBlockedPreviouslyEnabled)
+        setReason(null, null);
+        var option = _automationLoopTasks.FirstOrDefault(item =>
+            string.Equals(item.TaskName, QueueGroupCatalog.GetKey(group), StringComparison.OrdinalIgnoreCase));
+        if (option is not null && wasPreviouslyEnabled())
         {
-            breweryOption.IsEnabled = true;
+            option.IsEnabled = true;
         }
 
-        _breweryBlockedPreviouslyEnabled = false;
+        setPreviouslyEnabled(false);
         UpdateAutomationLoopRunningIndicators();
         PersistAutomationLoopTasksToConfig();
     }

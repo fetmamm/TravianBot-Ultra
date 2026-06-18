@@ -15,8 +15,8 @@ public sealed class BotConfigStore
         "base_url",
     };
 
-    private static readonly HashSet<string> AccountScopedKeys = new(StringComparer.OrdinalIgnoreCase)
-    {
+    internal static readonly string[] AccountScopedKeyValues =
+    [
         BotOptionPayloadKeys.TargetVillageName,
         BotOptionPayloadKeys.TargetVillageUrl,
         BotOptionPayloadKeys.ResourceUpgradeSlotId,
@@ -148,25 +148,6 @@ public sealed class BotConfigStore
         BotOptionPayloadKeys.ReinforcementsSourceVillageNames,
         BotOptionPayloadKeys.ReinforcementsTroopRules,
         BotOptionPayloadKeys.UpgradeSelectorProfile,
-        BotOptionPayloadKeys.SessionPacingEnabled,
-        BotOptionPayloadKeys.SessionPacingMaxRunMinutes,
-        BotOptionPayloadKeys.SessionPacingSleepMinutes,
-        BotOptionPayloadKeys.SessionPacingVariationPercent,
-        BotOptionPayloadKeys.SessionPacingAllowedHours,
-        BotOptionPayloadKeys.SessionPacingDailyMaxHours,
-        BotOptionPayloadKeys.SessionPacingRuntimeDate,
-        BotOptionPayloadKeys.SessionPacingRuntimeSeconds,
-        BotOptionPayloadKeys.ActionPacingEnabled,
-        BotOptionPayloadKeys.ActionPacingTaskMinSeconds,
-        BotOptionPayloadKeys.ActionPacingTaskMaxSeconds,
-        BotOptionPayloadKeys.ActionPacingPageLoadMinSeconds,
-        BotOptionPayloadKeys.ActionPacingPageLoadMaxSeconds,
-        BotOptionPayloadKeys.ActionPacingClickMinSeconds,
-        BotOptionPayloadKeys.ActionPacingClickMaxSeconds,
-        BotOptionPayloadKeys.ActionPacingLoopMinSeconds,
-        BotOptionPayloadKeys.ActionPacingLoopMaxSeconds,
-        BotOptionPayloadKeys.FarmListStepDelayMinSeconds,
-        BotOptionPayloadKeys.FarmListStepDelayMaxSeconds,
         BotOptionPayloadKeys.CaptchaAutoSolveEnabled,
         BotOptionPayloadKeys.CaptchaSolverTimeoutSeconds,
         BotOptionPayloadKeys.CaptchaSolverMaxAttempts,
@@ -181,7 +162,9 @@ public sealed class BotConfigStore
         "dashboard_visible_groups",
         "natar_village_selection",
         "addFarmsTroopCount",
-    };
+    ];
+
+    private static readonly HashSet<string> AccountScopedKeys = new(AccountScopedKeyValues, StringComparer.OrdinalIgnoreCase);
 
     private static readonly HashSet<string> DeprecatedTechnicalKeys = new(StringComparer.OrdinalIgnoreCase)
     {

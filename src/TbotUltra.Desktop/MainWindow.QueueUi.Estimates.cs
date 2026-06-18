@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
@@ -17,12 +16,6 @@ public partial class MainWindow
 {
     private readonly HashSet<string> _estimateAlarmedKeys = new(StringComparer.OrdinalIgnoreCase);
 
-    // Result of estimating a single queue item. HasData=false => leave the queue columns blank.
-    private readonly record struct QueueEstimate(bool HasData, double Seconds, long Wood, long Clay, long Iron, long Crop)
-    {
-        public static QueueEstimate None => new(false, 0, 0, 0, 0, 0);
-    }
-
     // Main Building level of the currently loaded village (gid 15), used to discount build time.
     // Defaults to 1 (no discount) until the village's buildings have been scanned.
     private int ResolveMainBuildingLevel()
@@ -34,11 +27,11 @@ public partial class MainWindow
         return level is int value && value > 0 ? value : 1;
     }
 
-    private QueueEstimate EstimateForQueueItem(QueueItem item, double serverSpeed, int loadedVillageMainBuildingLevel)
+    private QueueItemEstimate EstimateForQueueItem(QueueItem item, double serverSpeed, int loadedVillageMainBuildingLevel)
     {
         if (item is null)
         {
-            return QueueEstimate.None;
+            return QueueItemEstimate.None;
         }
 
         var payload = item.Payload ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -62,7 +55,7 @@ public partial class MainWindow
                 ?? TryGetIntPayloadValue(payload, BotOptionPayloadKeys.TargetLevel);
             if (target is null)
             {
-                return QueueEstimate.None;
+                return QueueItemEstimate.None;
             }
 
             var (gid, currentLevel) = ResolveBuildingGidAndLevel(slotId, name, villageLoaded);
@@ -78,7 +71,7 @@ public partial class MainWindow
             if (gid is null || !currentLevel.HasValue)
             {
                 // Without the current level the range is undefined; leave blank without alarming.
-                return QueueEstimate.None;
+                return QueueItemEstimate.None;
             }
 
             return SumLevels(item, gid, currentLevel.Value + 1, BuildingCatalogService.MaxLevelFor(gid.Value), serverSpeed, mainBuildingLevel);
@@ -93,7 +86,7 @@ public partial class MainWindow
                 ?? TryGetIntPayloadValue(payload, BotOptionPayloadKeys.TargetLevel);
             if (target is null)
             {
-                return QueueEstimate.None;
+                return QueueItemEstimate.None;
             }
 
             var gid = BuildingCatalogService.GidForName(name);
@@ -108,7 +101,7 @@ public partial class MainWindow
                 ?? TryGetIntPayloadValue(payload, BotOptionPayloadKeys.TargetLevel);
             if (target is null || !villageLoaded)
             {
-                return QueueEstimate.None;
+                return QueueItemEstimate.None;
             }
 
             if (!ResourceFieldUpgradeEstimator.TryEstimate(
@@ -120,10 +113,10 @@ public partial class MainWindow
                     out var failureReason))
             {
                 RaiseEstimateAlarm(item, failureReason ?? "resource field estimate failed");
-                return QueueEstimate.None;
+                return QueueItemEstimate.None;
             }
 
-            return new QueueEstimate(
+            return new QueueItemEstimate(
                 true,
                 estimate.Seconds,
                 estimate.Wood,
@@ -133,23 +126,23 @@ public partial class MainWindow
         }
 
         // Everything else (farming, hero, transfers, demolish, ...) is not estimable.
-        return QueueEstimate.None;
+        return QueueItemEstimate.None;
     }
 
     // Sums catalog cost/time across the inclusive level range [fromLevel, toLevel]. Returns None and
     // raises a one-time alarm when the gid is unknown or catalog data is missing for a level.
-    private QueueEstimate SumLevels(QueueItem item, int? gid, int fromLevel, int toLevel, double serverSpeed, int mainBuildingLevel)
+    private QueueItemEstimate SumLevels(QueueItem item, int? gid, int fromLevel, int toLevel, double serverSpeed, int mainBuildingLevel)
     {
         if (gid is null)
         {
             RaiseEstimateAlarm(item, "building could not be matched to the catalog");
-            return QueueEstimate.None;
+            return QueueItemEstimate.None;
         }
 
         if (toLevel < fromLevel)
         {
             // Already at/above target: nothing left to build.
-            return new QueueEstimate(true, 0, 0, 0, 0, 0);
+            return new QueueItemEstimate(true, 0, 0, 0, 0, 0);
         }
 
         double seconds = 0;
@@ -160,7 +153,7 @@ public partial class MainWindow
             if (stats is null)
             {
                 RaiseEstimateAlarm(item, $"missing catalog data for gid {gid.Value} level {level}");
-                return QueueEstimate.None;
+                return QueueItemEstimate.None;
             }
 
             seconds += BuildingCatalogService.BuildSecondsFor(gid.Value, level, serverSpeed, mainBuildingLevel);
@@ -170,7 +163,7 @@ public partial class MainWindow
             crop += stats.Crop;
         }
 
-        return new QueueEstimate(true, seconds, wood, clay, iron, crop);
+        return new QueueItemEstimate(true, seconds, wood, clay, iron, crop);
     }
 
     // Resolves gid and current level for a building. Current level is only available when the item
@@ -299,33 +292,10 @@ public partial class MainWindow
 
     // Compact build-time formatting: "1d 3h", "2h 15m", "5m 30s", "45s".
     private static string FormatBuildDuration(double totalSeconds)
-    {
-        if (totalSeconds <= 0)
-        {
-            return "0s";
-        }
-
-        var span = TimeSpan.FromSeconds(Math.Round(totalSeconds));
-        if (span.TotalDays >= 1)
-        {
-            return $"{(int)span.TotalDays}d {span.Hours}h";
-        }
-
-        if (span.TotalHours >= 1)
-        {
-            return $"{(int)span.TotalHours}h {span.Minutes}m";
-        }
-
-        if (span.TotalMinutes >= 1)
-        {
-            return $"{span.Minutes}m {span.Seconds}s";
-        }
-
-        return $"{span.Seconds}s";
-    }
+        => QueueItemRowFactory.FormatBuildDuration(totalSeconds);
 
     private static string FormatResourceAmount(long amount)
-        => amount.ToString("N0", CultureInfo.InvariantCulture);
+        => QueueItemRowFactory.FormatResourceAmount(amount);
 
     // Sums the construction estimates of the rows currently shown (already filtered to the selected
     // village) and pushes them to the totals row below the queue grid. Called from RefreshQueueUi so
