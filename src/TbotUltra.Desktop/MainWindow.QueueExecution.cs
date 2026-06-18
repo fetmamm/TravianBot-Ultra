@@ -120,7 +120,8 @@ public partial class MainWindow
         {
             await RefreshCurrentPageStorageStatusAsync(options, "construction_success", cancellationToken);
         }
-        else if (string.Equals(item.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase))
+        else if (string.Equals(item.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase)
+                 || string.Equals(item.TaskName, "spend_hero_attribute_points", StringComparison.OrdinalIgnoreCase))
         {
             try
             {

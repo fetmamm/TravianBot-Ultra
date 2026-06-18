@@ -1381,6 +1381,19 @@ public sealed partial class TravianClient
         #endif
     }
 
+    public async Task<string> SpendHeroAttributePointsAsync(
+        string statPriority,
+        CancellationToken cancellationToken = default)
+    {
+        Notify("[hero] spend attribute points starting");
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
+
+        var allocated = await TryAllocateHeroPointsAsync(statPriority, cancellationToken);
+        return allocated > 0
+            ? $"Hero attribute points spent: {allocated}."
+            : "Hero attribute points: no points available.";
+    }
+
     private async Task<int> CountAdventureRowsAsync(CancellationToken cancellationToken)
     {
         return await _page.EvaluateAsync<int>(

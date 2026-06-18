@@ -440,8 +440,10 @@ public partial class MainWindow
 
     private bool _heroReviveCheckRunning;
 
+    // 16s refresher function
     private async Task HandleResourceSnapshotRefreshTickAsync()
     {
+        AppendLog("[HandleResourceSnapshotRefreshTickAsync] 16s tick");
         if (!ShouldRunBackgroundResourceSnapshotRefresh())
         {
             return;
@@ -467,7 +469,7 @@ public partial class MainWindow
             }
         }
 
-        await TryQueueHeroManageForLevelUpIndicatorAsync(options);
+        await TryQueueSpendHeroAttributePointsForLevelUpIndicatorAsync(options);
 
         if (officialServer && refreshedStatus is not null)
         {
@@ -481,16 +483,16 @@ public partial class MainWindow
         }
     }
 
-    private async Task TryQueueHeroManageForLevelUpIndicatorAsync(BotOptions options)
+    private async Task TryQueueSpendHeroAttributePointsForLevelUpIndicatorAsync(BotOptions options)
     {
-        if (!IsHeroAutoAssignPointsEnabledNow(options) || HasActiveHeroManageTask())
+        if (!IsHeroAutoAssignPointsEnabledNow(options) || HasActiveSpendHeroAttributePointsTask())
         {
             return;
         }
 
         if (!IsQueueItemAllowedByAutomationSettings(new QueueItem
             {
-                TaskName = "hero_manage",
+                TaskName = "spend_hero_attribute_points",
                 Group = QueueGroup.Hero,
             }))
         {
@@ -519,13 +521,28 @@ public partial class MainWindow
             return;
         }
 
-        if (!hasLevelUpIndicator || HasActiveHeroManageTask())
+        if (!hasLevelUpIndicator || HasActiveSpendHeroAttributePointsTask())
         {
             return;
         }
 
-        _botService.EnqueueRuntime("hero_manage", "Hero attribute points", null, priority: -50, maxRetries: 0);
-        AppendLog("Hero attributes: queued hero_manage because levelUp indicator is visible.");
+        _botService.EnqueueRuntime("spend_hero_attribute_points", "Hero attribute points", null, priority: -50, maxRetries: 0);
+        AppendLog("Hero attributes: queued spend_hero_attribute_points because levelUp indicator is visible.");
+        WakeContinuousLoopForHeroAttributePoints();
+    }
+
+    private void WakeContinuousLoopForHeroAttributePoints()
+    {
+        if (ContinuousRunToggleButton?.IsChecked != true
+            || _loopTask is null
+            || _loopTask.IsCompleted)
+        {
+            TriggerQueueAutoRunFromEnqueue();
+            return;
+        }
+
+        Interlocked.Exchange(ref _continuousLoopWakeRequested, 1);
+        AppendLog("Hero attributes: continuous loop wake requested for spend_hero_attribute_points.");
     }
 
     private bool IsHeroAutoAssignPointsEnabledNow(BotOptions options)
@@ -543,11 +560,11 @@ public partial class MainWindow
         return Dispatcher.Invoke(() => _heroViewModel.AutoAssignPoints);
     }
 
-    private bool HasActiveHeroManageTask()
+    private bool HasActiveSpendHeroAttributePointsTask()
     {
         return _botService.GetQueueItemsForDisplay()
             .Any(item =>
-                string.Equals(item.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase)
+                string.Equals(item.TaskName, "spend_hero_attribute_points", StringComparison.OrdinalIgnoreCase)
                 && item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused);
     }
 

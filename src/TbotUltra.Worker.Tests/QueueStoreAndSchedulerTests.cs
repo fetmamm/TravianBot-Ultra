@@ -140,6 +140,7 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
         Assert.True(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("upgrade_building_to_max"));
         Assert.True(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("demolish_building_to_level"));
         Assert.True(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("hero_manage"));
+        Assert.True(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("spend_hero_attribute_points"));
         Assert.True(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("send_resources_between_villages"));
         Assert.True(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("send_reinforcements_between_villages"));
         Assert.True(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("collect_daily_quests"));
@@ -162,6 +163,7 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
                 "load_buildings_snapshot",
                 "demolish_building_to_level",
                 "hero_manage",
+                "spend_hero_attribute_points",
                 "hero_set_hide_mode",
                 "upgrade_troops_at_smithy",
                 "build_troops",
@@ -181,6 +183,7 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
     [InlineData("upgrade_building_to_max", TaskGroup.Construction, TaskPayloadKind.BuildingUpgrade)]
     [InlineData("construct_building", TaskGroup.Construction, TaskPayloadKind.BuildingConstruct)]
     [InlineData("hero_manage", TaskGroup.Hero, TaskPayloadKind.Hero)]
+    [InlineData("spend_hero_attribute_points", TaskGroup.Hero, TaskPayloadKind.Hero)]
     [InlineData("send_farmlists", TaskGroup.Farming, TaskPayloadKind.Farming)]
     [InlineData("build_troops", TaskGroup.TroopTraining, TaskPayloadKind.TroopTraining)]
     [InlineData("run_brewery_celebration", TaskGroup.BreweryCelebration, TaskPayloadKind.Brewery)]
@@ -198,6 +201,7 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
     [InlineData("upgrade_resource_to_level", QueueGroup.Construction)]
     [InlineData("construct_building", QueueGroup.Construction)]
     [InlineData("hero_manage", QueueGroup.Hero)]
+    [InlineData("spend_hero_attribute_points", QueueGroup.Hero)]
     [InlineData("hero_set_hide_mode", QueueGroup.Hero)]
     [InlineData("upgrade_troops_at_smithy", QueueGroup.Troops)]
     [InlineData("build_troops", QueueGroup.TroopTraining)]

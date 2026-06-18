@@ -302,8 +302,10 @@ eller sta still, inte vaxa.
 
 - Hero-attributens defaultordning ar `resources,fighting_strength,offence_bonus,defence_bonus` pa bada
   servervarianterna. UI-ordningen sparas konto-scopeat och anvands oforandrad vid poangtilldelning.
-- Background resource-refresh far no-navigation-kolla `i.levelUp.show` och ko:a `hero_manage`
-  for attribute points nar auto-assign och Hero-gruppen ar pa; dedupe:a aktiv `hero_manage`.
+- Background resource-refresh far no-navigation-kolla `i.levelUp.show` och ko:a
+  `spend_hero_attribute_points` nar auto-assign och Hero-gruppen ar pa; dedupe:a endast aktiv
+  `spend_hero_attribute_points` sa deferred `hero_manage` for adventures inte blockerar attributpoang.
+  Nar tasken ko:as ska den vacka en sovande Continuous Loop sa attributpoang inte vantar pa nasta loopintervall.
 - Hero away avgors av travel-signaler/timer fore `heroHome`.
 - Las `.heroState .timerReact` fore oscope:ad sidtext.
 - Health kan innehalla bidi-tecken; rensa dem fore numerisk parsing.
