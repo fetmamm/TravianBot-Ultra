@@ -66,12 +66,12 @@ Compatible with:
 - Calculate building time and resource cost for buildings + resourcefields
 - Oasis scan for whole map (and add to farmlists)
 - Travco inactive search (and add to farmlists)
+- reduce adventure duration 25% button / video watch
+- increase adventure to hard button / video watch
 
 ## Future functions:
 
 - +15% resource production for 8h automatic watch video
-- reduce adventure duration button / video watch
-- increase adventure to hard button / video watch
 - construct 25% faster button / video watch
 
 ## Known bugs:
