@@ -702,6 +702,16 @@ public sealed class TravianClientHelperTests
     }
 
     [Theory]
+    [InlineData("resources,fighting_strength,offence_bonus,defence_bonus", "productionPoints,power,offBonus,defBonus")]
+    [InlineData("fighting_strength,resources", "power,productionPoints,offBonus,defBonus")]
+    [InlineData("", "productionPoints,power,offBonus,defBonus")]
+    public void MapHeroStatPriorityToOfficialFields_PreservesPriority(string input, string expected)
+    {
+        var result = HeroCalc.MapHeroStatPriorityToOfficialFields(input);
+        Assert.Equal(expected, string.Join(",", result));
+    }
+
+    [Theory]
     [InlineData("Main", "main")]
     [InlineData("  Main  ", "main")]
     [InlineData("HTTPS://Example.com/", "https://example.com/")]

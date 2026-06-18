@@ -2022,15 +2022,8 @@ public sealed partial class TravianClient
         {
         }
 
-        var fieldOrder = HeroCalc.ParseHeroStatPriority(priority)
-            .Select(MapStatToOfficialField)
-            .Where(field => field is not null)
-            .Select(field => field!)
-            .ToList();
-        if (fieldOrder.Count == 0)
-        {
-            fieldOrder = ["power", "offBonus", "defBonus", "productionPoints"];
-        }
+        var fieldOrder = HeroCalc.MapHeroStatPriorityToOfficialFields(priority).ToList();
+        Notify($"[hero] official allocation priority='{priority}', fieldOrder={string.Join(",", fieldOrder)}");
 
         var before = await ReadPointsAvailableAsync();
         if (before <= 0)
@@ -2141,18 +2134,43 @@ public sealed partial class TravianClient
               const plusFor = (name) => {
                 const input = document.querySelector(`input[name="${name}"]`);
                 if (!input) return null;
+
+                const selector = 'button.plus, button.textButtonV2.plus';
+                const attributeInputSelector = 'input[name="power"], input[name="offBonus"], input[name="defBonus"], input[name="productionPoints"]';
                 let row = input.parentElement;
                 while (row && row !== document.body) {
-                  const btn = row.querySelector('button.plus, button.textButtonV2.plus');
-                  if (btn) return btn;
+                  const attributeInputs = row.querySelectorAll(attributeInputSelector);
+                  if (attributeInputs.length === 1) {
+                    const btn = row.querySelector(selector);
+                    if (btn) return btn;
+                  }
+
                   row = row.parentElement;
                 }
-                return null;
+
+                const attributeInputs = Array.from(document.querySelectorAll(attributeInputSelector));
+                const nextInput = attributeInputs
+                  .filter(other => other !== input && (input.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING))
+                  .at(0);
+                return Array.from(document.querySelectorAll(selector))
+                  .find(btn =>
+                    (input.compareDocumentPosition(btn) & Node.DOCUMENT_POSITION_FOLLOWING)
+                    && (!nextInput || (btn.compareDocumentPosition(nextInput) & Node.DOCUMENT_POSITION_FOLLOWING)))
+                  || null;
               };
+
+              const isDisabled = (btn) => {
+                const ariaDisabled = (btn?.getAttribute?.('aria-disabled') || '').toLowerCase() === 'true';
+                const classDisabled = btn?.classList?.contains('disabled') === true;
+                return !btn || btn.disabled || ariaDisabled || classDisabled;
+              };
+
               for (const name of order) {
                 const btn = plusFor(name);
-                const ariaDisabled = (btn?.getAttribute?.('aria-disabled') || '').toLowerCase() === 'true';
-                if (!btn || btn.disabled || ariaDisabled) continue;
+                if (isDisabled(btn)) {
+                  continue;
+                }
+
                 robustClick(btn);
                 return name;
               }
@@ -2161,15 +2179,6 @@ public sealed partial class TravianClient
             """,
             fieldOrder);
     }
-
-    private static string? MapStatToOfficialField(string stat) => (stat ?? string.Empty).ToLowerInvariant() switch
-    {
-        "fighting_strength" => "power",
-        "offence_bonus" => "offBonus",
-        "defence_bonus" => "defBonus",
-        "resources" => "productionPoints",
-        _ => null,
-    };
 
     private async Task<int> TryAllocateHeroPointsAsync(string priority, CancellationToken cancellationToken)
     {

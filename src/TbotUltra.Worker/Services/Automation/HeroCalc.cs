@@ -68,4 +68,26 @@ internal static class HeroCalc
 
         return parsed;
     }
+
+    internal static IReadOnlyList<string> MapHeroStatPriorityToOfficialFields(string priority)
+    {
+        var fields = ParseHeroStatPriority(priority)
+            .Select(OfficialFieldForStat)
+            .Where(field => field is not null)
+            .Select(field => field!)
+            .ToList();
+
+        return fields.Count > 0
+            ? fields
+            : ["productionPoints", "power", "offBonus", "defBonus"];
+    }
+
+    private static string? OfficialFieldForStat(string stat) => (stat ?? string.Empty).ToLowerInvariant() switch
+    {
+        "resources" => "productionPoints",
+        "fighting_strength" => "power",
+        "offence_bonus" => "offBonus",
+        "defence_bonus" => "defBonus",
+        _ => null,
+    };
 }

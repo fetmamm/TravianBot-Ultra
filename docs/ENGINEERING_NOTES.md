@@ -306,6 +306,8 @@ eller sta still, inte vaxa.
   `spend_hero_attribute_points` nar auto-assign och Hero-gruppen ar pa; dedupe:a endast aktiv
   `spend_hero_attribute_points` sa deferred `hero_manage` for adventures inte blockerar attributpoang.
   Nar tasken ko:as ska den vacka en sovande Continuous Loop sa attributpoang inte vantar pa nasta loopintervall.
+  Hero-gruppens selector far lata redo `spend_hero_attribute_points` passera en deferred `hero_manage`.
+  Official-attributklick maste scope:a plus-knappen till exakt input-falt (`productionPoints` for resources).
 - Hero away avgors av travel-signaler/timer fore `heroHome`.
 - Las `.heroState .timerReact` fore oscope:ad sidtext.
 - Health kan innehalla bidi-tecken; rensa dem fore numerisk parsing.

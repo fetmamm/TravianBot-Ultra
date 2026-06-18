@@ -645,7 +645,9 @@ public partial class MainWindow
             var candidate = QueueVillageRotation.SelectByVillageRotation(
                 orderedGroupItems,
                 GetQueueItemVillageKey,
-                villageItems => SelectNextReadyGroupHead(villageItems, now),
+                villageItems => group == QueueGroup.Hero
+                    ? SelectNextReadyHeroGroupItem(villageItems, now)
+                    : SelectNextReadyGroupHead(villageItems, now),
                 ref groupRotationKey);
             if (!preview)
             {
@@ -806,6 +808,20 @@ public partial class MainWindow
         }
 
         return head;
+    }
+
+    private static QueueItem? SelectNextReadyHeroGroupItem(IReadOnlyList<QueueItem> villageItems, DateTimeOffset now)
+    {
+        var head = SelectNextReadyGroupHead(villageItems, now);
+        if (head is not null)
+        {
+            return head;
+        }
+
+        return villageItems.FirstOrDefault(item =>
+            string.Equals(item.TaskName, "spend_hero_attribute_points", StringComparison.OrdinalIgnoreCase)
+            && item.Status == QueueStatus.Pending
+            && item.NextAttemptAt <= now);
     }
 
     private QueueItem? SelectNextConstructionQueueItem(
