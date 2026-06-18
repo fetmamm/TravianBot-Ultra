@@ -12,6 +12,7 @@ Analysera projektet och identifiera de 10 största riskerna för:
 - Felaktig automation
 - Korrupt state
 - Felaktig konto-/byhantering
+- Andra fel som kan uppstå
 
 Regler:
 
