@@ -22,9 +22,13 @@ public sealed class BuildingSlotRow
     public bool IsRallyPointSlot { get; init; }
 
     public string LevelLabel => Level is int value ? value.ToString() : "unknown";
+    // A slot is occupied when it carries a real building identity. Level can be 0 while a brand-new
+    // building is still constructing (0 -> 1), either started by the user in the browser or already
+    // in progress when the program logged in; such a slot has a known Gid and must count as occupied
+    // so the UI shows its name and clicking queues an upgrade instead of routing to "construct new".
     public bool IsOccupied => !string.IsNullOrWhiteSpace(Name)
         && !string.Equals(Name, "Empty", StringComparison.OrdinalIgnoreCase)
-        && (Level ?? 0) > 0;
+        && ((Level ?? 0) > 0 || (Gid ?? 0) > 0);
     public bool IsReservedForConstruction => HasPendingConstruct;
     public bool HasPendingUpgrade => PendingTargetLevel is int pending && pending > (Level ?? 0);
     public bool HasPendingConstruct => !IsOccupied && !string.IsNullOrWhiteSpace(PendingConstructName);
