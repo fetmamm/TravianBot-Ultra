@@ -430,6 +430,11 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.HeroContinuousAdventures)]
     public bool HeroContinuousAdventures { get; init; }
 
+    /// <summary>When true, the adventure function first activates "Increased adventure danger to hard"
+    /// (via the bonus video) before dispatching the hero. Official Travian only.</summary>
+    [ConfigurationKeyName(BotOptionPayloadKeys.IncreaseAdventuresToHard)]
+    public bool IncreaseAdventuresToHard { get; init; }
+
     [ConfigurationKeyName(BotOptionPayloadKeys.AutoCollectTasksEnabled)]
     public bool AutoCollectTasksEnabled { get; init; }
 

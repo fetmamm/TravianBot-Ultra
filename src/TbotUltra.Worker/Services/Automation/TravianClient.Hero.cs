@@ -76,6 +76,15 @@ public sealed partial class TravianClient
                 Message: "No adventures available. Nothing to dispatch.");
         }
 
+        // Before dispatching, optionally raise the next adventure's danger to hard via the bonus video.
+        // IncreaseAdventuresToHardAsync navigates to adventures, skips if already active, and never
+        // throws, so the dispatch below continues regardless of its outcome.
+        if (_config.IncreaseAdventuresToHard)
+        {
+            var hardResult = await IncreaseAdventuresToHardAsync(cancellationToken);
+            Notify($"[hero] increase-adventures-to-hard: {hardResult}");
+        }
+
         await OpenAdventureListWithFallbackAsync(cancellationToken);
 
         var openedDetail = await ClickFirstAdventureEntryAsync(cancellationToken);
@@ -1202,6 +1211,15 @@ public sealed partial class TravianClient
 
         if (adventureCount > 0 && canSendByHp && inVillage)
         {
+            // Optionally raise the next adventure's danger to hard (bonus video) before dispatching.
+            // Self-skips if already active and never throws, so dispatch proceeds regardless.
+            if (_config.IncreaseAdventuresToHard)
+            {
+                var hardResult = await IncreaseAdventuresToHardAsync(cancellationToken);
+                Notify($"[hero] increase-adventures-to-hard: {hardResult}");
+                actions.Add("increase_danger_to_hard");
+            }
+
             var (sent, durationSeconds, returnSeconds) = await TrySendHeroToAdventureAsync(adventurePickOrder, cancellationToken);
             heroReturnWaitSeconds = returnSeconds > 0 ? returnSeconds : durationSeconds > 0 ? durationSeconds * 2 : null;
             if (sent)

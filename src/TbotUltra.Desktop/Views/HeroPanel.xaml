@@ -79,7 +79,11 @@
                                     <CheckBox Content="Auto assign attribute points" IsChecked="{Binding AutoAssignPoints}" Margin="0,0,0,6" />
                                     <CheckBox Content="Auto use ointments" IsChecked="{Binding AutoUseOintments}" Margin="0,0,0,6" />
                                     <CheckBox Content="Manage hero defence"
-                                              IsChecked="{Binding HideModeControlEnabled}" />
+                                              IsChecked="{Binding HideModeControlEnabled}"
+                                              Margin="0,0,0,6" />
+                                    <CheckBox Content="Increase adventures to hard"
+                                              IsChecked="{Binding IncreaseAdventuresToHard}"
+                                              ToolTip="When on, the adventure function first watches the bonus video to raise the next adventure's danger to hard (Official Travian only). Skipped automatically if it is already active." />
                                 </StackPanel>
                             </Border>
                         </Grid>

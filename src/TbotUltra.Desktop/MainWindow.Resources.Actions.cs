@@ -85,6 +85,7 @@ public partial class MainWindow
         _resourceTestFunctionsWindow.NpcTradeBuildingTestRequested += TestNpcTradeBuildingButton_Click;
         _resourceTestFunctionsWindow.ReadSmithyQueueTestRequested += TestReadSmithyQueueButton_Click;
         _resourceTestFunctionsWindow.ReinforcementsTestRequested += TestReinforcementsButton_Click;
+        _resourceTestFunctionsWindow.IncreaseAdventuresToHardRequested += TestIncreaseAdventuresToHardButton_Click;
         _resourceTestFunctionsWindow.SavePageHtmlRequested += SavePageHtmlButton_Click;
         _resourceTestFunctionsWindow.Closed += (_, _) =>
         {
@@ -95,6 +96,7 @@ public partial class MainWindow
             _resourceTestFunctionsWindow.NpcTradeBuildingTestRequested -= TestNpcTradeBuildingButton_Click;
             _resourceTestFunctionsWindow.ReadSmithyQueueTestRequested -= TestReadSmithyQueueButton_Click;
             _resourceTestFunctionsWindow.ReinforcementsTestRequested -= TestReinforcementsButton_Click;
+            _resourceTestFunctionsWindow.IncreaseAdventuresToHardRequested -= TestIncreaseAdventuresToHardButton_Click;
             _resourceTestFunctionsWindow.SavePageHtmlRequested -= SavePageHtmlButton_Click;
             _resourceTestFunctionsWindow = null;
         };
@@ -687,6 +689,44 @@ public partial class MainWindow
         {
             StatusTextBlock.Text = "Reinforcements test paused.";
             AppendLog("Reinforcements test paused.");
+        }
+        catch (Exception ex)
+        {
+            FailOperation(operationId, operationSw, ex);
+        }
+        finally
+        {
+            ToggleResourceTabActionsBusy(false);
+            DisposeOperationCts();
+        }
+    }
+
+    private async void TestIncreaseAdventuresToHardButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (BlockIfSessionSleeping("Increase adventure danger"))
+        {
+            return;
+        }
+
+        var operationId = BeginOperation("IncreaseAdventuresToHard");
+        var operationSw = Stopwatch.StartNew();
+        var operationToken = _loopController.StartOperation("operation");
+        ToggleResourceTabActionsBusy(true);
+        try
+        {
+            var options = LoadBotOptions();
+            AppendLog($"[{operationId}] increasing next adventure danger to hard via bonus video.");
+            var result = await _botService.RunIncreaseAdventuresToHardAsync(
+                options,
+                AppendLog,
+                operationToken);
+            AppendLog($"[{operationId}] increase adventure danger result: {result}");
+            CompleteOperation(operationId, operationSw, result);
+        }
+        catch (OperationCanceledException)
+        {
+            StatusTextBlock.Text = "Increase adventure danger paused.";
+            AppendLog("Increase adventure danger paused.");
         }
         catch (Exception ex)
         {

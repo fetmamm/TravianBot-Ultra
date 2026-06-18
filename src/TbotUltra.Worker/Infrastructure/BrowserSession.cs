@@ -158,10 +158,35 @@ public sealed class BrowserSession : IAsyncDisposable
             _playwright = await Playwright.CreateAsync();
             // The live session must always run with a visible window. Headless is forced off here so a
             // stale config value (or a missing browser window) can never start the bot headless.
-            _browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+            var launchOptions = new BrowserTypeLaunchOptions
             {
                 Headless = false,
-            });
+            };
+
+            // Official Travian's bonus videos (e.g. "increased adventure danger") require third-party
+            // cookies. Disable Chromium's third-party-cookie phaseout so the ad/consent flow can run.
+            // Private servers (SS-Travi) keep the default so their cross-promo behaviour is unchanged.
+            if (!_config.IsPrivateServer)
+            {
+                launchOptions.Args = new[] { "--disable-features=TrackingProtection3pcd" };
+
+                // The bonus ad videos are H.264/AAC, which Playwright's bundled open-source Chromium
+                // cannot decode ("format is not supported"). Use the system Google Chrome build, which
+                // ships the proprietary codecs. If Chrome is not installed we fall back to bundled
+                // Chromium (everything except the bonus videos still works).
+                var chromeChannel = ResolveInstalledChromeChannel();
+                if (chromeChannel is not null)
+                {
+                    launchOptions.Channel = chromeChannel;
+                    _log?.Invoke($"[browser] using system browser channel '{chromeChannel}' for codec support.");
+                }
+                else
+                {
+                    _log?.Invoke("[browser] no system Chrome/Edge found; bonus videos may fail (missing H.264/AAC codecs).");
+                }
+            }
+
+            _browser = await _playwright.Chromium.LaunchAsync(launchOptions);
 
             var contextOptions = new BrowserNewContextOptions
             {
@@ -180,7 +205,10 @@ public sealed class BrowserSession : IAsyncDisposable
         _context.SetDefaultTimeout(_config.TimeoutMs);
         await _context.RouteAsync("**/*", async route =>
         {
-            if (IsBlockedPopupOrConsentUrl(route.Request.Url))
+            // consentmanager.net is the third-party cookie consent provider. Only block it on private
+            // servers (SS-Travi cross-promo suppression). On Official it must load so bonus videos
+            // (which require third-party cookies) can work.
+            if (_config.IsPrivateServer && IsBlockedPopupOrConsentUrl(route.Request.Url))
             {
                 await route.AbortAsync();
                 return;
@@ -339,7 +367,7 @@ public sealed class BrowserSession : IAsyncDisposable
         try
         {
             var url = popup.Url ?? string.Empty;
-            if (!IsBlockedPopupOrConsentUrl(url))
+            if (!_config.IsPrivateServer || !IsBlockedPopupOrConsentUrl(url))
             {
                 return false;
             }
@@ -352,6 +380,38 @@ public sealed class BrowserSession : IAsyncDisposable
         {
             return false;
         }
+    }
+
+    // Returns the Playwright browser channel to use when proprietary codecs are needed (bonus videos),
+    // preferring Google Chrome, then Edge. Returns null when neither is installed at a standard path.
+    private static string? ResolveInstalledChromeChannel()
+    {
+        var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+        var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+
+        var chromePaths = new[]
+        {
+            Path.Combine(programFiles, "Google", "Chrome", "Application", "chrome.exe"),
+            Path.Combine(programFilesX86, "Google", "Chrome", "Application", "chrome.exe"),
+            Path.Combine(localAppData, "Google", "Chrome", "Application", "chrome.exe"),
+        };
+        if (chromePaths.Any(File.Exists))
+        {
+            return "chrome";
+        }
+
+        var edgePaths = new[]
+        {
+            Path.Combine(programFiles, "Microsoft", "Edge", "Application", "msedge.exe"),
+            Path.Combine(programFilesX86, "Microsoft", "Edge", "Application", "msedge.exe"),
+        };
+        if (edgePaths.Any(File.Exists))
+        {
+            return "msedge";
+        }
+
+        return null;
     }
 
     private static bool IsBlockedPopupOrConsentUrl(string? url)

@@ -31,6 +31,7 @@ public static class BotOptionsPayloadApplier
         var heroHideModeEnabled = source.HeroHideModeEnabled;
         var heroHideMode = source.HeroHideMode;
         var heroContinuousAdventures = source.HeroContinuousAdventures;
+        var increaseAdventuresToHard = source.IncreaseAdventuresToHard;
         var autoCollectTasksEnabled = source.AutoCollectTasksEnabled;
         var autoCollectDailyQuestsEnabled = source.AutoCollectDailyQuestsEnabled;
         var collectStepDelayMinMs = source.CollectStepDelayMinMs;
@@ -304,6 +305,13 @@ public static class BotOptionsPayloadApplier
                     && bool.TryParse(value, out var continuousAdventures))
                 {
                     heroContinuousAdventures = continuousAdventures;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.IncreaseAdventuresToHard, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var increaseToHard))
+                {
+                    increaseAdventuresToHard = increaseToHard;
                     continue;
                 }
 
@@ -1129,6 +1137,7 @@ public static class BotOptionsPayloadApplier
             HeroHideModeEnabled = heroHideModeEnabled,
             HeroHideMode = heroHideMode,
             HeroContinuousAdventures = heroContinuousAdventures,
+            IncreaseAdventuresToHard = increaseAdventuresToHard,
             AutoCollectTasksEnabled = autoCollectTasksEnabled,
             AutoCollectDailyQuestsEnabled = autoCollectDailyQuestsEnabled,
             CollectStepDelayMinMs = collectStepDelayMinMs,

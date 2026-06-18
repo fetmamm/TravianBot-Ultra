@@ -1219,6 +1219,7 @@ public partial class MainWindow : Window
             or nameof(HeroViewModel.IsHideModeFight)
             or nameof(HeroViewModel.IsHideModeHide)
             or nameof(HeroViewModel.ContinuousAdventures)
+            or nameof(HeroViewModel.IncreaseAdventuresToHard)
             or nameof(HeroViewModel.HeroResourceMaxUseEnabled)
             or nameof(HeroViewModel.HeroResourceMaxUsePerResource)
             or nameof(HeroViewModel.HeroResourceUseConstruction)

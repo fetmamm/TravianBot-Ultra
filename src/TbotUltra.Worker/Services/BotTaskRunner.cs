@@ -1223,6 +1223,29 @@ public sealed class BotTaskRunner
         return result;
     }
 
+    public async Task<string> RunIncreaseAdventuresToHardAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = "Increase adventure danger: no result.";
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: true,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                result = await client.IncreaseAdventuresToHardAsync(cancellationToken);
+            });
+
+        log(result);
+        return result;
+    }
+
     public async Task<string> ReadSmithyQueueFromCurrentPageTestAsync(
         BotOptions options,
         Action<string> log,

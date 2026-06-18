@@ -66,6 +66,7 @@ public static class BotOptionPayloadKeys
     public const string HeroHideModeEnabled = "hero_hide_mode_enabled";
     public const string HeroHideMode = "hero_hide_mode"; // "hide" or "fight"
     public const string HeroContinuousAdventures = "hero_continuous_adventures";
+    public const string IncreaseAdventuresToHard = "increase_adventures_to_hard";
     public const string AutoCollectTasksEnabled = "auto_collect_tasks_enabled";
     public const string AutoCollectDailyQuestsEnabled = "auto_collect_daily_quests_enabled";
     // Randomized delay (ms) between internal clicks/steps in the auto-collect tasks/daily-quests

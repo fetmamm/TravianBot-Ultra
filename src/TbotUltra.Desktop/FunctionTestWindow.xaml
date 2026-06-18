@@ -86,6 +86,15 @@
                     ToolTip="Runs the reinforcement function with the saved Reinforcements settings. If only one village exists, the test still starts and reports the function result."
                     ToolTipService.InitialShowDelay="500"
                     Click="TestReinforcementsButton_Click" />
+
+            <Button x:Name="TestIncreaseAdventuresToHardButton"
+                    HorizontalAlignment="Left"
+                    Margin="0,8,0,0"
+                    Padding="10,4"
+                    Content="Increase adventure danger to hard"
+                    ToolTip="Opens the hero adventures page, watches the 'Increased adventure danger to hard' bonus video, and confirms 'Active for next normal adventure'."
+                    ToolTipService.InitialShowDelay="500"
+                    Click="TestIncreaseAdventuresToHardButton_Click" />
         </StackPanel>
 
         <TextBlock Grid.Row="1"

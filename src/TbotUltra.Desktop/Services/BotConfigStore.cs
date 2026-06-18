@@ -41,6 +41,7 @@ public sealed class BotConfigStore
         BotOptionPayloadKeys.HeroHideModeEnabled,
         BotOptionPayloadKeys.HeroHideMode,
         BotOptionPayloadKeys.HeroContinuousAdventures,
+        BotOptionPayloadKeys.IncreaseAdventuresToHard,
         BotOptionPayloadKeys.AutoCollectTasksEnabled,
         BotOptionPayloadKeys.AutoCollectDailyQuestsEnabled,
         BotOptionPayloadKeys.CollectStepDelayMinMs,
