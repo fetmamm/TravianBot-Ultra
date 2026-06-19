@@ -148,6 +148,7 @@ public static class SmithyUpgradeTargetsStore
             Directory.CreateDirectory(directory);
         }
 
-        File.WriteAllText(path, JsonSerializer.Serialize(file, SerializerOptions));
+        // Atomic temp-file + move so a crash mid-write cannot corrupt smithy_upgrade.json.
+        AtomicFile.WriteAllText(path, JsonSerializer.Serialize(file, SerializerOptions));
     }
 }

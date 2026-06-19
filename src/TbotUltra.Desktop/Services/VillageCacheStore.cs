@@ -414,13 +414,11 @@ public sealed class VillageCacheStore
 
     private static void WriteAllTextShared(string path, string content)
     {
+        // Lock serializes in-process writers; AtomicFile makes the write itself crash-safe so a
+        // concurrent reader never sees a half-written village cache.
         lock (FileIoLock)
         {
-            RetryFileIo(() =>
-            {
-                File.WriteAllText(path, content);
-                return true;
-            });
+            AtomicFile.WriteAllText(path, content);
         }
     }
 

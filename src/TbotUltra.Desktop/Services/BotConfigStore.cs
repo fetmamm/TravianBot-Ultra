@@ -553,13 +553,11 @@ public sealed class BotConfigStore
 
     private static void WriteAllTextShared(string path, string content)
     {
+        // Lock serializes in-process writers; AtomicFile makes the write itself crash-safe so a
+        // crash mid-write cannot leave bot.json as corrupt/partial JSON.
         lock (FileIoLock)
         {
-            RetryFileIo(() =>
-            {
-                File.WriteAllText(path, content);
-                return true;
-            });
+            AtomicFile.WriteAllText(path, content);
         }
     }
 

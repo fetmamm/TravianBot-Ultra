@@ -138,6 +138,7 @@ public static class TroopTrainingSettingsStore
             Directory.CreateDirectory(directory);
         }
 
-        File.WriteAllText(path, JsonSerializer.Serialize(file, SerializerOptions));
+        // Atomic temp-file + move so a crash mid-write cannot corrupt troop_training.json.
+        AtomicFile.WriteAllText(path, JsonSerializer.Serialize(file, SerializerOptions));
     }
 }

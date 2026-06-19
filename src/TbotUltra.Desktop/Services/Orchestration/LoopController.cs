@@ -205,12 +205,15 @@ public sealed class LoopController : IDisposable
     private CancellationTokenSource? _loopCts;
 
     /// <summary>
-    /// Starts a new continuous-loop scope and returns its token. The previous
-    /// loop CTS is intentionally not disposed here, mirroring prior MainWindow
-    /// behavior (the loop CTS was only cancelled and replaced, never disposed).
+    /// Cancels and disposes any prior continuous-loop CTS, then starts a new one
+    /// and returns its token. A loop restart always happens after the previous
+    /// loop task has completed, so the old token is no longer awaited and can be
+    /// disposed safely — this prevents one undisposed CTS leaking per loop start.
     /// </summary>
     public CancellationToken StartLoop(string label)
     {
+        _loopCts?.Cancel();
+        _loopCts?.Dispose();
         _loopCts = CreateCts(label);
         return _loopCts.Token;
     }

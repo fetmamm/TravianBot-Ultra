@@ -785,11 +785,8 @@ public sealed class VillageSettingsStore
 
     private static void WriteAllTextShared(string path, string content)
     {
-        RetryFileIo(() =>
-        {
-            File.WriteAllText(path, content);
-            return true;
-        });
+        // Atomic temp-file + move so a crash mid-write cannot corrupt villages.json.
+        AtomicFile.WriteAllText(path, content);
     }
 
     private static T RetryFileIo<T>(Func<T> action)

@@ -722,6 +722,11 @@ public partial class MainWindow
         // Account switching must clear only in-memory/UI state. Each account's queue.json is preserved
         // and becomes visible again when that account is selected later in the same app session.
         ClearAccountScopedUiState(clearQueue: false);
+
+        // bot.json is global, so the previous account's village/farm-list pointers would otherwise leak
+        // into the next account and make its first login navigate to a non-existent village. Strip them
+        // here; the new account's own settings.json overlay re-supplies its values on the next load.
+        ClearPersistedAccountScopedConfig();
     }
 
     // bot.json is shared across accounts, but a handful of settings point at specific villages or

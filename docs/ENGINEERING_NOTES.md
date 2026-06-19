@@ -92,6 +92,8 @@ document.querySelector(
 - All ko- och slotbaserad UI-harledning ska filtreras till vald by eller uttryckligen globala items.
 - Settings-fonstret far inte skriva konto-scopeade overlay-varden tillbaka till global config.
 - `ServerFlavor` ar aldrig en sparad setting.
+- Kontobyte rensar `bot.json`:s konto-scopeade pekare (by-/farmlist-namn/ids) via `ClearPersistedAccountScopedConfig` sa de inte lacker till nasta konto.
+- Config-/cache-stores skriver via `AtomicFile.WriteAllText` (temp-fil + `File.Move`) sa en krasch mitt i skrivning aldrig korrumperar JSON; nya stores ska folja samma monster.
 
 For en ny dashboard-bool ska hela configkedjan uppdateras:
 `BotOptionPayloadKeys` -> `BotOptions` -> `BotOptionsFactory` ->
