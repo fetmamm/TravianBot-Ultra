@@ -76,7 +76,7 @@ public static class BuildingCatalogService
         [29] = [new("Barracks", 20)],
         [30] = [new("Stable", 20)],
         [34] = [new("Main Building", 5)],
-        [35] = [new("Main Building", 10)],
+        [35] = [new("Granary", 20), new("Rally Point", 10)],
         [36] = [new("Rally Point", 1)],
         [37] = [new("Main Building", 3), new("Rally Point", 1)],
         [41] = [new("Rally Point", 10), new("Stable", 20)],

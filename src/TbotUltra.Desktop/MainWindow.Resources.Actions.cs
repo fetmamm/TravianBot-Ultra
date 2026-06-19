@@ -86,6 +86,7 @@ public partial class MainWindow
         _resourceTestFunctionsWindow.ReadSmithyQueueTestRequested += TestReadSmithyQueueButton_Click;
         _resourceTestFunctionsWindow.ReinforcementsTestRequested += TestReinforcementsButton_Click;
         _resourceTestFunctionsWindow.IncreaseAdventuresToHardRequested += TestIncreaseAdventuresToHardButton_Click;
+        _resourceTestFunctionsWindow.ReduceAdventuresTimeRequested += TestReduceAdventuresTimeButton_Click;
         _resourceTestFunctionsWindow.SavePageHtmlRequested += SavePageHtmlButton_Click;
         _resourceTestFunctionsWindow.Closed += (_, _) =>
         {
@@ -97,6 +98,7 @@ public partial class MainWindow
             _resourceTestFunctionsWindow.ReadSmithyQueueTestRequested -= TestReadSmithyQueueButton_Click;
             _resourceTestFunctionsWindow.ReinforcementsTestRequested -= TestReinforcementsButton_Click;
             _resourceTestFunctionsWindow.IncreaseAdventuresToHardRequested -= TestIncreaseAdventuresToHardButton_Click;
+            _resourceTestFunctionsWindow.ReduceAdventuresTimeRequested -= TestReduceAdventuresTimeButton_Click;
             _resourceTestFunctionsWindow.SavePageHtmlRequested -= SavePageHtmlButton_Click;
             _resourceTestFunctionsWindow = null;
         };
@@ -727,6 +729,44 @@ public partial class MainWindow
         {
             StatusTextBlock.Text = "Increase adventure danger paused.";
             AppendLog("Increase adventure danger paused.");
+        }
+        catch (Exception ex)
+        {
+            FailOperation(operationId, operationSw, ex);
+        }
+        finally
+        {
+            ToggleResourceTabActionsBusy(false);
+            DisposeOperationCts();
+        }
+    }
+
+    private async void TestReduceAdventuresTimeButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (BlockIfSessionSleeping("Reduce adventure time"))
+        {
+            return;
+        }
+
+        var operationId = BeginOperation("ReduceAdventuresTime");
+        var operationSw = Stopwatch.StartNew();
+        var operationToken = _loopController.StartOperation("operation");
+        ToggleResourceTabActionsBusy(true);
+        try
+        {
+            var options = LoadBotOptions();
+            AppendLog($"[{operationId}] reducing next adventure duration by 25% via bonus video.");
+            var result = await _botService.RunReduceAdventuresTimeAsync(
+                options,
+                AppendLog,
+                operationToken);
+            AppendLog($"[{operationId}] reduce adventure time result: {result}");
+            CompleteOperation(operationId, operationSw, result);
+        }
+        catch (OperationCanceledException)
+        {
+            StatusTextBlock.Text = "Reduce adventure time paused.";
+            AppendLog("Reduce adventure time paused.");
         }
         catch (Exception ex)
         {

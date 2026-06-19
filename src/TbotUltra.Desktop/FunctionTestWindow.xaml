@@ -95,6 +95,15 @@
                     ToolTip="Opens the hero adventures page, watches the 'Increased adventure danger to hard' bonus video, and confirms 'Active for next normal adventure'."
                     ToolTipService.InitialShowDelay="500"
                     Click="TestIncreaseAdventuresToHardButton_Click" />
+
+            <Button x:Name="TestReduceAdventuresTimeButton"
+                    HorizontalAlignment="Left"
+                    Margin="0,8,0,0"
+                    Padding="10,4"
+                    Content="Reduce adventure time 25%"
+                    ToolTip="Opens the hero adventures page, watches the 'Reduce adventure duration by 25%' bonus video, and confirms it is active for the next adventure."
+                    ToolTipService.InitialShowDelay="500"
+                    Click="TestReduceAdventuresTimeButton_Click" />
         </StackPanel>
 
         <TextBlock Grid.Row="1"

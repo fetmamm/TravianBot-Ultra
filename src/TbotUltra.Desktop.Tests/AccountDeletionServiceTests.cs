@@ -69,6 +69,31 @@ public sealed class AccountDeletionServiceTests : IDisposable
     }
 
     [Fact]
+    public void DeleteAccount_DeleteAnywayClearsActiveQueueAndRemovesAccount()
+    {
+        WriteEnv("alice,bob", "alice");
+        WriteBotConfigWithReinforcementRules();
+        WriteAccountArtifacts("alice");
+        var accountStore = new EnvAccountStore(_envPath);
+        var queueStore = CreateQueueStore(accountStore);
+        queueStore.Add("status", null, priority: 0, maxRetries: 0);
+        var aliceQueuePath = AccountStoragePaths.AccountQueuePath(_root, "alice");
+        var service = new AccountDeletionService(
+            _root,
+            accountStore,
+            new BotConfigStore(_configPath, _root, accountStore.ActiveAccountName),
+            queueStore);
+
+        service.DeleteAccount("alice", deleteAnyway: true);
+
+        var env = File.ReadAllText(_envPath);
+        Assert.DoesNotContain("TBOT_ALICE_USERNAME", env);
+        Assert.Contains("TBOT_ACTIVE_ACCOUNT=bob", env);
+        Assert.False(File.Exists(aliceQueuePath));
+        Assert.False(Directory.Exists(AccountStoragePaths.AccountDirectory(_root, "alice")));
+    }
+
+    [Fact]
     public void DeleteAccount_AllowsInactiveAccountWhenActiveAccountHasQueue()
     {
         WriteEnv("alice,bob", "alice");

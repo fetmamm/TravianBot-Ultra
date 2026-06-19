@@ -237,6 +237,11 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
         return _taskRunner.RunIncreaseAdventuresToHardAsync(options, log, null, cancellationToken);
     }
 
+    public Task<string> RunReduceAdventuresTimeAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.RunReduceAdventuresTimeAsync(options, log, null, cancellationToken);
+    }
+
     public Task<string> ReadSmithyQueueFromCurrentPageTestAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.ReadSmithyQueueFromCurrentPageTestAsync(options, log, null, cancellationToken);

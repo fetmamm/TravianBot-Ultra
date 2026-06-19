@@ -48,6 +48,9 @@ public sealed partial class TravianClient
     private readonly NatarFarmCacheStore _natarFarmCacheStore;
     private readonly ICaptchaAutoSolver? _captchaAutoSolver;
     private readonly Action<string>? _statusCallback;
+    // Flips the browser session's consentmanager route block on/off; used only by the bonus-video flow,
+    // which needs GDPR/TCF consent while the rest of the session keeps it blocked (no stray sync tabs).
+    private readonly Action<bool>? _setConsentDomainsAllowed;
     private DateTimeOffset? _serverTimeUtc;
     private DateTimeOffset _lastManualVerificationScreenshotAt = DateTimeOffset.MinValue;
     private string? _cachedTribe;
@@ -150,10 +153,12 @@ public sealed partial class TravianClient
         string? projectRoot = null,
         ICaptchaAutoSolver? captchaAutoSolver = null,
         Action<string>? statusCallback = null,
-        TravianSessionCache? sessionCache = null)
+        TravianSessionCache? sessionCache = null,
+        Action<bool>? setConsentDomainsAllowed = null)
     {
         _page = page;
         _config = config;
+        _setConsentDomainsAllowed = setConsentDomainsAllowed;
         _account = account;
         _interactive = interactive;
         _browserVisible = browserVisible;

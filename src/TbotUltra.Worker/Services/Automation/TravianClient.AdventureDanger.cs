@@ -37,6 +37,85 @@ public sealed partial class TravianClient
     {
         Notify($"[adventure-video] starting — {label} via bonus video");
         await EnsureLoggedInAsync();
+
+        // consentmanager.net is blocked during normal operation (its OOPIF otherwise spawns periodic
+        // sync tabs). The bonus video needs GDPR/TCF consent, so allow it for this flow only, then
+        // restore the block so idle/loop operation stays tab-free.
+        _setConsentDomainsAllowed?.Invoke(true);
+        try
+        {
+            return await RunAdventureVideoBonusCoreAsync(boxClass, label, cancellationToken);
+        }
+        finally
+        {
+            // Re-block the ad/consent domains, then navigate AWAY to dorf1. Blocking only stops NEW
+            // requests — the ad/consent JS loaded during the video stays resident in the adventures page
+            // and keeps calling window.open (spawning blank/consent tabs) until that page is unloaded.
+            // We must NOT reload adventures (it re-inits the videoFeature ad stack → a fresh burst).
+            // dorf1 has no videoFeature box, so with the block active it loads no ad stack at all and
+            // the resident timers are destroyed on navigation → idle stays tab-free.
+            _setConsentDomainsAllowed?.Invoke(false);
+            await FlushResidentAdProvidersAsync(cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// ROOT FIX for the stray ad tabs: the bonus video makes consentmanager write first-party consent
+    /// (__cmp* cookies + localStorage on travian.com). If that persists, Travian's own JS sees stored
+    /// consent on every page load and runs the ad stack, which spawns window.open tabs (network blocking
+    /// can't stop a window.open-created tab). So after the video we delete the consent here, then
+    /// navigate to dorf1 (no videoFeature box) to unload the resident ad JS. Consent is re-established
+    /// transiently by the next video. Best-effort; failures are logged but not fatal.
+    /// </summary>
+    private async Task FlushResidentAdProvidersAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _page.EvaluateAsync(
+                """
+                () => {
+                  const isConsent = (k) => /^__cmp|^cmp|consent|^euconsent|^usprivacy/i.test(k || '');
+                  try {
+                    for (const k of Object.keys(localStorage)) {
+                      if (isConsent(k)) localStorage.removeItem(k);
+                    }
+                  } catch (e) {}
+                  try {
+                    const host = location.hostname;
+                    const base = host.split('.').slice(-2).join('.');
+                    const domains = ['', host, '.' + host, base, '.' + base];
+                    document.cookie.split(';').forEach((c) => {
+                      const name = c.split('=')[0].trim();
+                      if (!isConsent(name)) return;
+                      for (const dom of domains) {
+                        document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/'
+                          + (dom ? ';domain=' + dom : '');
+                      }
+                    });
+                  } catch (e) {}
+                  return true;
+                }
+                """);
+            Notify("[adventure-video] cleared consentmanager consent (cookies + localStorage).");
+        }
+        catch (PlaywrightException ex)
+        {
+            Notify($"[adventure-video] could not clear consent storage: {ex.Message}");
+        }
+
+        try
+        {
+            await GotoAsync(Paths.Resources, cancellationToken);
+            Notify("[adventure-video] navigated to dorf1 to unload resident ad/consent providers.");
+        }
+        catch (PlaywrightException ex)
+        {
+            Notify($"[adventure-video] could not navigate to flush ad providers: {ex.Message}");
+        }
+    }
+
+    private async Task<string> RunAdventureVideoBonusCoreAsync(string boxClass, string label, CancellationToken cancellationToken)
+    {
         await OpenHeroAdventuresPageAsync(cancellationToken);
 
         var state = await ReadAdventureVideoStateAsync(boxClass, cancellationToken);

@@ -230,20 +230,42 @@ public partial class AccountsWindow : Window
             return;
         }
 
-        var confirm = AppDialog.Show(this, $"Delete account '{selected.Username}'?", "Delete account", MessageBoxButton.YesNo, MessageBoxImage.Question);
-        if (confirm != MessageBoxResult.Yes)
-        {
-            return;
-        }
-
         try
         {
+            var blockingQueueItems = _deletionService.CountActiveQueueItemsBlockingDeletion(selected.Name);
+            var deleteAnyway = blockingQueueItems > 0;
+            if (deleteAnyway)
+            {
+                var confirmAnyway = AppDialog.ShowCustom(
+                    this,
+                    $"Delete active account '{selected.Username}' anyway?\n\nThis clears {blockingQueueItems} pending, running, or paused queue item(s) and removes the account state. This cannot be undone.",
+                    "Delete account",
+                    [("Delete anyway", MessageBoxResult.Yes), ("Cancel", MessageBoxResult.Cancel)],
+                    MessageBoxImage.Warning,
+                    MessageBoxResult.Cancel,
+                    MessageBoxResult.Cancel);
+                if (confirmAnyway != MessageBoxResult.Yes)
+                {
+                    return;
+                }
+            }
+            else
+            {
+                var confirm = AppDialog.Show(this, $"Delete account '{selected.Username}'?", "Delete account", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (confirm != MessageBoxResult.Yes)
+                {
+                    return;
+                }
+            }
+
             // Deleting an account should not trigger an extra unsaved-changes prompt
             // when the selection is reloaded after removal.
             _selectedAccountName = string.Empty;
-            _deletionService.DeleteAccount(selected.Name);
+            _deletionService.DeleteAccount(selected.Name, deleteAnyway: deleteAnyway);
             Reload();
-            InfoTextBlock.Text = $"Deleted account '{selected.Username}'.";
+            InfoTextBlock.Text = deleteAnyway
+                ? $"Deleted account '{selected.Username}' and cleared {blockingQueueItems} queue item(s)."
+                : $"Deleted account '{selected.Username}'.";
         }
         catch (Exception ex)
         {

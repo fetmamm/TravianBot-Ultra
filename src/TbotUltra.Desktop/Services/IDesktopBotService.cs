@@ -60,6 +60,7 @@ public interface IDesktopBotService
     Task<string> ReadSmithyQueueFromCurrentPageTestAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<string> RunReinforcementsTestAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<string> RunIncreaseAdventuresToHardAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
+    Task<string> RunReduceAdventuresTimeAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<AccountSnapshot> ReadAccountSnapshotForScanAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<VillageStatus> ReadVillageStatusWithSmithyAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken);
     Task<VillageStatus> ReadVillageStatusAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken);

@@ -1244,11 +1244,12 @@ public sealed partial class TravianClient
                 actions.Add("adventure_not_clickable");
             }
         }
-        else if (adventureCount > 0 && !inVillage)
+        else if (!inVillage && !status.IsDead)
         {
             actions.Add("adventure_skipped_hero_away");
-            // The hero is on an adventure. Read the return ETA so the loop defers until the hero
-            // is home instead of re-queueing hero_manage every tick (which otherwise spams).
+            // The hero is away (on an adventure/attack). Read the return ETA — regardless of the
+            // adventure count — so the loop defers until the hero is home instead of re-queueing
+            // hero_manage every tick, and the dashboard shows the return timer instead of "Ready".
             if (heroReturnWaitSeconds is not > 0)
             {
                 heroReturnWaitSeconds = await ReadHeroReturnEtaWhenAwayAsync(cancellationToken);
@@ -1264,9 +1265,10 @@ public sealed partial class TravianClient
             ? (status.UnassignedPoints > 0 ? status.UnassignedPoints.ToString() : "signal")
             : status.UnassignedPoints.ToString();
         var summary = $"Hero status: dead={status.IsDead}, hp={hpPercent?.ToString() ?? "?"}%, adventures={adventureCount}, points={pointsText}, in_village={inVillage}";
-        // When the hero is away, always defer by the return ETA (or a sane fallback) so the loop
-        // does not re-run hero_manage every second while there is nothing to do.
-        if (!inVillage && adventureCount > 0)
+        // When the hero is away (not dead), always defer by the return ETA (or a sane fallback) so the
+        // loop does not re-run hero_manage every second and the dashboard shows the return timer
+        // instead of "Ready" — independent of the adventure count read while away.
+        if (!inVillage && !status.IsDead)
         {
             var awaitSeconds = heroReturnWaitSeconds is > 0 ? heroReturnWaitSeconds.Value : 300;
             return $"{summary}. Hero is away. queue_wait_seconds={awaitSeconds}";

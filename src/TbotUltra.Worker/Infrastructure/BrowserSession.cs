@@ -37,6 +37,12 @@ public sealed class BrowserSession : IAsyncDisposable
         _log = log;
     }
 
+    /// <summary>When true, consentmanager.net requests are allowed through the route block. Kept false
+    /// during normal operation (so its sync tabs never spawn) and flipped on only for the duration of a
+    /// bonus-video flow, which needs the GDPR/TCF consent. Volatile because the route handler runs on
+    /// the Playwright connection thread.</summary>
+    public volatile bool ConsentDomainsAllowed;
+
     public string StorageStatePath =>
         AccountStoragePaths.BrowserStatePath(_projectRoot, _account.Name);
 
@@ -205,10 +211,12 @@ public sealed class BrowserSession : IAsyncDisposable
         _context.SetDefaultTimeout(_config.TimeoutMs);
         await _context.RouteAsync("**/*", async route =>
         {
-            // consentmanager.net is the third-party cookie consent provider. Only block it on private
-            // servers (SS-Travi cross-promo suppression). On Official it must load so bonus videos
-            // (which require third-party cookies) can work.
-            if (_config.IsPrivateServer && IsBlockedPopupOrConsentUrl(route.Request.Url))
+            // The bonus-video ad/consent stack (consentmanager, oadts, adscale, Google IMA) loads on
+            // Travian pages and its cross-origin (out-of-process) iframes periodically spawn visible
+            // sync tabs that we cannot neutralise (initScript does not reach the OOPIFs). Block the whole
+            // stack by default so nothing runs during idle/loop operation. The bonus videos DO need it,
+            // so the video flow temporarily flips ConsentDomainsAllowed for its duration only.
+            if (!ConsentDomainsAllowed && IsBonusVideoAdDomain(route.Request.Url))
             {
                 await route.AbortAsync();
                 return;
@@ -245,6 +253,17 @@ public sealed class BrowserSession : IAsyncDisposable
                 this.removeAttribute('target');
                 return originalAnchorClick.call(this);
               };
+
+              // Strip target='_blank' in the capture phase, before the default action opens a tab.
+              // This catches synthetic dispatchEvent('click') opens (used by the consent/ad SDKs)
+              // that bypass the .click() override above and race the MutationObserver below.
+              document.addEventListener('click', function (event) {
+                const node = event.target;
+                const anchor = node && node.closest ? node.closest('a[target], area[target]') : null;
+                if (anchor) {
+                  anchor.removeAttribute('target');
+                }
+              }, true);
 
               const originalFormSubmit = HTMLFormElement.prototype.submit;
               HTMLFormElement.prototype.submit = function () {
@@ -292,57 +311,73 @@ public sealed class BrowserSession : IAsyncDisposable
         // mga.ss-travi.com), plus any real popup (non-null Opener). The bot's own extra pages
         // (catapult waves via NewPageAsync) live on the working server's host with no opener, so
         // they're never closed.
-        _context.Page += async (_, popup) =>
+        _context.Page += (_, popup) =>
         {
             if (ReferenceEquals(popup, page))
             {
                 return;
             }
 
-            try
+            _log?.Invoke($"[browser] page event pages={TryGetPageCount()} initialUrl='{popup.Url}'");
+            popup.Close += (_, _) =>
             {
-                _log?.Invoke($"[browser] page event pages={TryGetPageCount()} initialUrl='{popup.Url}'");
-                if (await CloseBlockedPopupAsync(popup, "context-page-initial"))
+                _log?.Invoke($"[browser] page closed pages={TryGetPageCount()} url='{popup.Url}'");
+            };
+
+            // Cross-domain consent/ad sync tabs (consentmanager, oadts, any foreign host) must be closed
+            // the moment they navigate, before they flash visibly. The bonus videos run in an in-page
+            // iframe (not a tab), so closing foreign tabs never affects them. The bot's own extra pages
+            // (catapult waves via NewPageAsync) start as about:blank (empty host) and navigate to the
+            // working host, so they are never treated as foreign.
+            var closeHandled = 0;
+            async Task TryCloseStrayTabAsync(string reason)
+            {
+                if (Interlocked.Exchange(ref closeHandled, 1) == 1)
                 {
                     return;
                 }
 
-                popup.Close += (_, _) =>
+                try
                 {
-                    _log?.Invoke($"[browser] page closed pages={TryGetPageCount()} url='{popup.Url}'");
-                };
+                    if (await CloseBlockedPopupAsync(popup, reason))
+                    {
+                        return;
+                    }
 
-                try { await popup.WaitForLoadStateAsync(LoadState.DOMContentLoaded, new PageWaitForLoadStateOptions { Timeout = 1500 }); }
-                catch { /* about:blank or fast-closing popup */ }
-
-                if (await CloseBlockedPopupAsync(popup, "context-page-loaded"))
-                {
-                    return;
+                    var popupHost = Uri.TryCreate(popup.Url ?? string.Empty, UriKind.Absolute, out var popupUri)
+                        ? popupUri.Host
+                        : null;
+                    var foreignHost = workingHost is not null
+                        && !string.IsNullOrEmpty(popupHost)
+                        && !string.Equals(popupHost, workingHost, StringComparison.OrdinalIgnoreCase);
+                    var opener = await popup.OpenerAsync();
+                    if (foreignHost || opener is not null)
+                    {
+                        await popup.CloseAsync();
+                        _log?.Invoke($"[browser] closed stray tab url='{popup.Url}' foreign={foreignHost} opener={(opener is null ? "false" : "true")} reason={reason}");
+                    }
+                    else
+                    {
+                        // Not foreign yet (e.g. still about:blank) — allow a later navigation to re-evaluate.
+                        Interlocked.Exchange(ref closeHandled, 0);
+                    }
                 }
-
-                var popupHost = Uri.TryCreate(popup.Url ?? string.Empty, UriKind.Absolute, out var popupUri)
-                    ? popupUri.Host
-                    : null;
-                // Note: about:blank yields an EMPTY (non-null) host. The bot's own extra pages
-                // (catapult waves via NewPageAsync) start as about:blank before they navigate, so we
-                // must require a real, non-empty host here — otherwise those tabs would be treated as
-                // "foreign" and closed before the catapult code can navigate them.
-                var foreignHost = workingHost is not null
-                    && !string.IsNullOrEmpty(popupHost)
-                    && !string.Equals(popupHost, workingHost, StringComparison.OrdinalIgnoreCase);
-                var opener = await popup.OpenerAsync();
-                _log?.Invoke($"[browser] new page detected url='{popup.Url}' host='{popupHost ?? "-"}' opener={(opener is null ? "false" : "true")} foreign={foreignHost}");
-
-                if (foreignHost || opener is not null)
+                catch
                 {
-                    await popup.CloseAsync();
-                    _log?.Invoke($"[browser] closed popup url='{popup.Url}' foreign={foreignHost} opener={(opener is null ? "false" : "true")}");
+                    // Popup may already be navigating/closing — ignore.
                 }
             }
-            catch
+
+            popup.FrameNavigated += async (_, frame) =>
             {
-                // Popup may already be navigating/closing — ignore.
-            }
+                if (ReferenceEquals(frame, popup.MainFrame))
+                {
+                    await TryCloseStrayTabAsync("frame-navigated");
+                }
+            };
+
+            // Immediate attempt in case the URL is already resolved when the page event fires.
+            _ = TryCloseStrayTabAsync("page-initial");
         };
 
             return page;
@@ -367,7 +402,7 @@ public sealed class BrowserSession : IAsyncDisposable
         try
         {
             var url = popup.Url ?? string.Empty;
-            if (!_config.IsPrivateServer || !IsBlockedPopupOrConsentUrl(url))
+            if (!IsBlockedPopupOrConsentUrl(url))
             {
                 return false;
             }
@@ -425,6 +460,38 @@ public sealed class BrowserSession : IAsyncDisposable
         var host = uri.Host;
         return host.Equals("consentmanager.net", StringComparison.OrdinalIgnoreCase)
             || host.EndsWith(".consentmanager.net", StringComparison.OrdinalIgnoreCase);
+    }
+
+    // Hosts of the bonus-video ad/consent stack. These load on Travian pages and their OOPIFs spawn
+    // periodic sync tabs, so they are blocked except during an active bonus-video flow. The video player
+    // chain is oadts -> adscale -> Google IMA, gated behind consentmanager's TCF consent.
+    private static readonly string[] BonusVideoAdHosts =
+    {
+        "consentmanager.net",
+        "oadts.com",
+        "adscale.de",
+        "imasdk.googleapis.com",
+    };
+
+    private static bool IsBonusVideoAdDomain(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)
+            || !Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            return false;
+        }
+
+        var host = uri.Host;
+        foreach (var adHost in BonusVideoAdHosts)
+        {
+            if (host.Equals(adHost, StringComparison.OrdinalIgnoreCase)
+                || host.EndsWith("." + adHost, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private int TryGetPageCount()
@@ -507,8 +574,13 @@ public sealed class BrowserSession : IAsyncDisposable
 
             if (root["cookies"] is JsonArray cookies)
             {
+                // Also drop the consentmanager (CMP) consent cookies (__cmp*, euconsent, etc.). If they
+                // persist, Travian's first-party JS sees stored consent on every page load and runs the
+                // bonus-video ad stack, which spawns window.open tabs (network blocking can't stop a
+                // window.open-created tab). Consent is re-established transiently during a video.
                 var kept = cookies.OfType<JsonObject>()
-                    .Where(c => KeepHostForAccount(c["domain"]?.GetValue<string>() ?? string.Empty, accountHost))
+                    .Where(c => KeepHostForAccount(c["domain"]?.GetValue<string>() ?? string.Empty, accountHost)
+                        && !IsConsentStorageName(c["name"]?.GetValue<string>() ?? string.Empty))
                     .Select(c => c.DeepClone())
                     .ToArray();
                 root["cookies"] = new JsonArray(kept);
@@ -525,6 +597,19 @@ public sealed class BrowserSession : IAsyncDisposable
                     })
                     .Select(o => o.DeepClone())
                     .ToArray();
+                // Strip consent entries from each origin's localStorage for the same reason as cookies.
+                foreach (var origin in kept.OfType<JsonObject>())
+                {
+                    if (origin["localStorage"] is JsonArray ls)
+                    {
+                        var keptLs = ls.OfType<JsonObject>()
+                            .Where(e => !IsConsentStorageName(e["name"]?.GetValue<string>() ?? string.Empty))
+                            .Select(e => e.DeepClone())
+                            .ToArray();
+                        origin["localStorage"] = new JsonArray(keptLs);
+                    }
+                }
+
                 root["origins"] = new JsonArray(kept);
             }
 
@@ -534,6 +619,23 @@ public sealed class BrowserSession : IAsyncDisposable
         {
             return stateJson; // On any parse/shape error, keep the original state.
         }
+    }
+
+    // Cookie/localStorage names written by the consentmanager CMP (and IAB TCF). Stripped from saved
+    // state so stored consent does not make Travian run the bonus-video ad stack on every page.
+    internal static bool IsConsentStorageName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return false;
+        }
+
+        var n = name.Trim().ToLowerInvariant();
+        return n.StartsWith("__cmp", StringComparison.Ordinal)
+            || n.StartsWith("cmp", StringComparison.Ordinal)
+            || n.Contains("consent", StringComparison.Ordinal)
+            || n.StartsWith("euconsent", StringComparison.Ordinal)
+            || n.StartsWith("usprivacy", StringComparison.Ordinal);
     }
 
     private static bool KeepHostForAccount(string cookieDomainOrHost, string accountHost)

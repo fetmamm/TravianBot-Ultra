@@ -1246,6 +1246,29 @@ public sealed class BotTaskRunner
         return result;
     }
 
+    public async Task<string> RunReduceAdventuresTimeAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = "Reduce adventure time: no result.";
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: true,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                result = await client.ReduceAdventuresTimeAsync(cancellationToken);
+            });
+
+        log(result);
+        return result;
+    }
+
     public async Task<string> ReadSmithyQueueFromCurrentPageTestAsync(
         BotOptions options,
         Action<string> log,
@@ -1913,7 +1936,8 @@ public sealed class BotTaskRunner
             var session = new BrowserSession(options, account, _projectContext.RootPath, log: log);
             var page = await session.OpenPageAsync(cancellationToken);
             var sessionCache = CreateSeededSessionCache(account, options, log);
-            var client = CreateClient(page, options, account, interactive, log, sessionCache);
+            var client = CreateClient(page, options, account, interactive, log, sessionCache,
+                setConsentDomainsAllowed: allowed => session.ConsentDomainsAllowed = allowed);
             return new ClientLease(session, client, false);
         }
 
@@ -1991,8 +2015,10 @@ public sealed class BotTaskRunner
             SeedStableAccountSignals(_sharedVisibleSessionCache, account, options, log);
         }
 
-        var sharedClient = CreateClient(_sharedVisiblePage!, options, account, interactive, log, _sharedVisibleSessionCache);
-        return new ClientLease(_sharedVisibleSession!, sharedClient, true);
+        var sharedVisibleSession = _sharedVisibleSession!;
+        var sharedClient = CreateClient(_sharedVisiblePage!, options, account, interactive, log, _sharedVisibleSessionCache,
+            setConsentDomainsAllowed: allowed => sharedVisibleSession.ConsentDomainsAllowed = allowed);
+        return new ClientLease(sharedVisibleSession, sharedClient, true);
     }
 
     private int TryGetSharedPageCount()
@@ -2018,7 +2044,8 @@ public sealed class BotTaskRunner
         AccountOptions account,
         bool interactive,
         Action<string> log,
-        TravianSessionCache? sessionCache = null)
+        TravianSessionCache? sessionCache = null,
+        Action<bool>? setConsentDomainsAllowed = null)
     {
         return new TravianClient(
             page,
@@ -2029,7 +2056,8 @@ public sealed class BotTaskRunner
             projectRoot: _projectContext.RootPath,
             captchaAutoSolver: options.IsPrivateServer ? _captchaAutoSolver : null,
             statusCallback: log,
-            sessionCache: sessionCache);
+            sessionCache: sessionCache,
+            setConsentDomainsAllowed: setConsentDomainsAllowed);
     }
 
     private TravianSessionCache CreateSeededSessionCache(

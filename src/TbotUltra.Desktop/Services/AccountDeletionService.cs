@@ -32,31 +32,37 @@ public sealed class AccountDeletionService
         _queueStore = queueStore;
     }
 
-    public void DeleteAccount(string accountName)
+    public void DeleteAccount(string accountName, bool deleteAnyway = false)
     {
-        ThrowIfDeletingActiveAccountWithQueue(accountName);
+        var activeQueueItemCount = CountActiveQueueItemsBlockingDeletion(accountName);
+        if (activeQueueItemCount > 0)
+        {
+            if (!deleteAnyway)
+            {
+                throw new InvalidOperationException(
+                    $"Cannot delete the active account while {activeQueueItemCount} queue item(s) are pending, running, or paused. Clear or finish that account's queue first.");
+            }
+
+            _queueStore.Clear();
+        }
+
         PruneAccountFromBotConfig(accountName);
         _accountStore.DeleteAccount(accountName);
         DeleteAccountArtifacts(accountName);
     }
 
-    private void ThrowIfDeletingActiveAccountWithQueue(string accountName)
+    public int CountActiveQueueItemsBlockingDeletion(string accountName)
     {
         if (!string.Equals(
                 AccountStoragePaths.NormalizeAccountKey(accountName),
                 AccountStoragePaths.NormalizeAccountKey(_accountStore.ActiveAccountName()),
                 StringComparison.Ordinal))
         {
-            return;
+            return 0;
         }
 
-        var activeCount = _queueStore.GetAll().Count(item =>
+        return _queueStore.GetAll().Count(item =>
             item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused);
-        if (activeCount > 0)
-        {
-            throw new InvalidOperationException(
-                $"Cannot delete the active account while {activeCount} queue item(s) are pending, running, or paused. Clear or finish that account's queue first.");
-        }
     }
 
     private void PruneAccountFromBotConfig(string accountName)
