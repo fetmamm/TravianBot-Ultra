@@ -54,10 +54,13 @@ public partial class MainWindow
             var displayRunningId = ResolveDisplayRunningQueueItemId(ordered);
             var serverSpeed = ResolveServerSpeed();
             var mainBuildingLevel = ResolveMainBuildingLevel();
+            // Tracks the highest level already covered by earlier queued upgrades of the same building/
+            // field (in queue order) so each row only counts its own step, not the shared lower levels.
+            var queuedCoverage = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             var rows = ordered
                 .Select(item =>
                 {
-                    var estimate = EstimateForQueueItem(item, serverSpeed, mainBuildingLevel);
+                    var estimate = EstimateForQueueItem(item, serverSpeed, mainBuildingLevel, queuedCoverage);
                     return QueueItemRowFactory.Create(
                         item,
                         estimate,

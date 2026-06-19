@@ -211,6 +211,7 @@ public sealed partial class TravianClient
         const int attempts = 3;
         const int timeoutMs = 10000;
 
+        Exception? lastFailure = null;
         for (var attempt = 1; attempt <= attempts; attempt++)
         {
             try
@@ -234,17 +235,27 @@ public sealed partial class TravianClient
             }
             catch (PlaywrightException ex)
             {
+                lastFailure = ex;
                 if (attempt < attempts)
                     Notify($"[WaitForPageReadyAsync] Page did not load, retry {attempt + 1}/{attempts}. Timeout: {timeoutMs} ms. Url='{_page.Url}'. {ex.Message}");
             }
             catch (TimeoutException ex)
             {
+                lastFailure = ex;
                 if (attempt < attempts)
                     Notify($"[WaitForPageReadyAsync] Page did not load, retry {attempt + 1}/{attempts}. Timeout: {timeoutMs} ms. Url='{_page.Url}'. {ex.Message}");
             }
         }
 
-        Notify($"[WaitForPageReadyAsync] Page did not load after {attempts} attempts. Url='{_page.Url}'.");
+        // Don't return silently after exhausting the retries: callers (login, navigation, keep-alive)
+        // would then act on a half-loaded page. Throw so the operation is deferred/retried instead.
+        // lastFailure is kept as InnerException so a fatal disconnect is still seen by
+        // BrowserFailureClassifier (it walks the inner-exception chain) and recreates the session.
+        var url = _page.Url;
+        Notify($"[WaitForPageReadyAsync] Page did not load after {attempts} attempts. Url='{url}'.");
+        throw new TimeoutException(
+            $"Page did not reach a ready state after {attempts} attempts (timeout {timeoutMs} ms each). Url='{url}'.",
+            lastFailure);
     }
 
     // Reloads whatever page the browser is currently on to keep a long-idle session fresh. This avoids

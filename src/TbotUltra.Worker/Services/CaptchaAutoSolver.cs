@@ -129,10 +129,12 @@ public sealed class CaptchaAutoSolver : ICaptchaAutoSolver
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         linkedCts.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, timeoutSeconds)));
 
+        Task<string>? stdoutTask = null;
+        Task<string>? stderrTask = null;
         try
         {
-            var stdoutTask = process.StandardOutput.ReadToEndAsync(linkedCts.Token);
-            var stderrTask = process.StandardError.ReadToEndAsync(linkedCts.Token);
+            stdoutTask = process.StandardOutput.ReadToEndAsync(linkedCts.Token);
+            stderrTask = process.StandardError.ReadToEndAsync(linkedCts.Token);
             await process.WaitForExitAsync(linkedCts.Token);
 
             var stdout = (await stdoutTask).Trim();
@@ -142,12 +144,37 @@ public sealed class CaptchaAutoSolver : ICaptchaAutoSolver
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             await TryKillAndWaitAsync(process);
+            await ObserveAbandonedReadsAsync(stdoutTask, stderrTask);
             return new CaptchaSolverResult(false, "", "", 0d, $"Solver timed out after {timeoutSeconds} seconds.");
         }
         catch (Exception ex)
         {
             await TryKillAndWaitAsync(process);
+            await ObserveAbandonedReadsAsync(stdoutTask, stderrTask);
             return new CaptchaSolverResult(false, "", "", 0d, $"Solver execution failed: {ex.Message}");
+        }
+    }
+
+    // After the process is killed its stdout/stderr read tasks cancel or fault. Await them (swallowing
+    // the outcome) so they are observed instead of surfacing later as an UnobservedTaskException, and so
+    // both pipes are drained before the Process is disposed by the caller. The content is no longer used.
+    private static async Task ObserveAbandonedReadsAsync(Task<string>? stdoutTask, Task<string>? stderrTask)
+    {
+        foreach (var task in new[] { stdoutTask, stderrTask })
+        {
+            if (task is null)
+            {
+                continue;
+            }
+
+            try
+            {
+                await task;
+            }
+            catch
+            {
+                // Expected: the read was cancelled/faulted when the process was killed.
+            }
         }
     }
 

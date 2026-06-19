@@ -1073,6 +1073,16 @@ public partial class MainWindow
             return;
         }
 
+        if (IsSessionSleeping)
+        {
+            // A sleeping session must stay idle: refreshing here would log in and reload the page,
+            // waking it and breaking the sleep throttle. Mark activity so this only logs once per
+            // keep-alive interval instead of every wait tick.
+            MarkContinuousBrowserActivity();
+            AppendLog("[keep-alive:verbose] skipped because the session is sleeping.");
+            return;
+        }
+
         if (_resourceSnapshotRefreshRunning)
         {
             MarkContinuousBrowserActivity();

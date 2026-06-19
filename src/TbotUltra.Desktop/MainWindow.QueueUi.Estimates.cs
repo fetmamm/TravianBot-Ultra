@@ -27,7 +27,7 @@ public partial class MainWindow
         return level is int value && value > 0 ? value : 1;
     }
 
-    private QueueItemEstimate EstimateForQueueItem(QueueItem item, double serverSpeed, int loadedVillageMainBuildingLevel)
+    private QueueItemEstimate EstimateForQueueItem(QueueItem item, double serverSpeed, int loadedVillageMainBuildingLevel, Dictionary<string, int> queuedCoverage)
     {
         if (item is null)
         {
@@ -59,8 +59,7 @@ public partial class MainWindow
             }
 
             var (gid, currentLevel) = ResolveBuildingGidAndLevel(slotId, name, villageLoaded);
-            var fromLevel = currentLevel.HasValue ? currentLevel.Value + 1 : target.Value;
-            return SumLevels(item, gid, fromLevel, target.Value, serverSpeed, mainBuildingLevel);
+            return SumLevelsWithQueueCoverage(item, gid, currentLevel, target.Value, serverSpeed, mainBuildingLevel, slotId, name, queuedCoverage);
         }
 
         if (string.Equals(taskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase))
@@ -74,7 +73,7 @@ public partial class MainWindow
                 return QueueItemEstimate.None;
             }
 
-            return SumLevels(item, gid, currentLevel.Value + 1, BuildingCatalogService.MaxLevelFor(gid.Value), serverSpeed, mainBuildingLevel);
+            return SumLevelsWithQueueCoverage(item, gid, currentLevel, BuildingCatalogService.MaxLevelFor(gid.Value), serverSpeed, mainBuildingLevel, slotId, name, queuedCoverage);
         }
 
         if (string.Equals(taskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase))
@@ -91,8 +90,7 @@ public partial class MainWindow
 
             var gid = BuildingCatalogService.GidForName(name);
             var currentLevel = villageLoaded && slotId.HasValue ? ResolveResourceLevel(slotId.Value) : null;
-            var fromLevel = currentLevel.HasValue ? currentLevel.Value + 1 : target.Value;
-            return SumLevels(item, gid, fromLevel, target.Value, serverSpeed, mainBuildingLevel);
+            return SumLevelsWithQueueCoverage(item, gid, currentLevel, target.Value, serverSpeed, mainBuildingLevel, slotId, name, queuedCoverage);
         }
 
         if (string.Equals(taskName, "upgrade_all_resources_to_level", StringComparison.OrdinalIgnoreCase))
@@ -169,6 +167,65 @@ public partial class MainWindow
         }
 
         return new QueueItemEstimate(true, seconds, wood, clay, iron, crop);
+    }
+
+    // Coverage-aware variant of SumLevels for progressive upgrades of the same building/field. When the
+    // queue holds several upgrades of one slot (e.g. Rally Point to level 2, 3, ..., 10), each item only
+    // performs the single step from the previous queued target — not the whole path from the live current
+    // level. queuedCoverage carries the highest target already covered by earlier queued items so the row
+    // (and the Totals row) reflect just this item's own work instead of re-counting the shared lower
+    // levels. Items not yet queued for execution (history) do not participate.
+    private QueueItemEstimate SumLevelsWithQueueCoverage(
+        QueueItem item,
+        int? gid,
+        int? currentLevel,
+        int target,
+        double serverSpeed,
+        int mainBuildingLevel,
+        int? slotId,
+        string? buildingName,
+        Dictionary<string, int> queuedCoverage)
+    {
+        var coverageKey = ResolveQueueCoverageKey(item, gid, slotId, buildingName);
+
+        int? floorLevel = currentLevel;
+        if (coverageKey is not null && queuedCoverage.TryGetValue(coverageKey, out var covered))
+        {
+            floorLevel = floorLevel.HasValue ? Math.Max(floorLevel.Value, covered) : covered;
+        }
+
+        // Known floor (live level or earlier queued target) -> only the next step(s); unknown floor falls
+        // back to the existing behavior of estimating just the target level.
+        var fromLevel = floorLevel.HasValue ? floorLevel.Value + 1 : target;
+        var estimate = SumLevels(item, gid, fromLevel, target, serverSpeed, mainBuildingLevel);
+
+        if (coverageKey is not null)
+        {
+            queuedCoverage[coverageKey] = Math.Max(queuedCoverage.GetValueOrDefault(coverageKey), target);
+        }
+
+        return estimate;
+    }
+
+    // Stable per-building coverage key, scoped to the village so the same slot in two villages never
+    // shares coverage. Only Pending/Running/Paused items accumulate coverage — a Succeeded upgrade is
+    // already reflected in the live current level, so counting it would double-subtract.
+    private string? ResolveQueueCoverageKey(QueueItem item, int? gid, int? slotId, string? buildingName)
+    {
+        if (item.Status is not (QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused))
+        {
+            return null;
+        }
+
+        var village = NormalizeVillageName(GetQueueItemVillageName(item)) ?? string.Empty;
+        if (slotId.HasValue)
+        {
+            return $"{village}|slot:{slotId.Value}";
+        }
+
+        return gid.HasValue
+            ? $"{village}|gid:{gid.Value}|{(buildingName ?? string.Empty).ToLowerInvariant()}"
+            : null;
     }
 
     // Resolves gid and current level for a building. Current level is only available when the item

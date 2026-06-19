@@ -68,7 +68,8 @@ Anropa helpern i `GotoAsync(...)`; hardkoda inte en variants path i flodeslogike
 - Official React-sidor maste vanta pa ett synligt eller handlingsbart nyckelelement.
 - DOM-narvaro ensam ar inte tillracklig for klick pa React-sidor.
 - Verifiera nya Official-selektorer live och gor en snabb SS-regressionskontroll.
-- Anvand `await WaitForPageReadyAsync(cancellationToken)` nar hela sidan maste vara laddad.
+- Anvand `await WaitForPageReadyAsync(cancellationToken)` nar hela sidan maste vara laddad. Den kastar
+  (TimeoutException med sista felet som inner) efter uttomda retries — anropare ska defer:a/retry:a, inte agera pa en halvladdad sida.
 - Official farmlist loss cleanup laser `tr.slot`, `td.target`, `td.openContextMenu` och last-raid
   klasser (`attack_lost*`, `attack_won_withLosses*`); matcha inte SVG-paths for loss state.
 
@@ -126,7 +127,10 @@ For en ny dashboard-bool ska hela configkedjan uppdateras:
 - Loop- och CTS-livscykel ska agas av `LoopController`; skapa inte nya spridda CTS-falt.
 - Dashboard-checkboxar foljer befintligt suppress-flagga + load/save-monster.
 - Aktivitetstimers sparas som absoluta UTC-sluttider och raknas om vid cache-load; utgangna poster
-  rensas som stale. `Clear timers` ar vald-by-scope och tar aldrig bort Queue-sidans poster.
+  rensas som stale. `Clear timers` ar vald-by-scope och tar aldrig bort Queue-sidans poster. Som
+  manuell aterstallning rensar `Clear timers` ocksa vald bys construction-snapshot (`ActiveConstructions`)
+  och nollstaller dess deferred construction-retries (`NextAttemptAt`-> nu) sa ett fastnat "waiting"
+  utan faktiskt bygge kan brytas. Den vacker inte loopen och navigerar inte — startar aldrig boten sjalv.
 - En `queue_full`-defer blockerar all senare construction i samma by tills den tidigaste
   aktiva byggnaden ar fardig. Plus ger tva platser, annars en; inga romar-specialfall har.
 - Queue-poster kor bara nar byns Auto-toggle ar pa och postens automation group ar pa for samma by.
@@ -139,9 +143,10 @@ For en ny dashboard-bool ska hela configkedjan uppdateras:
   tom browserko ska ge gra lediga byggplatser aven om en programtask fortfarande ar deferred.
 - Construction-status skiljer pa `Unknown`, bekraftat tom och aktiv ko. Endast en bekraftad
   dorf1/dorf2-lasning far frigora en `queue_full`-blockerare direkt; okand status behaller senaste retry.
-- `ActiveConstructions` far endast rensas av en bekraftad tom dorf1/dorf2-lasning
-  (`ActiveConstructionsFromOverview=true`). Lokal `FinishUtc`, cache-load, UI-tick, partial reads och
-  `Clear timers` far aldrig rensa browserns senaste construction-snapshot.
+- `ActiveConstructions` far automatiskt rensas endast av en bekraftad tom dorf1/dorf2-lasning
+  (`ActiveConstructionsFromOverview=true`). Lokal `FinishUtc`, cache-load, UI-tick och partial reads far
+  aldrig rensa browserns senaste construction-snapshot. Undantag: den manuella `Clear timers`-knappen
+  far rensa den (se ovan) eftersom det ar ett uttryckligt anvandarinitierat reset.
 - Utgangen `ActiveConstructions` fran cache ar `Unknown`, inte aktiv ko: behall snapshoten for senare
   bekraftelse men visa den inte som aktiv rad/ikon och rakna inte `ActiveBuildCount`.
 - Nar en lokal construction-timer nar noll ska den endast begara en ny Travian-lasning. Den far inte
@@ -169,6 +174,10 @@ For en ny dashboard-bool ska hela configkedjan uppdateras:
   `upgrade_all_resources_to_level` summerar alla nivåsteg för exakt 18 kända fält i den laddade byn;
   en ofullständig fältsnapshot lämnas blank för att undvika en för låg totalsumma.
   Nuvarande niva for fleruppgraderingar finns bara for den laddade byn; annars estimeras endast malnivan.
+  Nar flera uppgraderingar av SAMMA slot ligger i kon (t.ex. RP till niva 2,3,...,10) far varje rad bara
+  sitt eget steg, inte hela vagen fran nuvarande niva: `SumLevelsWithQueueCoverage` spar hogsta redan
+  kolagda malniva per by+slot (`queuedCoverage`, endast Pending/Running/Paused) sa rad + totalsumma inte
+  dubbelraknar de delade lagre nivaerna.
 - Byggtiden skalas ocksa med huvudbyggnadens rabatt `0.964^(MB-1)` i `BuildSecondsFor`
   (`mainBuildingLevel`). MB lases byspecifikt fran den laddade byns slots (`ResolveMainBuildingLevel`,
   gid 15); okand MB -> default niva 1 (ingen rabatt). Nar byns byggnader skannas anropar
@@ -223,7 +232,10 @@ eller sta still, inte vaxa.
 - Login ska anvanda action pacing och vanta pa full sidladdning.
 - Login-state `unknown` under navigation ar normalt en transient ladd-race; captcha, `manual_step` och `logged_out` ar inte det.
 - Playwright `Target crashed` ar transient: kassera shared browser-session, defer:a queue-posten kort och lat nasta operation skapa en frisk session.
-- Session i `Sleeping` far inte vackas av refresh, login/logout, scan, test, bybyte eller auto-run.
+- `BrowserFailureClassifier.IsTargetCrash` klassar aven stangd sida/kontext (`...has been closed`, `page is closed`,
+  `Cannot navigate to closed page`) som krasch sa sessionen ateruppbyggs. Lagg ALDRIG till `Execution context was destroyed` dar — det ar en ofarlig navigerings-race som retry:as.
+- Session i `Sleeping` far inte vackas av refresh, login/logout, scan, test, bybyte eller auto-run. Continuous-loopens
+  keep-alive (`MaybeKeepBrowserFreshDuringContinuousLoopAsync`) gate:ar darfor pa `IsSessionSleeping`.
 - Portable single-file-builden maste innehalla `.playwright` och satta `PLAYWRIGHT_DRIVER_PATH`.
 
 ### Byggnader och ko

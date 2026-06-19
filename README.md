@@ -141,7 +141,10 @@ The bot manages every village on the account from one **Dashboard → Village ov
 - **Switch village** moves the browser to the village selected in the dropdown; selecting a village in
   the dropdown only changes the view/queue context (it does not navigate).
 - **Clear timers** resets cached activity timers for the selected village and requests fresh status
-  reads without removing items from the Queue page.
+  reads without removing items from the Queue page. It also clears that village's construction
+  build-queue snapshot and resets its deferred construction retries, so a stuck "waiting" state (when
+  nothing is actually building) can be reset. It does not wake the loop or navigate, so it never
+  starts the bot on its own.
 - The **Queue** tab shows the selected village's live Travian construction queue with target levels
   and absolute server-clock finish times, using the same browser status as the village overview icons.
 - The live construction and Smithy panels keep their queue slots visible at all times and show a
