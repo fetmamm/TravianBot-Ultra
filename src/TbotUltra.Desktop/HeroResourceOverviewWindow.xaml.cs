@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
@@ -20,6 +21,7 @@ public sealed class HeroResourceOverviewRow : INotifyPropertyChanged
     private bool _useSmithy;
     private bool _useBrewery;
     private bool _useTownHall;
+    private int _maxUsePerResource;
 
     public HeroResourceOverviewRow(
         string villageKey,
@@ -33,6 +35,7 @@ public sealed class HeroResourceOverviewRow : INotifyPropertyChanged
         _useSmithy = settings.UseSmithy;
         _useBrewery = settings.UseBrewery;
         _useTownHall = settings.UseTownHall;
+        _maxUsePerResource = Math.Max(0, settings.MaxUsePerResource);
     }
 
     public string VillageKey { get; }
@@ -68,18 +71,26 @@ public sealed class HeroResourceOverviewRow : INotifyPropertyChanged
         set => SetProperty(ref _useTownHall, value);
     }
 
+    public int MaxUsePerResource
+    {
+        get => _maxUsePerResource;
+        set => SetProperty(ref _maxUsePerResource, Math.Max(0, value));
+    }
+
     public VillageSettingsStore.HeroResourceSettings Settings => new(
         IsHeroResourcesEnabled,
         UseConstruction,
         UseSmithy,
         UseBrewery,
-        UseTownHall);
+        UseTownHall,
+        MaxUseEnabled: true,
+        MaxUsePerResource);
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private void SetProperty(ref bool field, bool value, [CallerMemberName] string? propertyName = null)
+    private void SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
-        if (field == value)
+        if (EqualityComparer<T>.Default.Equals(field, value))
         {
             return;
         }

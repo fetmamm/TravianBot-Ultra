@@ -84,6 +84,7 @@ public partial class MainWindow
 
         // Mirror the picker into the Queue tab's village dropdown so both stay in sync.
         SyncQueueVillagePicker(VillageComboBox.SelectedItem as VillageSelectionItem);
+        ApplyHeroResourceTransferConfigToUi();
     }
 
     private void ApplyDashboardVillageListItems(IReadOnlyList<VillageSelectionItem> items)
@@ -634,6 +635,7 @@ public partial class MainWindow
     {
         RefreshVillageEnabledStateOnDashboard();
         RefreshAutomationLoopDashboardUi();
+        ApplyHeroResourceTransferConfigToUi();
 
         if (ContinuousRunToggleButton?.IsChecked == true
             && _loopTask is not null
@@ -662,6 +664,7 @@ public partial class MainWindow
         // touch the running bot. Show this village's cached buildings/resources and filter the queue to
         // it. Use the "Switch village" button to actually move the bot to this village.
         ShowSelectedVillageFromCache(selected);
+        ApplyHeroResourceTransferConfigToUi();
     }
 
 

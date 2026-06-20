@@ -45,7 +45,7 @@ public sealed class HeroViewModel : BaseViewModel
     private bool _heroResourceMaxUseEnabled = true;
     private int _heroResourceMaxUsePerResource = 5000;
     private bool _heroResourceUseConstruction = true;
-    private bool _heroResourceUseSmithy = true;
+    private bool _heroResourceUseSmithy;
     private bool _heroResourceUseBrewery;
     private bool _heroResourceUseTownHall;
 
@@ -145,16 +145,14 @@ public sealed class HeroViewModel : BaseViewModel
         set => SetProperty(ref _heroInventoryStatusText, value);
     }
 
-    /// <summary>True to cap how much may be pulled from the hero inventory per resource for a single
-    /// construction top-up (the "Max use limit" toggle in the hero inventory card).</summary>
+    /// <summary>Legacy config flag. Max-use capping is now always active in the per-village popup.</summary>
     public bool HeroResourceMaxUseEnabled
     {
         get => _heroResourceMaxUseEnabled;
         set => SetProperty(ref _heroResourceMaxUseEnabled, value);
     }
 
-    /// <summary>Per-resource cap (in units) used when <see cref="HeroResourceMaxUseEnabled"/> is on.
-    /// Bound to the limit TextBox; persisted as an int.</summary>
+    /// <summary>Per-resource cap (in units) for hero resource use.</summary>
     public int HeroResourceMaxUsePerResource
     {
         get => _heroResourceMaxUsePerResource;

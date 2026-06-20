@@ -216,7 +216,7 @@ public sealed class BotOptionsPayloadApplierTests
     }
 
     [Fact]
-    public void FromConfiguration_DefaultsHeroResourceConsumers_ConstructionAndSmithyOnly()
+    public void FromConfiguration_DefaultsHeroResourceConsumers_ConstructionOnly()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -229,7 +229,7 @@ public sealed class BotOptionsPayloadApplierTests
         var options = BotOptionsFactory.FromConfiguration(configuration);
 
         Assert.True(options.HeroResourceUseConstruction);
-        Assert.True(options.HeroResourceUseSmithy);
+        Assert.False(options.HeroResourceUseSmithy);
         Assert.False(options.HeroResourceUseBrewery);
         Assert.False(options.HeroResourceUseTownHall);
     }

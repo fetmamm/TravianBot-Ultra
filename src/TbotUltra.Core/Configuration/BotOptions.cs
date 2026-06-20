@@ -471,13 +471,12 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.HeroResourceMaxUsePerResource)]
     public int HeroResourceMaxUsePerResource { get; init; } = 5000;
 
-    // Per-consumer gates for the hero inventory top-up. The master HeroResourceTransferEnabled still
-    // applies; these let the user pick which features may pull from the hero (default all on).
+    // Per-consumer gates for the hero inventory top-up. Construction is the only default consumer.
     [ConfigurationKeyName(BotOptionPayloadKeys.HeroResourceUseConstruction)]
     public bool HeroResourceUseConstruction { get; init; } = true;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.HeroResourceUseSmithy)]
-    public bool HeroResourceUseSmithy { get; init; } = true;
+    public bool HeroResourceUseSmithy { get; init; }
 
     [ConfigurationKeyName(BotOptionPayloadKeys.HeroResourceUseBrewery)]
     public bool HeroResourceUseBrewery { get; init; }

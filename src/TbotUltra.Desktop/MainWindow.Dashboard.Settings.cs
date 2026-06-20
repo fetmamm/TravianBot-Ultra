@@ -89,6 +89,12 @@ public partial class MainWindow
 
     private void ApplyHeroResourceTransferConfigToUi(BotOptions options)
     {
+        _ = options;
+        ApplyHeroResourceTransferConfigToUi();
+    }
+
+    private void ApplyHeroResourceTransferConfigToUi()
+    {
         if (HeroResourceTransferCheckBox is null)
         {
             return;
@@ -97,7 +103,10 @@ public partial class MainWindow
         _suppressHeroResourceTransferConfigWrite = true;
         try
         {
-            HeroResourceTransferCheckBox.IsChecked = options.HeroResourceTransferEnabled;
+            var selectedVillage = GetSelectedVillageKeyInfoOrNull();
+            HeroResourceTransferCheckBox.IsEnabled = selectedVillage is not null;
+            HeroResourceTransferCheckBox.IsChecked = selectedVillage is not null
+                && _villageSettingsStore.GetHeroResourcesEnabled(selectedVillage);
         }
         finally
         {
@@ -107,18 +116,20 @@ public partial class MainWindow
 
     private void HeroResourceTransferSetting_Changed(object sender, RoutedEventArgs e)
     {
-        if (_suppressHeroResourceTransferConfigWrite || _botConfigStore is null)
+        if (_suppressHeroResourceTransferConfigWrite)
         {
             return;
         }
 
-        var config = _botConfigStore.Load();
-        config[BotOptionPayloadKeys.HeroResourceTransferEnabled] = HeroResourceTransferCheckBox.IsChecked == true;
-        _botConfigStore.Save(config);
+        var selectedVillage = GetSelectedVillageKeyInfoOrNull();
+        if (selectedVillage is null)
+        {
+            return;
+        }
 
-        // Checked → a construction that is waiting for resources might now be buildable using the
-        // hero's inventory resources. Reset the construction wait so the loop re-checks immediately
-        // instead of waiting out the timer.
+        _villageSettingsStore.SetHeroResourcesEnabled(selectedVillage, HeroResourceTransferCheckBox.IsChecked == true);
+
+        // Checked for the selected village: waiting construction may now be buildable using hero inventory.
         if (HeroResourceTransferCheckBox.IsChecked == true)
         {
             ResetDeferredConstructionWaitsNow("hero resource transfer enabled");
@@ -142,13 +153,10 @@ public partial class MainWindow
         _ = action(options);
     }
 
-    // Opens the Hero / Adventures tab so the user can reach the hero inventory settings.
+    // Opens the per-village hero resource popup from the Dashboard Auto settings row.
     private void HeroInventorySettingsButton_Click(object sender, RoutedEventArgs e)
     {
-        if (MainTabControl is not null && HeroTabItem is not null)
-        {
-            MainTabControl.SelectedItem = HeroTabItem;
-        }
+        OpenHeroResourceSettingsFromHeroPanel();
     }
 
     // Opens the NPC / Trade tab where the gold limit and NPC trade settings live.

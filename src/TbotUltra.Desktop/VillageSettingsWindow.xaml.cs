@@ -84,7 +84,7 @@ public partial class VillageSettingsWindow : Window
                 {
                     Header = BuildColumnHeader(
                         "Hero res.",
-                        "Selects which villages may use hero inventory resources. The Auto settings master toggle still applies."),
+                        "Selects which villages may use hero inventory resources."),
                     Width = DataGridLength.Auto,
                     CellTemplate = BuildToggleWithGearCellTemplate(
                         nameof(VillageSettingsRow.HeroResourcesEnabled),

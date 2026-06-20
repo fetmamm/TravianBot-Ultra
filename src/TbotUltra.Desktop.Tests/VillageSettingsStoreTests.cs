@@ -198,32 +198,38 @@ public sealed class VillageSettingsStoreTests : IDisposable
     }
 
     [Fact]
-    public void HeroResourceSettings_DefaultOnAndPersistPerVillageConsumers()
+    public void HeroResourceSettings_DefaultConstructionOnlyAndPersistPerVillageSettings()
     {
         var store = CreateStore();
         var village = new Info("did:2", "Second", 5, -3, IsCapital: false);
         var defaults = new VillageSettingsStore.HeroResourceSettings(
             IsEnabled: true,
             UseConstruction: true,
-            UseSmithy: true,
+            UseSmithy: false,
             UseBrewery: false,
-            UseTownHall: false);
+            UseTownHall: false,
+            MaxUseEnabled: true,
+            MaxUsePerResource: 5000);
 
         store.Merge(new[] { village });
 
         var initial = store.GetHeroResourceSettings(village, defaults);
         Assert.True(initial.IsEnabled);
         Assert.True(initial.UseConstruction);
-        Assert.True(initial.UseSmithy);
+        Assert.False(initial.UseSmithy);
         Assert.False(initial.UseBrewery);
         Assert.False(initial.UseTownHall);
+        Assert.True(initial.MaxUseEnabled);
+        Assert.Equal(5000, initial.MaxUsePerResource);
 
         store.SetHeroResourceSettings(village, new VillageSettingsStore.HeroResourceSettings(
             IsEnabled: false,
             UseConstruction: false,
             UseSmithy: true,
             UseBrewery: false,
-            UseTownHall: true));
+            UseTownHall: true,
+            MaxUseEnabled: false,
+            MaxUsePerResource: 12000));
 
         var reloaded = CreateStore();
         var saved = reloaded.GetHeroResourceSettings("name:second", "Second", defaults);
@@ -232,6 +238,8 @@ public sealed class VillageSettingsStoreTests : IDisposable
         Assert.True(saved.UseSmithy);
         Assert.False(saved.UseBrewery);
         Assert.True(saved.UseTownHall);
+        Assert.True(saved.MaxUseEnabled);
+        Assert.Equal(12000, saved.MaxUsePerResource);
     }
 
     [Fact]

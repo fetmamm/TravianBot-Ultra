@@ -181,7 +181,7 @@ public static class BotOptionsFactory
             HeroResourceMaxUseEnabled = configuration.GetValue(BotOptionPayloadKeys.HeroResourceMaxUseEnabled, true),
             HeroResourceMaxUsePerResource = configuration.GetValue(BotOptionPayloadKeys.HeroResourceMaxUsePerResource, 5000),
             HeroResourceUseConstruction = configuration.GetValue(BotOptionPayloadKeys.HeroResourceUseConstruction, true),
-            HeroResourceUseSmithy = configuration.GetValue(BotOptionPayloadKeys.HeroResourceUseSmithy, true),
+            HeroResourceUseSmithy = configuration.GetValue(BotOptionPayloadKeys.HeroResourceUseSmithy, false),
             HeroResourceUseBrewery = configuration.GetValue(BotOptionPayloadKeys.HeroResourceUseBrewery, false),
             HeroResourceUseTownHall = configuration.GetValue(BotOptionPayloadKeys.HeroResourceUseTownHall, false),
             UpgradeSelectorProfile = configuration[BotOptionPayloadKeys.UpgradeSelectorProfile] ?? "auto",

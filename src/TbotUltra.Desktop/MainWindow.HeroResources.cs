@@ -16,9 +16,11 @@ public partial class MainWindow
         return new VillageSettingsStore.HeroResourceSettings(
             IsEnabled: true,
             UseConstruction: true,
-            UseSmithy: true,
+            UseSmithy: false,
             UseBrewery: false,
-            UseTownHall: false);
+            UseTownHall: false,
+            MaxUseEnabled: true,
+            MaxUsePerResource: 5000);
     }
 
     private BotOptions ApplyHeroResourceSettingsForVillage(
@@ -38,7 +40,9 @@ public partial class MainWindow
 
         var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            [BotOptionPayloadKeys.HeroResourceTransferEnabled] = options.HeroResourceTransferEnabled && settings.IsEnabled ? "true" : "false",
+            [BotOptionPayloadKeys.HeroResourceTransferEnabled] = settings.IsEnabled ? "true" : "false",
+            [BotOptionPayloadKeys.HeroResourceMaxUseEnabled] = "true",
+            [BotOptionPayloadKeys.HeroResourceMaxUsePerResource] = settings.MaxUsePerResource.ToString(System.Globalization.CultureInfo.InvariantCulture),
             [BotOptionPayloadKeys.HeroResourceUseConstruction] = settings.UseConstruction ? "true" : "false",
             [BotOptionPayloadKeys.HeroResourceUseSmithy] = settings.UseSmithy ? "true" : "false",
             [BotOptionPayloadKeys.HeroResourceUseBrewery] = settings.UseBrewery ? "true" : "false",
@@ -113,6 +117,8 @@ public partial class MainWindow
                 result.VillageName,
                 result.Settings.IsEnabled);
         }
+
+        ApplyHeroResourceTransferConfigToUi();
 
         if (ContinuousRunToggleButton?.IsChecked == true
             && _loopTask is not null

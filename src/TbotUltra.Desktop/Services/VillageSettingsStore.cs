@@ -32,7 +32,9 @@ public sealed class VillageSettingsStore
         bool UseConstruction,
         bool UseSmithy,
         bool UseBrewery,
-        bool UseTownHall);
+        bool UseTownHall,
+        bool MaxUseEnabled,
+        int MaxUsePerResource);
 
     private sealed class VillageSettingRecord
     {
@@ -53,6 +55,8 @@ public sealed class VillageSettingsStore
         public bool? HeroResourceUseSmithy { get; set; }
         public bool? HeroResourceUseBrewery { get; set; }
         public bool? HeroResourceUseTownHall { get; set; }
+        public bool? HeroResourceMaxUseEnabled { get; set; }
+        public int? HeroResourceMaxUsePerResource { get; set; }
         public DateTimeOffset LastSeenUtc { get; set; } = DateTimeOffset.UtcNow;
     }
 
@@ -594,6 +598,12 @@ public sealed class VillageSettingsStore
             return;
         }
 
+        settings = settings with
+        {
+            MaxUseEnabled = true,
+            MaxUsePerResource = Math.Max(0, settings.MaxUsePerResource),
+        };
+
         lock (FileIoLock)
         {
             EnsureCacheLoaded();
@@ -605,11 +615,15 @@ public sealed class VillageSettingsStore
                     && record.HeroResourceUseSmithy.HasValue
                     && record.HeroResourceUseBrewery.HasValue
                     && record.HeroResourceUseTownHall.HasValue
+                    && record.HeroResourceMaxUseEnabled.HasValue
+                    && record.HeroResourceMaxUsePerResource.HasValue
                     && record.HeroResourcesEnabled.Value == settings.IsEnabled
                     && record.HeroResourceUseConstruction.Value == settings.UseConstruction
                     && record.HeroResourceUseSmithy.Value == settings.UseSmithy
                     && record.HeroResourceUseBrewery.Value == settings.UseBrewery
-                    && record.HeroResourceUseTownHall.Value == settings.UseTownHall)
+                    && record.HeroResourceUseTownHall.Value == settings.UseTownHall
+                    && record.HeroResourceMaxUseEnabled.Value == settings.MaxUseEnabled
+                    && record.HeroResourceMaxUsePerResource.Value == settings.MaxUsePerResource)
                 {
                     return;
                 }
@@ -619,6 +633,8 @@ public sealed class VillageSettingsStore
                 record.HeroResourceUseSmithy = settings.UseSmithy;
                 record.HeroResourceUseBrewery = settings.UseBrewery;
                 record.HeroResourceUseTownHall = settings.UseTownHall;
+                record.HeroResourceMaxUseEnabled = settings.MaxUseEnabled;
+                record.HeroResourceMaxUsePerResource = settings.MaxUsePerResource;
                 record.Name = village.Name;
                 record.LastSeenUtc = DateTimeOffset.UtcNow;
             }
@@ -639,6 +655,8 @@ public sealed class VillageSettingsStore
                     HeroResourceUseSmithy = settings.UseSmithy,
                     HeroResourceUseBrewery = settings.UseBrewery,
                     HeroResourceUseTownHall = settings.UseTownHall,
+                    HeroResourceMaxUseEnabled = settings.MaxUseEnabled,
+                    HeroResourceMaxUsePerResource = settings.MaxUsePerResource,
                     LastSeenUtc = DateTimeOffset.UtcNow,
                 };
             }
@@ -837,6 +855,8 @@ public sealed class VillageSettingsStore
         winner.HeroResourceUseSmithy ??= loser.HeroResourceUseSmithy;
         winner.HeroResourceUseBrewery ??= loser.HeroResourceUseBrewery;
         winner.HeroResourceUseTownHall ??= loser.HeroResourceUseTownHall;
+        winner.HeroResourceMaxUseEnabled ??= loser.HeroResourceMaxUseEnabled;
+        winner.HeroResourceMaxUsePerResource ??= loser.HeroResourceMaxUsePerResource;
         winner.IsEnabled = winner.IsEnabled || loser.IsEnabled;
         if (winner.LastSeenUtc < loser.LastSeenUtc)
         {
@@ -859,7 +879,9 @@ public sealed class VillageSettingsStore
                 record.HeroResourceUseConstruction ?? defaults.UseConstruction,
                 record.HeroResourceUseSmithy ?? defaults.UseSmithy,
                 record.HeroResourceUseBrewery ?? defaults.UseBrewery,
-                record.HeroResourceUseTownHall ?? defaults.UseTownHall);
+                record.HeroResourceUseTownHall ?? defaults.UseTownHall,
+                MaxUseEnabled: true,
+                Math.Max(0, record.HeroResourceMaxUsePerResource ?? defaults.MaxUsePerResource));
     }
 
     /// <summary>

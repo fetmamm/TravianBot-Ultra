@@ -42,37 +42,44 @@ Compatible with:
 
 ## Features:
 
-- Automatic building
-- Hero adventures
+- Automatic building, resources and buildings
+- Hero send adventures
 - Revive hero
 - Spend hero attribute points
-- Use hero inventory resources for buildings, smithy and brewery
+- Use hero inventory resources for buildings, smithy, brewery, town hall celebrations
 - Collect daily quests
 - Collect tasks
 - Read messages and reports
 - Upgrade troops in smithy
 - Send resources between own villages
 - Send reinforcements between own villages
-- Farming
+- Auto Farming, send lists and manua farming
 - Create multiple farmlists with selected village and default troops
 - Send catapult waves
 - Session pacing
-- Auto sleep
+- Auto sleep (logout and wait)
 - Captcha solver (SS-Travi servers)
-- Read game status
+- Read ingame status
 - Read village data
 - Clean dark mode UI
 - Multi-village support
 - Calculate building time and resource cost for buildings + resourcefields
 - Oasis scan for whole map (and add to farmlists)
 - Travco inactive search (and add to farmlists)
-- reduce adventure duration 25% button / video watch
-- increase adventure to hard button / video watch
+- Reduce adventure duration 25% button / video watch
+- Increase adventure to hard button / video watch
+- Auto town hall celebrations
 
 ## Future functions:
 
 - +15% resource production for 8h automatic watch video
 - construct 25% faster button / video watch
+- Detect incomming attacks and send notification
+- Auto scout players and farms
+- Auto bid on auctions
+- Auction hustle to gain silver (buy cheap, sell expensive)
+
+All features is configurable to all the players villages. So different villages can use different settings (ex. only build troops in one village and only buildings in another etc.)
 
 ## Known bugs:
 
@@ -100,67 +107,6 @@ Set up your account and server inside the app (**Account → Manage**)
 folder per account (e.g. `Tbot-account1\`, `Tbot-account2\`) and run them at the same
 time — each copy keeps its own config, account, browser session and logs. Don't run two
 instances from the same folder.
-
----
-
-## Multi-village support
-
-The bot manages every village on the account from one **Dashboard → Village overview** list.
-
-- **Per-village on/off:** open **Village settings** and use the *Auto* toggle to choose which
-  villages the bot works in. Disabled villages are skipped entirely. Auto starts on when the account
-  has one village; later discovered villages start off. New villages start with only Construction
-  enabled (NPC and all other groups off). Choices are saved per account and survive restarts/renames.
-- **New village startup:** the default-enabled **After login** setting scans dorf1 and dorf2 only for
-  villages that do not already have complete cached resource-field and building status.
-- **Account scan:** the Dashboard button refreshes every village's resource fields, buildings,
-  construction queue and Smithy queue. Running automation pauses, the browser returns to its starting
-  village, and automation then resumes without clearing or unpausing queue items.
-- **Village overview columns:** a green/grey dot left of the name shows if a village is enabled, plus
-  per-village indicators for **Buildings** (active construction slots — 2, or 3 for Romans), **Queue**
-  (green when something is queued), **Smithy**, **Troops** (Barracks/Stable/Workshop) and **Hero**
-  (green = hero home here, yellow = away, red = dead). For Buildings/Smithy/Troops the icons are **green**
-  when something is actively running, **amber** when a task is deferred/waiting (e.g. out of resources or
-  the build queue is full) and grey when idle — so a village waiting on resources isn't mistaken for idle.
-  A green border marks the village the browser is currently working in.
-- **One queue per account:** each task carries its target village, and the bot rotates between enabled
-  villages (draining one, then moving on so a village waiting on resources never blocks the others).
-  Deleting an inactive account is not blocked by work queued on the active account.
-- **Strict account isolation:** settings, queues, village/building/resource snapshots, hero state,
-  Smithy targets and troop-training rules are stored under the account directory. New accounts use
-  defaults and never inherit another account's settings.
-- **Live Travian queues:** the Queue tab shows construction and Smithy upgrades side by side for the
-  selected village. Smithy names, target levels, finish times, overview icons and loop status share the
-  same browser-derived queue state and remain active until their absolute finish time.
-- **Per-village automation groups & NPC trade:** the Automation Loop groups (Construction, Build Troops,
-  …) can be enabled per village. NPC trade has an account-wide master toggle in **Auto settings** plus a
-  per-village choice in **Village settings** — it runs only when both are on.
-- **Village settings popup:** *Auto* is the green on/off toggle; every other toggle is blue when on.
-  Group columns use the fixed order Hero, Construction, Upgrade Troops, Build Troops, Farming, Brewery,
-  NPC, Resource Transfer, Reinforcements. Changes apply with **Save & close**; **Close** discards them.
-- **Switch village** moves the browser to the village selected in the dropdown; selecting a village in
-  the dropdown only changes the view/queue context (it does not navigate).
-- **Clear timers** resets cached activity timers for the selected village and requests fresh status
-  reads without removing items from the Queue page. It also clears that village's construction
-  build-queue snapshot and resets its deferred construction retries, so a stuck "waiting" state (when
-  nothing is actually building) can be reset. It does not wake the loop or navigate, so it never
-  starts the bot on its own.
-- The **Queue** tab shows the selected village's live Travian construction queue with target levels
-  and absolute server-clock finish times, using the same browser status as the village overview icons.
-- The live construction and Smithy panels keep their queue slots visible at all times and show a
-  per-slot countdown; Romans have three construction rows, other tribes have two.
-- Queue estimates for **Upgrade all resources** sum every resource field from its current level to the
-  selected target, including cumulative resource cost and construction time.
-- Activity timers are stored as absolute UTC finish times, so active construction, troop, smithy,
-  hero, brewery, and farm-list countdowns continue correctly after restart or machine sleep.
-- Construction queue waits are reconciled with the confirmed Travian queue in both Continuous Loop and
-  Auto Queue. Local countdowns only trigger a fresh read; they never clear a build locally. Resource,
-  requirement, retry, and queue-full waits are shown separately.
-- If a construction cost exceeds Warehouse or Granary capacity, the original task waits while the bot
-  upgrades that storage building one level. Missing or maxed storage creates a new one in a free slot;
-  without a free slot the original task is paused and an alarm is raised.
-- A construction already running for one queued item no longer blocks later items from using the
-  second Travian Plus building slot.
 
 ---
 

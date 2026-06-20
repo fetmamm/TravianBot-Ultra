@@ -877,7 +877,7 @@
                                             <ContentControl.ToolTip>
                                                 <ToolTip MaxWidth="320">
                                                     <TextBlock TextWrapping="Wrap"
-                                                               Text="Official servers only. When an upgrade lacks resources, the bot pulls the missing wood/clay/iron/crop from the hero's inventory and then continues the upgrade." />
+                                                               Text="For the selected village. When enabled, allowed features may pull missing wood/clay/iron/crop from the hero's inventory." />
                                                 </ToolTip>
                                             </ContentControl.ToolTip>
                                         </ContentControl>
@@ -892,7 +892,7 @@
                                                 VerticalAlignment="Center"
                                                 Background="{DynamicResource SurfaceBrush}"
                                                 BorderBrush="{DynamicResource BorderBrush}"
-                                                ToolTip="Open hero inventory settings"
+                                                ToolTip="Open per-village Hero resource settings"
                                                 Click="HeroInventorySettingsButton_Click" />
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" Margin="0,8,0,0">

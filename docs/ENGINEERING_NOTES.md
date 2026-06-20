@@ -106,8 +106,8 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
 - Bevara fungerande navigations- och klickordning om beteendeforandring inte uttryckligen kravs.
 - Registrera nya tasks via befintlig handler-dictionary i `BotTaskRunner`.
 - Selektorer ska vara additiva och paths flavor-aware. Logga tillrackligt med kontext for framtida felsokning.
-- Hero-resurstransfer ar per-by/per-konsument gated: master `HeroResourceTransferEnabled` (Auto settings) plus
-  Village settings `Hero res.` och `HeroResourceUse{Construction,Smithy,Brewery,TownHall}` (per by; Construction/Smithy default true, Brewery/Town Hall false). Generisk build-sidlogik i
+- Hero-resurstransfer ar per-by/per-konsument gated: Village settings `Hero res.`,
+  `HeroResourceUse{Construction,Smithy,Brewery,TownHall}` och `HeroResourceMaxUse*` (per by; Construction default true, Smithy/Brewery/Town Hall false, max limit alltid aktiv med default 5000). Generisk build-sidlogik i
   `TryHeroResourceTransferOnCurrentBuildPageAsync`; construction/brewery anropar via tunna gated wrappers,
   town hall anropar via egen tunn wrapper, smithy har egen per-trupp-DOM (`TryHeroResourceTransferForSmithyTroopAsync`). Nybyggnation ska prova
   hero-transfer direkt pa construct-sidan innan en queue-kontroll navigerar till `dorf2`.

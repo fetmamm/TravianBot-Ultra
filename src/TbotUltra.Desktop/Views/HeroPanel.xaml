@@ -443,20 +443,35 @@
                         Margin="6,0,0,0">
                     <StackPanel>
                         <DockPanel Margin="0,0,0,12">
-                            <TextBlock DockPanel.Dock="Left"
-                                       Text="Hero inventory"
-                                       FontSize="14"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                       VerticalAlignment="Center" />
-                            <Button x:Name="RefreshHeroInventoryButton"
-                                    DockPanel.Dock="Right"
-                                    Content="Refresh hero inventory"
-                                    Width="170"
-                                    HorizontalAlignment="Right"
-                                    Click="RefreshHeroInventoryButton_Click"
-                                    Background="{DynamicResource SurfaceBrush}"
-                                    BorderBrush="{DynamicResource BorderSubtleBrush}" />
+                            <StackPanel DockPanel.Dock="Right"
+                                        Orientation="Horizontal"
+                                        HorizontalAlignment="Right">
+                                <Button x:Name="RefreshHeroInventoryButton"
+                                        Content="Refresh hero inventory"
+                                        Width="170"
+                                        HorizontalAlignment="Right"
+                                        Click="RefreshHeroInventoryButton_Click"
+                                        Background="{DynamicResource SurfaceBrush}"
+                                        BorderBrush="{DynamicResource BorderSubtleBrush}" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal"
+                                        VerticalAlignment="Center">
+                                <TextBlock Text="Hero inventory"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           VerticalAlignment="Center" />
+                                <Button Width="24"
+                                        Height="24"
+                                        Padding="0"
+                                        Margin="8,0,0,0"
+                                        FontFamily="Segoe MDL2 Assets"
+                                        Content="&#xE713;"
+                                        ToolTip="Open per-village Hero resource settings."
+                                        Click="HeroResourceSettingsButton_Click"
+                                        Background="{DynamicResource SurfaceBrush}"
+                                        BorderBrush="{DynamicResource BorderSubtleBrush}" />
+                            </StackPanel>
                         </DockPanel>
 
                         <!-- Reuse the resource colors and card treatment from the Storage UI. -->
@@ -510,106 +525,6 @@
                                    FontSize="12"
                                    TextWrapping="Wrap"
                                    Margin="0,0,0,8" />
-
-                        <!-- Per-resource cap on how much may be pulled from the hero inventory for a
-                             single construction top-up. When the needed amount for any resource exceeds
-                             the limit, the transfer is skipped and the build waits until the village has
-                             accumulated enough that the hero share fits the limit. -->
-                        <Border BorderBrush="{DynamicResource AppBackgroundBrush}"
-                                BorderThickness="1"
-                                Background="{DynamicResource RowAltBackgroundBrush}"
-                                CornerRadius="6"
-                                Padding="10">
-                            <StackPanel>
-                                <CheckBox Content="Max use limit"
-                                          IsChecked="{Binding HeroResourceMaxUseEnabled}"
-                                          Foreground="{DynamicResource TextPrimaryBrush}"
-                                          VerticalContentAlignment="Center" />
-                                <TextBlock Text="Max resources used from the hero inventory per resource, per building."
-                                           Foreground="{DynamicResource TextSubtleBrush}"
-                                           FontSize="11"
-                                           TextWrapping="Wrap"
-                                           Margin="0,4,0,0" />
-                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
-                                            IsEnabled="{Binding HeroResourceMaxUseEnabled}">
-                                    <TextBlock Text="Limit"
-                                               Foreground="{DynamicResource TextSecondaryBrush}"
-                                               FontSize="12"
-                                               VerticalAlignment="Center"
-                                               Margin="0,0,8,0" />
-                                    <TextBox Width="100"
-                                             Padding="6,4"
-                                             Text="{Binding HeroResourceMaxUsePerResource, UpdateSourceTrigger=LostFocus}"
-                                             BorderBrush="{DynamicResource BorderSubtleBrush}" />
-                                </StackPanel>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Per-consumer gates: which automation features may pull from the hero inventory
-                             when they run short on resources. The master hero-resource toggle (Auto settings)
-                             still applies on top of these. -->
-                        <Border BorderBrush="{DynamicResource AppBackgroundBrush}"
-                                BorderThickness="1"
-                                Background="{DynamicResource RowAltBackgroundBrush}"
-                                CornerRadius="6"
-                                Padding="10"
-                                Margin="0,8,0,0">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                    <TextBlock Text="Hero resources settings"
-                                               Foreground="{DynamicResource TextPrimaryBrush}"
-                                               FontWeight="SemiBold"
-                                               VerticalAlignment="Center" />
-                                    <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
-                                                    Margin="6,2,0,0"
-                                                    ToolTip="Pick which features may top up from the hero inventory when short on resources." />
-                                    <Button Width="24"
-                                            Height="24"
-                                            Padding="0"
-                                            Margin="8,0,0,0"
-                                            FontFamily="Segoe MDL2 Assets"
-                                            Content="&#xE713;"
-                                            ToolTip="Open per-village Hero resource settings."
-                                            Click="HeroResourceSettingsButton_Click" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                    <CheckBox Content="Construction"
-                                              IsChecked="{Binding HeroResourceUseConstruction}"
-                                              Foreground="{DynamicResource TextPrimaryBrush}"
-                                              VerticalContentAlignment="Center" />
-                                    <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
-                                                    Margin="6,2,0,0"
-                                                    ToolTip="Top up from the hero inventory for building and resource-field upgrades when the village runs short." />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                    <CheckBox Content="Smithy"
-                                              IsChecked="{Binding HeroResourceUseSmithy}"
-                                              Foreground="{DynamicResource TextPrimaryBrush}"
-                                              VerticalContentAlignment="Center" />
-                                    <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
-                                                    Margin="6,2,0,0"
-                                                    ToolTip="Top up from the hero inventory for troop upgrades in the Smithy when short on resources." />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                    <CheckBox Content="Brewery"
-                                              IsChecked="{Binding HeroResourceUseBrewery}"
-                                              Foreground="{DynamicResource TextPrimaryBrush}"
-                                              VerticalContentAlignment="Center" />
-                                    <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
-                                                    Margin="6,2,0,0"
-                                                    ToolTip="Top up from the hero inventory to start a brewery celebration when short on resources." />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal">
-                                    <CheckBox Content="Town Hall"
-                                              IsChecked="{Binding HeroResourceUseTownHall}"
-                                              Foreground="{DynamicResource TextPrimaryBrush}"
-                                              VerticalContentAlignment="Center" />
-                                    <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
-                                                    Margin="6,2,0,0"
-                                                    ToolTip="Top up from the hero inventory to start a Town Hall celebration when short on resources." />
-                                </StackPanel>
-                            </StackPanel>
-                        </Border>
                     </StackPanel>
                 </Border>
             </Grid>
