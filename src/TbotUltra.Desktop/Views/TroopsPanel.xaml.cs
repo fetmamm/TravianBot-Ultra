@@ -55,15 +55,18 @@ public partial class TroopsPanel : UserControl
             return;
         }
 
-        RefreshTroopQueuesButton.IsEnabled = false;
-        try
+        await host.GuardUiAsync(async () =>
         {
-            await host.RefreshTroopQueuesCoreAsync();
-        }
-        finally
-        {
-            RefreshTroopQueuesButton.IsEnabled = true;
-        }
+            RefreshTroopQueuesButton.IsEnabled = false;
+            try
+            {
+                await host.RefreshTroopQueuesCoreAsync();
+            }
+            finally
+            {
+                RefreshTroopQueuesButton.IsEnabled = true;
+            }
+        });
     }
 
     private async void CheckCelebrationButton_Click(object sender, RoutedEventArgs e)
@@ -73,14 +76,17 @@ public partial class TroopsPanel : UserControl
             return;
         }
 
-        CheckCelebrationButton.IsEnabled = false;
-        try
+        await host.GuardUiAsync(async () =>
         {
-            await host.OnCheckCelebrationClickedAsync();
-        }
-        finally
-        {
-            CheckCelebrationButton.IsEnabled = true;
-        }
+            CheckCelebrationButton.IsEnabled = false;
+            try
+            {
+                await host.OnCheckCelebrationClickedAsync();
+            }
+            finally
+            {
+                CheckCelebrationButton.IsEnabled = true;
+            }
+        });
     }
 }

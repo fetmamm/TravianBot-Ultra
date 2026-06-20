@@ -11,6 +11,9 @@ public partial class MainWindow
     private bool _accountScanInProgress;
 
     private async void AccountScanButton_Click(object sender, RoutedEventArgs e)
+        => await GuardUiAsync(() => AccountScanButtonClickAsync(sender, e));
+
+    private async Task AccountScanButtonClickAsync(object sender, RoutedEventArgs e)
     {
         _ = sender;
         _ = e;

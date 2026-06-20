@@ -889,6 +889,9 @@ public partial class MainWindow
     }
 
     private async void StorageRefreshButton_Click(object sender, RoutedEventArgs e)
+        => await GuardUiAsync(StorageRefreshButtonClickAsync);
+
+    private async Task StorageRefreshButtonClickAsync()
     {
         if (BlockIfSessionSleeping("Storage refresh"))
         {

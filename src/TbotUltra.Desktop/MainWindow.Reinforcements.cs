@@ -551,6 +551,9 @@ public partial class MainWindow
     }
 
     private async void ReinforcementRefreshVillagesButton_Click(object sender, RoutedEventArgs e)
+        => await GuardUiAsync(ReinforcementRefreshVillagesButtonClickAsync);
+
+    private async Task ReinforcementRefreshVillagesButtonClickAsync()
     {
         if (BlockIfSessionSleeping("Refresh reinforcement villages"))
         {

@@ -322,6 +322,9 @@ public partial class MainWindow
     }
 
     private async void ResourceTransferScanVillagesButton_Click(object sender, RoutedEventArgs e)
+        => await GuardUiAsync(ResourceTransferScanVillagesButtonClickAsync);
+
+    private async Task ResourceTransferScanVillagesButtonClickAsync()
     {
         if (BlockIfSessionSleeping("Resource transfer village scan"))
         {

@@ -661,6 +661,9 @@ public partial class TravcoToolsWindow : Window
     }
 
     private async void TravcoToolsWindow_Closing(object? sender, CancelEventArgs e)
+        => await AsyncUi.GuardAsync(() => TravcoToolsWindowClosingAsync(sender, e), SetStatus);
+
+    private async Task TravcoToolsWindowClosingAsync(object? sender, CancelEventArgs e)
     {
         if (_allowClose)
         {

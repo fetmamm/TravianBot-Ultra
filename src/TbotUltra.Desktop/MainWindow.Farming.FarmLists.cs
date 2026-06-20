@@ -398,6 +398,9 @@ public partial class MainWindow
     }
 
     private async void AnalyzeFarmListsButton_Click(object sender, RoutedEventArgs e)
+        => await GuardUiAsync(AnalyzeFarmListsButtonClickAsync);
+
+    private async Task AnalyzeFarmListsButtonClickAsync()
     {
         if (BlockIfSessionSleeping("Analyze farmlists"))
         {
@@ -441,6 +444,9 @@ public partial class MainWindow
     }
 
     private async void AddFarmsToListButton_Click(object sender, RoutedEventArgs e)
+        => await GuardUiAsync(AddFarmsToListButtonClickAsync);
+
+    private async Task AddFarmsToListButtonClickAsync()
     {
         if (BlockIfSessionSleeping("Add farms to list"))
         {
@@ -799,6 +805,9 @@ public partial class MainWindow
     }
 
     private async void CreateFarmListButton_Click(object sender, RoutedEventArgs e)
+        => await GuardUiAsync(CreateFarmListButtonClickAsync);
+
+    private async Task CreateFarmListButtonClickAsync()
     {
         if (BlockIfSessionSleeping("Create farmlists"))
         {
@@ -919,6 +928,9 @@ public partial class MainWindow
     }
 
     private async void FarmListSendNowButton_Click(object sender, RoutedEventArgs e)
+        => await GuardUiAsync(() => FarmListSendNowButtonClickAsync(sender, e));
+
+    private async Task FarmListSendNowButtonClickAsync(object sender, RoutedEventArgs e)
     {
         if (BlockIfSessionSleeping("Farm send now"))
         {
@@ -968,6 +980,9 @@ public partial class MainWindow
     }
 
     private async void FarmListSendAllNowButton_Click(object sender, RoutedEventArgs e)
+        => await GuardUiAsync(FarmListSendAllNowButtonClickAsync);
+
+    private async Task FarmListSendAllNowButtonClickAsync()
     {
         if (BlockIfSessionSleeping("Farm send all now"))
         {

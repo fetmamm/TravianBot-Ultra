@@ -184,6 +184,9 @@ public partial class OfficialAddFarmsWindow : Window
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
+        => await AsyncUi.GuardAsync(() => OnLoadedAsync(sender, e), LogUiGuardError);
+
+    private async Task OnLoadedAsync(object sender, RoutedEventArgs e)
     {
         if (_loaded)
         {
@@ -307,6 +310,9 @@ public partial class OfficialAddFarmsWindow : Window
     }
 
     private async void AddButton_Click(object sender, RoutedEventArgs e)
+        => await AsyncUi.GuardAsync(() => AddButtonClickAsync(sender, e), LogUiGuardError);
+
+    private async Task AddButtonClickAsync(object sender, RoutedEventArgs e)
     {
         var plans = BuildPlans();
         var useDefaultTroops = !IsCustomTroops();
@@ -354,6 +360,12 @@ public partial class OfficialAddFarmsWindow : Window
             LoadingOverlay.Hide();
             AppDialog.Show(this, ex.Message, "Add farms failed", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    private void LogUiGuardError(string message)
+    {
+        LoadFailureMessage = message;
+        LoadingOverlay.Hide();
     }
 
     private void LoadingOverlay_Cancelled(object sender, EventArgs e) => _runCts.Cancel();

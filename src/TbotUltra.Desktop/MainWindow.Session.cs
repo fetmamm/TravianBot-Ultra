@@ -17,9 +17,7 @@ public partial class MainWindow
 {
     // Login button clicked
     private async void LoginButton_Click(object sender, RoutedEventArgs e)
-    {
-        await ExecuteLoginFlowAsync();
-    }
+        => await GuardUiAsync(ExecuteLoginFlowAsync);
 
     // Login function as the button is clicked
     private async Task ExecuteLoginFlowAsync()
@@ -225,6 +223,9 @@ public partial class MainWindow
     }
 // Logout knapp klickas
     private async void LogoutButton_Click(object sender, RoutedEventArgs e)
+        => await GuardUiAsync(LogoutButtonClickAsync);
+
+    private async Task LogoutButtonClickAsync()
     {
         if (BlockIfSessionSleeping("Logout"))
         {
@@ -295,7 +296,7 @@ public partial class MainWindow
     }
 
     private async void AccountsButton_Click(object sender, RoutedEventArgs e)
-        => await AsyncUi.GuardAsync(AccountsButtonClickAsync, AppendLog);
+        => await GuardUiAsync(AccountsButtonClickAsync);
 
     private async Task AccountsButtonClickAsync()
     {
@@ -347,6 +348,9 @@ public partial class MainWindow
     }
 
     private async void AccountComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        => await GuardUiAsync(() => AccountComboBoxSelectionChangedAsync(sender, e));
+
+    private async Task AccountComboBoxSelectionChangedAsync(object sender, SelectionChangedEventArgs e)
     {
         if (_suppressAccountSelectionChange)
         {
@@ -448,6 +452,9 @@ public partial class MainWindow
     }
 
     private async void ResetProgramButton_Click(object sender, RoutedEventArgs e)
+        => await GuardUiAsync(ResetProgramButtonClickAsync);
+
+    private async Task ResetProgramButtonClickAsync()
     {
         var answer = AppDialog.Show(
             "This will restart the program: stop running operations, clear the queue, close the browser session, and reset to the just-started state.\n\nThe program stays open and you can press Login to start a new session.\n\nContinue?",

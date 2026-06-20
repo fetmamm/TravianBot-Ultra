@@ -31,6 +31,9 @@ public partial class MainWindow
     }
 
     private async void MarkMessagesReadCore()
+        => await GuardUiAsync(MarkMessagesReadCoreAsync);
+
+    private async Task MarkMessagesReadCoreAsync()
     {
         if (BlockIfSessionSleeping("Mark messages as read"))
         {
@@ -71,6 +74,9 @@ public partial class MainWindow
     }
 
     private async void MarkReportsReadCore()
+        => await GuardUiAsync(MarkReportsReadCoreAsync);
+
+    private async Task MarkReportsReadCoreAsync()
     {
         if (BlockIfSessionSleeping("Mark reports as read"))
         {

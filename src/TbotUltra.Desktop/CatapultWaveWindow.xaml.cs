@@ -60,6 +60,9 @@ public partial class CatapultWaveWindow : Window
     }
 
     private async void OnWindowLoaded(object sender, RoutedEventArgs e)
+        => await AsyncUi.GuardAsync(() => OnWindowLoadedAsync(sender, e), LogUiGuardError);
+
+    private async Task OnWindowLoadedAsync(object sender, RoutedEventArgs e)
     {
         // Only run the auto-load once.
         Loaded -= OnWindowLoaded;
@@ -164,6 +167,9 @@ public partial class CatapultWaveWindow : Window
     #region Start flow
 
     private async void StartButton_Click(object sender, RoutedEventArgs e)
+        => await AsyncUi.GuardAsync(() => StartButtonClickAsync(sender, e), LogUiGuardError);
+
+    private async Task StartButtonClickAsync(object sender, RoutedEventArgs e)
     {
         if (_isRunning || _isRefreshing)
         {
@@ -305,6 +311,9 @@ public partial class CatapultWaveWindow : Window
     }
 
     private async void RefreshButton_Click(object sender, RoutedEventArgs e)
+        => await AsyncUi.GuardAsync(() => RefreshButtonClickAsync(sender, e), LogUiGuardError);
+
+    private async Task RefreshButtonClickAsync(object sender, RoutedEventArgs e)
     {
         if (_isRunning || _isRefreshing)
         {
@@ -339,6 +348,11 @@ public partial class CatapultWaveWindow : Window
             BusyOverlay.Hide();
             SetRefreshing(false);
         }
+    }
+
+    private void LogUiGuardError(string message)
+    {
+        SetStatus(message, isAlarm: true);
     }
 
     #endregion

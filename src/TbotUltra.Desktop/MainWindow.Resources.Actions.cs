@@ -16,6 +16,9 @@ namespace TbotUltra.Desktop;
 public partial class MainWindow
 {
     private async void LoadResourcesButton_Click(object sender, RoutedEventArgs e)
+        => await GuardUiAsync(LoadResourcesButtonClickAsync);
+
+    private async Task LoadResourcesButtonClickAsync()
     {
         if (BlockIfSessionSleeping("Load resources"))
         {
@@ -215,6 +218,9 @@ public partial class MainWindow
     }
 
     private async void BulkSavePageHtmlWindow_SaveRequested(object? sender, IReadOnlyList<BulkSavePageRequest> pages)
+        => await GuardUiAsync(() => BulkSavePageHtmlWindowSaveRequestedAsync(sender, pages));
+
+    private async Task BulkSavePageHtmlWindowSaveRequestedAsync(object? sender, IReadOnlyList<BulkSavePageRequest> pages)
     {
         if (BlockIfSessionSleeping("Bulk save page HTML"))
         {
@@ -342,6 +348,9 @@ public partial class MainWindow
     }
 
     private async void SavePageHtmlWindow_SaveRequested(object? sender, SavePageHtmlRequest request)
+        => await GuardUiAsync(() => SavePageHtmlWindowSaveRequestedAsync(sender, request));
+
+    private async Task SavePageHtmlWindowSaveRequestedAsync(object? sender, SavePageHtmlRequest request)
     {
         if (BlockIfSessionSleeping("Save page HTML"))
         {
@@ -409,6 +418,9 @@ public partial class MainWindow
     }
 
     private async void TestResourceProductionButton_Click(object sender, RoutedEventArgs e)
+        => await GuardUiAsync(TestResourceProductionButtonClickAsync);
+
+    private async Task TestResourceProductionButtonClickAsync()
     {
         if (BlockIfSessionSleeping("Test resource production"))
         {
@@ -466,6 +478,9 @@ public partial class MainWindow
     }
 
     private async void TestNavigateToBreweryButton_Click(object sender, RoutedEventArgs e)
+        => await GuardUiAsync(TestNavigateToBreweryButtonClickAsync);
+
+    private async Task TestNavigateToBreweryButtonClickAsync()
     {
         if (BlockIfSessionSleeping("Test navigate to brewery"))
         {
@@ -506,6 +521,9 @@ public partial class MainWindow
     }
 
     private async void TestStartCelebrationButton_Click(object sender, RoutedEventArgs e)
+        => await GuardUiAsync(TestStartCelebrationButtonClickAsync);
+
+    private async Task TestStartCelebrationButtonClickAsync()
     {
         if (BlockIfSessionSleeping("Test start celebration"))
         {
@@ -545,6 +563,9 @@ public partial class MainWindow
     }
 
     private async void TestNpcTradeBarracksButton_Click(object sender, RoutedEventArgs e)
+        => await GuardUiAsync(TestNpcTradeBarracksButtonClickAsync);
+
+    private async Task TestNpcTradeBarracksButtonClickAsync()
     {
         if (BlockIfSessionSleeping("Test NPC trade barracks"))
         {
@@ -584,6 +605,9 @@ public partial class MainWindow
     }
 
     private async void TestNpcTradeBuildingButton_Click(object sender, RoutedEventArgs e)
+        => await GuardUiAsync(TestNpcTradeBuildingButtonClickAsync);
+
+    private async Task TestNpcTradeBuildingButtonClickAsync()
     {
         if (BlockIfSessionSleeping("Test NPC trade building"))
         {
@@ -622,6 +646,9 @@ public partial class MainWindow
     }
 
     private async void TestReadSmithyQueueButton_Click(object sender, RoutedEventArgs e)
+        => await GuardUiAsync(TestReadSmithyQueueButtonClickAsync);
+
+    private async Task TestReadSmithyQueueButtonClickAsync()
     {
         if (BlockIfSessionSleeping("Test read Smithy queue"))
         {
@@ -660,6 +687,9 @@ public partial class MainWindow
     }
 
     private async void TestReinforcementsButton_Click(object sender, RoutedEventArgs e)
+        => await GuardUiAsync(TestReinforcementsButtonClickAsync);
+
+    private async Task TestReinforcementsButtonClickAsync()
     {
         if (BlockIfSessionSleeping("Test reinforcements"))
         {
@@ -704,6 +734,9 @@ public partial class MainWindow
     }
 
     private async void TestIncreaseAdventuresToHardButton_Click(object sender, RoutedEventArgs e)
+        => await GuardUiAsync(TestIncreaseAdventuresToHardButtonClickAsync);
+
+    private async Task TestIncreaseAdventuresToHardButtonClickAsync()
     {
         if (BlockIfSessionSleeping("Increase adventure danger"))
         {
@@ -742,6 +775,9 @@ public partial class MainWindow
     }
 
     private async void TestReduceAdventuresTimeButton_Click(object sender, RoutedEventArgs e)
+        => await GuardUiAsync(TestReduceAdventuresTimeButtonClickAsync);
+
+    private async Task TestReduceAdventuresTimeButtonClickAsync()
     {
         if (BlockIfSessionSleeping("Reduce adventure time"))
         {

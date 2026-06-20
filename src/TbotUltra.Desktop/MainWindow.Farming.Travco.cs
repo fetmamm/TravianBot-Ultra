@@ -12,6 +12,9 @@ public partial class MainWindow
     private bool _travcoSuppressRestart;
 
     private async void TravcoInactiveSearchButton_Click(object sender, RoutedEventArgs e)
+        => await GuardUiAsync(TravcoInactiveSearchButtonClickAsync);
+
+    private async Task TravcoInactiveSearchButtonClickAsync()
     {
         if (BlockIfSessionSleeping("Travco inactive search"))
         {
@@ -148,6 +151,9 @@ public partial class MainWindow
     }
 
     private async void TravcoToolsWindow_Closed(object? sender, EventArgs e)
+        => await GuardUiAsync(() => TravcoToolsWindowClosedAsync(sender, e));
+
+    private async Task TravcoToolsWindowClosedAsync(object? sender, EventArgs e)
     {
         if (sender is TravcoToolsWindow window)
         {

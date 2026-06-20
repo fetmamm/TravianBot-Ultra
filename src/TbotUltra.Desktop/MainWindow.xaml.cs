@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -616,6 +617,9 @@ public partial class MainWindow : Window
 
         AppendLog($"[ui] Unhandled exception in UI handler: {e.Exception.Message}");
     }
+
+    internal Task GuardUiAsync(Func<Task> action, [CallerMemberName] string caller = "")
+        => AsyncUi.GuardAsync(action, AppendLog, caller);
 
     private void TryApplyWindowIcon()
     {
@@ -1439,6 +1443,9 @@ public partial class MainWindow : Window
     }
 
     private async void OpenVerificationBrowser()
+        => await GuardUiAsync(OpenVerificationBrowserAsync);
+
+    private async Task OpenVerificationBrowserAsync()
     {
         if (BlockIfSessionSleeping("Open verification browser"))
         {

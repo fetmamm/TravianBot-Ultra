@@ -70,6 +70,9 @@ public partial class AddFarmsToListWindow : Window
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
+        => await AsyncUi.GuardAsync(() => OnLoadedAsync(sender, e), LogUiGuardError);
+
+    private async Task OnLoadedAsync(object sender, RoutedEventArgs e)
     {
         if (_loaded)
         {
@@ -112,6 +115,11 @@ public partial class AddFarmsToListWindow : Window
             DialogResult = false;
             Close();
         }
+    }
+
+    private void LogUiGuardError(string message)
+    {
+        LoadFailureMessage = message;
     }
 
     private void LoadingOverlay_Cancelled(object sender, EventArgs e)

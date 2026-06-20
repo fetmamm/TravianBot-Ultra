@@ -137,15 +137,18 @@ public partial class HeroPanel : UserControl
             return;
         }
 
-        RefreshHeroStatsButton.IsEnabled = false;
-        try
+        await host.GuardUiAsync(async () =>
         {
-            await host.RefreshHeroStatsCoreAsync();
-        }
-        finally
-        {
-            RefreshHeroStatsButton.IsEnabled = true;
-        }
+            RefreshHeroStatsButton.IsEnabled = false;
+            try
+            {
+                await host.RefreshHeroStatsCoreAsync();
+            }
+            finally
+            {
+                RefreshHeroStatsButton.IsEnabled = true;
+            }
+        });
     }
 
     private async void RefreshAdventuresButton_Click(object sender, RoutedEventArgs e)
@@ -155,15 +158,18 @@ public partial class HeroPanel : UserControl
             return;
         }
 
-        RefreshAdventuresButton.IsEnabled = false;
-        try
+        await host.GuardUiAsync(async () =>
         {
-            await host.RefreshAdventuresCoreAsync();
-        }
-        finally
-        {
-            RefreshAdventuresButton.IsEnabled = true;
-        }
+            RefreshAdventuresButton.IsEnabled = false;
+            try
+            {
+                await host.RefreshAdventuresCoreAsync();
+            }
+            finally
+            {
+                RefreshAdventuresButton.IsEnabled = true;
+            }
+        });
     }
 
     private void QueueHeroManageButton_Click(object sender, RoutedEventArgs e)
@@ -178,15 +184,18 @@ public partial class HeroPanel : UserControl
             return;
         }
 
-        RefreshHeroInventoryButton.IsEnabled = false;
-        try
+        await host.GuardUiAsync(async () =>
         {
-            await host.RefreshHeroInventoryCoreAsync();
-        }
-        finally
-        {
-            RefreshHeroInventoryButton.IsEnabled = true;
-        }
+            RefreshHeroInventoryButton.IsEnabled = false;
+            try
+            {
+                await host.RefreshHeroInventoryCoreAsync();
+            }
+            finally
+            {
+                RefreshHeroInventoryButton.IsEnabled = true;
+            }
+        });
     }
 
     private void HeroResourceSettingsButton_Click(object sender, RoutedEventArgs e)

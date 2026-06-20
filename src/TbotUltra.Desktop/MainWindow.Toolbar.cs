@@ -172,6 +172,9 @@ public partial class MainWindow
     }
 
     private async void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+        => await GuardUiAsync(() => MainWindowClosingAsync(sender, e));
+
+    private async Task MainWindowClosingAsync(object? sender, System.ComponentModel.CancelEventArgs e)
     {
         if (_shutdownCompleted)
         {

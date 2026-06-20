@@ -63,6 +63,9 @@ public partial class MainWindow
     }
 
     private async void AnalyzeNatarsProfileButton_Click(object sender, RoutedEventArgs e)
+        => await GuardUiAsync(AnalyzeNatarsProfileButtonClickAsync);
+
+    private async Task AnalyzeNatarsProfileButtonClickAsync()
     {
         if (BlockIfSessionSleeping("Analyze natars profile"))
         {
@@ -122,6 +125,9 @@ public partial class MainWindow
     }
 
     private async void ShowNatarsListButton_Click(object sender, RoutedEventArgs e)
+        => await GuardUiAsync(ShowNatarsListButtonClickAsync);
+
+    private async Task ShowNatarsListButtonClickAsync()
     {
         if (BlockIfSessionSleeping("Show natars list"))
         {

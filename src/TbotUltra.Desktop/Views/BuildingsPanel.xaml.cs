@@ -38,7 +38,7 @@ public partial class BuildingsPanel : UserControl
     {
         if (Host is { } host)
         {
-            await host.OnLoadBuildingsClicked();
+            await host.GuardUiAsync(host.OnLoadBuildingsClicked);
         }
     }
 

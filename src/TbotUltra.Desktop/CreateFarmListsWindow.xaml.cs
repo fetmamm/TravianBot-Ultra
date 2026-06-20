@@ -74,6 +74,9 @@ public partial class CreateFarmListsWindow : Window
     }
 
     private async void CreateButton_Click(object sender, RoutedEventArgs e)
+        => await AsyncUi.GuardAsync(() => CreateButtonClickAsync(sender, e), LogUiGuardError);
+
+    private async Task CreateButtonClickAsync(object sender, RoutedEventArgs e)
     {
         if (!TryBuildRequest(out var request, out var validation))
         {
@@ -107,6 +110,11 @@ public partial class CreateFarmListsWindow : Window
             LoadingOverlay.Hide();
             ValidationTextBlock.Text = ex.Message;
         }
+    }
+
+    private void LogUiGuardError(string message)
+    {
+        ValidationTextBlock.Text = message;
     }
 
     private void LoadingOverlay_Cancelled(object sender, EventArgs e) => _runCts.Cancel();
