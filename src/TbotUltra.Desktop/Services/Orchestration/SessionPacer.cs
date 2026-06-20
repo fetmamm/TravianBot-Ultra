@@ -247,7 +247,7 @@ public sealed class SessionPacer
         }
         else
         {
-            _activeSleepDuration = TimeSpan.FromMinutes(ApplyVariation(_settings.SleepMinutes, "sleep", DateOnly.FromDateTime(now.DateTime)));
+            _activeSleepDuration = TimeSpan.FromMinutes(ApplyVariation(_settings.SleepMinutes));
             _wakeAt = now.Add(_activeSleepDuration.Value);
         }
 
@@ -280,7 +280,7 @@ public sealed class SessionPacer
         Phase = SessionPacerPhase.Running;
         SleepReason = SessionSleepReason.None;
         _runStartedAt = now;
-        _activeRunDuration = TimeSpan.FromMinutes(ApplyVariation(_settings.MaxRunMinutes, "run", DateOnly.FromDateTime(now.DateTime)));
+        _activeRunDuration = TimeSpan.FromMinutes(ApplyVariation(_settings.MaxRunMinutes));
         _runDeadline = Earliest(now.Add(_activeRunDuration.Value), GetNextRestrictionAt(now));
         _pausedRunRemaining = null;
         _wakeAt = null;
@@ -522,7 +522,7 @@ public sealed class SessionPacer
         RaiseTick();
     }
 
-    private double ApplyVariation(int minutes, string purpose, DateOnly date)
+    private double ApplyVariation(int minutes)
     {
         var baseMinutes = Math.Max(1, minutes);
         var variation = Math.Clamp(_settings.VariationPercent, 0, 100);
@@ -531,8 +531,15 @@ public sealed class SessionPacer
             return baseMinutes;
         }
 
+        // Pick a fresh random offset each time a sleep/run actually starts so the duration genuinely
+        // varies across base +/- variation% (e.g. 40 min @ 40% -> anywhere in 24..56 min). The previous
+        // deterministic per-hour value could land on almost no change, which made the variation look
+        // broken. Randomizing here is safe because the result is pinned to the wake/run deadline once and
+        // never recomputed during the phase. Schedule boundaries and the daily limit deliberately keep
+        // DeterministicSignedFraction since those are recomputed repeatedly and must stay stable.
+        var fraction = (Random.Shared.NextDouble() * 2) - 1; // [-1, 1]
         var spread = baseMinutes * variation / 100.0;
-        return Math.Max(1.0 / 60.0, baseMinutes + (DeterministicSignedFraction($"{purpose}:{date:yyyyMMdd}:{_now().Hour}") * spread));
+        return Math.Max(1.0 / 60.0, baseMinutes + (fraction * spread));
     }
 
     private static double DeterministicSignedFraction(string value)

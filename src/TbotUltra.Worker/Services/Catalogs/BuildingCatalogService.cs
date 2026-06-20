@@ -55,8 +55,8 @@ public static class BuildingCatalogService
 
     private static readonly Dictionary<int, List<BuildingRequirementEntry>> BuildingRequirements = new()
     {
-        [5] = [new("Clay Pit", 10), new("Main Building", 5)],
-        [6] = [new("Woodcutter", 10), new("Main Building", 5)],
+        [5] = [new("Woodcutter", 10), new("Main Building", 5)],
+        [6] = [new("Clay Pit", 10), new("Main Building", 5)],
         [7] = [new("Iron Mine", 10), new("Main Building", 5)],
         [8] = [new("Cropland", 5), new("Main Building", 5)],
         [9] = [new("Cropland", 10), new("Grain Mill", 5), new("Main Building", 5)],

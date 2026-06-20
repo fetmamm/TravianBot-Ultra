@@ -169,7 +169,7 @@ public partial class SettingsWindow : Window
         SessionPacingEnabledCheckBox.IsChecked = ReadBool(BotOptionPayloadKeys.SessionPacingEnabled, PacingDefaults.SessionPacingEnabled);
         SessionMaxRunMinutesTextBox.Text = ReadInt(BotOptionPayloadKeys.SessionPacingMaxRunMinutes, PacingDefaults.SessionPacingMaxRunMinutes).ToString();
         SessionSleepMinutesTextBox.Text = Math.Max(30, ReadInt(BotOptionPayloadKeys.SessionPacingSleepMinutes, PacingDefaults.SessionPacingSleepMinutes)).ToString();
-        SessionVariationPercentTextBox.Text = ReadInt(BotOptionPayloadKeys.SessionPacingVariationPercent, PacingDefaults.SessionPacingVariationPercent).ToString();
+        SelectVariationPercent(ReadInt(BotOptionPayloadKeys.SessionPacingVariationPercent, PacingDefaults.SessionPacingVariationPercent));
         SelectDailyMaxHours(ReadInt(BotOptionPayloadKeys.SessionPacingDailyMaxHours, PacingDefaults.SessionPacingDailyMaxHours));
         var allowedHours = ReadAllowedHours();
         foreach (var checkBox in SessionAllowedHoursGrid.Children.OfType<CheckBox>())
@@ -198,7 +198,7 @@ public partial class SettingsWindow : Window
         _config[BotOptionPayloadKeys.SessionPacingEnabled] = SessionPacingEnabledCheckBox.IsChecked == true;
         _config[BotOptionPayloadKeys.SessionPacingMaxRunMinutes] = ReadIntText(SessionMaxRunMinutesTextBox, PacingDefaults.SessionPacingMaxRunMinutes, 1, 10080);
         _config[BotOptionPayloadKeys.SessionPacingSleepMinutes] = ReadIntText(SessionSleepMinutesTextBox, PacingDefaults.SessionPacingSleepMinutes, 30, 10080);
-        _config[BotOptionPayloadKeys.SessionPacingVariationPercent] = ReadIntText(SessionVariationPercentTextBox, PacingDefaults.SessionPacingVariationPercent, 0, 100);
+        _config[BotOptionPayloadKeys.SessionPacingVariationPercent] = GetSelectedVariationPercent();
         _config[BotOptionPayloadKeys.SessionPacingDailyMaxHours] = GetSelectedDailyMaxHours();
         _config[BotOptionPayloadKeys.SessionPacingAllowedHours] = new JsonArray(
             SessionAllowedHoursGrid.Children.OfType<CheckBox>()
@@ -231,7 +231,7 @@ public partial class SettingsWindow : Window
         SessionPacingEnabledCheckBox.IsChecked = PacingDefaults.SessionPacingEnabled;
         SessionMaxRunMinutesTextBox.Text = PacingDefaults.SessionPacingMaxRunMinutes.ToString();
         SessionSleepMinutesTextBox.Text = PacingDefaults.SessionPacingSleepMinutes.ToString();
-        SessionVariationPercentTextBox.Text = PacingDefaults.SessionPacingVariationPercent.ToString();
+        SelectVariationPercent(PacingDefaults.SessionPacingVariationPercent);
         SelectDailyMaxHours(PacingDefaults.SessionPacingDailyMaxHours);
         foreach (var checkBox in SessionAllowedHoursGrid.Children.OfType<CheckBox>())
         {
@@ -258,8 +258,29 @@ public partial class SettingsWindow : Window
 
     private double ReadDouble(string key, double defaultValue) => _config[key]?.GetValue<double>() ?? defaultValue;
 
+    // Fixed variation choices offered in the Sleep/Run "Variation" dropdown.
+    private static readonly (string Label, int Percent)[] VariationPercentChoices =
+    {
+        ("No variation", 0),
+        ("10%", 10),
+        ("20%", 20),
+        ("30%", 30),
+        ("40%", 40),
+        ("50%", 50),
+        ("90%", 90),
+    };
+
     private void InitializeSessionPacingChoices()
     {
+        foreach (var (label, percent) in VariationPercentChoices)
+        {
+            SessionVariationPercentComboBox.Items.Add(new ComboBoxItem
+            {
+                Content = label,
+                Tag = percent.ToString(CultureInfo.InvariantCulture),
+            });
+        }
+
         SessionDailyMaxHoursComboBox.Items.Add(new ComboBoxItem { Content = "No limit", Tag = "0" });
         for (var hour = 1; hour <= 24; hour++)
         {
@@ -294,6 +315,28 @@ public partial class SettingsWindow : Window
             .Where(hour => hour is >= 0 and <= 23)
             .ToHashSet();
     }
+
+    private void SelectVariationPercent(int percent)
+    {
+        var items = SessionVariationPercentComboBox.Items.OfType<ComboBoxItem>().ToList();
+        // Snap a stored/legacy value that isn't an exact option to the nearest available choice so the
+        // dropdown always shows a valid selection.
+        var match = items.FirstOrDefault(item =>
+                string.Equals(item.Tag?.ToString(), percent.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal))
+            ?? items.OrderBy(item => Math.Abs(ParseTag(item) - percent)).FirstOrDefault();
+        SessionVariationPercentComboBox.SelectedItem = match;
+    }
+
+    private int GetSelectedVariationPercent()
+    {
+        return SessionVariationPercentComboBox.SelectedItem is ComboBoxItem item
+            && int.TryParse(item.Tag?.ToString(), out var percent)
+                ? Math.Clamp(percent, 0, 100)
+                : PacingDefaults.SessionPacingVariationPercent;
+    }
+
+    private static int ParseTag(ComboBoxItem item)
+        => int.TryParse(item.Tag?.ToString(), out var value) ? value : 0;
 
     private void SelectDailyMaxHours(int hours)
     {

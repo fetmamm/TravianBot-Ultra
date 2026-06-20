@@ -13,7 +13,7 @@ public static class QueueGroupCatalog
             [QueueGroup.Hero] = ("hero", "Hero", "Hero actions and adventures."),
             [QueueGroup.Farming] = ("farming", "Farming", "Selected farmlists."),
             [QueueGroup.TroopTraining] = ("troop_training", "Build Troops", "Barracks, Stable, and Workshop."),
-            [QueueGroup.BreweryCelebration] = ("brewery_celebration", "Auto Celebration", "Teutons brewery celebration."),
+            [QueueGroup.BreweryCelebration] = ("brewery_celebration", "Brewery Celebration", "Teutons brewery celebration."),
             [QueueGroup.NpcTrade] = ("npc_trade", "NPC Trade", "NPC resource exchange while building troops, buildings, or resource fields."),
             [QueueGroup.ResourceTransfer] = ("resource_transfer", "Resource Transfer", "Send resources between own villages."),
             [QueueGroup.Reinforcements] = ("reinforcements", "Reinforcements", "Send troops between own villages."),

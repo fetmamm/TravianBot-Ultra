@@ -578,6 +578,10 @@ public partial class MainWindow : Window
         LoadVersionToUi();
         RefreshQueueUi();
         Closing += MainWindow_Closing;
+        if (Application.Current is not null)
+        {
+            Application.Current.DispatcherUnhandledException += OnDispatcherUnhandledExceptionForLog;
+        }
         SetLoopIndicator(false);
         UpdateInboxButtons(0, 0);
         _inboxRefreshTimer.Start();
@@ -591,6 +595,23 @@ public partial class MainWindow : Window
         SetNatarsProfileAnalyzed(false);
         _heroViewModel.LoadPriorityFromConfig(null);
         StartBackgroundWarmups();
+    }
+
+    // Rad 7 safety net for async void UI handlers. App.xaml.cs already keeps the process alive
+    // (e.Handled = true) and writes the exception to the on-disk crash log; this additionally surfaces
+    // it in the in-app session log so an async void handler that throws is debuggable without opening
+    // the crash file. Does not set e.Handled (App owns that). OperationCanceledException is normal
+    // control flow (cancel/stop) and is skipped.
+    private void OnDispatcherUnhandledExceptionForLog(
+        object sender,
+        System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)
+    {
+        if (e.Exception is OperationCanceledException)
+        {
+            return;
+        }
+
+        AppendLog($"[ui] Unhandled exception in UI handler: {e.Exception.Message}");
     }
 
     private void TryApplyWindowIcon()
@@ -652,33 +673,41 @@ public partial class MainWindow : Window
         ApplyAutoCollectDailyQuestsConfigToUi(options);
         ApplyHeroResourceTransferConfigToUi(options);
 
-        try
+        // Account + runtime state below (account label, inbox counts, gold-club, Natars, hero snapshot) is
+        // seeded from caches/disk. That is only correct before login — startup or an account switch — when the
+        // UI has no live state yet. When already logged in this method is reached only from a Settings-popup
+        // save; re-seeding then would overwrite newer live state with stale cache values (e.g. the hero home
+        // village driving the green dashboard icon, or the inbox counts). So skip the reseed while logged in.
+        if (!_isLoggedIn)
         {
-            var account = _accountProvider.LoadAccount();
-            StatusTextBlock.Text = $"Loaded account '{account.Name}'.";
-            AppendLog($"Loaded account '{account.Name}'.");
-            UpdateAccountInfoLabel(account.Name);
-            UpdateInboxButtons(0, 0);
-            UpdateGoldClubInfoFromStoredAnalysis();
-            RefreshNatarsProfileAnalyzedFromCache();
-            LoadHeroAttributeSnapshotForActiveAccount(account.Name);
-        }
-        catch (Exception ex)
-        {
-            var hasConfiguredAccounts = _accountStore.ListAccounts().Count > 0;
-            if (hasConfiguredAccounts)
+            try
             {
-                StatusTextBlock.Text = "Failed to load account.";
-                AppendLog($"Account load failed: {ex.Message}");
+                var account = _accountProvider.LoadAccount();
+                StatusTextBlock.Text = $"Loaded account '{account.Name}'.";
+                AppendLog($"Loaded account '{account.Name}'.");
+                UpdateAccountInfoLabel(account.Name);
+                UpdateInboxButtons(0, 0);
+                UpdateGoldClubInfoFromStoredAnalysis();
+                RefreshNatarsProfileAnalyzedFromCache();
+                LoadHeroAttributeSnapshotForActiveAccount(account.Name);
             }
-            else
+            catch (Exception ex)
             {
-                StatusTextBlock.Text = "No account configured yet. Open Manage to create one.";
-            }
+                var hasConfiguredAccounts = _accountStore.ListAccounts().Count > 0;
+                if (hasConfiguredAccounts)
+                {
+                    StatusTextBlock.Text = "Failed to load account.";
+                    AppendLog($"Account load failed: {ex.Message}");
+                }
+                else
+                {
+                    StatusTextBlock.Text = "No account configured yet. Open Manage to create one.";
+                }
 
-            UpdateInboxButtons(0, 0);
-            UpdateGoldClubInfo(null);
-            SetNatarsProfileAnalyzed(false);
+                UpdateInboxButtons(0, 0);
+                UpdateGoldClubInfo(null);
+                SetNatarsProfileAnalyzed(false);
+            }
         }
 
         // Hide/show Natar-only controls based on whether the active server is the private server.

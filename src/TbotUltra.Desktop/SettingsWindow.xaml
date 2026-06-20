@@ -82,8 +82,8 @@
                                 <TextBox x:Name="SessionMaxRunMinutesTextBox" Grid.Row="0" Grid.Column="1" Height="24" Margin="0,2" />
                                 <TextBlock Grid.Row="1" Grid.Column="0" Text="Sleep (min)" VerticalAlignment="Center" Margin="0,2" />
                                 <TextBox x:Name="SessionSleepMinutesTextBox" Grid.Row="1" Grid.Column="1" Height="24" Margin="0,2" />
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Variation %" VerticalAlignment="Center" Margin="0,2" />
-                                <TextBox x:Name="SessionVariationPercentTextBox" Grid.Row="2" Grid.Column="1" Height="24" Margin="0,2" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Variation" VerticalAlignment="Center" Margin="0,2" />
+                                <ComboBox x:Name="SessionVariationPercentComboBox" Grid.Row="2" Grid.Column="1" Height="24" Margin="0,2" />
                                 <TextBlock Grid.Row="3" Grid.Column="0" Text="Daily max" VerticalAlignment="Center" Margin="0,2" />
                                 <ComboBox x:Name="SessionDailyMaxHoursComboBox" Grid.Row="3" Grid.Column="1" Height="24" Margin="0,2" />
                             </Grid>

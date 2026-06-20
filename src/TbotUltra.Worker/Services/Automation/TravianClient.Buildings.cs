@@ -1529,7 +1529,9 @@ public sealed partial class TravianClient
                 matches.push({ index: candidates.indexOf(el), rank, text: actionText.slice(0, 60), gidContext: { wrapper: wrapperMatchesGid, onclick: onclickMentionsGid } });
               }
               matches.sort((a, b) => b.rank - a.rank);
-              return JSON.stringify({ clicked: false, clickIndex: matches.length > 0 ? matches[0].index : null, matches: matches.slice(0, 5), seen: seen.slice(0, 20) });
+              const best = matches.length > 0 ? matches[0] : null;
+              const bestEl = best ? candidates[best.index] : null;
+              return JSON.stringify({ clicked: false, clickIndex: best ? best.index : null, clickId: bestEl && bestEl.id ? bestEl.id : '', matches: matches.slice(0, 5), seen: seen.slice(0, 20) });
             }
             """,
             new { gid });
@@ -1538,20 +1540,59 @@ public sealed partial class TravianClient
         try
         {
             using var doc = JsonDocument.Parse(rawJson ?? "{}");
-            if (!doc.RootElement.TryGetProperty("clickIndex", out var clickIndexProp)
-                || clickIndexProp.ValueKind != JsonValueKind.Number
-                || !clickIndexProp.TryGetInt32(out var clickIndex))
+            var root = doc.RootElement;
+
+            var clickId = root.TryGetProperty("clickId", out var clickIdProp)
+                && clickIdProp.ValueKind == JsonValueKind.String
+                    ? clickIdProp.GetString()
+                    : null;
+            int? clickIndex = root.TryGetProperty("clickIndex", out var clickIndexProp)
+                && clickIndexProp.ValueKind == JsonValueKind.Number
+                && clickIndexProp.TryGetInt32(out var parsedIndex)
+                    ? parsedIndex
+                    : null;
+
+            if (string.IsNullOrWhiteSpace(clickId) && clickIndex is null)
             {
                 return false;
             }
 
-            var clickTarget = _page.Locator("button, input[type='submit'], input[type='button'], a, div.addHoverClick, div.button-container").Nth(clickIndex);
+            // Prefer the matched element's stable id. The scan computes its position via
+            // document.querySelectorAll, but Playwright's CSS engine pierces open shadow DOM (cookie
+            // consent / React widgets) and runs on a separate snapshot, so a positional Nth(index) can
+            // resolve to a different — often hidden — element and hang ClickAsync for the full timeout.
+            // Pinning the exact button by id avoids that misalignment; Nth stays as a last-resort fallback
+            // for the rare candidate that has no id (e.g. some private-server submit inputs).
+            var clickTarget = !string.IsNullOrWhiteSpace(clickId)
+                ? _page.Locator($"[id=\"{clickId}\"]").First
+                : _page.Locator("button, input[type='submit'], input[type='button'], a, div.addHoverClick, div.button-container").Nth(clickIndex!.Value);
+
             await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
-            await clickTarget.ClickAsync(new LocatorClickOptions
+            try
             {
-                Timeout = _config.TimeoutMs,
-            });
-            return true;
+                await clickTarget.ClickAsync(new LocatorClickOptions
+                {
+                    Timeout = _config.TimeoutMs,
+                });
+                return true;
+            }
+            catch (Exception clickEx) when (!string.IsNullOrWhiteSpace(clickId))
+            {
+                // The target button is known and gid-scoped. If a normal click cannot reach it (e.g. an
+                // overlay intercepts pointer events), dispatch the element's own click handler. Its onclick
+                // navigates via window.location.href, so this performs the same construction action.
+                Notify($"Construct click on '{clickId}' fell back to scripted click: {clickEx.Message}");
+                return await _page.EvaluateAsync<bool>(
+                    """
+                    (id) => {
+                      const el = document.getElementById(id);
+                      if (!el) return false;
+                      el.click();
+                      return true;
+                    }
+                    """,
+                    clickId);
+            }
         }
         catch (Exception ex)
         {

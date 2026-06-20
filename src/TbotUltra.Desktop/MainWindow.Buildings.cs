@@ -1257,7 +1257,13 @@ public partial class MainWindow
             // the dependent one. Construct+upgrade chains are covered by projectedStatus above (the upgrade
             // projects the target level onto the constructed slot); this only adds the lone-construct case.
             var fromQueuedConstructs = QueuedConstructProvidesRequirement(requirement.Name) ? 1 : 0;
-            var level = Math.Max(Math.Max(fromBuildings, fromResourceFields), Math.Max(fromUiResourceRows, fromQueuedConstructs));
+            // A queued (pending) resource-field upgrade to level N satisfies a resource-field prerequisite
+            // (e.g. Iron Mine 10 for an Iron Foundry) before it finishes, matching how queued building
+            // upgrades/constructs already unlock dependent buildings.
+            var fromQueuedResourceUpgrades = MaxQueuedResourceUpgradeLevel(requirement.Name);
+            var level = Math.Max(
+                Math.Max(fromBuildings, fromResourceFields),
+                Math.Max(Math.Max(fromUiResourceRows, fromQueuedConstructs), fromQueuedResourceUpgrades));
             if (level < requirement.Level)
             {
                 missing.Add(requirement);
@@ -1280,6 +1286,62 @@ public partial class MainWindow
             .Any(item => TryReadBuildingConstructPayload(item.Payload, out _, out _, out var name)
                 && !string.IsNullOrWhiteSpace(name)
                 && name.Contains(requirementName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    // Highest target level of a queued (pending) resource-field upgrade for the prerequisite's resource
+    // category (Woodcutter/Clay Pit/Iron Mine/Cropland). Returns 0 for non-resource requirements.
+    // upgrade_all_resources_to_level raises every field, so its target counts for any resource category.
+    private int MaxQueuedResourceUpgradeLevel(string requirementName)
+    {
+        var reqCategory = ResourceCategory(requirementName);
+        if (reqCategory is null)
+        {
+            return 0;
+        }
+
+        var best = 0;
+        foreach (var item in GetActiveQueueItems().Where(IsQueueItemForSelectedVillageOrGlobal))
+        {
+            var payload = item.Payload;
+            int? target = null;
+            if (string.Equals(item.TaskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase))
+            {
+                var name = GetPayloadValue(payload, BotOptionPayloadKeys.ResourceUpgradeName);
+                if (string.Equals(ResourceCategory(name), reqCategory, StringComparison.Ordinal))
+                {
+                    target = TryGetIntPayloadValue(payload, BotOptionPayloadKeys.ResourceUpgradeTargetLevel)
+                        ?? TryGetIntPayloadValue(payload, BotOptionPayloadKeys.TargetLevel);
+                }
+            }
+            else if (string.Equals(item.TaskName, "upgrade_all_resources_to_level", StringComparison.OrdinalIgnoreCase))
+            {
+                target = TryGetIntPayloadValue(payload, BotOptionPayloadKeys.ResourceUpgradeTargetLevel)
+                    ?? TryGetIntPayloadValue(payload, BotOptionPayloadKeys.TargetLevel);
+            }
+
+            if (target is int value)
+            {
+                best = Math.Max(best, value);
+            }
+        }
+
+        return best;
+    }
+
+    // Maps a resource field / requirement name to its resource category, or null when it is not a
+    // resource field (e.g. Main Building, Academy).
+    private static string? ResourceCategory(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        if (name.Contains("Wood", StringComparison.OrdinalIgnoreCase)) return "wood";
+        if (name.Contains("Clay", StringComparison.OrdinalIgnoreCase)) return "clay";
+        if (name.Contains("Iron", StringComparison.OrdinalIgnoreCase)) return "iron";
+        if (name.Contains("Crop", StringComparison.OrdinalIgnoreCase)) return "crop";
+        return null;
     }
 
     private int MaxLevelInUiResourceRows(string requirementName)
