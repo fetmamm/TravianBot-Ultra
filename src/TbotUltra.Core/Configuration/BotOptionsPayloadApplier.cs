@@ -43,6 +43,7 @@ public static class BotOptionsPayloadApplier
         var heroResourceUseConstruction = source.HeroResourceUseConstruction;
         var heroResourceUseSmithy = source.HeroResourceUseSmithy;
         var heroResourceUseBrewery = source.HeroResourceUseBrewery;
+        var heroResourceUseTownHall = source.HeroResourceUseTownHall;
         var upgradeSelectorProfile = source.UpgradeSelectorProfile;
         var natarVillageSelection = source.NatarVillageSelection;
         var continuousFarmListNames = source.ContinuousFarmListNames;
@@ -50,6 +51,7 @@ public static class BotOptionsPayloadApplier
         var continuousFarmDispatchDelayMinutes = source.ContinuousFarmDispatchDelayMinutes;
         var continuousFarmDispatchDelayVariationPercent = source.ContinuousFarmDispatchDelayVariationPercent;
         var continuousFarmSendMode = source.ContinuousFarmSendMode;
+        var townHallCelebrationMode = source.TownHallCelebrationMode;
         var continuousFarmDeactivateLosses = source.ContinuousFarmDeactivateLosses;
         var continuousFarmDeactivateOasisLosses = source.ContinuousFarmDeactivateOasisLosses;
         var continuousFarmNextListIndex = source.ContinuousFarmNextListIndex;
@@ -121,6 +123,8 @@ public static class BotOptionsPayloadApplier
         var reinforcementsTargetVillageName = source.ReinforcementsTargetVillageName;
         var reinforcementsSourceVillageNames = source.ReinforcementsSourceVillageNames;
         var reinforcementsTroopRules = source.ReinforcementsTroopRules;
+        var reinforcementsSendIntervalHours = source.ReinforcementsSendIntervalHours;
+        var reinforcementsSendVariationPercent = source.ReinforcementsSendVariationPercent;
         var actionPacingEnabled = source.ActionPacingEnabled;
         var actionPacingTaskMinSeconds = source.ActionPacingTaskMinSeconds;
         var actionPacingTaskMaxSeconds = source.ActionPacingTaskMaxSeconds;
@@ -393,6 +397,13 @@ public static class BotOptionsPayloadApplier
                     continue;
                 }
 
+                if (key.Equals(BotOptionPayloadKeys.HeroResourceUseTownHall, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var heroUseTownHall))
+                {
+                    heroResourceUseTownHall = heroUseTownHall;
+                    continue;
+                }
+
                 if (key.Equals(BotOptionPayloadKeys.UpgradeSelectorProfile, StringComparison.OrdinalIgnoreCase))
                 {
                     upgradeSelectorProfile = value;
@@ -436,6 +447,12 @@ public static class BotOptionsPayloadApplier
                 if (key.Equals(BotOptionPayloadKeys.ContinuousFarmSendMode, StringComparison.OrdinalIgnoreCase))
                 {
                     continuousFarmSendMode = FarmingDefaults.NormalizeSendMode(value);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TownHallCelebrationMode, StringComparison.OrdinalIgnoreCase))
+                {
+                    townHallCelebrationMode = TownHallCelebrationDefaults.NormalizeMode(value);
                     continue;
                 }
 
@@ -934,6 +951,20 @@ public static class BotOptionsPayloadApplier
                     continue;
                 }
 
+                if (key.Equals(BotOptionPayloadKeys.ReinforcementsSendIntervalHours, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var reinforcementIntervalHours))
+                {
+                    reinforcementsSendIntervalHours = ReinforcementSendDefaults.NormalizeIntervalHours(reinforcementIntervalHours);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ReinforcementsSendVariationPercent, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var reinforcementVariationPercent))
+                {
+                    reinforcementsSendVariationPercent = ReinforcementSendDefaults.NormalizeVariationPercent(reinforcementVariationPercent);
+                    continue;
+                }
+
                 if (key.Equals(BotOptionPayloadKeys.ActionPacingEnabled, StringComparison.OrdinalIgnoreCase)
                     && bool.TryParse(value, out var pacingEnabled))
                 {
@@ -1032,6 +1063,7 @@ public static class BotOptionsPayloadApplier
             ContinuousFarmDispatchDelayMinutes = continuousFarmDispatchDelayMinutes,
             ContinuousFarmDispatchDelayVariationPercent = continuousFarmDispatchDelayVariationPercent,
             ContinuousFarmSendMode = continuousFarmSendMode,
+            TownHallCelebrationMode = townHallCelebrationMode,
             ContinuousFarmDeactivateLosses = continuousFarmDeactivateLosses,
             ContinuousFarmDeactivateOasisLosses = continuousFarmDeactivateOasisLosses,
             ContinuousFarmNextListIndex = continuousFarmNextListIndex,
@@ -1103,6 +1135,8 @@ public static class BotOptionsPayloadApplier
             ReinforcementsTargetVillageName = reinforcementsTargetVillageName,
             ReinforcementsSourceVillageNames = reinforcementsSourceVillageNames,
             ReinforcementsTroopRules = reinforcementsTroopRules,
+            ReinforcementsSendIntervalHours = reinforcementsSendIntervalHours,
+            ReinforcementsSendVariationPercent = reinforcementsSendVariationPercent,
             GithubReleasesUrl = source.GithubReleasesUrl,
             HumanLikeEnabled = source.HumanLikeEnabled,
             HumanLikeSpeed = source.HumanLikeSpeed,
@@ -1157,6 +1191,7 @@ public static class BotOptionsPayloadApplier
             HeroResourceUseConstruction = heroResourceUseConstruction,
             HeroResourceUseSmithy = heroResourceUseSmithy,
             HeroResourceUseBrewery = heroResourceUseBrewery,
+            HeroResourceUseTownHall = heroResourceUseTownHall,
             UpgradeSelectorProfile = upgradeSelectorProfile,
             NatarVillageSelection = natarVillageSelection,
         };

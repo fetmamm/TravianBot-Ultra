@@ -219,6 +219,8 @@ public sealed class BotConfigStoreTests : IDisposable
         config[BotOptionPayloadKeys.CollectStepDelayMaxMs] = 900;
         config[BotOptionPayloadKeys.AllowGoldSpending] = true;
         config[BotOptionPayloadKeys.GoldLimit] = 500;
+        config[BotOptionPayloadKeys.ReinforcementsSendIntervalHours] = 8;
+        config[BotOptionPayloadKeys.ReinforcementsSendVariationPercent] = 25;
         config["allow_silver_spending"] = true;
         config["silver_limit"] = 250;
         config["loop_interval_seconds"] = 90;
@@ -229,6 +231,8 @@ public sealed class BotConfigStoreTests : IDisposable
         Assert.False(global.ContainsKey(BotOptionPayloadKeys.HeroResourceMaxUseEnabled));
         Assert.False(global.ContainsKey(BotOptionPayloadKeys.CollectStepDelayMaxMs));
         Assert.False(global.ContainsKey(BotOptionPayloadKeys.AllowGoldSpending));
+        Assert.False(global.ContainsKey(BotOptionPayloadKeys.ReinforcementsSendIntervalHours));
+        Assert.False(global.ContainsKey(BotOptionPayloadKeys.ReinforcementsSendVariationPercent));
         Assert.False(global.ContainsKey("allow_silver_spending"));
         Assert.False(global.ContainsKey("loop_interval_seconds"));
 
@@ -237,6 +241,8 @@ public sealed class BotConfigStoreTests : IDisposable
         Assert.Equal(3000, account[BotOptionPayloadKeys.HeroResourceMaxUsePerResource]!.GetValue<int>());
         Assert.Equal(900, account[BotOptionPayloadKeys.CollectStepDelayMaxMs]!.GetValue<int>());
         Assert.Equal(500, account[BotOptionPayloadKeys.GoldLimit]!.GetValue<int>());
+        Assert.Equal(8, account[BotOptionPayloadKeys.ReinforcementsSendIntervalHours]!.GetValue<int>());
+        Assert.Equal(25, account[BotOptionPayloadKeys.ReinforcementsSendVariationPercent]!.GetValue<int>());
         Assert.Equal(250, account["silver_limit"]!.GetValue<int>());
         Assert.Equal(90, account["loop_interval_seconds"]!.GetValue<int>());
     }

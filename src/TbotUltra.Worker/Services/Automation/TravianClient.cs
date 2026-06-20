@@ -5823,32 +5823,49 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 """
                 (fieldToken) => {
                   const token = (fieldToken || '').toLowerCase();
-                  const anchors = Array.from(document.querySelectorAll('a[onclick*=".value="]'));
+                  const parseAmount = (value) => {
+                    const parsed = Number.parseInt((value || '').replace(/[^\d]/g, ''), 10);
+                    return Number.isFinite(parsed) ? parsed : null;
+                  };
+                  const referencesField = (value) => {
+                    const lower = (value || '').toLowerCase();
+                    return lower.includes(`.${token}.value`)
+                      || lower.includes(`[${token}]`)
+                      || lower.includes(`'${token}'`)
+                      || lower.includes(`"${token}"`);
+                  };
+
+                  const anchors = Array.from(document.querySelectorAll('a[onclick], button[onclick], div[onclick]'));
                   for (const anchor of anchors) {
                     const onclick = anchor.getAttribute('onclick') || '';
-                    const match = onclick.match(/(?:snd|document\.snd)\.([A-Za-z0-9_]+)\.value\s*=\s*(\d+)/i);
-                    if (!match) continue;
-                    if ((match[1] || '').toLowerCase() !== token) continue;
-                    const parsed = Number.parseInt(match[2], 10);
-                    if (Number.isFinite(parsed)) return parsed;
+                    if (!referencesField(onclick)) continue;
+
+                    const match = onclick.match(/(?:\.value\s*=\s*|\.val\(\s*)([\d\s.,]+)/i);
+                    const parsed = match ? parseAmount(match[1]) : null;
+                    if (parsed !== null) return parsed;
                   }
 
-                  const input = document.querySelector(`input[name="${fieldToken}"], input[id$="${fieldToken}"], input[name$="[${fieldToken}]"]`);
+                  const input = document.querySelector(`input[name="${fieldToken}"], input[name="troop[${fieldToken}]"], input[name="troops[0][${fieldToken}]"], input[id$="${fieldToken}"], input[name$="[${fieldToken}]"]`);
                   if (!input) return null;
 
                   const scopeText = input.closest('td, tr, div')?.textContent || '';
                   const scopeMatch = scopeText.match(/\(([\d\s.,]+)\)/);
                   if (scopeMatch) {
-                    const parsed = Number.parseInt(scopeMatch[1].replace(/[^\d]/g, ''), 10);
-                    if (Number.isFinite(parsed)) return parsed;
+                    const parsed = parseAmount(scopeMatch[1]);
+                    if (parsed !== null) return parsed;
                   }
 
                   // Official Travian (T4.6): the available count is shown after the input as
-                  // "<input> / <span>123</span>" inside the same cell (span.none means zero).
+                  // "<input> / <a onclick=\"...val(123)\">123</a>" or "<span>0</span>"
+                  // inside the same cell (span.none means zero).
                   for (let sib = input.nextElementSibling; sib; sib = sib.nextElementSibling) {
-                    if (sib.tagName === 'SPAN') {
-                      const n = Number.parseInt((sib.textContent || '').replace(/[^\d]/g, ''), 10);
-                      if (Number.isFinite(n)) return n;
+                    if (sib.tagName === 'SPAN' || sib.tagName === 'A') {
+                      const onclick = sib.getAttribute('onclick') || '';
+                      const onclickMatch = referencesField(onclick)
+                        ? onclick.match(/(?:\.value\s*=\s*|\.val\(\s*)([\d\s.,]+)/i)
+                        : null;
+                      const n = parseAmount(onclickMatch?.[1] || sib.textContent || '');
+                      if (n !== null) return n;
                     }
                   }
 
@@ -5913,15 +5930,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
     private async Task<bool> TryFillTroopInputAsync(string fieldToken, string troopType, long troopCountToSend, CancellationToken cancellationToken)
     {
-        var selectors = new[]
-        {
-            $"input[name='troops[0][{fieldToken}]']",
-            $"input[name$='[{fieldToken}]']",
-            $"input[name='{fieldToken}']",
-            $"input[id$='{fieldToken}']",
-        };
-
-        foreach (var selector in selectors)
+        foreach (var selector in BuildTroopInputSelectors(fieldToken))
         {
             var locator = _page.Locator(selector).First;
             if (await locator.CountAsync() == 0)
@@ -6016,6 +6025,9 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
             var confirmReady = await HasAnySelectorAsync(
             [
+                "button#confirmSendTroops",
+                "button[name='confirmSendTroops']",
+                "button.rallyPointConfirm",
                 ".button-container:has(.button-content:text-is('Confirm'))",
                 ".button-content:text-is('Confirm')",
                 "button:has-text('Confirm')",
@@ -6065,6 +6077,9 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
             var confirmStillVisible = await HasAnySelectorAsync(
             [
+                "button#confirmSendTroops",
+                "button[name='confirmSendTroops']",
+                "button.rallyPointConfirm",
                 ".button-container:has(.button-content:text-is('Confirm'))",
                 ".button-content:text-is('Confirm')",
                 "button:has-text('Confirm')",
@@ -6087,6 +6102,13 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
     {
         var selectors = new[]
         {
+            "button#ok",
+            "button[name='ok'][value='ok']",
+            "button[type='submit'][name='ok']",
+            "input[type='submit'][name='ok']",
+            "button#confirmSendTroops",
+            "button[name='confirmSendTroops']",
+            "button.rallyPointConfirm",
             ".button-container:has(.button-content:text-is('Confirm'))",
             ".button-content:text-is('Confirm')",
             "button:has-text('Confirm')",

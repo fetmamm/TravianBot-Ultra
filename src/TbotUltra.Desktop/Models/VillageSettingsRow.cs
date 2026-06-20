@@ -21,6 +21,22 @@ public sealed class VillageSettingsRow : INotifyPropertyChanged
     // toggle's PropertyChanged to persist the village's enabled-group set.
     public IReadOnlyList<VillageGroupToggle> GroupToggles { get; init; } = [];
 
+    private bool _heroResourcesEnabled;
+    public bool HeroResourcesEnabled
+    {
+        get => _heroResourcesEnabled;
+        set
+        {
+            if (_heroResourcesEnabled == value)
+            {
+                return;
+            }
+
+            _heroResourcesEnabled = value;
+            OnPropertyChanged();
+        }
+    }
+
     private bool _isEnabledForAutomation;
     public bool IsEnabledForAutomation
     {

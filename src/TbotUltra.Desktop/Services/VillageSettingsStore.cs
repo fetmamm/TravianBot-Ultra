@@ -27,6 +27,13 @@ public sealed class VillageSettingsStore
     // so the newdid/coords/name key logic stays in one place.
     public sealed record VillageKeyInfo(string Key, string Name, int? CoordX, int? CoordY, bool IsCapital);
 
+    public sealed record HeroResourceSettings(
+        bool IsEnabled,
+        bool UseConstruction,
+        bool UseSmithy,
+        bool UseBrewery,
+        bool UseTownHall);
+
     private sealed class VillageSettingRecord
     {
         public string Key { get; set; } = string.Empty;
@@ -41,6 +48,11 @@ public sealed class VillageSettingsStore
         // Whether NPC trade may run in this village. Legacy null values are migrated to disabled. The account-wide NPC
         // master toggle (Auto settings) still gates everything: NPC runs only when master AND this are on.
         public bool? NpcTrade { get; set; }
+        public bool? HeroResourcesEnabled { get; set; }
+        public bool? HeroResourceUseConstruction { get; set; }
+        public bool? HeroResourceUseSmithy { get; set; }
+        public bool? HeroResourceUseBrewery { get; set; }
+        public bool? HeroResourceUseTownHall { get; set; }
         public DateTimeOffset LastSeenUtc { get; set; } = DateTimeOffset.UtcNow;
     }
 
@@ -140,6 +152,7 @@ public sealed class VillageSettingsStore
                         IsEnabled = enableOnlyVillageByDefault,
                         EnabledGroups = CreateDefaultEnabledGroups(),
                         NpcTrade = false,
+                        HeroResourcesEnabled = true,
                         LastSeenUtc = DateTimeOffset.UtcNow,
                     };
                     added++;
@@ -296,6 +309,7 @@ public sealed class VillageSettingsStore
                     IsEnabled = enabled,
                     EnabledGroups = CreateDefaultEnabledGroups(),
                     NpcTrade = false,
+                    HeroResourcesEnabled = true,
                     LastSeenUtc = DateTimeOffset.UtcNow,
                 };
             }
@@ -425,6 +439,7 @@ public sealed class VillageSettingsStore
                     IsEnabled = false,
                     EnabledGroups = CreateDefaultEnabledGroups(),
                     NpcTrade = enabled,
+                    HeroResourcesEnabled = true,
                     LastSeenUtc = DateTimeOffset.UtcNow,
                 };
             }
@@ -456,6 +471,178 @@ public sealed class VillageSettingsStore
             }
 
             _heroHomeVillageName = trimmed;
+            Save();
+        }
+    }
+
+    public bool IsHeroResourcesEnabledByKey(string? key, bool defaultIfUnknown)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return defaultIfUnknown;
+        }
+
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+            return _cache.TryGetValue(NormalizeKey(key), out var existing)
+                ? existing.HeroResourcesEnabled ?? true
+                : defaultIfUnknown;
+        }
+    }
+
+    public bool GetHeroResourcesEnabled(VillageKeyInfo village)
+    {
+        if (village is null || string.IsNullOrWhiteSpace(village.Key))
+        {
+            return true;
+        }
+
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+            return FindRecordByVillage(village)?.HeroResourcesEnabled ?? true;
+        }
+    }
+
+    public HeroResourceSettings GetHeroResourceSettings(VillageKeyInfo village, HeroResourceSettings defaults)
+    {
+        if (village is null || string.IsNullOrWhiteSpace(village.Key))
+        {
+            return defaults;
+        }
+
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+            return ResolveHeroResourceSettings(FindRecordByVillage(village), defaults);
+        }
+    }
+
+    public HeroResourceSettings GetHeroResourceSettings(string? key, string? name, HeroResourceSettings defaults)
+    {
+        if (string.IsNullOrWhiteSpace(key) && string.IsNullOrWhiteSpace(name))
+        {
+            return defaults;
+        }
+
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+            VillageSettingRecord? record = null;
+            if (!string.IsNullOrWhiteSpace(key))
+            {
+                _cache.TryGetValue(NormalizeKey(key), out record);
+            }
+
+            if (record is null && !string.IsNullOrWhiteSpace(name))
+            {
+                record = FindRecordByVillage(new VillageKeyInfo($"name:{name.Trim()}", name.Trim(), null, null, false));
+            }
+
+            return ResolveHeroResourceSettings(record, defaults);
+        }
+    }
+
+    public void SetHeroResourcesEnabled(VillageKeyInfo village, bool enabled)
+    {
+        if (village is null || string.IsNullOrWhiteSpace(village.Key))
+        {
+            return;
+        }
+
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+            var record = FindRecordByVillage(village);
+            if (record is not null)
+            {
+                if ((record.HeroResourcesEnabled ?? true) == enabled)
+                {
+                    return;
+                }
+
+                record.HeroResourcesEnabled = enabled;
+                record.Name = village.Name;
+                record.LastSeenUtc = DateTimeOffset.UtcNow;
+            }
+            else
+            {
+                _cache[CanonicalKey(village)] = new VillageSettingRecord
+                {
+                    Key = CanonicalKey(village),
+                    Name = village.Name,
+                    CoordX = village.CoordX,
+                    CoordY = village.CoordY,
+                    IsCapital = village.IsCapital,
+                    IsEnabled = false,
+                    EnabledGroups = CreateDefaultEnabledGroups(),
+                    NpcTrade = false,
+                    HeroResourcesEnabled = enabled,
+                    LastSeenUtc = DateTimeOffset.UtcNow,
+                };
+            }
+
+            Save();
+        }
+    }
+
+    public void SetHeroResourceSettings(VillageKeyInfo village, HeroResourceSettings settings)
+    {
+        if (village is null || string.IsNullOrWhiteSpace(village.Key))
+        {
+            return;
+        }
+
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+            var record = FindRecordByVillage(village);
+            if (record is not null)
+            {
+                if (record.HeroResourcesEnabled.HasValue
+                    && record.HeroResourceUseConstruction.HasValue
+                    && record.HeroResourceUseSmithy.HasValue
+                    && record.HeroResourceUseBrewery.HasValue
+                    && record.HeroResourceUseTownHall.HasValue
+                    && record.HeroResourcesEnabled.Value == settings.IsEnabled
+                    && record.HeroResourceUseConstruction.Value == settings.UseConstruction
+                    && record.HeroResourceUseSmithy.Value == settings.UseSmithy
+                    && record.HeroResourceUseBrewery.Value == settings.UseBrewery
+                    && record.HeroResourceUseTownHall.Value == settings.UseTownHall)
+                {
+                    return;
+                }
+
+                record.HeroResourcesEnabled = settings.IsEnabled;
+                record.HeroResourceUseConstruction = settings.UseConstruction;
+                record.HeroResourceUseSmithy = settings.UseSmithy;
+                record.HeroResourceUseBrewery = settings.UseBrewery;
+                record.HeroResourceUseTownHall = settings.UseTownHall;
+                record.Name = village.Name;
+                record.LastSeenUtc = DateTimeOffset.UtcNow;
+            }
+            else
+            {
+                _cache[CanonicalKey(village)] = new VillageSettingRecord
+                {
+                    Key = CanonicalKey(village),
+                    Name = village.Name,
+                    CoordX = village.CoordX,
+                    CoordY = village.CoordY,
+                    IsCapital = village.IsCapital,
+                    IsEnabled = false,
+                    EnabledGroups = CreateDefaultEnabledGroups(),
+                    NpcTrade = false,
+                    HeroResourcesEnabled = settings.IsEnabled,
+                    HeroResourceUseConstruction = settings.UseConstruction,
+                    HeroResourceUseSmithy = settings.UseSmithy,
+                    HeroResourceUseBrewery = settings.UseBrewery,
+                    HeroResourceUseTownHall = settings.UseTownHall,
+                    LastSeenUtc = DateTimeOffset.UtcNow,
+                };
+            }
+
             Save();
         }
     }
@@ -592,6 +779,12 @@ public sealed class VillageSettingsStore
                     migratedAnything = true;
                 }
 
+                if (record.HeroResourcesEnabled is null)
+                {
+                    record.HeroResourcesEnabled = true;
+                    migratedAnything = true;
+                }
+
                 if (_cache.TryGetValue(canonicalKey, out var existing))
                 {
                     _cache[canonicalKey] = MergeDuplicateRecords(existing, record);
@@ -639,6 +832,11 @@ public sealed class VillageSettingsStore
 
         winner.EnabledGroups ??= loser.EnabledGroups;
         winner.NpcTrade ??= loser.NpcTrade;
+        winner.HeroResourcesEnabled ??= loser.HeroResourcesEnabled;
+        winner.HeroResourceUseConstruction ??= loser.HeroResourceUseConstruction;
+        winner.HeroResourceUseSmithy ??= loser.HeroResourceUseSmithy;
+        winner.HeroResourceUseBrewery ??= loser.HeroResourceUseBrewery;
+        winner.HeroResourceUseTownHall ??= loser.HeroResourceUseTownHall;
         winner.IsEnabled = winner.IsEnabled || loser.IsEnabled;
         if (winner.LastSeenUtc < loser.LastSeenUtc)
         {
@@ -649,6 +847,20 @@ public sealed class VillageSettingsStore
     }
 
     private static List<string> CreateDefaultEnabledGroups() => new() { DefaultEnabledGroupKey };
+
+    private static HeroResourceSettings ResolveHeroResourceSettings(
+        VillageSettingRecord? record,
+        HeroResourceSettings defaults)
+    {
+        return record is null
+            ? defaults
+            : new HeroResourceSettings(
+                record.HeroResourcesEnabled ?? true,
+                record.HeroResourceUseConstruction ?? defaults.UseConstruction,
+                record.HeroResourceUseSmithy ?? defaults.UseSmithy,
+                record.HeroResourceUseBrewery ?? defaults.UseBrewery,
+                record.HeroResourceUseTownHall ?? defaults.UseTownHall);
+    }
 
     /// <summary>
     /// Resolves an arbitrary village key (e.g. a name-based key from a queue item) to the canonical

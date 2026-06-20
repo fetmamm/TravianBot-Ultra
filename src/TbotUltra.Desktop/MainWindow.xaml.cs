@@ -174,6 +174,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<ResourceTransferVillageItem> _resourceTransferVillages = [];
     private bool _suppressResourceTransferConfigWrite;
     private readonly ObservableCollection<ReinforcementVillageItem> _reinforcementVillages = [];
+    private readonly ObservableCollection<ReinforcementVillageItem> _reinforcementSourceVillages = [];
     private readonly ObservableCollection<ReinforcementTroopRuleItem> _reinforcementTroopRules = [];
     private List<ReinforcementTroopRule> _configuredReinforcementTroopRules = [];
     private bool _suppressReinforcementConfigWrite;
@@ -339,6 +340,7 @@ public partial class MainWindow : Window
     private bool _suppressAutomationLoopConfigWrite;
     private bool _suppressFarmListUiRefresh;
     private bool _suppressFarmingSettingsConfigWrite;
+    private bool _suppressTownHallCelebrationModeConfigWrite;
     private bool _farmingOperationBusy;
     private bool _natarsProfileAnalyzed;
     private DateTimeOffset _lastFarmListsAnalysisAt = DateTimeOffset.MinValue;
@@ -537,7 +539,8 @@ public partial class MainWindow : Window
         ResourceTransferTargetVillageComboBox.ItemsSource = _resourceTransferVillages;
         ResourceTransferSourceVillagesItemsControl.ItemsSource = _resourceTransferVillages;
         ReinforcementTargetVillageComboBox.ItemsSource = _reinforcementVillages;
-        ReinforcementSourceVillagesItemsControl.ItemsSource = _reinforcementVillages;
+        ReinforcementSourceVillagesItemsControl.ItemsSource = _reinforcementSourceVillages;
+        InitializeReinforcementSendSettings();
         FarmListsItemsControl.ItemsSource = _farmLists;
         EnsureFarmListPlaceholderRow();
         _troopTrainingViewModel.Initialize();
@@ -669,6 +672,7 @@ public partial class MainWindow : Window
         ApplyResourceTransferConfigToUi(options);
         ApplyReinforcementConfigToUi(options);
         ApplyFarmingSettingsToUi(options);
+        ApplyTownHallCelebrationModeToUi(options);
         ApplyAutoCollectTasksConfigToUi(options);
         ApplyAutoCollectDailyQuestsConfigToUi(options);
         ApplyHeroResourceTransferConfigToUi(options);
@@ -1254,7 +1258,8 @@ public partial class MainWindow : Window
             or nameof(HeroViewModel.HeroResourceMaxUsePerResource)
             or nameof(HeroViewModel.HeroResourceUseConstruction)
             or nameof(HeroViewModel.HeroResourceUseSmithy)
-            or nameof(HeroViewModel.HeroResourceUseBrewery)))
+            or nameof(HeroViewModel.HeroResourceUseBrewery)
+            or nameof(HeroViewModel.HeroResourceUseTownHall)))
         {
             return;
         }

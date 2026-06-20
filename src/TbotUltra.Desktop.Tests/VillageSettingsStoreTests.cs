@@ -198,6 +198,43 @@ public sealed class VillageSettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void HeroResourceSettings_DefaultOnAndPersistPerVillageConsumers()
+    {
+        var store = CreateStore();
+        var village = new Info("did:2", "Second", 5, -3, IsCapital: false);
+        var defaults = new VillageSettingsStore.HeroResourceSettings(
+            IsEnabled: true,
+            UseConstruction: true,
+            UseSmithy: true,
+            UseBrewery: false,
+            UseTownHall: false);
+
+        store.Merge(new[] { village });
+
+        var initial = store.GetHeroResourceSettings(village, defaults);
+        Assert.True(initial.IsEnabled);
+        Assert.True(initial.UseConstruction);
+        Assert.True(initial.UseSmithy);
+        Assert.False(initial.UseBrewery);
+        Assert.False(initial.UseTownHall);
+
+        store.SetHeroResourceSettings(village, new VillageSettingsStore.HeroResourceSettings(
+            IsEnabled: false,
+            UseConstruction: false,
+            UseSmithy: true,
+            UseBrewery: false,
+            UseTownHall: true));
+
+        var reloaded = CreateStore();
+        var saved = reloaded.GetHeroResourceSettings("name:second", "Second", defaults);
+        Assert.False(saved.IsEnabled);
+        Assert.False(saved.UseConstruction);
+        Assert.True(saved.UseSmithy);
+        Assert.False(saved.UseBrewery);
+        Assert.True(saved.UseTownHall);
+    }
+
+    [Fact]
     public void Reload_MergesDuplicateNewdidRecords_ByCoordinates()
     {
         // Legacy file: the same village ("SLAV") stored under two newdids with divergent group settings.

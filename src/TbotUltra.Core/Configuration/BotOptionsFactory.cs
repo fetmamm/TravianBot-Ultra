@@ -16,11 +16,16 @@ public static class BotOptionsFactory
         var reinforcementSourceVillageNames = configuration.GetSection(BotOptionPayloadKeys.ReinforcementsSourceVillageNames).Get<List<string>>() ?? [];
         var reinforcementTroopRules = NormalizeReinforcementTroopRules(
             configuration.GetSection(BotOptionPayloadKeys.ReinforcementsTroopRules).Get<List<ReinforcementTroopRule>>() ?? []);
+        var reinforcementsSendIntervalHours = ReinforcementSendDefaults.NormalizeIntervalHours(
+            configuration.GetValue(BotOptionPayloadKeys.ReinforcementsSendIntervalHours, ReinforcementSendDefaults.DefaultIntervalHours));
+        var reinforcementsSendVariationPercent = ReinforcementSendDefaults.NormalizeVariationPercent(
+            configuration.GetValue(BotOptionPayloadKeys.ReinforcementsSendVariationPercent, ReinforcementSendDefaults.DefaultVariationPercent));
         var continuousFarmDispatchDelayMinutes = FarmingDefaults.NormalizeDispatchDelayMinutes(
             configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes, FarmingDefaults.DefaultDispatchDelayMinutes));
         var continuousFarmDispatchDelayVariationPercent = FarmingDefaults.NormalizeDispatchDelayVariationPercent(
             configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDispatchDelayVariationPercent, FarmingDefaults.DefaultDispatchDelayVariationPercent));
         var continuousFarmSendMode = FarmingDefaults.NormalizeSendMode(configuration[BotOptionPayloadKeys.ContinuousFarmSendMode]);
+        var townHallCelebrationMode = TownHallCelebrationDefaults.NormalizeMode(configuration[BotOptionPayloadKeys.TownHallCelebrationMode]);
         var queueWaitThresholdMode = configuration[BotOptionPayloadKeys.QueueWaitThresholdMode] ?? "smart";
 
         var baseUrl = (configuration["base_url"] ?? string.Empty).TrimEnd('/');
@@ -51,6 +56,7 @@ public static class BotOptionsFactory
             ContinuousFarmDispatchDelayMinutes = continuousFarmDispatchDelayMinutes,
             ContinuousFarmDispatchDelayVariationPercent = continuousFarmDispatchDelayVariationPercent,
             ContinuousFarmSendMode = continuousFarmSendMode,
+            TownHallCelebrationMode = townHallCelebrationMode,
             ContinuousFarmDeactivateLosses = configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDeactivateLosses, false),
             ContinuousFarmDeactivateOasisLosses = configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDeactivateOasisLosses, false),
             QueueWaitThresholdMode = queueWaitThresholdMode,
@@ -118,6 +124,8 @@ public static class BotOptionsFactory
             ReinforcementsTargetVillageName = configuration[BotOptionPayloadKeys.ReinforcementsTargetVillageName] ?? string.Empty,
             ReinforcementsSourceVillageNames = reinforcementSourceVillageNames,
             ReinforcementsTroopRules = reinforcementTroopRules,
+            ReinforcementsSendIntervalHours = reinforcementsSendIntervalHours,
+            ReinforcementsSendVariationPercent = reinforcementsSendVariationPercent,
             GithubReleasesUrl = configuration["github_releases_url"] ?? string.Empty,
             HumanLikeEnabled = configuration.GetValue("human_like_enabled", false),
             HumanLikeSpeed = configuration["human_like_speed"] ?? "medium",
@@ -174,7 +182,8 @@ public static class BotOptionsFactory
             HeroResourceMaxUsePerResource = configuration.GetValue(BotOptionPayloadKeys.HeroResourceMaxUsePerResource, 5000),
             HeroResourceUseConstruction = configuration.GetValue(BotOptionPayloadKeys.HeroResourceUseConstruction, true),
             HeroResourceUseSmithy = configuration.GetValue(BotOptionPayloadKeys.HeroResourceUseSmithy, true),
-            HeroResourceUseBrewery = configuration.GetValue(BotOptionPayloadKeys.HeroResourceUseBrewery, true),
+            HeroResourceUseBrewery = configuration.GetValue(BotOptionPayloadKeys.HeroResourceUseBrewery, false),
+            HeroResourceUseTownHall = configuration.GetValue(BotOptionPayloadKeys.HeroResourceUseTownHall, false),
             UpgradeSelectorProfile = configuration[BotOptionPayloadKeys.UpgradeSelectorProfile] ?? "auto",
             NatarVillageSelection = configuration["natar_village_selection"] ?? "farm_villages",
         };
@@ -208,6 +217,7 @@ public static class BotOptionsFactory
             ContinuousFarmDispatchDelayMinutes = source.ContinuousFarmDispatchDelayMinutes,
             ContinuousFarmDispatchDelayVariationPercent = source.ContinuousFarmDispatchDelayVariationPercent,
             ContinuousFarmSendMode = source.ContinuousFarmSendMode,
+            TownHallCelebrationMode = source.TownHallCelebrationMode,
             ContinuousFarmDeactivateLosses = source.ContinuousFarmDeactivateLosses,
             ContinuousFarmDeactivateOasisLosses = source.ContinuousFarmDeactivateOasisLosses,
             ContinuousFarmNextListIndex = source.ContinuousFarmNextListIndex,
@@ -277,6 +287,8 @@ public static class BotOptionsFactory
             ReinforcementsTargetVillageName = source.ReinforcementsTargetVillageName,
             ReinforcementsSourceVillageNames = source.ReinforcementsSourceVillageNames,
             ReinforcementsTroopRules = source.ReinforcementsTroopRules,
+            ReinforcementsSendIntervalHours = source.ReinforcementsSendIntervalHours,
+            ReinforcementsSendVariationPercent = source.ReinforcementsSendVariationPercent,
             GithubReleasesUrl = source.GithubReleasesUrl,
             HumanLikeEnabled = source.HumanLikeEnabled,
             HumanLikeSpeed = source.HumanLikeSpeed,
@@ -328,6 +340,7 @@ public static class BotOptionsFactory
             HeroResourceUseConstruction = source.HeroResourceUseConstruction,
             HeroResourceUseSmithy = source.HeroResourceUseSmithy,
             HeroResourceUseBrewery = source.HeroResourceUseBrewery,
+            HeroResourceUseTownHall = source.HeroResourceUseTownHall,
             AutoCollectTasksEnabled = source.AutoCollectTasksEnabled,
             AutoCollectDailyQuestsEnabled = source.AutoCollectDailyQuestsEnabled,
             CollectStepDelayMinMs = source.CollectStepDelayMinMs,

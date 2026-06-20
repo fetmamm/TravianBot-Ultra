@@ -168,6 +168,7 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
                 "upgrade_troops_at_smithy",
                 "build_troops",
                 "run_brewery_celebration",
+                "run_town_hall_celebration",
                 "send_farmlists",
                 "send_resources_between_villages",
                 "send_reinforcements_between_villages",
@@ -187,6 +188,7 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
     [InlineData("send_farmlists", TaskGroup.Farming, TaskPayloadKind.Farming)]
     [InlineData("build_troops", TaskGroup.TroopTraining, TaskPayloadKind.TroopTraining)]
     [InlineData("run_brewery_celebration", TaskGroup.BreweryCelebration, TaskPayloadKind.Brewery)]
+    [InlineData("run_town_hall_celebration", TaskGroup.TownHallCelebration, TaskPayloadKind.None)]
     [InlineData("send_resources_between_villages", TaskGroup.ResourceTransfer, TaskPayloadKind.ResourceTransfer)]
     [InlineData("collect_daily_quests", TaskGroup.Construction, TaskPayloadKind.None)]
     public void TaskCatalog_Descriptors_ExposeGroupAndPayloadKind(string taskName, TaskGroup group, TaskPayloadKind payloadKind)
@@ -206,6 +208,7 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
     [InlineData("upgrade_troops_at_smithy", QueueGroup.Troops)]
     [InlineData("build_troops", QueueGroup.TroopTraining)]
     [InlineData("run_brewery_celebration", QueueGroup.BreweryCelebration)]
+    [InlineData("run_town_hall_celebration", QueueGroup.TownHallCelebration)]
     [InlineData("send_farmlists", QueueGroup.Farming)]
     [InlineData("send_resources_between_villages", QueueGroup.ResourceTransfer)]
     [InlineData("send_reinforcements_between_villages", QueueGroup.Reinforcements)]

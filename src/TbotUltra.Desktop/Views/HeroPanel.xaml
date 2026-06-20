@@ -563,6 +563,14 @@
                                     <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
                                                     Margin="6,2,0,0"
                                                     ToolTip="Pick which features may top up from the hero inventory when short on resources." />
+                                    <Button Width="24"
+                                            Height="24"
+                                            Padding="0"
+                                            Margin="8,0,0,0"
+                                            FontFamily="Segoe MDL2 Assets"
+                                            Content="&#xE713;"
+                                            ToolTip="Open per-village Hero resource settings."
+                                            Click="HeroResourceSettingsButton_Click" />
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                                     <CheckBox Content="Construction"
@@ -582,7 +590,7 @@
                                                     Margin="6,2,0,0"
                                                     ToolTip="Top up from the hero inventory for troop upgrades in the Smithy when short on resources." />
                                 </StackPanel>
-                                <StackPanel Orientation="Horizontal">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                                     <CheckBox Content="Brewery"
                                               IsChecked="{Binding HeroResourceUseBrewery}"
                                               Foreground="{DynamicResource TextPrimaryBrush}"
@@ -590,6 +598,15 @@
                                     <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
                                                     Margin="6,2,0,0"
                                                     ToolTip="Top up from the hero inventory to start a brewery celebration when short on resources." />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <CheckBox Content="Town Hall"
+                                              IsChecked="{Binding HeroResourceUseTownHall}"
+                                              Foreground="{DynamicResource TextPrimaryBrush}"
+                                              VerticalContentAlignment="Center" />
+                                    <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
+                                                    Margin="6,2,0,0"
+                                                    ToolTip="Top up from the hero inventory to start a Town Hall celebration when short on resources." />
                                 </StackPanel>
                             </StackPanel>
                         </Border>

@@ -21,6 +21,44 @@ internal static class UpgradeMath
         return s + 1;
     }
 
+    internal static int ComputeResourceAccumulationWaitSeconds(
+        long remainingWood,
+        long remainingClay,
+        long remainingIron,
+        long remainingCrop,
+        IReadOnlyDictionary<string, double?>? productionByHour,
+        int fallbackSeconds = 600)
+    {
+        var waitSeconds = 0;
+        var unknownProduction = false;
+
+        void Consider(long remaining, string key)
+        {
+            if (remaining <= 0)
+            {
+                return;
+            }
+
+            if (productionByHour is not null
+                && productionByHour.TryGetValue(key, out var perHour)
+                && perHour is > 0)
+            {
+                waitSeconds = Math.Max(waitSeconds, (int)Math.Ceiling(remaining / perHour.Value * 3600d));
+            }
+            else
+            {
+                unknownProduction = true;
+            }
+        }
+
+        Consider(remainingWood, "wood");
+        Consider(remainingClay, "clay");
+        Consider(remainingIron, "iron");
+        Consider(remainingCrop, "crop");
+
+        return waitSeconds > 0 ? waitSeconds : (unknownProduction ? Math.Max(1, fallbackSeconds) : 1);
+    }
+
     internal static int ComputeBuildingUpgradeSafetyCap(int targetLevel)
         => Math.Max(1, targetLevel + 5);
 

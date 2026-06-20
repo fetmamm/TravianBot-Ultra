@@ -88,6 +88,16 @@ public static class AccountStoragePaths
         return Path.Combine(AccountDirectory(projectRoot, accountName), "troop_training.json");
     }
 
+    public static string TownHallSettingsPath(string projectRoot, string accountName)
+    {
+        return Path.Combine(AccountDirectory(projectRoot, accountName), "town_hall.json");
+    }
+
+    public static string TownHallCelebrationStatePath(string projectRoot, string accountName)
+    {
+        return Path.Combine(AccountDirectory(projectRoot, accountName), "town_hall_state.json");
+    }
+
     public static string MapOasisCheckpointPath(string projectRoot, string accountName, string? serverUrl = null)
     {
         return Path.Combine(

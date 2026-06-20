@@ -204,7 +204,7 @@ public static class LogClassifier
             "[tick]",
             "[village-switch",
             "[storage-refresh",
-            "[HandleResourceSnapshotRefreshTickAsync]");
+            "[handleresourcesnapshotrefreshtickasync]");
     }
 
     public static bool IsExpectedFarmListResult(string message)

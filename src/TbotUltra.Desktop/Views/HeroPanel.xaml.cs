@@ -188,4 +188,9 @@ public partial class HeroPanel : UserControl
             RefreshHeroInventoryButton.IsEnabled = true;
         }
     }
+
+    private void HeroResourceSettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        Host?.OpenHeroResourceSettingsFromHeroPanel();
+    }
 }

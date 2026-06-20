@@ -46,7 +46,8 @@ public sealed class HeroViewModel : BaseViewModel
     private int _heroResourceMaxUsePerResource = 5000;
     private bool _heroResourceUseConstruction = true;
     private bool _heroResourceUseSmithy = true;
-    private bool _heroResourceUseBrewery = true;
+    private bool _heroResourceUseBrewery;
+    private bool _heroResourceUseTownHall;
 
     private int _minHpForAdventure = 60;
     private int _heroHpRegenPerDayPercent = 40;
@@ -179,6 +180,13 @@ public sealed class HeroViewModel : BaseViewModel
     {
         get => _heroResourceUseBrewery;
         set => SetProperty(ref _heroResourceUseBrewery, value);
+    }
+
+    /// <summary>Per-consumer gate: allow Town Hall celebrations to top up from the hero.</summary>
+    public bool HeroResourceUseTownHall
+    {
+        get => _heroResourceUseTownHall;
+        set => SetProperty(ref _heroResourceUseTownHall, value);
     }
 
     /// <summary>Applies a hero inventory read to the four resource fields.</summary>
@@ -399,6 +407,7 @@ public sealed class HeroViewModel : BaseViewModel
         HeroResourceUseConstruction = options.HeroResourceUseConstruction;
         HeroResourceUseSmithy = options.HeroResourceUseSmithy;
         HeroResourceUseBrewery = options.HeroResourceUseBrewery;
+        HeroResourceUseTownHall = options.HeroResourceUseTownHall;
         LoadPriorityFromConfig(options.HeroStatPriority);
     }
 

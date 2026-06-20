@@ -109,6 +109,9 @@ public partial class MainWindow
     private int RemoveTroopTrainingQueueItemsForVillage(string? villageName)
         => RemoveQueueItemsForVillage("build_troops", villageName);
 
+    private int RemoveTownHallQueueItemsForVillage(string? villageName)
+        => RemoveQueueItemsForVillage("run_town_hall_celebration", villageName);
+
     private int RemoveQueueItemsForVillage(string taskName, string? villageName)
     {
         var targetName = NormalizeVillageName(villageName);

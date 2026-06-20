@@ -48,6 +48,8 @@ public sealed class BotTaskRunner
             ["build_troops"] = ExecuteBuildTroopsAsync,
             // Starts or tracks the Teutons brewery celebration.
             ["run_brewery_celebration"] = ExecuteRunBreweryCelebrationAsync,
+            // Starts or tracks Town Hall celebrations.
+            ["run_town_hall_celebration"] = ExecuteRunTownHallCelebrationAsync,
             // Sends one of the selected farmlists that is ready right now.
             ["send_farmlists"] = ExecuteSendFarmlistsAsync,
             // Sends surplus resources from selected own villages to one target village.
@@ -1337,6 +1339,29 @@ public sealed class BotTaskRunner
         return result;
     }
 
+    public async Task<string> RunTownHallCelebrationAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = "Town Hall celebration: status unavailable.";
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: true,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken, skipFeatureRefresh: true);
+                result = await client.RunTownHallCelebrationAsync(options.TownHallCelebrationMode, cancellationToken);
+            });
+
+        return result;
+    }
+
     public async Task<InboxStatus> ReadInboxStatusAsync(
         BotOptions options,
         Action<string> log,
@@ -2278,6 +2303,15 @@ public sealed class BotTaskRunner
         var result = await context.Client.RunBreweryCelebrationAsync(context.CancellationToken);
         context.Log(result);
         ThrowIfTaskBlocked("run_brewery_celebration", result);
+    }
+
+    private static async Task ExecuteRunTownHallCelebrationAsync(TaskExecutionContext context)
+    {
+        var mode = TownHallCelebrationDefaults.NormalizeMode(context.Options.TownHallCelebrationMode);
+        context.Log($"[town-hall] run_town_hall_celebration starting mode={mode}");
+        var result = await context.Client.RunTownHallCelebrationAsync(mode, context.CancellationToken);
+        context.Log(result);
+        ThrowIfTaskBlocked("run_town_hall_celebration", result);
     }
 
     private static async Task ExecuteLoadBuildingsSnapshotAsync(TaskExecutionContext context)

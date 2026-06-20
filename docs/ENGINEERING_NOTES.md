@@ -80,6 +80,7 @@ document.querySelector('#stockBarWarehouse, .warehouse .capacity .value')
 - Konto-/byspecifika val sparas i `config/accounts/<account>/settings.json`. Konto-overlay appliceras ovanpa
   global config; saknad overlay betyder defaults, aldrig ett annat kontos varden.
 - Aldre konto-scopeade varden i `bot.json` migreras en gang till kontots `settings.json` och tas bort globalt.
+- Reinforcement send-intervall/variation ar account-scopeat; `Queue now` skickar direkt, auto-gruppen skapar en deferred runtime-post baserat pa senaste lyckade send.
 - Ko, bycache, Smithy, troop training, hero/cache och ovrig runtime-state anvander kontoavgransade paths.
 - Kontobyte ar full UI/cache-reset, men respektive kontos separata ko och settings ska bevaras, och
   `bot.json`:s konto-scopeade pekare (by-/farmlist-namn/ids) rensas via `ClearPersistedAccountScopedConfig`
@@ -105,11 +106,16 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
 - Bevara fungerande navigations- och klickordning om beteendeforandring inte uttryckligen kravs.
 - Registrera nya tasks via befintlig handler-dictionary i `BotTaskRunner`.
 - Selektorer ska vara additiva och paths flavor-aware. Logga tillrackligt med kontext for framtida felsokning.
-- Hero-resurstransfer ar per-konsument gated: master `HeroResourceTransferEnabled` (Auto settings) plus
-  `HeroResourceUse{Construction,Smithy,Brewery}` (Hero-tabben, default true). Generisk build-sidlogik i
+- Hero-resurstransfer ar per-by/per-konsument gated: master `HeroResourceTransferEnabled` (Auto settings) plus
+  Village settings `Hero res.` och `HeroResourceUse{Construction,Smithy,Brewery,TownHall}` (per by; Construction/Smithy default true, Brewery/Town Hall false). Generisk build-sidlogik i
   `TryHeroResourceTransferOnCurrentBuildPageAsync`; construction/brewery anropar via tunna gated wrappers,
-  smithy har egen per-trupp-DOM (`TryHeroResourceTransferForSmithyTroopAsync`). Nybyggnation ska prova
+  town hall anropar via egen tunn wrapper, smithy har egen per-trupp-DOM (`TryHeroResourceTransferForSmithyTroopAsync`). Nybyggnation ska prova
   hero-transfer direkt pa construct-sidan innan en queue-kontroll navigerar till `dorf2`.
+- Town Hall celebration ar `gid 24`, alla stammar, per-by `QueueGroup.TownHallCelebration`.
+  Mode ar account-default `small`/`big` med per-by override; `big` faller tillbaka till `small` under
+  Town Hall level 10. Big-start-selector ska live-verifieras forst nar en level 10 Town Hall finns.
+  Small-start logic ska vara scope:ad till `.build_details` och small-celebration-raden; verifiera Official
+  och SS live innan selectorandringar markeras som bekraftade.
 
 ### Desktop
 
@@ -236,7 +242,7 @@ Full bakgrund och regressionsdetaljer: [engineering-notes-archive.md](history/en
 |---|---|
 | Login, dorf1, dorf2, upgrade | Stods |
 | Profil, tribe, Plus | Stods |
-| Rally point och egna trupper | Stods |
+| Rally point och egna trupper | Stods; Official send-troops anvander `troop[tN]` + jQuery `.val(N)` for tillgangliga antal |
 | Hero adventures, inventory, attributes | Stods; verifiera React-floden live |
 | Inbox, Tasks, Daily Quests | Stods; verifiera React-floden live |
 | NPC trade och hero resource transfer | Stods; verifiera live |

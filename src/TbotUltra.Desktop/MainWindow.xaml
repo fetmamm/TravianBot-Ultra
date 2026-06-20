@@ -2120,34 +2120,64 @@
                                 </Grid>
 
                                 <StackPanel Grid.Column="2">
-                                    <TextBlock Text="Setup"
+                                    <TextBlock Text="Send troop settings"
                                                FontSize="22"
                                                FontWeight="SemiBold"
                                                Foreground="{DynamicResource TextPrimaryBrush}"
                                                Margin="0,0,0,12" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="92" />
+                                            <ColumnDefinition Width="12" />
+                                            <ColumnDefinition Width="128" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0"
+                                                   Grid.Column="0"
+                                                   Text="Interval"
+                                                   Foreground="{DynamicResource TextSubtleBrush}"
+                                                   FontSize="12"
+                                                   Margin="0,0,0,4" />
+                                        <ComboBox Grid.Row="1"
+                                                  Grid.Column="0"
+                                                  x:Name="ReinforcementSendIntervalComboBox"
+                                                  Height="28"
+                                                  DisplayMemberPath="Label"
+                                                  SelectionChanged="ReinforcementSetting_SelectionChanged" />
+                                        <TextBlock Grid.Row="0"
+                                                   Grid.Column="2"
+                                                   Text="Variation"
+                                                   Foreground="{DynamicResource TextSubtleBrush}"
+                                                   FontSize="12"
+                                                   Margin="0,0,0,4" />
+                                        <ComboBox Grid.Row="1"
+                                                  Grid.Column="2"
+                                                  x:Name="ReinforcementSendVariationComboBox"
+                                                  Height="28"
+                                                  DisplayMemberPath="Label"
+                                                  SelectionChanged="ReinforcementSetting_SelectionChanged" />
+                                    </Grid>
                                     <TextBlock x:Name="ReinforcementTroopsDetailTextBlock"
-                                               Text="Login to load troop types, then choose what to send."
+                                               Text=""
                                                Foreground="{DynamicResource TextMutedBrush}"
                                                FontSize="12"
                                                TextWrapping="Wrap"
-                                               Margin="0,0,0,12" />
+                                               Visibility="Collapsed" />
                                     <TextBlock x:Name="ReinforcementStatusTextBlock"
-                                               Text="Requires at least 2 villages."
+                                               Text=""
                                                Foreground="{DynamicResource WarningTextBrush}"
                                                FontSize="12"
-                                               Margin="0,12,0,8"
-                                               TextWrapping="Wrap" />
-                                    <StackPanel Orientation="Horizontal">
-                                        <Button x:Name="ReinforcementQueueNowButton"
-                                                Content="Queue now"
-                                                Padding="10,4"
-                                                Click="QueueReinforcementsNowButton_Click" />
-                                        <Button x:Name="ReinforcementRefreshVillagesButton"
-                                                Content="Refresh villages"
-                                                Padding="10,4"
-                                                Margin="8,0,0,0"
-                                                Click="ReinforcementRefreshVillagesButton_Click" />
-                                    </StackPanel>
+                                               TextWrapping="Wrap"
+                                               Visibility="Collapsed" />
+                                    <Button x:Name="ReinforcementQueueNowButton"
+                                            Content="Queue now"
+                                            Padding="10,4"
+                                            HorizontalAlignment="Left"
+                                            Margin="0,12,0,0"
+                                            Click="QueueReinforcementsNowButton_Click" />
 
                                     <Border Background="{DynamicResource SurfaceAltBrush}"
                                             BorderBrush="{DynamicResource BorderBrush}"
@@ -2845,6 +2875,44 @@
                                                 Margin="8,0,0,0"
                                                 Click="ResourceTransferScanVillagesButton_Click" />
                                     </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Margin="0,16,0,0"
+                                    VerticalAlignment="Top"
+                                    Background="{DynamicResource SurfaceBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="16">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                        <TextBlock Text="Town Hall settings"
+                                                   FontSize="22"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   VerticalAlignment="Center" />
+                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                        Margin="8,2,0,0"
+                                                        VerticalAlignment="Center"
+                                                        ToolTip="Default celebration mode for villages without their own Town Hall override. Big falls back to small until Town Hall level 10." />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                        <RadioButton x:Name="TownHallCelebrationSmallRadioButton"
+                                                     Content="Small"
+                                                     GroupName="TownHallCelebrationMode"
+                                                     Margin="0,0,16,0"
+                                                     Checked="TownHallCelebrationMode_Changed" />
+                                        <RadioButton x:Name="TownHallCelebrationBigRadioButton"
+                                                     Content="Big"
+                                                     GroupName="TownHallCelebrationMode"
+                                                     Checked="TownHallCelebrationMode_Changed" />
+                                    </StackPanel>
+                                    <Button x:Name="TownHallSettingsButton"
+                                            Content="Town Hall overview"
+                                            MinWidth="170"
+                                            HorizontalAlignment="Left"
+                                            Click="TownHallSettingsButton_Click" />
                                 </StackPanel>
                             </Border>
                         </StackPanel>

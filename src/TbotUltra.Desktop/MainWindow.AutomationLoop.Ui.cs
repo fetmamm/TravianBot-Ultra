@@ -38,6 +38,7 @@ public partial class MainWindow
         var orderedNames = LoadConfiguredContinuousLoopGroupOrder();
         var visibleGroups = storedPreferences.VisibleGroups
             ?? LoadConfiguredDashboardVisibleGroups();
+        BackfillTownHallVisibleGroupIfNew(visibleGroups);
 
         _suppressAutomationLoopConfigWrite = true;
         try
@@ -798,6 +799,7 @@ public partial class MainWindow
         var explicitOrder = new[]
         {
             QueueGroup.BreweryCelebration,
+            QueueGroup.TownHallCelebration,
             QueueGroup.Hero,
             QueueGroup.Construction,
             QueueGroup.Troops,
@@ -844,6 +846,35 @@ public partial class MainWindow
                 .Select(part => part.Length == 1
                     ? char.ToUpperInvariant(part[0]).ToString()
                     : char.ToUpperInvariant(part[0]) + part[1..]));
+    }
+
+    private void BackfillTownHallVisibleGroupIfNew(List<string> visibleGroups)
+    {
+        var townHallKey = QueueGroupCatalog.GetKey(QueueGroup.TownHallCelebration);
+        if (visibleGroups.Contains(townHallKey, StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        try
+        {
+            var config = _botConfigStore.Load();
+            var configuredOrder = (config[ContinuousLoopGroupOrderConfigKey] as JsonArray ?? new JsonArray())
+                .Select(node => node?.ToString())
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Select(name => name!.Trim())
+                .ToList();
+            if (configuredOrder.Contains(townHallKey, StringComparer.OrdinalIgnoreCase))
+            {
+                return;
+            }
+        }
+        catch
+        {
+            // Missing/unreadable order means this is effectively a pre-Town-Hall preference set.
+        }
+
+        visibleGroups.Add(townHallKey);
     }
 
     private bool SyncTeutonsOnlyAutomationGroups(string? tribe, bool persistChanges = false)

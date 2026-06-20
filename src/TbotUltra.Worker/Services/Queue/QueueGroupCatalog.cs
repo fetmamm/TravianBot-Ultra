@@ -17,6 +17,7 @@ public static class QueueGroupCatalog
             [QueueGroup.NpcTrade] = ("npc_trade", "NPC Trade", "NPC resource exchange while building troops, buildings, or resource fields."),
             [QueueGroup.ResourceTransfer] = ("resource_transfer", "Resource Transfer", "Send resources between own villages."),
             [QueueGroup.Reinforcements] = ("reinforcements", "Reinforcements", "Send troops between own villages."),
+            [QueueGroup.TownHallCelebration] = ("town_hall_celebration", "Town Hall celebration", "Small/big Town Hall celebrations."),
         };
 
     public static IReadOnlyList<QueueGroup> AllGroups => Metadata.Keys.ToList();
@@ -59,6 +60,7 @@ public static class QueueGroupCatalog
             TaskGroup.NpcTrade => QueueGroup.NpcTrade,
             TaskGroup.ResourceTransfer => QueueGroup.ResourceTransfer,
             TaskGroup.Reinforcements => QueueGroup.Reinforcements,
+            TaskGroup.TownHallCelebration => QueueGroup.TownHallCelebration,
             _ => QueueGroup.Construction,
         };
     }

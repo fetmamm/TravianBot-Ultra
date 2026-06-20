@@ -603,6 +603,7 @@ public partial class MainWindow
             village.PropertyChanged -= ReinforcementVillage_PropertyChanged;
         }
         _reinforcementVillages.Clear();
+        _reinforcementSourceVillages.Clear();
         ClearReinforcementTroopRules();
         _configuredReinforcementTroopRules = [];
         ReinforcementTargetVillageComboBox.SelectedItem = null;
@@ -741,6 +742,8 @@ public partial class MainWindow
             BotOptionPayloadKeys.TargetVillageUrl,
             BotOptionPayloadKeys.ReinforcementsTargetVillageName,
             BotOptionPayloadKeys.ReinforcementsSourceVillageNames,
+            BotOptionPayloadKeys.ReinforcementsSendIntervalHours,
+            BotOptionPayloadKeys.ReinforcementsSendVariationPercent,
             BotOptionPayloadKeys.ResourceTransferTargetVillageName,
             BotOptionPayloadKeys.ResourceTransferSourceVillageNames,
             BotOptionPayloadKeys.ContinuousFarmListNames,

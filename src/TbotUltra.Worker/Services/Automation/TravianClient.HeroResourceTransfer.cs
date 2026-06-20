@@ -50,12 +50,30 @@ public sealed partial class TravianClient
         return await TryHeroResourceTransferOnCurrentBuildPageAsync(label, cancellationToken);
     }
 
+    // Best-effort hero top-up for Town Hall celebrations on the current Town Hall build page.
+    // Gated separately so the user can opt Town Hall in without changing construction/brewery behavior.
+    private async Task<bool> TryHeroResourceTransferForTownHallAsync(
+        string label,
+        CancellationToken cancellationToken)
+    {
+        if (!_config.HeroResourceUseTownHall)
+        {
+            return false;
+        }
+
+        return await TryHeroResourceTransferOnCurrentBuildPageAsync(
+            label,
+            cancellationToken,
+            preferTownHallCelebration: true);
+    }
+
     // Generic Official build-page hero top-up: probes for a transfer icon, applies the per-resource use
     // limit / cached-inventory gates, then opens and confirms the transfer dialog. Shared by construction
     // and brewery; the per-consumer gating is done by the callers above.
     private async Task<bool> TryHeroResourceTransferOnCurrentBuildPageAsync(
         string label,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool preferTownHallCelebration = false)
     {
         _heroTransferOverLimitWaitSeconds = null;
 
@@ -74,7 +92,19 @@ public sealed partial class TravianClient
         try
         {
             transferAvailable = await _page.EvaluateAsync<bool>(
-                "() => !!document.querySelector('.inlineIcon.resource.transfer')");
+                """
+                (preferTownHallCelebration) => {
+                  const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
+                  const findTownHallCelebrationScope = () => {
+                    const root = document.querySelector('.build_details') || document;
+                    const rows = Array.from(root.querySelectorAll('.research, tr, li, .row, .information'));
+                    return rows.find(row => /small\s+celebration/i.test(normalize(row.textContent || ''))) || root;
+                  };
+                  const root = preferTownHallCelebration ? findTownHallCelebrationScope() : document;
+                  return !!root?.querySelector('.inlineIcon.resource.transfer');
+                }
+                """,
+                preferTownHallCelebration);
         }
         catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
         {
@@ -90,7 +120,9 @@ public sealed partial class TravianClient
 
         // Per-resource missing amount (cost minus current village stock) for this upgrade. Used by both
         // the hero-use limit gate and the cached-inventory cover check below.
-        var shortfall = await ReadUpgradeShortfallOnBuildPageAsync(cancellationToken);
+        var shortfall = await ReadUpgradeShortfallOnBuildPageAsync(
+            cancellationToken,
+            preferTownHallCelebration);
 
         // Hero-use limit gate: if covering any single resource from the hero would pull more than the
         // configured per-resource limit, skip the transfer and defer until the village has produced
@@ -135,13 +167,23 @@ public sealed partial class TravianClient
         {
             var opened = await _page.EvaluateAsync<bool>(
                 """
-                () => {
-                  const icon = document.querySelector('.upgradeBlocked .inlineIcon.resource.transfer.fillUp, .inlineIcon.resource.transfer.fillUp, .inlineIcon.resource.transfer');
+                (preferTownHallCelebration) => {
+                  const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
+                  const findTownHallCelebrationScope = () => {
+                    const root = document.querySelector('.build_details') || document;
+                    const rows = Array.from(root.querySelectorAll('.research, tr, li, .row, .information'));
+                    return rows.find(row => /small\s+celebration/i.test(normalize(row.textContent || ''))) || root;
+                  };
+                  const root = preferTownHallCelebration ? findTownHallCelebrationScope() : document;
+                  const icon = preferTownHallCelebration
+                    ? root?.querySelector('.inlineIcon.resource.transfer.fillUp, .inlineIcon.resource.transfer[onclick], .inlineIcon.resource.transfer')
+                    : document.querySelector('.upgradeBlocked .inlineIcon.resource.transfer.fillUp, .inlineIcon.resource.transfer.fillUp, .inlineIcon.resource.transfer');
                   if (!icon) return false;
                   icon.click();
                   return true;
                 }
-                """);
+                """,
+                preferTownHallCelebration);
             if (!opened)
             {
                 Notify($"[hero-transfer] could not click transfer icon at {label}.");
@@ -507,6 +549,11 @@ public sealed partial class TravianClient
     // payload; stock from the top-bar values (#l1..#l4). Returns null when the data can't be read,
     // so the caller treats "unknown" as "proceed" rather than wrongly skipping.
     private async Task<HeroInventoryResources?> ReadUpgradeShortfallOnBuildPageAsync(CancellationToken cancellationToken)
+        => await ReadUpgradeShortfallOnBuildPageAsync(cancellationToken, preferTownHallCelebration: false);
+
+    private async Task<HeroInventoryResources?> ReadUpgradeShortfallOnBuildPageAsync(
+        CancellationToken cancellationToken,
+        bool preferTownHallCelebration)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -515,8 +562,15 @@ public sealed partial class TravianClient
         {
             json = await _page.EvaluateAsync<string>(
                 """
-                () => {
-                  const icon = document.querySelector('.inlineIcon.resource.transfer[onclick]');
+                (preferTownHallCelebration) => {
+                  const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
+                  const findTownHallCelebrationScope = () => {
+                    const root = document.querySelector('.build_details') || document;
+                    const rows = Array.from(root.querySelectorAll('.research, tr, li, .row, .information'));
+                    return rows.find(row => /small\s+celebration/i.test(normalize(row.textContent || ''))) || root;
+                  };
+                  const root = preferTownHallCelebration ? findTownHallCelebrationScope() : document;
+                  const icon = root?.querySelector('.inlineIcon.resource.transfer[onclick]');
                   if (!icon) return '';
                   const onclick = icon.getAttribute('onclick') || '';
                   const grab = (name) => {
@@ -533,7 +587,8 @@ public sealed partial class TravianClient
                   const short = (k) => Math.max(0, cost[k] - stock[k]);
                   return JSON.stringify({ wood: short('wood'), clay: short('clay'), iron: short('iron'), crop: short('crop') });
                 }
-                """);
+                """,
+                preferTownHallCelebration);
         }
         catch (PlaywrightException)
         {
@@ -597,32 +652,12 @@ public sealed partial class TravianClient
         CancellationToken cancellationToken)
     {
         var productionByHour = await ReadCachedProductionByHourForActiveVillageAsync(cancellationToken);
-
-        var waitSeconds = 0;
-        var unknownProduction = false;
-        void Consider(long remaining, string key)
-        {
-            if (remaining <= 0)
-            {
-                return;
-            }
-
-            if (productionByHour.TryGetValue(key, out var perHour) && perHour is > 0)
-            {
-                waitSeconds = Math.Max(waitSeconds, (int)Math.Ceiling(remaining / perHour.Value * 3600d));
-            }
-            else
-            {
-                unknownProduction = true;
-            }
-        }
-
-        Consider(remainingWood, "wood");
-        Consider(remainingClay, "clay");
-        Consider(remainingIron, "iron");
-        Consider(remainingCrop, "crop");
-
-        return waitSeconds > 0 ? waitSeconds : (unknownProduction ? 600 : 1);
+        return UpgradeMath.ComputeResourceAccumulationWaitSeconds(
+            remainingWood,
+            remainingClay,
+            remainingIron,
+            remainingCrop,
+            productionByHour);
     }
 
     // True when the hero's cached amounts cover every resource that is short. Resources that are

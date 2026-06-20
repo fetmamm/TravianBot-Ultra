@@ -20,6 +20,7 @@ public static class TaskCatalog
         new("upgrade_troops_at_smithy", TaskGroup.Troops, "Upgrade troops at smithy", true, TaskPayloadKind.SmithyUpgrade),
         new("build_troops", TaskGroup.TroopTraining, "Build troops", true, TaskPayloadKind.TroopTraining),
         new("run_brewery_celebration", TaskGroup.BreweryCelebration, "Run brewery celebration", true, TaskPayloadKind.Brewery),
+        new("run_town_hall_celebration", TaskGroup.TownHallCelebration, "Run Town Hall celebration", true, TaskPayloadKind.None),
         new("send_farmlists", TaskGroup.Farming, "Send farmlists", true, TaskPayloadKind.Farming),
         new("send_resources_between_villages", TaskGroup.ResourceTransfer, "Send resources between villages", true, TaskPayloadKind.ResourceTransfer),
         new("send_reinforcements_between_villages", TaskGroup.Reinforcements, "Send reinforcements between villages", true, TaskPayloadKind.Reinforcements),

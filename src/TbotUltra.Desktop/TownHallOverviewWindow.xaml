@@ -1,0 +1,140 @@
+<Window x:Class="TbotUltra.Desktop.TownHallOverviewWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Background="{DynamicResource AppBackgroundBrush}"
+        Title="Town Hall settings"
+        Width="520"
+        MinHeight="300"
+        Height="560"
+        ResizeMode="CanResize"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="Town Hall by village"
+                           FontSize="18"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
+                           VerticalAlignment="Center" />
+                <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
+                                Margin="8,2,0,0"
+                                ToolTip="Enable Town Hall celebrations per village and choose whether that village should prefer small or big celebrations. Big falls back to small until the Town Hall is level 10." />
+            </StackPanel>
+            <TextBlock x:Name="SubtitleTextBlock"
+                       Foreground="{DynamicResource TextSubtleBrush}"
+                       TextWrapping="Wrap"
+                       Margin="0,4,0,0" />
+        </StackPanel>
+
+        <Border Grid.Row="1"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="8">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0"
+                        BorderBrush="{DynamicResource BorderSubtleBrush}"
+                        BorderThickness="0,0,0,1"
+                        Padding="14,12,14,10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="64" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="170" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="ON"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextMutedBrush}" />
+                        <TextBlock Grid.Column="1"
+                                   Text="VILLAGE"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextMutedBrush}" />
+                        <TextBlock Grid.Column="2"
+                                   Text="MODE"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextMutedBrush}" />
+                    </Grid>
+                </Border>
+
+                <ScrollViewer Grid.Row="1"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <ItemsControl ItemsSource="{Binding Rows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="{DynamicResource BorderSubtleBrush}"
+                                        BorderThickness="0,0,0,1"
+                                        Padding="14,12">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="64" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="170" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <CheckBox Style="{DynamicResource ToggleSwitchBlueStyle}"
+                                                  HorizontalAlignment="Left"
+                                                  VerticalAlignment="Center"
+                                                  ToolTip="Enable Town Hall celebrations for this village."
+                                                  IsChecked="{Binding IsTownHallEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding VillageName}"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   Margin="0,0,12,0" />
+
+                                        <StackPanel Grid.Column="2"
+                                                    Orientation="Horizontal"
+                                                    VerticalAlignment="Center">
+                                            <RadioButton Content="Small"
+                                                         Margin="0,0,16,0"
+                                                         IsChecked="{Binding IsSmall, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            <RadioButton Content="Big"
+                                                         IsChecked="{Binding IsBig, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,16,0,0">
+            <Button Width="80"
+                    Height="30"
+                    Content="Cancel"
+                    Margin="0,0,8,0"
+                    Click="CancelButton_Click" />
+            <Button Width="120"
+                    Height="30"
+                    Content="Save &amp; close"
+                    Click="SaveButton_Click"
+                    Background="{DynamicResource PrimaryButtonBrush}"
+                    BorderBrush="{DynamicResource AccentBrush}"
+                    Foreground="{DynamicResource OnAccentBrush}" />
+        </StackPanel>
+    </Grid>
+</Window>

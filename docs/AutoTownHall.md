@@ -1,6 +1,6 @@
 # AutoTownHall — Town Hall celebrations
 
-> **Status: PLAN ONLY — not implemented.** Scope when built: small celebration first; big deferred until a Town Hall 10 village exists.
+> **Status: IMPLEMENTED — small path structure is in place; live selector verification remains pending.** Big start remains deferred until a Town Hall 10 village exists.
 
 ## Context
 Add an automated **Town Hall celebration** feature (small/big) for all tribes, modeled on the

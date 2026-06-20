@@ -443,6 +443,47 @@ public sealed class TravianClientHelperTests
     }
 
     [Fact]
+    public void ComputeResourceAccumulationWaitSeconds_UsesSlowestMissingResource()
+    {
+        var production = new Dictionary<string, double?>
+        {
+            ["wood"] = 600,
+            ["clay"] = 300,
+            ["iron"] = 1200,
+            ["crop"] = 100,
+        };
+
+        var waitSeconds = UpgradeMath.ComputeResourceAccumulationWaitSeconds(
+            remainingWood: 600,
+            remainingClay: 600,
+            remainingIron: 0,
+            remainingCrop: 50,
+            production);
+
+        Assert.Equal(7200, waitSeconds);
+    }
+
+    [Fact]
+    public void ComputeResourceAccumulationWaitSeconds_FallsBackWhenNeededProductionMissing()
+    {
+        var production = new Dictionary<string, double?>
+        {
+            ["wood"] = null,
+            ["clay"] = 300,
+        };
+
+        var waitSeconds = UpgradeMath.ComputeResourceAccumulationWaitSeconds(
+            remainingWood: 10,
+            remainingClay: 0,
+            remainingIron: 0,
+            remainingCrop: 0,
+            production,
+            fallbackSeconds: 900);
+
+        Assert.Equal(900, waitSeconds);
+    }
+
+    [Fact]
     public void ComputeConstructionSlotStatus_EmptyAllowsBoth()
     {
         var status = ConstructionSlots.Compute([], "Romans", travianPlusActive: false);
@@ -664,6 +705,17 @@ public sealed class TravianClientHelperTests
     public void ExtractSlotIdFromUrl_ParsesIdQuery(string? url, int? expected)
     {
         Assert.Equal(expected, TravianUrls.ExtractSlotIdFromUrl(url));
+    }
+
+    [Fact]
+    public void BuildTroopInputSelectors_IncludesOfficialAndLegacyRallyPointNames()
+    {
+        var selectors = TravianClient.BuildTroopInputSelectors("t2");
+
+        Assert.Contains("input[name='troop[t2]']", selectors);
+        Assert.Contains("input[name='troops[0][t2]']", selectors);
+        Assert.Contains("input[name$='[t2]']", selectors);
+        Assert.Contains("input[name='t2']", selectors);
     }
 
     [Theory]

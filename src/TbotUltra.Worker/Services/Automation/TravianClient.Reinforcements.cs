@@ -255,6 +255,15 @@ public sealed partial class TravianClient
         return rule.NormalizedAmount;
     }
 
+    internal static string[] BuildTroopInputSelectors(string fieldToken) =>
+    [
+        $"input[name='troops[0][{fieldToken}]']",
+        $"input[name='troop[{fieldToken}]']",
+        $"input[name$='[{fieldToken}]']",
+        $"input[name='{fieldToken}']",
+        $"input[id$='{fieldToken}']",
+    ];
+
     private async Task<ReinforcementSendAttemptResult> TrySendReinforcementAsync(
         Village targetVillage,
         IReadOnlyList<ResolvedReinforcementAmount> amounts,
@@ -285,6 +294,7 @@ public sealed partial class TravianClient
             return new ReinforcementSendAttemptResult(false, "Could not click first confirm.");
         }
 
+        await WaitForPageReadyAsync(cancellationToken);
         if (!await WaitForManualAttackConfirmationPageAsync(cancellationToken))
         {
             var error = await ReadReinforcementFormErrorAsync(cancellationToken);

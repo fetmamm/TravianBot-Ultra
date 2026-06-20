@@ -20,16 +20,22 @@ public partial class VillageSettingsWindow : Window
     private readonly IReadOnlyList<VillageSettingsRow> _rows;
     private readonly Action<VillageSettingsRow>? _onEnabledChanged;
     private readonly Action<VillageSettingsRow>? _onNpcTradeChanged;
+    private readonly Action<VillageSettingsRow>? _onHeroResourcesChanged;
     private readonly Action<VillageSettingsRow>? _onGroupsChanged;
     private readonly Action<IReadOnlyList<VillageSettingsRow>>? _onTroopSettingsRequested;
+    private readonly Action<IReadOnlyList<VillageSettingsRow>>? _onTownHallSettingsRequested;
+    private readonly Action<IReadOnlyList<VillageSettingsRow>>? _onHeroResourceSettingsRequested;
     private readonly Action? _onSaved;
 
     public VillageSettingsWindow(
         IReadOnlyList<VillageSettingsRow> rows,
         Action<VillageSettingsRow>? onEnabledChanged = null,
         Action<VillageSettingsRow>? onNpcTradeChanged = null,
+        Action<VillageSettingsRow>? onHeroResourcesChanged = null,
         Action<VillageSettingsRow>? onGroupsChanged = null,
         Action<IReadOnlyList<VillageSettingsRow>>? onTroopSettingsRequested = null,
+        Action<IReadOnlyList<VillageSettingsRow>>? onTownHallSettingsRequested = null,
+        Action<IReadOnlyList<VillageSettingsRow>>? onHeroResourceSettingsRequested = null,
         Action? onSaved = null)
     {
         InitializeComponent();
@@ -37,8 +43,11 @@ public partial class VillageSettingsWindow : Window
         _rows = rows;
         _onEnabledChanged = onEnabledChanged;
         _onNpcTradeChanged = onNpcTradeChanged;
+        _onHeroResourcesChanged = onHeroResourcesChanged;
         _onGroupsChanged = onGroupsChanged;
         _onTroopSettingsRequested = onTroopSettingsRequested;
+        _onTownHallSettingsRequested = onTownHallSettingsRequested;
+        _onHeroResourceSettingsRequested = onHeroResourceSettingsRequested;
         _onSaved = onSaved;
         BuildGroupColumns(rows);
         VillageSettingsDataGrid.ItemsSource = rows;
@@ -66,10 +75,23 @@ public partial class VillageSettingsWindow : Window
             {
                 Header = BuildColumnHeader(toggle.Title, tooltip),
                 Width = DataGridLength.Auto,
-                CellTemplate = string.Equals(toggle.GroupKey, QueueGroupCatalog.GetKey(QueueGroup.TroopTraining), StringComparison.OrdinalIgnoreCase)
-                    ? BuildBuildTroopsCellTemplate($"GroupToggles[{i}].IsEnabled")
-                    : BuildToggleCellTemplate($"GroupToggles[{i}].IsEnabled"),
+                CellTemplate = BuildGroupCellTemplate(toggle.GroupKey, $"GroupToggles[{i}].IsEnabled"),
             });
+
+            if (string.Equals(toggle.GroupKey, QueueGroupCatalog.GetKey(QueueGroup.Hero), StringComparison.OrdinalIgnoreCase))
+            {
+                VillageSettingsDataGrid.Columns.Add(new DataGridTemplateColumn
+                {
+                    Header = BuildColumnHeader(
+                        "Hero res.",
+                        "Selects which villages may use hero inventory resources. The Auto settings master toggle still applies."),
+                    Width = DataGridLength.Auto,
+                    CellTemplate = BuildToggleWithGearCellTemplate(
+                        nameof(VillageSettingsRow.HeroResourcesEnabled),
+                        "Open Hero resource settings",
+                        HeroResourceSettingsButton_Click),
+                });
+            }
         }
 
         var resourceTransferKey = QueueGroupCatalog.GetKey(QueueGroup.ResourceTransfer);
@@ -112,7 +134,25 @@ public partial class VillageSettingsWindow : Window
         return (DataTemplate)XamlReader.Parse(xaml);
     }
 
-    private DataTemplate BuildBuildTroopsCellTemplate(string bindingPath)
+    private DataTemplate BuildGroupCellTemplate(string groupKey, string bindingPath)
+    {
+        if (string.Equals(groupKey, QueueGroupCatalog.GetKey(QueueGroup.TroopTraining), StringComparison.OrdinalIgnoreCase))
+        {
+            return BuildToggleWithGearCellTemplate(bindingPath, "Open troop settings", TroopSettingsButton_Click);
+        }
+
+        if (string.Equals(groupKey, QueueGroupCatalog.GetKey(QueueGroup.TownHallCelebration), StringComparison.OrdinalIgnoreCase))
+        {
+            return BuildToggleWithGearCellTemplate(bindingPath, "Open Town Hall settings", TownHallSettingsButton_Click);
+        }
+
+        return BuildToggleCellTemplate(bindingPath);
+    }
+
+    private static DataTemplate BuildToggleWithGearCellTemplate(
+        string bindingPath,
+        string tooltip,
+        RoutedEventHandler clickHandler)
     {
         var template = new DataTemplate();
         var panel = new FrameworkElementFactory(typeof(StackPanel));
@@ -139,8 +179,8 @@ public partial class VillageSettingsWindow : Window
         button.SetValue(FrameworkElement.MarginProperty, new Thickness(4, 0, 6, 0));
         button.SetValue(Control.FontFamilyProperty, new FontFamily("Segoe MDL2 Assets"));
         button.SetValue(ContentControl.ContentProperty, "\uE713");
-        button.SetValue(FrameworkElement.ToolTipProperty, "Open troop settings");
-        button.AddHandler(ButtonBase.ClickEvent, new RoutedEventHandler(TroopSettingsButton_Click));
+        button.SetValue(FrameworkElement.ToolTipProperty, tooltip);
+        button.AddHandler(ButtonBase.ClickEvent, clickHandler);
         panel.AppendChild(button);
 
         template.VisualTree = panel;
@@ -152,14 +192,25 @@ public partial class VillageSettingsWindow : Window
         _onTroopSettingsRequested?.Invoke(_rows);
     }
 
-    // Persists every row's current state (Auto / NPC / groups) via the callbacks, then closes. The persist
-    // callbacks no-op when a value is unchanged, so writing all rows is cheap.
+    private void TownHallSettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        _onTownHallSettingsRequested?.Invoke(_rows);
+    }
+
+    private void HeroResourceSettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        _onHeroResourceSettingsRequested?.Invoke(_rows);
+    }
+
+    // Persists every row's current state via the callbacks, then closes. The persist callbacks no-op when
+    // a value is unchanged, so writing all rows is cheap.
     private void SaveAndCloseButton_Click(object sender, RoutedEventArgs e)
     {
         foreach (var row in _rows)
         {
             _onEnabledChanged?.Invoke(row);
             _onNpcTradeChanged?.Invoke(row);
+            _onHeroResourcesChanged?.Invoke(row);
             _onGroupsChanged?.Invoke(row);
         }
 

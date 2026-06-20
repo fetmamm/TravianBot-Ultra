@@ -235,7 +235,8 @@ public partial class MainWindow
             return;
         }
 
-        var activeItems = _botService.GetQueueItemsForDisplay()
+        var queueItems = _botService.GetQueueItemsForDisplay();
+        var activeItems = queueItems
             .Where(item => item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused)
             .ToList();
 
@@ -344,6 +345,43 @@ public partial class MainWindow
             }
         }
 
+        // Town Hall celebrations are generated per enabled village. A remembered running celebration is
+        // restored as a deferred runtime item so the dashboard timer survives restart without navigating
+        // back to the Town Hall until it ends.
+        var townHallAccount = _accountStore.ActiveAccountName();
+        foreach (var village in automationVillages)
+        {
+            var villageKey = GetVillageKey(village);
+            if (!IsGroupEnabledForVillage(villageKey, QueueGroup.TownHallCelebration)
+                || HasActiveTaskForVillage("run_town_hall_celebration", village.Name))
+            {
+                continue;
+            }
+
+            var overrideMode = TownHallSettingsStore.LoadMode(_projectRoot, townHallAccount, villageKey);
+            var mode = TownHallCelebrationDefaults.NormalizeMode(overrideMode ?? options.TownHallCelebrationMode);
+            var nowUtc = DateTimeOffset.UtcNow;
+            var remembered = TownHallCelebrationStateStore.LoadActive(_projectRoot, townHallAccount, villageKey, nowUtc);
+            if (remembered is not null)
+            {
+                var restoredPayload = BuildVillageRuntimePayload(village);
+                restoredPayload[BotOptionPayloadKeys.TownHallCelebrationMode] = remembered.Mode;
+                var restoredItem = _botService.EnqueueRuntime(
+                    "run_town_hall_celebration",
+                    "Town Hall celebration",
+                    restoredPayload,
+                    priority: -50,
+                    maxRetries: 0);
+                _botService.MarkQueueItemDeferred(restoredItem.Id, remembered.EndsAtUtc - nowUtc);
+                AppendLog($"[town-hall] restored running celebration for '{village.Name}' until {FormatQueueServerTime(remembered.EndsAtUtc)}.");
+                continue;
+            }
+
+            var payload = BuildVillageRuntimePayload(village);
+            payload[BotOptionPayloadKeys.TownHallCelebrationMode] = mode;
+            _botService.EnqueueRuntime("run_town_hall_celebration", "Town Hall celebration", payload, priority: -50, maxRetries: 0);
+        }
+
         if (enabledGroups.Contains(QueueGroup.Farming) && !IsFarmingGroupBlocked() && !HasActiveTask("send_farmlists"))
         {
             var goldClubEnabled = await _botService.ReadAndPersistGoldClubStatusAsync(options, AppendLog, CancellationToken.None);
@@ -429,6 +467,7 @@ public partial class MainWindow
         {
             var selectedSources = options.ReinforcementsSourceVillageNames
                 .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Where(name => !string.Equals(name, options.ReinforcementsTargetVillageName, StringComparison.OrdinalIgnoreCase))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
             if (CanRunReinforcements(options, out _))
@@ -438,9 +477,41 @@ public partial class MainWindow
                     TargetVillageName: options.ReinforcementsTargetVillageName,
                     SourceVillageNames: selectedSources,
                     TroopRules: BuildReinforcementRulesForRun()).ToDictionary();
-                _botService.EnqueueRuntime("send_reinforcements_between_villages", "Reinforcements", payload, priority: -50, maxRetries: 0);
+                payload[BotOptionPayloadKeys.ReinforcementsSendIntervalHours] = options.ReinforcementsSendIntervalHours.ToString();
+                payload[BotOptionPayloadKeys.ReinforcementsSendVariationPercent] = options.ReinforcementsSendVariationPercent.ToString();
+
+                var delay = ResolveReinforcementAutomaticSendDelay(options, queueItems);
+                var item = _botService.EnqueueRuntime("send_reinforcements_between_villages", "Reinforcements", payload, priority: -50, maxRetries: 0);
+                if (delay > TimeSpan.Zero && _botService.UpdateDeferredQueueItem(item.Id, payload, delay))
+                {
+                    var variationLabel = options.ReinforcementsSendVariationPercent <= 0
+                        ? "No variation"
+                        : $"{options.ReinforcementsSendVariationPercent}%";
+                    AppendLog(
+                        $"Reinforcements: next automatic send scheduled in {FormatCountdown((int)Math.Ceiling(delay.TotalSeconds))} "
+                        + $"(interval={options.ReinforcementsSendIntervalHours}h, variation={variationLabel}).");
+                }
             }
         }
+    }
+
+    private static TimeSpan ResolveReinforcementAutomaticSendDelay(BotOptions options, IReadOnlyList<QueueItem> queueItems)
+    {
+        var lastSucceeded = queueItems
+            .Where(item => string.Equals(item.TaskName, "send_reinforcements_between_villages", StringComparison.OrdinalIgnoreCase))
+            .Where(item => item.Status == QueueStatus.Succeeded)
+            .Select(item => (DateTimeOffset?)item.UpdatedAt)
+            .Max();
+        if (lastSucceeded is null)
+        {
+            return TimeSpan.Zero;
+        }
+
+        var intervalHours = ReinforcementSendDefaults.NormalizeIntervalHours(options.ReinforcementsSendIntervalHours);
+        var variationPercent = ReinforcementSendDefaults.NormalizeVariationPercent(options.ReinforcementsSendVariationPercent);
+        var nextSendAt = lastSucceeded.Value.Add(ReinforcementSendDefaults.CalculateSendDelay(intervalHours, variationPercent));
+        var remaining = nextSendAt - DateTimeOffset.UtcNow;
+        return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
     }
 
     private async Task EnsureContinuousLoopConstructionStatusAsync(BotOptions options, CancellationToken cancellationToken)

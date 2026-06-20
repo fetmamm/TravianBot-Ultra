@@ -469,15 +469,7 @@ public sealed partial class TravianClient
 
     private async Task<bool> TryFillTroopInputAsync(IPage page, string fieldToken, string troopType, int troopCountToSend, CancellationToken cancellationToken)
     {
-        var selectors = new[]
-        {
-            $"input[name='troops[0][{fieldToken}]']",
-            $"input[name$='[{fieldToken}]']",
-            $"input[name='{fieldToken}']",
-            $"input[id$='{fieldToken}']",
-        };
-
-        foreach (var selector in selectors)
+        foreach (var selector in BuildTroopInputSelectors(fieldToken))
         {
             var locator = page.Locator(selector).First;
             if (await locator.CountAsync() == 0)

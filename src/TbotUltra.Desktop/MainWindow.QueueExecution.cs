@@ -41,7 +41,8 @@ public partial class MainWindow
 
         try
         {
-            await _botService.ExecuteQueueItemAsync(options, item, AppendLog, cancellationToken);
+            var effectiveOptions = ApplyHeroResourceSettingsForQueueItem(options, item);
+            await _botService.ExecuteQueueItemAsync(effectiveOptions, item, AppendLog, cancellationToken);
             await HandleQueueItemSucceededAsync(item, options, terminalCountBefore, cancellationToken);
             if (NeedsConstructionStatusRefresh(item.TaskName))
             {
@@ -214,6 +215,11 @@ public partial class MainWindow
             if (string.Equals(item.TaskName, "run_brewery_celebration", StringComparison.OrdinalIgnoreCase))
             {
                 ApplyBreweryCelebrationDeferSignal(ex.Message, queueWaitDelay);
+            }
+
+            if (string.Equals(item.TaskName, "run_town_hall_celebration", StringComparison.OrdinalIgnoreCase))
+            {
+                ApplyTownHallCelebrationDeferSignal(item, ex.Message, queueWaitDelay);
             }
 
             var deferred = _botService.MarkQueueItemDeferred(item.Id, queueWaitDelay);

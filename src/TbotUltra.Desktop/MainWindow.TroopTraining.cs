@@ -714,34 +714,7 @@ public partial class MainWindow
         bool enabled,
         string troopTrainingGroupKey)
     {
-        var groups = (_villageSettingsStore.GetEnabledGroups(village)
-            ?? VillageSettingsStore.DefaultEnabledGroups)
-            .Where(group => !string.IsNullOrWhiteSpace(group))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (enabled)
-        {
-            if (!groups.Contains(troopTrainingGroupKey, StringComparer.OrdinalIgnoreCase))
-            {
-                groups.Add(troopTrainingGroupKey);
-            }
-        }
-        else
-        {
-            groups.RemoveAll(group => string.Equals(group, troopTrainingGroupKey, StringComparison.OrdinalIgnoreCase));
-        }
-
-        _villageSettingsStore.SetEnabledGroups(village, groups);
-
-        if (string.Equals(GetSelectedVillageKey(), village.Key, StringComparison.OrdinalIgnoreCase))
-        {
-            ApplyAutomationLoopGroupsForSelectedVillage();
-        }
-        else
-        {
-            RefreshAutomationLoopDashboardUi();
-        }
+        PersistAutomationGroupEnabledForVillage(village, enabled, troopTrainingGroupKey);
     }
 
     private static void UpdateVillageSettingsBuildTroopsRow(
@@ -749,16 +722,12 @@ public partial class MainWindow
         TroopTrainingQuickVillageResult result,
         string troopTrainingGroupKey)
     {
-        var row = villageSettingsRows?.FirstOrDefault(candidate =>
-            candidate.KeyInfo is not null
-            && (string.Equals(candidate.KeyInfo.Key, result.VillageKey, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(candidate.KeyInfo.Name, result.VillageName, StringComparison.OrdinalIgnoreCase)));
-        var toggle = row?.GroupToggles.FirstOrDefault(item =>
-            string.Equals(item.GroupKey, troopTrainingGroupKey, StringComparison.OrdinalIgnoreCase));
-        if (toggle is not null)
-        {
-            toggle.IsEnabled = result.IsBuildTroopsEnabled;
-        }
+        UpdateVillageSettingsGroupRow(
+            villageSettingsRows,
+            result.VillageKey,
+            result.VillageName,
+            troopTrainingGroupKey,
+            result.IsBuildTroopsEnabled);
     }
 
     private static VillageSettingsRow? FindVillageSettingsRow(

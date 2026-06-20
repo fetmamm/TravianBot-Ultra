@@ -70,6 +70,8 @@ public sealed class BotOptionsPayloadApplierTests
             ReinforcementsEnabled = false,
             ReinforcementsTargetVillageName = "Old reinforcement target",
             ReinforcementsSourceVillageNames = ["Old reinforcement source"],
+            ReinforcementsSendIntervalHours = 24,
+            ReinforcementsSendVariationPercent = 90,
         };
 
         var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -108,6 +110,8 @@ public sealed class BotOptionsPayloadApplierTests
             [BotOptionPayloadKeys.ReinforcementsTargetVillageName] = "Reinforcement target",
             [BotOptionPayloadKeys.ReinforcementsSourceVillageNames] = "S1,S2,S1",
             [BotOptionPayloadKeys.ReinforcementsTroopRules] = """[{"troopType":"Spearman","amountMode":"all_available","amount":1,"isEnabled":true},{"troopType":"Paladin","amountMode":"fixed","amount":25,"isEnabled":true}]""",
+            [BotOptionPayloadKeys.ReinforcementsSendIntervalHours] = "8",
+            [BotOptionPayloadKeys.ReinforcementsSendVariationPercent] = "25",
         };
 
         var result = BotOptionsPayloadApplier.Apply(source, payload);
@@ -151,6 +155,8 @@ public sealed class BotOptionsPayloadApplierTests
         Assert.Equal("all_available", result.ReinforcementsTroopRules[0].AmountMode);
         Assert.Equal("Paladin", result.ReinforcementsTroopRules[1].TroopType);
         Assert.Equal(25, result.ReinforcementsTroopRules[1].Amount);
+        Assert.Equal(8, result.ReinforcementsSendIntervalHours);
+        Assert.Equal(25, result.ReinforcementsSendVariationPercent);
     }
 
     [Fact]
@@ -207,6 +213,25 @@ public sealed class BotOptionsPayloadApplierTests
 
         Assert.True(options.HeroResourceMaxUseEnabled);
         Assert.Equal(5000, options.HeroResourceMaxUsePerResource);
+    }
+
+    [Fact]
+    public void FromConfiguration_DefaultsHeroResourceConsumers_ConstructionAndSmithyOnly()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["server_name"] = "srv",
+                ["base_url"] = "https://example.com",
+            })
+            .Build();
+
+        var options = BotOptionsFactory.FromConfiguration(configuration);
+
+        Assert.True(options.HeroResourceUseConstruction);
+        Assert.True(options.HeroResourceUseSmithy);
+        Assert.False(options.HeroResourceUseBrewery);
+        Assert.False(options.HeroResourceUseTownHall);
     }
 
     [Fact]
@@ -345,6 +370,8 @@ public sealed class BotOptionsPayloadApplierTests
             ["village_overview_path"] = "/dorf1.php",
             [BotOptionPayloadKeys.ReinforcementsEnabled] = "true",
             [BotOptionPayloadKeys.ReinforcementsTargetVillageName] = "Target",
+            [BotOptionPayloadKeys.ReinforcementsSendIntervalHours] = "12",
+            [BotOptionPayloadKeys.ReinforcementsSendVariationPercent] = "50",
             [$"{BotOptionPayloadKeys.ReinforcementsSourceVillageNames}:0"] = "A",
             [$"{BotOptionPayloadKeys.ReinforcementsSourceVillageNames}:1"] = "B",
             [$"{BotOptionPayloadKeys.ReinforcementsTroopRules}:0:troopType"] = "Spearman",
@@ -360,6 +387,8 @@ public sealed class BotOptionsPayloadApplierTests
 
         Assert.True(options.ReinforcementsEnabled);
         Assert.Equal("Target", options.ReinforcementsTargetVillageName);
+        Assert.Equal(12, options.ReinforcementsSendIntervalHours);
+        Assert.Equal(50, options.ReinforcementsSendVariationPercent);
         Assert.Equal(["A", "B"], options.ReinforcementsSourceVillageNames);
         var rule = Assert.Single(options.ReinforcementsTroopRules);
         Assert.Equal("Spearman", rule.TroopType);
@@ -443,6 +472,8 @@ public sealed class BotOptionsPayloadApplierTests
             ContinuousFarmDispatchDelayMinutes = FarmingDefaults.DefaultDispatchDelayMinutes,
             ContinuousFarmDispatchDelayVariationPercent = FarmingDefaults.DefaultDispatchDelayVariationPercent,
             ContinuousFarmSendMode = FarmingDefaults.SendModeListPerList,
+            TownHallCelebrationMode = TownHallCelebrationDefaults.Small,
+            HeroResourceUseTownHall = false,
         };
 
         var result = BotOptionsPayloadApplier.Apply(source, new Dictionary<string, string>
@@ -450,16 +481,30 @@ public sealed class BotOptionsPayloadApplierTests
             [BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes] = "90",
             [BotOptionPayloadKeys.ContinuousFarmDispatchDelayVariationPercent] = "50",
             [BotOptionPayloadKeys.ContinuousFarmSendMode] = FarmingDefaults.SendModeAllAtOnce,
+            [BotOptionPayloadKeys.TownHallCelebrationMode] = TownHallCelebrationDefaults.Big,
             [BotOptionPayloadKeys.ContinuousFarmDeactivateLosses] = "true",
             [BotOptionPayloadKeys.ContinuousFarmDeactivateOasisLosses] = "true",
             [BotOptionPayloadKeys.ContinuousFarmNextListIndex] = "7",
+            [BotOptionPayloadKeys.HeroResourceUseTownHall] = "true",
         });
 
         Assert.Equal(90, result.ContinuousFarmDispatchDelayMinutes);
         Assert.Equal(50, result.ContinuousFarmDispatchDelayVariationPercent);
         Assert.Equal(FarmingDefaults.SendModeAllAtOnce, result.ContinuousFarmSendMode);
+        Assert.Equal(TownHallCelebrationDefaults.Big, result.TownHallCelebrationMode);
         Assert.True(result.ContinuousFarmDeactivateLosses);
         Assert.True(result.ContinuousFarmDeactivateOasisLosses);
         Assert.Equal(7, result.ContinuousFarmNextListIndex);
+        Assert.True(result.HeroResourceUseTownHall);
+    }
+
+    [Fact]
+    public void ReinforcementSendDefaults_NormalizesChoices()
+    {
+        Assert.Equal(5, ReinforcementSendDefaults.NormalizeIntervalHours(0));
+        Assert.Equal(5, ReinforcementSendDefaults.NormalizeIntervalHours(6));
+        Assert.Equal(0, ReinforcementSendDefaults.NormalizeVariationPercent(0));
+        Assert.Equal(25, ReinforcementSendDefaults.NormalizeVariationPercent(24));
+        Assert.Equal(TimeSpan.FromHours(1), ReinforcementSendDefaults.CalculateSendDelay(1, 0));
     }
 }

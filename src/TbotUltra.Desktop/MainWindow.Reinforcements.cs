@@ -19,6 +19,29 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
+    private sealed record ReinforcementSendOption(string Label, int Value);
+
+    private void InitializeReinforcementSendSettings()
+    {
+        var wasSuppressed = _suppressReinforcementConfigWrite;
+        _suppressReinforcementConfigWrite = true;
+        try
+        {
+            ReinforcementSendIntervalComboBox.ItemsSource = ReinforcementSendDefaults.IntervalHourChoices
+                .Select(hours => new ReinforcementSendOption($"{hours}h", hours))
+                .ToList();
+            ReinforcementSendVariationComboBox.ItemsSource = ReinforcementSendDefaults.VariationPercentChoices
+                .Select(percent => new ReinforcementSendOption(percent == 0 ? "No variation" : $"{percent} %", percent))
+                .ToList();
+            SelectReinforcementSendOption(ReinforcementSendIntervalComboBox, ReinforcementSendDefaults.DefaultIntervalHours);
+            SelectReinforcementSendOption(ReinforcementSendVariationComboBox, ReinforcementSendDefaults.DefaultVariationPercent);
+        }
+        finally
+        {
+            _suppressReinforcementConfigWrite = wasSuppressed;
+        }
+    }
+
     private void ApplyReinforcementVillageItems(IReadOnlyList<VillageSelectionItem> villages)
     {
         if (!Dispatcher.CheckAccess())
@@ -33,6 +56,13 @@ public partial class MainWindow
             var options = LoadBotOptions();
             var targetName = options.ReinforcementsTargetVillageName;
             var selectedSources = options.ReinforcementsSourceVillageNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            SelectReinforcementSendOption(
+                ReinforcementSendIntervalComboBox,
+                ReinforcementSendDefaults.NormalizeIntervalHours(options.ReinforcementsSendIntervalHours));
+            SelectReinforcementSendOption(
+                ReinforcementSendVariationComboBox,
+                ReinforcementSendDefaults.NormalizeVariationPercent(options.ReinforcementsSendVariationPercent));
+
             foreach (var existing in _reinforcementVillages)
             {
                 existing.PropertyChanged -= ReinforcementVillage_PropertyChanged;
@@ -97,6 +127,13 @@ public partial class MainWindow
             {
                 ReinforcementTargetVillageComboBox.SelectedItem = target;
             }
+
+            SelectReinforcementSendOption(
+                ReinforcementSendIntervalComboBox,
+                ReinforcementSendDefaults.NormalizeIntervalHours(options.ReinforcementsSendIntervalHours));
+            SelectReinforcementSendOption(
+                ReinforcementSendVariationComboBox,
+                ReinforcementSendDefaults.NormalizeVariationPercent(options.ReinforcementsSendVariationPercent));
 
             var selectedSources = options.ReinforcementsSourceVillageNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
             foreach (var village in _reinforcementVillages)
@@ -197,6 +234,37 @@ public partial class MainWindow
         return _reinforcementVillages.FirstOrDefault();
     }
 
+    private static void SelectReinforcementSendOption(ComboBox comboBox, int value)
+    {
+        foreach (var option in comboBox.Items.OfType<ReinforcementSendOption>())
+        {
+            if (option.Value == value)
+            {
+                comboBox.SelectedItem = option;
+                return;
+            }
+        }
+    }
+
+    private static int ReadReinforcementSendOption(ComboBox comboBox, int fallback)
+    {
+        return comboBox.SelectedItem is ReinforcementSendOption option
+            ? option.Value
+            : fallback;
+    }
+
+    private int ResolveReinforcementSendIntervalHours()
+    {
+        return ReinforcementSendDefaults.NormalizeIntervalHours(
+            ReadReinforcementSendOption(ReinforcementSendIntervalComboBox, ReinforcementSendDefaults.DefaultIntervalHours));
+    }
+
+    private int ResolveReinforcementSendVariationPercent()
+    {
+        return ReinforcementSendDefaults.NormalizeVariationPercent(
+            ReadReinforcementSendOption(ReinforcementSendVariationComboBox, ReinforcementSendDefaults.DefaultVariationPercent));
+    }
+
     private Dictionary<string, string> BuildReinforcementPayload()
     {
         var target = ReinforcementTargetVillageComboBox.SelectedItem as ReinforcementVillageItem;
@@ -208,11 +276,14 @@ public partial class MainWindow
             .ToList();
         var rules = BuildReinforcementRulesForRun();
 
-        return new ReinforcementsPayload(
+        var payload = new ReinforcementsPayload(
             Enabled: true,
             TargetVillageName: target?.Name ?? string.Empty,
             SourceVillageNames: sourceNames,
             TroopRules: rules).ToDictionary();
+        payload[BotOptionPayloadKeys.ReinforcementsSendIntervalHours] = ResolveReinforcementSendIntervalHours().ToString();
+        payload[BotOptionPayloadKeys.ReinforcementsSendVariationPercent] = ResolveReinforcementSendVariationPercent().ToString();
+        return payload;
     }
 
     private void PersistReinforcementSettings()
@@ -225,25 +296,35 @@ public partial class MainWindow
         var payload = BuildReinforcementPayload();
         var config = _botConfigStore.Load();
         var rules = BuildReinforcementRulesForSave();
-        config[BotOptionPayloadKeys.ReinforcementsTargetVillageName] = payload[BotOptionPayloadKeys.ReinforcementsTargetVillageName];
-        config[BotOptionPayloadKeys.ReinforcementsSourceVillageNames] = new JsonArray(
-            payload[BotOptionPayloadKeys.ReinforcementsSourceVillageNames]
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Select(name => JsonValue.Create(name)!)
-                .ToArray());
-        config[BotOptionPayloadKeys.ReinforcementsTroopRules] = new JsonArray(
-            rules
-                .Select(rule => new JsonObject
-                {
-                    ["accountName"] = rule.AccountName,
-                    ["sourceVillageName"] = rule.SourceVillageName,
-                    ["troopType"] = rule.TroopType,
-                    ["amountMode"] = rule.AmountMode,
-                    ["amount"] = rule.Amount,
-                    ["isEnabled"] = rule.IsEnabled,
-                })
-                .Cast<JsonNode>()
-                .ToArray());
+        config[BotOptionPayloadKeys.ReinforcementsSendIntervalHours] = ResolveReinforcementSendIntervalHours();
+        config[BotOptionPayloadKeys.ReinforcementsSendVariationPercent] = ResolveReinforcementSendVariationPercent();
+        if (_reinforcementVillages.Count > 0)
+        {
+            config[BotOptionPayloadKeys.ReinforcementsTargetVillageName] = payload[BotOptionPayloadKeys.ReinforcementsTargetVillageName];
+            config[BotOptionPayloadKeys.ReinforcementsSourceVillageNames] = new JsonArray(
+                payload[BotOptionPayloadKeys.ReinforcementsSourceVillageNames]
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(name => JsonValue.Create(name)!)
+                    .ToArray());
+        }
+
+        if (_reinforcementVillages.Count > 0 || _configuredReinforcementTroopRules.Count > 0)
+        {
+            config[BotOptionPayloadKeys.ReinforcementsTroopRules] = new JsonArray(
+                rules
+                    .Select(rule => new JsonObject
+                    {
+                        ["accountName"] = rule.AccountName,
+                        ["sourceVillageName"] = rule.SourceVillageName,
+                        ["troopType"] = rule.TroopType,
+                        ["amountMode"] = rule.AmountMode,
+                        ["amount"] = rule.Amount,
+                        ["isEnabled"] = rule.IsEnabled,
+                    })
+                    .Cast<JsonNode>()
+                    .ToArray());
+        }
+
         _configuredReinforcementTroopRules = NormalizeReinforcementRules(rules);
         _botConfigStore.Save(config);
         UpdateReinforcementVillageTroopSummaries();
@@ -324,10 +405,11 @@ public partial class MainWindow
 
         var villages = _reinforcementVillages
             .Where(village => !string.IsNullOrWhiteSpace(village.Name) && village.Name != "-")
+            .Where(village => !village.IsTarget)
             .ToList();
         if (villages.Count == 0)
         {
-            AppDialog.Show(this, "Refresh villages before marking troops.", "Mark all", MessageBoxButton.OK, MessageBoxImage.Information);
+            AppDialog.Show(this, "Load villages before marking troops.", "Mark all", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -388,12 +470,23 @@ public partial class MainWindow
             _suppressReinforcementConfigWrite = wasSuppressed;
         }
 
+        RefreshReinforcementSourceVillageItems();
+
         if (persist)
         {
             PersistReinforcementSettings();
         }
 
         UpdateReinforcementStatus();
+    }
+
+    private void RefreshReinforcementSourceVillageItems()
+    {
+        _reinforcementSourceVillages.Clear();
+        foreach (var village in _reinforcementVillages.Where(village => !village.IsTarget))
+        {
+            _reinforcementSourceVillages.Add(village);
+        }
     }
 
     private void UpdateReinforcementStatus()
@@ -404,10 +497,12 @@ public partial class MainWindow
         }
 
         var canRun = CanRunReinforcements(out var reason);
-        ReinforcementStatusTextBlock.Text = canRun ? "Ready." : reason;
+        ReinforcementStatusTextBlock.Text = canRun ? string.Empty : reason;
+        ReinforcementStatusTextBlock.Visibility = canRun || string.IsNullOrWhiteSpace(reason)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
         ReinforcementStatusTextBlock.Foreground = canRun ? Brushes.SeaGreen : Brushes.DarkOrange;
         ReinforcementQueueNowButton.IsEnabled = canRun && !_uiBusy;
-        ReinforcementRefreshVillagesButton.IsEnabled = !_uiBusy && !IsSessionSleeping;
         ReinforcementMarkAllTroopsButton.IsEnabled = !_uiBusy && !string.IsNullOrWhiteSpace(ResolveKnownReinforcementTribe());
         UpdateReinforcementVillageTroopSummaries();
         UpdateReinforcementTroopSummary();
@@ -642,6 +737,7 @@ public partial class MainWindow
         var targetVillages = _reinforcementVillages
             .Where(village => !string.Equals(village.Name, sourceVillageName, StringComparison.OrdinalIgnoreCase))
             .Where(village => !string.IsNullOrWhiteSpace(village.Name))
+            .Where(village => !village.IsTarget)
             .ToList();
         if (targetVillages.Count == 0)
         {

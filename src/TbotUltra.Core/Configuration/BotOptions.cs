@@ -83,6 +83,9 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmSendMode)]
     public string ContinuousFarmSendMode { get; init; } = FarmingDefaults.SendModeListPerList;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.TownHallCelebrationMode)]
+    public string TownHallCelebrationMode { get; init; } = TownHallCelebrationDefaults.Small;
+
     [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmDeactivateLosses)]
     public bool ContinuousFarmDeactivateLosses { get; init; }
 
@@ -296,6 +299,12 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.ReinforcementsTroopRules)]
     public List<ReinforcementTroopRule> ReinforcementsTroopRules { get; init; } = [];
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.ReinforcementsSendIntervalHours)]
+    public int ReinforcementsSendIntervalHours { get; init; } = ReinforcementSendDefaults.DefaultIntervalHours;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ReinforcementsSendVariationPercent)]
+    public int ReinforcementsSendVariationPercent { get; init; } = ReinforcementSendDefaults.DefaultVariationPercent;
+
     [ConfigurationKeyName("github_releases_url")]
     public string GithubReleasesUrl { get; init; } = string.Empty;
 
@@ -471,7 +480,10 @@ public sealed class BotOptions
     public bool HeroResourceUseSmithy { get; init; } = true;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.HeroResourceUseBrewery)]
-    public bool HeroResourceUseBrewery { get; init; } = true;
+    public bool HeroResourceUseBrewery { get; init; }
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.HeroResourceUseTownHall)]
+    public bool HeroResourceUseTownHall { get; init; }
 
     [ConfigurationKeyName("upgrade_selector_profile")]
     public string UpgradeSelectorProfile { get; init; } = "auto";

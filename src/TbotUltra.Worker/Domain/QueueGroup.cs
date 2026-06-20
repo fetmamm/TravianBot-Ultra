@@ -11,4 +11,5 @@ public enum QueueGroup
     NpcTrade = 6,
     ResourceTransfer = 7,
     Reinforcements = 8,
+    TownHallCelebration = 9,
 }

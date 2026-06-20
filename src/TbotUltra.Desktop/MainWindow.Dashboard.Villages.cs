@@ -506,6 +506,7 @@ public partial class MainWindow
             QueueGroup.TroopTraining,
             QueueGroup.Farming,
             QueueGroup.BreweryCelebration,
+            QueueGroup.TownHallCelebration,
             QueueGroup.ResourceTransfer,
             QueueGroup.Reinforcements,
         }
@@ -519,11 +520,26 @@ public partial class MainWindow
                 Key: card.TaskName,
                 Title: string.Equals(
                     card.TaskName,
+                    QueueGroupCatalog.GetKey(QueueGroup.Hero),
+                    StringComparison.OrdinalIgnoreCase)
+                        ? "Hero adv."
+                        : string.Equals(
+                    card.TaskName,
                     QueueGroupCatalog.GetKey(QueueGroup.BreweryCelebration),
                     StringComparison.OrdinalIgnoreCase)
                         ? "Brewery"
+                        : string.Equals(
+                            card.TaskName,
+                            QueueGroupCatalog.GetKey(QueueGroup.TownHallCelebration),
+                            StringComparison.OrdinalIgnoreCase)
+                                ? "Town Hall"
                         : card.Title,
-                card.Description))
+                Description: string.Equals(
+                    card.TaskName,
+                    QueueGroupCatalog.GetKey(QueueGroup.Hero),
+                    StringComparison.OrdinalIgnoreCase)
+                        ? "Hero adventures."
+                        : card.Description))
             .OrderBy(card => popupGroupOrder.TryGetValue(card.Key, out var index) ? index : int.MaxValue)
             .ToList();
 
@@ -551,6 +567,7 @@ public partial class MainWindow
                     KeyInfo = keyInfo,
                     IsEnabledForAutomation = _villageSettingsStore.GetEnabled(keyInfo),
                     NpcTrade = _villageSettingsStore.GetNpcTrade(keyInfo),
+                    HeroResourcesEnabled = _villageSettingsStore.GetHeroResourcesEnabled(keyInfo),
                     GroupToggles = toggles,
                 };
             })
@@ -560,13 +577,26 @@ public partial class MainWindow
             rows,
             PersistVillageEnabledFromSettingsRow,
             PersistVillageNpcTradeFromSettingsRow,
+            PersistVillageHeroResourcesFromSettingsRow,
             PersistVillageGroupsFromSettingsRow,
             OpenTroopSettingsFromVillageSettings,
+            OpenTownHallSettingsFromVillageSettings,
+            OpenHeroResourceSettingsFromVillageSettings,
             OnVillageSettingsSaved)
         {
             Owner = this,
         };
         window.ShowDialog();
+    }
+
+    private void PersistVillageHeroResourcesFromSettingsRow(VillageSettingsRow row)
+    {
+        if (row?.KeyInfo is null)
+        {
+            return;
+        }
+
+        _villageSettingsStore.SetHeroResourcesEnabled(row.KeyInfo, row.HeroResourcesEnabled);
     }
 
     // Persists a village's per-village automation-group set from the Village settings window, then keeps the
@@ -691,11 +721,14 @@ public partial class MainWindow
             return source;
         }
 
-        return BotOptionsPayloadApplier.Apply(source, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        var options = BotOptionsPayloadApplier.Apply(source, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             [BotOptionPayloadKeys.TargetVillageName] = selectedName ?? string.Empty,
             [BotOptionPayloadKeys.TargetVillageUrl] = selectedUrl ?? string.Empty,
         });
+
+        var villageKey = GetVillageKey(selectedUrl, null, null, selectedName);
+        return ApplyHeroResourceSettingsForVillage(options, villageKey, selectedName);
     }
 
     private (string? Name, string? Url) GetSelectedVillageSelectionSnapshot()

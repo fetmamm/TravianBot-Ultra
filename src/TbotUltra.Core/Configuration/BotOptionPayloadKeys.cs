@@ -85,6 +85,7 @@ public static class BotOptionPayloadKeys
     public const string HeroResourceUseConstruction = "hero_resource_use_construction";
     public const string HeroResourceUseSmithy = "hero_resource_use_smithy";
     public const string HeroResourceUseBrewery = "hero_resource_use_brewery";
+    public const string HeroResourceUseTownHall = "hero_resource_use_town_hall";
     public const string ContinuousFarmListNames = "continuous_farm_list_names";
     // Stable Travian farm-list ids (lid) for the selected lists. Persisted alongside the names so
     // the selection survives a village/list rename: the name changes on Travian but the lid does not.
@@ -92,6 +93,7 @@ public static class BotOptionPayloadKeys
     public const string ContinuousFarmDispatchDelayMinutes = "continuous_farm_dispatch_delay_minutes";
     public const string ContinuousFarmDispatchDelayVariationPercent = "continuous_farm_dispatch_delay_variation_percent";
     public const string ContinuousFarmSendMode = "continuous_farm_send_mode";
+    public const string TownHallCelebrationMode = "town_hall_celebration_mode";
     public const string ContinuousFarmDeactivateLosses = "continuous_farm_deactivate_losses";
     public const string ContinuousFarmDeactivateOasisLosses = "continuous_farm_deactivate_oasis_losses";
     public const string ContinuousFarmNextListIndex = "continuous_farm_next_list_index";
@@ -167,6 +169,8 @@ public static class BotOptionPayloadKeys
     public const string ReinforcementsTargetVillageName = "reinforcements_target_village_name";
     public const string ReinforcementsSourceVillageNames = "reinforcements_source_village_names";
     public const string ReinforcementsTroopRules = "reinforcements_troop_rules";
+    public const string ReinforcementsSendIntervalHours = "reinforcements_send_interval_hours";
+    public const string ReinforcementsSendVariationPercent = "reinforcements_send_variation_percent";
 
     public const string UpgradeSelectorProfile = "upgrade_selector_profile";
     public const string CaptchaAutoSolveEnabled = "captcha_auto_solve_enabled";
