@@ -171,6 +171,11 @@ En ny formaga ska kunna enhetstestas till stor del utan browser. God-klasserna s
   lat nasta operation skapa en frisk session. `BrowserFailureClassifier.IsTargetCrash` klassar aven
   stangd sida/kontext (`...has been closed`, `page is closed`, `Cannot navigate to closed page`) som krasch.
   Lagg ALDRIG till `Execution context was destroyed` dar — det ar en ofarlig navigerings-race som retry:as.
+- Playwrights native popup-blocker ska vara aktiv i live-sessionen; botens egna extra flikar anvander
+  `NewPageAsync`. Innan `StorageStateAsync` sparas ska transienta ad/consent-origins (consentmanager,
+  oadts, adscale, Google ad stack) rensas ur live-contexten, annars kan state-save skapa blinkande flikar.
+  Externa verktygsflikar (Travco) ska oppnas i isolerad browser-context, aldrig i Travian-contexten,
+  sa `StorageStateAsync` for Travian aldrig ser `travcotools.com`.
 - Session i `Sleeping` far inte vackas av refresh, login/logout, scan, test, bybyte eller auto-run.
   Continuous-loopens keep-alive (`MaybeKeepBrowserFreshDuringContinuousLoopAsync`) gate:ar pa `IsSessionSleeping`.
 - Portable single-file-builden maste innehalla `.playwright` och satta `PLAYWRIGHT_DRIVER_PATH`.

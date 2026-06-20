@@ -805,12 +805,6 @@ public partial class MainWindow
             return;
         }
 
-        if (!_farmingFeaturesAvailable)
-        {
-            AppendLog("Create Farmlist is unavailable while Gold Club farming is disabled.");
-            return;
-        }
-
         var options = ApplySelectedVillageToOptions(LoadBotOptions());
         if (options.IsPrivateServer)
         {
@@ -831,6 +825,18 @@ public partial class MainWindow
         SetFarmingFunctionRunning(true);
         try
         {
+            BusyOverlay.ShowCancel = true;
+            ShowBusyOverlay("Analyze farmlists", "Reading current farmlists...");
+            await EnsureChromiumInstalledAsync();
+            AppendLog("[farm-list-create] analyzing current farmlists before opening create dialog.");
+            var available = await RefreshFarmListsFromServerAsync(options, operationToken);
+            HideBusyOverlay();
+            if (!available)
+            {
+                CompleteOperation(operationId, operationSw, "Gold Club is not active.");
+                return;
+            }
+
             async Task<FarmListCreateBatchResult> RunAsync(
                 FarmListCreateRequest request,
                 IProgress<FarmListCreateProgress> progress,
@@ -1009,7 +1015,7 @@ public partial class MainWindow
         var sleepAllowsActions = !IsSessionSleeping;
         var farmControlsEnabled = sleepAllowsActions && !_farmingOperationBusy && _farmingFeaturesAvailable;
         SetEnabled(AddFarmsToListButton, farmControlsEnabled);
-        SetEnabled(CreateFarmListButton, farmControlsEnabled);
+        SetEnabled(CreateFarmListButton, sleepAllowsActions && !_farmingOperationBusy);
         SetEnabled(FarmListsItemsControl, farmControlsEnabled);
         SetEnabled(FarmListSendAllNowButton, farmControlsEnabled && _farmLists.Any(IsRealFarmListRow));
         SetEnabled(AnalyzeFarmListsButton, sleepAllowsActions && !_farmingOperationBusy);

@@ -235,6 +235,85 @@ public partial class TravcoToolsWindow : Window
         _ = RunMapOasisScanAndSaveAsync();
     }
 
+    private void CalculateDistanceButton_Click(object sender, RoutedEventArgs e)
+    {
+        CalculateDistancesFromSelectedVillage();
+    }
+
+    private void CalculateDistancesFromSelectedVillage()
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        var village = _viewModel.SelectedVillage;
+        if (village?.CoordX is null || village.CoordY is null)
+        {
+            SetStatus("Select a village with coordinates first.");
+            return;
+        }
+
+        SetBusy(true);
+        try
+        {
+            ResultsDataGrid.CommitEdit();
+            ResultsDataGrid.CommitEdit();
+
+            if (_openedSavedListId is not null)
+            {
+                var updatedRows = CalculateVisibleRowDistances(village.CoordX.Value, village.CoordY.Value);
+                var existing = _store.LoadAll().FirstOrDefault(list => list.Id == _openedSavedListId.Value);
+                if (existing is null)
+                {
+                    SetStatus("The opened list could not be found.");
+                    return;
+                }
+
+                existing.Rows = BuildSavedRows();
+                _store.Save(existing);
+                ReloadSavedLists(existing.Id);
+                SetStatus(
+                    $"Calculated distance from {village.NameWithCoords} for {updatedRows}/{_viewModel.Rows.Count} row(s) in '{existing.Name}'.");
+                return;
+            }
+
+            var lists = _store.LoadAll().ToList();
+            if (lists.Count == 0)
+            {
+                SetStatus("No opened list and no saved lists were found.");
+                return;
+            }
+
+            var updatedLists = 0;
+            var updatedRowsTotal = 0;
+            foreach (var list in lists)
+            {
+                var updatedRows = CalculateSavedRowDistances(list.Rows, village.CoordX.Value, village.CoordY.Value);
+                if (updatedRows == 0)
+                {
+                    continue;
+                }
+
+                _store.Save(list);
+                updatedLists++;
+                updatedRowsTotal += updatedRows;
+            }
+
+            ReloadSavedLists();
+            SetStatus(
+                $"No list was open. Calculated distance from {village.NameWithCoords} for {updatedRowsTotal} row(s) in {updatedLists}/{lists.Count} saved list(s).");
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Could not calculate distances: {ex.Message}");
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
+
     // Scans the whole map for oases (all types, occupied and free) and saves them as one list. The
     // list keeps each oasis's type/occupied/animals/owner so the farm-add dialog can filter on them.
     private async Task RunMapOasisScanAndSaveAsync()
@@ -502,6 +581,43 @@ public partial class TravcoToolsWindow : Window
         }));
     }
 
+    private int CalculateVisibleRowDistances(int fromX, int fromY)
+    {
+        var updated = 0;
+        foreach (var row in _viewModel.Rows)
+        {
+            if (!TravianMapDistance.TryParseCoordinates(row.Coordinates, out var x, out var y))
+            {
+                continue;
+            }
+
+            row.Distance = TravianMapDistance.CalculateRounded(fromX, fromY, x, y);
+            updated++;
+        }
+
+        return updated;
+    }
+
+    private static int CalculateSavedRowDistances(
+        IEnumerable<TravcoListStore.TravcoSavedRow> rows,
+        int fromX,
+        int fromY)
+    {
+        var updated = 0;
+        foreach (var row in rows)
+        {
+            if (!TravianMapDistance.TryParseCoordinates(row.Coordinates, out var x, out var y))
+            {
+                continue;
+            }
+
+            row.Distance = TravianMapDistance.CalculateRounded(fromX, fromY, x, y);
+            updated++;
+        }
+
+        return updated;
+    }
+
     private void SaveCurrentRows(string name)
     {
         if (_viewModel.Rows.Count == 0)
@@ -595,6 +711,7 @@ public partial class TravcoToolsWindow : Window
         _busy = busy;
         InactiveSearchButton.IsEnabled = !busy;
         AnalyzeMapOasisButton.IsEnabled = !busy;
+        CalculateDistanceButton.IsEnabled = !busy;
         SaveListButton.IsEnabled = !busy && _travcoReady;
         SaveAllPagesButton.IsEnabled = !busy && _travcoReady;
         SavedListsListBox.IsEnabled = !busy;

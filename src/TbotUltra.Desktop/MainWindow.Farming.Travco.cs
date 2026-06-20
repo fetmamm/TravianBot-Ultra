@@ -77,6 +77,14 @@ public partial class MainWindow
 
         AppendLog(
             $"[travco-ui] analyze requested: coordinates=({request.X}|{request.Y}), days={request.DaysInactive}, order={request.OrderBy}.");
+        if ((_loopTask is not null && !_loopTask.IsCompleted) || _autoQueueRunning)
+        {
+            _travcoResumeContinuous = _loopTask is not null && !_loopTask.IsCompleted;
+            _travcoResumeQueue = _autoQueueRunning && !_travcoResumeContinuous;
+            _travcoSuppressRestart = false;
+            await PauseAutomationForTravcoAsync();
+        }
+
         await _botService.OpenTravcoAndSearchAsync(options, request, AppendLog, cancellationToken);
         return await _botService.ScrapeTravcoPageAsync(AppendLog, cancellationToken);
     }

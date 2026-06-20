@@ -1696,11 +1696,7 @@ public sealed class BotTaskRunner
             {
                 try
                 {
-                    await ClearTravcoSiteDataAsync(_travcoPage, log);
-                    if (!_travcoPage.IsClosed)
-                    {
-                        await _travcoPage.CloseAsync();
-                    }
+                    await CloseTravcoPageAsync(_travcoPage, log);
                 }
                 catch (Exception ex)
                 {
@@ -1757,7 +1753,14 @@ public sealed class BotTaskRunner
         }
 
         var account = _accountProvider.LoadAccount();
-        await _sessionGate.WaitAsync(cancellationToken);
+        log("[travco] waiting for browser session.");
+        if (!await _sessionGate.WaitAsync(TimeSpan.FromSeconds(45), cancellationToken))
+        {
+            throw new InvalidOperationException(
+                "Travco is waiting for another browser operation. Stop the bot or wait for the current task to finish, then try Analyze Travco again.");
+        }
+
+        log("[travco] browser session acquired.");
         try
         {
             var lease = await AcquireClientLeaseAsync(options, account, log, interactive: true, cancellationToken);
@@ -1765,11 +1768,17 @@ public sealed class BotTaskRunner
             {
                 if (_travcoPage is null || _travcoPage.IsClosed)
                 {
-                    _travcoPage = await _sharedVisiblePage!.Context.NewPageAsync();
+                    if (_travcoPage is not null)
+                    {
+                        await CloseTravcoPageAsync(_travcoPage, log);
+                        _travcoPage = null;
+                    }
+
+                    _travcoPage = await lease.Session.OpenIsolatedExternalPageAsync(cancellationToken);
                     // Travco can be slow to render; raise the default 15s context timeout for this tab
                     // so individual navigations don't trip the timeout on a sluggish load.
                     _travcoPage.SetDefaultTimeout(30000);
-                    log("[travco] opened browser tab.");
+                    log("[travco] opened isolated browser tab.");
                 }
 
                 await TravcoInactiveSearch.RunSearchAsync(
@@ -1858,12 +1867,7 @@ public sealed class BotTaskRunner
 
             try
             {
-                await ClearTravcoSiteDataAsync(_travcoPage, log);
-                if (!_travcoPage.IsClosed)
-                {
-                    await _travcoPage.CloseAsync();
-                }
-
+                await CloseTravcoPageAsync(_travcoPage, log);
                 log?.Invoke("[travco] browser tab closed.");
             }
             finally
@@ -1877,39 +1881,21 @@ public sealed class BotTaskRunner
         }
     }
 
-    // Clears travcotools.com site data (localStorage/cookies/etc.) from the shared browser context
-    // before the Travco tab closes. Otherwise the origin lingers as a tracked origin and Playwright's
-    // periodic StorageStateAsync (saved after every shared-session operation) reopens a short-lived
-    // travcotools tab to read its storage — the "blinking" extra tab the user sees every ~16s.
-    // Best-effort: never block tab close on a CDP failure.
-    private static async Task ClearTravcoSiteDataAsync(IPage page, Action<string>? log)
+    private async Task CloseTravcoPageAsync(IPage page, Action<string>? log)
     {
-        if (page.IsClosed)
+        if (_sharedVisibleSession is not null)
         {
+            await _sharedVisibleSession.CloseIsolatedExternalPageAsync(page);
             return;
         }
 
         try
         {
-            var cdp = await page.Context.NewCDPSessionAsync(page);
-            try
-            {
-                await cdp.SendAsync("Storage.clearDataForOrigin", new Dictionary<string, object>
-                {
-                    ["origin"] = TravcoInactiveSearch.SiteOrigin,
-                    ["storageTypes"] = "all",
-                });
-            }
-            finally
-            {
-                await cdp.DetachAsync();
-            }
-
-            log?.Invoke("[travco] cleared travcotools site data from the browser context.");
+            await page.Context.CloseAsync();
         }
         catch (Exception ex)
         {
-            log?.Invoke($"[travco] could not clear travcotools site data: {ex.Message}");
+            log?.Invoke($"[travco] could not close isolated browser context: {ex.Message}");
         }
     }
 

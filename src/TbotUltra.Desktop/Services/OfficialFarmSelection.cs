@@ -1,5 +1,3 @@
-using System.Globalization;
-using System.Text.RegularExpressions;
 using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop.Services;
@@ -35,7 +33,7 @@ public static class OfficialFarmSelection
         var candidates = new List<(int X, int Y, long? Pop, double? Distance)>();
         foreach (var row in sourceRows)
         {
-            if (!row.Selected || !TryParseCoordinates(row.Coordinates, out var x, out var y))
+            if (!row.Selected || !TravianMapDistance.TryParseCoordinates(row.Coordinates, out var x, out var y))
             {
                 continue;
             }
@@ -51,7 +49,7 @@ public static class OfficialFarmSelection
             }
 
             var distance = referenceVillage is { } village
-                ? Math.Sqrt(Math.Pow(x - village.X, 2) + Math.Pow(y - village.Y, 2))
+                ? TravianMapDistance.Calculate(village.X, village.Y, x, y)
                 : row.Distance;
             candidates.Add((x, y, row.Pop, distance));
         }
@@ -96,13 +94,4 @@ public static class OfficialFarmSelection
         return result;
     }
 
-    private static bool TryParseCoordinates(string? value, out int x, out int y)
-    {
-        x = 0;
-        y = 0;
-        var match = Regex.Match(value ?? string.Empty, @"^\s*[\[(]?\s*(-?\d+)\s*\|\s*(-?\d+)\s*[\])]?\s*$");
-        return match.Success
-               && int.TryParse(match.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out x)
-               && int.TryParse(match.Groups[2].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out y);
-    }
 }

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Collections.ObjectModel;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
@@ -19,6 +20,7 @@ public partial class CreateFarmListsWindow : Window
         CancellationToken,
         Task<FarmListCreateBatchResult>> _runner;
     private readonly CancellationTokenSource _runCts;
+    private readonly ObservableCollection<FarmListNameEntry> _listNameEntries = [];
 
     public FarmListCreateBatchResult? RunResult { get; private set; }
 
@@ -37,8 +39,10 @@ public partial class CreateFarmListsWindow : Window
         _runner = runner;
         _runCts = CancellationTokenSource.CreateLinkedTokenSource(externalToken);
 
+        ListNameFieldsItemsControl.ItemsSource = _listNameEntries;
         ListCountComboBox.ItemsSource = Enumerable.Range(1, 100);
         ListCountComboBox.SelectedItem = 1;
+        SyncListNameFields();
         VillageComboBox.ItemsSource = villages;
         VillageComboBox.SelectedItem = villages.FirstOrDefault(village => village.IsCapital)
                                        ?? villages.FirstOrDefault();
@@ -54,7 +58,20 @@ public partial class CreateFarmListsWindow : Window
         base.OnClosed(e);
     }
 
-    private void InputChanged(object sender, RoutedEventArgs e) => RefreshState();
+    private void InputChanged(object sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox textBox)
+        {
+            textBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+        }
+
+        if (ReferenceEquals(sender, ListCountComboBox))
+        {
+            SyncListNameFields();
+        }
+
+        RefreshState();
+    }
 
     private async void CreateButton_Click(object sender, RoutedEventArgs e)
     {
@@ -124,16 +141,19 @@ public partial class CreateFarmListsWindow : Window
             return false;
         }
 
-        var names = (ListNamesTextBox?.Text ?? string.Empty)
-            .Split(["\r\n", "\n"], StringSplitOptions.None)
-            .Select(name => name.Trim())
-            .Where(name => !string.IsNullOrWhiteSpace(name))
+        var names = _listNameEntries
+            .Take(count)
+            .Select(entry => entry.Name.Trim())
             .ToList();
-        if (names.Count != count)
+        if (names.Any(string.IsNullOrWhiteSpace))
         {
-            validation = $"Enter exactly {count} non-empty farm list name{(count == 1 ? string.Empty : "s")}.";
+            validation = $"Fill all {count} farm list name field{(count == 1 ? string.Empty : "s")}.";
             return false;
         }
+
+        names = names
+            .Select(name => name.Trim())
+            .ToList();
 
         if (names.Any(name => name.Length > 30))
         {
@@ -177,5 +197,29 @@ public partial class CreateFarmListsWindow : Window
             troopType,
             troopCount);
         return true;
+    }
+
+    private void SyncListNameFields()
+    {
+        if (ListCountComboBox?.SelectedItem is not int count)
+        {
+            return;
+        }
+
+        while (_listNameEntries.Count < count)
+        {
+            _listNameEntries.Add(new FarmListNameEntry(_listNameEntries.Count + 1));
+        }
+
+        while (_listNameEntries.Count > count)
+        {
+            _listNameEntries.RemoveAt(_listNameEntries.Count - 1);
+        }
+    }
+
+    private sealed class FarmListNameEntry(int index)
+    {
+        public string Label { get; } = $"List {index}";
+        public string Name { get; set; } = string.Empty;
     }
 }

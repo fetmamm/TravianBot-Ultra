@@ -45,6 +45,12 @@
                             HorizontalAlignment="Left"
                             Content="Save all pages as list"
                             Click="SaveAllPagesButton_Click" />
+                    <Button x:Name="CalculateDistanceButton"
+                            Margin="0,8,0,0"
+                            MinWidth="155"
+                            HorizontalAlignment="Left"
+                            Content="Calculate distance"
+                            Click="CalculateDistanceButton_Click" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="2">

@@ -111,6 +111,10 @@ public sealed partial class TravianClient
             existingSet.Add(name);
             progress?.Report(new FarmListCreateProgress("Creating farmlists", index + 1, names.Count, name));
             Notify($"[farm-list-create] [{index + 1}/{names.Count}] verified '{name}'.");
+            if (index < names.Count - 1)
+            {
+                await DelayFarmListStepAsync(cancellationToken);
+            }
         }
 
         return new FarmListCreateBatchResult(names.Count, created.Count, created);
@@ -137,8 +141,13 @@ public sealed partial class TravianClient
         var clicked = await _page.EvaluateAsync<bool>(
             """
             () => {
-              const button = document.querySelector(
-                '#stickyPin button.createFarmList, #rallyPointFarmList button.createFarmList, button.createFarmList');
+              const buttons = Array.from(document.querySelectorAll(
+                '#stickyPin button.createFarmList, #rallyPointFarmList button.createFarmList, button.createFarmList'));
+              const button = buttons.find(candidate =>
+                !candidate.disabled
+                && candidate.getAttribute('aria-disabled') !== 'true'
+                && !candidate.classList.contains('disabled'))
+                || buttons[0];
               if (!button) return false;
               button.click();
               return true;
@@ -152,7 +161,20 @@ public sealed partial class TravianClient
         try
         {
             await _page.WaitForFunctionAsync(
-                "() => !!document.querySelector('#createFarmListForm')",
+                """
+                () => {
+                  const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
+                  const hasNameInput = root => !!root.querySelector(
+                    'input[name="listName"], input[name="name"], input[name*="list" i], input[placeholder*="name" i], input[type="text"]');
+                  const roots = Array.from(document.querySelectorAll(
+                    '#createFarmListForm, #dialogContent, .dialogWrapper, .dialogContainer, [role="dialog"]'));
+                  return roots.some(root => {
+                    const text = normalize(root.textContent).toLowerCase();
+                    return hasNameInput(root)
+                      && (root.id === 'createFarmListForm' || text.includes('farm list') || text.includes('farmlist'));
+                  });
+                }
+                """,
                 null,
                 new PageWaitForFunctionOptions { Timeout = 5000 });
         }
@@ -171,44 +193,56 @@ public sealed partial class TravianClient
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var filled = await _page.EvaluateAsync<bool>(
-            """
-            (args) => {
-              const form = document.querySelector('#createFarmListForm');
-              if (!form) return false;
-              const setValue = (input, value) => {
-                if (!input) return false;
-                input.focus();
-                input.value = String(value);
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
-                return true;
-              };
 
-              const nameInput = form.querySelector('input[name="listName"]');
-              const villageSelect = form.querySelector('select[name="villageId"]');
-              if (!setValue(nameInput, args.name) || !villageSelect) return false;
+        var form = _page.Locator("#createFarmListForm").First;
+        try
+        {
+            await form.WaitForAsync(new LocatorWaitForOptions
+            {
+                State = WaitForSelectorState.Visible,
+                Timeout = 5000,
+            }).WaitAsync(cancellationToken);
 
-              const normalize = value => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
-              const villageOption = Array.from(villageSelect.options || []).find(option =>
-                (args.villageId && option.value === String(args.villageId))
-                || normalize(option.textContent) === normalize(args.villageName));
-              if (!villageOption) return false;
-              villageSelect.value = villageOption.value;
-              villageSelect.dispatchEvent(new Event('input', { bubbles: true }));
-              villageSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            await DelayFarmListStepAsync(cancellationToken);
+            await form.Locator("input[name='listName']").First.FillAsync(name).WaitAsync(cancellationToken);
 
-              for (const input of form.querySelectorAll('input.unitAmount[name^="t"]')) {
-                setValue(input, input.name === `t${args.troopIndex}` ? args.troopCount : 0);
-              }
-              return true;
+            var villageValue = await ResolveOfficialCreateFarmListVillageValueAsync(
+                villageName,
+                villageId,
+                cancellationToken);
+            await DelayFarmListStepAsync(cancellationToken);
+            await form.Locator("select[name='villageId']").First
+                .SelectOptionAsync(villageValue)
+                .WaitAsync(cancellationToken);
+            await _page.WaitForFunctionAsync(
+                "value => document.querySelector('#createFarmListForm select[name=\"villageId\"]')?.value === value",
+                villageValue,
+                new PageWaitForFunctionOptions { Timeout = 5000 }).WaitAsync(cancellationToken);
+
+            var troopInputs = await form.Locator("input.unitAmount[name^='t']").CountAsync();
+            if (troopInputs == 0)
+            {
+                throw new InvalidOperationException("No default troop inputs were found.");
             }
-            """,
-            new { name, villageName, villageId, troopIndex, troopCount });
-        if (!filled)
+
+            for (var unit = 1; unit <= troopInputs; unit++)
+            {
+                var value = unit == troopIndex
+                    ? troopCount.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    : "0";
+                await form.Locator($"input.unitAmount[name='t{unit}']").First
+                    .FillAsync(value)
+                    .WaitAsync(cancellationToken);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
         {
             throw new InvalidOperationException(
-                $"Could not fill Create farm list for village '{villageName}'.");
+                $"Could not fill Create farm list for village '{villageName}': {ex.Message}", ex);
         }
 
         try
@@ -216,9 +250,31 @@ public sealed partial class TravianClient
             await _page.WaitForFunctionAsync(
                 """
                 () => {
-                  const form = document.querySelector('#createFarmListForm');
-                  const save = form?.querySelector('button.save, button[type="submit"]');
-                  return !!save && !save.disabled;
+                  const normalize = value => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                  const findDialog = () => {
+                    const roots = Array.from(document.querySelectorAll(
+                      '#createFarmListForm, #dialogContent, .dialogWrapper, .dialogContainer, [role="dialog"]'));
+                    return roots.find(root => {
+                      const text = normalize(root.textContent);
+                      const hasNameInput = !!root.querySelector(
+                        'input[name="listName"], input[name="name"], input[name*="list" i], input[placeholder*="name" i], input[type="text"]');
+                      return hasNameInput
+                        && (root.id === 'createFarmListForm' || text.includes('farm list') || text.includes('farmlist'));
+                    }) || null;
+                  };
+                  const dialog = findDialog();
+                  if (!dialog) return false;
+                  const buttons = Array.from(dialog.querySelectorAll('button, input[type="submit"], a.button, .textButtonV2'));
+                  const save = buttons.find(button => {
+                    const text = normalize(button.textContent || button.value || button.getAttribute('aria-label') || button.getAttribute('title'));
+                    return !text.includes('cancel')
+                      && !text.includes('delete')
+                      && (text.includes('create') || text.includes('save') || text.includes('confirm') || button.classList.contains('save'));
+                  }) || dialog.querySelector('button.save, button[type="submit"]');
+                  return !!save
+                    && !save.disabled
+                    && save.getAttribute('aria-disabled') !== 'true'
+                    && !save.classList.contains('disabled');
                 }
                 """,
                 null,
@@ -229,14 +285,27 @@ public sealed partial class TravianClient
             throw new InvalidOperationException($"Create button did not become ready for farm list '{name}'.");
         }
 
-        await _page.EvaluateAsync(
-            """
-            () => document.querySelector('#createFarmListForm button.save, #createFarmListForm button[type="submit"]')?.click()
-            """);
+        await DelayBeforeClickAsync(cancellationToken, "create farm list");
+        await form.Locator("button.save[type='submit'], button.save, button[type='submit']").First
+            .ClickAsync()
+            .WaitAsync(cancellationToken);
         try
         {
             await _page.WaitForFunctionAsync(
-                "() => !document.querySelector('#createFarmListForm')",
+                """
+                () => {
+                  const normalize = value => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                  const roots = Array.from(document.querySelectorAll(
+                    '#createFarmListForm, #dialogContent, .dialogWrapper, .dialogContainer, [role="dialog"]'));
+                  return !roots.some(root => {
+                    const text = normalize(root.textContent);
+                    const hasNameInput = !!root.querySelector(
+                      'input[name="listName"], input[name="name"], input[name*="list" i], input[placeholder*="name" i], input[type="text"]');
+                    return hasNameInput
+                      && (root.id === 'createFarmListForm' || text.includes('farm list') || text.includes('farmlist'));
+                  });
+                }
+                """,
                 null,
                 new PageWaitForFunctionOptions { Timeout = 5000 });
         }
@@ -244,6 +313,33 @@ public sealed partial class TravianClient
         {
             Notify($"[farm-list-create] dialog remained visible after saving '{name}'.");
         }
+    }
+
+    private async Task<string> ResolveOfficialCreateFarmListVillageValueAsync(
+        string villageName,
+        string? villageId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var value = await _page.EvaluateAsync<string?>(
+            """
+            (args) => {
+              const normalize = value => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+              const select = document.querySelector('#createFarmListForm select[name="villageId"]');
+              if (!select) return null;
+              const options = Array.from(select.options || []);
+              const option = options.find(item => args.villageId && item.value === String(args.villageId))
+                || options.find(item => normalize(item.textContent) === normalize(args.villageName));
+              return option?.value || null;
+            }
+            """,
+            new { villageName, villageId }).WaitAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new InvalidOperationException($"Could not find village '{villageName}' in the Create farm list dropdown.");
+        }
+
+        return value;
     }
 
     private async Task<bool> WaitForOfficialFarmListNameAsync(string name, CancellationToken cancellationToken)

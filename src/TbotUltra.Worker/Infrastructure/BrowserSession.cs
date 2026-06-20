@@ -18,6 +18,10 @@ public sealed class BrowserSession : IAsyncDisposable
     private readonly bool? _headlessOverride;
     private readonly string _projectRoot;
     private readonly Action<string>? _log;
+    private readonly object _transientExternalOriginsGate = new();
+    private readonly HashSet<string> _transientExternalOrigins = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _isolatedExternalContextsGate = new();
+    private readonly HashSet<IBrowserContext> _isolatedExternalContexts = [];
 
     private IPlaywright? _playwright;
     private IBrowser? _browser;
@@ -48,6 +52,71 @@ public sealed class BrowserSession : IAsyncDisposable
 
     public string PlaywrightBrowsersPath =>
         Path.Combine(_projectRoot, LocalPlaywrightBrowsersDirectoryName);
+
+    public async Task<IPage> OpenIsolatedExternalPageAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_browser is null)
+        {
+            throw new InvalidOperationException("Browser session is not open.");
+        }
+
+        var context = await _browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            ViewportSize = new ViewportSize { Width = 1366, Height = 900 },
+        });
+        context.SetDefaultTimeout(_config.TimeoutMs);
+
+        lock (_isolatedExternalContextsGate)
+        {
+            _isolatedExternalContexts.Add(context);
+        }
+
+        try
+        {
+            var page = await context.NewPageAsync();
+            _log?.Invoke($"[browser] isolated external page created url='{page.Url}'");
+            return page;
+        }
+        catch
+        {
+            await CloseIsolatedExternalContextAsync(context);
+            throw;
+        }
+    }
+
+    public async Task CloseIsolatedExternalPageAsync(IPage? page)
+    {
+        if (page is null)
+        {
+            return;
+        }
+
+        await CloseIsolatedExternalContextAsync(page.Context);
+    }
+
+    private async Task CloseIsolatedExternalContextAsync(IBrowserContext context)
+    {
+        var shouldClose = false;
+        lock (_isolatedExternalContextsGate)
+        {
+            shouldClose = _isolatedExternalContexts.Remove(context);
+        }
+
+        if (!shouldClose)
+        {
+            return;
+        }
+
+        try
+        {
+            await context.CloseAsync();
+        }
+        catch
+        {
+            // Best-effort cleanup only; the parent browser is still owned by this session.
+        }
+    }
 
     public static async Task<bool> WarmupAsync(string projectRoot, CancellationToken cancellationToken = default)
     {
@@ -167,6 +236,9 @@ public sealed class BrowserSession : IAsyncDisposable
             var launchOptions = new BrowserTypeLaunchOptions
             {
                 Headless = false,
+                // Playwright disables Chromium's popup blocker by default. Keep the native blocker on:
+                // bot-owned tabs use NewPageAsync, while ad/consent OOPIFs use script window.open.
+                IgnoreDefaultArgs = new[] { "--disable-popup-blocking" },
             };
 
             // Official Travian's bonus videos (e.g. "increased adventure danger") require third-party
@@ -216,7 +288,13 @@ public sealed class BrowserSession : IAsyncDisposable
             // sync tabs that we cannot neutralise (initScript does not reach the OOPIFs). Block the whole
             // stack by default so nothing runs during idle/loop operation. The bonus videos DO need it,
             // so the video flow temporarily flips ConsentDomainsAllowed for its duration only.
-            if (!ConsentDomainsAllowed && IsBonusVideoAdDomain(route.Request.Url))
+            var isAdDomain = IsBonusVideoAdDomain(route.Request.Url);
+            if (isAdDomain)
+            {
+                TrackTransientExternalOrigin(route.Request.Url);
+            }
+
+            if (!ConsentDomainsAllowed && isAdDomain)
             {
                 await route.AbortAsync();
                 return;
@@ -309,8 +387,8 @@ public sealed class BrowserSession : IAsyncDisposable
 
         // Close stray tabs the SS-Travi site spawns to OTHER hosts (cross-server promos like
         // mga.ss-travi.com), plus any real popup (non-null Opener). The bot's own extra pages
-        // (catapult waves via NewPageAsync) live on the working server's host with no opener, so
-        // they're never closed.
+        // (catapult waves via NewPageAsync) live on the working server's host with no opener. External
+        // tools such as Travco run in isolated contexts, never in this Travian context.
         _context.Page += (_, popup) =>
         {
             if (ReferenceEquals(popup, page))
@@ -407,6 +485,7 @@ public sealed class BrowserSession : IAsyncDisposable
                 return false;
             }
 
+            TrackTransientExternalOrigin(url);
             await popup.CloseAsync();
             _log?.Invoke($"[browser] closed blocked popup source={source} url='{url}' pages={TryGetPageCount()}");
             return true;
@@ -457,9 +536,7 @@ public sealed class BrowserSession : IAsyncDisposable
             return false;
         }
 
-        var host = uri.Host;
-        return host.Equals("consentmanager.net", StringComparison.OrdinalIgnoreCase)
-            || host.EndsWith(".consentmanager.net", StringComparison.OrdinalIgnoreCase);
+        return IsBonusVideoAdDomain(url);
     }
 
     // Hosts of the bonus-video ad/consent stack. These load on Travian pages and their OOPIFs spawn
@@ -471,7 +548,53 @@ public sealed class BrowserSession : IAsyncDisposable
         "oadts.com",
         "adscale.de",
         "imasdk.googleapis.com",
+        "doubleclick.net",
+        "googlesyndication.com",
+        "googleadservices.com",
+        "googletagservices.com",
+        "googletagmanager.com",
     };
+
+    private static readonly string[] TransientExternalStorageOrigins =
+    {
+        "https://consentmanager.net",
+        "https://www.consentmanager.net",
+        "https://cdn.consentmanager.net",
+        "https://delivery.consentmanager.net",
+        "https://cmp.consentmanager.net",
+        "https://oadts.com",
+        "https://www.oadts.com",
+        "https://cdn.oadts.com",
+        "https://adscale.de",
+        "https://www.adscale.de",
+        "https://cdn.adscale.de",
+        "https://imasdk.googleapis.com",
+        "https://googleads.g.doubleclick.net",
+        "https://securepubads.g.doubleclick.net",
+        "https://static.doubleclick.net",
+        "https://ad.doubleclick.net",
+        "https://pagead2.googlesyndication.com",
+        "https://tpc.googlesyndication.com",
+        "https://adservice.google.com",
+        "https://travcotools.com",
+        "https://www.travcotools.com",
+    };
+
+    private void TrackTransientExternalOrigin(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)
+            || !Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            || string.IsNullOrWhiteSpace(uri.Host))
+        {
+            return;
+        }
+
+        var origin = uri.GetLeftPart(UriPartial.Authority).TrimEnd('/');
+        lock (_transientExternalOriginsGate)
+        {
+            _transientExternalOrigins.Add(origin);
+        }
+    }
 
     private static bool IsBonusVideoAdDomain(string? url)
     {
@@ -530,6 +653,7 @@ public sealed class BrowserSession : IAsyncDisposable
             // so a stray sister-server session can otherwise persist in this account's saved state and
             // keep triggering cross-promo popups on every login. We keep the account's own host plus
             // shared parent-domain cookies (which login needs) and drop only foreign sibling subdomains.
+            await ClearTransientExternalStorageOriginsAsync();
             var stateJson = await _context.StorageStateAsync();
             stateJson = FilterForeignSubdomainState(stateJson);
             await File.WriteAllTextAsync(tempPath, stateJson);
@@ -543,6 +667,69 @@ public sealed class BrowserSession : IAsyncDisposable
         }
 
         DeleteLegacyStorageStateIfPresent();
+    }
+
+    private async Task ClearTransientExternalStorageOriginsAsync()
+    {
+        if (_context is null || ConsentDomainsAllowed)
+        {
+            return;
+        }
+
+        var page = _context.Pages.FirstOrDefault(candidate => !candidate.IsClosed);
+        if (page is null)
+        {
+            return;
+        }
+
+        ICDPSession? cdp = null;
+        try
+        {
+            string[] origins;
+            lock (_transientExternalOriginsGate)
+            {
+                origins = TransientExternalStorageOrigins
+                    .Concat(_transientExternalOrigins)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+                _transientExternalOrigins.Clear();
+            }
+
+            cdp = await _context.NewCDPSessionAsync(page);
+            foreach (var origin in origins)
+            {
+                try
+                {
+                    await cdp.SendAsync("Storage.clearDataForOrigin", new Dictionary<string, object>
+                    {
+                        ["origin"] = origin,
+                        ["storageTypes"] = "all",
+                    });
+                }
+                catch
+                {
+                    // Some origins are browser/version dependent and may not exist in this context.
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _log?.Invoke($"[browser] transient ad/consent storage cleanup skipped: {ex.Message}");
+        }
+        finally
+        {
+            if (cdp is not null)
+            {
+                try
+                {
+                    await cdp.DetachAsync();
+                }
+                catch
+                {
+                    // Best-effort cleanup only.
+                }
+            }
+        }
     }
 
     // Removes cookies and localStorage origins that belong to a sister subdomain of the account's
@@ -708,11 +895,30 @@ public sealed class BrowserSession : IAsyncDisposable
         var context = _context;
         var browser = _browser;
         var playwright = _playwright;
+        IBrowserContext[] isolatedContexts;
+        lock (_isolatedExternalContextsGate)
+        {
+            isolatedContexts = _isolatedExternalContexts.ToArray();
+            _isolatedExternalContexts.Clear();
+        }
+
         _context = null;
         _browser = null;
         _playwright = null;
 
         Exception? cleanupFailure = null;
+        foreach (var isolatedContext in isolatedContexts)
+        {
+            try
+            {
+                await isolatedContext.CloseAsync();
+            }
+            catch (Exception ex)
+            {
+                cleanupFailure ??= ex;
+            }
+        }
+
         if (context is not null)
         {
             try
