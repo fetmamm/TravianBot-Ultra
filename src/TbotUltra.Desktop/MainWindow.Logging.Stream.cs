@@ -411,32 +411,22 @@ public partial class MainWindow
         {
             lock (_sessionLogWriteSync)
             {
+                var content = new List<string>(alarmLines.Count + logLines.Count + 4);
                 if (alarmLines.Count > 0)
                 {
-                    _sessionAlarmLines.AddRange(alarmLines);
+                    content.Add("=== ALARMS ===");
+                    content.AddRange(alarmLines);
+                    content.Add(string.Empty);
                 }
 
                 if (logLines.Count > 0)
                 {
-                    _sessionLogLines.AddRange(logLines);
+                    content.Add("=== LOGS ===");
+                    content.AddRange(logLines);
+                    content.Add(string.Empty);
                 }
 
-                var content = new List<string>(_sessionAlarmLines.Count + _sessionLogLines.Count + 8)
-                {
-                    "=== Tbot Ultra Session Log ===",
-                    $"Started: {DateTime.Now:yyyy-MM-dd HH:mm:ss}",
-                    $"ProjectRoot: {_projectRoot}",
-                    string.Empty,
-                    "=== ALARMS ===",
-                };
-
-                content.AddRange(_sessionAlarmLines);
-                content.Add(string.Empty);
-                content.Add("=== LOGS ===");
-                content.AddRange(_sessionLogLines);
-                content.Add(string.Empty);
-
-                File.WriteAllLines(_sessionLogPath, content);
+                File.AppendAllLines(_sessionLogPath, content);
             }
         }
         catch (Exception ex)

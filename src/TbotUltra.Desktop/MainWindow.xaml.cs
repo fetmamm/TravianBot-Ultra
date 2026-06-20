@@ -350,8 +350,6 @@ public partial class MainWindow : Window
     private readonly object _pendingLogSync = new();
     private readonly Queue<string> _pendingLogMessages = new();
     private readonly object _sessionLogWriteSync = new();
-    private readonly List<string> _sessionLogLines = [];
-    private readonly List<string> _sessionAlarmLines = [];
     private bool _logFlushQueued;
     private bool _continuousLoopConstructionStatusNeedsSync = true;
     private bool _restartContinuousLoopAfterStop;
