@@ -40,6 +40,29 @@ public partial class MainWindow
                     RefreshFarmListsItemsControl();
                     SyncFarmingControlsEnabledState();
                 }
+                else if (ReferenceEquals(targetTab, DashboardTabItem))
+                {
+                    UpdateAutomationLoopRunningIndicators();
+                    RefreshVillageActivityIndicatorsOnDashboard();
+                }
+                else if (ReferenceEquals(targetTab, ResourcesTabItem))
+                {
+                    _resourcesViewModel.TickLiveForecasts();
+                }
+                else if (ReferenceEquals(targetTab, ReinforcementsTabItem))
+                {
+                    UpdateReinforcementStatus();
+                }
+                else if (ReferenceEquals(targetTab, NpcTradeTabItem))
+                {
+                    TickResourceTransferVillageForecasts();
+                }
+                else if (ReferenceEquals(targetTab, QueueTabItem))
+                {
+                    UpdateBuildQueueStatusText();
+                    RefreshTravianBuildQueueUi();
+                    RefreshTravianSmithyQueueUi();
+                }
             }
         }
         catch (Exception ex)

@@ -356,9 +356,14 @@ public partial class MainWindow
             .Where(entry => entry.TimeLeftSeconds is > 0)
             .Select(entry => entry.TimeLeftSeconds!.Value)
             .ToList();
-        UpdateAutomationLoopRunningIndicators();
-        RefreshVillageActivityIndicatorsOnDashboard();
-        RefreshTravianSmithyQueueUi();
+        if (IsMainTabSelected(DashboardTabItem))
+        {
+            RefreshVillageActivityIndicatorsOnDashboard();
+        }
+        else if (IsMainTabSelected(QueueTabItem))
+        {
+            RefreshTravianSmithyQueueUi();
+        }
     }
 
     private void TriggerSmithyUpgradeStatusRefresh(IReadOnlyList<Building>? knownBuildings, string source)

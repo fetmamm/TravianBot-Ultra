@@ -54,9 +54,12 @@ public partial class MainWindow
         ApplyStartLoopButtonVisual(startButtonText);
     }
 
-    private void UpdateExecutionStateIndicator()
+    private void UpdateExecutionStateIndicator(bool updateAutomationLoopCards = true)
     {
-        UpdateAutomationLoopRunningIndicators();
+        if (updateAutomationLoopCards)
+        {
+            UpdateAutomationLoopRunningIndicators();
+        }
 
         var loopRunning = _loopTask is not null && !_loopTask.IsCompleted;
         var hasPausedQueueItems = false;
@@ -277,9 +280,15 @@ public partial class MainWindow
                 "construction-queue:timer-zero");
         }
 
-        UpdateBuildQueueStatusText();
-        RefreshTravianBuildQueueUi();
-        UpdateAutomationLoopRunningIndicators();
+        if (IsMainTabSelected(QueueTabItem))
+        {
+            UpdateBuildQueueStatusText();
+            RefreshTravianBuildQueueUi();
+        }
+        else if (IsMainTabSelected(DashboardTabItem))
+        {
+            RefreshVillageActivityIndicatorsOnDashboard();
+        }
     }
 
     private static string FormatCountdown(int seconds)

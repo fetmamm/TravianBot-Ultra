@@ -58,9 +58,10 @@ public partial class MainWindow
         return DateTimeOffset.UtcNow.ToOffset(_queueServerTimeOffset);
     }
 
-    private void UpdateClockText()
+    private void UpdateClockText(DateTimeOffset? serverNow = null)
     {
-        ClockTextBlock.Text = $"{GetServerNow():yyyy-MM-dd HH:mm:ss}";
+        var currentServerTime = serverNow ?? GetServerNow();
+        ClockTextBlock.Text = $"{currentServerTime:yyyy-MM-dd HH:mm:ss}";
     }
 
     private string FormatQueueServerTime(DateTimeOffset utcTimestamp)

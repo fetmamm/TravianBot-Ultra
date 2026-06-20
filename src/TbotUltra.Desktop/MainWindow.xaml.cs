@@ -394,6 +394,11 @@ public partial class MainWindow : Window
         }
     }
 
+    private bool IsMainTabSelected(TabItem tabItem)
+    {
+        return ReferenceEquals(MainTabControl?.SelectedItem, tabItem);
+    }
+
     public MainWindow()
     {
         InitializeComponent();
@@ -459,22 +464,44 @@ public partial class MainWindow : Window
         {
             try
             {
-                UpdateClockText();
+                var serverNow = GetServerNow();
+                var dashboardTabSelected = IsMainTabSelected(DashboardTabItem);
+
+                UpdateClockText(serverNow);
                 UpdateSessionPacingUi();
                 HandleBrowserClosedSignal();
                 TickFarmListCountdowns();
-                TickAutomationLoopCountdowns();
+                if (dashboardTabSelected)
+                {
+                    TickAutomationLoopCountdowns();
+                }
+
                 // The "Next task" value runs the loop selector (reads the queue/options). Queue reads now
                 // come from the in-memory cache, so recompute every second; also refreshed on real
                 // queue/group changes via RefreshAutomationLoopDashboardUi.
                 UpdateNextTaskUi();
-                _troopTrainingViewModel.TickCountdowns(GetServerNow());
+                _troopTrainingViewModel.TickCountdowns(serverNow);
                 TickSmithyUpgradeCountdown();
-                _resourcesViewModel.TickLiveForecasts();
-                TickResourceTransferVillageForecasts();
-                UpdateReinforcementStatus();
-                UpdateExecutionStateIndicator();
-                UpdateManualFarmingRunningState();
+                if (IsMainTabSelected(ResourcesTabItem))
+                {
+                    _resourcesViewModel.TickLiveForecasts();
+                }
+
+                if (IsMainTabSelected(NpcTradeTabItem))
+                {
+                    TickResourceTransferVillageForecasts();
+                }
+
+                if (IsMainTabSelected(ReinforcementsTabItem))
+                {
+                    UpdateReinforcementStatus();
+                }
+
+                UpdateExecutionStateIndicator(updateAutomationLoopCards: dashboardTabSelected);
+                if (IsMainTabSelected(FarmingTabItem))
+                {
+                    UpdateManualFarmingRunningState();
+                }
             }
             catch (Exception ex)
             {
