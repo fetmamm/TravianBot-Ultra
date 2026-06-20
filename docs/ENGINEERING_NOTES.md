@@ -154,8 +154,8 @@ En ny formaga ska kunna enhetstestas till stor del utan browser. God-klasserna s
 
 - Village-switch ska kanoniseras till `dorf1.php?newdid={id}` utan extra `id`-parametrar och verifieras som inloggad.
 - `SwitchToVillageAsync` foredrar sidebar-href:en framfor en inskickad/cachad URL nar bynamnet ar kant —
-  cachade payload-URL:er kan ha fel newdid som tyst inte byter by. Verifiera mot det *begarda* bynamnet;
-  vid miss: retry via sidebar, annars kasta sa tasken inte kor pa fel by.
+  cachade payload-URL:er kan ha fel newdid som tyst inte byter by. Verifiera mot begart namn eller stabila
+  koordinater (namnbyte), vid miss: retry via sidebar/coords, annars kasta sa tasken inte kor pa fel by.
 - Official T4.6 bylista ar React-renderad UTAN `dorf1.php?newdid=`-ankare. Ratt newdid finns i
   `div.listEntry.village[data-did="<id>"]` (aktiv = `.active`) med rent namn i barn-`span.name`.
   `TryGetVillageHrefFromSidebarAsync` laser `data-did` (exakt namnmatch — korta namn far inte substring-matcha)
@@ -206,9 +206,9 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
   (`productionPoints` for resources).
 - Hero away avgors av travel-signaler/timer fore `heroHome`. Las `.heroState .timerReact` fore oscope:ad sidtext.
   Health kan innehalla bidi-tecken; rensa dem fore numerisk parsing.
-- Resource transfer-dialogen kan renderas i `#dialogContent` utan wrapper och maste alltid stangas aktivt;
-  kvarvarande `#dialogOverlay` blockerar senare klick. Efter transfer ska samma build-slot invanta hydrerad
-  DOM och vid behov laddas om en gang.
+- Resource transfer-dialogen kan renderas i `#dialogContent` utan wrapper, ibland lamna inputs pa 0 och
+  anvanda CSS-klassen `disabled`; fyll exakt shortfall manuellt vid behov och stang alltid aktivt sa
+  kvarvarande `#dialogOverlay` inte blockerar senare klick. Efter transfer: invanta hydrerad DOM/reload.
 - Noll adventures ska inte automatiskt stanga av anvandarens Hero-toggle.
 - Official Add target ska fylla X och Y som separata Playwright-interaktioner. Vid Default troops ska
   koordinatfaltet blur:as och en neutral yta klickas innan flodet vantar pa aktiv Save. Stegen anvander

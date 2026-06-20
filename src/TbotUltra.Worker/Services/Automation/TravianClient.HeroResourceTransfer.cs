@@ -227,8 +227,8 @@ public sealed partial class TravianClient
             return false;
         }
 
-        // Travian auto-fills the amounts. We read them (for the log AND to keep the cached
-        // inventory in sync afterwards) but do NOT modify the inputs.
+        // Travian usually auto-fills the amounts. When it opens the dialog with all inputs left at 0,
+        // fill the exact village shortfall manually so the confirm button can become active.
 
         await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         HeroInventoryResources? transferred = null;
@@ -294,6 +294,16 @@ public sealed partial class TravianClient
             return false;
         }
 
+        if (shortfall is not null)
+        {
+            var manualFill = await TryFillHeroResourceTransferDialogAsync(shortfall, actualInventory, cancellationToken);
+            if (manualFill is not null)
+            {
+                transferred = manualFill;
+                Notify($"[hero-transfer] manually filled amounts: wood={manualFill.Wood} clay={manualFill.Clay} iron={manualFill.Iron} crop={manualFill.Crop}");
+            }
+        }
+
         bool confirmed;
         try
         {
@@ -310,7 +320,10 @@ public sealed partial class TravianClient
                     const buttons = Array.from(dialog.querySelectorAll('button'));
                     button = buttons.find(b => /transfer selected/i.test(b.textContent || ''));
                   }
-                  return !!button && !button.disabled && button.getAttribute('aria-disabled') !== 'true';
+                  return !!button
+                    && !button.disabled
+                    && button.getAttribute('aria-disabled') !== 'true'
+                    && !button.classList.contains('disabled');
                 }
                 """,
                 null,
@@ -329,6 +342,7 @@ public sealed partial class TravianClient
                     button = buttons.find(b => /transfer selected/i.test(b.textContent || ''));
                   }
                   if (!button) return false;
+                  if (button.disabled || button.getAttribute('aria-disabled') === 'true' || button.classList.contains('disabled')) return false;
                   button.click();
                   return true;
                 }
@@ -350,6 +364,7 @@ public sealed partial class TravianClient
         if (!confirmed)
         {
             Notify($"[hero-transfer] could not find 'Transfer selected' button at {label}; skipping");
+            await TryDismissResourceTransferDialogAsync(cancellationToken);
             return false;
         }
 
@@ -393,6 +408,109 @@ public sealed partial class TravianClient
         }
 
         return true;
+    }
+
+    private async Task<HeroInventoryResources?> TryFillHeroResourceTransferDialogAsync(
+        HeroInventoryResources shortfall,
+        HeroInventoryResources? actualInventory,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (shortfall.Wood <= 0 && shortfall.Clay <= 0 && shortfall.Iron <= 0 && shortfall.Crop <= 0)
+        {
+            return null;
+        }
+
+        object? inventoryPayload = actualInventory is null
+            ? null
+            : new { wood = actualInventory.Wood, clay = actualInventory.Clay, iron = actualInventory.Iron, crop = actualInventory.Crop };
+
+        try
+        {
+            var json = await _page.EvaluateAsync<string>(
+                """
+                (data) => {
+                  const dialog = document.querySelector('div.resourceTransferDialog')
+                    || ((document.querySelector('#dialogContent h3')?.textContent || '').trim().toLowerCase() === 'transfer resources'
+                      ? document.querySelector('#dialogContent')
+                      : null);
+                  if (!dialog) return '';
+
+                  const desired = data.shortfall || {};
+                  const inventory = data.inventory || null;
+                  const names = [
+                    ['lumber', 'wood'],
+                    ['clay', 'clay'],
+                    ['iron', 'iron'],
+                    ['crop', 'crop']
+                  ];
+
+                  const parse = (value) => {
+                    const text = String(value || '').replace(/[^0-9]/g, '');
+                    return text ? Number(text) || 0 : 0;
+                  };
+                  const current = {};
+                  for (const [inputName, key] of names) {
+                    current[key] = parse(dialog.querySelector('input[name="' + inputName + '"]')?.value);
+                  }
+
+                  const coversShortfall = names.every(([, key]) => current[key] >= (Number(desired[key]) || 0));
+                  if (coversShortfall) {
+                    return '';
+                  }
+
+                  const setInputValue = (input, value) => {
+                    const text = String(Math.max(0, Math.floor(Number(value) || 0)));
+                    const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+                    if (valueSetter) {
+                      valueSetter.call(input, text);
+                    } else {
+                      input.value = text;
+                    }
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                  };
+
+                  const filled = {};
+                  for (const [inputName, key] of names) {
+                    const input = dialog.querySelector('input[name="' + inputName + '"]');
+                    if (!input) return '';
+                    const need = Number(desired[key]) || 0;
+                    const available = inventory ? Math.max(0, Number(inventory[key]) || 0) : need;
+                    const amount = Math.min(need, available);
+                    setInputValue(input, amount);
+                    filled[key] = amount;
+                  }
+
+                  return JSON.stringify(filled);
+                }
+                """,
+                new
+                {
+                    shortfall = new { wood = shortfall.Wood, clay = shortfall.Clay, iron = shortfall.Iron, crop = shortfall.Crop },
+                    inventory = inventoryPayload
+                });
+
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return null;
+            }
+
+            return JsonSerializer.Deserialize<HeroInventoryResources>(
+                json,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            Notify($"[hero-transfer] transient error while manually filling transfer dialog: {ex.Message}");
+            return null;
+        }
+        catch (Exception ex) when (ex is PlaywrightException or JsonException)
+        {
+            Notify($"[hero-transfer] manual transfer fill failed: {ex.Message}");
+            return null;
+        }
     }
 
     /// <summary>

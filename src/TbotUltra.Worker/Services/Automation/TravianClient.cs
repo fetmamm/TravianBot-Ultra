@@ -1475,6 +1475,10 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             ? $"'{villageName}'"
             : (!string.IsNullOrWhiteSpace(villageUrl) ? $"url={villageUrl}" : "(unspecified)");
         Notify($"[village-switch] requested {requestedLabel} — current='{activeVillageBeforeSwitch ?? "(unknown)"}'");
+        var requestedVillage = !string.IsNullOrWhiteSpace(villageName)
+            ? await TryResolveVillageForSwitchAsync(villageName, cancellationToken)
+            : null;
+        var requestedCoords = ResolveVillageCoords(villageName, requestedVillage);
 
         // If we are already on the requested village, no navigation is needed.
         if (!string.IsNullOrWhiteSpace(villageName)
@@ -1501,6 +1505,11 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         if (!string.IsNullOrWhiteSpace(villageName))
         {
             var sidebarUrl = await TryGetVillageHrefFromSidebarAsync(villageName, cancellationToken);
+            if (string.IsNullOrWhiteSpace(sidebarUrl) && HasVillageCoords(requestedCoords))
+            {
+                sidebarUrl = await TryGetVillageHrefFromSidebarByCoordsAsync(requestedCoords, cancellationToken);
+            }
+
             if (!string.IsNullOrWhiteSpace(sidebarUrl))
             {
                 url = sidebarUrl;
@@ -1514,9 +1523,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         else if (!string.IsNullOrWhiteSpace(villageName))
         {
             var villages = await ReadVillagesAsync(cancellationToken);
-            var match = villages.FirstOrDefault(v =>
-                string.Equals(v.Name, villageName, StringComparison.Ordinal) &&
-                !string.IsNullOrWhiteSpace(v.Url));
+            var match = FindVillageByNameOrCoords(villages, villageName, requestedCoords);
             if (match is null)
             {
                 throw new InvalidOperationException($"Could not find village '{villageName}' in the village list.");
@@ -1541,6 +1548,18 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         await PauseForManualStepIfVisibleAsync($"Manual verification appeared while switching to village '{villageName}'.", cancellationToken);
         await EnsureLoggedInAsync();
         var activeVillageAfterSwitch = await TryReadActiveVillageNameSafeAsync(cancellationToken);
+        var activeMatchesRequested = string.IsNullOrWhiteSpace(villageName)
+            || IsSameVillageName(activeVillageAfterSwitch, villageName);
+        if (!activeMatchesRequested && HasVillageCoords(requestedCoords))
+        {
+            var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+            if (SameVillageCoords(activeCoords, requestedCoords))
+            {
+                activeMatchesRequested = true;
+                Notify($"[village-switch] accepted renamed village: requested '{villageName}' but active village is '{activeVillageAfterSwitch ?? "(unknown)"}' at ({requestedCoords.X}|{requestedCoords.Y}).");
+                RememberRenamedVillage(villageName, activeVillageAfterSwitch, requestedVillage, requestedCoords);
+            }
+        }
 
         // Verify we actually landed on the REQUESTED village — not merely that "something changed". A stale
         // or wrong newdid in the payload URL navigates but leaves the active village unchanged, which would
@@ -1548,10 +1567,15 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         // village). When a name was requested and we are not on it, retry once via the in-page sidebar href,
         // which always carries the correct newdid, then re-verify.
         if (!string.IsNullOrWhiteSpace(villageName)
-            && !IsSameVillageName(activeVillageAfterSwitch, villageName))
+            && !activeMatchesRequested)
         {
             Notify($"[village-switch] expected '{villageName}' but active village reads '{activeVillageAfterSwitch ?? "(unknown)"}' — retrying via sidebar.");
             var sidebarUrl = await TryGetVillageHrefFromSidebarAsync(villageName, cancellationToken);
+            if (string.IsNullOrWhiteSpace(sidebarUrl) && HasVillageCoords(requestedCoords))
+            {
+                sidebarUrl = await TryGetVillageHrefFromSidebarByCoordsAsync(requestedCoords, cancellationToken);
+            }
+
             if (!string.IsNullOrWhiteSpace(sidebarUrl))
             {
                 var canonicalSidebar = TravianUrls.CanonicalizeVillageSwitchUrl(sidebarUrl);
@@ -1561,6 +1585,17 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                     await GotoAsync(canonicalSidebar, cancellationToken);
                     await EnsureLoggedInAsync();
                     activeVillageAfterSwitch = await TryReadActiveVillageNameSafeAsync(cancellationToken);
+                    activeMatchesRequested = IsSameVillageName(activeVillageAfterSwitch, villageName);
+                    if (!activeMatchesRequested && HasVillageCoords(requestedCoords))
+                    {
+                        var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+                        if (SameVillageCoords(activeCoords, requestedCoords))
+                        {
+                            activeMatchesRequested = true;
+                            Notify($"[village-switch] accepted renamed village after retry: requested '{villageName}' but active village is '{activeVillageAfterSwitch ?? "(unknown)"}' at ({requestedCoords.X}|{requestedCoords.Y}).");
+                            RememberRenamedVillage(villageName, activeVillageAfterSwitch, requestedVillage, requestedCoords);
+                        }
+                    }
                 }
             }
         }
@@ -1568,7 +1603,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         // Still not on the requested village after the sidebar retry: abort rather than run the task on the
         // wrong village. The caller (runtime loop) will retry on the next cycle.
         if (!string.IsNullOrWhiteSpace(villageName)
-            && !IsSameVillageName(activeVillageAfterSwitch, villageName))
+            && !activeMatchesRequested)
         {
             Notify(
                 $"[village-switch] village_missing_suspected requested='{villageName}' " +
@@ -1614,6 +1649,143 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         return normalizedLeft.Length > 0
             && normalizedRight.Length > 0
             && string.Equals(normalizedLeft, normalizedRight, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task<Village?> TryResolveVillageForSwitchAsync(string villageName, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(villageName))
+        {
+            return null;
+        }
+
+        var cachedByName = _cachedVillages?.FirstOrDefault(v => IsSameVillageName(v.Name, villageName));
+        var requestedCoords = ResolveVillageCoords(villageName, cachedByName);
+        if (cachedByName is not null && HasVillageCoords(requestedCoords))
+        {
+            return cachedByName;
+        }
+
+        try
+        {
+            var sidebarVillages = await ReadVillagesFromCurrentPageAsync(cancellationToken);
+            var match = FindVillageByNameOrCoords(sidebarVillages, villageName, requestedCoords);
+            if (match is not null)
+            {
+                if (!IsSameVillageName(match.Name, villageName) && HasVillageCoords(requestedCoords))
+                {
+                    Notify($"[village-switch] resolved renamed village '{villageName}' -> '{match.Name}' by coordinates ({requestedCoords.X}|{requestedCoords.Y}).");
+                }
+
+                return match;
+            }
+        }
+        catch (Exception ex)
+        {
+            Notify($"[village-switch:verbose] could not resolve '{villageName}' from sidebar coordinates: {ex.Message}");
+        }
+
+        return cachedByName;
+    }
+
+    private (int? X, int? Y) ResolveVillageCoords(string? villageName, Village? village)
+    {
+        if (village?.CoordX is int vx && village.CoordY is int vy)
+        {
+            return (vx, vy);
+        }
+
+        if (!string.IsNullOrWhiteSpace(villageName))
+        {
+            return TryGetCachedVillageCoords(villageName);
+        }
+
+        return (null, null);
+    }
+
+    private static Village? FindVillageByNameOrCoords(
+        IReadOnlyList<Village> villages,
+        string villageName,
+        (int? X, int? Y) coords)
+    {
+        var byName = villages.FirstOrDefault(v =>
+            IsSameVillageName(v.Name, villageName) &&
+            !string.IsNullOrWhiteSpace(v.Url));
+        if (byName is not null)
+        {
+            return byName;
+        }
+
+        if (!HasVillageCoords(coords))
+        {
+            return null;
+        }
+
+        return villages.FirstOrDefault(v =>
+            SameVillageCoords((v.CoordX, v.CoordY), coords) &&
+            !string.IsNullOrWhiteSpace(v.Url));
+    }
+
+    private static bool HasVillageCoords((int? X, int? Y) coords)
+        => coords.X.HasValue && coords.Y.HasValue;
+
+    private static bool SameVillageCoords((int? X, int? Y) left, (int? X, int? Y) right)
+        => left.X.HasValue
+            && left.Y.HasValue
+            && right.X.HasValue
+            && right.Y.HasValue
+            && left.X.Value == right.X.Value
+            && left.Y.Value == right.Y.Value;
+
+    private void RememberRenamedVillage(
+        string oldName,
+        string? newName,
+        Village? requestedVillage,
+        (int? X, int? Y) coords)
+    {
+        if (string.IsNullOrWhiteSpace(oldName)
+            || string.IsNullOrWhiteSpace(newName)
+            || IsSameVillageName(oldName, newName)
+            || !HasVillageCoords(coords))
+        {
+            return;
+        }
+
+        var capital = requestedVillage?.IsCapital ?? TryGetCachedCapitalState(oldName);
+        SaveCachedVillageState(newName, capital, coords.X, coords.Y);
+
+        if (_cachedVillages is not { Count: > 0 } cached)
+        {
+            return;
+        }
+
+        var changed = false;
+        var requestedNewdid = requestedVillage is null ? null : TravianUrls.TryParseNewdid(requestedVillage.Url);
+        var updated = cached
+            .Select(v =>
+            {
+                var sameByCoords = SameVillageCoords((v.CoordX, v.CoordY), coords);
+                var sameByName = IsSameVillageName(v.Name, oldName);
+                var sameById = requestedNewdid is not null && TravianUrls.TryParseNewdid(v.Url) == requestedNewdid;
+                if (!sameByCoords && !sameByName && !sameById)
+                {
+                    return v;
+                }
+
+                changed = true;
+                return v with
+                {
+                    Name = newName.Trim(),
+                    CoordX = coords.X,
+                    CoordY = coords.Y,
+                    IsCapital = v.IsCapital ?? capital
+                };
+            })
+            .ToList();
+
+        if (changed)
+        {
+            UpdateCachedVillages(updated);
+        }
     }
 
     private static string NormalizeVillageNameForComparison(string? value)
@@ -1705,6 +1877,39 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
         {
             Notify($"[village-switch:verbose] sidebar lookup transient navigation for '{villageName}': {ex.Message}");
+            return null;
+        }
+    }
+
+    private async Task<string?> TryGetVillageHrefFromSidebarByCoordsAsync((int? X, int? Y) coords, CancellationToken cancellationToken)
+    {
+        if (!HasVillageCoords(coords))
+        {
+            return null;
+        }
+
+        try
+        {
+            var villages = await ReadVillagesFromCurrentPageAsync(cancellationToken);
+            var match = villages.FirstOrDefault(v => SameVillageCoords((v.CoordX, v.CoordY), coords));
+            if (match is null || string.IsNullOrWhiteSpace(match.Url))
+            {
+                Notify($"[village-switch:verbose] sidebar had no village at coordinates ({coords.X}|{coords.Y}).");
+                return null;
+            }
+
+            var resolved = ResolveUrl(match.Url);
+            Notify($"[village-switch:verbose] sidebar matched coordinates ({coords.X}|{coords.Y}) -> '{match.Name}' → {resolved}");
+            return resolved;
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            Notify($"[village-switch:verbose] sidebar coordinate lookup transient navigation for ({coords.X}|{coords.Y}): {ex.Message}");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Notify($"[village-switch:verbose] sidebar coordinate lookup failed for ({coords.X}|{coords.Y}): {ex.Message}");
             return null;
         }
     }

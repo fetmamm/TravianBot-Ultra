@@ -48,6 +48,7 @@ public sealed partial class TravianClient
         var tribe = await ReadTribeAsync(cancellationToken);
         var sentCount = 0;
         var skippedCount = 0;
+        var noAvailableTroopsCount = 0;
         foreach (var sourceName in sourceNames)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -83,6 +84,7 @@ public sealed partial class TravianClient
             if (resolvedAmounts.Count == 0)
             {
                 skippedCount++;
+                noAvailableTroopsCount++;
                 Notify($"[reinforce:verbose] skip '{sourceVillage.Name}' — no selected troops available");
                 continue;
             }
@@ -112,6 +114,11 @@ public sealed partial class TravianClient
         if (sentCount > 0)
         {
             return $"Reinforcements completed. Sent from {sentCount} source village(s), skipped {skippedCount}.";
+        }
+
+        if (noAvailableTroopsCount > 0)
+        {
+            return $"Reinforcements completed. No selected troops available in {noAvailableTroopsCount} source village(s), skipped {skippedCount}. Next automatic send uses the configured reinforcement interval.";
         }
 
         throw new InvalidOperationException($"Reinforcements had no shipment to send. queue_wait_seconds={ReinforcementFallbackCooldownSeconds}");
