@@ -1249,9 +1249,8 @@ public partial class MainWindow : Window
                 NotifySessionPacingAutomationStopped();
                 AppendLog("Loop stopped.");
                 if (_restartContinuousLoopAfterStop
-                    && ContinuousRunToggleButton?.IsChecked == true
                     && _isLoggedIn
-                    && (_loopTask is null || _loopTask.IsCompleted))
+                    && !IsContinuousLoopRunning())
                 {
                     _restartContinuousLoopAfterStop = false;
                     StartContinuousLoopRunner();

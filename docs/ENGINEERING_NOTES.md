@@ -232,8 +232,8 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
   buildings), isolerar fel per by och aterstaller vald by efteråt. En bekraftad login-/scan-bylista far
   karantansatta saknade byar (disable automation + pausa pending poster) men inte ta bort historik/cache
   eller retarget:a. Account scan pausar runnern utan att rensa kon och aterstartar endast om aterstallningen bekraftades.
-- Pause bevarar sessionens aterstaende pacing; endast Stop/reset nollstaller den. Continuous toggle kan vara
-  pa medan runner ar pausad; knappen visar da `Start bot`.
+- Pause bevarar sessionens aterstaende pacing; endast Stop/reset nollstaller den. `Start bot` kor alltid
+  continuous loop; manuella knappfloden far fortsatt kunna koras nar loopen ar idle.
 - Conservative automation defaults ska vara styrande for nya/reset-installningar: session pacing pa
   (90 min run, 45 min sleep, 40% variation, 18h daily max), action pacing pa
   (task 1-6s, page load 1-3s, loop 6-30s), farming dispatch 20m/20%.

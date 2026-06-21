@@ -83,11 +83,10 @@ public partial class MainWindow
                 _ = Dispatcher.BeginInvoke(() =>
                 {
                     if (_startContinuousLoopAfterQueueStop
-                        && ContinuousRunToggleButton?.IsChecked == true
                         && _isLoggedIn
                         && !_uiBusy
                         && !_autoQueueRunning
-                        && (_loopTask is null || _loopTask.IsCompleted))
+                        && !IsContinuousLoopRunning())
                     {
                         _startContinuousLoopAfterQueueStop = false;
                         StartContinuousLoopRunner();
@@ -110,19 +109,12 @@ public partial class MainWindow
             return;
         }
 
-        // When continuous-run is toggled ON, queued items must NOT auto-start from an enqueue.
-        // They may only begin when the user presses "Start bot", or be picked up by a runner
-        // that is already executing (the existing ExecuteQueuedItemsNowAsync / loop will see
-        // new items on its next iteration).
-        if (ContinuousRunToggleButton?.IsChecked == true)
+        // Queued items must not auto-start while the bot is idle. They may begin when the user
+        // presses "Start bot", or be picked up by a runner that is already executing.
+        var alreadyRunning = _autoQueueRunning || IsContinuousLoopRunning();
+        if (!alreadyRunning)
         {
-            var alreadyRunning = _autoQueueRunning
-                || (_loopTask is not null && !_loopTask.IsCompleted);
-
-            if (!alreadyRunning)
-            {
-                return;
-            }
+            return;
         }
 
         if (!HasQueueAutoRunEligibleWork())
@@ -145,32 +137,6 @@ public partial class MainWindow
         catch
         {
             return true;
-        }
-    }
-
-    private void ResumePausedQueueItems()
-    {
-        try
-        {
-            var pausedItems = _botService
-                .GetQueueItemsForDisplay()
-                .Where(item => item.Status == QueueStatus.Paused)
-                .ToList();
-
-            foreach (var item in pausedItems)
-            {
-                _botService.ResumeQueueItem(item.Id);
-            }
-
-            if (pausedItems.Count > 0)
-            {
-                RefreshQueueUi();
-                AppendLog($"Resumed {pausedItems.Count} paused queue item(s).");
-            }
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Could not resume paused queue items: {ex.Message}");
         }
     }
 

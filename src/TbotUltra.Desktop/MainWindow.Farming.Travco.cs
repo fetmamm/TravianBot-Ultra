@@ -47,7 +47,7 @@ public partial class MainWindow
             return;
         }
 
-        _travcoResumeContinuous = _loopTask is not null && !_loopTask.IsCompleted;
+        _travcoResumeContinuous = IsContinuousLoopRunning();
         _travcoResumeQueue = _autoQueueRunning && !_travcoResumeContinuous;
         _travcoSuppressRestart = false;
         await PauseAutomationForTravcoAsync();
@@ -80,9 +80,9 @@ public partial class MainWindow
 
         AppendLog(
             $"[travco-ui] analyze requested: coordinates=({request.X}|{request.Y}), days={request.DaysInactive}, order={request.OrderBy}.");
-        if ((_loopTask is not null && !_loopTask.IsCompleted) || _autoQueueRunning)
+        if (IsContinuousLoopRunning() || _autoQueueRunning)
         {
-            _travcoResumeContinuous = _loopTask is not null && !_loopTask.IsCompleted;
+            _travcoResumeContinuous = IsContinuousLoopRunning();
             _travcoResumeQueue = _autoQueueRunning && !_travcoResumeContinuous;
             _travcoSuppressRestart = false;
             await PauseAutomationForTravcoAsync();
@@ -168,9 +168,7 @@ public partial class MainWindow
             return;
         }
 
-        if (_travcoResumeContinuous
-            && ContinuousRunToggleButton.IsChecked == true
-            && (_loopTask is null || _loopTask.IsCompleted))
+        if (_travcoResumeContinuous && !IsContinuousLoopRunning())
         {
             AppendLog("[travco] resuming continuous loop.");
             StartContinuousLoopRunner();

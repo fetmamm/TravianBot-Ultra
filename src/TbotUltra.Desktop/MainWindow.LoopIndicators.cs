@@ -104,8 +104,7 @@ public partial class MainWindow
         var nowForWait = DateTimeOffset.UtcNow;
         var hasInlineWait = _inlineWaitUntilUtc > nowForWait;
         var functionExecutionRunning = IsFunctionExecutionRunning(hasRunningQueueItems);
-        var continuousModeEnabled = ContinuousRunToggleButton?.IsChecked == true;
-        var continuousModeActive = continuousModeEnabled && (loopRunning || _autoQueueRunning || hasDeferredQueueItems || hasInlineWait || functionExecutionRunning);
+        var automationActiveOrWaiting = loopRunning || _autoQueueRunning || hasDeferredQueueItems || hasInlineWait || functionExecutionRunning;
         var pauseRequested = _loopController.LoopStopRequested || _loopController.QueueStopRequested;
         var activeWorkStopping = pauseRequested && (loopRunning || _autoQueueRunning || _uiBusy || functionExecutionRunning || hasRunningQueueItems);
 
@@ -121,47 +120,7 @@ public partial class MainWindow
             return;
         }
 
-        if (!continuousModeEnabled)
-        {
-            if ((hasDeferredQueueItems && !hasRunningQueueItems && !_uiBusy && !functionExecutionRunning) || hasInlineWait)
-            {
-                var remainingSeconds = hasInlineWait
-                    ? (int)Math.Ceiling((_inlineWaitUntilUtc - nowForWait).TotalSeconds)
-                    : earliestNextAttemptUtc.HasValue
-                        ? (int)Math.Ceiling((earliestNextAttemptUtc.Value - nowForWait).TotalSeconds)
-                        : 0;
-                remainingSeconds = Math.Max(0, remainingSeconds);
-                LoopStateTextBlock.Text = remainingSeconds > 0
-                    ? $"State: waiting ({FormatCountdown(remainingSeconds)})"
-                    : "State: waiting";
-                LoopStateBadge.Background = new SolidColorBrush(ThemeColors.Get("WaitingBrush"));
-                ApplyStartLoopButtonVisual((loopRunning || _autoQueueRunning) ? "Pause bot" : "Start bot");
-                return;
-            }
-
-            if (functionExecutionRunning)
-            {
-                SetLoopStateBadge("function running", ThemeColors.Get("InfoBrush"), "Pause bot");
-                return;
-            }
-
-            if (loopRunning)
-            {
-                SetLoopStateBadge("loop running", ThemeColors.Get("SuccessBrush"), "Pause bot");
-                return;
-            }
-
-            if (hasPausedQueueItems)
-            {
-                SetLoopStateBadge("paused", ThemeColors.Get("AmberBrush"), "Start bot");
-                return;
-            }
-
-            SetLoopStateBadge("idle", ThemeColors.Get("TextSubtleBrush"), "Start bot");
-            return;
-        }
-
-        if ((continuousModeActive || hasInlineWait || hasDeferredQueueItems)
+        if (automationActiveOrWaiting
             && !hasReadyQueueItems
             && !functionExecutionRunning
             && !hasRunningQueueItems
@@ -186,18 +145,17 @@ public partial class MainWindow
                 return;
             }
 
-            if (continuousModeActive)
+            if (automationActiveOrWaiting)
             {
                 SetLoopStateBadge("idle", ThemeColors.Get("TextSubtleBrush"), "Pause bot");
                 return;
             }
         }
 
-        if (continuousModeActive)
+        if (automationActiveOrWaiting)
         {
-            // "Pause bot" must reflect ACTUAL execution, not merely "continuous toggle on + queued/deferred
-            // work exists". After a restart the persisted queue can have ready/deferred items while the loop
-            // is not running — that is idle ("Start bot"), not paused/running ("Pause bot").
+            // "Pause bot" must reflect actual execution. After a restart the persisted queue can have
+            // ready/deferred items while the loop is not running; that is idle, not paused/running.
             var isExecuting = loopRunning || _autoQueueRunning || functionExecutionRunning || hasRunningQueueItems;
             SetLoopStateBadge(
                 isExecuting ? "running" : "idle",

@@ -48,10 +48,7 @@ public partial class MainWindow
             return;
         }
 
-        var resumeContinuous = ContinuousRunToggleButton.IsChecked == true
-            && ((_loopTask is not null && !_loopTask.IsCompleted)
-                || _autoQueueRunning
-                || _startContinuousLoopAfterQueueStop);
+        var resumeContinuous = IsContinuousLoopRunning() || _startContinuousLoopAfterQueueStop;
         var resumeQueue = !resumeContinuous && _autoQueueRunning;
         var safeToResume = true;
         _accountScanInProgress = true;
@@ -375,8 +372,7 @@ public partial class MainWindow
         }
 
         if (resumeContinuous
-            && ContinuousRunToggleButton.IsChecked == true
-            && (_loopTask is null || _loopTask.IsCompleted))
+            && !IsContinuousLoopRunning())
         {
             AppendLog("[account-scan] Resuming continuous loop.");
             StartContinuousLoopRunner();

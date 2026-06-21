@@ -944,10 +944,8 @@ public partial class MainWindow
 
         if (!option.IsEnabled
             && QueueGroupCatalog.TryParse(option.TaskName, out var disabledGroup)
-            && ContinuousRunToggleButton?.IsChecked == true
             && GetActiveContinuousLoopGroup() == disabledGroup
-            && _loopTask is not null
-            && !_loopTask.IsCompleted)
+            && IsContinuousLoopRunning())
         {
             _restartContinuousLoopAfterStop = HasEnabledContinuousLoopGroupsExcept(disabledGroup);
             _loopController.RequestLoopStop();
@@ -987,9 +985,7 @@ public partial class MainWindow
         }
 
         var continuousLoopWillHandle = option.IsEnabled
-            && ContinuousRunToggleButton?.IsChecked == true
-            && _loopTask is not null
-            && !_loopTask.IsCompleted;
+            && IsContinuousLoopRunning();
 
         if (continuousLoopWillHandle)
         {

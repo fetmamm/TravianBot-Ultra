@@ -232,7 +232,7 @@ public partial class MainWindow
             }
 
             var loopIdle = _loopTask is null || _loopTask.IsCompleted;
-            if (_wasContinuousLoopRunningBeforeSleep && ContinuousRunToggleButton?.IsChecked == true && loopIdle)
+            if (_wasContinuousLoopRunningBeforeSleep && loopIdle)
             {
                 AppendLog("[pacing] wake: resuming continuous loop (was running before sleep).");
                 StartContinuousLoopRunner();
@@ -300,9 +300,6 @@ public partial class MainWindow
         DailyLeftTextBlock.Text = progress.TimeLeft is null
             ? "-"
             : FormatDailyProgressDuration(progress.TimeLeft.Value);
-        DailyLimitTextBlock.Text = progress.Limit is null
-            ? "Off"
-            : FormatDailyProgressDuration(progress.Limit.Value);
 
         DailyPacingBorder.ToolTip = progress.Limit is null
             ? "Daily max is disabled."

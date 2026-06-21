@@ -141,9 +141,7 @@ public partial class MainWindow
     // de-duplicates, so this won't double-queue.
     private void TriggerImmediateIfLoopRunning(Func<BotOptions, Task> action)
     {
-        var loopRunning = ContinuousRunToggleButton?.IsChecked == true
-            && _loopTask is not null
-            && !_loopTask.IsCompleted;
+        var loopRunning = IsContinuousLoopRunning();
         if (!loopRunning || !_isLoggedIn || !_browserSessionLikelyOpen)
         {
             return;

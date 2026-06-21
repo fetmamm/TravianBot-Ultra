@@ -226,7 +226,7 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// Validates form input and queues one (or up to 20 with continuous mode)
+    /// Validates form input and queues one or more
     /// <c>hero_manage</c> task(s). Called by the panel's Hero-adventure
     /// button.
     /// </summary>

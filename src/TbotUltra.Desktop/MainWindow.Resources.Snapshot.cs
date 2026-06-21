@@ -533,9 +533,7 @@ public partial class MainWindow
 
     private void WakeContinuousLoopForHeroAttributePoints()
     {
-        if (ContinuousRunToggleButton?.IsChecked != true
-            || _loopTask is null
-            || _loopTask.IsCompleted)
+        if (!IsContinuousLoopRunning())
         {
             TriggerQueueAutoRunFromEnqueue();
             return;

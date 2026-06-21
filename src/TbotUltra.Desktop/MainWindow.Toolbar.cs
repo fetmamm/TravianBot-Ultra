@@ -4,9 +4,7 @@ using System.Windows;
 namespace TbotUltra.Desktop;
 
 // Toolbar and top-level window command handlers: start/stop/pause the bot,
-// continuous-run toggle, help/reload/settings buttons, window closing and popup
-// cleanup. Extracted verbatim from MainWindow.xaml.cs to keep that file focused;
-// same class, so this is a pure relocation with no behavior change.
+// help/reload/settings buttons, window closing and popup cleanup.
 public partial class MainWindow
 {
     private bool _shutdownInProgress;
@@ -21,25 +19,6 @@ public partial class MainWindow
 
         if (!_isLoggedIn)
         {
-            return;
-        }
-
-        if (ContinuousRunToggleButton.IsChecked != true)
-        {
-            if (_autoQueueRunning || _uiBusy)
-            {
-                // Graceful pause: don't pick up new queue items. Let the currently running
-                // task finish; the runner will exit at its next iteration check.
-                _loopController.RequestQueueStop();
-                UpdateExecutionStateIndicator();
-                AppendLog("Pause requested. Letting current task finish before stopping.");
-                return;
-            }
-
-            _loopController.ClearQueueStopRequest();
-            ResumePausedQueueItems();
-            _ = TriggerQueueAutoRunAsync();
-            AppendLog("Function queue start requested.");
             return;
         }
 
@@ -104,11 +83,8 @@ public partial class MainWindow
         _loopController.RequestQueueStop();
         _loopController.CancelOperation();
         _loopController.CancelAutoQueueRun();
-        if (ContinuousRunToggleButton.IsChecked == true)
-        {
-            _loopController.RequestLoopStop();
-            _loopController.CancelLoop();
-        }
+        _loopController.RequestLoopStop();
+        _loopController.CancelLoop();
 
         EndInlineWait();
         ClearPendingResourceLevelsFromUi();
@@ -134,26 +110,6 @@ public partial class MainWindow
         SetActiveFunctionExecution(null);
         UpdateExecutionStateIndicator();
         AppendLog("Stop requested. Running actions and waits were stopped.");
-    }
-
-    private void ContinuousRunToggleButton_Unchecked(object sender, RoutedEventArgs e)
-    {
-        if (!_autoQueueRunning && !_uiBusy && (_loopTask is null || _loopTask.IsCompleted))
-        {
-            return;
-        }
-
-        _loopController.RequestQueueStop();
-        _loopController.RequestLoopStop();
-        _startContinuousLoopAfterQueueStop = false;
-        _loopController.CancelOperation();
-        _loopController.CancelAutoQueueRun();
-        _loopController.CancelLoop();
-        ClearPendingResourceLevelsFromUi();
-        SetLoopIndicator(false);
-        StartLoopButton.Content = "Start bot";
-        StartLoopButton.IsEnabled = true;
-        AppendLog("Continuous run disabled. Running actions were stopped.");
     }
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)

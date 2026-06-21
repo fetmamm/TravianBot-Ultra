@@ -637,9 +637,7 @@ public partial class MainWindow
         RefreshAutomationLoopDashboardUi();
         ApplyHeroResourceTransferConfigToUi();
 
-        if (ContinuousRunToggleButton?.IsChecked == true
-            && _loopTask is not null
-            && !_loopTask.IsCompleted)
+        if (IsContinuousLoopRunning())
         {
             Interlocked.Exchange(ref _continuousLoopWakeRequested, 1);
             AppendLog("Village settings saved. Continuous loop will refresh the queue now.");

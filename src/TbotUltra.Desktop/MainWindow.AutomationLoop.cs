@@ -51,6 +51,11 @@ public partial class MainWindow
         return GetContinuousLoopEnabledGroupsInOrder().Any(group => group != excludedGroup);
     }
 
+    private bool IsContinuousLoopRunning()
+    {
+        return _loopTask is not null && !_loopTask.IsCompleted;
+    }
+
     private void StartContinuousLoopRunner()
     {
         if (BlockIfSessionSleeping("Continuous loop"))
