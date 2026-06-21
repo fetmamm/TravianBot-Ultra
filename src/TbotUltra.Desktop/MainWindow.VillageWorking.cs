@@ -992,7 +992,7 @@ public partial class MainWindow
         {
             ApplyResourceRowsAndVillageStatus(cached, includeQueuedTargets: true);
             // Storage bars must follow the selected village too (they were staying on the previous one).
-            _resourcesViewModel.ApplyStorageForecasts(cached);
+            _resourcesViewModel.ApplyStorageForecasts(cached, renderImmediately: true);
             _lastBuildingStatus = cached;
             PopulateBuildingsTab(cached);
             _troopTrainingViewModel.ApplyStatus(cached, cached.TroopTrainingQueues);

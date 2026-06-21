@@ -486,10 +486,7 @@ public partial class MainWindow : Window
                 UpdateNextTaskUi();
                 _troopTrainingViewModel.TickCountdowns(serverNow);
                 TickSmithyUpgradeCountdown();
-                if (IsMainTabSelected(ResourcesTabItem))
-                {
-                    _resourcesViewModel.TickLiveForecasts();
-                }
+                _resourcesViewModel.TickLiveForecasts();
 
                 if (IsMainTabSelected(NpcTradeTabItem))
                 {

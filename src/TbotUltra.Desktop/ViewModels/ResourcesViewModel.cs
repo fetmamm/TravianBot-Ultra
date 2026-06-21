@@ -212,7 +212,7 @@ public sealed class ResourcesViewModel : BaseViewModel
         }
     }
 
-    public void ApplyStorageForecasts(VillageStatus status)
+    public void ApplyStorageForecasts(VillageStatus status, bool renderImmediately = false)
     {
         var forecasts = status.ResourceStorageForecasts?
             .ToDictionary(item => item.ResourceKey, item => item, StringComparer.OrdinalIgnoreCase)
@@ -231,6 +231,10 @@ public sealed class ResourcesViewModel : BaseViewModel
 
         _baseForecasts = forecasts;
         _baseForecastCapturedAtUtc = DateTimeOffset.UtcNow;
+        if (renderImmediately)
+        {
+            TickLiveForecasts();
+        }
     }
 
     private static bool HasUsableStorageForecast(ResourceStorageForecast forecast)

@@ -50,8 +50,7 @@ jobs:
       - name: Build
         run: dotnet build TbotUltra.sln -c Release --no-restore
 
-      - name: Test (non-blocking)
-        continue-on-error: true
+      - name: Test
         run: dotnet test TbotUltra.sln -c Release --no-build
 
       - name: Restore desktop publish dependencies

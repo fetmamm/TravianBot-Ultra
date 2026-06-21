@@ -3580,7 +3580,7 @@ public sealed partial class TravianClient
                 await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the upgrade page.", cancellationToken);
                 await EnsureLoggedInAsync();
                 await EnsureExpectedBuildSlotPageAsync(slotId, "analyze upgrade", cancellationToken);
-                await ApplyActionDelayAsync(cancellationToken);
+                await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
 
                 var rawJson = await _page.EvaluateAsync<string>(
                     """
@@ -3981,7 +3981,6 @@ public sealed partial class TravianClient
                     await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
                 }, cancellationToken: cancellationToken);
                 await PauseForManualStepIfVisibleAsync("Manual verification appeared after upgrade actionability analysis.", cancellationToken);
-                await ApplyActionDelayAsync(cancellationToken);
 
                 return new UpgradeAttemptResult(
                     Outcome: outcome,
