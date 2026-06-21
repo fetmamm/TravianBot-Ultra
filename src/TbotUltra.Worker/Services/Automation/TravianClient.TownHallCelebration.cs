@@ -291,6 +291,7 @@ public sealed partial class TravianClient
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         var payload = await _page.EvaluateAsync<JsonElement>(
             """
             (mode) => {

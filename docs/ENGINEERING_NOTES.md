@@ -140,6 +140,7 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
   Profiltabellens ordning far inte anvandas (Official kan sortera efter population); las sidebarordningen
   fore profilnavigation och anvand profilen endast for att berika bydata.
 - Map Oasis Analyzer och kartparsning: [ADR 2026-06-20 map-oasis-scan](adr/2026-06-20-map-oasis-scan.md).
+  Analyze map oasis ska visa en warning-confirmation fore scan eftersom flodet ar high-volume.
 - Travco-tabben ar seg: `SetDefaultTimeout(30000)`. "Save all pages" kor `ScrapePageWithRetryAsync`
   (3 forsok med reload + backoff) och `ResolveTotalPagesAsync` vantar in resultattabellen fore sidantalet
   lases, sa en seg sida inte tyst kapar listan till sida 1. Se [ADR 2026-06-09](adr/2026-06-09-farmlists-and-travco.md).
@@ -217,7 +218,7 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
 - Noll adventures ska inte automatiskt stanga av anvandarens Hero-toggle.
 - Official Add target ska fylla X och Y som separata Playwright-interaktioner. Vid Default troops ska
   koordinatfaltet blur:as och en neutral yta klickas innan flodet vantar pa aktiv Save. Stegen anvander
-  konto-scopead `farm_list_step_delay_*_seconds` (default 0,1-0,3 s, under Action pacing/Loop).
+  konto-scopead `farm_list_step_delay_*_seconds` (default 1.5-4 s, under Action pacing/Loop).
 - Add Farms-progress visar lyckade tillagg separat fran kontrollerade/saknade koordinater. Mal ar antal
   lyckade tillagg, inte forsok: invalid/duplicate forbrukar nasta kandidat tills malet nas, listan blir
   full eller kallistan tar slut. Official live-count kontrolleras fore varje forsok for max 100.
@@ -234,8 +235,11 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
 - Pause bevarar sessionens aterstaende pacing; endast Stop/reset nollstaller den. Continuous toggle kan vara
   pa medan runner ar pausad; knappen visar da `Start bot`.
 - Conservative automation defaults ska vara styrande for nya/reset-installningar: session pacing pa
-  (90 min run, 45 min sleep, 40% variation, 18h daily max), action pacing pa, farming dispatch 20m/20%.
+  (90 min run, 45 min sleep, 40% variation, 18h daily max), action pacing pa
+  (task 1-6s, page load 1-3s, loop 6-30s), farming dispatch 20m/20%.
   High-volume scans och keep-alive ska ha jitter/pacing och far inte infora zero-delay bursts.
+- State-changing JS/Evaluate-klick i build/hero/celebration-floden ska foregas av `DelayBeforeClickAsync`;
+  reload-grenar ska anvanda samma page-load pacing som navigation.
 - Huvudfonstrets gemensamma `BusyOverlay` ska alltid doljas i operationens `finally`.
 - Diagnostisk pacing loggas med `[pacing]`, men viktiga sleep/wake-handelser ska vara synliga i Clean mode.
   Cached currency pa sidor utan valuta ar verbose; avsaknad av bade live- och cachevarde ar alarm.

@@ -431,6 +431,7 @@ public sealed partial class TravianClient
     private async Task<bool> ClickAdventureButtonOnDorf1Async(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         return await _page.EvaluateAsync<bool>(
             """
             () => {
@@ -548,6 +549,7 @@ public sealed partial class TravianClient
     private async Task<bool> ClickAdventureSubmitButtonAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         return await _page.EvaluateAsync<bool>(
             """
             () => {
@@ -577,6 +579,7 @@ public sealed partial class TravianClient
     private async Task<bool> ClickFirstAdventureEntryAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         return await _page.EvaluateAsync<bool>(
             """
             () => {
@@ -662,6 +665,7 @@ public sealed partial class TravianClient
 
         if (!onAttributesTab)
         {
+            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
             var clicked = await _page.EvaluateAsync<bool>(
                 """
                 () => {
@@ -692,6 +696,7 @@ public sealed partial class TravianClient
         var reviveDurationSeconds = TravianParsing.ParseDurationToSeconds(reviveDurationRaw);
 
         // Click the revive button using direct selector first, then a text-based fallback.
+        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         var clickedRevive = await _page.EvaluateAsync<bool>(
             """
             () => {
@@ -1739,6 +1744,7 @@ public sealed partial class TravianClient
         // Revive UI is on the inventory/attributes page on this Travian version. /hero.php opens Appearance.
         await GotoAsync(HeroInventoryPath, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while trying to revive hero.", cancellationToken);
+        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         return await _page.EvaluateAsync<bool>(
             """
             () => {
@@ -1918,6 +1924,7 @@ public sealed partial class TravianClient
     private async Task<bool> ClickHeroOintmentItemAsync(int ointmentIndex, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         return await _page.EvaluateAsync<bool>(
             """
             (ointmentIndex) => {
@@ -1978,6 +1985,7 @@ public sealed partial class TravianClient
     private async Task<bool> ConfirmHeroOintmentUseAsync(int useCount, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         return await _page.EvaluateAsync<bool>(
             """
             (useCount) => {
@@ -2125,6 +2133,7 @@ public sealed partial class TravianClient
         {
         }
 
+        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         var saved = await _page.EvaluateAsync<bool>(
             """
             () => {
@@ -2152,6 +2161,7 @@ public sealed partial class TravianClient
     private async Task<string?> ClickOfficialHeroAttributePlusAsync(IReadOnlyList<string> fieldOrder, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         return await _page.EvaluateAsync<string?>(
             """
             (order) => {
@@ -2323,6 +2333,7 @@ public sealed partial class TravianClient
             return;
         }
 
+        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         var clicked = await _page.EvaluateAsync<bool>(
             """
             () => {
@@ -2675,6 +2686,7 @@ public sealed partial class TravianClient
     private async Task<bool> ClickHeroAttributePlusAsync(string stat, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         return await _page.EvaluateAsync<bool>(
             """
             (name) => {
@@ -2759,6 +2771,7 @@ public sealed partial class TravianClient
             return false;
         }
 
+        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         var changed = await _page.EvaluateAsync<bool>(
             """
             (desired) => {
@@ -2787,6 +2800,7 @@ public sealed partial class TravianClient
         var desired = string.Equals(hideMode, "fight", StringComparison.OrdinalIgnoreCase) ? "fight" : "hide";
         await EnsureHeroInventoryAttributesTabAsync(cancellationToken);
 
+        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         var changed = await _page.EvaluateAsync<bool>(
             """
             (desired) => {
@@ -2816,6 +2830,7 @@ public sealed partial class TravianClient
     private async Task<bool> ClickHeroSaveChangesAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         var saved = await _page.EvaluateAsync<bool>(
             """
             () => {
@@ -2947,6 +2962,7 @@ public sealed partial class TravianClient
         }
 
         // Step 1: pick a row (top or shortest), open the adventure detail page, and report its duration.
+        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         var pickedJson = await _page.EvaluateAsync<string>(
             $$"""
             () => {
@@ -3013,6 +3029,7 @@ public sealed partial class TravianClient
         Notify($"[adventure] picked {pickOrder} adventure, duration={duration}s, hero return ETA={fallbackReturnFromDetail}s");
 
         var confirmed = false;
+        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         for (var attempt = 0; attempt < 10 && !confirmed; attempt++)
         {
             confirmed = await _page.EvaluateAsync<bool>(

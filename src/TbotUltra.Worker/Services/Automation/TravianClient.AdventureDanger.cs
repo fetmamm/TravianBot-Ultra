@@ -199,6 +199,7 @@ public sealed partial class TravianClient
     private async Task<bool> ClickAdventureVideoWatchAsync(string boxClass, string label, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         var clicked = await _page.EvaluateAsync<bool>(
             """
             (boxClass) => {
@@ -227,6 +228,22 @@ public sealed partial class TravianClient
         for (var attempt = 1; attempt <= 12; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            var ready = await _page.EvaluateAsync<bool>(
+                """
+                () => {
+                  const dlg = document.querySelector('#videoFeature');
+                  if (!dlg) return false;
+                  return !!(dlg.querySelector('.dialogButtonOk')
+                    || Array.from(dlg.querySelectorAll('button')).find(b => /watch video/i.test(b.textContent || '')));
+                }
+                """);
+            if (!ready)
+            {
+                await Task.Delay(250, cancellationToken);
+                continue;
+            }
+
+            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
             var clicked = await _page.EvaluateAsync<bool>(
                 """
                 () => {

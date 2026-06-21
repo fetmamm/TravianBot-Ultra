@@ -478,13 +478,13 @@ public sealed class BotOptionsPayloadApplierTests
         var options = BotOptionsFactory.FromConfiguration(configuration);
 
         Assert.True(options.ActionPacingEnabled);
-        Assert.Equal(3.0, options.ActionPacingTaskMinSeconds);
-        Assert.Equal(8.0, options.ActionPacingTaskMaxSeconds);
+        Assert.Equal(1.0, options.ActionPacingTaskMinSeconds);
+        Assert.Equal(6.0, options.ActionPacingTaskMaxSeconds);
         Assert.Equal(1.0, options.ActionPacingPageLoadMinSeconds);
-        Assert.Equal(2.5, options.ActionPacingPageLoadMaxSeconds);
+        Assert.Equal(3.0, options.ActionPacingPageLoadMaxSeconds);
         Assert.Equal(0.8, options.ActionPacingClickMinSeconds);
         Assert.Equal(2.0, options.ActionPacingClickMaxSeconds);
-        Assert.Equal(10.0, options.ActionPacingLoopMinSeconds);
+        Assert.Equal(6.0, options.ActionPacingLoopMinSeconds);
         Assert.Equal(30.0, options.ActionPacingLoopMaxSeconds);
         Assert.Equal(1.5, options.FarmListStepDelayMinSeconds);
         Assert.Equal(4.0, options.FarmListStepDelayMaxSeconds);
@@ -509,8 +509,8 @@ public sealed class BotOptionsPayloadApplierTests
 
         Assert.True(options.HumanLikeEnabled);
         Assert.True(options.ActionPacingEnabled);
-        Assert.Equal(3.0, options.ActionPacingTaskMinSeconds);
-        Assert.Equal(8.0, options.ActionPacingTaskMaxSeconds);
+        Assert.Equal(2.5, options.ActionPacingTaskMinSeconds);
+        Assert.Equal(6.0, options.ActionPacingTaskMaxSeconds);
         Assert.Equal(2.5, options.ActionPacingClickMinSeconds);
         Assert.Equal(5.0, options.ActionPacingClickMaxSeconds);
         Assert.Equal(2.5, options.FarmListStepDelayMinSeconds);

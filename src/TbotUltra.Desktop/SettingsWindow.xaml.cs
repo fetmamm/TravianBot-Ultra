@@ -144,9 +144,6 @@ public partial class SettingsWindow : Window
         {
             _store.ResetSettingsToDefaults();
             LoadConfig();
-            _isClosing = true;
-            DialogResult = true;
-            Close();
         }
         catch (Exception ex)
         {

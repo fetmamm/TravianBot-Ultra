@@ -2041,6 +2041,11 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             // be dropped here too (the GotoAsync branch already does this). Without this the longer
             // active-constructions TTL could serve pre-reload state at the top of an upgrade iteration.
             InvalidateActiveConstructionsCache();
+            await ActionPacer.FromOptions(_config, Notify).DelayAsync(
+                _config.ActionPacingPageLoadMinSeconds,
+                _config.ActionPacingPageLoadMaxSeconds,
+                cancellationToken,
+                "after page reload");
         }
         else
         {
@@ -6430,6 +6435,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         var locator = _page.Locator("button, input[type='submit'], input[type='button'], a, div.addHoverClick, div.button-container").Nth(candidateIndex.Value);
         await RetryAsync($"click detected upgrade candidate index {candidateIndex.Value} for slot {slotId}", async () =>
         {
+            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
             await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
         }, cancellationToken: cancellationToken);
 

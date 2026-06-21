@@ -232,6 +232,18 @@ public partial class TravcoToolsWindow : Window
 
     private void AnalyzeMapOasisButton_Click(object sender, RoutedEventArgs e)
     {
+        var confirm = AppDialog.Show(
+            this,
+            "Analyze map oasis scans the Travian map and can generate a high volume of requests.\n\n"
+                + "Recommended use: run this once per account, save the result, and do not repeat it unless you have a specific reason.",
+            "Analyze map oasis",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (confirm != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
         _ = RunMapOasisScanAndSaveAsync();
     }
 

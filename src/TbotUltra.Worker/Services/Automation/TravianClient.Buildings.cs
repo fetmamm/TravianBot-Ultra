@@ -2026,9 +2026,9 @@ public sealed partial class TravianClient
     // Clicks the Improve/Upgrade button for the row identified by key ("u21" unit id, or "t1" troop slot).
     private async Task<bool> ClickSmithyImproveButtonForKeyAsync(string key, CancellationToken cancellationToken)
     {
-        _ = cancellationToken;
         try
         {
+            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
             return await _page.EvaluateAsync<bool>(
                 """
                 (key) => {
@@ -2164,6 +2164,7 @@ public sealed partial class TravianClient
         bool opened;
         try
         {
+            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
             opened = await _page.EvaluateAsync<bool>(
                 """
                 (key) => {
@@ -2215,8 +2216,6 @@ public sealed partial class TravianClient
             return false;
         }
 
-        await DelayBeforeClickAsync(cancellationToken);
-
         bool confirmed;
         try
         {
@@ -2236,6 +2235,7 @@ public sealed partial class TravianClient
                 """,
                 null,
                 new PageWaitForFunctionOptions { Timeout = 5000 });
+            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
             confirmed = await _page.EvaluateAsync<bool>(
                 """
                 () => {
@@ -2542,6 +2542,7 @@ public sealed partial class TravianClient
             return false;
         }
 
+        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         return await _page.EvaluateAsync<bool>(
             """
             () => {

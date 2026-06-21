@@ -165,6 +165,7 @@ public sealed partial class TravianClient
 
         try
         {
+            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
             var opened = await _page.EvaluateAsync<bool>(
                 """
                 (preferTownHallCelebration) => {
@@ -328,6 +329,7 @@ public sealed partial class TravianClient
                 """,
                 null,
                 new PageWaitForFunctionOptions { Timeout = 5000 });
+            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
             confirmed = await _page.EvaluateAsync<bool>(
                 """
                 () => {
