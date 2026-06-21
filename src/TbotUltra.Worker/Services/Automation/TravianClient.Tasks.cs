@@ -122,7 +122,6 @@ public sealed partial class TravianClient
         // None is valid (e.g. the general tab may have nothing to claim) — just return 0 then.
         try
         {
-            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
             await _page.WaitForFunctionAsync(
                 """
                 () => {
@@ -160,7 +159,16 @@ public sealed partial class TravianClient
             bool clicked;
             try
             {
-                clicked = await _page.EvaluateAsync<bool>(
+                clicked = await TryClickFirstVisibleEnabledAsync(
+                    "button.textButtonV2.collect",
+                    cancellationToken,
+                    requiredText: "Collect",
+                    requireExactText: true,
+                    reason: "task collect reward");
+                if (!clicked)
+                {
+                    await DelayBeforeClickAsync(cancellationToken, "task collect reward fallback");
+                    clicked = await _page.EvaluateAsync<bool>(
                     """
                     () => {
                       const isVisible = element => {
@@ -192,6 +200,7 @@ public sealed partial class TravianClient
                       return false;
                     }
                     """);
+                }
             }
             catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
             {

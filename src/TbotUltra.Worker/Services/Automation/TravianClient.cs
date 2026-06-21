@@ -2537,6 +2537,86 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         return false;
     }
 
+    private async Task<bool> TryClickFirstVisibleEnabledAsync(
+        string selector,
+        CancellationToken cancellationToken,
+        string? requiredText = null,
+        bool requireExactText = false,
+        string? reason = null,
+        int? timeoutMs = null)
+    {
+        var candidates = _page.Locator(selector);
+        var count = await candidates.CountAsync();
+        for (var i = 0; i < count; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var candidate = candidates.Nth(i);
+
+            try
+            {
+                if (!await candidate.IsVisibleAsync())
+                {
+                    continue;
+                }
+
+                var disabled = await candidate.EvaluateAsync<bool>(
+                    """
+                    node => {
+                      const className = (node.className || '').toString().toLowerCase();
+                      return !!node.disabled
+                        || node.getAttribute('disabled') !== null
+                        || node.getAttribute('aria-disabled') === 'true'
+                        || className.includes('disabled');
+                    }
+                    """);
+                if (disabled)
+                {
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(requiredText))
+                {
+                    var candidateText = await candidate.EvaluateAsync<string>(
+                        """
+                        node => {
+                          const clean = value => (value || '').replace(/\s+/g, ' ').trim();
+                          const primary = clean(node.textContent || node.getAttribute('value') || '');
+                          if (primary) return primary;
+                          return clean(`${node.getAttribute('title') || ''} ${node.getAttribute('aria-label') || ''}`);
+                        }
+                        """);
+                    var expected = requiredText.Trim();
+                    var matches = requireExactText
+                        ? string.Equals(candidateText, expected, StringComparison.OrdinalIgnoreCase)
+                        : candidateText.Contains(expected, StringComparison.OrdinalIgnoreCase);
+                    if (!matches)
+                    {
+                        continue;
+                    }
+                }
+
+                await candidate.ScrollIntoViewIfNeededAsync(new LocatorScrollIntoViewIfNeededOptions
+                {
+                    Timeout = Math.Min(_config.TimeoutMs, 3000),
+                });
+                await DelayBeforeClickAsync(cancellationToken, reason);
+                await candidate.ClickAsync(new LocatorClickOptions { Timeout = timeoutMs ?? _config.TimeoutMs });
+                await PauseForManualStepIfVisibleAsync("Manual verification appeared after click.", cancellationToken);
+                return true;
+            }
+            catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+            {
+                throw;
+            }
+            catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
+            {
+                Notify($"[browser-click] Playwright click skipped candidate {i + 1}/{count} for '{selector}': {ex.Message}");
+            }
+        }
+
+        return false;
+    }
+
     private async Task<bool> CaptchaOrManualStepVisibleAsync()
     {
         try

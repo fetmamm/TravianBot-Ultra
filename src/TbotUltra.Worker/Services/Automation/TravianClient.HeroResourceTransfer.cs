@@ -165,8 +165,15 @@ public sealed partial class TravianClient
 
         try
         {
-            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
-            var opened = await _page.EvaluateAsync<bool>(
+            var opened = !preferTownHallCelebration
+                && await TryClickFirstVisibleEnabledAsync(
+                    ".upgradeBlocked .inlineIcon.resource.transfer.fillUp, .inlineIcon.resource.transfer.fillUp, .inlineIcon.resource.transfer",
+                    cancellationToken,
+                    reason: "open hero resource transfer");
+            if (!opened)
+            {
+                await DelayBeforeClickAsync(cancellationToken, "open hero resource transfer fallback");
+                opened = await _page.EvaluateAsync<bool>(
                 """
                 (preferTownHallCelebration) => {
                   const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
@@ -185,6 +192,7 @@ public sealed partial class TravianClient
                 }
                 """,
                 preferTownHallCelebration);
+            }
             if (!opened)
             {
                 Notify($"[hero-transfer] could not click transfer icon at {label}.");
@@ -329,8 +337,22 @@ public sealed partial class TravianClient
                 """,
                 null,
                 new PageWaitForFunctionOptions { Timeout = 5000 });
-            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
-            confirmed = await _page.EvaluateAsync<bool>(
+            confirmed = await TryClickFirstVisibleEnabledAsync(
+                "div.resourceTransferDialog .actionButton.preSelected button, #dialogContent .actionButton.preSelected button",
+                cancellationToken,
+                reason: "confirm hero resource transfer");
+            if (!confirmed)
+            {
+                confirmed = await TryClickFirstVisibleEnabledAsync(
+                    "div.resourceTransferDialog button, #dialogContent button",
+                    cancellationToken,
+                    requiredText: "Transfer selected",
+                    reason: "confirm hero resource transfer");
+            }
+            if (!confirmed)
+            {
+                await DelayBeforeClickAsync(cancellationToken, "confirm hero resource transfer fallback");
+                confirmed = await _page.EvaluateAsync<bool>(
                 """
                 () => {
                   const dialog = document.querySelector('div.resourceTransferDialog')
@@ -349,6 +371,7 @@ public sealed partial class TravianClient
                   return true;
                 }
                 """);
+            }
         }
         catch (TimeoutException)
         {

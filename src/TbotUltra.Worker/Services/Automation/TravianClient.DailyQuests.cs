@@ -60,7 +60,27 @@ public sealed partial class TravianClient
     {
         try
         {
-            var clicked = await _page.EvaluateAsync<bool>(
+            var hasClaimableSignal = await _page.EvaluateAsync<bool>(
+                """
+                () => {
+                  const link = document.querySelector('a.dailyQuests');
+                  const indicator = link?.querySelector('.indicator');
+                  return !!link && (indicator?.textContent || '').trim() === '!';
+                }
+                """);
+            if (!hasClaimableSignal)
+            {
+                return false;
+            }
+
+            var clicked = await TryClickFirstVisibleEnabledAsync(
+                "a.dailyQuests",
+                cancellationToken,
+                reason: "open daily quests");
+            if (!clicked)
+            {
+                await DelayBeforeClickAsync(cancellationToken, "open daily quests fallback");
+                clicked = await _page.EvaluateAsync<bool>(
                 """
                 () => {
                   const link = document.querySelector('a.dailyQuests');
@@ -73,6 +93,7 @@ public sealed partial class TravianClient
                   return true;
                 }
                 """);
+            }
             if (!clicked)
             {
                 return false;
@@ -129,7 +150,14 @@ public sealed partial class TravianClient
         try
         {
             await WaitForDailyQuestCollectRewardsButtonAsync(cancellationToken);
-            var clicked = await _page.EvaluateAsync<bool>(
+            var clicked = await TryClickFirstVisibleEnabledAsync(
+                "button.textButtonV2.collectRewards, button.collectRewards",
+                cancellationToken,
+                reason: "daily quest collect rewards");
+            if (!clicked)
+            {
+                await DelayBeforeClickAsync(cancellationToken, "daily quest collect rewards fallback");
+                clicked = await _page.EvaluateAsync<bool>(
                 """
                 () => {
                   const button = document.querySelector('button.textButtonV2.collectRewards, button.collectRewards');
@@ -141,6 +169,7 @@ public sealed partial class TravianClient
                   return true;
                 }
                 """);
+            }
             if (clicked)
             {
                 await ApplyCollectStepDelayAsync(cancellationToken);
@@ -229,11 +258,19 @@ public sealed partial class TravianClient
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
             bool clicked;
             try
             {
-                clicked = await _page.EvaluateAsync<bool>(
+                clicked = await TryClickFirstVisibleEnabledAsync(
+                    "button.textButtonV2.collect.collectable, button.collect.collectable",
+                    cancellationToken,
+                    requiredText: "Collect",
+                    requireExactText: true,
+                    reason: "daily quest collect reward");
+                if (!clicked)
+                {
+                    await DelayBeforeClickAsync(cancellationToken, "daily quest collect reward fallback");
+                    clicked = await _page.EvaluateAsync<bool>(
                     """
                     () => {
                       const isVisible = element => {
@@ -262,6 +299,7 @@ public sealed partial class TravianClient
                       return false;
                     }
                     """);
+                }
             }
             catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
             {
@@ -285,8 +323,15 @@ public sealed partial class TravianClient
     {
         try
         {
-            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
-            var clicked = await _page.EvaluateAsync<bool>(
+            var clicked = await TryClickFirstVisibleEnabledAsync(
+                ".dailyQuestsDialog .dialogCancelButton, .dialogCancelButton.cancel",
+                cancellationToken,
+                reason: "close daily quests",
+                timeoutMs: 2000);
+            if (!clicked)
+            {
+                await DelayBeforeClickAsync(cancellationToken, "close daily quests fallback");
+                clicked = await _page.EvaluateAsync<bool>(
                 """
                 () => {
                   const close = document.querySelector('.dailyQuestsDialog .dialogCancelButton, .dialogCancelButton.cancel');
@@ -297,6 +342,7 @@ public sealed partial class TravianClient
                   return true;
                 }
                 """);
+            }
             if (clicked)
             {
                 await Task.Delay(300, cancellationToken);

@@ -2830,8 +2830,15 @@ public sealed partial class TravianClient
     private async Task<bool> ClickHeroSaveChangesAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
-        var saved = await _page.EvaluateAsync<bool>(
+        var saved = await TryClickFirstVisibleEnabledAsync(
+            "button, input[type='submit'], a, .button-container",
+            cancellationToken,
+            requiredText: "Save changes",
+            reason: "hero save changes");
+        if (!saved)
+        {
+            await DelayBeforeClickAsync(cancellationToken, "hero save changes fallback");
+            saved = await _page.EvaluateAsync<bool>(
             """
             () => {
               const candidates = Array.from(document.querySelectorAll('button, input[type="submit"], a, .button-container'));
@@ -2846,6 +2853,7 @@ public sealed partial class TravianClient
               return true;
             }
             """);
+        }
 
         if (!saved)
         {
