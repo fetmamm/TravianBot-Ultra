@@ -162,9 +162,14 @@ public partial class MainWindow
         {
             Owner = this,
         };
-        window.ShowDialog();
+        var saved = window.ShowDialog() == true;
         LoadConfigToUi();
         ConfigureSessionPacerFromConfig();
+        if (saved)
+        {
+            LogConservativeAutomationWarnings(LoadBotOptions());
+        }
+
         if (window.SleepNowRequested)
         {
             RequestManualSessionSleep();

@@ -233,6 +233,9 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
   eller retarget:a. Account scan pausar runnern utan att rensa kon och aterstartar endast om aterstallningen bekraftades.
 - Pause bevarar sessionens aterstaende pacing; endast Stop/reset nollstaller den. Continuous toggle kan vara
   pa medan runner ar pausad; knappen visar da `Start bot`.
+- Conservative automation defaults ska vara styrande for nya/reset-installningar: session pacing pa
+  (90 min run, 45 min sleep, 40% variation, 18h daily max), action pacing pa, farming dispatch 20m/20%.
+  High-volume scans och keep-alive ska ha jitter/pacing och far inte infora zero-delay bursts.
 - Huvudfonstrets gemensamma `BusyOverlay` ska alltid doljas i operationens `finally`.
 - Diagnostisk pacing loggas med `[pacing]`, men viktiga sleep/wake-handelser ska vara synliga i Clean mode.
   Cached currency pa sidor utan valuta ar verbose; avsaknad av bade live- och cachevarde ar alarm.

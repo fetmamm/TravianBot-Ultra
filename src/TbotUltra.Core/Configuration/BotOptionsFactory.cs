@@ -34,6 +34,10 @@ public static class BotOptionsFactory
         var heroStatPriority = string.IsNullOrWhiteSpace(configuration[BotOptionPayloadKeys.HeroStatPriority])
             ? DefaultHeroStatPriority
             : configuration[BotOptionPayloadKeys.HeroStatPriority]!;
+        var legacyHumanLikeEnabled = configuration.GetValue("human_like_enabled", false);
+        var legacyHumanLikeSpeed = configuration["human_like_speed"] ?? "medium";
+        var actionPacingEnabled = ResolveActionPacingEnabled(configuration, legacyHumanLikeEnabled);
+        var actionPacingDefaults = ResolveActionPacingFallbacks(legacyHumanLikeEnabled, legacyHumanLikeSpeed);
 
         return new BotOptions
         {
@@ -127,21 +131,21 @@ public static class BotOptionsFactory
             ReinforcementsSendIntervalHours = reinforcementsSendIntervalHours,
             ReinforcementsSendVariationPercent = reinforcementsSendVariationPercent,
             GithubReleasesUrl = configuration["github_releases_url"] ?? string.Empty,
-            HumanLikeEnabled = configuration.GetValue("human_like_enabled", false),
-            HumanLikeSpeed = configuration["human_like_speed"] ?? "medium",
-            ActionPacingEnabled = configuration.GetValue(BotOptionPayloadKeys.ActionPacingEnabled, PacingDefaults.ActionPacingEnabled),
-            ActionPacingTaskMinSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingTaskMinSeconds, PacingDefaults.ActionPacingTaskMinSeconds)),
-            ActionPacingTaskMaxSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingTaskMaxSeconds, PacingDefaults.ActionPacingTaskMaxSeconds)),
-            ActionPacingPageLoadMinSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingPageLoadMinSeconds, PacingDefaults.ActionPacingPageLoadMinSeconds)),
-            ActionPacingPageLoadMaxSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingPageLoadMaxSeconds, PacingDefaults.ActionPacingPageLoadMaxSeconds)),
-            ActionPacingClickMinSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingClickMinSeconds, PacingDefaults.ActionPacingClickMinSeconds)),
-            ActionPacingClickMaxSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingClickMaxSeconds, PacingDefaults.ActionPacingClickMaxSeconds)),
-            ActionPacingLoopMinSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingLoopMinSeconds, PacingDefaults.ActionPacingLoopMinSeconds)),
-            ActionPacingLoopMaxSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingLoopMaxSeconds, PacingDefaults.ActionPacingLoopMaxSeconds)),
-            FarmListStepDelayMinSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.FarmListStepDelayMinSeconds, PacingDefaults.FarmListStepDelayMinSeconds)),
+            HumanLikeEnabled = legacyHumanLikeEnabled,
+            HumanLikeSpeed = legacyHumanLikeSpeed,
+            ActionPacingEnabled = actionPacingEnabled,
+            ActionPacingTaskMinSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingTaskMinSeconds, actionPacingDefaults.TaskMinSeconds)),
+            ActionPacingTaskMaxSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingTaskMaxSeconds, actionPacingDefaults.TaskMaxSeconds)),
+            ActionPacingPageLoadMinSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingPageLoadMinSeconds, actionPacingDefaults.PageLoadMinSeconds)),
+            ActionPacingPageLoadMaxSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingPageLoadMaxSeconds, actionPacingDefaults.PageLoadMaxSeconds)),
+            ActionPacingClickMinSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingClickMinSeconds, actionPacingDefaults.ClickMinSeconds)),
+            ActionPacingClickMaxSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingClickMaxSeconds, actionPacingDefaults.ClickMaxSeconds)),
+            ActionPacingLoopMinSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingLoopMinSeconds, actionPacingDefaults.LoopMinSeconds)),
+            ActionPacingLoopMaxSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingLoopMaxSeconds, actionPacingDefaults.LoopMaxSeconds)),
+            FarmListStepDelayMinSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.FarmListStepDelayMinSeconds, actionPacingDefaults.FarmListMinSeconds)),
             FarmListStepDelayMaxSeconds = Math.Max(
-                ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.FarmListStepDelayMinSeconds, PacingDefaults.FarmListStepDelayMinSeconds)),
-                ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.FarmListStepDelayMaxSeconds, PacingDefaults.FarmListStepDelayMaxSeconds))),
+                ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.FarmListStepDelayMinSeconds, actionPacingDefaults.FarmListMinSeconds)),
+                ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.FarmListStepDelayMaxSeconds, actionPacingDefaults.FarmListMaxSeconds))),
             TargetVillageName = configuration[BotOptionPayloadKeys.TargetVillageName] ?? string.Empty,
             TargetVillageUrl = configuration[BotOptionPayloadKeys.TargetVillageUrl] ?? string.Empty,
             AllowGoldSpending = GetValueOrDefault(configuration, BotOptionPayloadKeys.AllowGoldSpending, defaultValue: false),
@@ -368,6 +372,43 @@ public static class BotOptionsFactory
             : configuration.GetValue(key, defaultValue);
     }
 
+    private static bool ResolveActionPacingEnabled(IConfiguration configuration, bool legacyHumanLikeEnabled)
+    {
+        if (configuration[BotOptionPayloadKeys.ActionPacingEnabled] is not null)
+        {
+            return configuration.GetValue(BotOptionPayloadKeys.ActionPacingEnabled, PacingDefaults.ActionPacingEnabled);
+        }
+
+        return legacyHumanLikeEnabled || PacingDefaults.ActionPacingEnabled;
+    }
+
+    private static ActionPacingFallbacks ResolveActionPacingFallbacks(bool legacyHumanLikeEnabled, string? legacyHumanLikeSpeed)
+    {
+        if (!legacyHumanLikeEnabled)
+        {
+            return ActionPacingFallbacks.Default;
+        }
+
+        var (legacyMin, legacyMax) = legacyHumanLikeSpeed?.Trim().ToLowerInvariant() switch
+        {
+            "slow" => (2.5, 5.0),
+            "fast" => (0.3, 1.0),
+            _ => (1.0, 2.5),
+        };
+
+        return new ActionPacingFallbacks(
+            Math.Max(PacingDefaults.ActionPacingTaskMinSeconds, legacyMin),
+            Math.Max(PacingDefaults.ActionPacingTaskMaxSeconds, legacyMax),
+            Math.Max(PacingDefaults.ActionPacingPageLoadMinSeconds, legacyMin),
+            Math.Max(PacingDefaults.ActionPacingPageLoadMaxSeconds, legacyMax),
+            Math.Max(PacingDefaults.ActionPacingClickMinSeconds, legacyMin),
+            Math.Max(PacingDefaults.ActionPacingClickMaxSeconds, legacyMax),
+            PacingDefaults.ActionPacingLoopMinSeconds,
+            PacingDefaults.ActionPacingLoopMaxSeconds,
+            Math.Max(PacingDefaults.FarmListStepDelayMinSeconds, legacyMin),
+            Math.Max(PacingDefaults.FarmListStepDelayMaxSeconds, legacyMax));
+    }
+
     private static double ClampDelaySeconds(double value)
     {
         if (double.IsNaN(value) || double.IsInfinity(value))
@@ -386,5 +427,30 @@ public static class BotOptionsFactory
             .GroupBy(rule => $"{rule.AccountName}\u001f{rule.SourceVillageName}\u001f{rule.TroopType}", StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
             .ToList();
+    }
+
+    private sealed record ActionPacingFallbacks(
+        double TaskMinSeconds,
+        double TaskMaxSeconds,
+        double PageLoadMinSeconds,
+        double PageLoadMaxSeconds,
+        double ClickMinSeconds,
+        double ClickMaxSeconds,
+        double LoopMinSeconds,
+        double LoopMaxSeconds,
+        double FarmListMinSeconds,
+        double FarmListMaxSeconds)
+    {
+        public static ActionPacingFallbacks Default { get; } = new(
+            PacingDefaults.ActionPacingTaskMinSeconds,
+            PacingDefaults.ActionPacingTaskMaxSeconds,
+            PacingDefaults.ActionPacingPageLoadMinSeconds,
+            PacingDefaults.ActionPacingPageLoadMaxSeconds,
+            PacingDefaults.ActionPacingClickMinSeconds,
+            PacingDefaults.ActionPacingClickMaxSeconds,
+            PacingDefaults.ActionPacingLoopMinSeconds,
+            PacingDefaults.ActionPacingLoopMaxSeconds,
+            PacingDefaults.FarmListStepDelayMinSeconds,
+            PacingDefaults.FarmListStepDelayMaxSeconds);
     }
 }

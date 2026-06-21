@@ -1,4 +1,5 @@
 using TbotUltra.Desktop.Services;
+using Xunit;
 
 namespace TbotUltra.Desktop.Tests;
 

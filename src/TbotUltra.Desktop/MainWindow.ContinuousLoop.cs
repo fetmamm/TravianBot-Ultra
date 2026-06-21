@@ -1124,17 +1124,32 @@ public partial class MainWindow
 
     private void MarkContinuousBrowserActivity()
     {
-        _lastContinuousBrowserActivityUtc = DateTimeOffset.UtcNow;
+        var now = DateTimeOffset.UtcNow;
+        _lastContinuousBrowserActivityUtc = now;
+        _nextContinuousKeepAliveAtUtc = now.Add(ResolveContinuousKeepAliveDelay());
     }
 
-    // Keep the Travian page from going stale while the loop is idle-waiting. If no task has touched
-    // the browser for ContinuousKeepAliveIntervalSeconds (~1 min), reload the page the program is
-    // currently on so the session stays live and Travian never shows stale/wrong values. Throttled,
-    // so it never fires more than once per interval — not spammy.
+    private static TimeSpan ResolveContinuousKeepAliveDelay()
+    {
+        return TimeSpan.FromSeconds(Random.Shared.Next(
+            ContinuousKeepAliveMinIntervalSeconds,
+            ContinuousKeepAliveMaxIntervalSeconds + 1));
+    }
+
+    // Keep the Travian page from going stale while the loop is idle-waiting, but only when queued work is
+    // due soon. Long idle periods should stay idle instead of refreshing on a fixed robotic cadence.
     private async Task MaybeKeepBrowserFreshDuringContinuousLoopAsync(BotOptions options, CancellationToken token)
     {
         var now = DateTimeOffset.UtcNow;
-        if (now - _lastContinuousBrowserActivityUtc < TimeSpan.FromSeconds(ContinuousKeepAliveIntervalSeconds))
+        if (_nextContinuousKeepAliveAtUtc == DateTimeOffset.MinValue)
+        {
+            var anchor = _lastContinuousBrowserActivityUtc == DateTimeOffset.MinValue
+                ? now
+                : _lastContinuousBrowserActivityUtc;
+            _nextContinuousKeepAliveAtUtc = anchor.Add(ResolveContinuousKeepAliveDelay());
+        }
+
+        if (now < _nextContinuousKeepAliveAtUtc)
         {
             return;
         }
@@ -1161,6 +1176,13 @@ public partial class MainWindow
             return;
         }
 
+        if (!HasContinuousLoopWorkDueSoon(now))
+        {
+            _nextContinuousKeepAliveAtUtc = now.Add(ResolveContinuousKeepAliveDelay());
+            AppendLog("[keep-alive:verbose] skipped because no continuous-loop work is due soon.");
+            return;
+        }
+
         MarkContinuousBrowserActivity();
 
         try
@@ -1181,6 +1203,20 @@ public partial class MainWindow
             }
 
             AppendLog($"Continuous loop keep-alive refresh failed: {ex.Message}");
+        }
+    }
+
+    private bool HasContinuousLoopWorkDueSoon(DateTimeOffset now)
+    {
+        try
+        {
+            var dueBefore = now.AddSeconds(ContinuousKeepAliveDueSoonSeconds);
+            return GetContinuousLoopRelevantQueueItems()
+                .Any(item => item.Status == QueueStatus.Pending && item.NextAttemptAt <= dueBefore);
+        }
+        catch
+        {
+            return true;
         }
     }
 
@@ -1237,6 +1273,8 @@ public partial class MainWindow
                     {
                         break;
                     }
+
+                    await ApplyPostTaskCooldownAsync(next, options, token);
                 }
                 else
                 {
@@ -1368,6 +1406,7 @@ public partial class MainWindow
         var runId = System.Threading.Interlocked.Increment(ref _operationCounter);
         // Each run starts a fresh village rotation so it does not resume mid-drain on a stale village.
         _autoQueueRotationVillageKey = null;
+        LogConservativeAutomationWarnings(AutomationExecutionOptions.WithoutImplicitVillageTarget(LoadBotOptions()));
         AppendLog($"[AUTOQ {runId}] START");
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -1467,6 +1506,85 @@ public partial class MainWindow
             {
                 return;
             }
+
+            await ApplyPostTaskCooldownAsync(next, options, cancellationToken);
+        }
+    }
+
+    private Task ApplyPostTaskCooldownAsync(QueueItem item, BotOptions options, CancellationToken cancellationToken)
+    {
+        if (!IsStateChangingTask(item.TaskName))
+        {
+            return Task.CompletedTask;
+        }
+
+        return ActionPacer.FromOptions(options, AppendLog).DelayAsync(
+            options.ActionPacingTaskMinSeconds,
+            options.ActionPacingTaskMaxSeconds,
+            cancellationToken,
+            $"after state-changing task '{item.TaskName}'");
+    }
+
+    private static bool IsStateChangingTask(string taskName)
+    {
+        return !taskName.Equals("status", StringComparison.OrdinalIgnoreCase)
+            && !taskName.Equals("scan_all_villages", StringComparison.OrdinalIgnoreCase)
+            && !taskName.Equals("account_snapshot", StringComparison.OrdinalIgnoreCase)
+            && !taskName.Equals("load_buildings_snapshot", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void LogConservativeAutomationWarnings(BotOptions options)
+    {
+        var warnings = new List<string>();
+        if (!options.ActionPacingEnabled)
+        {
+            warnings.Add("[conservative] action pacing is disabled; automation can run faster than the conservative defaults.");
+        }
+
+        try
+        {
+            var config = _botConfigStore.Load();
+            var dailyMaxHours = ReadInt(
+                config,
+                BotOptionPayloadKeys.SessionPacingDailyMaxHours,
+                PacingDefaults.SessionPacingDailyMaxHours,
+                0,
+                24);
+            if (dailyMaxHours <= 0)
+            {
+                warnings.Add("[conservative] session daily max is disabled; default is 18h.");
+            }
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"[conservative] could not verify session daily max: {ex.Message}");
+        }
+
+        if (options.ContinuousFarmDispatchDelayMinutes < 10)
+        {
+            warnings.Add($"[conservative] farming dispatch delay is {options.ContinuousFarmDispatchDelayMinutes}m; recommended minimum is 10m.");
+        }
+
+        if (string.Equals(options.ContinuousFarmSendMode, FarmingDefaults.SendModeAllAtOnce, StringComparison.Ordinal))
+        {
+            warnings.Add("[conservative] farming send mode is all-at-once; list-per-list is the conservative default.");
+        }
+
+        if (options.CaptchaAutoSolveEnabled)
+        {
+            warnings.Add("[conservative] captcha auto-solve is enabled; default is manual verification.");
+        }
+
+        var signature = string.Join("|", warnings);
+        if (string.Equals(signature, _lastConservativeAutomationWarningSignature, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _lastConservativeAutomationWarningSignature = signature;
+        foreach (var warning in warnings)
+        {
+            AppendLog(warning);
         }
     }
 }

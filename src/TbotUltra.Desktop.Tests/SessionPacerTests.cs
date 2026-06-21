@@ -1,3 +1,4 @@
+using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Services.Orchestration;
 using Xunit;
 
@@ -5,6 +6,16 @@ namespace TbotUltra.Desktop.Tests;
 
 public sealed class SessionPacerTests
 {
+    [Fact]
+    public void PacingDefaults_UseConservativeSessionDefaults()
+    {
+        Assert.True(PacingDefaults.SessionPacingEnabled);
+        Assert.Equal(90, PacingDefaults.SessionPacingMaxRunMinutes);
+        Assert.Equal(45, PacingDefaults.SessionPacingSleepMinutes);
+        Assert.Equal(40, PacingDefaults.SessionPacingVariationPercent);
+        Assert.Equal(18, PacingDefaults.SessionPacingDailyMaxHours);
+    }
+
     [Fact]
     public void SleepingStatusText_ShowsResumeCountdown()
     {

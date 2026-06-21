@@ -465,6 +465,59 @@ public sealed class BotOptionsPayloadApplierTests
     }
 
     [Fact]
+    public void FromConfiguration_UsesConservativePacingDefaults()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["server_name"] = "srv",
+                ["base_url"] = "https://example.com",
+            })
+            .Build();
+
+        var options = BotOptionsFactory.FromConfiguration(configuration);
+
+        Assert.True(options.ActionPacingEnabled);
+        Assert.Equal(3.0, options.ActionPacingTaskMinSeconds);
+        Assert.Equal(8.0, options.ActionPacingTaskMaxSeconds);
+        Assert.Equal(1.0, options.ActionPacingPageLoadMinSeconds);
+        Assert.Equal(2.5, options.ActionPacingPageLoadMaxSeconds);
+        Assert.Equal(0.8, options.ActionPacingClickMinSeconds);
+        Assert.Equal(2.0, options.ActionPacingClickMaxSeconds);
+        Assert.Equal(10.0, options.ActionPacingLoopMinSeconds);
+        Assert.Equal(30.0, options.ActionPacingLoopMaxSeconds);
+        Assert.Equal(1.5, options.FarmListStepDelayMinSeconds);
+        Assert.Equal(4.0, options.FarmListStepDelayMaxSeconds);
+        Assert.Equal(800, options.CollectStepDelayMinMs);
+        Assert.Equal(2500, options.CollectStepDelayMaxMs);
+    }
+
+    [Fact]
+    public void FromConfiguration_MapsLegacyHumanLikeToActionPacingFallback()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["server_name"] = "srv",
+                ["base_url"] = "https://example.com",
+                ["human_like_enabled"] = "true",
+                ["human_like_speed"] = "slow",
+            })
+            .Build();
+
+        var options = BotOptionsFactory.FromConfiguration(configuration);
+
+        Assert.True(options.HumanLikeEnabled);
+        Assert.True(options.ActionPacingEnabled);
+        Assert.Equal(3.0, options.ActionPacingTaskMinSeconds);
+        Assert.Equal(8.0, options.ActionPacingTaskMaxSeconds);
+        Assert.Equal(2.5, options.ActionPacingClickMinSeconds);
+        Assert.Equal(5.0, options.ActionPacingClickMaxSeconds);
+        Assert.Equal(2.5, options.FarmListStepDelayMinSeconds);
+        Assert.Equal(5.0, options.FarmListStepDelayMaxSeconds);
+    }
+
+    [Fact]
     public void Apply_OverridesFarmingRuntimeSettings()
     {
         var source = new BotOptions

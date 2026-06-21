@@ -1360,9 +1360,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                     _ => 10,
                 };
                 Notify($"{stepPrefix} Sent {(raidAttack ? "raid" : "normal attack")} to ({coordinate.X}|{coordinate.Y}) with {sendResult.SentTroopCount}/{troopCount}±{normalizedVariancePercent}% {troopType.Trim()} (Available: {FormatLargeCount(sendResult.AvailableTroopCount)}).");
-                if (_config.HumanLikeEnabled)
-
-                await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
+                await DelayFarmListStepAsync(cancellationToken);
                 
                 continue;
             }
@@ -3113,22 +3111,11 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
     private async Task ApplyActionDelayAsync(CancellationToken cancellationToken)
     {
-        if (!_config.HumanLikeEnabled)
-        {
-            return;
-        }
-
-        var ranges = new Dictionary<string, (double low, double high)>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["slow"] = (2.5, 5.0),
-            ["medium"] = (1.0, 2.5),
-            ["fast"] = (0.3, 1.0),
-        };
-
-        var speed = _config.HumanLikeSpeed ?? "medium";
-        var selectedRange = ranges.TryGetValue(speed, out var range) ? range : ranges["medium"];
-        var delayMs = Random.Shared.Next((int)(selectedRange.low * 1000), (int)(selectedRange.high * 1000));
-        await Task.Delay(delayMs, cancellationToken);
+        await ActionPacer.FromOptions(_config, Notify).DelayAsync(
+            _config.ActionPacingTaskMinSeconds,
+            _config.ActionPacingTaskMaxSeconds,
+            cancellationToken,
+            "between actions");
     }
 
     private async Task<IReadOnlyList<Village>> ReadVillagesAsync(CancellationToken cancellationToken)

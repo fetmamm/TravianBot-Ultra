@@ -68,6 +68,7 @@ public partial class MainWindow
         StartLoopButton.IsEnabled = true;
         SetLoopIndicator(true);
         AppendLog($"Loop started. Interval={initialOptions.LoopIntervalSeconds}s");
+        LogConservativeAutomationWarnings(initialOptions);
         NotifySessionPacingAutomationStarted();
 
         _loopTask = Task.Run(() => RunContinuousLoopAsync(token), token);

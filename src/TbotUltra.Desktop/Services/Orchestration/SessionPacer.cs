@@ -1,4 +1,5 @@
 using System.Windows.Threading;
+using TbotUltra.Core.Configuration;
 
 namespace TbotUltra.Desktop.Services.Orchestration;
 
@@ -35,7 +36,12 @@ public sealed class SessionPacer
 {
     private readonly DispatcherTimer _timer;
     private readonly Func<DateTimeOffset> _now;
-    private SessionPacerSettings _settings = new(true, 120, 30, 30);
+    private SessionPacerSettings _settings = new(
+        PacingDefaults.SessionPacingEnabled,
+        PacingDefaults.SessionPacingMaxRunMinutes,
+        PacingDefaults.SessionPacingSleepMinutes,
+        PacingDefaults.SessionPacingVariationPercent,
+        DailyMaxHours: PacingDefaults.SessionPacingDailyMaxHours);
     private HashSet<int> _allowedHours = Enumerable.Range(0, 24).ToHashSet();
     private DateTimeOffset? _runStartedAt;
     private DateTimeOffset? _runDeadline;

@@ -43,7 +43,9 @@ public partial class MainWindow : Window
     private const int MaxSessionLogFiles = 5;
     private const int ContinuousLoopMaxSleepSliceSeconds = 1;
     private const int ContinuousInboxCheckIntervalSeconds = 15;
-    private const int ContinuousKeepAliveIntervalSeconds = 60;
+    private const int ContinuousKeepAliveMinIntervalSeconds = 60;
+    private const int ContinuousKeepAliveMaxIntervalSeconds = 600;
+    private const int ContinuousKeepAliveDueSoonSeconds = 120;
     private const int NpcTradeGoldCost = 3;
     private const string RuntimeManualTaskPrefix = "desktop_runtime_manual";
 
@@ -274,7 +276,9 @@ public partial class MainWindow : Window
     private bool _loginInProgress;
     private DateTimeOffset _lastContinuousInboxCheckUtc = DateTimeOffset.MinValue;
     private DateTimeOffset _lastContinuousBrowserActivityUtc = DateTimeOffset.MinValue;
+    private DateTimeOffset _nextContinuousKeepAliveAtUtc = DateTimeOffset.MinValue;
     private DateTimeOffset _lastContinuousKeepAliveFailureUtc = DateTimeOffset.MinValue;
+    private string? _lastConservativeAutomationWarningSignature;
     private volatile bool _isLoggedIn;
     private volatile bool _browserSessionLikelyOpen;
     // True only while a visible (non-headless) login is running. Lets the captcha/manual-verification
