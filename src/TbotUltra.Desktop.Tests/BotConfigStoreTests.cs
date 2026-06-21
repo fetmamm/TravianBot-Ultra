@@ -48,6 +48,7 @@ public sealed class BotConfigStoreTests : IDisposable
             BotOptionPayloadKeys.SessionPacingDailyMaxHours,
             BotOptionPayloadKeys.SessionPacingRuntimeDate,
             BotOptionPayloadKeys.SessionPacingRuntimeSeconds,
+            BotOptionPayloadKeys.SessionPacingDailyHistory,
             BotOptionPayloadKeys.ActionPacingEnabled,
             BotOptionPayloadKeys.ActionPacingTaskMinSeconds,
             BotOptionPayloadKeys.ActionPacingTaskMaxSeconds,
@@ -315,6 +316,14 @@ public sealed class BotConfigStoreTests : IDisposable
         config[BotOptionPayloadKeys.SessionPacingDailyMaxHours] = 12;
         config[BotOptionPayloadKeys.SessionPacingRuntimeDate] = "2026-06-14";
         config[BotOptionPayloadKeys.SessionPacingRuntimeSeconds] = 3600;
+        config[BotOptionPayloadKeys.SessionPacingDailyHistory] = new JsonArray(
+            new JsonObject
+            {
+                ["date"] = "2026-06-14",
+                ["online_seconds"] = 3600,
+                ["limit_seconds"] = 43200,
+                ["daily_max_hours"] = 12,
+            });
         config[BotOptionPayloadKeys.ActionPacingTaskMinSeconds] = 2.5;
 
         store.Save(config);
@@ -324,6 +333,7 @@ public sealed class BotConfigStoreTests : IDisposable
         Assert.False(global.ContainsKey(BotOptionPayloadKeys.SessionPacingVariationPercent));
         Assert.False(global.ContainsKey(BotOptionPayloadKeys.SessionPacingAllowedHours));
         Assert.False(global.ContainsKey(BotOptionPayloadKeys.SessionPacingDailyMaxHours));
+        Assert.False(global.ContainsKey(BotOptionPayloadKeys.SessionPacingDailyHistory));
         Assert.False(global.ContainsKey(BotOptionPayloadKeys.ActionPacingTaskMinSeconds));
 
         var account = JsonNode.Parse(File.ReadAllText(AccountStoragePaths.AccountSettingsPath(_root, "alice")))!.AsObject();
@@ -332,6 +342,7 @@ public sealed class BotConfigStoreTests : IDisposable
         Assert.Equal(12, account[BotOptionPayloadKeys.SessionPacingDailyMaxHours]!.GetValue<int>());
         Assert.Equal("2026-06-14", account[BotOptionPayloadKeys.SessionPacingRuntimeDate]!.GetValue<string>());
         Assert.Equal(3600, account[BotOptionPayloadKeys.SessionPacingRuntimeSeconds]!.GetValue<int>());
+        Assert.NotNull(account[BotOptionPayloadKeys.SessionPacingDailyHistory]);
         Assert.Equal(2.5, account[BotOptionPayloadKeys.ActionPacingTaskMinSeconds]!.GetValue<double>());
     }
 

@@ -323,6 +323,18 @@
                         <Setter Property="VerticalAlignment" Value="Center" />
                         <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
                     </Style>
+                    <Style x:Key="DailyMetricLabel" TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
+                        <Setter Property="FontSize" Value="10" />
+                        <Setter Property="VerticalAlignment" Value="Center" />
+                    </Style>
+                    <Style x:Key="DailyMetricValue" TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                        <Setter Property="FontSize" Value="11" />
+                        <Setter Property="FontWeight" Value="SemiBold" />
+                        <Setter Property="HorizontalAlignment" Value="Right" />
+                        <Setter Property="VerticalAlignment" Value="Center" />
+                    </Style>
                 </Grid.Resources>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -334,7 +346,7 @@
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
                     <!-- Session pacing / Next sleep (background pulses via code) -->
                     <!-- Fixed width so the card does not resize as the status text/Run now button changes. -->
-                    <Border x:Name="SessionPacingBorder" Style="{StaticResource MetricCard}" Width="186">
+                    <Border x:Name="SessionPacingBorder" Style="{StaticResource MetricCard}" Width="176">
                         <StackPanel>
                             <TextBlock Text="Session" Style="{StaticResource MetricLabel}" />
                             <StackPanel Orientation="Horizontal">
@@ -363,8 +375,44 @@
                         </StackPanel>
                     </Border>
 
+                    <Border x:Name="DailyPacingBorder" Style="{StaticResource MetricCard}" Width="176">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Online today" Style="{StaticResource DailyMetricLabel}" />
+                                <TextBlock x:Name="DailyOnlineTextBlock" Grid.Row="0" Grid.Column="1" Text="00:00" Style="{StaticResource DailyMetricValue}" Margin="8,0,4,0" />
+                                <Button x:Name="DailyPacingDetailsButton"
+                                        Grid.Row="0"
+                                        Grid.Column="2"
+                                        Content="&#xE713;"
+                                        FontFamily="Segoe MDL2 Assets"
+                                        Padding="0"
+                                        Width="18"
+                                        Height="18"
+                                        MinHeight="0"
+                                        FontSize="10"
+                                        VerticalAlignment="Center"
+                                        ToolTip="Daily details"
+                                        Click="DailyPacingDetailsButton_Click" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Time left" Style="{StaticResource DailyMetricLabel}" />
+                                <TextBlock x:Name="DailyLeftTextBlock" Grid.Row="1" Grid.Column="1" Text="-" Style="{StaticResource DailyMetricValue}" Margin="8,0,4,0" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Daily limit" Style="{StaticResource DailyMetricLabel}" />
+                                <TextBlock x:Name="DailyLimitTextBlock" Grid.Row="2" Grid.Column="1" Text="-" Style="{StaticResource DailyMetricValue}" Margin="8,0,4,0" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
                     <!-- Fixed width so the clock value does not jiggle the card as the time updates. -->
-                    <Border Style="{StaticResource MetricCard}" Width="180">
+                    <Border Style="{StaticResource MetricCard}" Width="152">
                         <StackPanel>
                             <TextBlock Text="Time" Style="{StaticResource MetricLabel}" />
                             <StackPanel Orientation="Horizontal">
@@ -625,7 +673,7 @@
                         <DockPanel Grid.Row="0" Margin="0,0,0,10" LastChildFill="False">
                             <TextBlock DockPanel.Dock="Left" Text="Dashboard" FontSize="32" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
                             <Button DockPanel.Dock="Right" x:Name="ResetProgramButton" Height="32" Content="Reset program" Background="{DynamicResource WarningButtonBgBrush}" Foreground="{DynamicResource OnWarningBrush}" BorderBrush="{DynamicResource WarningBorderBrush}" VerticalAlignment="Center" Margin="12,0,0,0" Click="ResetProgramButton_Click"
-                                    ToolTip="Restart the program: stops all running tasks, clears the queue, closes the browser session, and resets to the just-started state. Your saved login is kept — just press Login to start a new session." />
+                                    ToolTip="Restart the browser session: stops running tasks and closes Chromium. Account, settings, queue, cached villages, and saved login are kept." />
                         </DockPanel>
 
                         <Grid Grid.Row="1" Margin="0,0,0,10" Visibility="Collapsed">

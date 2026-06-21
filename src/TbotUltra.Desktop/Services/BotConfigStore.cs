@@ -77,6 +77,7 @@ public sealed class BotConfigStore
         BotOptionPayloadKeys.SessionPacingDailyMaxHours,
         BotOptionPayloadKeys.SessionPacingRuntimeDate,
         BotOptionPayloadKeys.SessionPacingRuntimeSeconds,
+        BotOptionPayloadKeys.SessionPacingDailyHistory,
         BotOptionPayloadKeys.ActionPacingEnabled,
         BotOptionPayloadKeys.ActionPacingTaskMinSeconds,
         BotOptionPayloadKeys.ActionPacingTaskMaxSeconds,

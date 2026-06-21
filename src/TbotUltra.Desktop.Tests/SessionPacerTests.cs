@@ -161,6 +161,53 @@ public sealed class SessionPacerTests
     }
 
     [Fact]
+    public void DailyProgress_ReportsOnlineLeftAndActualLimit()
+    {
+        var now = new DateTimeOffset(2026, 6, 14, 12, 0, 0, TimeSpan.Zero);
+        var pacer = new SessionPacer(() => now);
+        pacer.Configure(new SessionPacerSettings(
+            true,
+            120,
+            30,
+            0,
+            Enumerable.Range(0, 24).ToArray(),
+            DailyMaxHours: 12,
+            RuntimeDate: new DateOnly(2026, 6, 14),
+            RuntimeSeconds: TimeSpan.FromHours(3).TotalSeconds));
+
+        var progress = pacer.GetDailyProgress();
+
+        Assert.Equal(TimeSpan.FromHours(3), progress.OnlineToday);
+        Assert.Equal(TimeSpan.FromHours(9), progress.TimeLeft);
+        Assert.Equal(TimeSpan.FromHours(12), progress.Limit);
+        Assert.Equal(12, progress.ConfiguredDailyMaxHours);
+    }
+
+    [Fact]
+    public void OnlineRuntime_StopsWhenSessionStops()
+    {
+        var now = new DateTimeOffset(2026, 6, 14, 12, 0, 0, TimeSpan.Zero);
+        var pacer = new SessionPacer(() => now);
+        pacer.Configure(new SessionPacerSettings(
+            true,
+            120,
+            30,
+            0,
+            Enumerable.Range(0, 24).ToArray(),
+            DailyMaxHours: 12));
+
+        pacer.NotifyOnlineSessionStarted();
+        now = now.AddMinutes(10);
+        _ = pacer.GetDailyProgress();
+        pacer.NotifyOnlineSessionStopped();
+        now = now.AddMinutes(10);
+
+        var progress = pacer.GetDailyProgress();
+
+        Assert.Equal(TimeSpan.FromMinutes(10), progress.OnlineToday);
+    }
+
+    [Fact]
     public void RuntimeFromPreviousDate_IsDiscarded()
     {
         var now = new DateTimeOffset(2026, 6, 14, 12, 0, 0, TimeSpan.Zero);

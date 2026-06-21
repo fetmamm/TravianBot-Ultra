@@ -4,7 +4,9 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using TbotUltra.Core.Configuration;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Desktop.Services.Orchestration;
+using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop;
 
@@ -20,6 +22,12 @@ public partial class MainWindow
     private static readonly TimeSpan PacingApproachingThreshold = TimeSpan.FromMinutes(5);
     private SolidColorBrush? _pacingBrush;
     private PacingVisual? _pacingVisualState;
+
+    private sealed record DailyPacingHistoryEntry(
+        DateOnly Date,
+        double OnlineSeconds,
+        double? LimitSeconds,
+        int DailyMaxHours);
 
     // Snapshot of what was actually running when sleep started, so wake restores the same state instead
     // of always starting the continuous loop (the toggle defaults to ON even when the bot was idle).
@@ -77,10 +85,11 @@ public partial class MainWindow
     {
         try
         {
-            var state = _sessionPacer.RuntimeState;
+            var progress = _sessionPacer.GetDailyProgress();
             var config = _botConfigStore.Load();
-            config[BotOptionPayloadKeys.SessionPacingRuntimeDate] = state.Date.ToString("yyyy-MM-dd");
-            config[BotOptionPayloadKeys.SessionPacingRuntimeSeconds] = state.RuntimeSeconds;
+            config[BotOptionPayloadKeys.SessionPacingRuntimeDate] = progress.Date.ToString("yyyy-MM-dd");
+            config[BotOptionPayloadKeys.SessionPacingRuntimeSeconds] = progress.OnlineToday.TotalSeconds;
+            UpsertDailyPacingHistory(config, progress);
             _botConfigStore.Save(config);
         }
         catch (Exception ex)
@@ -91,13 +100,27 @@ public partial class MainWindow
 
     private void NotifySessionPacingAutomationStarted()
     {
-        ConfigureSessionPacerFromConfig();
-        _sessionPacer.NotifyAutomationStarted();
+        // Session pacing follows the Travian browser login state. Automation start/stop no longer
+        // controls daily runtime, because manual online time should count too.
     }
 
     private void NotifySessionPacingAutomationStopped()
     {
-        _sessionPacer.NotifyAutomationStopped();
+        // Session pacing follows the Travian browser login state. Logging out/stopping the browser
+        // pauses the timer; stopping only the automation loop does not.
+    }
+
+    private void NotifySessionPacingOnlineStarted()
+    {
+        ConfigureSessionPacerFromConfig();
+        _sessionPacer.NotifyOnlineSessionStarted();
+        UpdateSessionPacingUi();
+    }
+
+    private void NotifySessionPacingOnlineStopped()
+    {
+        _sessionPacer.NotifyOnlineSessionStopped();
+        UpdateSessionPacingUi();
     }
 
     private void ResetSessionPacing()
@@ -255,6 +278,7 @@ public partial class MainWindow
         }
 
         SessionPacingStatusTextBlock.Text = _sessionPacer.StatusText;
+        UpdateDailyPacingUi();
         SessionPacingRunNowButton.Visibility = _sessionPacer.CanWakeNow
             ? Visibility.Visible
             : Visibility.Collapsed;
@@ -262,6 +286,242 @@ public partial class MainWindow
         ApplySessionSleepingUiState();
 
         ApplyPacingVisual(ResolvePacingVisual());
+    }
+
+    private void UpdateDailyPacingUi()
+    {
+        if (DailyOnlineTextBlock is null)
+        {
+            return;
+        }
+
+        var progress = _sessionPacer.GetDailyProgress();
+        DailyOnlineTextBlock.Text = FormatDailyProgressDuration(progress.OnlineToday);
+        DailyLeftTextBlock.Text = progress.TimeLeft is null
+            ? "-"
+            : FormatDailyProgressDuration(progress.TimeLeft.Value);
+        DailyLimitTextBlock.Text = progress.Limit is null
+            ? "Off"
+            : FormatDailyProgressDuration(progress.Limit.Value);
+
+        DailyPacingBorder.ToolTip = progress.Limit is null
+            ? "Daily max is disabled."
+            : $"Configured daily max: {progress.ConfiguredDailyMaxHours}h\nActual limit today: {FormatDailyProgressDuration(progress.Limit.Value)}\nOnline today: {FormatDailyProgressDuration(progress.OnlineToday)}";
+    }
+
+    private void DailyPacingDetailsButton_Click(object sender, RoutedEventArgs e)
+    {
+        var progress = _sessionPacer.GetDailyProgress();
+        var weekRows = BuildDailyPacingWeekRows(progress, out var weekTotalText);
+        var taskRows = BuildDailyPacingTaskRows();
+        var window = new DailyPacingDetailsWindow(
+            FormatDailyDetailsDuration(progress.OnlineToday),
+            progress.TimeLeft is null ? "Off" : FormatDailyDetailsDuration(progress.TimeLeft.Value),
+            progress.Limit is null ? "Off" : FormatDailyDetailsDuration(progress.Limit.Value),
+            weekTotalText,
+            weekRows,
+            taskRows)
+        {
+            Owner = this,
+        };
+        window.ShowDialog();
+    }
+
+    private IReadOnlyList<DailyPacingDayRow> BuildDailyPacingWeekRows(SessionPacerDailyProgress progress, out string weekTotalText)
+    {
+        var history = ReadDailyPacingHistory()
+            .ToDictionary(entry => entry.Date);
+        var rows = new List<DailyPacingDayRow>();
+        var totalOnline = TimeSpan.Zero;
+        var totalLimit = TimeSpan.Zero;
+        var hasLimit = false;
+
+        for (var date = progress.Date.AddDays(-6); date <= progress.Date; date = date.AddDays(1))
+        {
+            var online = TimeSpan.Zero;
+            TimeSpan? limit = null;
+            if (history.TryGetValue(date, out var entry))
+            {
+                online = TimeSpan.FromSeconds(Math.Max(0, entry.OnlineSeconds));
+                limit = entry.LimitSeconds is null
+                    ? null
+                    : TimeSpan.FromSeconds(Math.Max(0, entry.LimitSeconds.Value));
+            }
+
+            if (date == progress.Date)
+            {
+                online = progress.OnlineToday;
+                limit = progress.Limit;
+            }
+
+            totalOnline += online;
+            if (limit is not null)
+            {
+                totalLimit += limit.Value;
+                hasLimit = true;
+            }
+
+            rows.Add(new DailyPacingDayRow(
+                date.ToString("yyyy-MM-dd"),
+                FormatDailyProgressDuration(online),
+                limit is null ? "Off" : FormatDailyProgressDuration(limit.Value),
+                FormatDailyUsage(online, limit)));
+        }
+
+        weekTotalText = FormatDailyUsage(totalOnline, hasLimit ? totalLimit : null);
+        return rows.OrderByDescending(row => row.Date).ToList();
+    }
+
+    private IReadOnlyList<DailyPacingTaskRow> BuildDailyPacingTaskRows()
+    {
+        var cutoff = DateTimeOffset.UtcNow.AddDays(-7);
+        var rows = _botService.GetQueueItemsForDisplay()
+            .Where(item => item.UpdatedAt >= cutoff)
+            .Where(item => item.Status is QueueStatus.Running or QueueStatus.Succeeded or QueueStatus.Failed or QueueStatus.Canceled)
+            .GroupBy(item => HumanizeTaskNameForStats(item.TaskName), StringComparer.OrdinalIgnoreCase)
+            .Select(group =>
+            {
+                var ordered = group.OrderByDescending(item => item.UpdatedAt).ToList();
+                var peakHour = ordered
+                    .GroupBy(item => item.UpdatedAt.ToLocalTime().Hour)
+                    .OrderByDescending(hourGroup => hourGroup.Count())
+                    .ThenBy(hourGroup => hourGroup.Key)
+                    .FirstOrDefault();
+                return new DailyPacingTaskRow(
+                    group.Key,
+                    ordered.Count,
+                    ordered[0].UpdatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
+                    peakHour is null ? "-" : $"{peakHour.Key:00}:00-{(peakHour.Key + 1) % 24:00}:00");
+            })
+            .OrderByDescending(row => row.Runs)
+            .ThenBy(row => row.Task, StringComparer.OrdinalIgnoreCase)
+            .Take(20)
+            .ToList();
+
+        return rows.Count > 0
+            ? rows
+            : [new DailyPacingTaskRow("No task history", 0, "-", "-")];
+    }
+
+    private void UpsertDailyPacingHistory(JsonObject config, SessionPacerDailyProgress progress)
+    {
+        var cutoff = progress.Date.AddDays(-6);
+        var entries = ReadDailyPacingHistory(config)
+            .Where(entry => entry.Date >= cutoff && entry.Date <= progress.Date)
+            .ToDictionary(entry => entry.Date);
+
+        entries[progress.Date] = new DailyPacingHistoryEntry(
+            progress.Date,
+            progress.OnlineToday.TotalSeconds,
+            progress.Limit?.TotalSeconds,
+            progress.ConfiguredDailyMaxHours);
+
+        var array = new JsonArray();
+        foreach (var entry in entries.Values.OrderBy(entry => entry.Date))
+        {
+            var obj = new JsonObject
+            {
+                ["date"] = entry.Date.ToString("yyyy-MM-dd"),
+                ["online_seconds"] = entry.OnlineSeconds,
+                ["daily_max_hours"] = entry.DailyMaxHours,
+            };
+            if (entry.LimitSeconds is double limitSeconds)
+            {
+                obj["limit_seconds"] = limitSeconds;
+            }
+            else
+            {
+                obj["limit_seconds"] = null;
+            }
+            array.Add(obj);
+        }
+
+        config[BotOptionPayloadKeys.SessionPacingDailyHistory] = array;
+    }
+
+    private IReadOnlyList<DailyPacingHistoryEntry> ReadDailyPacingHistory()
+    {
+        try
+        {
+            return ReadDailyPacingHistory(_botConfigStore.Load());
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"[pacing] could not load daily history: {ex.Message}");
+            return [];
+        }
+    }
+
+    private static IReadOnlyList<DailyPacingHistoryEntry> ReadDailyPacingHistory(JsonObject config)
+    {
+        if (config[BotOptionPayloadKeys.SessionPacingDailyHistory] is not JsonArray array)
+        {
+            return [];
+        }
+
+        var entries = new List<DailyPacingHistoryEntry>();
+        foreach (var node in array.OfType<JsonObject>())
+        {
+            if (!DateOnly.TryParse(node["date"]?.GetValue<string>(), out var date))
+            {
+                continue;
+            }
+
+            entries.Add(new DailyPacingHistoryEntry(
+                date,
+                ReadJsonDouble(node, "online_seconds"),
+                node["limit_seconds"] is null ? null : ReadJsonDouble(node, "limit_seconds"),
+                (int)Math.Round(ReadJsonDouble(node, "daily_max_hours"))));
+        }
+
+        return entries;
+    }
+
+    private static double ReadJsonDouble(JsonObject obj, string key)
+    {
+        try
+        {
+            return obj[key]?.GetValue<double>() ?? 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    private static string FormatDailyProgressDuration(TimeSpan value)
+    {
+        var totalHours = Math.Max(0, (int)value.TotalHours);
+        return $"{totalHours:00}:{value.Minutes:00}";
+    }
+
+    private static string FormatDailyDetailsDuration(TimeSpan value)
+    {
+        return $"{Math.Max(0, value.TotalHours):0.0} h ({FormatDailyProgressDuration(value)})";
+    }
+
+    private static string FormatDailyUsage(TimeSpan online, TimeSpan? limit)
+    {
+        if (limit is null || limit.Value <= TimeSpan.Zero)
+        {
+            return $"{Math.Max(0, online.TotalHours):0.0} h / Off";
+        }
+
+        var percent = Math.Clamp(online.TotalSeconds / limit.Value.TotalSeconds * 100, 0, 999);
+        return $"{Math.Max(0, online.TotalHours):0.0} / {limit.Value.TotalHours:0.0} h ({percent:0}%)";
+    }
+
+    private static string HumanizeTaskNameForStats(string taskName)
+    {
+        if (string.IsNullOrWhiteSpace(taskName))
+        {
+            return "Task";
+        }
+
+        return string.Join(
+            " ",
+            taskName.Split('_', StringSplitOptions.RemoveEmptyEntries)
+                .Select(part => char.ToUpperInvariant(part[0]) + part[1..]));
     }
 
     private void UpdateSessionPacingTooltip()

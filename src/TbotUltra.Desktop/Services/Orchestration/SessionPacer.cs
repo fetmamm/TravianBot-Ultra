@@ -32,6 +32,13 @@ public sealed record SessionPacerSettings(
 
 public sealed record SessionPacerRuntimeState(DateOnly Date, double RuntimeSeconds);
 
+public sealed record SessionPacerDailyProgress(
+    DateOnly Date,
+    TimeSpan OnlineToday,
+    TimeSpan? TimeLeft,
+    TimeSpan? Limit,
+    int ConfiguredDailyMaxHours);
+
 public sealed class SessionPacer
 {
     private readonly DispatcherTimer _timer;
@@ -149,8 +156,18 @@ public sealed class SessionPacer
         RaiseTick();
     }
 
-    public void NotifyAutomationStarted()
+    public void NotifyAutomationStarted() => NotifyOnlineSessionStarted();
+
+    public void NotifyAutomationStopped() => NotifyOnlineSessionStopped();
+
+    public void NotifyOnlineSessionStarted()
     {
+        if (_automationActive && Phase == SessionPacerPhase.Running)
+        {
+            RaiseTick();
+            return;
+        }
+
         _automationActive = true;
         _manualSleep = false;
         var now = _now();
@@ -188,8 +205,14 @@ public sealed class SessionPacer
         StartNewRun(now);
     }
 
-    public void NotifyAutomationStopped()
+    public void NotifyOnlineSessionStopped()
     {
+        if (!_automationActive)
+        {
+            RaiseTick();
+            return;
+        }
+
         UpdateRuntime(_now(), forcePersist: true);
         _automationActive = false;
         if (Phase == SessionPacerPhase.Running)
@@ -205,6 +228,24 @@ public sealed class SessionPacer
         }
 
         RaiseTick();
+    }
+
+    public SessionPacerDailyProgress GetDailyProgress()
+    {
+        var now = _now();
+        UpdateRuntime(now);
+        var limit = !_settings.Enabled || _settings.DailyMaxHours <= 0
+            ? (TimeSpan?)null
+            : TimeSpan.FromSeconds(GetDailyLimitSeconds(now));
+        var online = TimeSpan.FromSeconds(Math.Max(0, _runtimeSeconds));
+        var left = limit is null ? (TimeSpan?)null : Positive(limit.Value - online);
+
+        return new SessionPacerDailyProgress(
+            _runtimeDate,
+            online,
+            left,
+            limit,
+            _settings.DailyMaxHours);
     }
 
     public void Reset()
@@ -486,12 +527,12 @@ public sealed class SessionPacer
     private void UpdateRuntime(DateTimeOffset now, bool forcePersist = false)
     {
         UpdateRuntimeDate(now);
-        if (_automationActive && Phase == SessionPacerPhase.Running && _lastRuntimeUpdate is not null)
+        if (_automationActive && _lastRuntimeUpdate is not null)
         {
             _runtimeSeconds += Math.Max(0, (now - _lastRuntimeUpdate.Value).TotalSeconds);
         }
 
-        _lastRuntimeUpdate = _automationActive && Phase == SessionPacerPhase.Running ? now : null;
+        _lastRuntimeUpdate = _automationActive ? now : null;
         if (forcePersist || _lastRuntimePersist is null || now - _lastRuntimePersist >= TimeSpan.FromMinutes(1))
         {
             _lastRuntimePersist = now;

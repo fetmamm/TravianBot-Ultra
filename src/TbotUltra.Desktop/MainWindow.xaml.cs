@@ -1448,6 +1448,9 @@ public partial class MainWindow : Window
         }
 
         _browserSessionLikelyOpen = false;
+        _isLoggedIn = false;
+        NotifySessionPacingOnlineStopped();
+        UpdateLoginButtonsVisual(false);
 
         var now = DateTimeOffset.UtcNow;
         if ((now - _lastVerificationPopupAt).TotalSeconds < 5)
@@ -1495,6 +1498,7 @@ public partial class MainWindow : Window
             UpdateLoginButtonsVisual(true);
             _isLoggedIn = true;
             _browserSessionLikelyOpen = true;
+            NotifySessionPacingOnlineStarted();
             CompleteOperation(operationId, operationSw, "Verification browser opened.");
         }
         catch (Exception ex)

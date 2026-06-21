@@ -170,6 +170,7 @@ public partial class MainWindow
             }
 
             _browserSessionLikelyOpen = !options.Headless;
+            NotifySessionPacingOnlineStarted();
             CompleteOperation(operationId, operationSw, "Login completed.");
         }
         catch (OperationCanceledException)
@@ -290,6 +291,7 @@ public partial class MainWindow
         _isLoggedIn = false;
         _browserSessionLikelyOpen = false;
         _inboxAutoEnabled = false;
+        NotifySessionPacingOnlineStopped();
         _lastResourceStatusForUi = null;
         _resourcesViewModel.ResetStorageForecasts();
         UpdateInboxButtons(0, 0);
@@ -457,7 +459,7 @@ public partial class MainWindow
     private async Task ResetProgramButtonClickAsync()
     {
         var answer = AppDialog.Show(
-            "This will restart the program: stop running operations, clear the queue, close the browser session, and reset to the just-started state.\n\nThe program stays open and you can press Login to start a new session.\n\nContinue?",
+            "This will restart the browser session and stop running operations.\n\nYour account, settings, queue, cached villages, and saved login are kept. The program stays open and you can press Login to start a fresh browser session.\n\nContinue?",
             "Reset program",
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning,
@@ -488,9 +490,28 @@ public partial class MainWindow
                 AppendLog($"Could not close browser during reset: {ex.Message}");
             }
 
-            ClearAccountScopedUiState(clearQueue: true);
-            StatusTextBlock.Text = "Program reset. Press Login to start a new session.";
-            AppendLog("Program reset completed. Browser session closed, internal state and queue cleared. Press Login to start again.");
+            _isLoggedIn = false;
+            _browserSessionLikelyOpen = false;
+            _inboxAutoEnabled = false;
+            NotifySessionPacingOnlineStopped();
+            UpdateLoginButtonsVisual(false);
+            UpdateInboxButtons(0, 0);
+            SetLoopIndicator(false);
+            StartLoopButton.Content = "Start bot";
+            StartLoopButton.IsEnabled = true;
+            _activeAutomationTaskName = null;
+            _activeFunctionDisplayName = null;
+
+            var recovered = _botService.ResetOrphanedRunningQueueItems();
+            if (recovered > 0)
+            {
+                AppendLog($"Recovered {recovered} queue item(s) from Running to Pending after browser session reset.");
+            }
+
+            RefreshQueueUi();
+            UpdateExecutionStateIndicator();
+            StatusTextBlock.Text = "Browser session reset. Press Login to start a new session.";
+            AppendLog("Browser session reset completed. Account, settings, queue, cached villages, and saved login were kept.");
         }
         catch (Exception ex)
         {
@@ -661,6 +682,7 @@ public partial class MainWindow
         _isLoggedIn = false;
         _browserSessionLikelyOpen = false;
         _inboxAutoEnabled = false;
+        NotifySessionPacingOnlineStopped();
         UpdatePlusInfo(null);
         UpdateGoldClubInfo(null);
         TribeInfoTextBlock.Text = "-";
@@ -704,6 +726,7 @@ public partial class MainWindow
         _isLoggedIn = false;
         _browserSessionLikelyOpen = false;
         _inboxAutoEnabled = false;
+        NotifySessionPacingOnlineStopped();
         await StopAllAutomationAndWaitAsync();
 
         if (previousLoggedIn)
