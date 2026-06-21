@@ -330,8 +330,6 @@ public partial class MainWindow
             .ToDictionary(entry => entry.Date);
         var rows = new List<DailyPacingDayRow>();
         var totalOnline = TimeSpan.Zero;
-        var totalLimit = TimeSpan.Zero;
-        var hasLimit = false;
 
         for (var date = progress.Date.AddDays(-6); date <= progress.Date; date = date.AddDays(1))
         {
@@ -352,20 +350,15 @@ public partial class MainWindow
             }
 
             totalOnline += online;
-            if (limit is not null)
-            {
-                totalLimit += limit.Value;
-                hasLimit = true;
-            }
 
             rows.Add(new DailyPacingDayRow(
                 date.ToString("yyyy-MM-dd"),
-                FormatDailyProgressDuration(online),
-                limit is null ? "Off" : FormatDailyProgressDuration(limit.Value),
+                FormatDailyDetailsDuration(online),
+                limit is null ? "Off" : FormatDailyDetailsDuration(limit.Value),
                 FormatDailyUsage(online, limit)));
         }
 
-        weekTotalText = FormatDailyUsage(totalOnline, hasLimit ? totalLimit : null);
+        weekTotalText = FormatDailyDetailsDuration(totalOnline);
         return rows.OrderByDescending(row => row.Date).ToList();
     }
 
@@ -494,18 +487,19 @@ public partial class MainWindow
 
     private static string FormatDailyDetailsDuration(TimeSpan value)
     {
-        return $"{Math.Max(0, value.TotalHours):0.0} h ({FormatDailyProgressDuration(value)})";
+        var totalHours = Math.Max(0, (int)value.TotalHours);
+        return $"{totalHours}h{value.Minutes:00}min";
     }
 
     private static string FormatDailyUsage(TimeSpan online, TimeSpan? limit)
     {
         if (limit is null || limit.Value <= TimeSpan.Zero)
         {
-            return $"{Math.Max(0, online.TotalHours):0.0} h / Off";
+            return "Off";
         }
 
         var percent = Math.Clamp(online.TotalSeconds / limit.Value.TotalSeconds * 100, 0, 999);
-        return $"{Math.Max(0, online.TotalHours):0.0} / {limit.Value.TotalHours:0.0} h ({percent:0}%)";
+        return $"{percent:0}%";
     }
 
     private static string HumanizeTaskNameForStats(string taskName)

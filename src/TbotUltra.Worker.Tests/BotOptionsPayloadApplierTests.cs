@@ -490,6 +490,7 @@ public sealed class BotOptionsPayloadApplierTests
         Assert.Equal(4.0, options.FarmListStepDelayMaxSeconds);
         Assert.Equal(800, options.CollectStepDelayMinMs);
         Assert.Equal(2500, options.CollectStepDelayMaxMs);
+        Assert.False(options.IncreaseAdventuresToHard);
     }
 
     [Fact]

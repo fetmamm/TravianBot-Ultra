@@ -18,6 +18,7 @@
   "github_releases_url": "",
   "human_like_enabled": false,
   "human_like_speed": "slow",
+  "increase_adventures_to_hard": false,
   "allow_silver_spending": false,
   "silver_limit": 100,
   "troop_training_barracks_run_mode": "resource_percent",
