@@ -213,8 +213,8 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
 - Hero away avgors av travel-signaler/timer fore `heroHome`. Las `.heroState .timerReact` fore oscope:ad sidtext.
   Health kan innehalla bidi-tecken; rensa dem fore numerisk parsing.
 - Resource transfer-dialogen kan renderas i `#dialogContent` utan wrapper, ibland lamna inputs pa 0 och
-  anvanda CSS-klassen `disabled`; fyll exakt shortfall manuellt vid behov och stang alltid aktivt sa
-  kvarvarande `#dialogOverlay` inte blockerar senare klick. Efter transfer: invanta hydrerad DOM/reload.
+  anvanda CSS-klassen `disabled`; fyll exakt shortfall manuellt vid behov, klicka Official icon/confirm via
+  paced JS nar React-element ar instabila, och stang alltid aktivt sa kvarvarande `#dialogOverlay` inte blockerar senare klick. Efter transfer: invanta hydrerad DOM/reload.
 - Noll adventures ska inte automatiskt stanga av anvandarens Hero-toggle.
 - Official Add target ska fylla X och Y som separata Playwright-interaktioner. Vid Default troops ska
   koordinatfaltet blur:as och en neutral yta klickas innan flodet vantar pa aktiv Save. Stegen anvander

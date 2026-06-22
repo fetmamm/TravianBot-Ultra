@@ -165,34 +165,9 @@ public sealed partial class TravianClient
 
         try
         {
-            var opened = !preferTownHallCelebration
-                && await TryClickFirstVisibleEnabledAsync(
-                    ".upgradeBlocked .inlineIcon.resource.transfer.fillUp, .inlineIcon.resource.transfer.fillUp, .inlineIcon.resource.transfer",
-                    cancellationToken,
-                    reason: "open hero resource transfer");
-            if (!opened)
-            {
-                await DelayBeforeClickAsync(cancellationToken, "open hero resource transfer fallback");
-                opened = await _page.EvaluateAsync<bool>(
-                """
-                (preferTownHallCelebration) => {
-                  const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
-                  const findTownHallCelebrationScope = () => {
-                    const root = document.querySelector('.build_details') || document;
-                    const rows = Array.from(root.querySelectorAll('.research, tr, li, .row, .information'));
-                    return rows.find(row => /small\s+celebration/i.test(normalize(row.textContent || ''))) || root;
-                  };
-                  const root = preferTownHallCelebration ? findTownHallCelebrationScope() : document;
-                  const icon = preferTownHallCelebration
-                    ? root?.querySelector('.inlineIcon.resource.transfer.fillUp, .inlineIcon.resource.transfer[onclick], .inlineIcon.resource.transfer')
-                    : document.querySelector('.upgradeBlocked .inlineIcon.resource.transfer.fillUp, .inlineIcon.resource.transfer.fillUp, .inlineIcon.resource.transfer');
-                  if (!icon) return false;
-                  icon.click();
-                  return true;
-                }
-                """,
-                preferTownHallCelebration);
-            }
+            var opened = await TryClickHeroResourceTransferIconAsync(
+                preferTownHallCelebration,
+                cancellationToken);
             if (!opened)
             {
                 Notify($"[hero-transfer] could not click transfer icon at {label}.");
@@ -337,41 +312,9 @@ public sealed partial class TravianClient
                 """,
                 null,
                 new PageWaitForFunctionOptions { Timeout = 5000 });
-            confirmed = await TryClickFirstVisibleEnabledAsync(
-                "div.resourceTransferDialog .actionButton.preSelected button, #dialogContent .actionButton.preSelected button",
+            confirmed = await TryConfirmHeroResourceTransferDialogAsync(
                 cancellationToken,
                 reason: "confirm hero resource transfer");
-            if (!confirmed)
-            {
-                confirmed = await TryClickFirstVisibleEnabledAsync(
-                    "div.resourceTransferDialog button, #dialogContent button",
-                    cancellationToken,
-                    requiredText: "Transfer selected",
-                    reason: "confirm hero resource transfer");
-            }
-            if (!confirmed)
-            {
-                await DelayBeforeClickAsync(cancellationToken, "confirm hero resource transfer fallback");
-                confirmed = await _page.EvaluateAsync<bool>(
-                """
-                () => {
-                  const dialog = document.querySelector('div.resourceTransferDialog')
-                    || ((document.querySelector('#dialogContent h3')?.textContent || '').trim().toLowerCase() === 'transfer resources'
-                      ? document.querySelector('#dialogContent')
-                      : null);
-                  if (!dialog) return false;
-                  let button = dialog.querySelector('.actionButton.preSelected button');
-                  if (!button) {
-                    const buttons = Array.from(dialog.querySelectorAll('button'));
-                    button = buttons.find(b => /transfer selected/i.test(b.textContent || ''));
-                  }
-                  if (!button) return false;
-                  if (button.disabled || button.getAttribute('aria-disabled') === 'true' || button.classList.contains('disabled')) return false;
-                  button.click();
-                  return true;
-                }
-                """);
-            }
         }
         catch (TimeoutException)
         {
@@ -433,6 +376,95 @@ public sealed partial class TravianClient
         }
 
         return true;
+    }
+
+    private async Task<bool> TryClickHeroResourceTransferIconAsync(
+        bool preferTownHallCelebration,
+        CancellationToken cancellationToken)
+    {
+        await DelayBeforeClickAsync(cancellationToken, "open hero resource transfer");
+
+        return await _page.EvaluateAsync<bool>(
+            """
+            (preferTownHallCelebration) => {
+              const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
+              const isVisible = (node) => {
+                if (!node || !(node instanceof Element)) return false;
+                const style = window.getComputedStyle(node);
+                if (!style || style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity || '1') === 0) return false;
+                const rect = node.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+              };
+              const findTownHallCelebrationScope = () => {
+                const root = document.querySelector('.build_details') || document;
+                const rows = Array.from(root.querySelectorAll('.research, tr, li, .row, .information'));
+                return rows.find(row => /small\s+celebration/i.test(normalize(row.textContent || ''))) || root;
+              };
+              const root = preferTownHallCelebration ? findTownHallCelebrationScope() : document;
+              const selectors = preferTownHallCelebration
+                ? ['.inlineIcon.resource.transfer.fillUp', '.inlineIcon.resource.transfer[onclick]', '.inlineIcon.resource.transfer']
+                : ['.upgradeBlocked .inlineIcon.resource.transfer.fillUp', '.inlineIcon.resource.transfer.fillUp', '.inlineIcon.resource.transfer'];
+
+              for (const selector of selectors) {
+                const icons = Array.from(root?.querySelectorAll(selector) || []);
+                const icon = icons.find(isVisible);
+                if (!icon) continue;
+                icon.scrollIntoView({ block: 'center', inline: 'center' });
+                icon.click();
+                return true;
+              }
+
+              return false;
+            }
+            """,
+            preferTownHallCelebration);
+    }
+
+    private async Task<bool> TryConfirmHeroResourceTransferDialogAsync(
+        CancellationToken cancellationToken,
+        string reason)
+    {
+        await DelayBeforeClickAsync(cancellationToken, reason);
+
+        return await _page.EvaluateAsync<bool>(
+            """
+            () => {
+              const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
+              const dialog = document.querySelector('div.resourceTransferDialog')
+                || (normalize(document.querySelector('#dialogContent h3')?.textContent).toLowerCase() === 'transfer resources'
+                  ? document.querySelector('#dialogContent')
+                  : null);
+              if (!dialog) return false;
+
+              const isVisible = (node) => {
+                if (!node || !(node instanceof Element)) return false;
+                const style = window.getComputedStyle(node);
+                if (!style || style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity || '1') === 0) return false;
+                const rect = node.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+              };
+              const isEnabled = (button) => {
+                const className = String(button.className || '').toLowerCase();
+                return !button.disabled
+                  && button.getAttribute('disabled') === null
+                  && button.getAttribute('aria-disabled') !== 'true'
+                  && !className.includes('disabled');
+              };
+
+              const buttons = [
+                dialog.querySelector('.actionButton.preSelected button'),
+                ...Array.from(dialog.querySelectorAll('button'))
+              ].filter(Boolean);
+              const button = buttons.find(b => isVisible(b)
+                && isEnabled(b)
+                && (/transfer selected/i.test(b.textContent || '') || b.closest('.actionButton.preSelected')));
+              if (!button) return false;
+
+              button.scrollIntoView({ block: 'center', inline: 'center' });
+              button.click();
+              return true;
+            }
+            """);
     }
 
     private async Task<HeroInventoryResources?> TryFillHeroResourceTransferDialogAsync(

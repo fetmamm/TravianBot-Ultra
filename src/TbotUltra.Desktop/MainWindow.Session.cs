@@ -52,12 +52,14 @@ public partial class MainWindow
             AppendLog($"[{operationId}] INFO server={options.ServerName}, headless={options.Headless}");
             BrowserInfoTextBlock.Text = "Browser: starting";
 
-            // Warm the captcha solver lazily, now that we know the server. Fire-and-forget and
-            // self-gated (only runs for SS-Travi with captcha auto-solve enabled) so it never
-            // slows login on official servers.
-            _backgroundTasks.Run(
-                RunCaptchaWarmupAsync,
-                ex => AppendLog($"Captcha warmup failed: {ex.Message}"));
+            // Warm the captcha solver lazily only for SS-Travi. Official servers do not use this
+            // captcha solver, so do not enqueue a warmup that only logs a normal skip on every login.
+            if (options.IsPrivateServer && options.CaptchaAutoSolveEnabled)
+            {
+                _backgroundTasks.Run(
+                    RunCaptchaWarmupAsync,
+                    ex => AppendLog($"Captcha warmup failed: {ex.Message}"));
+            }
 
             await EnsureChromiumInstalledAsync();
             // A visible browser opens as soon as login starts. Track that in a DEDICATED flag so a

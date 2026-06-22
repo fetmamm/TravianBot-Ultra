@@ -817,6 +817,11 @@ public partial class MainWindow
             return false;
         }
 
+        if (value.Contains("captcha warmup"))
+        {
+            return false;
+        }
+
         if (value.Contains(" started]"))
         {
             return false;
