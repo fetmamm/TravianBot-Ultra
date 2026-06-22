@@ -1447,11 +1447,8 @@ public partial class MainWindow
                 }
 
                 AppendLog($"[AUTOQ {runId}] WAIT {waitDelay.TotalSeconds:F0}s for deferred task={nextDeferredItem.TaskName}");
-                try
-                {
-                    await Task.Delay(waitDelay, cancellationToken);
-                }
-                catch (OperationCanceledException)
+                var continueAutoQueue = await WaitForNextAutoQueuePassAsync(runId, waitDelay, cancellationToken);
+                if (!continueAutoQueue)
                 {
                     return;
                 }
@@ -1475,6 +1472,49 @@ public partial class MainWindow
 
             await ApplyPostTaskCooldownAsync(next, options, cancellationToken);
         }
+    }
+
+    private async Task<bool> WaitForNextAutoQueuePassAsync(
+        long runId,
+        TimeSpan waitDelay,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var deadline = DateTimeOffset.UtcNow.Add(waitDelay);
+            while (DateTimeOffset.UtcNow < deadline)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (_loopController.QueueStopRequested)
+                {
+                    AppendLog($"[AUTOQ {runId}] WAIT canceled by stop.");
+                    return false;
+                }
+
+                if (Interlocked.Exchange(ref _continuousLoopWakeRequested, 0) == 1)
+                {
+                    AppendLog($"[AUTOQ {runId}] WAIT ended early: queue state or settings changed.");
+                    return true;
+                }
+
+                var remaining = deadline - DateTimeOffset.UtcNow;
+                if (remaining <= TimeSpan.Zero)
+                {
+                    return true;
+                }
+
+                var slice = remaining < TimeSpan.FromSeconds(ContinuousLoopMaxSleepSliceSeconds)
+                    ? remaining
+                    : TimeSpan.FromSeconds(ContinuousLoopMaxSleepSliceSeconds);
+                await Task.Delay(slice, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private Task ApplyPostTaskCooldownAsync(QueueItem item, BotOptions options, CancellationToken cancellationToken)

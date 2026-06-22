@@ -128,6 +128,7 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
 - Loop- och CTS-livscykel ska agas av `LoopController`; skapa inte nya spridda CTS-falt.
 - Dashboard-checkboxar foljer befintligt suppress-flagga + load/save-monster. Ateranvand `SettingInfoIconStyle`
   for infoikoner; langre listor ligger i en begransad `ScrollViewer`, inte expandera resten av dashboarden.
+  Automation-loop-kort sparar per-by gruppvarde fore wake och vacker bade Continuous Loop och vantande AutoQueue.
 - Aktivitetstimers sparas som absoluta UTC-sluttider och raknas om vid cache-load; utgangna poster rensas
   som stale. `Clear timers` ar vald-by-scope, tar aldrig bort Queue-sidans poster och vacker inte loopen.
   Som manuell aterstallning rensar den ocksa vald bys construction-snapshot (`ActiveConstructions`) och

@@ -984,13 +984,29 @@ public partial class MainWindow
             ResetDeferredConstructionWaitsNow("construction group re-enabled");
         }
 
-        var continuousLoopWillHandle = option.IsEnabled
-            && IsContinuousLoopRunning();
+        RefreshAutomationLoopDashboardUi();
+        PersistAutomationLoopTasksToConfig();
+        // Save these group toggles as the selected village's per-village override before waking
+        // the loop, so runtime-item generation reads the new value immediately.
+        SaveAutomationLoopGroupsForSelectedVillage();
 
-        if (continuousLoopWillHandle)
+        var continuousLoopRunning = IsContinuousLoopRunning();
+        var automationWillHandle = option.IsEnabled
+            && (continuousLoopRunning || _autoQueueRunning);
+
+        if (automationWillHandle)
         {
             Interlocked.Exchange(ref _continuousLoopWakeRequested, 1);
-            AppendLog($"{option.Title} group enabled. Continuous loop will check it now.");
+            if (_autoQueueRunning && !continuousLoopRunning)
+            {
+                _startContinuousLoopAfterQueueStop = true;
+                _loopController.RequestQueueStop();
+                AppendLog($"{option.Title} group enabled. Queue wait will stop and continuous loop will check it now.");
+            }
+            else
+            {
+                AppendLog($"{option.Title} group enabled. Continuous loop will check it now.");
+            }
         }
         else if (option.IsEnabled
             && string.Equals(option.TaskName, QueueGroupCatalog.GetKey(QueueGroup.BreweryCelebration), StringComparison.OrdinalIgnoreCase))
@@ -1003,11 +1019,6 @@ public partial class MainWindow
             // the group was off.
             TriggerBreweryCelebrationVerificationRefresh();
         }
-
-        RefreshAutomationLoopDashboardUi();
-        PersistAutomationLoopTasksToConfig();
-        // Save these group toggles as the selected village's per-village override.
-        SaveAutomationLoopGroupsForSelectedVillage();
     }
 
     private void TriggerBreweryCelebrationVerificationRefresh()
