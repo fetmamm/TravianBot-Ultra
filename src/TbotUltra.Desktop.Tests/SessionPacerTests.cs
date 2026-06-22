@@ -229,6 +229,36 @@ public sealed class SessionPacerTests
     }
 
     [Fact]
+    public void Configure_WithReloadRuntime_ReplacesPreviousAccountRuntime()
+    {
+        var now = new DateTimeOffset(2026, 6, 14, 12, 0, 0, TimeSpan.Zero);
+        var pacer = new SessionPacer(() => now);
+        pacer.Configure(new SessionPacerSettings(
+            true,
+            120,
+            30,
+            0,
+            Enumerable.Range(0, 24).ToArray(),
+            DailyMaxHours: 12,
+            RuntimeDate: new DateOnly(2026, 6, 14),
+            RuntimeSeconds: TimeSpan.FromHours(10).TotalSeconds));
+
+        pacer.Configure(
+            new SessionPacerSettings(
+                true,
+                120,
+                30,
+                0,
+                Enumerable.Range(0, 24).ToArray(),
+                DailyMaxHours: 12,
+                RuntimeDate: new DateOnly(2026, 6, 14),
+                RuntimeSeconds: TimeSpan.FromHours(2).TotalSeconds),
+            reloadRuntime: true);
+
+        Assert.Equal(TimeSpan.FromHours(2).TotalSeconds, pacer.RuntimeState.RuntimeSeconds);
+    }
+
+    [Fact]
     public void Midnight_ResetsDailyRuntimeAndWakes()
     {
         var now = new DateTimeOffset(2026, 6, 14, 23, 59, 0, TimeSpan.Zero);

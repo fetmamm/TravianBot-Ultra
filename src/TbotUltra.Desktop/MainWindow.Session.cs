@@ -325,7 +325,7 @@ public partial class MainWindow
                 AppendLog($"Active account changed to '{activeAccountAfterDialog}'. Previous session closed and state reset.");
                 ResetVillageSelectionUi();
                 LoadConfigToUi();
-                ConfigureSessionPacerFromConfig();
+                ConfigureSessionPacerFromConfig(reloadRuntime: true);
 
                 if (previousLoggedIn)
                 {
@@ -397,7 +397,7 @@ public partial class MainWindow
             SyncServerFromActiveAccount();
             UpdateCaptchaCardVisibility();
             LoadConfigToUi();
-            ConfigureSessionPacerFromConfig();
+            ConfigureSessionPacerFromConfig(reloadRuntime: true);
 
             if (previousLoggedIn)
             {

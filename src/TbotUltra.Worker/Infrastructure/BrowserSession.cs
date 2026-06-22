@@ -10,6 +10,7 @@ public sealed class BrowserSession : IAsyncDisposable
 {
     private const string LocalPlaywrightBrowsersDirectoryName = "ms-playwright";
     private const string LocalPlaywrightDriverDirectoryName = ".playwright";
+    private static readonly TimeSpan BonusVideoCleanupStepTimeout = TimeSpan.FromSeconds(5);
     private static readonly SemaphoreSlim WarmupGate = new(1, 1);
     private static readonly SemaphoreSlim StorageStateGate = new(1, 1);
     private static bool _warmupCompleted;
@@ -52,6 +53,75 @@ public sealed class BrowserSession : IAsyncDisposable
 
     public string PlaywrightBrowsersPath =>
         Path.Combine(_projectRoot, LocalPlaywrightBrowsersDirectoryName);
+
+    public async Task<T> RunInIsolatedBonusVideoBrowserAsync<T>(
+        Func<IPage, CancellationToken, Task<T>> action,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_playwright is null || _context is null)
+        {
+            throw new InvalidOperationException("Browser session is not open.");
+        }
+
+        ConsentDomainsAllowed = false;
+        await ClearTransientExternalStorageOriginsAsync(force: true);
+        var stateJson = FilterForeignSubdomainState(await _context.StorageStateAsync());
+
+        IBrowser? videoBrowser = null;
+        IBrowserContext? videoContext = null;
+        try
+        {
+            videoBrowser = await _playwright.Chromium.LaunchAsync(CreateChromiumLaunchOptions(keepNativePopupBlocker: false));
+            videoContext = await videoBrowser.NewContextAsync(new BrowserNewContextOptions
+            {
+                BaseURL = _config.BaseUrl,
+                ViewportSize = new ViewportSize { Width = 1366, Height = 900 },
+                StorageState = stateJson,
+            });
+            videoContext.SetDefaultTimeout(_config.TimeoutMs);
+            videoContext.Page += (_, page) =>
+            {
+                _log?.Invoke($"[browser-video] page event pages={videoContext.Pages.Count} initialUrl='{page.Url}'");
+                page.Close += (_, _) =>
+                {
+                    _log?.Invoke($"[browser-video] page closed pages={videoContext.Pages.Count} url='{page.Url}'");
+                };
+            };
+
+            var page = await videoContext.NewPageAsync();
+            _log?.Invoke("[browser-video] isolated bonus-video browser opened.");
+            return await action(page, cancellationToken);
+        }
+        finally
+        {
+            if (videoContext is not null)
+            {
+                try
+                {
+                    await videoContext.CloseAsync();
+                }
+                catch (Exception ex)
+                {
+                    _log?.Invoke($"[browser-video] context cleanup failed: {ex.Message}");
+                }
+            }
+
+            if (videoBrowser is not null)
+            {
+                try
+                {
+                    await videoBrowser.CloseAsync();
+                }
+                catch (Exception ex)
+                {
+                    _log?.Invoke($"[browser-video] browser cleanup failed: {ex.Message}");
+                }
+            }
+
+            _log?.Invoke("[browser-video] isolated bonus-video browser closed.");
+        }
+    }
 
     public async Task<IPage> OpenIsolatedExternalPageAsync(CancellationToken cancellationToken = default)
     {
@@ -231,40 +301,7 @@ public sealed class BrowserSession : IAsyncDisposable
         try
         {
             _playwright = await Playwright.CreateAsync();
-            // The live session must always run with a visible window. Headless is forced off here so a
-            // stale config value (or a missing browser window) can never start the bot headless.
-            var launchOptions = new BrowserTypeLaunchOptions
-            {
-                Headless = false,
-                // Playwright disables Chromium's popup blocker by default. Keep the native blocker on:
-                // bot-owned tabs use NewPageAsync, while ad/consent OOPIFs use script window.open.
-                IgnoreDefaultArgs = new[] { "--disable-popup-blocking" },
-            };
-
-            // Official Travian's bonus videos (e.g. "increased adventure danger") require third-party
-            // cookies. Disable Chromium's third-party-cookie phaseout so the ad/consent flow can run.
-            // Private servers (SS-Travi) keep the default so their cross-promo behaviour is unchanged.
-            if (!_config.IsPrivateServer)
-            {
-                launchOptions.Args = new[] { "--disable-features=TrackingProtection3pcd" };
-
-                // The bonus ad videos are H.264/AAC, which Playwright's bundled open-source Chromium
-                // cannot decode ("format is not supported"). Use the system Google Chrome build, which
-                // ships the proprietary codecs. If Chrome is not installed we fall back to bundled
-                // Chromium (everything except the bonus videos still works).
-                var chromeChannel = ResolveInstalledChromeChannel();
-                if (chromeChannel is not null)
-                {
-                    launchOptions.Channel = chromeChannel;
-                    _log?.Invoke($"[browser] using system browser channel '{chromeChannel}' for codec support.");
-                }
-                else
-                {
-                    _log?.Invoke("[browser] no system Chrome/Edge found; bonus videos may fail (missing H.264/AAC codecs).");
-                }
-            }
-
-            _browser = await _playwright.Chromium.LaunchAsync(launchOptions);
+            _browser = await _playwright.Chromium.LaunchAsync(CreateChromiumLaunchOptions(keepNativePopupBlocker: true));
 
             var contextOptions = new BrowserNewContextOptions
             {
@@ -410,6 +447,13 @@ public sealed class BrowserSession : IAsyncDisposable
             var closeHandled = 0;
             async Task TryCloseStrayTabAsync(string reason)
             {
+                if (ConsentDomainsAllowed)
+                {
+                    TrackTransientExternalOrigin(popup.Url);
+                    _log?.Invoke($"[browser] leaving popup open during bonus video url='{popup.Url}' reason={reason}");
+                    return;
+                }
+
                 if (Interlocked.Exchange(ref closeHandled, 1) == 1)
                 {
                     return;
@@ -475,6 +519,49 @@ public sealed class BrowserSession : IAsyncDisposable
         }
     }
 
+    private BrowserTypeLaunchOptions CreateChromiumLaunchOptions(bool keepNativePopupBlocker)
+    {
+        // The live session must always run with a visible window. Headless is forced off here so a
+        // stale config value (or a missing browser window) can never start the bot headless.
+        var launchOptions = new BrowserTypeLaunchOptions
+        {
+            Headless = false,
+        };
+
+        if (keepNativePopupBlocker)
+        {
+            // Playwright disables Chromium's popup blocker by default. Keep the native blocker on for
+            // the main Travian browser; bot-owned tabs use NewPageAsync, while ad/consent OOPIFs use
+            // script window.open. The isolated bonus-video browser intentionally leaves this default
+            // alone so the ad player can open what it needs, then the whole browser is closed.
+            launchOptions.IgnoreDefaultArgs = new[] { "--disable-popup-blocking" };
+        }
+
+        // Official Travian's bonus videos require third-party cookies. Disable Chromium's
+        // third-party-cookie phaseout so the ad/consent flow can run.
+        if (!_config.IsPrivateServer)
+        {
+            launchOptions.Args = new[] { "--disable-features=TrackingProtection3pcd" };
+
+            // The bonus ad videos are H.264/AAC, which Playwright's bundled open-source Chromium
+            // cannot decode ("format is not supported"). Use the system Google Chrome build, which
+            // ships the proprietary codecs. If Chrome is not installed we fall back to bundled
+            // Chromium (everything except the bonus videos still works).
+            var chromeChannel = ResolveInstalledChromeChannel();
+            if (chromeChannel is not null)
+            {
+                launchOptions.Channel = chromeChannel;
+                _log?.Invoke($"[browser] using system browser channel '{chromeChannel}' for codec support.");
+            }
+            else
+            {
+                _log?.Invoke("[browser] no system Chrome/Edge found; bonus videos may fail (missing H.264/AAC codecs).");
+            }
+        }
+
+        return launchOptions;
+    }
+
     private async Task<bool> CloseBlockedPopupAsync(IPage popup, string source)
     {
         try
@@ -486,6 +573,12 @@ public sealed class BrowserSession : IAsyncDisposable
             }
 
             TrackTransientExternalOrigin(url);
+            if (ConsentDomainsAllowed)
+            {
+                _log?.Invoke($"[browser] allowed bonus-video popup temporarily source={source} url='{url}' pages={TryGetPageCount()}");
+                return false;
+            }
+
             await popup.CloseAsync();
             _log?.Invoke($"[browser] closed blocked popup source={source} url='{url}' pages={TryGetPageCount()}");
             return true;
@@ -565,9 +658,11 @@ public sealed class BrowserSession : IAsyncDisposable
         "https://oadts.com",
         "https://www.oadts.com",
         "https://cdn.oadts.com",
+        "https://media.oadts.com",
         "https://adscale.de",
         "https://www.adscale.de",
         "https://cdn.adscale.de",
+        "https://ih.adscale.de",
         "https://imasdk.googleapis.com",
         "https://googleads.g.doubleclick.net",
         "https://securepubads.g.doubleclick.net",
@@ -653,7 +748,7 @@ public sealed class BrowserSession : IAsyncDisposable
             // so a stray sister-server session can otherwise persist in this account's saved state and
             // keep triggering cross-promo popups on every login. We keep the account's own host plus
             // shared parent-domain cookies (which login needs) and drop only foreign sibling subdomains.
-            await ClearTransientExternalStorageOriginsAsync();
+            await ClearTransientExternalStorageOriginsAsync(force: false);
             var stateJson = await _context.StorageStateAsync();
             stateJson = FilterForeignSubdomainState(stateJson);
             await File.WriteAllTextAsync(tempPath, stateJson);
@@ -669,10 +764,218 @@ public sealed class BrowserSession : IAsyncDisposable
         DeleteLegacyStorageStateIfPresent();
     }
 
-    private async Task ClearTransientExternalStorageOriginsAsync()
+    public async Task CleanupAfterBonusVideoAsync(IPage? mainPage, CancellationToken cancellationToken = default)
     {
-        if (_context is null || ConsentDomainsAllowed)
+        ConsentDomainsAllowed = false;
+
+        if (_context is null)
         {
+            return;
+        }
+
+        await RunBonusVideoCleanupStepAsync(
+            "quarantine bonus video page",
+            () => NavigateMainPageToAboutBlankAsync(mainPage),
+            cancellationToken);
+        await RunBonusVideoCleanupStepAsync(
+            "close transient popup tabs",
+            () => CloseBlockedOrForeignPagesAsync(mainPage, "bonus-video-cleanup"),
+            cancellationToken);
+        await RunBonusVideoCleanupStepAsync(
+            "clear Travian consent/ad cookies",
+            () => ClearFirstPartyConsentCookiesAsync(mainPage),
+            cancellationToken);
+        await RunBonusVideoCleanupStepAsync(
+            "clear external ad/consent origins",
+            () => ClearTransientExternalStorageOriginsAsync(force: true),
+            cancellationToken);
+        await RunBonusVideoCleanupStepAsync(
+            "close post-cleanup transient popup tabs",
+            () => CloseBlockedOrForeignPagesAsync(mainPage, "bonus-video-post-cleanup"),
+            cancellationToken);
+    }
+
+    private async Task RunBonusVideoCleanupStepAsync(
+        string name,
+        Func<Task> action,
+        CancellationToken cancellationToken)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(BonusVideoCleanupStepTimeout);
+
+        try
+        {
+            await action().WaitAsync(timeout.Token);
+        }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+        {
+            _log?.Invoke($"[browser] bonus-video cleanup step timed out: {name}");
+        }
+        catch (Exception ex)
+        {
+            _log?.Invoke($"[browser] bonus-video cleanup step failed ({name}): {ex.Message}");
+        }
+    }
+
+    private async Task CloseBlockedOrForeignPagesAsync(IPage? mainPage, string reason)
+    {
+        if (_context is null)
+        {
+            return;
+        }
+
+        string? workingHost = null;
+        try
+        {
+            workingHost = new Uri(_config.BaseUrl).Host;
+        }
+        catch
+        {
+            // BaseUrl not absolute — use blocked-url/opener checks only.
+        }
+
+        var closed = 0;
+        foreach (var page in _context.Pages.ToArray())
+        {
+            if (page.IsClosed || ReferenceEquals(page, mainPage))
+            {
+                continue;
+            }
+
+            try
+            {
+                var url = page.Url ?? string.Empty;
+                var blocked = IsBlockedPopupOrConsentUrl(url);
+                var popupHost = Uri.TryCreate(url, UriKind.Absolute, out var popupUri)
+                    ? popupUri.Host
+                    : null;
+                var foreignHost = workingHost is not null
+                    && !string.IsNullOrEmpty(popupHost)
+                    && !string.Equals(popupHost, workingHost, StringComparison.OrdinalIgnoreCase);
+                var opener = await page.OpenerAsync();
+
+                if (!blocked && !foreignHost && opener is null)
+                {
+                    continue;
+                }
+
+                TrackTransientExternalOrigin(url);
+                await page.CloseAsync();
+                closed++;
+                _log?.Invoke($"[browser] closed bonus-video transient tab url='{url}' blocked={blocked} foreign={foreignHost} opener={(opener is null ? "false" : "true")} reason={reason}");
+            }
+            catch
+            {
+                // The popup may already have closed while being inspected.
+            }
+        }
+
+        if (closed > 0)
+        {
+            _log?.Invoke($"[browser] bonus-video cleanup closed {closed} transient tab(s). pages={TryGetPageCount()}");
+        }
+    }
+
+    private async Task NavigateMainPageToAboutBlankAsync(IPage? mainPage)
+    {
+        if (mainPage is null || mainPage.IsClosed)
+        {
+            return;
+        }
+
+        await mainPage.GotoAsync("about:blank", new PageGotoOptions
+        {
+            WaitUntil = WaitUntilState.DOMContentLoaded,
+            Timeout = 3000,
+        });
+        _log?.Invoke("[browser] bonus-video cleanup navigated main page to about:blank.");
+    }
+
+    private async Task ClearFirstPartyConsentCookiesAsync(IPage? mainPage)
+    {
+        if (_context is null)
+        {
+            return;
+        }
+
+        var page = mainPage is not null && !mainPage.IsClosed
+            ? mainPage
+            : _context.Pages.FirstOrDefault(candidate => !candidate.IsClosed);
+        if (page is null)
+        {
+            return;
+        }
+
+        ICDPSession? cdp = null;
+        try
+        {
+            cdp = await _context.NewCDPSessionAsync(page);
+            var cookiesRemoved = await ClearFirstPartyConsentCookiesWithCdpAsync(cdp);
+            _log?.Invoke($"[browser] bonus-video cleanup cleared Travian consent/ad cookies={cookiesRemoved}.");
+        }
+        finally
+        {
+            if (cdp is not null)
+            {
+                try
+                {
+                    await cdp.DetachAsync();
+                }
+                catch
+                {
+                    // Best-effort cleanup only.
+                }
+            }
+        }
+    }
+
+    private async Task<int> ClearFirstPartyConsentCookiesWithCdpAsync(ICDPSession cdp)
+    {
+        if (_context is null)
+        {
+            return 0;
+        }
+
+        IReadOnlyList<BrowserContextCookiesResult> cookies;
+        try
+        {
+            cookies = await _context.CookiesAsync(new[] { _config.BaseUrl });
+        }
+        catch
+        {
+            return 0;
+        }
+
+        var removed = 0;
+        foreach (var cookie in cookies.Where(cookie => IsConsentStorageName(cookie.Name)))
+        {
+            try
+            {
+                await cdp.SendAsync("Network.deleteCookies", new Dictionary<string, object>
+                {
+                    ["name"] = cookie.Name,
+                    ["domain"] = cookie.Domain,
+                    ["path"] = cookie.Path,
+                });
+                removed++;
+            }
+            catch
+            {
+                // Keep login cookies safe: delete only exact consent/ad cookies and ignore failures.
+            }
+        }
+
+        return removed;
+    }
+    private async Task ClearTransientExternalStorageOriginsAsync(bool force)
+    {
+        if (_context is null || (!force && ConsentDomainsAllowed))
+        {
+            if (_context is not null && ConsentDomainsAllowed)
+            {
+                _log?.Invoke("[browser] transient ad/consent storage cleanup skipped while bonus video allowance is active.");
+            }
+
             return;
         }
 
@@ -686,8 +989,10 @@ public sealed class BrowserSession : IAsyncDisposable
         try
         {
             string[] origins;
+            int trackedOriginCount;
             lock (_transientExternalOriginsGate)
             {
+                trackedOriginCount = _transientExternalOrigins.Count;
                 origins = TransientExternalStorageOrigins
                     .Concat(_transientExternalOrigins)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -696,6 +1001,7 @@ public sealed class BrowserSession : IAsyncDisposable
             }
 
             cdp = await _context.NewCDPSessionAsync(page);
+            var cleared = 0;
             foreach (var origin in origins)
             {
                 try
@@ -705,11 +1011,17 @@ public sealed class BrowserSession : IAsyncDisposable
                         ["origin"] = origin,
                         ["storageTypes"] = "all",
                     });
+                    cleared++;
                 }
                 catch
                 {
                     // Some origins are browser/version dependent and may not exist in this context.
                 }
+            }
+
+            if (force || trackedOriginCount > 0)
+            {
+                _log?.Invoke($"[browser] transient ad/consent storage cleanup cleared origins={cleared} tracked={trackedOriginCount} force={force}.");
             }
         }
         catch (Exception ex)
@@ -822,7 +1134,16 @@ public sealed class BrowserSession : IAsyncDisposable
             || n.StartsWith("cmp", StringComparison.Ordinal)
             || n.Contains("consent", StringComparison.Ordinal)
             || n.StartsWith("euconsent", StringComparison.Ordinal)
-            || n.StartsWith("usprivacy", StringComparison.Ordinal);
+            || n.StartsWith("usprivacy", StringComparison.Ordinal)
+            || n.Contains("iab", StringComparison.Ordinal)
+            || n.Contains("tcf", StringComparison.Ordinal)
+            || n.Contains("gdpr", StringComparison.Ordinal)
+            || n.StartsWith("gpp", StringComparison.Ordinal)
+            || n.Contains("addtl_consent", StringComparison.Ordinal)
+            || n.StartsWith("__gads", StringComparison.Ordinal)
+            || n.StartsWith("__gpi", StringComparison.Ordinal)
+            || n.StartsWith("_gac", StringComparison.Ordinal)
+            || n.StartsWith("_gcl", StringComparison.Ordinal);
     }
 
     private static bool KeepHostForAccount(string cookieDomainOrHost, string accountHost)

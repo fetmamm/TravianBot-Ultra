@@ -14,6 +14,7 @@ public partial class MainWindow
 {
     private bool _sessionPacingSleepInProgress;
     private bool _sessionPacingWakeInProgress;
+    private string _sessionPacingAccountName = string.Empty;
 
     // Visual state of the pacing box. Animated background pulse is (re)started only on state changes so
     // the 1s UI tick doesn't restart/flicker the animation.
@@ -57,12 +58,13 @@ public partial class MainWindow
         UpdateSessionPacingUi();
     }
 
-    private void ConfigureSessionPacerFromConfig()
+    private void ConfigureSessionPacerFromConfig(bool reloadRuntime = false)
     {
         JsonObject config;
+        var accountName = _accountStore.ActiveAccountName();
         try
         {
-            config = _botConfigStore.Load();
+            config = _botConfigStore.LoadForAccount(accountName);
         }
         catch (Exception ex)
         {
@@ -70,6 +72,7 @@ public partial class MainWindow
             config = [];
         }
 
+        _sessionPacingAccountName = accountName;
         _sessionPacer.Configure(new SessionPacerSettings(
             ReadBool(config, BotOptionPayloadKeys.SessionPacingEnabled, PacingDefaults.SessionPacingEnabled),
             ReadInt(config, BotOptionPayloadKeys.SessionPacingMaxRunMinutes, PacingDefaults.SessionPacingMaxRunMinutes, 1, 10080),
@@ -78,7 +81,8 @@ public partial class MainWindow
             ReadAllowedHours(config),
             ReadInt(config, BotOptionPayloadKeys.SessionPacingDailyMaxHours, PacingDefaults.SessionPacingDailyMaxHours, 0, 24),
             ReadRuntimeDate(config),
-            ReadDouble(config, BotOptionPayloadKeys.SessionPacingRuntimeSeconds, 0, 0, 86400)));
+            ReadDouble(config, BotOptionPayloadKeys.SessionPacingRuntimeSeconds, 0, 0, 86400)),
+            reloadRuntime);
     }
 
     private void PersistSessionPacingRuntimeState()
@@ -86,11 +90,14 @@ public partial class MainWindow
         try
         {
             var progress = _sessionPacer.GetDailyProgress();
-            var config = _botConfigStore.Load();
+            var accountName = string.IsNullOrWhiteSpace(_sessionPacingAccountName)
+                ? _accountStore.ActiveAccountName()
+                : _sessionPacingAccountName;
+            var config = _botConfigStore.LoadForAccount(accountName);
             config[BotOptionPayloadKeys.SessionPacingRuntimeDate] = progress.Date.ToString("yyyy-MM-dd");
             config[BotOptionPayloadKeys.SessionPacingRuntimeSeconds] = progress.OnlineToday.TotalSeconds;
             UpsertDailyPacingHistory(config, progress);
-            _botConfigStore.Save(config);
+            _botConfigStore.SaveForAccount(accountName, config);
         }
         catch (Exception ex)
         {

@@ -159,6 +159,29 @@ public sealed class BotConfigStoreTests : IDisposable
     }
 
     [Fact]
+    public void SaveForAccount_WritesSpecifiedAccountEvenWhenAnotherAccountIsActive()
+    {
+        WriteJson(
+            _configPath,
+            new JsonObject
+            {
+                ["server_name"] = "Global",
+                ["base_url"] = "https://example.com",
+            });
+        var store = CreateStore();
+        _activeAccount = "bob";
+        var config = store.LoadForAccount("alice");
+        config[BotOptionPayloadKeys.SessionPacingRuntimeDate] = "2026-06-14";
+        config[BotOptionPayloadKeys.SessionPacingRuntimeSeconds] = 3600;
+
+        store.SaveForAccount("alice", config);
+
+        var alice = JsonNode.Parse(File.ReadAllText(AccountStoragePaths.AccountSettingsPath(_root, "alice")))!.AsObject();
+        Assert.Equal(3600, alice[BotOptionPayloadKeys.SessionPacingRuntimeSeconds]!.GetValue<int>());
+        Assert.False(File.Exists(AccountStoragePaths.AccountSettingsPath(_root, "bob")));
+    }
+
+    [Fact]
     public void Load_MigratesLegacyAccountSettingsWithoutLeakingToNewAccount()
     {
         WriteJson(

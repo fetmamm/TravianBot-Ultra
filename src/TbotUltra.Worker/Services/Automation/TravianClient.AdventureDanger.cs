@@ -38,24 +38,103 @@ public sealed partial class TravianClient
         Notify($"[adventure-video] starting — {label} via bonus video");
         await EnsureLoggedInAsync();
 
-        // consentmanager.net is blocked during normal operation (its OOPIF otherwise spawns periodic
-        // sync tabs). The bonus video needs GDPR/TCF consent, so allow it for this flow only, then
-        // restore the block so idle/loop operation stays tab-free.
+        if (_runInIsolatedBonusVideoBrowserAsync is not null && !_config.IsPrivateServer)
+        {
+            var earlyResult = await TryReadAdventureVideoEarlyResultAsync(boxClass, label, cancellationToken);
+            if (earlyResult is not null)
+            {
+                return earlyResult;
+            }
+
+            var result = await _runInIsolatedBonusVideoBrowserAsync(
+                async (videoPage, videoCancellationToken) =>
+                {
+                    var videoClient = CreateIsolatedBonusVideoClient(videoPage);
+                    return await videoClient.RunAdventureVideoBonusInCurrentBrowserAsync(
+                        boxClass,
+                        label,
+                        videoCancellationToken);
+                },
+                cancellationToken);
+
+            await ReturnMainPageAfterIsolatedBonusVideoAsync();
+            return result;
+        }
+
+        // Fallback for tests/non-session callers. Normal Official runs use the isolated video browser
+        // above so the main Travian context never loads consentmanager/oadts/adscale.
         _setConsentDomainsAllowed?.Invoke(true);
         try
         {
-            return await RunAdventureVideoBonusCoreAsync(boxClass, label, cancellationToken);
+            return await RunAdventureVideoBonusInCurrentBrowserAsync(boxClass, label, cancellationToken);
         }
         finally
         {
-            // Re-block the ad/consent domains, then navigate AWAY to dorf1. Blocking only stops NEW
-            // requests — the ad/consent JS loaded during the video stays resident in the adventures page
-            // and keeps calling window.open (spawning blank/consent tabs) until that page is unloaded.
-            // We must NOT reload adventures (it re-inits the videoFeature ad stack → a fresh burst).
-            // dorf1 has no videoFeature box, so with the block active it loads no ad stack at all and
-            // the resident timers are destroyed on navigation → idle stays tab-free.
+            // Re-block the ad/consent domains, then quarantine the current tab to about:blank before
+            // any DOM reads or state saves can retrigger the resident consentmanager/oadts/adscale
+            // timers. Only after that cleanup do we navigate to dorf1.
             _setConsentDomainsAllowed?.Invoke(false);
-            await FlushResidentAdProvidersAsync(cancellationToken);
+            await FlushResidentAdProvidersAsync();
+        }
+    }
+
+    private async Task<string> RunAdventureVideoBonusInCurrentBrowserAsync(
+        string boxClass,
+        string label,
+        CancellationToken cancellationToken)
+    {
+        await EnsureLoggedInAsync();
+        return await RunAdventureVideoBonusCoreAsync(boxClass, label, cancellationToken);
+    }
+
+    private async Task<string?> TryReadAdventureVideoEarlyResultAsync(
+        string boxClass,
+        string label,
+        CancellationToken cancellationToken)
+    {
+        await OpenHeroAdventuresPageAsync(cancellationToken);
+
+        var state = await ReadAdventureVideoStateAsync(boxClass, cancellationToken);
+        Notify($"[adventure-video] {label}: box state before isolated browser: {state}");
+        if (state == "active")
+        {
+            return $"{label} is already active for the next adventure.";
+        }
+
+        if (state == "missing")
+        {
+            return $"{label}: the bonus video feature was not found on the adventures page.";
+        }
+
+        Notify($"[adventure-video] {label}: video appears available; opening isolated video browser.");
+        return null;
+    }
+
+    private TravianClient CreateIsolatedBonusVideoClient(IPage page)
+    {
+        return new TravianClient(
+            page,
+            _config,
+            _account,
+            interactive: _interactive,
+            browserVisible: true,
+            projectRoot: _projectRoot,
+            captchaAutoSolver: _captchaAutoSolver,
+            statusCallback: _statusCallback,
+            sessionCache: _session);
+    }
+
+    private async Task ReturnMainPageAfterIsolatedBonusVideoAsync()
+    {
+        using var navigateCts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        try
+        {
+            await GotoAsync(Paths.Resources, navigateCts.Token);
+            Notify("[adventure-video] main browser returned to dorf1 after isolated video browser.");
+        }
+        catch (Exception ex)
+        {
+            Notify($"[adventure-video] main browser could not return to dorf1 after isolated video browser: {ex.Message}");
         }
     }
 
@@ -67,51 +146,84 @@ public sealed partial class TravianClient
     /// navigate to dorf1 (no videoFeature box) to unload the resident ad JS. Consent is re-established
     /// transiently by the next video. Best-effort; failures are logged but not fatal.
     /// </summary>
-    private async Task FlushResidentAdProvidersAsync(CancellationToken cancellationToken)
+    private async Task FlushResidentAdProvidersAsync()
     {
-        try
+        using (var cleanupCts = new CancellationTokenSource(TimeSpan.FromSeconds(20)))
         {
-            await _page.EvaluateAsync(
-                """
-                () => {
-                  const isConsent = (k) => /^__cmp|^cmp|consent|^euconsent|^usprivacy/i.test(k || '');
-                  try {
-                    for (const k of Object.keys(localStorage)) {
-                      if (isConsent(k)) localStorage.removeItem(k);
-                    }
-                  } catch (e) {}
-                  try {
-                    const host = location.hostname;
-                    const base = host.split('.').slice(-2).join('.');
-                    const domains = ['', host, '.' + host, base, '.' + base];
-                    document.cookie.split(';').forEach((c) => {
-                      const name = c.split('=')[0].trim();
-                      if (!isConsent(name)) return;
-                      for (const dom of domains) {
-                        document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/'
-                          + (dom ? ';domain=' + dom : '');
-                      }
-                    });
-                  } catch (e) {}
-                  return true;
+            try
+            {
+                if (_cleanupAfterBonusVideoAsync is not null)
+                {
+                    await _cleanupAfterBonusVideoAsync(_page, cleanupCts.Token);
+                    Notify("[adventure-video] browser session ad/consent cleanup completed.");
                 }
-                """);
-            Notify("[adventure-video] cleared consentmanager consent (cookies + localStorage).");
-        }
-        catch (PlaywrightException ex)
-        {
-            Notify($"[adventure-video] could not clear consent storage: {ex.Message}");
+                else
+                {
+                    await ClearCurrentPageConsentStorageFallbackAsync().WaitAsync(cleanupCts.Token);
+                }
+            }
+            catch (Exception ex)
+            {
+                Notify($"[adventure-video] browser session ad/consent cleanup failed: {ex.Message}");
+            }
         }
 
+        using var navigateCts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         try
         {
-            await GotoAsync(Paths.Resources, cancellationToken);
+            await GotoAsync(Paths.Resources, navigateCts.Token);
             Notify("[adventure-video] navigated to dorf1 to unload resident ad/consent providers.");
         }
-        catch (PlaywrightException ex)
+        catch (Exception ex)
         {
             Notify($"[adventure-video] could not navigate to flush ad providers: {ex.Message}");
         }
+    }
+
+    private async Task ClearCurrentPageConsentStorageFallbackAsync()
+    {
+        await _page.EvaluateAsync(
+            """
+            () => {
+              const isConsentOrAd = (key) => {
+                const n = String(key || '').trim().toLowerCase();
+                return n.startsWith('__cmp')
+                  || n.startsWith('cmp')
+                  || n.includes('consent')
+                  || n.startsWith('euconsent')
+                  || n.startsWith('usprivacy')
+                  || n.includes('iab')
+                  || n.includes('tcf')
+                  || n.includes('gdpr')
+                  || n.startsWith('gpp')
+                  || n.includes('addtl_consent')
+                  || n.startsWith('__gads')
+                  || n.startsWith('__gpi')
+                  || n.startsWith('_gac')
+                  || n.startsWith('_gcl');
+              };
+              try {
+                for (const key of Object.keys(localStorage)) {
+                  if (isConsentOrAd(key)) localStorage.removeItem(key);
+                }
+              } catch (_) {}
+              try {
+                const host = location.hostname;
+                const base = host.split('.').slice(-2).join('.');
+                const domains = ['', host, '.' + host, base, '.' + base];
+                for (const cookie of document.cookie.split(';')) {
+                  const name = cookie.split('=')[0].trim();
+                  if (!isConsentOrAd(name)) continue;
+                  for (const domain of domains) {
+                    document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/'
+                      + (domain ? ';domain=' + domain : '');
+                  }
+                }
+              } catch (_) {}
+              return true;
+            }
+            """);
+        Notify("[adventure-video] cleared consent/ad storage on current page (fallback).");
     }
 
     private async Task<string> RunAdventureVideoBonusCoreAsync(string boxClass, string label, CancellationToken cancellationToken)

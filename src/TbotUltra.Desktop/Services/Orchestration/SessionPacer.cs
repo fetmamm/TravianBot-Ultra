@@ -99,7 +99,7 @@ public sealed class SessionPacer
     public event EventHandler? RuntimeStateChanged;
     public event EventHandler? Tick;
 
-    public void Configure(SessionPacerSettings settings)
+    public void Configure(SessionPacerSettings settings, bool reloadRuntime = false)
     {
         var previousDailyMaxHours = _settings.DailyMaxHours;
         _settings = Normalize(settings);
@@ -109,11 +109,12 @@ public sealed class SessionPacer
 
         var now = _now();
         var today = DateOnly.FromDateTime(now.DateTime);
-        if (!_runtimeLoaded)
+        if (reloadRuntime || !_runtimeLoaded)
         {
             _runtimeDate = today;
             _runtimeSeconds = _settings.RuntimeDate == today ? _settings.RuntimeSeconds : 0;
             _runtimeLoaded = true;
+            _lastRuntimePersist = null;
         }
         else if (_runtimeDate != today)
         {

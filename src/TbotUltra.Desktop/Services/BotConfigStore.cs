@@ -198,12 +198,14 @@ public sealed class BotConfigStore
     }
 
     public JsonObject Load()
+        => LoadForAccount(GetActiveAccountName());
+
+    public JsonObject LoadForAccount(string accountName)
     {
         var config = LoadGlobal();
         RemoveDeprecatedTechnicalKeys(config);
 
-        var accountName = GetActiveAccountName();
-        if (string.IsNullOrWhiteSpace(accountName))
+        if (string.IsNullOrWhiteSpace(accountName) || string.IsNullOrWhiteSpace(_projectRoot))
         {
             return config;
         }
@@ -248,17 +250,19 @@ public sealed class BotConfigStore
     }
 
     public void Save(JsonObject config)
+        => SaveForAccount(GetActiveAccountName(), config);
+
+    public void SaveForAccount(string accountName, JsonObject config)
     {
         RemoveDeprecatedTechnicalKeys(config);
 
-        var accountName = GetActiveAccountName();
-        if (!string.IsNullOrWhiteSpace(accountName))
+        if (!string.IsNullOrWhiteSpace(accountName) && !string.IsNullOrWhiteSpace(_projectRoot))
         {
             SaveAccountScopedValues(accountName, config);
         }
 
         var globalConfig = config.DeepClone().AsObject();
-        if (!string.IsNullOrWhiteSpace(accountName))
+        if (!string.IsNullOrWhiteSpace(accountName) && !string.IsNullOrWhiteSpace(_projectRoot))
         {
             foreach (var key in AccountScopedKeys)
             {

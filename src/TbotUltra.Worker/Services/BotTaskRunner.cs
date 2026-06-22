@@ -12,6 +12,11 @@ namespace TbotUltra.Worker.Services;
 
 public sealed class BotTaskRunner
 {
+    private enum BrowserStateSaveMode
+    {
+        Always,
+        Skip
+    }
 
     private static readonly IReadOnlyDictionary<string, Func<TaskExecutionContext, Task>> TaskHandlers =
         new Dictionary<string, Func<TaskExecutionContext, Task>>(StringComparer.OrdinalIgnoreCase)
@@ -798,7 +803,8 @@ public sealed class BotTaskRunner
                 await client.LoginAsync(cancellationToken);
                 await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken, villageName, villageUrl);
                 status = await client.ReadVillageStatusAsync(cancellationToken);
-            });
+            },
+            saveStateMode: BrowserStateSaveMode.Skip);
 
         return status ?? throw new InvalidOperationException("Could not read village status.");
     }
@@ -900,7 +906,8 @@ public sealed class BotTaskRunner
                 var warehouse = FormatResourceStatusNumber(status?.WarehouseCapacity);
                 var granary = FormatResourceStatusNumber(status?.GranaryCapacity);
                 log($"Resource status: village='{status?.ActiveVillage ?? "-"}', fields={status?.ResourceFields.Count ?? 0}, forecasts={forecastCount}, storage={warehouse}/{granary}.");
-            });
+            },
+            saveStateMode: BrowserStateSaveMode.Skip);
 
         return status ?? throw new InvalidOperationException("Could not read village resource status.");
     }
@@ -970,7 +977,8 @@ public sealed class BotTaskRunner
                 status = await client.ReadVillageResourceStatusAsync(
                     cancellationToken,
                     allowNavigationToResourcePage: false);
-            });
+            },
+            saveStateMode: BrowserStateSaveMode.Skip);
 
         return status ?? throw new InvalidOperationException("Could not read current-page resource status.");
     }
@@ -991,7 +999,8 @@ public sealed class BotTaskRunner
             async client =>
             {
                 status = await client.ReadCurrentPageStorageStatusAsync(cancellationToken);
-            });
+            },
+            saveStateMode: BrowserStateSaveMode.Skip);
 
         return status ?? throw new InvalidOperationException("Could not read current-page storage status.");
     }
@@ -1012,7 +1021,8 @@ public sealed class BotTaskRunner
             async client =>
             {
                 capture = await client.ReadCurrentPageHtmlAsync(cancellationToken);
-            });
+            },
+            saveStateMode: BrowserStateSaveMode.Skip);
 
         return capture ?? throw new InvalidOperationException("Could not read current page HTML.");
     }
@@ -1034,7 +1044,8 @@ public sealed class BotTaskRunner
             async client =>
             {
                 capture = await client.NavigateToPageAndReadHtmlAsync(pagePath, cancellationToken);
-            });
+            },
+            saveStateMode: BrowserStateSaveMode.Skip);
 
         return capture ?? throw new InvalidOperationException($"Could not save page HTML for {pagePath}.");
     }
@@ -1426,7 +1437,8 @@ public sealed class BotTaskRunner
             {
                 await client.LoginAsync(cancellationToken);
                 await client.RefreshCurrentPageAsync(cancellationToken);
-            });
+            },
+            saveStateMode: BrowserStateSaveMode.Skip);
     }
 
     public async Task<HeroAdventureDispatchResult> SendHeroOnAdventureAsync(
@@ -1523,7 +1535,8 @@ public sealed class BotTaskRunner
             async client =>
             {
                 found = await client.HasHeroLevelUpIndicatorOnCurrentPageAsync(cancellationToken);
-            });
+            },
+            saveStateMode: BrowserStateSaveMode.Skip);
 
         return found;
     }
@@ -1546,7 +1559,8 @@ public sealed class BotTaskRunner
             async client =>
             {
                 claimable = await client.HasClaimableTasksOnCurrentPageAsync(cancellationToken);
-            });
+            },
+            saveStateMode: BrowserStateSaveMode.Skip);
 
         return claimable;
     }
@@ -1569,7 +1583,8 @@ public sealed class BotTaskRunner
             async client =>
             {
                 claimable = await client.HasClaimableDailyQuestsOnCurrentPageAsync(cancellationToken);
-            });
+            },
+            saveStateMode: BrowserStateSaveMode.Skip);
 
         return claimable;
     }
@@ -1911,7 +1926,8 @@ public sealed class BotTaskRunner
         string? accountName,
         bool interactive,
         CancellationToken cancellationToken,
-        Func<TravianClient, Task> action)
+        Func<TravianClient, Task> action,
+        BrowserStateSaveMode saveStateMode = BrowserStateSaveMode.Always)
     {
         var account = _accountProvider.LoadAccount(accountName);
         await _sessionGate.WaitAsync(cancellationToken);
@@ -1931,7 +1947,7 @@ public sealed class BotTaskRunner
             {
                 if (!lease.Invalidated)
                 {
-                    await FinalizeLeaseAsync(lease, log);
+                    await FinalizeLeaseAsync(lease, log, saveStateMode);
                 }
             }
         }
@@ -1954,7 +1970,9 @@ public sealed class BotTaskRunner
             var page = await session.OpenPageAsync(cancellationToken);
             var sessionCache = CreateSeededSessionCache(account, options, log);
             var client = CreateClient(page, options, account, interactive, log, sessionCache,
-                setConsentDomainsAllowed: allowed => session.ConsentDomainsAllowed = allowed);
+                setConsentDomainsAllowed: allowed => session.ConsentDomainsAllowed = allowed,
+                cleanupAfterBonusVideoAsync: session.CleanupAfterBonusVideoAsync,
+                runInIsolatedBonusVideoBrowserAsync: (action, ct) => session.RunInIsolatedBonusVideoBrowserAsync(action, ct));
             return new ClientLease(session, client, false);
         }
 
@@ -2034,7 +2052,9 @@ public sealed class BotTaskRunner
 
         var sharedVisibleSession = _sharedVisibleSession!;
         var sharedClient = CreateClient(_sharedVisiblePage!, options, account, interactive, log, _sharedVisibleSessionCache,
-            setConsentDomainsAllowed: allowed => sharedVisibleSession.ConsentDomainsAllowed = allowed);
+            setConsentDomainsAllowed: allowed => sharedVisibleSession.ConsentDomainsAllowed = allowed,
+            cleanupAfterBonusVideoAsync: sharedVisibleSession.CleanupAfterBonusVideoAsync,
+            runInIsolatedBonusVideoBrowserAsync: (action, ct) => sharedVisibleSession.RunInIsolatedBonusVideoBrowserAsync(action, ct));
         return new ClientLease(sharedVisibleSession, sharedClient, true);
     }
 
@@ -2062,7 +2082,9 @@ public sealed class BotTaskRunner
         bool interactive,
         Action<string> log,
         TravianSessionCache? sessionCache = null,
-        Action<bool>? setConsentDomainsAllowed = null)
+        Action<bool>? setConsentDomainsAllowed = null,
+        Func<IPage, CancellationToken, Task>? cleanupAfterBonusVideoAsync = null,
+        Func<Func<IPage, CancellationToken, Task<string>>, CancellationToken, Task<string>>? runInIsolatedBonusVideoBrowserAsync = null)
     {
         return new TravianClient(
             page,
@@ -2074,7 +2096,9 @@ public sealed class BotTaskRunner
             captchaAutoSolver: options.IsPrivateServer ? _captchaAutoSolver : null,
             statusCallback: log,
             sessionCache: sessionCache,
-            setConsentDomainsAllowed: setConsentDomainsAllowed);
+            setConsentDomainsAllowed: setConsentDomainsAllowed,
+            cleanupAfterBonusVideoAsync: cleanupAfterBonusVideoAsync,
+            runInIsolatedBonusVideoBrowserAsync: runInIsolatedBonusVideoBrowserAsync);
     }
 
     private TravianSessionCache CreateSeededSessionCache(
@@ -2113,15 +2137,18 @@ public sealed class BotTaskRunner
         }
     }
 
-    private async Task FinalizeLeaseAsync(ClientLease lease, Action<string> log)
+    private async Task FinalizeLeaseAsync(ClientLease lease, Action<string> log, BrowserStateSaveMode saveStateMode = BrowserStateSaveMode.Always)
     {
-        try
+        if (saveStateMode == BrowserStateSaveMode.Always)
         {
-            await lease.Session.SaveStateAsync();
-        }
-        catch (Exception ex)
-        {
-            log($"Could not save browser state: {ex.Message}");
+            try
+            {
+                await lease.Session.SaveStateAsync();
+            }
+            catch (Exception ex)
+            {
+                log($"Could not save browser state: {ex.Message}");
+            }
         }
 
         if (!lease.KeepOpen)
