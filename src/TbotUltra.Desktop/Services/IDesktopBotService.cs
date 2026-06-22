@@ -25,7 +25,7 @@ public interface IDesktopBotService
     bool MarkQueueItemExecutionFailed(Guid id);
     int ResetOrphanedRunningQueueItems();
 
-    Task ExecuteQueueItemAsync(BotOptions options, QueueItem item, Action<string> log, CancellationToken cancellationToken);
+    Task<BotTaskExecutionResult> ExecuteQueueItemAsync(BotOptions options, QueueItem item, Action<string> log, CancellationToken cancellationToken);
     Task ExecuteFallbackTasksAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
 
     Task<bool> IsLoggedInAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);

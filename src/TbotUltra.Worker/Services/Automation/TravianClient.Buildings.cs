@@ -1,6 +1,7 @@
 using Microsoft.Playwright;
 using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Tasks;
@@ -142,6 +143,7 @@ public sealed partial class TravianClient
 
     public async Task<string> UpgradeBuildingToLevelAsync(int slotId, int targetLevel, CancellationToken cancellationToken = default)
     {
+        using var navDiagnostics = BeginConstructionNavigationDiagnostics($"upgrade_building_to_level slot={slotId} target={targetLevel}");
         Notify($"[build] upgrade starting — slot={slotId}, target=lvl {targetLevel}");
         if (slotId < 19)
         {
@@ -165,13 +167,11 @@ public sealed partial class TravianClient
             try
             {
 
-            // Step 1: ensure dorf2 with fresh data.
-            await ReloadOrGotoAsync(Paths.Buildings, cancellationToken);
-            await PauseForManualStepIfVisibleAsync("Manual verification on dorf2.", cancellationToken);
-
-            // Step 2: read this slot's level.
-            var slots = await ReadBuildingInfosAsync(cancellationToken);
-            if (!slots.TryGetValue(slotId, out var info))
+            // Step 1: read this slot's level. Prefer the current build page when it is already
+            // the correct non-stale slot; fall back to the dorf2 overview when the page snapshot
+            // cannot prove the level/name.
+            var info = await ReadBuildingInfoForUpgradeAsync(slotId, cancellationToken);
+            if (info is null)
             {
                 return $"Slot {slotId}: not found on dorf2. Upgrades performed: {upgrades}.";
             }
@@ -199,26 +199,30 @@ public sealed partial class TravianClient
                 return deferMessage;
             }
 
-            // Step 3: open the slot's build page.
-            await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
-            await PauseForManualStepIfVisibleAsync($"Manual verification on slot {slotId}.", cancellationToken);
+            // Step 3: open or reuse the slot's build page.
+            await EnsureCurrentBuildPageForActionAsync(slotId, "upgrade", cancellationToken);
             // Wait for the build slot controls to render before reading/clicking. GotoAsync only waits
             // for DOMContentLoaded, which does not guarantee the upgrade button is present yet (slow
             // pages / official &reload=auto timer pages). Reuse the same readiness gate as the
             // actionability analysis: it reloads once if not ready and returns immediately when already
             // rendered, so we never read/click a half-loaded page without slowing the happy path.
-            await EnsureExpectedBuildSlotPageAsync(slotId, "upgrade", cancellationToken);
 
             // Step 4: read the upgrade duration so we know how long to wait.
-            var durationSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken) ?? 0;
+            var pageAnalysis = await ReadConstructionPageAnalysisAsync(slotId, "upgrade pre-click", cancellationToken);
+            var durationSeconds = pageAnalysis.DurationSeconds;
             // Read the population increase this level grants before clicking (page changes after).
-            var populationDelta = await ReadUpgradePopulationDeltaOnCurrentPageAsync(cancellationToken);
+            var populationDelta = pageAnalysis.PopulationDelta;
 
             // Step 5: click the "Upgrade to level N" button.
             var clicked = await ClickUpgradeToLevelButtonAsync(slotId, nextLevel, cancellationToken);
             if (!clicked)
             {
-                var state = await DetectBuildPageStateAsync();
+                pageAnalysis = await ReadConstructionPageAnalysisAsync(
+                    slotId,
+                    "upgrade no-click",
+                    cancellationToken,
+                    includeUpgradeActionability: true);
+                var state = pageAnalysis.State;
                 if (state == BuildPageState.AtMaxLevel)
                 {
                     return $"Slot {slotId}: at max level (page reports max). Upgrades performed: {upgrades}.";
@@ -236,13 +240,19 @@ public sealed partial class TravianClient
                         + $"Upgrades performed: {upgrades}.";
                 }
 
-                var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: false);
+                var actionability = pageAnalysis.UpgradeActionability ?? new UpgradeAttemptResult(
+                    UpgradeAttemptOutcome.BlockedUnknown,
+                    "Construction page analysis did not return upgrade actionability.",
+                    null,
+                    null,
+                    null,
+                    string.Empty);
 
                 // The current build page already has the exact resource block and hero-transfer control.
                 // Use it before any dorf2 queue probe so a normal top-up does not navigate away and back.
                 if (!heroTransferAttempted
                     && actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources
-                    && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
+                    && pageAnalysis.LooksBlockedByResources)
                 {
                     heroTransferAttempted = true;
                     if (await TryHeroResourceTransferForConstructionAsync($"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}", cancellationToken))
@@ -857,6 +867,14 @@ public sealed partial class TravianClient
 
     private enum BuildPageState { Other, AtMaxLevel, WorkersBusy, EmptyConstructionSlot }
 
+    private sealed record ConstructionPageAnalysis(
+        BuildPageState State,
+        UpgradeAttemptResult? UpgradeActionability,
+        int DurationSeconds,
+        int? PopulationDelta,
+        bool LooksBlockedByResources,
+        string? ConstructRequirementError);
+
     private sealed record UpgradeResourceWaitSnapshot(
         string BlockedLabel,
         IReadOnlyDictionary<string, UpgradeResourceWaitValue> Values,
@@ -873,6 +891,198 @@ public sealed partial class TravianClient
         double? ProductionPerHour,
         int? WaitSeconds,
         string WaitReason);
+
+    private async Task<ConstructionPageAnalysis> ReadConstructionPageAnalysisAsync(
+        int slotId,
+        string operationLabel,
+        CancellationToken cancellationToken,
+        bool includeUpgradeActionability = false,
+        int? constructGid = null)
+    {
+        var state = await DetectBuildPageStateAsync();
+        var durationSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken) ?? 0;
+        var populationDelta = await ReadUpgradePopulationDeltaOnCurrentPageAsync(cancellationToken);
+        var looksBlockedByResources = await CurrentPageLooksBlockedByResourcesAsync(cancellationToken);
+        var constructRequirementError = constructGid is int gid
+            ? await ReadConstructRequirementErrorAsync(gid, cancellationToken)
+            : null;
+        UpgradeAttemptResult? upgradeActionability = null;
+        if (includeUpgradeActionability)
+        {
+            upgradeActionability = await AnalyzeUpgradeActionabilityAsync(
+                slotId,
+                cancellationToken,
+                performClick: false,
+                skipNavigationIfOnExpectedSlot: true);
+        }
+
+        Notify($"[construction-analysis:verbose] {operationLabel}: slot={slotId}, state={state}, "
+            + $"duration={durationSeconds}s, pop_delta={populationDelta?.ToString(CultureInfo.InvariantCulture) ?? "unknown"}, "
+            + $"resource_blocked={looksBlockedByResources}, requirements='{constructRequirementError ?? ""}', "
+            + $"actionability={upgradeActionability?.Outcome.ToString() ?? "not_read"}.");
+
+        return new ConstructionPageAnalysis(
+            state,
+            upgradeActionability,
+            durationSeconds,
+            populationDelta,
+            looksBlockedByResources,
+            constructRequirementError);
+    }
+
+    private async Task<BuildingInfo?> ReadBuildingInfoForUpgradeAsync(int slotId, CancellationToken cancellationToken)
+    {
+        var currentPageInfo = await TryReadBuildingInfoFromCurrentBuildPageAsync(slotId, cancellationToken);
+        if (currentPageInfo is not null)
+        {
+            Notify($"[build:verbose] slot {slotId}: using current build-page snapshot "
+                + $"name='{currentPageInfo.BuildingName}', level={currentPageInfo.Level}, gid={ParseGidFromBuildingCode(currentPageInfo.BuildingCode)?.ToString(CultureInfo.InvariantCulture) ?? "unknown"}.");
+            return currentPageInfo;
+        }
+
+        Notify($"[build:verbose] slot {slotId}: current page snapshot unavailable; reading dorf2 overview.");
+        await ReloadOrGotoAsync(Paths.Buildings, cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification on dorf2.", cancellationToken);
+        var slots = await ReadBuildingInfosAsync(cancellationToken);
+        return slots.TryGetValue(slotId, out var info) ? info : null;
+    }
+
+    private async Task<BuildingInfo?> TryReadBuildingInfoFromCurrentBuildPageAsync(int slotId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (TravianUrls.ExtractSlotIdFromUrl(_page.Url) != slotId)
+        {
+            return null;
+        }
+
+        try
+        {
+            if (await IsPageMarkedStaleAsync())
+            {
+                Notify($"[build:verbose] slot {slotId}: current build page is stale; dorf2 fallback required.");
+                return null;
+            }
+
+            var rawJson = await _page.EvaluateAsync<string>(
+                """
+                ({ slotId }) => {
+                  const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+                  const slotMatch = window.location.href.match(/[?&]id=(\d+)/);
+                  const currentSlot = slotMatch ? Number(slotMatch[1]) : null;
+                  if (currentSlot !== slotId) {
+                    return JSON.stringify({ slotId: currentSlot, hasBuildContext: false });
+                  }
+
+                  const header =
+                       document.querySelector('h1.titleInHeader')
+                    || document.querySelector('h1')
+                    || document.querySelector('.buildingHeader h1')
+                    || document.querySelector('.build_details h1');
+                  const title = clean(header ? header.textContent : '');
+                  const titleMatch = title.match(/\b(?:level|lvl)\s*(\d{1,3})\b/i);
+                  const level = titleMatch ? Number(titleMatch[1]) : null;
+                  let name = title.replace(/\b(?:level|lvl)\s*\d{1,3}\b.*$/i, '').trim();
+
+                  const image =
+                       document.querySelector('.buildingWrapper img.building')
+                    || document.querySelector('.build_details img.building')
+                    || document.querySelector('img.building');
+                  const imageAlt = clean(image ? image.getAttribute('alt') : '');
+                  if (!name && imageAlt && !/\b(?:level|lvl)\s*\d{1,3}\b/i.test(imageAlt)) {
+                    name = imageAlt;
+                  }
+
+                  const gidUrlMatch = window.location.href.match(/[?&]gid=(\d{1,2})\b/i);
+                  let gid = gidUrlMatch ? Number(gidUrlMatch[1]) : null;
+                  if (gid === null) {
+                    const gidSource = [
+                      document.body ? String(document.body.className || '') : '',
+                      document.querySelector('.buildingWrapper') ? String(document.querySelector('.buildingWrapper').className || '') : '',
+                      image ? String(image.className || '') : ''
+                    ].join(' ');
+                    const gidClassMatch = gidSource.match(/\bg(\d{1,2})\b/i);
+                    if (gidClassMatch) {
+                      gid = Number(gidClassMatch[1]);
+                    }
+                  }
+
+                  const hasBuildContext = !!(
+                    header
+                    || document.querySelector('.upgradeBuilding, .contract, .contractWrapper, .build_details, #contract, form[action*="build.php"]')
+                  );
+
+                  return JSON.stringify({ slotId: currentSlot, level, name, title, gid, hasBuildContext });
+                }
+                """,
+                new { slotId });
+            var snapshot = string.IsNullOrWhiteSpace(rawJson)
+                ? null
+                : JsonSerializer.Deserialize<CurrentBuildPageSlotSnapshot>(rawJson);
+            if (snapshot is null
+                || snapshot.SlotId != slotId
+                || !snapshot.HasBuildContext)
+            {
+                return null;
+            }
+
+            var titleInfo = BuildingDomParser.ParseBuildPageTitle(snapshot.Title);
+            var level = titleInfo.Level ?? snapshot.Level;
+            if (level is not int currentLevel)
+            {
+                return null;
+            }
+
+            var buildingCode = snapshot.Gid is int gid && gid > 0
+                ? $"g{gid.ToString(CultureInfo.InvariantCulture)}"
+                : TryResolveBuildingCodeFromName(snapshot.Name, snapshot.Title);
+            var nameCandidate = SelectBuildingNameCandidate(titleInfo.Name, snapshot.Name, snapshot.Title);
+            var buildingName = ResolveBuildingDisplayName(buildingCode, nameCandidate, hasOccupancyEvidence: true);
+            if (string.Equals(buildingName, "Unknown", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(buildingName, "Empty", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            return new BuildingInfo
+            {
+                SlotId = slotId,
+                BuildingCode = buildingCode ?? string.Empty,
+                BuildingName = buildingName,
+                Level = currentLevel,
+                LevelKnown = true,
+                HasOccupancyEvidence = true,
+            };
+        }
+        catch (Exception ex) when (IsTransientExecutionContextException(ex))
+        {
+            Notify($"[build:verbose] slot {slotId}: current build-page snapshot hit transient navigation: {ex.Message}");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Notify($"[build:verbose] slot {slotId}: current build-page snapshot failed: {ex.Message}");
+            return null;
+        }
+    }
+
+    private async Task EnsureCurrentBuildPageForActionAsync(
+        int slotId,
+        string operationLabel,
+        CancellationToken cancellationToken)
+    {
+        if (TravianUrls.ExtractSlotIdFromUrl(_page.Url) != slotId)
+        {
+            await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
+        }
+        else if (await IsPageMarkedStaleAsync())
+        {
+            Notify($"[build:verbose] slot {slotId}: current build page stale before action; reloading.");
+            await ReloadOrGotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
+        }
+
+        await PauseForManualStepIfVisibleAsync($"Manual verification on slot {slotId}.", cancellationToken);
+        await EnsureExpectedBuildSlotPageAsync(slotId, operationLabel, cancellationToken);
+    }
 
     private async Task<BuildPageState> DetectBuildPageStateAsync()
     {
@@ -996,6 +1206,7 @@ public sealed partial class TravianClient
 
     public async Task<string> UpgradeBuildingToMaxAsync(int slotId, int maxAttempts = 30, CancellationToken cancellationToken = default)
     {
+        using var navDiagnostics = BeginConstructionNavigationDiagnostics($"upgrade_building_to_max slot={slotId}");
         Notify($"[build] upgrade-to-max starting — slot={slotId}");
         if (slotId < 19)
         {
@@ -1015,13 +1226,10 @@ public sealed partial class TravianClient
             try
             {
 
-            // Step 1: ensure dorf2 with fresh data.
-            await ReloadOrGotoAsync(Paths.Buildings, cancellationToken);
-            await PauseForManualStepIfVisibleAsync("Manual verification on dorf2.", cancellationToken);
-
-            // Step 2: read current level + figure out max from catalog.
-            var slots = await ReadBuildingInfosAsync(cancellationToken);
-            if (!slots.TryGetValue(slotId, out var info))
+            // Step 1: read current level + figure out max from catalog. Prefer the current
+            // build.php?id=N page when it can prove the slot snapshot, otherwise fall back to dorf2.
+            var info = await ReadBuildingInfoForUpgradeAsync(slotId, cancellationToken);
+            if (info is null)
             {
                 return $"Slot {slotId}: not found on dorf2. Upgrades performed: {upgrades}.";
             }
@@ -1050,22 +1258,26 @@ public sealed partial class TravianClient
                 return deferMessage;
             }
 
-            // Step 3: open the slot's build page.
-            await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
-            await PauseForManualStepIfVisibleAsync($"Manual verification on slot {slotId}.", cancellationToken);
+            // Step 3: open or reuse the slot's build page.
+            await EnsureCurrentBuildPageForActionAsync(slotId, "upgrade-to-max", cancellationToken);
             // Wait for the build slot controls to render before reading/clicking (see UpgradeBuildingToLevelAsync).
-            await EnsureExpectedBuildSlotPageAsync(slotId, "upgrade-to-max", cancellationToken);
 
             // Step 4: read upgrade duration so we know how long to wait.
-            var durationSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken) ?? 0;
+            var pageAnalysis = await ReadConstructionPageAnalysisAsync(slotId, "upgrade-to-max pre-click", cancellationToken);
+            var durationSeconds = pageAnalysis.DurationSeconds;
             // Read the population increase this level grants before clicking (page changes after).
-            var populationDelta = await ReadUpgradePopulationDeltaOnCurrentPageAsync(cancellationToken);
+            var populationDelta = pageAnalysis.PopulationDelta;
 
             // Step 5: click "Upgrade to level N".
             var clicked = await ClickUpgradeToLevelButtonAsync(slotId, nextLevel, cancellationToken);
             if (!clicked)
             {
-                var state = await DetectBuildPageStateAsync();
+                pageAnalysis = await ReadConstructionPageAnalysisAsync(
+                    slotId,
+                    "upgrade-to-max no-click",
+                    cancellationToken,
+                    includeUpgradeActionability: true);
+                var state = pageAnalysis.State;
                 if (state == BuildPageState.AtMaxLevel)
                 {
                     return $"Slot {slotId}: at max level (page reports max). Upgrades performed: {upgrades}.";
@@ -1083,13 +1295,19 @@ public sealed partial class TravianClient
                         + $"Upgrades performed: {upgrades}.";
                 }
 
-                var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: false);
+                var actionability = pageAnalysis.UpgradeActionability ?? new UpgradeAttemptResult(
+                    UpgradeAttemptOutcome.BlockedUnknown,
+                    "Construction page analysis did not return upgrade actionability.",
+                    null,
+                    null,
+                    null,
+                    string.Empty);
 
                 // The current build page already has the exact resource block and hero-transfer control.
                 // Use it before any dorf2 queue probe so a normal top-up does not navigate away and back.
                 if (!heroTransferAttempted
                     && actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources
-                    && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
+                    && pageAnalysis.LooksBlockedByResources)
                 {
                     heroTransferAttempted = true;
                     if (await TryHeroResourceTransferForConstructionAsync($"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}", cancellationToken))
@@ -1224,6 +1442,7 @@ public sealed partial class TravianClient
 
     public async Task<string> ConstructBuildingAsync(int slotId, int gid, string name, CancellationToken cancellationToken = default)
     {
+        using var navDiagnostics = BeginConstructionNavigationDiagnostics($"construct_building slot={slotId} gid={gid}");
         Notify($"[construct] starting — slot={slotId}, gid={gid}");
         if (slotId < 19)
         {
@@ -1264,10 +1483,15 @@ public sealed partial class TravianClient
             await PauseForManualStepIfVisibleAsync($"Manual verification on slot {slotId} construct page.", cancellationToken);
             await EnsureExpectedConstructChoicePageAsync(slotId, gid, url, "construct", cancellationToken);
 
-            // Step 2: read build duration.
-            var durationSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken) ?? 0;
+            // Step 2: read build page state, duration and population from one page analysis.
+            var pageAnalysis = await ReadConstructionPageAnalysisAsync(
+                slotId,
+                "construct pre-click",
+                cancellationToken,
+                constructGid: gid);
+            var durationSeconds = pageAnalysis.DurationSeconds;
             // Read the population the new building grants before clicking (page changes after).
-            var populationDelta = await ReadUpgradePopulationDeltaOnCurrentPageAsync(cancellationToken);
+            var populationDelta = pageAnalysis.PopulationDelta;
 
             // Step 3: click the "Construct building" button (scoped to this gid when possible).
             var clicked = await ClickConstructBuildingButtonAsync(gid, cancellationToken);
@@ -1276,8 +1500,13 @@ public sealed partial class TravianClient
                 // Classify the construct page before any queue/progress check navigates to dorf2.
                 // Otherwise a normal resource block is read from the wrong page and degrades into the
                 // misleading "could not find Construct building button" alarm.
-                var blockedByResources = await CurrentPageLooksBlockedByResourcesAsync(cancellationToken);
-                var missingRequirements = await ReadConstructRequirementErrorAsync(gid, cancellationToken);
+                pageAnalysis = await ReadConstructionPageAnalysisAsync(
+                    slotId,
+                    "construct no-click",
+                    cancellationToken,
+                    constructGid: gid);
+                var blockedByResources = pageAnalysis.LooksBlockedByResources;
+                var missingRequirements = pageAnalysis.ConstructRequirementError;
                 if (blockedByResources)
                 {
                     if (!heroTransferAttempted)
@@ -4603,6 +4832,27 @@ public sealed partial class TravianClient
         public int Level { get; set; }
         public bool LevelKnown { get; set; }
         public bool HasOccupancyEvidence { get; set; }
+    }
+
+    private sealed class CurrentBuildPageSlotSnapshot
+    {
+        [JsonPropertyName("slotId")]
+        public int? SlotId { get; set; }
+
+        [JsonPropertyName("level")]
+        public int? Level { get; set; }
+
+        [JsonPropertyName("name")]
+        public string? Name { get; set; }
+
+        [JsonPropertyName("title")]
+        public string? Title { get; set; }
+
+        [JsonPropertyName("gid")]
+        public int? Gid { get; set; }
+
+        [JsonPropertyName("hasBuildContext")]
+        public bool HasBuildContext { get; set; }
     }
 
 }

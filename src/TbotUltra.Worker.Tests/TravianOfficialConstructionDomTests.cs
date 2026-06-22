@@ -103,6 +103,17 @@ public sealed class TravianOfficialConstructionDomTests
             && item.Level == 2);
     }
 
+    [Theory]
+    [InlineData("Main Building Level 5", "Main Building", 5)]
+    [InlineData("Warehouse lvl 12", "Warehouse", 12)]
+    public void OfficialBuildPageTitle_ParsesNameAndLevel(string title, string expectedName, int expectedLevel)
+    {
+        var parsed = BuildingDomParser.ParseBuildPageTitle(title);
+
+        Assert.Equal(expectedName, parsed.Name);
+        Assert.Equal(expectedLevel, parsed.Level);
+    }
+
     [Fact]
     public void OfficialUpgradeDom_ExcludesGreenOpenShopPaymentDecoy_AndKeepsRealUpgradeButton()
     {

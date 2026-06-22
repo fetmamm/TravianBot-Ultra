@@ -199,6 +199,8 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
 - Construct/upgrade-klick: exkludera `Open shop`, verifiera ratt `build.php?id=&category=` + renderade
   `#contract_building*` fore klick, las resursbrist/krav innan ko-/progresskontroller som navigerar till
   `dorf2`, och krav success vara malspecifik (slot-level/matchande aktiv konstruktion). Saknade krav = temporar defer.
+- Byggnadsuppgradering far ateranvanda aktuell `build.php?id=N` for slot snapshot endast nar sidan ar ratt slot,
+  inte stale och kan lasa niva + namn/gid; annars ska flodet falla tillbaka till `dorf2`.
 - `gid 13` ar Smithy (ingen separat Armoury pa `gid 12`). Smithy/trupptraning anvander browserbekraftade
   SOT-koer (`SmithyUpgradeStatus` / traningskon) och unit-id-ikon for truppidentitet.
 

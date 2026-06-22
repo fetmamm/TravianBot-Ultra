@@ -42,12 +42,13 @@ public partial class MainWindow
         try
         {
             var effectiveOptions = ApplyHeroResourceSettingsForQueueItem(options, item);
-            await _botService.ExecuteQueueItemAsync(effectiveOptions, item, AppendLog, cancellationToken);
-            await HandleQueueItemSucceededAsync(item, options, terminalCountBefore, cancellationToken);
-            if (NeedsConstructionStatusRefresh(item.TaskName))
-            {
-                freshBuildingsRefreshDone = true;
-            }
+            var executionResult = await _botService.ExecuteQueueItemAsync(effectiveOptions, item, AppendLog, cancellationToken);
+            freshBuildingsRefreshDone = await HandleQueueItemSucceededAsync(
+                item,
+                options,
+                executionResult,
+                terminalCountBefore,
+                cancellationToken);
 
             if (mode == QueueExecutionMode.ContinuousLoop
                 && string.Equals(item.TaskName, "load_buildings_snapshot", StringComparison.OrdinalIgnoreCase))
@@ -95,13 +96,15 @@ public partial class MainWindow
         }
     }
 
-    private async Task HandleQueueItemSucceededAsync(
+    private async Task<bool> HandleQueueItemSucceededAsync(
         QueueItem item,
         BotOptions options,
+        BotTaskExecutionResult executionResult,
         int terminalCountBefore,
         CancellationToken cancellationToken)
     {
         _botService.MarkQueueItemSucceeded(item.Id);
+        var fullConstructionRefreshDone = false;
         if (IsResourceUpgradeTask(item.TaskName))
         {
             var fastUpdated = await TryApplyFastResourceLevelUpdateAsync(item.TaskName, terminalCountBefore);
@@ -113,8 +116,12 @@ public partial class MainWindow
 
         if (IsBuildingMutationTask(item.TaskName))
         {
-            await RefreshConstructionStatusAsync(cancellationToken);
-            await RefreshCurrentPageStorageStatusAsync(options, "construction_success", cancellationToken);
+            var refreshResult = await RefreshConstructionStatusAfterBuildingMutationAsync(options, executionResult, cancellationToken);
+            fullConstructionRefreshDone = refreshResult.FullStatusRead;
+            if (!refreshResult.StorageStatusRead)
+            {
+                await RefreshCurrentPageStorageStatusAsync(options, "construction_success", cancellationToken);
+            }
             await HandleStorageDependencySucceededAsync(item);
         }
         else if (IsResourceUpgradeTask(item.TaskName))
@@ -159,6 +166,32 @@ public partial class MainWindow
                 AppendLog($"Brewery celebration refresh after run failed: {ex.Message}");
             }
         }
+
+        return fullConstructionRefreshDone;
+    }
+
+    private async Task<(bool FullStatusRead, bool StorageStatusRead)> RefreshConstructionStatusAfterBuildingMutationAsync(
+        BotOptions options,
+        BotTaskExecutionResult executionResult,
+        CancellationToken cancellationToken)
+    {
+        var outcome = executionResult.LastTask?.ConstructionOutcome ?? ConstructionTaskOutcome.UnknownSuccess;
+        if (outcome == ConstructionTaskOutcome.QueuedOrInProgress)
+        {
+            try
+            {
+                await RefreshCurrentPageStorageStatusAsync(options, "construction_success_quick", cancellationToken);
+                AppendLog("[construction-refresh] current-page refresh used for queued/in-progress construction; skipped full dorf1+dorf2 read.");
+                return (FullStatusRead: false, StorageStatusRead: true);
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"[construction-refresh] current-page refresh failed ({ex.Message}); falling back to full construction status.");
+            }
+        }
+
+        await RefreshConstructionStatusAsync(cancellationToken);
+        return (FullStatusRead: true, StorageStatusRead: false);
     }
 
     private async Task<bool> HandleQueueItemFailureAsync(

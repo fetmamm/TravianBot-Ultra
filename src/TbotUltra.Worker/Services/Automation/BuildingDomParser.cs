@@ -15,6 +15,8 @@ namespace TbotUltra.Worker.Services;
 /// </summary>
 internal static class BuildingDomParser
 {
+    internal sealed record BuildPageTitleInfo(string? Name, int? Level);
+
     internal sealed record HtmlButtonCandidate(
         string Text,
         string Classes,
@@ -40,6 +42,25 @@ internal static class BuildingDomParser
     internal static IReadOnlyList<HtmlButtonCandidate> ExtractButtonCandidatesFromHtmlForTests(string html)
     {
         return ExtractButtonCandidates(html);
+    }
+
+    internal static BuildPageTitleInfo ParseBuildPageTitle(string? title)
+    {
+        var cleaned = CleanHtmlText(title ?? string.Empty);
+        if (string.IsNullOrWhiteSpace(cleaned))
+        {
+            return new BuildPageTitleInfo(null, null);
+        }
+
+        var levelMatch = Regex.Match(cleaned, @"\b(?:level|lvl)\s*(?<level>\d{1,3})\b", RegexOptions.IgnoreCase);
+        var level = levelMatch.Success && int.TryParse(levelMatch.Groups["level"].Value, out var parsedLevel)
+            ? parsedLevel
+            : (int?)null;
+        var name = levelMatch.Success
+            ? cleaned[..levelMatch.Index].Trim()
+            : cleaned;
+
+        return new BuildPageTitleInfo(string.IsNullOrWhiteSpace(name) ? null : name, level);
     }
 
     /// <summary>

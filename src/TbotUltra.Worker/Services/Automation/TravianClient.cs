@@ -81,12 +81,131 @@ public sealed partial class TravianClient
     private bool _cachedActiveConstructionsFromOverview;
     private bool _lastActiveConstructionsFromOverview;
     private static readonly TimeSpan ActiveConstructionsCacheTtl = TimeSpan.FromMilliseconds(2500);
+    private ConstructionNavigationDiagnostics? _constructionNavDiagnostics;
 
     internal void InvalidateActiveConstructionsCache()
     {
         _cachedActiveConstructions = null;
         _cachedActiveConstructionsFromOverview = false;
         _lastActiveConstructionsFromOverview = false;
+    }
+
+    private IDisposable BeginConstructionNavigationDiagnostics(string label)
+    {
+        if (_constructionNavDiagnostics is not null)
+        {
+            return NoopDisposable.Instance;
+        }
+
+        _constructionNavDiagnostics = new ConstructionNavigationDiagnostics(label);
+        Notify($"[construction-nav] START {label}");
+        return new ConstructionNavigationScope(this, _constructionNavDiagnostics);
+    }
+
+    private void RecordConstructionNavigation(string operation, string target)
+    {
+        var diagnostics = _constructionNavDiagnostics;
+        if (diagnostics is null)
+        {
+            return;
+        }
+
+        var bucket = diagnostics.Record(operation, target);
+        Notify($"[construction-nav:verbose] {operation} bucket={bucket} target='{target}'");
+    }
+
+    private void EndConstructionNavigationDiagnostics(ConstructionNavigationDiagnostics diagnostics)
+    {
+        if (!ReferenceEquals(_constructionNavDiagnostics, diagnostics))
+        {
+            return;
+        }
+
+        Notify(diagnostics.FormatSummary());
+        _constructionNavDiagnostics = null;
+    }
+
+    private sealed class ConstructionNavigationDiagnostics
+    {
+        private readonly Dictionary<string, int> _byBucket = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, int> _byOperation = new(StringComparer.OrdinalIgnoreCase);
+
+        public ConstructionNavigationDiagnostics(string label)
+        {
+            Label = label;
+        }
+
+        public string Label { get; }
+        public int Total { get; private set; }
+
+        public string Record(string operation, string target)
+        {
+            Total++;
+            _byOperation[operation] = _byOperation.GetValueOrDefault(operation) + 1;
+            var bucket = Classify(target);
+            _byBucket[bucket] = _byBucket.GetValueOrDefault(bucket) + 1;
+            return bucket;
+        }
+
+        public string FormatSummary()
+        {
+            string Count(string key) => _byBucket.TryGetValue(key, out var count) ? count.ToString(CultureInfo.InvariantCulture) : "0";
+            string OperationCount(string key) => _byOperation.TryGetValue(key, out var count) ? count.ToString(CultureInfo.InvariantCulture) : "0";
+            return $"[construction-nav] END {Label}: total={Total}, goto={OperationCount("goto")}, reload={OperationCount("reload")}, dorf1={Count("dorf1")}, dorf2={Count("dorf2")}, build={Count("build")}, other={Count("other")}";
+        }
+
+        private static string Classify(string target)
+        {
+            var path = target;
+            if (Uri.TryCreate(target, UriKind.Absolute, out var uri))
+            {
+                path = uri.AbsolutePath;
+            }
+
+            path = path.ToLowerInvariant();
+            if (path.EndsWith("/dorf1.php", StringComparison.Ordinal) || path.Contains("/dorf1.php?", StringComparison.Ordinal))
+            {
+                return "dorf1";
+            }
+
+            if (path.EndsWith("/dorf2.php", StringComparison.Ordinal) || path.Contains("/dorf2.php?", StringComparison.Ordinal))
+            {
+                return "dorf2";
+            }
+
+            if (path.EndsWith("/build.php", StringComparison.Ordinal) || path.Contains("/build.php?", StringComparison.Ordinal))
+            {
+                return "build";
+            }
+
+            return "other";
+        }
+    }
+
+    private sealed class ConstructionNavigationScope : IDisposable
+    {
+        private TravianClient? _owner;
+        private readonly ConstructionNavigationDiagnostics _diagnostics;
+
+        public ConstructionNavigationScope(TravianClient owner, ConstructionNavigationDiagnostics diagnostics)
+        {
+            _owner = owner;
+            _diagnostics = diagnostics;
+        }
+
+        public void Dispose()
+        {
+            var owner = Interlocked.Exchange(ref _owner, null);
+            owner?.EndConstructionNavigationDiagnostics(_diagnostics);
+        }
+    }
+
+    private sealed class NoopDisposable : IDisposable
+    {
+        public static NoopDisposable Instance { get; } = new();
+        public void Dispose()
+        {
+        }
     }
 
     private sealed class CaptchaClipRegion
@@ -2009,6 +2128,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             ? pathOrUrl
             : $"{_config.BaseUrl.TrimEnd('/')}/{pathOrUrl.TrimStart('/')}";
         var beforeUrl = _page.Url;
+        RecordConstructionNavigation("goto", url);
         Notify($"[nav] GOTO start target='{url}' from='{beforeUrl}' pages={TryGetPageCountForDiagnostics()}");
         await RetryAsync($"navigate to {pathOrUrl}", async () =>
         {
@@ -2040,6 +2160,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
     {
         if (IsCurrentUrlForPath(pathOrUrl))
         {
+            RecordConstructionNavigation("reload", pathOrUrl);
             Notify($"[nav] RELOAD start target='{pathOrUrl}' current='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
             await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
             Notify($"[nav] RELOAD done target='{pathOrUrl}' current='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");

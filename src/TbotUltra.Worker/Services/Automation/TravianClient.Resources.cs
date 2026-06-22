@@ -209,6 +209,7 @@ public sealed partial class TravianClient
 
     public async Task<string> UpgradeResourceToLevelAsync(int slotId, int targetLevel, CancellationToken cancellationToken = default)
     {
+        using var navDiagnostics = BeginConstructionNavigationDiagnostics($"upgrade_resource_to_level slot={slotId} target={targetLevel}");
         Notify("[resources] upgrade resource field starting");
         if (slotId < 1 || slotId > 18)
         {
@@ -322,9 +323,13 @@ public sealed partial class TravianClient
                     return $"Resource slot {slotId} blocked ({actionability.Outcome}): {actionability.Reason}";
                 }
 
-                var expectedWaitSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken);
+                var pageAnalysis = await ReadConstructionPageAnalysisAsync(
+                    slotId,
+                    "resource upgrade pre-click",
+                    cancellationToken);
+                var expectedWaitSeconds = pageAnalysis.DurationSeconds;
                 // Read the population this level grants before clicking (page changes after).
-                var populationDelta = await ReadUpgradePopulationDeltaOnCurrentPageAsync(cancellationToken);
+                var populationDelta = pageAnalysis.PopulationDelta;
                 await ClickDetectedUpgradeCandidateAsync(slotId, actionability.CandidateIndex, cancellationToken);
                 await NavigateToResourceFieldsAfterUpgradeClickAsync(cancellationToken);
                 await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
@@ -385,6 +390,7 @@ public sealed partial class TravianClient
 
     public async Task<string> UpgradeAllResourcesToLevelAsync(int targetLevel, string buildStrategy = "lowest_first", CancellationToken cancellationToken = default)
     {
+        using var navDiagnostics = BeginConstructionNavigationDiagnostics($"upgrade_all_resources_to_level target={targetLevel}");
         var smartStrategy = string.Equals(buildStrategy, "smart", StringComparison.OrdinalIgnoreCase);
         Notify($"[UpgradeAllResourcesToLevelAsync] targetLevel={targetLevel} strategy={(smartStrategy ? "smart" : "lowest_first")} started");
         if (targetLevel < 0)
@@ -522,9 +528,13 @@ public sealed partial class TravianClient
                         attemptedAny = true;
                         Notify($"[UpgradeAllResourcesToLevelAsync] clicking upgrade for slot={slot} from level={level} toward target={effectiveTarget}.");
                         var queueFingerprintBefore = BuildQueueFingerprints.Identity(await ReadBuildQueueAsync(cancellationToken));
-                        var rawUpgradeSeconds = await ReadUpgradeDurationSecondsOnCurrentPageAsync(cancellationToken);
+                        var pageAnalysis = await ReadConstructionPageAnalysisAsync(
+                            slot,
+                            "resource bulk upgrade pre-click",
+                            cancellationToken);
+                        var rawUpgradeSeconds = pageAnalysis.DurationSeconds;
                         // Read the population this level grants before clicking (page changes after).
-                        var populationDelta = await ReadUpgradePopulationDeltaOnCurrentPageAsync(cancellationToken);
+                        var populationDelta = pageAnalysis.PopulationDelta;
                         await ClickDetectedUpgradeCandidateAsync(slot, actionability.CandidateIndex, cancellationToken);
                         await NavigateToResourceFieldsAfterUpgradeClickAsync(cancellationToken);
                         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load

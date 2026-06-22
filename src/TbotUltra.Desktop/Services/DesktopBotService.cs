@@ -47,7 +47,7 @@ public sealed class DesktopBotService : IDesktopBotService
     public bool MarkQueueItemExecutionFailed(Guid id) => _queueStore.MarkExecutionFailed(id);
     public int ResetOrphanedRunningQueueItems() => _queueStore.ResetOrphanedRunningItems();
 
-    public Task ExecuteQueueItemAsync(BotOptions options, QueueItem item, Action<string> log, CancellationToken cancellationToken)
+    public Task<BotTaskExecutionResult> ExecuteQueueItemAsync(BotOptions options, QueueItem item, Action<string> log, CancellationToken cancellationToken)
     {
         return _queueExecutor.ExecuteAsync(options, item, log, cancellationToken);
     }

@@ -12,7 +12,7 @@ public sealed class QueueExecutor
         _taskRunner = taskRunner;
     }
 
-    public async Task ExecuteAsync(
+    public async Task<BotTaskExecutionResult> ExecuteAsync(
         BotOptions baseOptions,
         QueueItem item,
         Action<string> log,
@@ -29,13 +29,14 @@ public sealed class QueueExecutor
         try
         {
             var options = BotOptionsPayloadApplier.Apply(baseOptions, item.Payload);
-            await _taskRunner.ExecuteOnceAsync(
+            var result = await _taskRunner.ExecuteOnceAsync(
                 options,
                 log,
                 tasksOverride: [item.TaskName],
                 accountName: null,
                 cancellationToken: cancellationToken);
             log($"[queue] DONE id={item.Id} task='{item.TaskName}' in {sw.Elapsed.TotalSeconds:F1}s");
+            return result;
         }
         catch (OperationCanceledException)
         {

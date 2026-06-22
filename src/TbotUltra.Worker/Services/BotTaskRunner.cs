@@ -135,7 +135,7 @@ public sealed class BotTaskRunner
         return result ?? [];
     }
 
-    public async Task ExecuteOnceAsync(
+    public async Task<BotTaskExecutionResult> ExecuteOnceAsync(
         BotOptions options,
         Action<string> log,
         IEnumerable<string>? tasksOverride = null,
@@ -143,6 +143,7 @@ public sealed class BotTaskRunner
         CancellationToken cancellationToken = default)
     {
         var tasks = tasksOverride?.ToList() ?? (options.LoopTasks is { Count: > 0 } configuredTasks ? configuredTasks : ["status"]);
+        var taskResults = new List<BotTaskResult>();
         await ExecuteWithClientAsync(
             options,
             log,
@@ -157,7 +158,7 @@ public sealed class BotTaskRunner
 
                 await client.LoginAsync(cancellationToken);
                 await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken);
-                var context = new TaskExecutionContext(this, options, client, log, cancellationToken);
+                var context = new TaskExecutionContext(this, options, client, log, cancellationToken, taskResults.Add);
                 var taskIndex = 0;
                 foreach (var taskName in tasks)
                 {
@@ -218,6 +219,7 @@ public sealed class BotTaskRunner
                 }
                 log($"[tick] completed in {tickSw.Elapsed.TotalSeconds:F1}s ({tasks.Count} task(s)) on '{client.AccountName}'");
             });
+        return new BotTaskExecutionResult(taskResults);
     }
 
     public async Task<bool> IsLoggedInAsync(
@@ -521,7 +523,7 @@ public sealed class BotTaskRunner
             async client =>
             {
                 await client.LoginAsync(cancellationToken);
-                await RunFarmListLossDeactivationIfEnabledAsync(new TaskExecutionContext(this, options, client, log, cancellationToken));
+                await RunFarmListLossDeactivationIfEnabledAsync(new TaskExecutionContext(this, options, client, log, cancellationToken, _ => { }));
                 listCount = await client.SendAllFarmListsNowAsync(cancellationToken);
             });
 
@@ -2215,6 +2217,7 @@ public sealed class BotTaskRunner
             context.Options.ResourceUpgradeTargetLevel.Value,
             context.CancellationToken);
         context.Log(result);
+        context.RecordTaskResult("upgrade_resource_to_level", result);
         ThrowIfTaskBlocked("upgrade_resource_to_level", result);
     }
 
@@ -2231,6 +2234,7 @@ public sealed class BotTaskRunner
             context.Options.ResourceBuildStrategy,
             context.CancellationToken);
         context.Log(result);
+        context.RecordTaskResult("upgrade_all_resources_to_level", result);
         ThrowIfTaskBlocked("upgrade_all_resources_to_level", result);
     }
 
@@ -2247,6 +2251,7 @@ public sealed class BotTaskRunner
             context.Options.BuildingUpgradeTargetLevel.Value,
             context.CancellationToken);
         context.Log(result);
+        context.RecordTaskResult("upgrade_building_to_level", result);
         // Desktop's HandleQueueItemSucceededAsync triggers RefreshConstructionStatusAsync
         // (fresh dorf1+dorf2 read) immediately after this task returns. A worker-side snapshot
         // read here would be discarded by that fresh read — skip it.
@@ -2266,6 +2271,7 @@ public sealed class BotTaskRunner
             context.Options.BuildingUpgradeMaxAttempts,
             context.CancellationToken);
         context.Log(result);
+        context.RecordTaskResult("upgrade_building_to_max", result);
         ThrowIfTaskBlocked("upgrade_building_to_max", result);
     }
 
@@ -2287,6 +2293,7 @@ public sealed class BotTaskRunner
             buildingName,
             context.CancellationToken);
         context.Log(result);
+        context.RecordTaskResult("construct_building", result);
         ThrowIfTaskBlocked("construct_building", result);
     }
 
@@ -2694,6 +2701,53 @@ public sealed class BotTaskRunner
         throw new InvalidOperationException($"Task '{taskName}' could not execute successfully: {result}");
     }
 
+    private static ConstructionTaskOutcome ClassifyConstructionTaskResult(string taskName, string? result)
+    {
+        if (!IsConstructionTaskResult(taskName) || string.IsNullOrWhiteSpace(result))
+        {
+            return ConstructionTaskOutcome.None;
+        }
+
+        if (IsBlockedTaskResult(result))
+        {
+            return ConstructionTaskOutcome.WaitingOrBlocked;
+        }
+
+        var value = result.ToLowerInvariant();
+        if (value.Contains("queued", StringComparison.Ordinal)
+            || value.Contains("still in progress", StringComparison.Ordinal)
+            || value.Contains("active construction detected", StringComparison.Ordinal)
+            || value.Contains("build queue contains", StringComparison.Ordinal))
+        {
+            return ConstructionTaskOutcome.QueuedOrInProgress;
+        }
+
+        if (value.Contains("reached level", StringComparison.Ordinal)
+            || value.Contains("reached max level", StringComparison.Ordinal)
+            || value.Contains("constructed ", StringComparison.Ordinal)
+            || value.Contains("confirmed level", StringComparison.Ordinal))
+        {
+            return ConstructionTaskOutcome.ConfirmedComplete;
+        }
+
+        if (value.Contains("already at level", StringComparison.Ordinal)
+            || value.Contains("already at max", StringComparison.Ordinal)
+            || (value.Contains("target ", StringComparison.Ordinal)
+                && value.Contains(" reached", StringComparison.Ordinal)))
+        {
+            return ConstructionTaskOutcome.AlreadySatisfied;
+        }
+
+        return ConstructionTaskOutcome.UnknownSuccess;
+    }
+
+    private static bool IsConstructionTaskResult(string taskName) =>
+        string.Equals(taskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "upgrade_all_resources_to_level", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "construct_building", StringComparison.OrdinalIgnoreCase);
+
     private static void ThrowIfTroopsGroupBlocked(string result)
     {
         if (string.IsNullOrWhiteSpace(result))
@@ -2777,7 +2831,15 @@ public sealed class BotTaskRunner
         BotOptions Options,
         TravianClient Client,
         Action<string> Log,
-        CancellationToken CancellationToken);
+        CancellationToken CancellationToken,
+        Action<BotTaskResult> RecordResult)
+    {
+        public void RecordTaskResult(string taskName, string? result) =>
+            RecordResult(new BotTaskResult(
+                taskName,
+                result,
+                ClassifyConstructionTaskResult(taskName, result)));
+    }
 
     private sealed record ClientLease(
         BrowserSession Session,
