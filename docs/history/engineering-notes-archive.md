@@ -256,10 +256,24 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   `LoadVersionToUi`; vid ny version tintas Support-knappen amber (`Warning*`-brushar) + tooltip. Contact-
   popupen (`SupportWindow`) har en **Version**-knapp (grå=up-to-date/okänt, gul=ny version) som öppnar
   `VersionWindow`: visar nuvarande/senaste version, **Download…** (SaveFileDialog → streamad nedladdning med
-  progress → visa i Utforskaren) och **GitHub releases**. Fas 2 (auto-install via extern updater som byter
-  filer och bevarar `config/`/`.env`/`playwright/.auth`/`logs/`) är INTE gjord — portable kan inte skriva
-  över sina egna körande filer, så det kräver en separat hjälpprocess. README-badgen (v0.3.7) är inaktuell
-  mot `VERSION` (0.4.3) men används inte av appen.
+  progress → visa i Utforskaren) och **GitHub releases**. README-badgen (v0.3.7) är inaktuell
+  mot `VERSION` (0.4.3) men används inte av appen (medvetet ej synkad).
+
+- **2026-06-23** — **Uppdatering Fas 2: ett-klicks self-update för portable.** Ny `SelfUpdater`
+  (`Services/SelfUpdater.cs`) + knapp **"Update & restart"** i `VersionWindow` (syns bara när ny version finns,
+  portable-asset finns och bygget inte är "dev" + exe heter `Tbot Ultra.exe`). Flöde: bekräftelsedialog →
+  ladda ner zip till `%LOCALAPPDATA%\TbotUltra\update` → packa upp → hitta app-mappen (innehåller
+  `Tbot Ultra.exe`) → skriv + starta ett **fristående PowerShell-uppdaterarskript** (synligt fönster med
+  status-label + marquee-progressbar) → `Application.Current.Shutdown()`. Skriptet väntar på appens PID,
+  kör `robocopy <staging> <install> /E` (overlay, inte /MIR) med **undantag** `/XD config logs playwright`
+  och `/XF .env`, startar om `Tbot Ultra.exe`, städar staging. Bevaras: hela `config/` (konton, **kö**,
+  settings, cacher, browser-session under `config/accounts/<konto>/session/`), `.env`, `logs/`,
+  `playwright/` (legacy auth). Skrivs över: exe/DLL:er, `VERSION`, `ms-playwright`, `.playwright`, captcha-
+  runtime. Extern process krävs eftersom appen inte kan skriva över sina egna körande filer; inga CI-/release-
+  ändringar (skriptet kopierar från den uppackade zip:en). Kvarvarande risker: robocopy utan /MIR raderar inte
+  filer som tagits bort i nya versionen (stale loose DLL:er kan ligga kvar, ofarligt för single-file), och en
+  avbruten overlay kan teoretiskt lämna blandade binärer (helt atomiskt mapp-swap går ej i portable). Om
+  `queue_clear_on_shutdown` är på rensas kön vid omstart enligt användarens egen setting.
 
 - **2026-06-08** — **Village overview tappar inte byggkö-status vid en partiell DOM-miss.**
   Dashboardens Buildings-ikoner drevs enbart av `ReadBuildQueueAsync`; om den breda kö-selektorn

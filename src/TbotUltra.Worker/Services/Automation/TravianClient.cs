@@ -315,11 +315,13 @@ public sealed partial class TravianClient
             return Task.CompletedTask;
         }
 
+        // Default reason so the click-pacing delay is always logged (e.g. [pacing] Action pacing "Click" delay: waiting 2.3s),
+        // while callers that pass their own reason keep it.
         return ActionPacer.FromOptions(_config, Notify).DelayAsync(
             _config.ActionPacingClickMinSeconds,
             _config.ActionPacingClickMaxSeconds,
             cancellationToken,
-            reason);
+            string.IsNullOrWhiteSpace(reason) ? "Action pacing \"Click\" delay" : reason);
     }
 
     private Task DelayFarmListStepAsync(CancellationToken cancellationToken)
@@ -720,7 +722,7 @@ public sealed partial class TravianClient
                 return true;
             }
 
-            await Task.Delay(250, cancellationToken);
+            await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
         }
 
         Notify("[logout] sign-out not confirmed yet (no login page detected).");
@@ -919,7 +921,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             }
 
             Notify($"[farm-list] no farm lists read on attempt {attempt}/{maxAttempts}; reopening the farm page and retrying.");
-            await Task.Delay(750, cancellationToken);
+            await Task.Delay(Random.Shared.Next(600, 800), cancellationToken); // Random wait
         }
 
         Notify($"[farm-list] read {rows.Count} farm list(s) from rally point");
@@ -975,7 +977,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             throw new InvalidOperationException($"Could not find clickable Start Raid button for farm list '{farmListName}'.");
         }
 
-        await Task.Delay(250, cancellationToken);
+        await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
         await PauseForManualStepIfVisibleAsync("Manual verification appeared after sending farm list.", cancellationToken);
         await TryClickCaptchaSuccessDialogOkAsync(cancellationToken);
         var remaining = await ReadFarmListTimerSecondsByNameAsync(farmListName, cancellationToken);
@@ -1074,7 +1076,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
             deactivated++;
             Notify($"[farm-list] deactivated loss row target='{candidate.TargetName}' slot='{candidate.SlotId}' list='{candidate.ListName}' state='{candidate.RaidClass}'.");
-            await Task.Delay(300, cancellationToken);
+            await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
         }
 
         Notify($"[farm-list] red/yellow loss deactivation done: found={lossRows.Count}, deactivated={deactivated}, skippedOasis={skippedOasisRows}.");
@@ -1485,7 +1487,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                     _ => 10,
                 };
                 Notify($"{stepPrefix} Sent {(raidAttack ? "raid" : "normal attack")} to ({coordinate.X}|{coordinate.Y}) with {sendResult.SentTroopCount}/{troopCount}±{normalizedVariancePercent}% {troopType.Trim()} (Available: {FormatLargeCount(sendResult.AvailableTroopCount)}).");
-                await DelayFarmListStepAsync(cancellationToken);
+                
                 
                 continue;
             }
@@ -2406,7 +2408,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 if (attempt < probeAttempts - 1)
                 {
                     // Give the DOM a moment to render the topbar/village list, then re-probe.
-                    await Task.Delay(400);
+                    await Task.Delay(Random.Shared.Next(300, 600), cancellationToken); // Random wait
                 }
             }
 
@@ -2427,10 +2429,10 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
     private async Task FillLoginCredentialsWithPacingAsync(CancellationToken cancellationToken)
     {
         await FillFirstAvailableAsync(Selectors.LoginUsernameField, _account.Username, cancellationToken);
-        await Task.Delay(Random.Shared.Next(100, 201), cancellationToken);
+        await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
 
         await FillFirstAvailableAsync(Selectors.LoginPasswordField, _account.Password, cancellationToken);
-        await Task.Delay(Random.Shared.Next(100, 201), cancellationToken);
+        await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
     }
 
     private async Task FillFirstAvailableAsync(IEnumerable<string> selectors, string value, CancellationToken cancellationToken)
@@ -2559,7 +2561,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 return false;
             }
 
-            await Task.Delay(250, cancellationToken);
+            await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
         }
     }
 
@@ -2807,7 +2809,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 {
                     if (attempt < 2)
                     {
-                        await Task.Delay(120, cancellationToken);
+                        await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
                         continue;
                     }
 
@@ -2817,7 +2819,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
                 await candidate.ClickAsync(new LocatorClickOptions { Timeout = clickTimeoutMs });
                 Notify("Detected update popup. Clicked 'Continue' automatically.");
-                await Task.Delay(220, cancellationToken);
+                await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
                 return true;
             }
             catch (PlaywrightException ex)
@@ -2825,7 +2827,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 if (attempt < 2)
                 {
                     Notify($"Found 'Continue' prompt but click failed on attempt {attempt}/2. Retrying...");
-                    await Task.Delay(120, cancellationToken);
+                    await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
                     continue;
                 }
 
@@ -2836,7 +2838,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 if (attempt < 2)
                 {
                     Notify($"Found 'Continue' prompt but click timed out on attempt {attempt}/2. Retrying...");
-                    await Task.Delay(120, cancellationToken);
+                    await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
                     continue;
                 }
 
@@ -3038,12 +3040,12 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                     manualMessageShown = true;
                 }
 
-                await Task.Delay(500, cancellationToken);
+                await Task.Delay(Random.Shared.Next(400, 600), cancellationToken); // Random wait
             }
             catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
             {
                 Notify("Page navigated while checking login state. Retrying...");
-                await Task.Delay(220, cancellationToken);
+                await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
             }
         }
     }
@@ -3083,7 +3085,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 return;
             }
 
-            await Task.Delay(500, cancellationToken);
+            await Task.Delay(Random.Shared.Next(500, 600), cancellationToken); // Random wait
         }
     }
 
@@ -3165,7 +3167,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                     stableMatches++;
                     if (stableMatches >= 2)
                     {
-                        await Task.Delay(300, cancellationToken);
+                        await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
                         return current;
                     }
                 }
@@ -3177,7 +3179,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 previous = current;
             }
 
-            await Task.Delay(150, cancellationToken);
+            await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
         }
 
         return previous;
@@ -4202,7 +4204,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
             if (attempt < 4)
             {
-                await Task.Delay(220, cancellationToken);
+                await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
             }
         }
 
@@ -4677,7 +4679,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         var tabOpened = await TryOpenSendTroopsTabAsync(cancellationToken);
         if (tabOpened)
         {
-            await Task.Delay(250, cancellationToken);
+            await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
             await PauseForManualStepIfVisibleAsync("Manual verification appeared after opening send troops tab.", cancellationToken);
             await EnsureLoggedInAsync();
         }
@@ -5236,7 +5238,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             return false;
         }
 
-        await Task.Delay(150, cancellationToken);
+        await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
         await PauseForManualStepIfVisibleAsync("Manual verification appeared before deactivating farm loss row.", cancellationToken);
         return await _page.EvaluateAsync<bool>(
             """
@@ -5470,7 +5472,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
               }
             }
             """);
-        await Task.Delay(400, cancellationToken);
+        await Task.Delay(Random.Shared.Next(300, 500), cancellationToken); // Random wait
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while navigating to Natars profile.", cancellationToken);
 
         coordinates = await ReadNatarFarmCoordinatesFromCurrentPageAsync(cancellationToken);
@@ -5540,7 +5542,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                   }
                 }
                 """);
-            await Task.Delay(400, cancellationToken);
+            await Task.Delay(Random.Shared.Next(300, 500), cancellationToken);
             await PauseForManualStepIfVisibleAsync("Manual verification appeared while navigating to Natars profile.", cancellationToken);
             coordinates = await ReadNatarFarmCoordinatesFromCurrentPageAsync(cancellationToken);
         }
@@ -5735,7 +5737,6 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
             }
 
-            await DelayFarmListStepAsync(cancellationToken);
             var clicked = await _page.EvaluateAsync<bool>(
                 """
                 (listId) => {
@@ -5753,7 +5754,6 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 throw new InvalidOperationException($"Could not open Add target for farm list id {lid}.");
             }
 
-            await DelayFarmListStepAsync(cancellationToken);
 
             // Wait for the Add target form (X/Y inputs) to render. Retry up to 3 times with a 10s
             // timeout each in case the page is slow to mount the dialog.
@@ -5920,14 +5920,15 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
         if (!_config.IsPrivateServer)
         {
-            await DelayFarmListStepAsync(cancellationToken);
+            await Task.Delay(Random.Shared.Next(300, 500), cancellationToken); // Random wait
+            
             var xInput = _page.Locator(
                 "#farmListTargetForm input[name=\"x\"], " +
                 "#farmListTargetForm input[name=\"xCoord\"], " +
                 "#farmListTargetForm input[id*=\"xCoord\" i]").First;
             await xInput.FillAsync(x.ToString(System.Globalization.CultureInfo.InvariantCulture));
             Notify($"[farm-list] Add target X filled with {x} for '{farmListName}'.");
-            await DelayFarmListStepAsync(cancellationToken);
+            await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
 
             var yInput = _page.Locator(
                 "#farmListTargetForm input[name=\"y\"], " +
@@ -5935,7 +5936,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 "#farmListTargetForm input[id*=\"yCoord\" i]").First;
             await yInput.FillAsync(y.ToString(System.Globalization.CultureInfo.InvariantCulture));
             Notify($"[farm-list] Add target Y filled with {y} for '{farmListName}'.");
-            await DelayFarmListStepAsync(cancellationToken);
+            await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
 
             if (useDefaultTroops)
             {
@@ -5966,7 +5967,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 }
 
                 Notify($"[farm-list] Add target validation triggered after coordinates for ({x}|{y}) in '{farmListName}'.");
-                await DelayFarmListStepAsync(cancellationToken);
+                await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
             }
             else
             {
@@ -5979,7 +5980,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                     $"#farmListTargetForm input.unitAmount[name=\"t{troopIndex.Value}\"], " +
                     $"#farmListTargetForm input[name=\"t{troopIndex.Value}\"]").First;
                 await troopInput.FillAsync(troopCount.ToString(System.Globalization.CultureInfo.InvariantCulture));
-                await DelayFarmListStepAsync(cancellationToken);
+                await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
             }
         }
 
@@ -6051,7 +6052,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             }
         }
 
-        await DelayFarmListStepAsync(cancellationToken);
+        await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
         var clicked = await _page.EvaluateAsync<bool>(
             """
             () => {
@@ -6091,7 +6092,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         }
         else
         {
-            await Task.Delay(350, cancellationToken);
+            await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
         }
 
         await PauseForManualStepIfVisibleAsync("Manual verification appeared after saving new raid.", cancellationToken);
@@ -6445,7 +6446,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
             if (attempt < 12)
             {
-                await Task.Delay(250, cancellationToken);
+                await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
             }
         }
 
@@ -6497,7 +6498,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
             if (attempt < 4)
             {
-                await Task.Delay(120, cancellationToken);
+                await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
             }
         }
     }
@@ -6556,7 +6557,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
             if (attempt < 4)
             {
-                await Task.Delay(250, cancellationToken);
+                await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
             }
         }
 

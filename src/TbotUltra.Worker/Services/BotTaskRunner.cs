@@ -75,8 +75,6 @@ public sealed class BotTaskRunner
     private BrowserSession? _sharedVisibleSession;
     private IPage? _sharedVisiblePage;
     private IPage? _travcoPage;
-    private TimeSpan _travcoPageDelayMin = TimeSpan.FromSeconds(PacingDefaults.FarmListStepDelayMinSeconds);
-    private TimeSpan _travcoPageDelayMax = TimeSpan.FromSeconds(PacingDefaults.FarmListStepDelayMaxSeconds);
     private string? _sharedVisibleAccountName;
     private string? _sharedVisibleBaseUrl;
     // Session-scoped cache shared by every TravianClient created for the shared visible browser, so
@@ -1782,8 +1780,6 @@ public sealed class BotTaskRunner
         log("[travco] browser session acquired.");
         try
         {
-            _travcoPageDelayMin = TimeSpan.FromSeconds(Math.Max(0, options.FarmListStepDelayMinSeconds));
-            _travcoPageDelayMax = TimeSpan.FromSeconds(Math.Max(options.FarmListStepDelayMinSeconds, options.FarmListStepDelayMaxSeconds));
             var lease = await AcquireClientLeaseAsync(options, account, log, interactive: true, cancellationToken);
             try
             {
@@ -1862,8 +1858,6 @@ public sealed class BotTaskRunner
                 _travcoPage,
                 log,
                 progress,
-                _travcoPageDelayMin,
-                _travcoPageDelayMax,
                 cancellationToken);
         }
         finally

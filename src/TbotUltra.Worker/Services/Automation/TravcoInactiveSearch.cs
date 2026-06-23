@@ -189,24 +189,20 @@ public static class TravcoInactiveSearch
         IPage page,
         Action<string>? log,
         IProgress<(int CurrentPage, int TotalPages)>? progress,
-        TimeSpan? pageDelayMin,
-        TimeSpan? pageDelayMax,
         CancellationToken cancellationToken)
     {
         var totalPages = await ResolveTotalPagesAsync(page, log, cancellationToken);
         var rows = new List<TravcoRow>();
         try
         {
+            // No anti-bot pacing between pages: this is travcotools.com, not Travian. NavigateToPageAsync
+            // already waits for the new page to load and settle, which is the only delay needed here.
             for (var pageNumber = 1; pageNumber <= totalPages; pageNumber++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 progress?.Report((pageNumber, totalPages));
                 var result = await ScrapePageWithRetryAsync(page, pageNumber, log, cancellationToken);
                 rows.AddRange(result.Rows);
-                if (pageNumber < totalPages)
-                {
-                    await DelayBetweenTravcoPagesAsync(pageDelayMin, pageDelayMax, log, cancellationToken);
-                }
             }
         }
         finally
@@ -226,35 +222,6 @@ public static class TravcoInactiveSearch
         return new TravcoScrapeResult(1, totalPages, rows);
     }
 
-    private static async Task DelayBetweenTravcoPagesAsync(
-        TimeSpan? pageDelayMin,
-        TimeSpan? pageDelayMax,
-        Action<string>? log,
-        CancellationToken cancellationToken)
-    {
-        var min = pageDelayMin.GetValueOrDefault(TimeSpan.FromSeconds(1.5));
-        var max = pageDelayMax.GetValueOrDefault(TimeSpan.FromSeconds(4));
-        if (min < TimeSpan.Zero)
-        {
-            min = TimeSpan.Zero;
-        }
-
-        if (max < min)
-        {
-            max = min;
-        }
-
-        if (max <= TimeSpan.Zero)
-        {
-            return;
-        }
-
-        var minMs = (int)Math.Round(min.TotalMilliseconds);
-        var maxMs = (int)Math.Round(max.TotalMilliseconds);
-        var delayMs = Random.Shared.Next(minMs, maxMs + 1);
-        log?.Invoke($"[travco] pacing before next page: {delayMs / 1000.0:F1}s.");
-        await Task.Delay(delayMs, cancellationToken);
-    }
 
     // Navigates to and scrapes a single page, retrying up to 3 times when the page is slow to load.
     // A reload between attempts lets a stalled request recover before the next try. Only after all

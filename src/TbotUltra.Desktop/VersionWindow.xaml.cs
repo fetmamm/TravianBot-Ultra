@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -13,7 +14,7 @@ public partial class VersionWindow : Window
 {
     private readonly string _currentVersion;
     private UpdateChecker.UpdateStatus? _status;
-    private bool _downloading;
+    private bool _busy;
 
     public VersionWindow(string currentVersion, UpdateChecker.UpdateStatus? status)
     {
@@ -26,7 +27,7 @@ public partial class VersionWindow : Window
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        Render();
+        RenderStatus();
 
         // No release info yet (startup check failed/raced) → try a fresh check so the popup is useful.
         if (_status?.Release is null)
@@ -38,14 +39,16 @@ public partial class VersionWindow : Window
             }
             catch
             {
-                // Render() handles the unknown state below.
+                // RenderStatus() handles the unknown state below.
             }
 
-            Render();
+            RenderStatus();
         }
     }
 
-    private void Render()
+    // Sets the version lines, the status line and the button states. Called on load / after a check — not
+    // during an in-progress download, so it never clobbers a transient "Downloading…/Downloaded to…" message.
+    private void RenderStatus()
     {
         CurrentVersionText.Text = $"Current version: v{_currentVersion}";
 
@@ -55,25 +58,112 @@ public partial class VersionWindow : Window
             LatestVersionText.Text = "Latest version: unknown";
             StatusText.Text = "Could not check for the latest version (offline or rate-limited). "
                 + "You can still open the GitHub releases page.";
-            DownloadButton.IsEnabled = false;
+            UpdateButtonStates();
             return;
         }
 
         LatestVersionText.Text = $"Latest version: v{release.LatestVersion}";
+        var hasAsset = release.PortableDownloadUrl is not null;
         if (_status!.UpdateAvailable)
         {
-            StatusText.Text = release.PortableDownloadUrl is null
-                ? $"A new version (v{release.LatestVersion}) is available. No portable asset was found on the "
-                    + "release — use the GitHub releases page."
-                : $"A new version (v{release.LatestVersion}) is available. Download the portable build and "
-                    + "extract it to update.";
-            DownloadButton.IsEnabled = !_downloading && release.PortableDownloadUrl is not null;
+            StatusText.Text = hasAsset
+                ? $"A new version (v{release.LatestVersion}) is available."
+                : $"A new version (v{release.LatestVersion}) is available. No portable asset was found on the "
+                    + "release — use the GitHub releases page.";
         }
         else
         {
             StatusText.Text = "You are running the latest version.";
-            // Still allow re-downloading the current portable if the asset is known.
-            DownloadButton.IsEnabled = !_downloading && release.PortableDownloadUrl is not null;
+        }
+
+        UpdateButtonStates();
+    }
+
+    // Button enable/visibility only — safe to call mid-operation without overwriting the status text.
+    private void UpdateButtonStates()
+    {
+        var release = _status?.Release;
+        var hasAsset = release?.PortableDownloadUrl is not null;
+        DownloadButton.IsEnabled = !_busy && hasAsset;
+
+        // One-click update is only offered for a real portable build (not "dev") when a newer version exists.
+        var canSelfUpdate = _status?.UpdateAvailable == true && hasAsset && SelfUpdater.IsSupported(_currentVersion);
+        UpdateRestartButton.Visibility = canSelfUpdate ? Visibility.Visible : Visibility.Collapsed;
+        UpdateRestartButton.IsEnabled = !_busy && canSelfUpdate;
+    }
+
+    private async void UpdateRestartButton_Click(object sender, RoutedEventArgs e)
+    {
+        var release = _status?.Release;
+        if (release?.PortableDownloadUrl is null)
+        {
+            StatusText.Text = "No portable download is available — use the GitHub releases page.";
+            return;
+        }
+
+        var choice = AppDialog.ShowCustom(
+            this,
+            $"Tbot Ultra will download v{release.LatestVersion}, close, install it, and restart.\n\n"
+                + "Your accounts, queue, settings, caches and logged-in sessions are kept. Continue?",
+            "Update & restart",
+            new (string, MessageBoxResult)[]
+            {
+                ("Update & restart", MessageBoxResult.Yes),
+                ("Cancel", MessageBoxResult.Cancel),
+            },
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel,
+            MessageBoxResult.Cancel);
+        if (choice != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        SetBusy(true);
+        DownloadProgress.Visibility = Visibility.Visible;
+        DownloadProgress.Value = 0;
+
+        try
+        {
+            var tempRoot = SelfUpdater.CreateUpdateWorkspace();
+            var assetName = string.IsNullOrWhiteSpace(release.PortableAssetName)
+                ? "update.zip"
+                : release.PortableAssetName;
+            var zipPath = Path.Combine(tempRoot, assetName);
+
+            StatusText.Text = $"Downloading v{release.LatestVersion}…";
+            DownloadProgress.IsIndeterminate = true;
+            var progress = new Progress<double>(fraction =>
+            {
+                DownloadProgress.IsIndeterminate = false;
+                DownloadProgress.Value = Math.Clamp(fraction * 100, 0, 100);
+            });
+            await UpdateChecker.DownloadAsync(release.PortableDownloadUrl, zipPath, progress, CancellationToken.None);
+
+            StatusText.Text = "Extracting update…";
+            DownloadProgress.IsIndeterminate = true;
+            var extractDir = Path.Combine(tempRoot, "extract");
+            await Task.Run(() => ZipFile.ExtractToDirectory(zipPath, extractDir));
+
+            var appDir = SelfUpdater.FindExtractedAppDir(extractDir);
+            if (appDir is null)
+            {
+                StatusText.Text = "Update package looks invalid (app files not found). "
+                    + "Use the GitHub releases page instead.";
+                return;
+            }
+
+            StatusText.Text = "Closing to install the update…";
+            SelfUpdater.LaunchUpdater(appDir, tempRoot);
+            // The external updater now waits for this process to exit before swapping files.
+            Application.Current.Shutdown();
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"Update failed: {ex.Message}";
+            DownloadProgress.IsIndeterminate = false;
+            DownloadProgress.Visibility = Visibility.Collapsed;
+            SetBusy(false);
         }
     }
 
@@ -112,21 +202,19 @@ public partial class VersionWindow : Window
         }
 
         var destination = dialog.FileName;
-        _downloading = true;
-        DownloadButton.IsEnabled = false;
+        SetBusy(true);
         DownloadProgress.Visibility = Visibility.Visible;
         DownloadProgress.Value = 0;
         StatusText.Text = $"Downloading v{release.LatestVersion}…";
 
         try
         {
+            DownloadProgress.IsIndeterminate = true;
             var progress = new Progress<double>(fraction =>
             {
                 DownloadProgress.IsIndeterminate = false;
                 DownloadProgress.Value = Math.Clamp(fraction * 100, 0, 100);
             });
-            // No Content-Length → show an indeterminate bar so the user still sees activity.
-            DownloadProgress.IsIndeterminate = true;
 
             await UpdateChecker.DownloadAsync(release.PortableDownloadUrl, destination, progress, CancellationToken.None);
 
@@ -140,10 +228,9 @@ public partial class VersionWindow : Window
         }
         finally
         {
-            _downloading = false;
             DownloadProgress.IsIndeterminate = false;
             DownloadProgress.Visibility = Visibility.Collapsed;
-            Render();
+            SetBusy(false);
         }
     }
 
@@ -155,6 +242,12 @@ public partial class VersionWindow : Window
     private void CloseButton_Click(object sender, RoutedEventArgs e)
     {
         Close();
+    }
+
+    private void SetBusy(bool busy)
+    {
+        _busy = busy;
+        UpdateButtonStates();
     }
 
     private static void OpenUrl(string url)

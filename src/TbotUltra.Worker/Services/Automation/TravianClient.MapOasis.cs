@@ -101,7 +101,7 @@ public sealed partial class TravianClient
                 {
                     // Map scans are high-volume API reads. Always pace between areas so there is never
                     // a zero-delay burst, even if the global action-pacing toggle is disabled.
-                    await DelayFarmListStepAsync(cancellationToken);
+                    await ApplyActionDelayAsync(cancellationToken); // Action pacing "Task" delay
                 }
             }
         }
