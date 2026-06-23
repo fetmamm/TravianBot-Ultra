@@ -105,7 +105,7 @@ public partial class MainWindow
                 return;
             }
 
-            await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
+            await Task.Delay(Random.Shared.Next(150, 350)); // Random wait
         }
 
         AppendLog("[account-scan] Graceful pause timed out; canceling current action.");
@@ -124,7 +124,7 @@ public partial class MainWindow
                 return;
             }
 
-            await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
+            await Task.Delay(Random.Shared.Next(150, 350)); // Random wait
         }
 
         throw new InvalidOperationException("Could not pause active automation.");

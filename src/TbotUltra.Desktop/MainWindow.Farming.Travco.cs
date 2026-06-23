@@ -112,7 +112,7 @@ public partial class MainWindow
                 return;
             }
 
-            await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
+            await Task.Delay(Random.Shared.Next(150, 350)); // Random wait
         }
 
         AppendLog("[travco] graceful pause timed out; canceling the active bot operation.");

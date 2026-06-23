@@ -694,7 +694,7 @@ public partial class MainWindow
                 break;
             }
 
-            await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
+            await Task.Delay(Random.Shared.Next(150, 350)); // Random wait
         }
 
         RefreshQueueUi();
