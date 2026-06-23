@@ -332,6 +332,22 @@ public sealed partial class TravianClient
             cancellationToken);
     }
 
+    // Types a value into an input the way a person would: focus (real mouse click), clear, then enter the
+    // characters one at a time with a small randomized cadence between keystrokes. This produces genuine
+    // per-character keydown/keyup/input events instead of an instant paste, which looks far more human while
+    // only costing a few hundred ms for short values like coordinates or troop counts.
+    private async Task TypeHumanlyAsync(ILocator input, string value, CancellationToken cancellationToken)
+    {
+        await input.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
+        await input.FillAsync(string.Empty, new LocatorFillOptions { Timeout = _config.TimeoutMs });
+        // One randomized delay-per-keystroke per field, so different fields are typed at a slightly
+        // different speed (e.g. ~45-110 ms/char) rather than a constant machine-like rhythm.
+        await input.PressSequentiallyAsync(
+            value,
+            new LocatorPressSequentiallyOptions { Delay = Random.Shared.Next(45, 110) });
+        cancellationToken.ThrowIfCancellationRequested();
+    }
+
 // Helper function for waiting on a page to fully load with retries, to mitigate transient timeouts on slow-loading pages.
     private async Task WaitForPageReadyAsync(CancellationToken cancellationToken = default)
     {
@@ -2408,7 +2424,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 if (attempt < probeAttempts - 1)
                 {
                     // Give the DOM a moment to render the topbar/village list, then re-probe.
-                    await Task.Delay(Random.Shared.Next(300, 600), cancellationToken); // Random wait
+                    await Task.Delay(Random.Shared.Next(300, 600)); // Random wait
                 }
             }
 
@@ -5920,23 +5936,25 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
         if (!_config.IsPrivateServer)
         {
-            await Task.Delay(Random.Shared.Next(300, 500), cancellationToken); // Random wait
-            
+            // Short "reading" pause before touching the row, then type the coordinates like a person
+            // (focus, clear, key-by-key) instead of pasting them instantly. See TypeHumanlyAsync.
+            await Task.Delay(Random.Shared.Next(200, 400), cancellationToken); // Random wait
+
             var xInput = _page.Locator(
                 "#farmListTargetForm input[name=\"x\"], " +
                 "#farmListTargetForm input[name=\"xCoord\"], " +
                 "#farmListTargetForm input[id*=\"xCoord\" i]").First;
-            await xInput.FillAsync(x.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            await TypeHumanlyAsync(xInput, x.ToString(System.Globalization.CultureInfo.InvariantCulture), cancellationToken);
             Notify($"[farm-list] Add target X filled with {x} for '{farmListName}'.");
-            await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
+            await Task.Delay(Random.Shared.Next(90, 220), cancellationToken); // Random wait
 
             var yInput = _page.Locator(
                 "#farmListTargetForm input[name=\"y\"], " +
                 "#farmListTargetForm input[name=\"yCoord\"], " +
                 "#farmListTargetForm input[id*=\"yCoord\" i]").First;
-            await yInput.FillAsync(y.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            await TypeHumanlyAsync(yInput, y.ToString(System.Globalization.CultureInfo.InvariantCulture), cancellationToken);
             Notify($"[farm-list] Add target Y filled with {y} for '{farmListName}'.");
-            await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
+            await Task.Delay(Random.Shared.Next(90, 220), cancellationToken); // Random wait
 
             if (useDefaultTroops)
             {
@@ -5979,8 +5997,8 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 var troopInput = _page.Locator(
                     $"#farmListTargetForm input.unitAmount[name=\"t{troopIndex.Value}\"], " +
                     $"#farmListTargetForm input[name=\"t{troopIndex.Value}\"]").First;
-                await troopInput.FillAsync(troopCount.ToString(System.Globalization.CultureInfo.InvariantCulture));
-                await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
+                await TypeHumanlyAsync(troopInput, troopCount.ToString(System.Globalization.CultureInfo.InvariantCulture), cancellationToken);
+                await Task.Delay(Random.Shared.Next(90, 220), cancellationToken); // Random wait
             }
         }
 

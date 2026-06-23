@@ -348,7 +348,7 @@ public static class TravcoInactiveSearch
             "() => document.readyState === 'complete' && document.querySelector('main table tbody') !== null",
             null,
             new PageWaitForFunctionOptions { Timeout = 20000 }).WaitAsync(cancellationToken);
-        await Task.Delay(150, cancellationToken);
+        await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
     }
 
     private static string NormalizeOrderBy(string? value)

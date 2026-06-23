@@ -351,7 +351,7 @@ public sealed partial class TravianClient
                 """);
             if (!ready)
             {
-                await Task.Delay(250, cancellationToken);
+                await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
                 continue;
             }
 
@@ -375,7 +375,7 @@ public sealed partial class TravianClient
                 return true;
             }
 
-            await Task.Delay(250, cancellationToken);
+            await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
         }
 
         return false;

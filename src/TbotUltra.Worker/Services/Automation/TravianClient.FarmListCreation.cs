@@ -113,7 +113,7 @@ public sealed partial class TravianClient
             Notify($"[farm-list-create] [{index + 1}/{names.Count}] verified '{name}'.");
             if (index < names.Count - 1)
             {
-                await DelayFarmListStepAsync(cancellationToken);
+                await ApplyActionDelayAsync(cancellationToken); // Action pacing "Task" delay
             }
         }
 
@@ -203,14 +203,14 @@ public sealed partial class TravianClient
                 Timeout = 5000,
             }).WaitAsync(cancellationToken);
 
-            await DelayFarmListStepAsync(cancellationToken);
+            await ApplyActionDelayAsync(cancellationToken); // Action pacing "Task" delay
             await form.Locator("input[name='listName']").First.FillAsync(name).WaitAsync(cancellationToken);
 
             var villageValue = await ResolveOfficialCreateFarmListVillageValueAsync(
                 villageName,
                 villageId,
                 cancellationToken);
-            await DelayFarmListStepAsync(cancellationToken);
+            await ApplyActionDelayAsync(cancellationToken); // Action pacing "Task" delay
             await form.Locator("select[name='villageId']").First
                 .SelectOptionAsync(villageValue)
                 .WaitAsync(cancellationToken);

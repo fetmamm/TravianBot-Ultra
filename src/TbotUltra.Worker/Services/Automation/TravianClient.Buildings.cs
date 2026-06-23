@@ -1070,7 +1070,7 @@ public sealed partial class TravianClient
         string operationLabel,
         CancellationToken cancellationToken)
     {
-        if (TravianUrls.ExtractSlotIdFromUrl(_page.Url) != slotId)
+        if (!TravianUrls.IsBuildPageForSlot(_page.Url, slotId))
         {
             await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
         }
@@ -3802,7 +3802,7 @@ public sealed partial class TravianClient
         {
             try
             {
-                if (!skipNavigationIfOnExpectedSlot || TravianUrls.ExtractSlotIdFromUrl(_page.Url) != slotId)
+                if (!skipNavigationIfOnExpectedSlot || !TravianUrls.IsBuildPageForSlot(_page.Url, slotId))
                 {
                     await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
                 }
@@ -4595,17 +4595,15 @@ public sealed partial class TravianClient
 
     private async Task EnsureExpectedBuildSlotPageAsync(int slotId, string operationLabel, CancellationToken cancellationToken = default)
     {
-        var currentSlotId = TravianUrls.ExtractSlotIdFromUrl(_page.Url);
-        if (currentSlotId != slotId)
+        if (!TravianUrls.IsBuildPageForSlot(_page.Url, slotId))
         {
-            // A prior read in the upgrade flow (ReadActiveConstructionsAsync / ReadBuildQueueAsync)
-            // can navigate away from the build slot page to dorf2.php. Re-open the slot so the
-            // upgrade click targets the right building instead of failing on the wrong page.
-            // (Notably triggered on official Travian, where build.php?id=N redirects to add &gid=.)
+            // A prior read/redirect in the upgrade flow (ReadActiveConstructionsAsync / ReadBuildQueueAsync
+            // / a post-click redirect) can leave us on dorf2.php?id=slot, which carries the same id= param
+            // as build.php?id=slot. Re-open the slot so the upgrade click targets the build page instead of
+            // silently running on the village overview. (Official build.php?id=N also adds &gid=.)
             await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
             await EnsureLoggedInAsync();
-            currentSlotId = TravianUrls.ExtractSlotIdFromUrl(_page.Url);
-            if (currentSlotId != slotId)
+            if (!TravianUrls.IsBuildPageForSlot(_page.Url, slotId))
             {
                 throw new InvalidOperationException(
                     $"{operationLabel} expected build.php?id={slotId}, but current url is '{_page.Url}'.");
@@ -4688,6 +4686,9 @@ public sealed partial class TravianClient
             await _page.WaitForFunctionAsync(
                 """
                 ({ slotId }) => {
+                  // Must be the build page itself — dorf2.php?id=slot carries the same id= and even has
+                  // build.php links, so the id+selector check alone would falsely pass on the overview.
+                  if (!/build\.php/i.test(window.location.pathname)) return false;
                   const currentSlot = (() => {
                     const match = window.location.href.match(/[?&]id=(\d+)/);
                     return match ? Number(match[1]) : null;
