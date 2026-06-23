@@ -248,6 +248,19 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   vilka köposter som också tas bort (`ComputeBuildingQueueRemovalPreview` — icke-muterande dry-run som
   speglar borttagningsordningen, `ConfirmCascadingQueueRemoval`). Ingen dialog när inget beroende dras med.
 
+- **2026-06-23** — **Uppdateringskoll mot GitHub (Fas 1: upptäck + ladda ner).** Ny `UpdateChecker`
+  (`Services/UpdateChecker.cs`) läser nuvarande version ur `VERSION`-filen bredvid exe:n (fallback "dev")
+  och frågar `api.github.com/repos/fetmamm/Tbot_ultra_new/releases/latest` (kräver User-Agent-header).
+  Jämför semver, plockar portable-asseten (`*-portable.zip` → `browser_download_url`). Allt fail-soft
+  (offline/rate-limit → "ingen ny version känd", inget larm). Körs fire-and-forget vid appstart efter
+  `LoadVersionToUi`; vid ny version tintas Support-knappen amber (`Warning*`-brushar) + tooltip. Contact-
+  popupen (`SupportWindow`) har en **Version**-knapp (grå=up-to-date/okänt, gul=ny version) som öppnar
+  `VersionWindow`: visar nuvarande/senaste version, **Download…** (SaveFileDialog → streamad nedladdning med
+  progress → visa i Utforskaren) och **GitHub releases**. Fas 2 (auto-install via extern updater som byter
+  filer och bevarar `config/`/`.env`/`playwright/.auth`/`logs/`) är INTE gjord — portable kan inte skriva
+  över sina egna körande filer, så det kräver en separat hjälpprocess. README-badgen (v0.3.7) är inaktuell
+  mot `VERSION` (0.4.3) men används inte av appen.
+
 - **2026-06-08** — **Village overview tappar inte byggkö-status vid en partiell DOM-miss.**
   Dashboardens Buildings-ikoner drevs enbart av `ReadBuildQueueAsync`; om den breda kö-selektorn
   tillfälligt gav noll poster skrevs `ActiveBuildCount=0` trots att den oberoende

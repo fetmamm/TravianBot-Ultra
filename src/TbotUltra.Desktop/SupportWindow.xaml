@@ -39,10 +39,17 @@
             <Button Content="GitHub"
                     Width="110"
                     Height="30"
+                    Margin="0,0,8,0"
                     Background="{DynamicResource SuccessBgBrush}"
                     BorderBrush="{DynamicResource SuccessBorderBrush}"
                     Foreground="{DynamicResource SuccessTextBrush}"
                     Click="GithubButton_Click" />
+            <!-- Version: grey when up to date / unknown, amber when a newer release exists (set in code). -->
+            <Button x:Name="VersionButton"
+                    Content="Version"
+                    Width="110"
+                    Height="30"
+                    Click="VersionButton_Click" />
         </StackPanel>
 
         <!-- Diagnostics export is disabled for now (to be revisited). -->

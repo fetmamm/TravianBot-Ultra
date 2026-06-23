@@ -1,0 +1,45 @@
+<Window x:Class="TbotUltra.Desktop.VersionWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Background="{DynamicResource AppBackgroundBrush}"
+        Title="Version"
+        Height="300"
+        Width="480"
+        MinHeight="280"
+        MinWidth="440"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="Version" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,12" />
+
+        <TextBlock x:Name="CurrentVersionText" Grid.Row="1" Margin="0,0,0,4"
+                   Foreground="{DynamicResource TextSubtleBrush}" />
+        <TextBlock x:Name="LatestVersionText" Grid.Row="2" Margin="0,0,0,8"
+                   Foreground="{DynamicResource TextSubtleBrush}" />
+
+        <TextBlock x:Name="StatusText" Grid.Row="3" TextWrapping="Wrap" Margin="0,0,0,10" />
+
+        <ProgressBar x:Name="DownloadProgress" Grid.Row="4" Height="14" Minimum="0" Maximum="100"
+                     Visibility="Collapsed" Margin="0,0,0,8" />
+
+        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button x:Name="DownloadButton" Content="Download…" Width="120" Height="30" Margin="0,0,8,0"
+                    Background="{DynamicResource SuccessBgBrush}"
+                    BorderBrush="{DynamicResource SuccessBorderBrush}"
+                    Foreground="{DynamicResource SuccessTextBrush}"
+                    Click="DownloadButton_Click" />
+            <Button x:Name="ReleasesButton" Content="GitHub releases" Width="130" Height="30" Margin="0,0,8,0"
+                    Click="ReleasesButton_Click" />
+            <Button x:Name="CloseButton" Content="Close" Width="90" Height="30" Click="CloseButton_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

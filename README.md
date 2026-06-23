@@ -28,17 +28,18 @@ Also works for SS-Travian private server but the main goal forward is the offici
 
 ## What can this program do?
 
-Tbot Ultra is an automation tool for Travian. It helps players automate repetitive tasks such as village management, resource handling, farming, troops and construction.
+Tbot Ultra is an automation tool for Travian. It helps players automate repetitive tasks such as village management, resource handling, farming, troops, construction and so much more.
+It is made to be realistic and human, and to reduce the boring tasks of travian.
 
 Compatible with:
 
 - `Official Travian` — Travian Legends 4.6+ — Official servers
 
-- `SS-Travi` — T4.4 — Private server
+- `SS-Travi` — T4.4 — Private server (Latest robust version = 0.2.6)
 
 `NOTE:` It is important that the language is set to `English` in the travian browser settings page.
 
-`Way forward:` The goal of the project forward is to focus on the official servers. SS-Travi is not in the same developement anymore.
+`Way forward:` The goal of the project forward is to focus on the official servers. SS-Travi is not being developement anymore.
 
 ## Features:
 
@@ -59,16 +60,18 @@ Compatible with:
 - Session pacing
 - Auto sleep (logout and wait)
 - Captcha solver (SS-Travi servers)
-- Read ingame status
-- Read village data
-- Clean dark mode UI
-- Multi-village support
-- Calculate building time and resource cost for buildings + resourcefields
 - Oasis scan for whole map (and add to farmlists)
 - Travco inactive search (and add to farmlists)
 - Reduce adventure duration 25% button / video watch
 - Increase adventure to hard button / video watch
 - Auto town hall celebrations
+
+- Read ingame status
+- Read village data
+- Clean dark mode UI
+- Multi-village support
+- Calculate building time and resource cost for buildings + resourcefields
+- Easy update to new version via the app
 
 ## Future functions:
 

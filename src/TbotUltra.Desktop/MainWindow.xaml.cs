@@ -139,6 +139,8 @@ public partial class MainWindow : Window
 
     private readonly string _projectRoot;
     private readonly string _versionPath;
+    private string _currentVersion = "dev";
+    private UpdateChecker.UpdateStatus? _updateStatus;
     private readonly string _botConfigPath;
     private readonly string _envPath;
     private readonly string _serverCatalogPath;
@@ -606,6 +608,7 @@ public partial class MainWindow : Window
 
         LoadConfigToUi();
         LoadVersionToUi();
+        _ = CheckForUpdatesAsync();
         RefreshQueueUi();
         Closing += MainWindow_Closing;
         if (Application.Current is not null)
@@ -818,19 +821,36 @@ public partial class MainWindow : Window
     {
         try
         {
-            var version = File.Exists(_versionPath)
-                ? File.ReadAllText(_versionPath).Trim()
-                : "dev";
-            if (string.IsNullOrWhiteSpace(version))
-            {
-                version = "dev";
-            }
-
-            VersionTextBlock.Text = $"Version: {version}";
+            _currentVersion = UpdateChecker.ReadCurrentVersion(_versionPath);
+            VersionTextBlock.Text = $"Version: {_currentVersion}";
         }
         catch
         {
             VersionTextBlock.Text = "Version: -";
+        }
+    }
+
+    // Best-effort background check against GitHub's latest release. On a newer version, tint the Support
+    // button amber so the user notices; the Version button inside Support shows the details. Never blocks
+    // startup and never alarms — offline/rate-limited just leaves the button neutral.
+    private async Task CheckForUpdatesAsync()
+    {
+        try
+        {
+            var status = await UpdateChecker.CheckAsync(_currentVersion, CancellationToken.None);
+            _updateStatus = status;
+            if (status.UpdateAvailable && status.Release is not null)
+            {
+                SupportButton.Background = (Brush)FindResource("WarningBgBrush");
+                SupportButton.BorderBrush = (Brush)FindResource("WarningBorderBrush");
+                SupportButton.Foreground = (Brush)FindResource("WarningTextBrush");
+                SupportButton.ToolTip = $"Update available: v{status.Release.LatestVersion} — open Support";
+                AppendLog($"Update available: v{status.Release.LatestVersion} (current v{_currentVersion}).");
+            }
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Update check skipped: {ex.Message}");
         }
     }
 
@@ -1513,7 +1533,11 @@ public partial class MainWindow : Window
 
     private void SupportButton_Click(object sender, RoutedEventArgs e)
     {
-        var support = new SupportWindow(_projectRoot, _terminalEntries.Select(entry => entry.Text).ToList())
+        var support = new SupportWindow(
+            _projectRoot,
+            _terminalEntries.Select(entry => entry.Text).ToList(),
+            _currentVersion,
+            _updateStatus)
         {
             Owner = this,
         };
