@@ -38,6 +38,10 @@ public static class BotOptionPayloadKeys
     public const string UpgradeDeferReasonRequirements = "requirements";
     public const string UpgradeDeferReasonStorageCapacity = "storage_capacity";
     public const string UpgradeDeferReasonRetry = "retry";
+    // Consecutive requirement-defer counter. Requirement defers do not consume Retries (the prerequisite
+    // could still arrive), so this bounds how long an item whose prerequisite never comes keeps retrying
+    // before it is abandoned. Reset whenever the item defers for any other reason or makes progress.
+    public const string RequirementDeferCount = "requirement_defer_count";
     public const string StorageDependencyParentId = "storage_dependency_parent_id";
     public const string StorageDependencyItemId = "storage_dependency_item_id";
     public const string StorageDependencyKind = "storage_dependency_kind";

@@ -11,6 +11,13 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
+    // Enough to re-enqueue a removed item (Group/DisplayName are re-derived from the task name on Add).
+    private sealed record RemovedQueueSnapshot(string TaskName, Dictionary<string, string> Payload, int Priority, int MaxRetries);
+
+    // Last Remove action's removed set (the selected item plus everything the cascades dropped with it),
+    // kept so the user can restore an accidental removal. One-shot: cleared once restored.
+    private List<RemovedQueueSnapshot> _lastRemovedQueueItems = [];
+
     private void QueueRemoveButton_Click(object sender, RoutedEventArgs e)
     {
         if (QueueDataGrid.SelectedItem is not QueueItemRow selected)
@@ -20,22 +27,97 @@ public partial class MainWindow
         }
 
         var existingItem = _botService.GetQueueItemsForDisplay().FirstOrDefault(item => item.Id == selected.Id);
+
+        // Warn before removing an item that other queued buildings depend on: removing it would cascade-
+        // remove those follow-on items too. Show exactly which ones so the user knows the full effect.
+        if (existingItem is not null)
+        {
+            var alsoRemoved = ComputeBuildingQueueRemovalPreview(existingItem);
+            if (alsoRemoved.Count > 0 && !ConfirmCascadingQueueRemoval(existingItem, alsoRemoved))
+            {
+                return;
+            }
+        }
+
+        // Snapshot the whole queue before removing so the Redo/Restore button can bring back the selected
+        // item AND every dependent/higher-level item the cascades drop along with it.
+        var snapshotBefore = _botService.GetQueueItemsForDisplay().ToList();
         if (_botService.RemoveQueueItem(selected.Id))
         {
             if (existingItem is not null)
             {
                 ForgetBuildingQueueCachesForItem(existingItem);
+
+                // Removing an "upgrade to level N" for a slot cancels the higher-level upgrades queued for
+                // that same slot too: the worker loops each upgrade up to its target, so leaving them would
+                // silently keep climbing the building past the level the user just removed. Run this before
+                // the generic cascade so requirement/orphan re-validation sees the trimmed queue.
+                if (string.Equals(existingItem.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+                    && TryReadBuildingUpgradePayload(existingItem.Payload, out var removedSlotId, out var removedTarget)
+                    && removedTarget.HasValue)
+                {
+                    CascadeRemoveHigherSameSlotBuildingUpgrades(removedSlotId, removedTarget.Value);
+                }
             }
 
             AppendLog($"Queue item removed: {selected.TaskName}.");
             // Removing a prerequisite (e.g. a Main Building upgrade or a prerequisite construct) can leave
             // dependent building tasks that can no longer be built — drop them too. Also refreshes the UI.
             CascadeRemoveUnsatisfiedBuildingQueueItems();
+            RememberRemovedQueueItemsForUndo(snapshotBefore);
             RefreshQueueUi();
             return;
         }
 
         AppendLog("Could not remove queue item.");
+    }
+
+    // Records the items present before a Remove but gone after (selected + cascaded) as the restorable set.
+    private void RememberRemovedQueueItemsForUndo(IReadOnlyList<QueueItem> snapshotBefore)
+    {
+        var survivingIds = _botService.GetQueueItemsForDisplay().Select(item => item.Id).ToHashSet();
+        _lastRemovedQueueItems = snapshotBefore
+            .Where(item => !survivingIds.Contains(item.Id))
+            .Select(item => new RemovedQueueSnapshot(
+                item.TaskName,
+                new Dictionary<string, string>(item.Payload, StringComparer.OrdinalIgnoreCase),
+                item.Priority,
+                item.MaxRetries))
+            .ToList();
+    }
+
+    private void QueueRedoButton_Click(object sender, RoutedEventArgs e)
+    {
+        _ = sender;
+        _ = e;
+        if (_lastRemovedQueueItems.Count == 0)
+        {
+            AppendLog("Nothing to restore — no recently removed queue items.");
+            return;
+        }
+
+        var restored = 0;
+        foreach (var snapshot in _lastRemovedQueueItems)
+        {
+            try
+            {
+                _botService.Enqueue(
+                    snapshot.TaskName,
+                    new Dictionary<string, string>(snapshot.Payload, StringComparer.OrdinalIgnoreCase),
+                    snapshot.Priority,
+                    snapshot.MaxRetries);
+                restored++;
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"Could not restore '{snapshot.TaskName}': {ex.Message}");
+            }
+        }
+
+        // One-shot: the items are back in the queue, so there is nothing left to redo.
+        _lastRemovedQueueItems = [];
+        AppendLog($"Restored {restored} removed queue item(s).");
+        RefreshQueueUi();
     }
 
     private void QueueMoveUpButton_Click(object sender, RoutedEventArgs e)

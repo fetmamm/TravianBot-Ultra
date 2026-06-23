@@ -3096,6 +3096,7 @@
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                         <Button x:Name="QueueRemoveButton" Content="Remove" Width="76" Click="QueueRemoveButton_Click" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" />
+                                        <Button x:Name="QueueRedoButton" Content="Redo" Width="76" Margin="6,0,0,0" Click="QueueRedoButton_Click" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" ToolTip="Bring back the queue item(s) removed by the last Remove" />
                                         <Rectangle Width="1" Fill="{DynamicResource BorderSubtleBrush}" Margin="10,3,10,3" />
                                         <Button x:Name="QueueMoveUpButton" Content="↑" Width="36" Click="QueueMoveUpButton_Click" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" ToolTip="Move up" />
                                         <Button x:Name="QueueMoveDownButton" Content="↓" Width="36" Margin="6,0,0,0" Click="QueueMoveDownButton_Click" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" ToolTip="Move down" />

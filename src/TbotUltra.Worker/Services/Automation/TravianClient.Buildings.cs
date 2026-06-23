@@ -4017,6 +4017,18 @@ public sealed partial class TravianClient
                         // so the action keyword cannot distinguish them — the text ("Construct building" vs
                         // "Upgrade to level N") is the reliable signal.
                         const isConstruct = /construct\s+building/i.test(displayText);
+                        // Village-map level badges (e.g. dorf2 building-slot overlays
+                        // `<a class="level colorlayer good aidNN <tribe>" href="build.php?id=N">`) link to
+                        // build.php but only carry the slot's current level number — they are NOT upgrade
+                        // controls. They leak in via the bare `href build.php` signal below and, being the
+                        // only "candidate" found, mask the real blocked state into a false CanUpgrade →
+                        // misleading "could not find Upgrade to level N" alarm. The `colorlayer` overlay class
+                        // never appears on a real upgrade button, so exclude it.
+                        const isLevelBadge = classes.includes('colorlayer') || controlClasses.includes('colorlayer');
+                        // The hero adventure button is green (`... adventure green attention`) but unrelated to
+                        // building upgrades; it leaks in via the bare `green` signal. The `adventure` class
+                        // never appears on a real upgrade button, so exclude it.
+                        const isAdventure = classes.includes('adventure') || controlClasses.includes('adventure');
                         const isSpeedup = inOfficialSpeedupSection || classes.includes('purple') || controlClasses.includes('purple') || classes.includes('videofeaturebutton') || controlClasses.includes('videofeaturebutton') || combined.includes('videoFeature') || combined.includes('videofeature') || combined.includes('faster');
                         const inUpgradeContainer = !!element.closest('.upgradeBuilding, .contract, .contractWrapper, .build_details, .buildingWrapper, #contract, form[action*="build.php"]');
                         const hasUpgradeSignals =
@@ -4045,7 +4057,7 @@ public sealed partial class TravianClient
                           && !href.includes('action=build')
                           && !formAction.includes('build.php');
 
-                        if (!hasUpgradeSignals || isGold || isPaymentShop || isConstruct || isSpeedup || looksLikePrimaryNoise || displayText.length === 0) {
+                        if (!hasUpgradeSignals || isGold || isPaymentShop || isConstruct || isLevelBadge || isAdventure || isSpeedup || looksLikePrimaryNoise || displayText.length === 0) {
                           continue;
                         }
 

@@ -227,6 +227,27 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   **Stop bot** (samt appstängning) gör full `Reset`. Hero resource max-use-defaulten är åter 5000
   både i `BotOptionsFactory` och standardkonfigurationen.
 
+- **2026-06-23** — **Byggkö-borttagning: robustare kaskad + kedjeavbrott + Redo + bounded requirement-defer.**
+  (1) `MaxActiveConstructionLevel` (`MainWindow.Buildings.cs`) räknar nu in browser-bekräftade pågående
+  byggen mot krav, så en användarstartad t.ex. Academy 15 låser upp köläggning av beroende byggnad
+  (workern deferrar tills den faktiskt är klar). Endast färska läsningar räknas
+  (`ActiveConstructionRequirementFreshness` 30 min) så ett avbrutet bygge i cachen inte låser upp i all
+  evighet. (2) Att ta bort en `upgrade_building_to_level` (slot S, niv N) tar via
+  `CascadeRemoveHigherSameSlotBuildingUpgrades` även bort köade upgrades för samma slot med högre target
+  (+ `upgrade_building_to_max`) — workern loopar annars upp byggnaden förbi den borttagna nivån. Lägre
+  targets lämnas. (3) `CascadeRemoveUnsatisfiedBuildingQueueItems` validerar nu **per by** (inte bara vald
+  by) mot respektive bys live/cachade status, och faller tillbaka på cache när live-snapshot saknas. Krav-
+  kollen (`MissingRequirements`/`QueuedConstructProvidesRequirement`/`MaxQueuedResourceUpgradeLevel`)
+  tar en `queueFilter` så en annan bys kö inte falskt uppfyller/blockerar. (4) Construct vars krav aldrig
+  kommer (kaskad missade) deferrade förut för evigt (requirement-defer förbrukar inte Retries); nu räknas
+  upp till `MaxConsecutiveRequirementDefers` (12) och itemet abandonas (Failed + larm) — men aldrig medan
+  byn har ett aktivt bygge (`VillageHasActiveConstruction`), så ett legitimt pågående kravbygge inte
+  avbryts. Payload-nyckel `requirement_defer_count`. (5) Ny **Redo**-knapp (`QueueRedoButton`) återställer
+  itemen som senaste Remove tog bort (selected + kaskaderade), via before/after-diff; engångs.
+  (6) Remove på en kravbyggnad med efterföljande beroenden visar nu en bekräftelsedialog som listar exakt
+  vilka köposter som också tas bort (`ComputeBuildingQueueRemovalPreview` — icke-muterande dry-run som
+  speglar borttagningsordningen, `ConfirmCascadingQueueRemoval`). Ingen dialog när inget beroende dras med.
+
 - **2026-06-08** — **Village overview tappar inte byggkö-status vid en partiell DOM-miss.**
   Dashboardens Buildings-ikoner drevs enbart av `ReadBuildQueueAsync`; om den breda kö-selektorn
   tillfälligt gav noll poster skrevs `ActiveBuildCount=0` trots att den oberoende
