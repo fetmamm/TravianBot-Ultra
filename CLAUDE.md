@@ -12,7 +12,7 @@
 - All kod skrivs på engelska. UI ska vara på engelska.
 - Duplicera inte kod i onödan. Försök återanvända om det går.
 - Skriv kod som går att återanvända och är enkel att underhålla och felsöka
-- Skriv loggar i nya funktioner med mer så det enkelt går att felöka i framtiden
+- Skriv loggar i nya funktioner så det enkelt går att felöka i framtiden
 
 ## Hjälpfunktioner
 - Skapa inte hjälpfunktioner enbart för att minska antalet kodrader.
