@@ -3,7 +3,7 @@
 > Las detta innan du andrar selektorer, sokvagar, konfiguration eller serverlogik.
 > Filen ar styrande och ska hallas kort, aktuell och under 300 rader.
 
-Se aven `AGENTS.md`, `CLAUDE.md`, `README.md` och `docs/REFACTOR_PLAN.md`.
+Se aven `docs/ARCHITECTURE.md` (fil- och funktionskarta), `AGENTS.md`, `CLAUDE.md`, `README.md`.
 Djupa mekanismdetaljer ligger i `docs/adr/` och historiken i `docs/history/`.
 
 ## 1. Projektoversikt
