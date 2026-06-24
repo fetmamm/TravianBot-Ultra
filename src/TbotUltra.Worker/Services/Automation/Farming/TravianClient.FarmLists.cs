@@ -12,7 +12,9 @@ using System.Runtime.CompilerServices;
 
 namespace TbotUltra.Worker.Services;
 
-public sealed partial class TravianClient
+// Farming surface of the TravianClient facade. The interface list is declared
+// on this partial to co-locate the contract with the domain it covers.
+public sealed partial class TravianClient : IFarmingClient
 {
     public async Task<IReadOnlyList<FarmListOverview>> ReadFarmListsOverviewAsync(CancellationToken cancellationToken = default)
     {
