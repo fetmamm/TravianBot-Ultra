@@ -166,7 +166,9 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _buildQueueCountdownTimer;
     private readonly DispatcherTimer _resourceSnapshotRefreshTimer;
     private readonly DispatcherTimer _troopTrainingDeferredRefreshDebounceTimer;
-    private readonly ObservableCollection<TerminalEntryRow> _terminalEntries = [];
+    // Terminal entries now live on TerminalViewModel; this delegates so existing
+    // code-behind that mutates the collection in place keeps working unchanged.
+    private ObservableCollection<TerminalEntryRow> _terminalEntries => _terminalViewModel.Entries;
     private ICollectionView? _terminalView;
     private ICollectionView? _alarmView;
     private LogCategory _terminalFilterCategory = LogCategory.All;
@@ -254,6 +256,7 @@ public partial class MainWindow : Window
     private readonly TravianQueueViewModel _travianQueueViewModel = App.Services.GetRequiredService<TravianQueueViewModel>();
     private readonly AutomationLoopViewModel _automationLoopViewModel = App.Services.GetRequiredService<AutomationLoopViewModel>();
     private readonly AlarmsViewModel _alarmsViewModel = App.Services.GetRequiredService<AlarmsViewModel>();
+    private readonly TerminalViewModel _terminalViewModel = App.Services.GetRequiredService<TerminalViewModel>();
 
     /// <summary>
     /// Public accessor so XAML can bind to the hero view model via
