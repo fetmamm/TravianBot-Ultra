@@ -171,7 +171,9 @@ public partial class MainWindow : Window
     private ICollectionView? _alarmView;
     private LogCategory _terminalFilterCategory = LogCategory.All;
     private bool _terminalCleanMode = true;
-    private readonly ObservableCollection<AlarmEntryRow> _alarmEntries = [];
+    // Alarm entries now live on AlarmsViewModel; this delegates so existing
+    // code-behind that mutates the collection in place keeps working unchanged.
+    private ObservableCollection<AlarmEntryRow> _alarmEntries => _alarmsViewModel.Entries;
     // Build/smithy queue rows now live on TravianQueueViewModel; these delegate
     // so existing code-behind that mutates the collections in place keeps working.
     private ObservableCollection<TravianBuildQueueRow> _travianBuildQueueRows => _travianQueueViewModel.BuildQueueRows;
@@ -251,6 +253,7 @@ public partial class MainWindow : Window
     private readonly FarmListsViewModel _farmListsViewModel = App.Services.GetRequiredService<FarmListsViewModel>();
     private readonly TravianQueueViewModel _travianQueueViewModel = App.Services.GetRequiredService<TravianQueueViewModel>();
     private readonly AutomationLoopViewModel _automationLoopViewModel = App.Services.GetRequiredService<AutomationLoopViewModel>();
+    private readonly AlarmsViewModel _alarmsViewModel = App.Services.GetRequiredService<AlarmsViewModel>();
 
     /// <summary>
     /// Public accessor so XAML can bind to the hero view model via
