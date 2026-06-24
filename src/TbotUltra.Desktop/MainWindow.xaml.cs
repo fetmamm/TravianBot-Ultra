@@ -176,7 +176,10 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<TravianSmithyQueueRow> _travianSmithyQueueRows = [];
     private readonly ObservableCollection<LoopTaskOption> _automationLoopTasks = [];
     private ICollectionView? _automationLoopTasksView;
-    private readonly ObservableCollection<ResourceTransferVillageItem> _resourceTransferVillages = [];
+    // Resource Transfer villages now live on ResourceTransferViewModel; this
+    // delegates so existing code-behind that mutates the collection in place
+    // (scan/persist/payload) keeps working unchanged.
+    private ObservableCollection<ResourceTransferVillageItem> _resourceTransferVillages => _resourceTransferViewModel.Villages;
     private bool _suppressResourceTransferConfigWrite;
     private readonly ObservableCollection<ReinforcementVillageItem> _reinforcementVillages = [];
     private readonly ObservableCollection<ReinforcementVillageItem> _reinforcementSourceVillages = [];
@@ -234,6 +237,7 @@ public partial class MainWindow : Window
     private readonly TroopTrainingViewModel _troopTrainingViewModel = App.Services.GetRequiredService<TroopTrainingViewModel>();
     private readonly ResourcesViewModel _resourcesViewModel = App.Services.GetRequiredService<ResourcesViewModel>();
     private readonly BuildingsViewModel _buildingsViewModel = App.Services.GetRequiredService<BuildingsViewModel>();
+    private readonly ResourceTransferViewModel _resourceTransferViewModel = App.Services.GetRequiredService<ResourceTransferViewModel>();
 
     /// <summary>
     /// Public accessor so XAML can bind to the hero view model via
