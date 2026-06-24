@@ -10,7 +10,9 @@ using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Worker.Services;
 
-public sealed partial class TravianClient
+// Building surface of the TravianClient facade. The interface list is declared
+// on this partial to co-locate the contract with the domain it covers.
+public sealed partial class TravianClient : IBuildingClient
 {
 
     public async Task<VillageStatus> ReadBuildingsStatusAsync(CancellationToken cancellationToken = default)
