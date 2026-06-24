@@ -189,7 +189,9 @@ public partial class MainWindow : Window
     private ObservableCollection<ReinforcementTroopRuleItem> _reinforcementTroopRules => _reinforcementViewModel.TroopRules;
     private List<ReinforcementTroopRule> _configuredReinforcementTroopRules = [];
     private bool _suppressReinforcementConfigWrite;
-    private readonly ObservableCollection<FarmListStatusRow> _farmLists = [];
+    // Farm-list rows now live on FarmListsViewModel; this delegates so existing
+    // code-behind that mutates the collection in place keeps working unchanged.
+    private ObservableCollection<FarmListStatusRow> _farmLists => _farmListsViewModel.FarmLists;
     // Building slots now live on BuildingsViewModel; this delegates so existing
     // code-behind that mutates _buildingRows in place keeps working unchanged.
     private ObservableCollection<BuildingSlotRow> _buildingRows => _buildingsViewModel.BuildingSlots;
@@ -242,6 +244,7 @@ public partial class MainWindow : Window
     private readonly BuildingsViewModel _buildingsViewModel = App.Services.GetRequiredService<BuildingsViewModel>();
     private readonly ResourceTransferViewModel _resourceTransferViewModel = App.Services.GetRequiredService<ResourceTransferViewModel>();
     private readonly ReinforcementViewModel _reinforcementViewModel = App.Services.GetRequiredService<ReinforcementViewModel>();
+    private readonly FarmListsViewModel _farmListsViewModel = App.Services.GetRequiredService<FarmListsViewModel>();
 
     /// <summary>
     /// Public accessor so XAML can bind to the hero view model via
