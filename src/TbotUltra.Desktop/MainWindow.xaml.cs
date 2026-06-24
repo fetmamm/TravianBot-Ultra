@@ -172,8 +172,10 @@ public partial class MainWindow : Window
     private LogCategory _terminalFilterCategory = LogCategory.All;
     private bool _terminalCleanMode = true;
     private readonly ObservableCollection<AlarmEntryRow> _alarmEntries = [];
-    private readonly ObservableCollection<TravianBuildQueueRow> _travianBuildQueueRows = [];
-    private readonly ObservableCollection<TravianSmithyQueueRow> _travianSmithyQueueRows = [];
+    // Build/smithy queue rows now live on TravianQueueViewModel; these delegate
+    // so existing code-behind that mutates the collections in place keeps working.
+    private ObservableCollection<TravianBuildQueueRow> _travianBuildQueueRows => _travianQueueViewModel.BuildQueueRows;
+    private ObservableCollection<TravianSmithyQueueRow> _travianSmithyQueueRows => _travianQueueViewModel.SmithyQueueRows;
     private readonly ObservableCollection<LoopTaskOption> _automationLoopTasks = [];
     private ICollectionView? _automationLoopTasksView;
     // Resource Transfer villages now live on ResourceTransferViewModel; this
@@ -245,6 +247,7 @@ public partial class MainWindow : Window
     private readonly ResourceTransferViewModel _resourceTransferViewModel = App.Services.GetRequiredService<ResourceTransferViewModel>();
     private readonly ReinforcementViewModel _reinforcementViewModel = App.Services.GetRequiredService<ReinforcementViewModel>();
     private readonly FarmListsViewModel _farmListsViewModel = App.Services.GetRequiredService<FarmListsViewModel>();
+    private readonly TravianQueueViewModel _travianQueueViewModel = App.Services.GetRequiredService<TravianQueueViewModel>();
 
     /// <summary>
     /// Public accessor so XAML can bind to the hero view model via
