@@ -75,6 +75,7 @@ public partial class App : Application
         services.AddSingleton<ResourcesViewModel>();
         services.AddSingleton<BuildingsViewModel>();
         services.AddSingleton<ResourceTransferViewModel>();
+        services.AddSingleton<ReinforcementViewModel>();
 
         // Orchestration. LoopController owns the queue-auto-run gate and the
         // is-closing flag; subsequent commits will fold the continuous-loop

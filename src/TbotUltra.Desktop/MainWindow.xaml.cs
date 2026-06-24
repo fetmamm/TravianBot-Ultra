@@ -181,9 +181,12 @@ public partial class MainWindow : Window
     // (scan/persist/payload) keeps working unchanged.
     private ObservableCollection<ResourceTransferVillageItem> _resourceTransferVillages => _resourceTransferViewModel.Villages;
     private bool _suppressResourceTransferConfigWrite;
-    private readonly ObservableCollection<ReinforcementVillageItem> _reinforcementVillages = [];
-    private readonly ObservableCollection<ReinforcementVillageItem> _reinforcementSourceVillages = [];
-    private readonly ObservableCollection<ReinforcementTroopRuleItem> _reinforcementTroopRules = [];
+    // Reinforcement villages + troop rules now live on ReinforcementViewModel;
+    // these delegate so existing code-behind that mutates the collections in
+    // place (scan/persist/payload) keeps working unchanged.
+    private ObservableCollection<ReinforcementVillageItem> _reinforcementVillages => _reinforcementViewModel.Villages;
+    private ObservableCollection<ReinforcementVillageItem> _reinforcementSourceVillages => _reinforcementViewModel.SourceVillages;
+    private ObservableCollection<ReinforcementTroopRuleItem> _reinforcementTroopRules => _reinforcementViewModel.TroopRules;
     private List<ReinforcementTroopRule> _configuredReinforcementTroopRules = [];
     private bool _suppressReinforcementConfigWrite;
     private readonly ObservableCollection<FarmListStatusRow> _farmLists = [];
@@ -238,6 +241,7 @@ public partial class MainWindow : Window
     private readonly ResourcesViewModel _resourcesViewModel = App.Services.GetRequiredService<ResourcesViewModel>();
     private readonly BuildingsViewModel _buildingsViewModel = App.Services.GetRequiredService<BuildingsViewModel>();
     private readonly ResourceTransferViewModel _resourceTransferViewModel = App.Services.GetRequiredService<ResourceTransferViewModel>();
+    private readonly ReinforcementViewModel _reinforcementViewModel = App.Services.GetRequiredService<ReinforcementViewModel>();
 
     /// <summary>
     /// Public accessor so XAML can bind to the hero view model via
