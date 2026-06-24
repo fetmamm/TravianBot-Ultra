@@ -167,6 +167,13 @@ En ny formaga ska kunna enhetstestas till stor del utan browser. God-klasserna s
   tva poster. Fallback: newdid (`did:N`), sen namn (`name:..`). `VillageSettingsStore` kanoniserar via
   koordinater (`CanonicalKey`) och migrerar/slar ihop gamla `did:`-poster vid inlasning. Koobjekt bar bara
   namn/url -> namnbaserad nyckel; `NormalizeKey`/`ResolveCanonicalKey` mappar `name:..` till `xy:..`.
+- Koposter stamplar den stabila koordinatnyckeln (`target_village_key`) vid enqueue
+  (`ApplySelectedVillageToPayload`/`BuildVillageRuntimePayload`); `GetQueueItemVillageKey` laser den FORST
+  (fallback namn/url for gamla poster). Annars resolvas en ny by med ATERANVANT namn (forlorad + omgrundad)
+  till fel by och posterna gating:as/pausas bort. Forlorade byar rensas retention-baserat: en by som ar
+  bekraftat saknad (koordinatidentitet) ur login/scan-listan i `LostVillageRetention` (3 dygn) prunas och
+  dess kvarvarande Pending/Paused-koposter tas bort (`ConfirmedMissingSinceUtc` ->
+  `GetVillagesConfirmedMissingSince`/`RemoveVillages` + `ConfirmedVillageQueueReconciler.RemoveItemsForVillages`).
 - Login ska anvanda action pacing och vanta pa full sidladdning. Login-state `unknown` under navigation ar
   normalt en transient ladd-race; captcha, `manual_step` och `logged_out` ar inte det.
 - Playwright `Target crashed` ar transient: kassera shared browser-session, defer:a queue-posten kort och

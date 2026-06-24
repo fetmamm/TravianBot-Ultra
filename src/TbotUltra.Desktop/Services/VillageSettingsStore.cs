@@ -58,6 +58,10 @@ public sealed class VillageSettingsStore
         public bool? HeroResourceMaxUseEnabled { get; set; }
         public int? HeroResourceMaxUsePerResource { get; set; }
         public DateTimeOffset LastSeenUtc { get; set; } = DateTimeOffset.UtcNow;
+        // When this village first went missing from a CONFIRMED login/scan village list (coordinate
+        // identity), or null while it is live. Set/cleared only by DisableVillagesMissingFromConfirmedList.
+        // Drives retention-based pruning of lost/destroyed villages so their queue items don't linger.
+        public DateTimeOffset? ConfirmedMissingSinceUtc { get; set; }
     }
 
     private sealed class VillageSettingsFile
@@ -206,30 +210,98 @@ public sealed class VillageSettingsStore
             }
 
             var disabled = new List<string>();
+            var now = DateTimeOffset.UtcNow;
+            var dirty = false;
             foreach (var record in _cache.Values)
             {
-                if (!record.IsEnabled)
-                {
-                    continue;
-                }
-
                 var keyStillLive = !string.IsNullOrWhiteSpace(record.Key) && liveKeys.Contains(record.Key);
                 var nameStillLive = !string.IsNullOrWhiteSpace(record.Name) && liveNames.Contains(record.Name.Trim());
-                if (keyStillLive || nameStillLive)
+
+                // Pruning signal uses COORDINATE identity only: a lost village that was refounded under the
+                // same name must still count as missing (its key is absent from the confirmed list) even
+                // though a same-named live village exists. Only coordinate-keyed records are matched here;
+                // a coordless record can't be confirmed gone, so it is never flagged for pruning.
+                var hasCoords = record.CoordX.HasValue && record.CoordY.HasValue;
+                if (hasCoords && !keyStillLive)
                 {
-                    continue;
+                    if (record.ConfirmedMissingSinceUtc is null)
+                    {
+                        record.ConfirmedMissingSinceUtc = now;
+                        dirty = true;
+                    }
+                }
+                else if (record.ConfirmedMissingSinceUtc is not null)
+                {
+                    record.ConfirmedMissingSinceUtc = null;
+                    dirty = true;
                 }
 
-                record.IsEnabled = false;
-                disabled.Add(string.IsNullOrWhiteSpace(record.Name) ? record.Key : record.Name);
+                // Disabling stays conservative (key OR name) so a still-existing village seen under a
+                // different key form is never disabled by mistake.
+                if (record.IsEnabled && !keyStillLive && !nameStillLive)
+                {
+                    record.IsEnabled = false;
+                    disabled.Add(string.IsNullOrWhiteSpace(record.Name) ? record.Key : record.Name);
+                    dirty = true;
+                }
             }
 
-            if (disabled.Count > 0)
+            if (dirty)
             {
                 Save();
             }
 
             return disabled;
+        }
+    }
+
+    /// <summary>
+    /// Returns the villages that have been confirmed missing from the live list since at or before
+    /// <paramref name="cutoff"/> (i.e. gone long enough to be treated as lost/destroyed). Read-only peek —
+    /// does not remove anything. Callers use this to clean up the village's lingering queue items BEFORE
+    /// <see cref="RemoveVillages"/> drops the records (so name-based key resolution still maps correctly).
+    /// </summary>
+    public IReadOnlyList<(string Key, string Name)> GetVillagesConfirmedMissingSince(DateTimeOffset cutoff)
+    {
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+            return _cache.Values
+                .Where(record => record.ConfirmedMissingSinceUtc is DateTimeOffset since && since <= cutoff)
+                .Select(record => (record.Key, record.Name ?? string.Empty))
+                .ToList();
+        }
+    }
+
+    /// <summary>
+    /// Permanently removes the given village records by key and persists. Used by the lost-village cleanup
+    /// after their queue items have been removed. No-op for keys that are not present.
+    /// </summary>
+    public int RemoveVillages(IReadOnlyCollection<string> keys)
+    {
+        if (keys is null || keys.Count == 0)
+        {
+            return 0;
+        }
+
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+            var removed = 0;
+            foreach (var key in keys)
+            {
+                if (!string.IsNullOrWhiteSpace(key) && _cache.Remove(NormalizeKey(key)))
+                {
+                    removed++;
+                }
+            }
+
+            if (removed > 0)
+            {
+                Save();
+            }
+
+            return removed;
         }
     }
 

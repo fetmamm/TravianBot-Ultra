@@ -406,6 +406,14 @@ public partial class MainWindow
             payload[BotOptionPayloadKeys.TargetVillageUrl] = selectedVillageUrl;
         }
 
+        // Stamp the stable coordinate key so the item's village identity survives renames and a
+        // lost-then-refounded village that shares a name (name/url alone resolve to the wrong village).
+        var selectedVillageKey = GetSelectedVillageKey();
+        if (!string.IsNullOrWhiteSpace(selectedVillageKey))
+        {
+            payload[BotOptionPayloadKeys.TargetVillageKey] = selectedVillageKey;
+        }
+
         // Gate NPC trade per village: enabled only when the account-wide master (Auto settings) AND this
         // village's choice are both on. The worker honors this per-task override (BotOptionsPayloadApplier).
         if (!string.IsNullOrWhiteSpace(selectedVillageName) || !string.IsNullOrWhiteSpace(selectedVillageUrl))

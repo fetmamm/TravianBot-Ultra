@@ -4,6 +4,10 @@ public static class BotOptionPayloadKeys
 {
     public const string TargetVillageName = "target_village_name";
     public const string TargetVillageUrl = "target_village_url";
+    // Stable per-village identity (coordinate key, e.g. "xy:24|-65") stamped at enqueue time. Coordinates
+    // survive renames AND lost-and-refounded villages that share a name, so queue gating/rotation never
+    // resolve a queue item to the wrong village by name. Older items without this fall back to name/url.
+    public const string TargetVillageKey = "target_village_key";
 
     public const string ResourceUpgradeSlotId = "resource_upgrade_slot_id";
     public const string ResourceUpgradeTargetLevel = "resource_upgrade_target_level";

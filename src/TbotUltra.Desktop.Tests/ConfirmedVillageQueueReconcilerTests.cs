@@ -34,6 +34,34 @@ public sealed class ConfirmedVillageQueueReconcilerTests
         Assert.Equal(missingPending.Id, Assert.Single(pausedIds));
     }
 
+    [Fact]
+    public void RemoveItemsForVillages_RemovesOnlyPendingAndPausedItemsOfRemovedVillages()
+    {
+        var removedPending = Item("xy:1|1", QueueStatus.Pending);
+        var removedPaused = Item("xy:1|1", QueueStatus.Paused);
+        var removedRunning = Item("xy:1|1", QueueStatus.Running);
+        var removedSucceeded = Item("xy:1|1", QueueStatus.Succeeded);
+        var liveVillage = Item("xy:2|2", QueueStatus.Pending);
+        var removedIds = new List<Guid>();
+
+        var removed = ConfirmedVillageQueueReconciler.RemoveItemsForVillages(
+            new[] { removedPending, removedPaused, removedRunning, removedSucceeded, liveVillage },
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "xy:1|1" },
+            item => item.Payload.TryGetValue("villageKey", out var key) ? key : null,
+            id =>
+            {
+                removedIds.Add(id);
+                return true;
+            });
+
+        Assert.Equal(2, removed);
+        Assert.Contains(removedPending.Id, removedIds);
+        Assert.Contains(removedPaused.Id, removedIds);
+        Assert.DoesNotContain(removedRunning.Id, removedIds);
+        Assert.DoesNotContain(removedSucceeded.Id, removedIds);
+        Assert.DoesNotContain(liveVillage.Id, removedIds);
+    }
+
     private static QueueItem Item(string villageKey, QueueStatus status)
     {
         return new QueueItem

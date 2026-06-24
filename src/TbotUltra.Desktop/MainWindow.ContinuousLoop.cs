@@ -807,7 +807,15 @@ public partial class MainWindow
             payload[BotOptionPayloadKeys.TargetVillageUrl] = village.Url;
         }
 
-        payload[BotOptionPayloadKeys.NpcTradeEnabled] = IsNpcTradeEnabledForVillageKey(GetVillageKey(village)) ? "true" : "false";
+        // Stable coordinate key (same reason as ApplySelectedVillageToPayload): keep per-village runtime
+        // items bound to the right village even when names collide or change.
+        var villageKey = GetVillageKey(village);
+        if (!string.IsNullOrWhiteSpace(villageKey))
+        {
+            payload[BotOptionPayloadKeys.TargetVillageKey] = villageKey;
+        }
+
+        payload[BotOptionPayloadKeys.NpcTradeEnabled] = IsNpcTradeEnabledForVillageKey(villageKey) ? "true" : "false";
         return payload;
     }
 

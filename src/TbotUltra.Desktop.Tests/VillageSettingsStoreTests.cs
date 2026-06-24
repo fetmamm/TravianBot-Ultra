@@ -137,6 +137,54 @@ public sealed class VillageSettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void ConfirmedMissingVillage_IsFlagged_PrunedAfterRetention_AndClearedOnReappearance()
+    {
+        var store = CreateStore();
+        var capital = new Info("did:1", "Capital", 0, 0, IsCapital: true);
+        var lost = new Info("did:3", "Lost", 7, -4, IsCapital: false);
+        store.Merge(new[] { capital, lost });
+        store.SetEnabled(capital, enabled: true);
+        store.SetEnabled(lost, enabled: true);
+
+        // Confirmed list without 'lost' → flagged missing as of now.
+        store.DisableVillagesMissingFromConfirmedList(new[] { capital });
+
+        // Still inside the retention window (cutoff in the past) → not yet pruneable.
+        Assert.Empty(store.GetVillagesConfirmedMissingSince(DateTimeOffset.UtcNow - TimeSpan.FromDays(3)));
+
+        // Past retention (cutoff in the future) → returned for pruning.
+        var missing = store.GetVillagesConfirmedMissingSince(DateTimeOffset.UtcNow + TimeSpan.FromMinutes(1));
+        Assert.Equal("xy:7|-4", Assert.Single(missing).Key);
+
+        // Reappears in a later confirmed list → the missing flag is cleared.
+        store.DisableVillagesMissingFromConfirmedList(new[] { capital, lost });
+        Assert.Empty(store.GetVillagesConfirmedMissingSince(DateTimeOffset.UtcNow + TimeSpan.FromMinutes(1)));
+
+        // Goes missing again and is pruned: the record is gone after reload.
+        store.DisableVillagesMissingFromConfirmedList(new[] { capital });
+        Assert.Equal(1, store.RemoveVillages(new[] { "xy:7|-4" }));
+        var reloaded = CreateStore();
+        Assert.Empty(reloaded.GetVillagesConfirmedMissingSince(DateTimeOffset.UtcNow + TimeSpan.FromDays(1)));
+    }
+
+    [Fact]
+    public void DuplicateName_LostVillage_FlaggedMissing_EvenWhenLiveTwinSharesName()
+    {
+        var store = CreateStore();
+        var capital = new Info("did:1", "Capital", 0, 0, IsCapital: true);
+        var lost = new Info("did:2", "240", 24, 29, IsCapital: false);
+        var refounded = new Info("did:3", "240", 169, 145, IsCapital: false);
+        store.Merge(new[] { capital, lost, refounded });
+
+        // Confirmed list has the refounded 240 (xy:169|145) but not the lost 240 (xy:24|29). The lost
+        // village must still count as missing on its COORDINATE key even though a same-named village is live.
+        store.DisableVillagesMissingFromConfirmedList(new[] { capital, refounded });
+
+        var missing = store.GetVillagesConfirmedMissingSince(DateTimeOffset.UtcNow + TimeSpan.FromMinutes(1));
+        Assert.Equal("xy:24|29", Assert.Single(missing).Key);
+    }
+
+    [Fact]
     public void Choices_AreScopedPerAccount()
     {
         var store = CreateStore();
