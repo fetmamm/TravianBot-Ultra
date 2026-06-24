@@ -176,7 +176,9 @@ public partial class MainWindow : Window
     // so existing code-behind that mutates the collections in place keeps working.
     private ObservableCollection<TravianBuildQueueRow> _travianBuildQueueRows => _travianQueueViewModel.BuildQueueRows;
     private ObservableCollection<TravianSmithyQueueRow> _travianSmithyQueueRows => _travianQueueViewModel.SmithyQueueRows;
-    private readonly ObservableCollection<LoopTaskOption> _automationLoopTasks = [];
+    // Loop-task source now lives on AutomationLoopViewModel; this delegates so
+    // existing code-behind that mutates the collection in place keeps working.
+    private ObservableCollection<LoopTaskOption> _automationLoopTasks => _automationLoopViewModel.Tasks;
     private ICollectionView? _automationLoopTasksView;
     // Resource Transfer villages now live on ResourceTransferViewModel; this
     // delegates so existing code-behind that mutates the collection in place
@@ -248,6 +250,7 @@ public partial class MainWindow : Window
     private readonly ReinforcementViewModel _reinforcementViewModel = App.Services.GetRequiredService<ReinforcementViewModel>();
     private readonly FarmListsViewModel _farmListsViewModel = App.Services.GetRequiredService<FarmListsViewModel>();
     private readonly TravianQueueViewModel _travianQueueViewModel = App.Services.GetRequiredService<TravianQueueViewModel>();
+    private readonly AutomationLoopViewModel _automationLoopViewModel = App.Services.GetRequiredService<AutomationLoopViewModel>();
 
     /// <summary>
     /// Public accessor so XAML can bind to the hero view model via
