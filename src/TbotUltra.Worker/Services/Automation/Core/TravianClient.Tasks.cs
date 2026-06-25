@@ -164,7 +164,10 @@ public sealed partial class TravianClient
                     cancellationToken,
                     requiredText: "Collect",
                     requireExactText: true,
-                    reason: "task collect reward");
+                    reason: "task collect reward",
+                    // Short timeout: a collect button that is present but not actionable (overlay/animation)
+                    // should fail fast to the JS fallback below, not waste the full 20s page timeout.
+                    timeoutMs: 3000);
                 if (!clicked)
                 {
                     await DelayBeforeClickAsync(cancellationToken, "task collect reward fallback");

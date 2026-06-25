@@ -527,7 +527,7 @@ public sealed partial class BotTaskRunner
         throw new InvalidOperationException($"Task '{taskName}' could not execute successfully: {result}");
     }
 
-    private static ConstructionTaskOutcome ClassifyConstructionTaskResult(string taskName, string? result)
+    internal static ConstructionTaskOutcome ClassifyConstructionTaskResult(string taskName, string? result)
     {
         if (!IsConstructionTaskResult(taskName) || string.IsNullOrWhiteSpace(result))
         {
@@ -540,6 +540,13 @@ public sealed partial class BotTaskRunner
         }
 
         var value = result.ToLowerInvariant();
+        // Construct hit a slot that already holds the building (confirmed live) — the task can never run, so
+        // the desktop removes it from the queue (see HandleQueueItemSucceededAsync).
+        if (value.Contains("already exists at slot", StringComparison.Ordinal))
+        {
+            return ConstructionTaskOutcome.AlreadyExists;
+        }
+
         if (value.Contains("queued", StringComparison.Ordinal)
             || value.Contains("still in progress", StringComparison.Ordinal)
             || value.Contains("active construction detected", StringComparison.Ordinal)

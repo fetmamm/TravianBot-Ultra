@@ -20,4 +20,7 @@ public enum ConstructionTaskOutcome
     AlreadySatisfied = 3,
     WaitingOrBlocked = 4,
     UnknownSuccess = 5,
+    // Construct target slot already holds the building (confirmed live). The task can never construct and
+    // is removed from the queue rather than retried/failed.
+    AlreadyExists = 6,
 }

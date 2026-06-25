@@ -1483,6 +1483,21 @@ public sealed partial class TravianClient : IBuildingClient
             }
             await GotoAsync(url, cancellationToken);
             await PauseForManualStepIfVisibleAsync($"Manual verification on slot {slotId} construct page.", cancellationToken);
+
+            // Confirmed already-built guard: a stale construct task can target a slot that already holds the
+            // building — e.g. a special fixed slot (Rally Point slot 39 / Wall slot 40 exist from founding)
+            // or a building that appeared since the task was queued. Such a slot's build page shows the
+            // building's upgrade UI, not a construct-choice page, so EnsureExpectedConstructChoicePageAsync
+            // would burn retries and ALARM. Wait for the build page, then if it confirms an existing building
+            // return a remove result so the queue drops the impossible task instead of failing it forever.
+            await WaitForBuildSlotContextAsync(slotId, 5000, cancellationToken);
+            var existingBuilding = await TryReadExistingBuildingOnSlotBuildPageAsync(slotId);
+            if (existingBuilding is { Level: >= 1 } built)
+            {
+                Notify($"[construct] slot {slotId} already holds '{built.Name}' level {built.Level} — confirmed already built; removing task from queue.");
+                return $"Construct skipped: {buildingName} already exists at slot {slotId} (confirmed '{built.Name}' level {built.Level}). Removing from queue.";
+            }
+
             await EnsureExpectedConstructChoicePageAsync(slotId, gid, url, "construct", cancellationToken);
 
             // Step 2: read build page state, duration and population from one page analysis.
@@ -4416,6 +4431,50 @@ public sealed partial class TravianClient : IBuildingClient
                 }
                 """,
                 slotId);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Confirms whether the slot's build page already shows an EXISTING building (not a construct-choice
+    /// page) and returns its name + level. Used by construct to detect a slot that is already occupied
+    /// (e.g. a special fixed slot like Rally Point/Wall, or a building that was built since the task was
+    /// queued) so the task can be removed instead of failing on the missing construct-choice DOM.
+    /// Returns null when the page still offers construct choices or no built-building header is present.
+    /// </summary>
+    private async Task<(string Name, int Level)?> TryReadExistingBuildingOnSlotBuildPageAsync(int slotId)
+    {
+        try
+        {
+            var result = await _page.EvaluateAsync<string?>(
+                """
+                (slotId) => {
+                  const url = location.href.toLowerCase();
+                  if (!url.includes('build.php') || !url.includes(`id=${slotId}`)) return null;
+                  // A construct-choice page offers new buildings — never treat that as "already built".
+                  if (document.querySelector('[id^="contract_building"], #contract_building')) return null;
+                  const header = document.querySelector('h1.titleInHeader, h1');
+                  const text = (header?.textContent || '').trim();
+                  const m = text.match(/^(.*?)\s*(?:level|stufe|nivå)\s*(\d{1,2})/i);
+                  if (!m) return null;
+                  const level = Number(m[2]);
+                  if (!(level >= 1)) return null;
+                  return JSON.stringify({ name: m[1].trim(), level });
+                }
+                """,
+                slotId);
+            if (string.IsNullOrWhiteSpace(result))
+            {
+                return null;
+            }
+
+            using var doc = System.Text.Json.JsonDocument.Parse(result);
+            var name = doc.RootElement.GetProperty("name").GetString() ?? string.Empty;
+            var level = doc.RootElement.GetProperty("level").GetInt32();
+            return (name, level);
         }
         catch
         {

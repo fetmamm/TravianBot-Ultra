@@ -122,6 +122,23 @@ public partial class MainWindow
         CancellationToken cancellationToken)
     {
         _botService.MarkQueueItemSucceeded(item.Id);
+
+        // Confirmed already-built construct: the worker found the target slot already holds the building, so
+        // the task can never construct. Remove it from the queue (not leave it as junk) — the user wants a
+        // construct whose building already exists cleared out, and the worker only returns this after a live
+        // confirmation. Nothing else to refresh: the slot already has the building.
+        if (string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase)
+            && executionResult.LastTask?.ConstructionOutcome == ConstructionTaskOutcome.AlreadyExists)
+        {
+            if (_botService.RemoveQueueItem(item.Id))
+            {
+                AppendLog($"[queue] removed construct task — building already exists (confirmed). {executionResult.LastTask?.Message}");
+            }
+
+            RequestQueueUiRefresh();
+            return false;
+        }
+
         var fullConstructionRefreshDone = false;
         if (IsResourceUpgradeTask(item.TaskName))
         {
