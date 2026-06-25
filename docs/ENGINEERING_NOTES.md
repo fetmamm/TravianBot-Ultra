@@ -298,7 +298,11 @@ Ingen omskrivning och inget nytt ramverk. Refaktorera stegvis och beteendebevara
 5. Infor ViewModel-granser panel for panel.
 
 Lamna `TravianClient`-partialernas fungerande navigations-/sekvenslogik orord vid ren refaktorering.
-Detaljer och matningar finns i `docs/REFACTOR_PLAN.md`.
+
+Seams finns nu (`IFarmingClient`/`IBuildingClient`/`IHeroClient`/`ICombatClient`/`ISessionClient`,
+implementerade direkt av `TravianClient`). Collaborator-extraktion bakom dem ar medvetet
+uppskjuten: gor en doman i taget med live-smoke-test mellan stegen, inte som obevakat svep.
+Detaljer: [ADR 2026-06-25](adr/2026-06-25-travianclient-seams.md).
 
 ## 9. Dokumentationsregler
 
@@ -322,3 +326,4 @@ Aldre beslut och detaljerad historik finns i:
 - [Construction queue och build-status](adr/2026-06-20-construction-queue.md)
 - [Smithy och trupptraning](adr/2026-06-20-smithy-troop-training.md)
 - [Map Oasis och kartparsning](adr/2026-06-20-map-oasis-scan.md)
+- [TravianClient-seams och refaktorstatus](adr/2026-06-25-travianclient-seams.md)
