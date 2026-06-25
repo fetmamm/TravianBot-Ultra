@@ -26,6 +26,11 @@ One `partial class TravianClient` split by domain into `Services/Automation/<Dom
 All parts share the same class state (fields/ctor live in `Core/TravianClient.cs`).
 The folder is organizational only; the namespace stays as declared in each file.
 
+The public surface is grouped behind narrow domain seams that `TravianClient`
+implements directly: `IFarmingClient`, `IBuildingClient`, `IHeroClient`,
+`ICombatClient`, `ISessionClient` (each `I*Client.cs` sits in its domain folder).
+These are contracts only — no logic was extracted out of the facade.
+
 | Folder | What | Key files |
 |---|---|---|
 | `Automation/Core/` | Client plumbing: login, navigation, session, captcha/manual-gate, account snapshot, villages, selectors, retry, page-tasks, capital cache | `TravianClient.cs` (state+ctor), `.Login`, `.Navigation`, `.UiSync`, `.ManualVerification`, `.CaptchaAutoSolve`, `.AccountSnapshot`, `.Villages`, `.Selectors`, `.RetryPolicy`, `.Tasks`, `.CapitalCache`; helpers `TravianSessionCache`, `TravianUrls`, `TravianParsing`, `CapitalCacheKey` |
@@ -61,7 +66,8 @@ One `partial class BotTaskRunner` in `Services/`, split by concern:
 - `Services/Queue/` — queue store, scheduler, executor, group catalog.
 - `Services/Catalogs/` — building & task catalogs.
 - `Services/` (root) — `CaptchaAutoSolver`, `BrowserFailureClassifier`.
-- `Infrastructure/BrowserSession.cs` — Playwright browser lifecycle.
+- `Infrastructure/BrowserSession.cs` — Playwright browser lifecycle (partial; bonus-video,
+  warmup/install and storage-state filtering live in `BrowserSession.<Area>.cs`).
 - `Domain/` — Worker DTOs (`TravianModels`, `MapOasisModels`, `TravcoModels`, queue types, exceptions).
 
 ---
@@ -81,7 +87,11 @@ One `partial class BotTaskRunner` in `Services/`, split by concern:
   `MainWindow.Buildings.Queueing.cs`, `MainWindow.Resources.Snapshot.cs`, `MainWindow.QueueUi.*.cs`).
   `MainWindow.xaml.cs` is the root partial.
 - `ViewModels/` — MVVM view models (`BuildingsViewModel`, `HeroViewModel`, `ResourcesViewModel`,
-  `TroopTrainingViewModel`, `InboxViewModel`, `TravcoToolsViewModel`, …). New logic should land here, not in code-behind.
+  `TroopTrainingViewModel`, `InboxViewModel`, `TravcoToolsViewModel`, plus the panel-collection owners
+  `ResourceTransferViewModel`, `ReinforcementViewModel`, `FarmListsViewModel`, `TravianQueueViewModel`,
+  `AutomationLoopViewModel`, `AlarmsViewModel`, `TerminalViewModel`). New logic should land here, not in
+  code-behind. Bound `ObservableCollection`s live on the view model; code-behind delegates and mutates in
+  place (the scan/persist logic migrates later).
 - `Services/` — desktop-side stores & orchestration: `Orchestration/` (`LoopController`, `SessionPacer`,
   `BackgroundTaskTracker`), `*Store.cs` (per-feature persistence), queue helpers, `DesktopBotService`.
 - `Models/` — UI row/item models bound to the views.
