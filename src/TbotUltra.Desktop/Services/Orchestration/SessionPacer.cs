@@ -86,8 +86,8 @@ public sealed class SessionPacer
     public SessionPacerRuntimeState RuntimeState => new(_runtimeDate, _runtimeSeconds);
     public string StatusText => Phase switch
     {
-        SessionPacerPhase.Running => $"Next sleep in: {Format(TimeUntilSleep)}",
-        SessionPacerPhase.Paused => $"Paused - next sleep in: {Format(_pausedRunRemaining)}",
+        SessionPacerPhase.Running => $"Next sleep: {Format(TimeUntilSleep)}",
+        SessionPacerPhase.Paused => $"Paused - next sleep: {Format(_pausedRunRemaining)}",
         SessionPacerPhase.Sleeping when SleepReason == SessionSleepReason.Schedule => $"Scheduled off - {Format(TimeUntilWake)}",
         SessionPacerPhase.Sleeping when SleepReason == SessionSleepReason.DailyLimit => $"Daily limit - {Format(TimeUntilWake)}",
         SessionPacerPhase.Sleeping => $"Sleeping - {Format(TimeUntilWake)}",

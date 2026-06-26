@@ -302,7 +302,7 @@
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
                     <!-- Session pacing / Next sleep (background pulses via code) -->
                     <!-- Fixed width so the card does not resize as the status text/Run now button changes. -->
-                    <Border x:Name="SessionPacingBorder" Style="{StaticResource MetricCard}" Width="176">
+                    <Border x:Name="SessionPacingBorder" Style="{StaticResource MetricCard}" Width="160">
                         <StackPanel>
                             <TextBlock Text="Session" Style="{StaticResource MetricLabel}" />
                             <StackPanel Orientation="Horizontal">
