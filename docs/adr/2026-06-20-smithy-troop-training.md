@@ -19,8 +19,14 @@ Aktivt beslut, 2026-06-20. Detaljerna bakom de korta reglerna i
 - Vanta in actionable sida med `WaitForPageReadyAsync` fore radlasning. Resursbrist: om `hero_resource_transfer_enabled`
   och Official klickas truppens egen `.inlineIcon.resource.transfer` och "Transfer selected" bekraftas endast nar Travian
   aktiverar den (hero racker); ett forsok per trupp/korning. Maste smithyn sjalv byggas och byggkon ar full -> defer pa
-  `UpgradeBuildingToMaxAsync`-resultatets `queue_wait_seconds` (ingen idé att forsoka nar byggkon ar full). Plus: tva
-  forbattringar kan ko:as om raden fortsatt visar Improve efter forsta klicket.
+  `UpgradeBuildingToMaxAsync`-resultatets `queue_wait_seconds` (ingen idé att forsoka nar byggkon ar full).
+- Plus ger TVA samtidiga research-slots (som andra byggkon). `UpgradeSelectedTroopsAtSmithyAsync` laser Plus
+  via `GetCachedTribeAndPlusAsync` -> `maxConcurrentUpgrades = plus ? 2 : 1`, klickar en Improve per pass och
+  laser om for att fylla nasta slot. Aktivt antal = `under_progress`-rader (`dashQueue.Count`). Defer pa
+  research-kotimern ENDAST nar kon ar full (`activeCount >= maxConcurrentUpgrades`) eller en ledig slot inte
+  kunde fyllas efter stall-retries; med ledig fyllbar slot vantas pa resurs-ETA/moderat omkoll i stallet for
+  att inte lata slot 2 sta tom timmar. Efter ett klick kan React-omrendering doja nasta Improve-knapp -> upp
+  till 3 reload-forsok (`consecutiveFreeSlotStallReads`) innan defer, sa racet inte lamnar slot 2 tom.
 - Worker emitterar `[smithy-queue] entries_json=...` fran verkliga `under_progress`-rader. Desktop lagrar
   namn, malniva och absolut sluttid i byns `SmithyUpgradeStatus`; Queue-ruta, ikoner och loopkort laser
   samma SOT. Tom/glitch-lasning far inte radera en aktiv framtida ko; posten forsvinner nar sluttiden passeras.
