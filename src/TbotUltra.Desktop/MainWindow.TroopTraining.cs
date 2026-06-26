@@ -621,6 +621,15 @@ public partial class MainWindow
         OpenTroopSettingsWindow(null);
     }
 
+    // Village settings "Upgrade troops" gear: opens the same Smithy "Upgrade options" popup as the Troops
+    // panel button, for the currently selected village. Mirrors the Build troops gear so the user reaches
+    // the upgrade selection straight from Village settings.
+    private void OpenSmithyUpgradeSettingsFromVillageSettings(IReadOnlyList<VillageSettingsRow> villageSettingsRows)
+    {
+        _ = villageSettingsRows;
+        OnTroopsUpgradeOptionsClicked();
+    }
+
     private void OpenTroopSettingsFromVillageSettings(IReadOnlyList<VillageSettingsRow> villageSettingsRows)
     {
         OpenTroopSettingsWindow(villageSettingsRows);

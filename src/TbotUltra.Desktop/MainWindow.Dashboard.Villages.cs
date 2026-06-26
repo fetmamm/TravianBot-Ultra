@@ -621,6 +621,7 @@ public partial class MainWindow
             PersistVillageHeroResourcesFromSettingsRow,
             PersistVillageGroupsFromSettingsRow,
             OpenTroopSettingsFromVillageSettings,
+            OpenSmithyUpgradeSettingsFromVillageSettings,
             OpenTownHallSettingsFromVillageSettings,
             OpenHeroResourceSettingsFromVillageSettings,
             OnVillageSettingsSaved)

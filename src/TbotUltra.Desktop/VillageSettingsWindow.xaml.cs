@@ -23,6 +23,7 @@ public partial class VillageSettingsWindow : Window
     private readonly Action<VillageSettingsRow>? _onHeroResourcesChanged;
     private readonly Action<VillageSettingsRow>? _onGroupsChanged;
     private readonly Action<IReadOnlyList<VillageSettingsRow>>? _onTroopSettingsRequested;
+    private readonly Action<IReadOnlyList<VillageSettingsRow>>? _onSmithyUpgradeSettingsRequested;
     private readonly Action<IReadOnlyList<VillageSettingsRow>>? _onTownHallSettingsRequested;
     private readonly Action<IReadOnlyList<VillageSettingsRow>>? _onHeroResourceSettingsRequested;
     private readonly Action? _onSaved;
@@ -34,6 +35,7 @@ public partial class VillageSettingsWindow : Window
         Action<VillageSettingsRow>? onHeroResourcesChanged = null,
         Action<VillageSettingsRow>? onGroupsChanged = null,
         Action<IReadOnlyList<VillageSettingsRow>>? onTroopSettingsRequested = null,
+        Action<IReadOnlyList<VillageSettingsRow>>? onSmithyUpgradeSettingsRequested = null,
         Action<IReadOnlyList<VillageSettingsRow>>? onTownHallSettingsRequested = null,
         Action<IReadOnlyList<VillageSettingsRow>>? onHeroResourceSettingsRequested = null,
         Action? onSaved = null)
@@ -46,6 +48,7 @@ public partial class VillageSettingsWindow : Window
         _onHeroResourcesChanged = onHeroResourcesChanged;
         _onGroupsChanged = onGroupsChanged;
         _onTroopSettingsRequested = onTroopSettingsRequested;
+        _onSmithyUpgradeSettingsRequested = onSmithyUpgradeSettingsRequested;
         _onTownHallSettingsRequested = onTownHallSettingsRequested;
         _onHeroResourceSettingsRequested = onHeroResourceSettingsRequested;
         _onSaved = onSaved;
@@ -141,6 +144,11 @@ public partial class VillageSettingsWindow : Window
             return BuildToggleWithGearCellTemplate(bindingPath, "Open troop settings", TroopSettingsButton_Click);
         }
 
+        if (string.Equals(groupKey, QueueGroupCatalog.GetKey(QueueGroup.Troops), StringComparison.OrdinalIgnoreCase))
+        {
+            return BuildToggleWithGearCellTemplate(bindingPath, "Open Upgrade options", SmithyUpgradeSettingsButton_Click);
+        }
+
         if (string.Equals(groupKey, QueueGroupCatalog.GetKey(QueueGroup.TownHallCelebration), StringComparison.OrdinalIgnoreCase))
         {
             return BuildToggleWithGearCellTemplate(bindingPath, "Open Town Hall settings", TownHallSettingsButton_Click);
@@ -190,6 +198,11 @@ public partial class VillageSettingsWindow : Window
     private void TroopSettingsButton_Click(object sender, RoutedEventArgs e)
     {
         _onTroopSettingsRequested?.Invoke(_rows);
+    }
+
+    private void SmithyUpgradeSettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        _onSmithyUpgradeSettingsRequested?.Invoke(_rows);
     }
 
     private void TownHallSettingsButton_Click(object sender, RoutedEventArgs e)
