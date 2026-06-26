@@ -45,6 +45,13 @@ Not done autonomously, on purpose:
   either — the facade is genuinely used as a unit per operation.
 - `TravianClient` drives Playwright against a live Travian server and is **not
   covered by unit tests**; correctness can only be confirmed by live runs.
+- **Measured coupling (2026-06-26):** the seemingly-isolated Combat domain is not
+  cleanly separable. The send-troops/manual-attack helpers defined under
+  `Automation/Combat/` are shared infrastructure: `TrySendManualAttackAsync`,
+  `EnsureRallyPointAndOpenSendTroopsPageAsync`, `FormatLargeCount` are called by
+  `Farming/NatarFarming` (natar manual attack), `IsRallyPointLevelZeroAsync` by
+  `Farming/FarmLists`, and `ClampLongToInt32` by `Core/AccountSnapshot`. Moving
+  Combat into its own class would break natar farming.
 
 **Not warranted:** moving DTOs to `Core`. There is no type-name duplication
 between `Worker.Domain` and `Desktop.Models`, and Desktop already depends on
@@ -57,5 +64,12 @@ smoke-test of that domain between each step** (start the Desktop app and
 exercise farming → buildings → hero → combat). Treat shared state explicitly
 (extend `TravianSessionCache`) rather than passing the whole facade around. Do
 not do this as an unattended sweep.
+
+Order matters because of the measured coupling: domains are **not** independently
+extractable in the naive order. The shared send-troops / manual-attack core
+(used by both Combat catapults and Farming natar) must be extracted **first** as
+its own collaborator that both depend on; only then can Combat and Farming be
+layered on top. Any extraction touching it must be live-verified against **both**
+the catapult-wave flow and the natar manual-farming flow.
 
 [Engineering Notes §8]: ../ENGINEERING_NOTES.md
