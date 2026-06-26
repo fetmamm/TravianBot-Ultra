@@ -49,6 +49,11 @@ Aktivt beslut, 2026-06-20. Detaljerna bakom de korta reglerna i
 - `load_buildings_snapshot` ar en lasning och far inte blockeras som ett bygge.
 - `BuildQueueIdentityFingerprint` far inte innehalla tickande countdown-text.
 - Resource upgrade-all ska returnera `queue_wait_seconds` direkt vid resursbrist.
+- En resursdefer som bara bär Travians sid-timer (`wait_reason=page_timer`, inga `upgrade_required_*`
+  i payloaden) kan inte räknas om mot en resurssnapshot. Den återupptas (retry nu) endast när byns
+  lager är fulla (alla fyra vid kapacitet), eftersom en resurs-dump (hero/farm/NPC) då gör den cachade
+  timern stale och byn annars idlar ut en nedräkning som inte längre gäller. Ett fullt men ändå för dyrt
+  bygge omklassas till `storage_capacity` (annan reason), så återupptagningen kan inte loopa.
 
 ## Construct/upgrade-klick och verifiering
 
