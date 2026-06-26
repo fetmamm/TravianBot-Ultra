@@ -34,6 +34,28 @@ public sealed class LogClassifierTests
     }
 
     [Theory]
+    [InlineData("[pacing] Action pacing \"Click\" delay: waiting 2.3s")]
+    [InlineData("[pacing] before task: waiting 4.0s")]
+    [InlineData("[pacing] session run timer started; next sleep in 00:42:10.")]
+    [InlineData("Session sleep (manual) sleep starting; sleeping for 00:30:00.")]
+    [InlineData("Session waking - resuming.")]
+    [InlineData("[LOOP 3] WAIT 30s")]
+    [InlineData("[AUTOQ 5] WAIT 664s for deferred task=upgrade_all_resources_to_level")]
+    [InlineData("[keep-alive:verbose] skipped because no continuous-loop work is due soon.")]
+    public void Classify_RoutesSessionActionAndWaitLinesToPacing(string message)
+    {
+        Assert.Equal(LogCategory.Pacing, LogClassifier.Classify(message));
+    }
+
+    [Theory]
+    [InlineData("[LOOP 3] PICK group=Construction, task=upgrade_building_to_level")]
+    [InlineData("[loop-pick:verbose] group=Construction skipped (no ready construction items)")]
+    public void Classify_KeepsNonWaitLoopLinesInLoop(string message)
+    {
+        Assert.Equal(LogCategory.Loop, LogClassifier.Classify(message));
+    }
+
+    [Theory]
     [InlineData("Removed 12/12 invalid coordinate(s) from Travco list 'Travco all pages_1'.")]
     [InlineData("[travco] removed 12 invalid coordinate(s) from 'Travco all pages_1'.")]
     [InlineData("Finished 'Inactive1': added=17, duplicates=0, invalid=12, failed=12.")]
