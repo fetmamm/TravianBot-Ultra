@@ -1906,6 +1906,13 @@ public sealed partial class TravianClient : IBuildingClient
         }
         Notify($"Smithy found at slot {smithySlotId.Value}.");
 
+        // Travian Plus grants a second concurrent Smithy research slot (same idea as the second build queue
+        // slot for construction). Read it once so the loop greedily fills BOTH slots before deferring,
+        // instead of stopping after one. Unknown Plus is treated as 1 slot (conservative, never over-fills).
+        var (_, smithyPlusActive) = await GetCachedTribeAndPlusAsync(cancellationToken);
+        var maxConcurrentUpgrades = smithyPlusActive ? 2 : 1;
+        Notify($"Smithy: Plus={smithyPlusActive}; max concurrent upgrades={maxConcurrentUpgrades}.");
+
         // Targets still needing a decision, keyed by their identity (dedupes duplicate selections).
         var pending = new Dictionary<string, SmithyTroopTarget>(StringComparer.OrdinalIgnoreCase);
         foreach (var target in targetList)
@@ -1923,6 +1930,9 @@ public sealed partial class TravianClient : IBuildingClient
         var skipped = 0;
         var consecutiveEmptyReloads = 0;
         var consecutiveZeroDurationReloads = 0;
+        // A slot is free but the page showed no ready Improve button (usually a React re-render race right
+        // after starting a research). Bounded reloads to fill the free slot before giving up.
+        var consecutiveFreeSlotStallReads = 0;
         // Last Smithy research queue we reported to the dashboard ("[smithy-queue]"), to emit on change only.
         string? lastQueueCsv = null;
         // Troops we already tried to top up from the hero this run — bounds hero transfers to one attempt
@@ -2003,6 +2013,9 @@ public sealed partial class TravianClient : IBuildingClient
                 Notify($"[smithy-queue] entries_json={dashQueueJson}");
                 lastQueueCsv = dashQueueJson;
             }
+
+            // Smithy slots currently occupied (live under_progress rows). With Plus this can be 2.
+            var activeUpgradeCount = dashQueue.Count;
 
             // Classify every pending target. Terminal outcomes (maxed / already at target / not researched)
             // are logged and removed. Queue-busy and resource-shortage keep the troop pending and contribute
@@ -2111,13 +2124,39 @@ public sealed partial class TravianClient : IBuildingClient
                 break;
             }
 
+            // With Plus, a research can start while another runs. A free slot means we should keep trying
+            // to fill it rather than deferring on the (long) active research timer.
+            var hasFreeSlot = activeUpgradeCount < maxConcurrentUpgrades;
+
+            // Free slot but nothing was clickable, and no resource shortage explains it: the Improve buttons
+            // most likely hadn't re-rendered yet after the previous click (React). Reload a few times to fill
+            // the free slot before deferring, so the second Plus slot isn't left idle until the first finishes.
+            if (toClick is null && hasFreeSlot && anyResearchInProgress && !anyWaitingForResources)
+            {
+                consecutiveFreeSlotStallReads += 1;
+                if (consecutiveFreeSlotStallReads < 3)
+                {
+                    Notify($"Smithy: slot free ({activeUpgradeCount}/{maxConcurrentUpgrades}) but no Improve button was ready; reloading to fill it (attempt {consecutiveFreeSlotStallReads}/3).");
+                    await TryReloadSmithyAsync(cancellationToken);
+                    continue;
+                }
+            }
+            else
+            {
+                consecutiveFreeSlotStallReads = 0;
+            }
+
             if (anyResearchInProgress || anyWaitingForResources)
             {
                 // Use the soonest concrete signal: the active research timer (queue busy) or the resource
                 // ETA. When neither exposes an exact time, re-check on a moderate interval so the task picks
                 // up a freed queue slot / incoming resources. Deferring never blocks the other loop groups.
                 var waitCandidates = new List<int>();
-                if (anyResearchInProgress)
+                // Wait on the research-queue timer when the queue is genuinely FULL, OR when a free slot
+                // could not be filled after the stall reloads above (e.g. the only pending troop is the one
+                // already researching, so the free Plus slot isn't usable until it finishes). With a fillable
+                // free slot we fall through to the resource ETA / moderate re-check instead of the long timer.
+                if (anyResearchInProgress && (!hasFreeSlot || consecutiveFreeSlotStallReads >= 3))
                 {
                     var timers = await RetryAsync(
                         "Smithy: read queue timers",

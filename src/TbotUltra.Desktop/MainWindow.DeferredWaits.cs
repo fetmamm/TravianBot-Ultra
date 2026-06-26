@@ -26,6 +26,30 @@ public partial class MainWindow
         return result;
     }
 
+    // Whether the village's stored resources are all at (or within 1% of) their storage caps. Used to
+    // detect a resource top-off (hero/farm/NPC drop) that makes a cached "needs resources" page-timer
+    // wait stale: when everything is full, almost any upgrade is affordable now. Returns false when the
+    // capacities are unknown so callers stay conservative.
+    private static bool IsVillageResourcesFull(VillageStatus status, IReadOnlyDictionary<string, long> currentResources)
+    {
+        if (status.WarehouseCapacity is not > 0 || status.GranaryCapacity is not > 0)
+        {
+            return false;
+        }
+
+        var warehouse = status.WarehouseCapacity.Value;
+        var granary = status.GranaryCapacity.Value;
+
+        bool AtCap(string key, long capacity)
+            => currentResources.TryGetValue(key, out var value)
+               && value >= capacity - Math.Max(1, capacity / 100);
+
+        return AtCap("wood", warehouse)
+            && AtCap("clay", warehouse)
+            && AtCap("iron", warehouse)
+            && AtCap("crop", granary);
+    }
+
     private static Dictionary<string, double?> ReadCurrentProductionByHourFromStatus(VillageStatus status)
     {
         var result = new Dictionary<string, double?>(StringComparer.OrdinalIgnoreCase);

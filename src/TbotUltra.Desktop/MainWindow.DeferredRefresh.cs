@@ -189,6 +189,23 @@ public partial class MainWindow
 
             if (!TryReadDeferredUpgradeRequirements(item.Payload, out var required))
             {
+                // Requirement-less resource defer: the worker could only read Travian's "enough resources
+                // in HH:MM:SS" page timer, not the upgrade cost (no upgrade_required_* in the payload), so
+                // the resume math below cannot run. Normally we trust that timer — but it is a snapshot. If
+                // the village's resources are now FULL (a hero/farm/NPC drop topped it off after the timer
+                // was captured), the build is almost certainly affordable now and the cached wait is stale,
+                // so the village would idle out a countdown that no longer applies. Resume so the worker
+                // re-checks the live build page instead. A full village that still cannot afford the upgrade
+                // reclassifies as storage_capacity (different reason), so this cannot spin in a retry loop.
+                if (IsVillageResourcesFull(status, currentResources)
+                    && (item.NextAttemptAt - DateTimeOffset.UtcNow) > TimeSpan.FromSeconds(5)
+                    && _botService.UpdateDeferredQueueItem(item.Id, item.Payload, TimeSpan.Zero))
+                {
+                    AppendLog(
+                        $"Deferred upgrade resumed from {source}: {DescribeDeferredUpgrade(item.Payload)} — "
+                        + "village resources full, cached page-timer wait was stale; re-checking now.");
+                }
+
                 continue;
             }
 
