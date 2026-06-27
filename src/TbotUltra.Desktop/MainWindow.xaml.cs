@@ -1190,7 +1190,7 @@ public partial class MainWindow : Window
 
         if (string.Equals(reasonKey, TroopsBlockedReasonSmithyMissing, StringComparison.OrdinalIgnoreCase))
         {
-            var verifiedMissing = await VerifySmithyMissingAsync();
+            var verifiedMissing = await VerifySmithyMissingAsync(queueItem);
             if (verifiedMissing != true)
             {
                 _botService.MarkQueueItemDeferred(queueItem.Id, TimeSpan.FromSeconds(10));
@@ -1202,16 +1202,71 @@ public partial class MainWindow : Window
         }
 
         _botService.MarkQueueItemSucceeded(queueItem.Id);
+
+        // Both "All done" and "Smithy missing" are per-village: one village may have a smithy with nothing
+        // left to upgrade while another still has work (or no smithy at all). Disable the Upgrade Troops group
+        // for THIS village only so other villages keep running. Falls back to the global block when the task
+        // carries no village context.
+        if (DisableTroopsGroupForQueueItemVillage(queueItem, out var blockedVillageName))
+        {
+            AppendLog($"{logPrefix} BLOCKED task={queueItem.TaskName} | {reasonText} — Upgrade Troops disabled for "
+                + $"'{blockedVillageName}'. Re-select troops or re-enable the village's Troops group to resume.");
+            return true;
+        }
+
         SetTroopsBlockedState(reasonKey, reasonText);
         AppendLog($"{logPrefix} BLOCKED task={queueItem.TaskName} | {reasonText}");
         return true;
     }
 
-    private async Task<bool?> VerifySmithyMissingAsync()
+    // Turns the Upgrade Troops group OFF for the queue item's village only (per-village EnabledGroups), so
+    // other villages keep upgrading their own troops. Returns false when the item has no village context.
+    private bool DisableTroopsGroupForQueueItemVillage(QueueItem item, out string blockedVillageName)
+    {
+        var villageKey = GetQueueItemVillageKey(item);
+        var villageName = GetQueueItemVillageName(item);
+        blockedVillageName = NormalizeVillageName(villageName) ?? villageKey ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(villageKey))
+        {
+            return false;
+        }
+
+        var groupKey = QueueGroupCatalog.GetKey(QueueGroup.Troops);
+        void Apply()
+        {
+            var village = new VillageSettingsStore.VillageKeyInfo(villageKey, villageName ?? villageKey, null, null, false);
+            PersistAutomationGroupEnabledForVillage(village, enabled: false, groupKey);
+            RefreshAutomationLoopDashboardUi();
+        }
+
+        if (Dispatcher.CheckAccess())
+        {
+            Apply();
+        }
+        else
+        {
+            Dispatcher.Invoke(Apply);
+        }
+
+        return true;
+    }
+
+    private async Task<bool?> VerifySmithyMissingAsync(QueueItem queueItem)
     {
         try
         {
-            var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            // Verify the QUEUE ITEM's village, not the UI-selected one: during the continuous loop the running
+            // village often differs from the dropdown selection, and smithy-missing is a per-village decision.
+            // Falls back to the selected village when the item carries no village context.
+            var villageName = GetQueueItemVillageName(queueItem);
+            var villageUrl = GetQueueItemPayloadValue(queueItem, BotOptionPayloadKeys.TargetVillageUrl);
+            var options = (string.IsNullOrWhiteSpace(villageName) && string.IsNullOrWhiteSpace(villageUrl))
+                ? ApplySelectedVillageToOptions(LoadBotOptions())
+                : BotOptionsPayloadApplier.Apply(LoadBotOptions(), new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    [BotOptionPayloadKeys.TargetVillageName] = villageName ?? string.Empty,
+                    [BotOptionPayloadKeys.TargetVillageUrl] = villageUrl ?? string.Empty,
+                });
             var status = await _botService.ReadBuildingsStatusAsync(options, AppendLog, CancellationToken.None);
             var uiStatus = MergeBuildingStatusForUi(status);
             await Dispatcher.InvokeAsync(() =>

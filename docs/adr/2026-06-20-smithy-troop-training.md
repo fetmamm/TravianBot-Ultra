@@ -36,10 +36,15 @@ Aktivt beslut, 2026-06-20. Detaljerna bakom de korta reglerna i
 - Inget kvar att gora: nar ALLA valda trupper ar terminala (at-target/maxed/smithy-too-low/not-researched)
   och inget forbattrades (`pending==0 && improved==0`) returnerar workern `"Smithy: All done — ..."`.
   `ThrowIfTroopsGroupBlocked` kastar da `TaskBlockedPermanentlyException(troops_blocked=all_done)`; desktop
-  (`TryHandleTroopsBlockedExecutionAsync` -> `SetTroopsBlockedState(all_done)`) stanger AV dashboardens
-  "Upgrade Troops"-gruppkort (`_automationLoopTasks` `IsEnabled=false`) sa loopen slutar koa om tasken.
-  Anvandaren slar PA kortet igen for att ateruppta (`ClearTroopsBlockedState`). OBS: gruppkortet ar globalt
-  (inte per by) — samma beteende som `troops_blocked=smithy_missing`.
+  (`TryHandleTroopsBlockedExecutionAsync`) stanger av Troops-gruppen PER BY via
+  `DisableTroopsGroupForQueueItemVillage` -> `PersistAutomationGroupEnabledForVillage(by, false, "troops")`
+  (kobyns `EnabledGroups`). Andra byar med egna smithy-val fortsatter alltsa kora. Ateruppta: valj trupper i
+  upgrade-options-popupen (icke-tom, single/sync re-enablar byns Troops-grupp) eller sla pa byns Troops-toggle
+  i village settings.
+- BADE `all_done` OCH `troops_blocked=smithy_missing` ar per by — en by kan ha smithy med inget kvar att gora
+  medan en annan saknar smithy helt. Bada gar genom `DisableTroopsGroupForQueueItemVillage` (efter att
+  smithy_missing forst verifierats via `VerifySmithyMissingAsync`). Det globala `SetTroopsBlockedState` anvands
+  bara som fallback nar tasken saknar bykontext.
 
 ## Bygg trupper (Barracks/Stable/Workshop)
 
