@@ -35,8 +35,8 @@ public static class BotOptionsPayloadApplier
         var reduceAdventureTime = source.ReduceAdventureTime;
         var autoCollectTasksEnabled = source.AutoCollectTasksEnabled;
         var autoCollectDailyQuestsEnabled = source.AutoCollectDailyQuestsEnabled;
-        var collectStepDelayMinMs = source.CollectStepDelayMinMs;
-        var collectStepDelayMaxMs = source.CollectStepDelayMaxMs;
+        var collectStepDelayMinSeconds = source.CollectStepDelayMinSeconds;
+        var collectStepDelayMaxSeconds = source.CollectStepDelayMaxSeconds;
         var heroResourceTransferEnabled = source.HeroResourceTransferEnabled;
         var heroResourceMaxUseEnabled = source.HeroResourceMaxUseEnabled;
         var heroResourceMaxUsePerResource = source.HeroResourceMaxUsePerResource;
@@ -341,17 +341,17 @@ public static class BotOptionsPayloadApplier
                     continue;
                 }
 
-                if (key.Equals(BotOptionPayloadKeys.CollectStepDelayMinMs, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var collectStepMin))
+                if (key.Equals(BotOptionPayloadKeys.CollectStepDelayMinSeconds, StringComparison.OrdinalIgnoreCase)
+                    && double.TryParse(value, out var collectStepMin))
                 {
-                    collectStepDelayMinMs = Math.Clamp(collectStepMin, 0, 5000);
+                    collectStepDelayMinSeconds = ClampDelaySeconds(collectStepMin);
                     continue;
                 }
 
-                if (key.Equals(BotOptionPayloadKeys.CollectStepDelayMaxMs, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var collectStepMax))
+                if (key.Equals(BotOptionPayloadKeys.CollectStepDelayMaxSeconds, StringComparison.OrdinalIgnoreCase)
+                    && double.TryParse(value, out var collectStepMax))
                 {
-                    collectStepDelayMaxMs = Math.Clamp(collectStepMax, 0, 5000);
+                    collectStepDelayMaxSeconds = ClampDelaySeconds(collectStepMax);
                     continue;
                 }
 
@@ -1183,8 +1183,8 @@ public static class BotOptionsPayloadApplier
             ReduceAdventureTime = reduceAdventureTime,
             AutoCollectTasksEnabled = autoCollectTasksEnabled,
             AutoCollectDailyQuestsEnabled = autoCollectDailyQuestsEnabled,
-            CollectStepDelayMinMs = collectStepDelayMinMs,
-            CollectStepDelayMaxMs = collectStepDelayMaxMs,
+            CollectStepDelayMinSeconds = collectStepDelayMinSeconds,
+            CollectStepDelayMaxSeconds = collectStepDelayMaxSeconds,
             HeroResourceTransferEnabled = heroResourceTransferEnabled,
             HeroResourceMaxUseEnabled = heroResourceMaxUseEnabled,
             HeroResourceMaxUsePerResource = heroResourceMaxUsePerResource,

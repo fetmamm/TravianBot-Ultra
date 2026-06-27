@@ -209,6 +209,8 @@ public partial class TravcoToolsWindow : Window
             var name = _viewModel.ListName.StartsWith("Travco page ", StringComparison.OrdinalIgnoreCase)
                 ? "Travco all pages"
                 : _viewModel.ListName;
+            // Never overwrite/duplicate an existing list: append " 1", " 2", ... until the name is free.
+            name = MakeUniqueListName(name);
             _viewModel.ListName = name;
             SaveCurrentRows(name);
             SetStatus($"Saved all {result.TotalPages} page(s) as one list with {result.Rows.Count} row(s).");
@@ -655,6 +657,31 @@ public partial class TravcoToolsWindow : Window
         if (saved is not null)
         {
             ApplySavedListRows(saved);
+        }
+    }
+
+    // Returns baseName unchanged if no saved list already uses it, otherwise the first free
+    // "baseName 1", "baseName 2", ... so a new "save all pages" list never collides with an existing one.
+    private string MakeUniqueListName(string baseName)
+    {
+        var trimmed = baseName.Trim();
+        var existing = _store.LoadAll()
+            .Select(list => list.Name?.Trim())
+            .Where(listName => !string.IsNullOrEmpty(listName))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (!existing.Contains(trimmed))
+        {
+            return trimmed;
+        }
+
+        for (var suffix = 1; ; suffix++)
+        {
+            var candidate = $"{trimmed} {suffix}";
+            if (!existing.Contains(candidate))
+            {
+                return candidate;
+            }
         }
     }
 

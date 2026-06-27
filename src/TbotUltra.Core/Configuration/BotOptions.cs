@@ -456,11 +456,11 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.AutoCollectDailyQuestsEnabled)]
     public bool AutoCollectDailyQuestsEnabled { get; init; }
 
-    [ConfigurationKeyName(BotOptionPayloadKeys.CollectStepDelayMinMs)]
-    public int CollectStepDelayMinMs { get; init; } = PacingDefaults.CollectStepDelayMinMs;
+    [ConfigurationKeyName(BotOptionPayloadKeys.CollectStepDelayMinSeconds)]
+    public double CollectStepDelayMinSeconds { get; init; } = PacingDefaults.CollectStepDelayMinSeconds;
 
-    [ConfigurationKeyName(BotOptionPayloadKeys.CollectStepDelayMaxMs)]
-    public int CollectStepDelayMaxMs { get; init; } = PacingDefaults.CollectStepDelayMaxMs;
+    [ConfigurationKeyName(BotOptionPayloadKeys.CollectStepDelayMaxSeconds)]
+    public double CollectStepDelayMaxSeconds { get; init; } = PacingDefaults.CollectStepDelayMaxSeconds;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.HeroResourceTransferEnabled)]
     public bool HeroResourceTransferEnabled { get; init; }

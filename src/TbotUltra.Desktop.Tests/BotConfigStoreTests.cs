@@ -192,7 +192,7 @@ public sealed class BotConfigStoreTests : IDisposable
                 ["base_url"] = "https://example.com",
                 [BotOptionPayloadKeys.HeroMinHpForAdventure] = 75,
                 [BotOptionPayloadKeys.HeroResourceMaxUsePerResource] = 4000,
-                [BotOptionPayloadKeys.CollectStepDelayMinMs] = 250,
+                [BotOptionPayloadKeys.CollectStepDelayMinSeconds] = 250,
                 ["allow_silver_spending"] = true,
                 [BotOptionPayloadKeys.ReinforcementsTroopRules] = new JsonArray(
                     new JsonObject { ["accountName"] = "alice", ["troopType"] = "Clubswinger" },
@@ -210,7 +210,7 @@ public sealed class BotConfigStoreTests : IDisposable
         var globalAfterAlice = JsonNode.Parse(File.ReadAllText(_configPath))!.AsObject();
         Assert.False(globalAfterAlice.ContainsKey(BotOptionPayloadKeys.HeroMinHpForAdventure));
         Assert.False(globalAfterAlice.ContainsKey(BotOptionPayloadKeys.HeroResourceMaxUsePerResource));
-        Assert.False(globalAfterAlice.ContainsKey(BotOptionPayloadKeys.CollectStepDelayMinMs));
+        Assert.False(globalAfterAlice.ContainsKey(BotOptionPayloadKeys.CollectStepDelayMinSeconds));
         Assert.False(globalAfterAlice.ContainsKey("allow_silver_spending"));
         Assert.False(globalAfterAlice.ContainsKey(BotOptionPayloadKeys.ReinforcementsTroopRules));
 
@@ -219,7 +219,7 @@ public sealed class BotConfigStoreTests : IDisposable
 
         Assert.False(bob.ContainsKey(BotOptionPayloadKeys.HeroMinHpForAdventure));
         Assert.False(bob.ContainsKey(BotOptionPayloadKeys.HeroResourceMaxUsePerResource));
-        Assert.False(bob.ContainsKey(BotOptionPayloadKeys.CollectStepDelayMinMs));
+        Assert.False(bob.ContainsKey(BotOptionPayloadKeys.CollectStepDelayMinSeconds));
         Assert.False(bob.ContainsKey("allow_silver_spending"));
         Assert.Equal(
             "bob",
@@ -240,7 +240,7 @@ public sealed class BotConfigStoreTests : IDisposable
         var config = store.Load();
         config[BotOptionPayloadKeys.HeroResourceMaxUseEnabled] = false;
         config[BotOptionPayloadKeys.HeroResourceMaxUsePerResource] = 3000;
-        config[BotOptionPayloadKeys.CollectStepDelayMaxMs] = 900;
+        config[BotOptionPayloadKeys.CollectStepDelayMaxSeconds] = 900;
         config[BotOptionPayloadKeys.AllowGoldSpending] = true;
         config[BotOptionPayloadKeys.GoldLimit] = 500;
         config[BotOptionPayloadKeys.ReinforcementsSendIntervalHours] = 8;
@@ -253,7 +253,7 @@ public sealed class BotConfigStoreTests : IDisposable
 
         var global = JsonNode.Parse(File.ReadAllText(_configPath))!.AsObject();
         Assert.False(global.ContainsKey(BotOptionPayloadKeys.HeroResourceMaxUseEnabled));
-        Assert.False(global.ContainsKey(BotOptionPayloadKeys.CollectStepDelayMaxMs));
+        Assert.False(global.ContainsKey(BotOptionPayloadKeys.CollectStepDelayMaxSeconds));
         Assert.False(global.ContainsKey(BotOptionPayloadKeys.AllowGoldSpending));
         Assert.False(global.ContainsKey(BotOptionPayloadKeys.ReinforcementsSendIntervalHours));
         Assert.False(global.ContainsKey(BotOptionPayloadKeys.ReinforcementsSendVariationPercent));
@@ -263,7 +263,7 @@ public sealed class BotConfigStoreTests : IDisposable
         var account = JsonNode.Parse(File.ReadAllText(AccountStoragePaths.AccountSettingsPath(_root, "alice")))!.AsObject();
         Assert.False(account[BotOptionPayloadKeys.HeroResourceMaxUseEnabled]!.GetValue<bool>());
         Assert.Equal(3000, account[BotOptionPayloadKeys.HeroResourceMaxUsePerResource]!.GetValue<int>());
-        Assert.Equal(900, account[BotOptionPayloadKeys.CollectStepDelayMaxMs]!.GetValue<int>());
+        Assert.Equal(900, account[BotOptionPayloadKeys.CollectStepDelayMaxSeconds]!.GetValue<int>());
         Assert.Equal(500, account[BotOptionPayloadKeys.GoldLimit]!.GetValue<int>());
         Assert.Equal(8, account[BotOptionPayloadKeys.ReinforcementsSendIntervalHours]!.GetValue<int>());
         Assert.Equal(25, account[BotOptionPayloadKeys.ReinforcementsSendVariationPercent]!.GetValue<int>());
