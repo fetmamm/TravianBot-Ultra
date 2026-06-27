@@ -13,6 +13,9 @@ Aktivt beslut, 2026-06-20. Detaljerna bakom de korta reglerna i
   `img.unit.uNN` eller `t=tN`, inte radordning (oresearchade trupper saknar rad). Pagaende research lases
   ENBART fran `table.under_progress .timer`; radens `.inlineIcon.duration` ar byggtid, inte progress.
   "Research is already being conducted." = ko upptagen; "Exchange resources"/"Enough resources on" = resursbrist.
+  "Smithy level too low" = truppen ar vid smithyns nivatak -> `SmithyTroopOutcome.SmithyLevelTooLow`, TERMINAL
+  (skippas, inte defer). Utan detta hamnade trupp under mal men vid taket i InProgress-fallbacken och spammade
+  tasken nar anvandarens malniva lag over smithyns niva.
 - Valda trupper + malnivaer sparas konto-scopeat i `smithy_upgrade.json` och skickas som task-payload
   `smithy_upgrade_targets="u21=20;..."`; tom payload = no-op. Stateless tolkning i `SmithyPageParser` (Core, enhetstestad).
   Den kontinuerliga loopen injicerar payloaden per by (`MainWindow.ContinuousLoop`) — utan den blir loop-tasken no-op.

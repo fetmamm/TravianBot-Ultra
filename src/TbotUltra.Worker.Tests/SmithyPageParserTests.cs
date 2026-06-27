@@ -113,6 +113,26 @@ public sealed class SmithyPageParserTests
     }
 
     [Fact]
+    public void ParseRows_SmithyLevelTooLowRow_IsTerminalNotInProgress()
+    {
+        var json = "[" + Row(
+            name: "Phalanx",
+            unitClass: "unit u21",
+            levelText: "Level 12",
+            errorText: "Smithy level too low") + "]";
+
+        var row = Assert.Single(SmithyPageParser.ParseRows(json));
+        Assert.True(row.SmithyLevelTooLow);
+        Assert.False(row.CanImprove);
+        Assert.False(row.Maxed);
+
+        // Target above the smithy cap: terminal (skipped), not an InProgress defer that spams the task.
+        Assert.Equal(SmithyTroopOutcome.SmithyLevelTooLow, SmithyPageParser.Classify(row, new SmithyTroopTarget("u21", 20)));
+        // Target already reached still wins — the troop is done.
+        Assert.Equal(SmithyTroopOutcome.AlreadyAtTarget, SmithyPageParser.Classify(row, new SmithyTroopTarget("u21", 12)));
+    }
+
+    [Fact]
     public void ParseRows_MalformedJson_ReturnsEmpty()
     {
         Assert.Empty(SmithyPageParser.ParseRows("not json"));

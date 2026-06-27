@@ -15,6 +15,9 @@ public enum SmithyTroopOutcome
     AlreadyAtTarget,
     /// <summary>The troop is at the maximum level (20) and cannot be improved further.</summary>
     Maxed,
+    /// <summary>The troop sits at the Smithy's level cap and cannot be improved until the Smithy building
+    /// itself is upgraded (Travian shows "Smithy level too low"). Terminal for the current run.</summary>
+    SmithyLevelTooLow,
     /// <summary>Not enough resources right now (Travian shows "Exchange resources"/an "Enough resources on…" hint).</summary>
     NoResources,
     /// <summary>The smithy queue is busy ("Research is already being conducted.").</summary>
@@ -35,7 +38,8 @@ public sealed record SmithyTroopRow(
     bool ResearchInProgress,
     bool NoResources,
     bool Maxed,
-    int? ResourceWaitSeconds = null)
+    int? ResourceWaitSeconds = null,
+    bool SmithyLevelTooLow = false)
 {
     /// <summary>Stable identity, preferring the unit id ("u21") and falling back to the troop slot ("t1").</summary>
     public string Key => UnitId is int id ? $"u{id}" : (TKey ?? string.Empty);
@@ -183,11 +187,16 @@ public static class SmithyPageParser
         var maxed = currentLevel >= MaxLevel
             || GetBool(element, "fullyDeveloped");
 
+        // The troop is at the Smithy's level cap: Travian shows "Smithy level too low" and offers no
+        // Improve button until the Smithy building is upgraded. Distinct from Maxed (max level 20).
+        var smithyLevelTooLow = errorText.Contains("smithy level too low")
+            || errorText.Contains("blacksmith level too low");
+
         // Travian renders a hidden countdown inside the resource shortage message
         // (".errorMessage .timer[value=seconds]") with the exact seconds until enough resources exist.
         var resourceWaitSeconds = GetInt(element, "errorWaitSeconds");
 
-        return new SmithyTroopRow(name, unitId, tKey, currentLevel, canImprove, researchInProgress, noResources, maxed, resourceWaitSeconds);
+        return new SmithyTroopRow(name, unitId, tKey, currentLevel, canImprove, researchInProgress, noResources, maxed, resourceWaitSeconds, smithyLevelTooLow);
     }
 
     /// <summary>
@@ -242,6 +251,14 @@ public static class SmithyPageParser
         if (row.CanImprove)
         {
             return SmithyTroopOutcome.Improve;
+        }
+
+        // Below target but the Smithy building is too low to research further. Terminal for this run: no
+        // Improve button will appear until the Smithy is upgraded, so report it instead of deferring forever
+        // (which spammed the task when the user's target was above the Smithy's level cap).
+        if (row.SmithyLevelTooLow)
+        {
+            return SmithyTroopOutcome.SmithyLevelTooLow;
         }
 
         if (row.ResearchInProgress)

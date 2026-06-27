@@ -2049,6 +2049,13 @@ public sealed partial class TravianClient : IBuildingClient
                         pending.Remove(target.Key);
                         skipped += 1;
                         break;
+                    case SmithyTroopOutcome.SmithyLevelTooLow:
+                        // Terminal: the troop is at the smithy's level cap and can't reach the requested
+                        // target until the smithy building is upgraded. Skip instead of deferring forever.
+                        Notify($"Smithy: '{label}' is at level {row!.CurrentLevel}; the smithy level is too low to reach target {target.TargetLevel}. Upgrade the smithy first. Skipping.");
+                        pending.Remove(target.Key);
+                        skipped += 1;
+                        break;
                     case SmithyTroopOutcome.NoResources:
                         // Keep pending and wait — the bot re-checks and improves the troop as soon as enough
                         // resources have come in (exact ETA parsed from the page when Travian exposes it).
