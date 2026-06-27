@@ -317,29 +317,44 @@ public partial class MainWindow
     private void DailyPacingDetailsButton_Click(object sender, RoutedEventArgs e)
     {
         var progress = _sessionPacer.GetDailyProgress();
-        var weekRows = BuildDailyPacingWeekRows(progress, out var weekTotalText);
+        var dayRows = BuildDailyPacingDayRows(progress, out var weekTotalText, out var accountTotalText, out var chartPoints);
         var taskRows = BuildDailyPacingTaskRows();
         var window = new DailyPacingDetailsWindow(
             FormatDailyDetailsDuration(progress.OnlineToday),
             progress.TimeLeft is null ? "Off" : FormatDailyDetailsDuration(progress.TimeLeft.Value),
             progress.Limit is null ? "Off" : FormatDailyDetailsDuration(progress.Limit.Value),
             weekTotalText,
-            weekRows,
-            taskRows)
+            accountTotalText,
+            dayRows,
+            taskRows,
+            chartPoints)
         {
             Owner = this,
         };
         window.ShowDialog();
     }
 
-    private IReadOnlyList<DailyPacingDayRow> BuildDailyPacingWeekRows(SessionPacerDailyProgress progress, out string weekTotalText)
+    // Builds one row per recorded day (no day cap — covers the account's full history), plus the chart
+    // series. Outputs both the last-7-day "Week total" and the all-time "Account total".
+    private IReadOnlyList<DailyPacingDayRow> BuildDailyPacingDayRows(
+        SessionPacerDailyProgress progress,
+        out string weekTotalText,
+        out string accountTotalText,
+        out IReadOnlyList<DailyPacingChartPoint> chartPoints)
     {
         var history = ReadDailyPacingHistory()
             .ToDictionary(entry => entry.Date);
-        var rows = new List<DailyPacingDayRow>();
-        var totalOnline = TimeSpan.Zero;
 
-        for (var date = progress.Date.AddDays(-6); date <= progress.Date; date = date.AddDays(1))
+        // Span from the earliest recorded day (or today if none) to today, filling gap days with zero so
+        // the list and graph read continuously day by day.
+        var earliest = history.Keys.Append(progress.Date).Min();
+        var rows = new List<DailyPacingDayRow>();
+        var points = new List<DailyPacingChartPoint>();
+        var totalOnline = TimeSpan.Zero;
+        var weekOnline = TimeSpan.Zero;
+        var weekCutoff = progress.Date.AddDays(-6);
+
+        for (var date = earliest; date <= progress.Date; date = date.AddDays(1))
         {
             var online = TimeSpan.Zero;
             TimeSpan? limit = null;
@@ -358,15 +373,26 @@ public partial class MainWindow
             }
 
             totalOnline += online;
+            if (date >= weekCutoff)
+            {
+                weekOnline += online;
+            }
 
             rows.Add(new DailyPacingDayRow(
                 date.ToString("yyyy-MM-dd"),
                 FormatDailyDetailsDuration(online),
                 limit is null ? "Off" : FormatDailyDetailsDuration(limit.Value),
                 FormatDailyUsage(online, limit)));
+
+            points.Add(new DailyPacingChartPoint(
+                date.ToString("MM-dd"),
+                online.TotalHours,
+                limit?.TotalHours));
         }
 
-        weekTotalText = FormatDailyDetailsDuration(totalOnline);
+        weekTotalText = FormatDailyDetailsDuration(weekOnline);
+        accountTotalText = FormatDailyDetailsDuration(totalOnline);
+        chartPoints = points;
         return rows.OrderByDescending(row => row.Date).ToList();
     }
 
@@ -403,9 +429,10 @@ public partial class MainWindow
 
     private void UpsertDailyPacingHistory(JsonObject config, SessionPacerDailyProgress progress)
     {
-        var cutoff = progress.Date.AddDays(-6);
+        // Keep the FULL history (no day cap) so Account total and the day-by-day list/graph cover all time.
+        // One entry per day is tiny, so the unbounded growth is negligible on disk.
         var entries = ReadDailyPacingHistory(config)
-            .Where(entry => entry.Date >= cutoff && entry.Date <= progress.Date)
+            .Where(entry => entry.Date <= progress.Date)
             .ToDictionary(entry => entry.Date);
 
         entries[progress.Date] = new DailyPacingHistoryEntry(
