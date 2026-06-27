@@ -158,7 +158,7 @@ public partial class MainWindow
 
     private void UpdateAccountInfoLabel(string accountName)
     {
-        // Show only the username and a compact server-speed label (e.g. "slangen | 1M").
+        // Show the server name the user entered for the active account (e.g. "X5 Asia"), not the username.
         var username = accountName;
         string? serverName = null;
         try
@@ -178,41 +178,18 @@ public partial class MainWindow
         }
         catch
         {
-            // Fall back to the raw account name / configured server below.
+            // Fall back to the configured server / account name below.
         }
 
-        var serverLabel = AbbreviateServerSpeed(serverName ?? LoadBotOptions().ServerName);
-        ActiveAccountInfoTextBlock.Text = string.IsNullOrWhiteSpace(serverLabel) || serverLabel == "-"
-            ? username
-            : $"{username} | {serverLabel}";
-    }
-
-    // Compacts a server-speed string into a short label: 1000000x -> "1M", 50000x -> "50K",
-    // 10x -> "10x". Returns "-" when no speed can be parsed.
-    private static string AbbreviateServerSpeed(string? serverName)
-    {
         if (string.IsNullOrWhiteSpace(serverName))
         {
-            return "-";
+            serverName = LoadBotOptions().ServerName;
         }
 
-        var match = Regex.Match(serverName, @"(\d+)\s*[xX]");
-        if (!match.Success || !long.TryParse(match.Groups[1].Value, out var speed) || speed <= 0)
-        {
-            return "-";
-        }
-
-        if (speed >= 1_000_000)
-        {
-            return $"{(speed / 1_000_000d):0.##}M";
-        }
-
-        if (speed >= 1_000)
-        {
-            return $"{(speed / 1_000d):0.##}K";
-        }
-
-        return $"{speed}x";
+        // Fall back to the username only when no server name is known.
+        ActiveAccountInfoTextBlock.Text = string.IsNullOrWhiteSpace(serverName)
+            ? username
+            : serverName.Trim();
     }
 
     // Resolves the server speed multiplier (1x/3x/10x...) used to scale catalog build times. First tries
