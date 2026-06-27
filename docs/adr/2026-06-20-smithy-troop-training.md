@@ -34,11 +34,12 @@ Aktivt beslut, 2026-06-20. Detaljerna bakom de korta reglerna i
   namn, malniva och absolut sluttid i byns `SmithyUpgradeStatus`; Queue-ruta, ikoner och loopkort laser
   samma SOT. Tom/glitch-lasning far inte radera en aktiv framtida ko; posten forsvinner nar sluttiden passeras.
 - Inget kvar att gora: nar ALLA valda trupper ar terminala (at-target/maxed/smithy-too-low/not-researched)
-  och inget forbattrades (`pending==0 && improved==0`) avslutar workern med `smithy_nothing_to_do=1`. Desktop
-  (`DisableSmithyGroupIfNothingToDoAsync`, endast continuous-loop) stanger DA av Troops-gruppen for den byn
-  (`PersistAutomationGroupEnabledForVillage`) sa loopen slutar koa om tasken varje varv. `upgrade_troops_at_smithy`
-  ar enda tasken i Troops-gruppen, sa inget annat paverkas. Att valja trupper i upgrade-options-popupen (single
-  eller sync, icke-tom) sl ar PA gruppen igen.
+  och inget forbattrades (`pending==0 && improved==0`) returnerar workern `"Smithy: All done — ..."`.
+  `ThrowIfTroopsGroupBlocked` kastar da `TaskBlockedPermanentlyException(troops_blocked=all_done)`; desktop
+  (`TryHandleTroopsBlockedExecutionAsync` -> `SetTroopsBlockedState(all_done)`) stanger AV dashboardens
+  "Upgrade Troops"-gruppkort (`_automationLoopTasks` `IsEnabled=false`) sa loopen slutar koa om tasken.
+  Anvandaren slar PA kortet igen for att ateruppta (`ClearTroopsBlockedState`). OBS: gruppkortet ar globalt
+  (inte per by) — samma beteende som `troops_blocked=smithy_missing`.
 
 ## Bygg trupper (Barracks/Stable/Workshop)
 

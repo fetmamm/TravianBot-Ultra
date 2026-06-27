@@ -2236,12 +2236,13 @@ public sealed partial class TravianClient : IBuildingClient
         await GotoAsync(Paths.Buildings, cancellationToken);
 
         // All selected troops resolved to a terminal state (at target / maxed / smithy level too low /
-        // not researched) and nothing was improved this run: there is nothing left to do for this village.
-        // Signal the desktop so the continuous loop can switch the smithy group off for the village instead
-        // of re-running this function every iteration.
+        // not researched) and nothing was improved this run: report "All done" so the task runner
+        // permanently blocks the Troops group (ThrowIfTroopsGroupBlocked -> troops_blocked=all_done). The
+        // desktop then switches the dashboard "Upgrade Troops" card OFF instead of re-running every loop.
         var nothingToDo = pending.Count == 0 && improved == 0;
-        var nothingToDoSuffix = nothingToDo ? " smithy_nothing_to_do=1" : string.Empty;
-        return $"Smithy: improved {improved} troop(s), skipped {skipped}.{nothingToDoSuffix}";
+        return nothingToDo
+            ? $"Smithy: All done — nothing left to upgrade (improved {improved}, skipped {skipped})."
+            : $"Smithy: improved {improved} troop(s), skipped {skipped}.";
     }
 
     // Emits one raw object per Smithy troop row for the browser-free SmithyPageParser to classify.
