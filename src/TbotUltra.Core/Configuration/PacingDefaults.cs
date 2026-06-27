@@ -7,6 +7,8 @@ public static class PacingDefaults
     public const int SessionPacingSleepMinutes = 45;
     public const int SessionPacingVariationPercent = 40;
     public const int SessionPacingDailyMaxHours = 18;
+    // Daily-max has its own variation, independent of the run/sleep/schedule "Variation" above.
+    public const int SessionPacingDailyMaxVariationPercent = 10;
 
     public const bool ActionPacingEnabled = true;
     public const double ActionPacingTaskMinSeconds = 1.0;

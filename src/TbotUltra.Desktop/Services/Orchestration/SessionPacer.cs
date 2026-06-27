@@ -28,7 +28,8 @@ public sealed record SessionPacerSettings(
     IReadOnlyList<int>? AllowedHours = null,
     int DailyMaxHours = 0,
     DateOnly? RuntimeDate = null,
-    double RuntimeSeconds = 0);
+    double RuntimeSeconds = 0,
+    int DailyMaxVariationPercent = PacingDefaults.SessionPacingDailyMaxVariationPercent);
 
 public sealed record SessionPacerRuntimeState(DateOnly Date, double RuntimeSeconds);
 
@@ -88,9 +89,9 @@ public sealed class SessionPacer
     {
         SessionPacerPhase.Running => $"Next sleep: {Format(TimeUntilSleep)}",
         SessionPacerPhase.Paused => $"Paused - next sleep: {Format(_pausedRunRemaining)}",
-        SessionPacerPhase.Sleeping when SleepReason == SessionSleepReason.Schedule => $"Scheduled off - {Format(TimeUntilWake)}",
-        SessionPacerPhase.Sleeping when SleepReason == SessionSleepReason.DailyLimit => $"Daily limit - {Format(TimeUntilWake)}",
-        SessionPacerPhase.Sleeping => $"Sleeping - {Format(TimeUntilWake)}",
+        // All sleep reasons (session pacing, scheduled off-hours, daily limit, manual) show the same
+        // "Sleeping: <countdown>" badge. The reason stays available via SleepReason / the Run-now button.
+        SessionPacerPhase.Sleeping => $"Sleeping: {Format(TimeUntilWake)}",
         _ => _automationActive ? "Session pacing off" : "Session pacing",
     };
 
@@ -520,8 +521,12 @@ public sealed class SessionPacer
 
         var date = DateOnly.FromDateTime(now.DateTime);
         var baseMinutes = _settings.DailyMaxHours * 60.0;
-        var spread = baseMinutes * _settings.VariationPercent / 100.0;
-        var variedMinutes = baseMinutes + (DeterministicSignedFraction($"daily:{date:yyyyMMdd}") * spread);
+        // Daily-max uses its OWN variation (DailyMaxVariationPercent), not the run/sleep/schedule
+        // VariationPercent. A per-day fraction keyed on the calendar day number (splitmix64) so the limit
+        // is stable within a day but genuinely spreads across consecutive days — the old date-string FNV
+        // hash clustered near zero for runs of adjacent days, which made the cap look like it never varied.
+        var spread = baseMinutes * _settings.DailyMaxVariationPercent / 100.0;
+        var variedMinutes = baseMinutes + (DeterministicDailyFraction(date) * spread);
         return Math.Max(1, variedMinutes) * 60;
     }
 
@@ -602,6 +607,19 @@ public sealed class SessionPacer
         return (hash / (double)uint.MaxValue * 2) - 1;
     }
 
+    // Well-distributed signed fraction in [-1, 1] for a calendar day. Uses the splitmix64 finalizer on the
+    // day number, which fully avalanches, so consecutive days produce uncorrelated values (unlike hashing
+    // the date string, where adjacent days share a long prefix and clustered near zero). Deterministic, so
+    // the daily-max limit stays the same across app restarts within a day.
+    private static double DeterministicDailyFraction(DateOnly date)
+    {
+        var z = unchecked((ulong)date.DayNumber + 0x9E3779B97F4A7C15UL);
+        z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9UL;
+        z = (z ^ (z >> 27)) * 0x94D049BB133111EBUL;
+        z ^= z >> 31;
+        return (z / (double)ulong.MaxValue * 2) - 1;
+    }
+
     // Start of the wall-clock day in the clock source's own offset (not the machine timezone), so the
     // pacer stays consistent with the injected clock. With the default clock (DateTimeOffset.Now) the
     // offset is the local one, so production behavior is unchanged.
@@ -639,6 +657,7 @@ public sealed class SessionPacer
             SleepMinutes = Math.Max(30, settings.SleepMinutes),
             VariationPercent = Math.Clamp(settings.VariationPercent, 0, 100),
             DailyMaxHours = Math.Clamp(settings.DailyMaxHours, 0, 24),
+            DailyMaxVariationPercent = Math.Clamp(settings.DailyMaxVariationPercent, 0, 50),
             RuntimeSeconds = Math.Max(0, settings.RuntimeSeconds),
         };
     }

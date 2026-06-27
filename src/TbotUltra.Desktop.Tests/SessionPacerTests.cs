@@ -14,6 +14,7 @@ public sealed class SessionPacerTests
         Assert.Equal(45, PacingDefaults.SessionPacingSleepMinutes);
         Assert.Equal(40, PacingDefaults.SessionPacingVariationPercent);
         Assert.Equal(18, PacingDefaults.SessionPacingDailyMaxHours);
+        Assert.Equal(10, PacingDefaults.SessionPacingDailyMaxVariationPercent);
     }
 
     [Fact]
@@ -25,7 +26,7 @@ public sealed class SessionPacerTests
         pacer.BeginSleep();
 
         Assert.Equal(SessionPacerPhase.Sleeping, pacer.Phase);
-        Assert.Matches(@"^Sleeping - \d{2}:\d{2}:\d{2}$", pacer.StatusText);
+        Assert.Matches(@"^Sleeping: \d{2}:\d{2}:\d{2}$", pacer.StatusText);
     }
 
     [Fact]
@@ -151,7 +152,8 @@ public sealed class SessionPacerTests
             Enumerable.Range(0, 24).ToArray(),
             DailyMaxHours: 12,
             RuntimeDate: new DateOnly(2026, 6, 14),
-            RuntimeSeconds: TimeSpan.FromHours(12).TotalSeconds));
+            RuntimeSeconds: TimeSpan.FromHours(12).TotalSeconds,
+            DailyMaxVariationPercent: 0));
         pacer.SleepStarting += (_, _) => pacer.BeginSleep();
 
         pacer.NotifyAutomationStarted();
@@ -173,7 +175,8 @@ public sealed class SessionPacerTests
             Enumerable.Range(0, 24).ToArray(),
             DailyMaxHours: 12,
             RuntimeDate: new DateOnly(2026, 6, 14),
-            RuntimeSeconds: TimeSpan.FromHours(3).TotalSeconds));
+            RuntimeSeconds: TimeSpan.FromHours(3).TotalSeconds,
+            DailyMaxVariationPercent: 0));
 
         var progress = pacer.GetDailyProgress();
 
@@ -271,7 +274,8 @@ public sealed class SessionPacerTests
             Enumerable.Range(0, 24).ToArray(),
             DailyMaxHours: 1,
             RuntimeDate: new DateOnly(2026, 6, 14),
-            RuntimeSeconds: TimeSpan.FromHours(1).TotalSeconds));
+            RuntimeSeconds: TimeSpan.FromHours(1).TotalSeconds,
+            DailyMaxVariationPercent: 0));
         pacer.SleepStarting += (_, _) => pacer.BeginSleep();
         var wakeRequested = false;
         pacer.WakeRequested += (_, _) => wakeRequested = true;
@@ -282,5 +286,54 @@ public sealed class SessionPacerTests
 
         Assert.True(wakeRequested);
         Assert.Equal(0, pacer.RuntimeState.RuntimeSeconds);
+    }
+
+    [Fact]
+    public void DailyLimit_VariesAcrossConsecutiveDays()
+    {
+        var caps = new List<double>();
+        for (var i = 0; i < 60; i++)
+        {
+            var day = new DateOnly(2026, 1, 1).AddDays(i);
+            var now = new DateTimeOffset(day.ToDateTime(new TimeOnly(12, 0)), TimeSpan.Zero);
+            var pacer = new SessionPacer(() => now);
+            pacer.Configure(new SessionPacerSettings(
+                true,
+                120,
+                30,
+                0,
+                Enumerable.Range(0, 24).ToArray(),
+                DailyMaxHours: 16,
+                DailyMaxVariationPercent: 40));
+            caps.Add(pacer.GetDailyProgress().Limit!.Value.TotalHours);
+        }
+
+        // 40% variation on 16h must genuinely spread across days, not cluster near 16h (the old
+        // date-string hash did, which made the cap look constant).
+        Assert.True(caps.Max() - caps.Min() > 6, $"range={caps.Max() - caps.Min():F2}");
+        Assert.True(caps.Count(h => Math.Abs(h - 16) > 1) >= 20);
+    }
+
+    [Fact]
+    public void DailyLimit_IgnoresRunSleepVariationPercent()
+    {
+        var now = new DateTimeOffset(2026, 6, 14, 12, 0, 0, TimeSpan.Zero);
+
+        TimeSpan LimitWithRunSleepVariation(int runSleepVariationPercent)
+        {
+            var pacer = new SessionPacer(() => now);
+            pacer.Configure(new SessionPacerSettings(
+                true,
+                120,
+                30,
+                runSleepVariationPercent,
+                Enumerable.Range(0, 24).ToArray(),
+                DailyMaxHours: 16,
+                DailyMaxVariationPercent: 20));
+            return pacer.GetDailyProgress().Limit!.Value;
+        }
+
+        // The run/sleep "Variation" must not move the daily-max limit — only DailyMaxVariationPercent does.
+        Assert.Equal(LimitWithRunSleepVariation(0), LimitWithRunSleepVariation(100));
     }
 }

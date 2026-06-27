@@ -168,6 +168,7 @@ public partial class SettingsWindow : Window
         SessionSleepMinutesTextBox.Text = Math.Max(30, ReadInt(BotOptionPayloadKeys.SessionPacingSleepMinutes, PacingDefaults.SessionPacingSleepMinutes)).ToString();
         SelectVariationPercent(ReadInt(BotOptionPayloadKeys.SessionPacingVariationPercent, PacingDefaults.SessionPacingVariationPercent));
         SelectDailyMaxHours(ReadInt(BotOptionPayloadKeys.SessionPacingDailyMaxHours, PacingDefaults.SessionPacingDailyMaxHours));
+        SelectDailyMaxVariationPercent(ReadInt(BotOptionPayloadKeys.SessionPacingDailyMaxVariationPercent, PacingDefaults.SessionPacingDailyMaxVariationPercent));
         var allowedHours = ReadAllowedHours();
         foreach (var checkBox in SessionAllowedHoursGrid.Children.OfType<CheckBox>())
         {
@@ -197,6 +198,7 @@ public partial class SettingsWindow : Window
         _config[BotOptionPayloadKeys.SessionPacingSleepMinutes] = ReadIntText(SessionSleepMinutesTextBox, PacingDefaults.SessionPacingSleepMinutes, 30, 10080);
         _config[BotOptionPayloadKeys.SessionPacingVariationPercent] = GetSelectedVariationPercent();
         _config[BotOptionPayloadKeys.SessionPacingDailyMaxHours] = GetSelectedDailyMaxHours();
+        _config[BotOptionPayloadKeys.SessionPacingDailyMaxVariationPercent] = GetSelectedDailyMaxVariationPercent();
         _config[BotOptionPayloadKeys.SessionPacingAllowedHours] = new JsonArray(
             SessionAllowedHoursGrid.Children.OfType<CheckBox>()
                 .Where(checkBox => checkBox.IsChecked == true)
@@ -230,6 +232,7 @@ public partial class SettingsWindow : Window
         SessionSleepMinutesTextBox.Text = PacingDefaults.SessionPacingSleepMinutes.ToString();
         SelectVariationPercent(PacingDefaults.SessionPacingVariationPercent);
         SelectDailyMaxHours(PacingDefaults.SessionPacingDailyMaxHours);
+        SelectDailyMaxVariationPercent(PacingDefaults.SessionPacingDailyMaxVariationPercent);
         foreach (var checkBox in SessionAllowedHoursGrid.Children.OfType<CheckBox>())
         {
             checkBox.IsChecked = true;
@@ -285,6 +288,16 @@ public partial class SettingsWindow : Window
             {
                 Content = $"{hour} h",
                 Tag = hour.ToString(CultureInfo.InvariantCulture),
+            });
+        }
+
+        // Daily-max variation: 0..50% in 10% steps. Independent of the run/sleep "Variation" dropdown.
+        for (var percent = 0; percent <= 50; percent += 10)
+        {
+            SessionDailyMaxVariationComboBox.Items.Add(new ComboBoxItem
+            {
+                Content = percent == 0 ? "No variation" : $"±{percent}%",
+                Tag = percent.ToString(CultureInfo.InvariantCulture),
             });
         }
 
@@ -349,6 +362,23 @@ public partial class SettingsWindow : Window
             && int.TryParse(item.Tag?.ToString(), out var hours)
                 ? Math.Clamp(hours, 0, 24)
                 : PacingDefaults.SessionPacingDailyMaxHours;
+    }
+
+    private void SelectDailyMaxVariationPercent(int percent)
+    {
+        var items = SessionDailyMaxVariationComboBox.Items.OfType<ComboBoxItem>().ToList();
+        var match = items.FirstOrDefault(item =>
+                string.Equals(item.Tag?.ToString(), percent.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal))
+            ?? items.OrderBy(item => Math.Abs(ParseTag(item) - percent)).FirstOrDefault();
+        SessionDailyMaxVariationComboBox.SelectedItem = match;
+    }
+
+    private int GetSelectedDailyMaxVariationPercent()
+    {
+        return SessionDailyMaxVariationComboBox.SelectedItem is ComboBoxItem item
+            && int.TryParse(item.Tag?.ToString(), out var percent)
+                ? Math.Clamp(percent, 0, 50)
+                : PacingDefaults.SessionPacingDailyMaxVariationPercent;
     }
 
     private static int ReadIntText(TextBox textBox, int defaultValue, int min, int max)
