@@ -33,6 +33,12 @@ Aktivt beslut, 2026-06-20. Detaljerna bakom de korta reglerna i
 - Worker emitterar `[smithy-queue] entries_json=...` fran verkliga `under_progress`-rader. Desktop lagrar
   namn, malniva och absolut sluttid i byns `SmithyUpgradeStatus`; Queue-ruta, ikoner och loopkort laser
   samma SOT. Tom/glitch-lasning far inte radera en aktiv framtida ko; posten forsvinner nar sluttiden passeras.
+- Inget kvar att gora: nar ALLA valda trupper ar terminala (at-target/maxed/smithy-too-low/not-researched)
+  och inget forbattrades (`pending==0 && improved==0`) avslutar workern med `smithy_nothing_to_do=1`. Desktop
+  (`DisableSmithyGroupIfNothingToDoAsync`, endast continuous-loop) stanger DA av Troops-gruppen for den byn
+  (`PersistAutomationGroupEnabledForVillage`) sa loopen slutar koa om tasken varje varv. `upgrade_troops_at_smithy`
+  ar enda tasken i Troops-gruppen, sa inget annat paverkas. Att valja trupper i upgrade-options-popupen (single
+  eller sync, icke-tom) sl ar PA gruppen igen.
 
 ## Bygg trupper (Barracks/Stable/Workshop)
 

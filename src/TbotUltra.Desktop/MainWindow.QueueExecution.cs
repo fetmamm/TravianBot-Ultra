@@ -74,6 +74,11 @@ public partial class MainWindow
                 await LoadBuildingsSnapshotIntoUiAsync(cancellationToken);
             }
 
+            if (mode == QueueExecutionMode.ContinuousLoop)
+            {
+                await DisableSmithyGroupIfNothingToDoAsync(item, executionResult);
+            }
+
             AppendLog(FormatQueueSuccessLog(logPrefix, tickSw, item, mode));
             if (mode == QueueExecutionMode.ContinuousLoop)
             {
@@ -203,6 +208,43 @@ public partial class MainWindow
         }
 
         return fullConstructionRefreshDone;
+    }
+
+    // When a loop-driven smithy run reports it has nothing left to do for a village (all selected troops at
+    // target / maxed / blocked by a too-low smithy / not researched), turn the Upgrade Troops group OFF for
+    // that village so the loop stops re-running the function every iteration. The smithy task is the ONLY
+    // task in the Troops group, so this disables nothing else. Re-selecting troops in the upgrade options
+    // popup re-enables it (OnTroopsUpgradeOptionsClicked).
+    private async Task DisableSmithyGroupIfNothingToDoAsync(QueueItem item, BotTaskExecutionResult executionResult)
+    {
+        if (!string.Equals(item.TaskName, "upgrade_troops_at_smithy", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var message = executionResult.LastTask?.Message;
+        if (string.IsNullOrWhiteSpace(message)
+            || !message.Contains("smithy_nothing_to_do=1", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var villageKey = GetQueueItemVillageKey(item);
+        if (string.IsNullOrWhiteSpace(villageKey) || !IsGroupEnabledForVillage(villageKey, QueueGroup.Troops))
+        {
+            return; // village-less task, or the group is already off — nothing to do.
+        }
+
+        var villageName = GetQueueItemVillageName(item);
+        var groupKey = QueueGroupCatalog.GetKey(QueueGroup.Troops);
+        await Dispatcher.InvokeAsync(() =>
+        {
+            var village = new VillageSettingsStore.VillageKeyInfo(villageKey, villageName ?? villageKey, null, null, false);
+            PersistAutomationGroupEnabledForVillage(village, enabled: false, groupKey);
+            RefreshAutomationLoopDashboardUi();
+        });
+        AppendLog($"[smithy] nothing left to upgrade in '{NormalizeVillageName(villageName) ?? villageKey}' — "
+            + "turned the Upgrade Troops group OFF for this village so it stops re-running. Re-select troops to resume.");
     }
 
     private async Task<(bool FullStatusRead, bool StorageStatusRead)> RefreshConstructionStatusAfterBuildingMutationAsync(

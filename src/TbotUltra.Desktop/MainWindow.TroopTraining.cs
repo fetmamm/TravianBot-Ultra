@@ -580,8 +580,19 @@ public partial class MainWindow
 
         if (window.SyncRequested)
         {
-            var keys = GetAllVillageKeyInfos().Select(info => info.Key).ToList();
+            var villageInfos = GetAllVillageKeyInfos();
+            var keys = villageInfos.Select(info => info.Key).ToList();
             SmithyUpgradeTargetsStore.SaveForVillages(_projectRoot, account, keys, window.Result);
+            // Selecting troops re-enables the Upgrade Troops group (it may have been auto-disabled when a
+            // previous run found nothing left to do). No selection leaves the toggle untouched.
+            if (window.Result.Count > 0)
+            {
+                var troopsGroupKey = QueueGroupCatalog.GetKey(QueueGroup.Troops);
+                foreach (var info in villageInfos)
+                {
+                    PersistAutomationGroupEnabledForVillage(info, enabled: true, troopsGroupKey);
+                }
+            }
             // Drop every village's stale smithy queue item so the loop re-enqueues with the synced targets.
             var removedAll = RemoveSmithyQueueItemsForVillage(null);
             _troopTrainingViewModel.InfoText = $"Synced Smithy upgrade options to {keys.Count} village(s).";
@@ -591,6 +602,12 @@ public partial class MainWindow
         }
 
         SmithyUpgradeTargetsStore.Save(_projectRoot, account, villageInfo.Key, window.Result);
+        // Selecting troops re-enables the Upgrade Troops group for this village (it may have been
+        // auto-disabled when a previous run found nothing left to do). No selection leaves it untouched.
+        if (window.Result.Count > 0)
+        {
+            PersistAutomationGroupEnabledForVillage(villageInfo, enabled: true, QueueGroupCatalog.GetKey(QueueGroup.Troops));
+        }
         // Drop this village's stale smithy queue item (old troop snapshot) so the loop re-enqueues with the
         // new selection — otherwise the dedup keeps the old targets running until the stale item completes.
         var removed = RemoveSmithyQueueItemsForVillage(villageInfo.Name);
