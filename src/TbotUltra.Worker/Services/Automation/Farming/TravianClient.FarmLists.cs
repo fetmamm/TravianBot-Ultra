@@ -292,6 +292,25 @@ public sealed partial class TravianClient : IFarmingClient
         cancellationToken.ThrowIfCancellationRequested();
     }
 
+    // Predicate (run in the page) that is true only when every farm list is expanded AND has rendered
+    // at least as many slot rows as it claims to hold, i.e. all target coordinates are in the DOM.
+    private const string FarmListsFullyRenderedScript =
+        """
+        () => {
+          const clean = (value) => (value || '')
+            .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+          return Array.from(document.querySelectorAll('#rallyPointFarmList .farmListWrapper'))
+            .every(list => {
+              if (list.classList.contains('collapsed')) return false;
+              const match = clean(list.querySelector('td.addTarget')?.textContent).match(/(\d+)\s*\/\s*(\d+)/);
+              const expectedRows = match ? Number(match[1]) : 0;
+              return list.querySelectorAll('tbody tr.slot').length >= expectedRows;
+            });
+        }
+        """;
+
     private async Task EnsureOfficialFarmListsExpandedAsync(CancellationToken cancellationToken)
     {
         if (_config.IsPrivateServer)
@@ -299,49 +318,62 @@ public sealed partial class TravianClient : IFarmingClient
             return;
         }
 
-        var collapsedCount = await _page.EvaluateAsync<int>(
-            """
-            () => {
-              const collapsed = Array.from(document.querySelectorAll('#rallyPointFarmList .farmListWrapper.collapsed'));
-              for (const list of collapsed) {
-                const toggle = list.querySelector('.farmListHeader .expandCollapse');
-                toggle?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-              }
-              return collapsed.length;
-            }
-            """);
-        if (collapsedCount <= 0)
+        // Expand every collapsed list and scroll each into view so Travian lazy-renders its slot rows
+        // (which carry the target coordinates). A single pass can leave large/slow lists half-rendered,
+        // so retry the expand+scroll a few rounds until every list reports all of its rows.
+        const int maxRounds = 4;
+        for (var round = 1; round <= maxRounds; round++)
         {
-            return;
-        }
+            cancellationToken.ThrowIfCancellationRequested();
 
-        Notify($"[farm-list] expanding {collapsedCount} Official farm list(s) to read target coordinates");
-        try
-        {
-            await _page.WaitForFunctionAsync(
+            var collapsedCount = await _page.EvaluateAsync<int>(
                 """
                 () => {
-                  const clean = (value) => (value || '')
-                    .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
-                    .replace(/\s+/g, ' ')
-                    .trim();
-                  return Array.from(document.querySelectorAll('#rallyPointFarmList .farmListWrapper'))
-                    .every(list => {
-                      if (list.classList.contains('collapsed')) return false;
-                      const match = clean(list.querySelector('td.addTarget')?.textContent).match(/(\d+)\s*\/\s*(\d+)/);
-                      const expectedRows = match ? Number(match[1]) : 0;
-                      return list.querySelectorAll('tbody tr.slot').length >= expectedRows;
-                    });
+                  const wrappers = Array.from(document.querySelectorAll('#rallyPointFarmList .farmListWrapper'));
+                  let collapsed = 0;
+                  for (const list of wrappers) {
+                    if (list.classList.contains('collapsed')) {
+                      collapsed++;
+                      const toggle = list.querySelector('.farmListHeader .expandCollapse');
+                      toggle?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                    }
+                    try { list.scrollIntoView({ block: 'center' }); } catch (_) {}
+                  }
+                  return collapsed;
                 }
-                """,
-                null,
-                new PageWaitForFunctionOptions { Timeout = 8000 });
-        }
-        catch (TimeoutException)
-        {
-            Notify("[farm-list] some Official farm lists did not expand within 8 seconds; reading available targets.");
+                """);
+
+            if (round == 1 && collapsedCount > 0)
+            {
+                Notify($"[farm-list] expanding {collapsedCount} Official farm list(s) to read target coordinates");
+            }
+
+            try
+            {
+                await _page.WaitForFunctionAsync(
+                    FarmListsFullyRenderedScript,
+                    null,
+                    new PageWaitForFunctionOptions { Timeout = 6000 });
+                if (round > 1)
+                {
+                    Notify($"[farm-list] all farm lists fully expanded after {round} round(s)");
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+                return;
+            }
+            catch (TimeoutException)
+            {
+                if (round < maxRounds)
+                {
+                    Notify($"[farm-list] expansion round {round}/{maxRounds} incomplete; retrying expand+scroll");
+                    await Task.Delay(Random.Shared.Next(500, 800), cancellationToken);
+                }
+            }
         }
 
+        Notify("[farm-list] some Official farm lists did not fully expand after retries; "
+            + "reading available targets (duplicate check may be incomplete).");
         cancellationToken.ThrowIfCancellationRequested();
     }
 

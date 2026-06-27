@@ -29,7 +29,8 @@ public sealed record OfficialAddFarmsLoadResult(
     string? Message,
     IReadOnlyList<TravcoListStore.TravcoSavedList> SourceLists,
     IReadOnlyList<FarmListSelectionOption> TargetLists,
-    IReadOnlySet<string> ExistingCoordinates);
+    IReadOnlySet<string> ExistingCoordinates,
+    IReadOnlyList<string>? IncompleteFarmLists = null);
 
 public partial class OfficialAddFarmsWindow : Window
 {
@@ -207,6 +208,7 @@ public partial class OfficialAddFarmsWindow : Window
             }
 
             _existingCoordinates = result.ExistingCoordinates;
+            ShowIncompleteReadWarning(result.IncompleteFarmLists);
             SourceListComboBox.ItemsSource = result.SourceLists
                 .Select(list => new SourceOption(list.Id, list.Name, list.Rows))
                 .Where(option => option.SelectedCount > 0)
@@ -240,6 +242,23 @@ public partial class OfficialAddFarmsWindow : Window
             DialogResult = false;
             Close();
         }
+    }
+
+    // Warns when the farm-list analysis could not read every target coordinate, so the user knows the
+    // "don't add duplicates" check may miss farms in the listed lists and can re-run Analyze.
+    private void ShowIncompleteReadWarning(IReadOnlyList<string>? incompleteFarmLists)
+    {
+        if (incompleteFarmLists is null || incompleteFarmLists.Count == 0)
+        {
+            IncompleteReadWarningBorder.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        IncompleteReadWarningTextBlock.Text =
+            $"Warning: {incompleteFarmLists.Count} farm list(s) could not be fully read "
+            + $"({string.Join(", ", incompleteFarmLists)}). Duplicate protection may miss farms in those "
+            + "lists. Close this dialog and re-run Analyze Farmlists if you need full protection.";
+        IncompleteReadWarningBorder.Visibility = Visibility.Visible;
     }
 
     private void InputChanged(object sender, RoutedEventArgs e) => RefreshState();

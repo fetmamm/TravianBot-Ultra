@@ -25,6 +25,12 @@
                 <TextBlock Text="Select one source list and one or more destination farm lists."
                            Margin="0,4,0,0"
                            Foreground="{DynamicResource TextSecondaryBrush}" />
+                <Border x:Name="IncompleteReadWarningBorder" Visibility="Collapsed"
+                        Margin="0,8,0,0" CornerRadius="6" Padding="10,8"
+                        Background="#3A2A00" BorderBrush="#C9962B" BorderThickness="1">
+                    <TextBlock x:Name="IncompleteReadWarningTextBlock" TextWrapping="Wrap"
+                               Foreground="#F2C14E" />
+                </Border>
             </StackPanel>
 
             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
