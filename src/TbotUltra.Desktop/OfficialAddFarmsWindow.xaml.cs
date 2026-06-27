@@ -473,7 +473,8 @@ public partial class OfficialAddFarmsWindow : Window
                 SkipDuplicatesCheckBox.IsChecked == true,
                 referenceVillage,
                 oasisTypes,
-                includeOccupied);
+                includeOccupied,
+                SkipLowPopVillagesCheckBox.IsChecked == true);
             if (coordinates.Count == 0)
             {
                 continue;

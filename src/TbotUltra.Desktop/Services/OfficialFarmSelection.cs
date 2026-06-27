@@ -4,6 +4,10 @@ namespace TbotUltra.Desktop.Services;
 
 public static class OfficialFarmSelection
 {
+    // Villages at or below this population are treated as low-value (often abandoned/never-played
+    // accounts). When skipLowPopulationVillages is on, they are dropped from the selection.
+    public const int LowPopulationThreshold = 8;
+
     // referenceVillage: when supplied, distance is computed live (straight-line) from that village to
     //   each row's coordinates, replacing the stored row.Distance for ordering and the distance filter.
     //   This makes "nearest first" correct for oasis lists (no stored distance) and lets the user change
@@ -21,7 +25,8 @@ public static class OfficialFarmSelection
         bool skipDuplicates,
         (int X, int Y)? referenceVillage = null,
         IReadOnlySet<string>? oasisTypes = null,
-        bool includeOccupied = true)
+        bool includeOccupied = true,
+        bool skipLowPopulationVillages = false)
     {
         if (amount <= 0)
         {
@@ -60,6 +65,13 @@ public static class OfficialFarmSelection
             "over" => candidates.Where(row => row.Pop.HasValue && row.Pop.Value >= populationLimit),
             _ => candidates,
         };
+
+        if (skipLowPopulationVillages)
+        {
+            // Only drop villages with a KNOWN population at or below the threshold; rows with unknown
+            // population are kept so we never silently discard targets we could not read.
+            filtered = filtered.Where(row => !(row.Pop.HasValue && row.Pop.Value <= LowPopulationThreshold));
+        }
 
         if (maximumDistance.HasValue)
         {
