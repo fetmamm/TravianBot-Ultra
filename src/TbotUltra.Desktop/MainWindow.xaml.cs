@@ -720,6 +720,8 @@ public partial class MainWindow : Window
         // the Troops tab shows that village's settings, not just the account-wide defaults.
         ApplyTroopTrainingForSelectedVillage();
         ApplyTroopTrainingTribeState(ResolveStoredTroopTrainingTribe());
+        EnsureAutoCelebrationEnabledForBreweryGroup();
+        _lastAutoCelebrationEnabledForChangeTracking = _troopTrainingViewModel.AutoCelebrationEnabled;
         _troopTrainingViewModel.InfoText = "Configure troop building rules and refresh queues when needed.";
         _suppressHeroHideModeApply = true;
         try

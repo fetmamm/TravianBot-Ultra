@@ -973,6 +973,12 @@ public partial class MainWindow
             && string.Equals(option.TaskName, QueueGroupCatalog.GetKey(QueueGroup.BreweryCelebration), StringComparison.OrdinalIgnoreCase))
         {
             ClearBreweryBlockedState();
+            if (_troopTrainingViewModel.IsAutoCelebrationAvailableForCurrentTribe
+                && !_troopTrainingViewModel.AutoCelebrationEnabled)
+            {
+                _troopTrainingViewModel.AutoCelebrationEnabled = true;
+                AppendLog("Brewery Celebration group enabled. Auto celebration was off and has been enabled.");
+            }
         }
         else if (!wasEnabled
             && option.IsEnabled
@@ -989,6 +995,11 @@ public partial class MainWindow
         // Save these group toggles as the selected village's per-village override before waking
         // the loop, so runtime-item generation reads the new value immediately.
         SaveAutomationLoopGroupsForSelectedVillage();
+        if (QueueGroupCatalog.TryParse(option.TaskName, out var toggledGroup)
+            && toggledGroup == QueueGroup.BreweryCelebration)
+        {
+            PersistBreweryGroupForCapital(option.IsEnabled);
+        }
 
         var continuousLoopRunning = IsContinuousLoopRunning();
         var automationWillHandle = option.IsEnabled
@@ -1035,8 +1046,16 @@ public partial class MainWindow
         {
             try
             {
-                var options = ApplySelectedVillageToOptions(LoadBotOptions());
-                await RefreshBreweryCelebrationStatusAsync(options, _lastBuildingStatus, cancellationToken);
+                var capital = GetCapitalVillageSelectionSnapshot();
+                if (capital is null)
+                {
+                    AppendLog("Brewery celebration verification skipped: no capital village is loaded.");
+                    return;
+                }
+
+                var options = ApplyCapitalVillageToOptions(LoadBotOptions(), capital);
+                var status = ResolveCapitalBreweryStatusSeed(capital);
+                await RefreshBreweryCelebrationStatusAsync(options, status, cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
