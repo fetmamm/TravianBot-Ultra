@@ -71,7 +71,7 @@ Compatible with:
 - Clean dark mode UI
 - Multi-village support
 - Calculate building time and resource cost for buildings + resourcefields
-- Easy update to new version via the app
+- Easy update to new version via the app (checks at startup and hourly while open)
 
 ## Future functions:
 
