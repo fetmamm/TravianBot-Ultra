@@ -66,12 +66,14 @@ Compatible with:
 - Increase adventure to hard button / video watch
 - Auto town hall celebrations
 
+
 - Read ingame status
 - Read village data
 - Clean dark mode UI
 - Multi-village support
 - Calculate building time and resource cost for buildings + resourcefields
 - Easy update to new version via the app (checks at startup and hourly while open)
+- Support to use Proxy per account
 
 ## Future functions:
 
