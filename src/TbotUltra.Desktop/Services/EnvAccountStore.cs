@@ -47,6 +47,8 @@ public sealed class EnvAccountStore
                 Password = values.GetValueOrDefault($"{prefix}PASSWORD", string.Empty),
                 ServerName = values.GetValueOrDefault($"{prefix}SERVER_NAME", string.Empty),
                 ServerUrl = values.GetValueOrDefault($"{prefix}SERVER_URL", string.Empty),
+                ProxyEnabled = ParseBool(values.GetValueOrDefault($"{prefix}PROXY_ENABLED", string.Empty)),
+                ProxyServer = values.GetValueOrDefault($"{prefix}PROXY_SERVER", string.Empty),
                 IsActive = string.Equals(name, active, StringComparison.OrdinalIgnoreCase),
             };
         }).ToList();
@@ -79,6 +81,8 @@ public sealed class EnvAccountStore
         values[$"{prefix}PASSWORD"] = account.Password;
         values[$"{prefix}SERVER_NAME"] = account.ServerName.Trim();
         values[$"{prefix}SERVER_URL"] = account.ServerUrl.Trim().TrimEnd('/');
+        values[$"{prefix}PROXY_ENABLED"] = account.ProxyEnabled ? "true" : "false";
+        values[$"{prefix}PROXY_SERVER"] = account.ProxyServer.Trim();
 
         WriteValues(values);
     }
@@ -95,6 +99,8 @@ public sealed class EnvAccountStore
             values.Remove($"{prefix}PASSWORD");
             values.Remove($"{prefix}SERVER_NAME");
             values.Remove($"{prefix}SERVER_URL");
+            values.Remove($"{prefix}PROXY_ENABLED");
+            values.Remove($"{prefix}PROXY_SERVER");
             values["TBOT_ACCOUNTS"] = string.Join(",", names);
 
             if (string.Equals(values.GetValueOrDefault("TBOT_ACTIVE_ACCOUNT", string.Empty), normalized, StringComparison.OrdinalIgnoreCase))
@@ -151,6 +157,10 @@ public sealed class EnvAccountStore
             lines.Add($"{prefix}PASSWORD={values.GetValueOrDefault($"{prefix}PASSWORD", string.Empty)}");
             lines.Add($"{prefix}SERVER_NAME={values.GetValueOrDefault($"{prefix}SERVER_NAME", string.Empty)}");
             lines.Add($"{prefix}SERVER_URL={values.GetValueOrDefault($"{prefix}SERVER_URL", string.Empty)}");
+            // Always emit a deterministic true/false so the file never carries an empty enabled flag.
+            var proxyEnabled = ParseBool(values.GetValueOrDefault($"{prefix}PROXY_ENABLED", string.Empty));
+            lines.Add($"{prefix}PROXY_ENABLED={(proxyEnabled ? "true" : "false")}");
+            lines.Add($"{prefix}PROXY_SERVER={values.GetValueOrDefault($"{prefix}PROXY_SERVER", string.Empty)}");
             lines.Add(string.Empty);
         }
 
@@ -166,6 +176,10 @@ public sealed class EnvAccountStore
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
+
+    // Lenient: only an explicit "true" (any casing) is on; empty/missing/anything else is off.
+    private static bool ParseBool(string? value)
+        => string.Equals(value?.Trim(), "true", StringComparison.OrdinalIgnoreCase);
 
     private static string NormalizeName(string raw)
     {

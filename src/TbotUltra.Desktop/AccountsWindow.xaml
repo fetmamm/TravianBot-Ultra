@@ -134,7 +134,17 @@
                 <TextBlock Grid.Row="3" Grid.Column="0" Text="Selected URL" Margin="0,0,8,8" VerticalAlignment="Center" />
                 <TextBlock x:Name="ServerUrlTextBlock" Grid.Row="3" Grid.Column="1" Margin="0,0,0,8" VerticalAlignment="Center" Foreground="{DynamicResource SlateTextBrush}" />
 
-                <TextBlock x:Name="InfoTextBlock" Grid.Row="4" Grid.ColumnSpan="2" TextWrapping="Wrap" Foreground="{DynamicResource IronTextBrush}" />
+                <StackPanel Grid.Row="4" Grid.Column="0" Orientation="Horizontal" Margin="0,0,8,8" VerticalAlignment="Center">
+                    <CheckBox x:Name="UseProxyCheckBox" Content="Use proxy" VerticalAlignment="Center"
+                              Checked="UseProxyCheckBox_Changed" Unchecked="UseProxyCheckBox_Changed" />
+                    <ContentControl Style="{DynamicResource InfoTooltipIconStyle}" Margin="6,0,0,0"
+                                    ToolTip="Routes this account's browser traffic through your proxy so it uses a different IP.&#10;Format: host:port or scheme://host:port. With auth: user:pass@host:port.&#10;Examples: 1.2.3.4:8080, socks5://1.2.3.4:1080.&#10;Applies on next bot start." />
+                </StackPanel>
+                <TextBox x:Name="ProxyServerTextBox" Grid.Row="4" Grid.Column="1" Margin="0,0,0,8"
+                         IsEnabled="False" TextChanged="EditorField_Changed"
+                         ToolTip="host:port or scheme://host:port. Auth: user:pass@host:port" />
+
+                <TextBlock x:Name="InfoTextBlock" Grid.Row="5" Grid.ColumnSpan="2" TextWrapping="Wrap" Foreground="{DynamicResource IronTextBrush}" />
             </Grid>
         </Border>
 

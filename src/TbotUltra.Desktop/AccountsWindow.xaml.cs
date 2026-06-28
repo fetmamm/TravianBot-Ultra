@@ -26,6 +26,8 @@ public partial class AccountsWindow : Window
     private string _baselineUsername = string.Empty;
     private string _baselinePassword = string.Empty;
     private string _baselineServerUrl = string.Empty;
+    private bool _baselineProxyEnabled;
+    private string _baselineProxyServer = string.Empty;
     private bool _suppressSelectionChanged;
     private bool _isClosing;
 
@@ -118,6 +120,11 @@ public partial class AccountsWindow : Window
         UsernameTextBox.Text = selected.Username;
         PasswordBox.Password = selected.Password;
         PasswordTextBox.Text = selected.Password;
+        // Set the proxy fields before the InfoTextBlock assignment below so the checkbox handler's
+        // hint does not overwrite the "Editing existing account" message.
+        UseProxyCheckBox.IsChecked = selected.ProxyEnabled;
+        ProxyServerTextBox.Text = selected.ProxyServer;
+        ProxyServerTextBox.IsEnabled = selected.ProxyEnabled;
         var serverName = string.IsNullOrWhiteSpace(selected.ServerName) ? _defaultServerName : selected.ServerName;
         var serverUrl = string.IsNullOrWhiteSpace(selected.ServerUrl) ? _defaultServerUrl : selected.ServerUrl;
         SelectServer(serverName, serverUrl);
@@ -367,6 +374,19 @@ public partial class AccountsWindow : Window
         UpdateActionButtons();
     }
 
+    private void UseProxyCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        var enabled = UseProxyCheckBox.IsChecked == true;
+        ProxyServerTextBox.IsEnabled = enabled;
+        if (enabled)
+        {
+            InfoTextBlock.Text = "Proxy applies on next bot start. Enabling a proxy on an already "
+                + "logged-in account may require a fresh login.";
+        }
+
+        UpdateActionButtons();
+    }
+
     private void ServerListButton_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new ServerListWindow(_serverOptions, _defaultServerOptions, _serverCatalogStore)
@@ -483,6 +503,21 @@ public partial class AccountsWindow : Window
         var serverName = selectedServer?.Name ?? _defaultServerName;
         var serverUrl = selectedServer?.BaseUrl ?? _defaultServerUrl;
 
+        var proxyEnabled = UseProxyCheckBox.IsChecked == true;
+        var proxyServer = ProxyServerTextBox.Text.Trim();
+        if (proxyEnabled)
+        {
+            if (proxyServer.Length == 0)
+            {
+                throw new InvalidOperationException("Proxy server is required when 'Use proxy' is on.");
+            }
+
+            if (proxyServer.Any(char.IsWhiteSpace))
+            {
+                throw new InvalidOperationException("Proxy server cannot contain spaces. Use host:port or scheme://host:port.");
+            }
+        }
+
         var normalizedName = _editingExistingAccount
             ? _editingOriginalName
             : AccountKeyNormalizer.MakeKey(username, serverUrl);
@@ -494,6 +529,8 @@ public partial class AccountsWindow : Window
             Password = password,
             ServerName = serverName,
             ServerUrl = serverUrl,
+            ProxyEnabled = proxyEnabled,
+            ProxyServer = proxyServer,
         };
     }
 
@@ -518,6 +555,9 @@ public partial class AccountsWindow : Window
         PasswordBox.Visibility = Visibility.Visible;
         PasswordTextBox.Visibility = Visibility.Collapsed;
         TogglePasswordButton.Content = "Show";
+        UseProxyCheckBox.IsChecked = false;
+        ProxyServerTextBox.Text = string.Empty;
+        ProxyServerTextBox.IsEnabled = false;
         SelectServer(_defaultServerName, _defaultServerUrl);
         ServerComboBox.IsEnabled = true;
         CaptureBaseline();
@@ -569,6 +609,8 @@ public partial class AccountsWindow : Window
         _baselineUsername = UsernameTextBox.Text.Trim();
         _baselinePassword = (_showPassword ? PasswordTextBox.Text : PasswordBox.Password) ?? string.Empty;
         _baselineServerUrl = (ServerComboBox.SelectedItem as ServerOption)?.BaseUrl?.Trim() ?? string.Empty;
+        _baselineProxyEnabled = UseProxyCheckBox.IsChecked == true;
+        _baselineProxyServer = ProxyServerTextBox.Text.Trim();
     }
 
     private bool HasUnsavedChanges()
@@ -576,10 +618,14 @@ public partial class AccountsWindow : Window
         var currentUsername = UsernameTextBox.Text.Trim();
         var currentPassword = (_showPassword ? PasswordTextBox.Text : PasswordBox.Password) ?? string.Empty;
         var currentServerUrl = (ServerComboBox.SelectedItem as ServerOption)?.BaseUrl?.Trim() ?? string.Empty;
+        var currentProxyEnabled = UseProxyCheckBox.IsChecked == true;
+        var currentProxyServer = ProxyServerTextBox.Text.Trim();
 
         return !string.Equals(currentUsername, _baselineUsername, StringComparison.Ordinal)
             || !string.Equals(currentPassword, _baselinePassword, StringComparison.Ordinal)
-            || !string.Equals(currentServerUrl, _baselineServerUrl, StringComparison.OrdinalIgnoreCase);
+            || !string.Equals(currentServerUrl, _baselineServerUrl, StringComparison.OrdinalIgnoreCase)
+            || currentProxyEnabled != _baselineProxyEnabled
+            || !string.Equals(currentProxyServer, _baselineProxyServer, StringComparison.Ordinal);
     }
 
     private bool PromptToSaveUnsavedChanges()

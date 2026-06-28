@@ -12,6 +12,8 @@ public sealed class AccountEntry
     public string Password { get; set; } = string.Empty;
     public string ServerName { get; set; } = string.Empty;
     public string ServerUrl { get; set; } = string.Empty;
+    public bool ProxyEnabled { get; set; }
+    public string ProxyServer { get; set; } = string.Empty;
     public bool IsActive { get; set; }
     public string ServerSpeedLabel => ExtractServerSpeedLabel(ServerName);
 

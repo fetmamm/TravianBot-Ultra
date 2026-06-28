@@ -118,8 +118,35 @@ public sealed class SessionPacerTests
 
         Assert.Equal(SessionPacerPhase.Sleeping, pacer.Phase);
         Assert.Equal(SessionSleepReason.Schedule, pacer.SleepReason);
-        Assert.False(pacer.CanWakeNow);
+        // A scheduled off-hours sleep is wakeable: "Run now" overrides the schedule for that window.
+        Assert.True(pacer.CanWakeNow);
         Assert.InRange(pacer.TimeUntilWake!.Value.TotalMinutes, 164, 166);
+    }
+
+    [Fact]
+    public void WakeNow_DuringScheduleSleep_OverridesScheduleAndKeepsRunning()
+    {
+        var now = new DateTimeOffset(2026, 6, 14, 2, 15, 0, TimeSpan.Zero);
+        var pacer = new SessionPacer(() => now);
+        pacer.Configure(new SessionPacerSettings(
+            true,
+            120,
+            30,
+            0,
+            Enumerable.Range(0, 24).Except([2, 3, 4]).ToArray()));
+        pacer.SleepStarting += (_, _) => pacer.BeginSleep();
+
+        pacer.NotifyAutomationStarted();
+        Assert.Equal(SessionPacerPhase.Sleeping, pacer.Phase);
+        Assert.Equal(SessionSleepReason.Schedule, pacer.SleepReason);
+
+        pacer.WakeNow();
+        // The host resumes automation when the pacer raises WakeRequested.
+        pacer.NotifyAutomationStarted();
+
+        // Hour 2 is still disallowed, but the manual override runs through it instead of re-sleeping.
+        Assert.Equal(SessionPacerPhase.Running, pacer.Phase);
+        Assert.Equal(SessionSleepReason.None, pacer.SleepReason);
     }
 
     [Fact]

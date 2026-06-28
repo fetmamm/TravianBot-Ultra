@@ -43,6 +43,11 @@ public sealed class EnvAccountProvider : IAccountProvider
         var password = GetValue($"{envPrefix}PASSWORD", envValues);
         var serverName = GetValue($"{envPrefix}SERVER_NAME", envValues) ?? string.Empty;
         var serverUrl = (GetValue($"{envPrefix}SERVER_URL", envValues) ?? string.Empty).TrimEnd('/');
+        var proxyEnabled = string.Equals(
+            (GetValue($"{envPrefix}PROXY_ENABLED", envValues) ?? string.Empty).Trim(),
+            "true",
+            StringComparison.OrdinalIgnoreCase);
+        var proxyServer = (GetValue($"{envPrefix}PROXY_SERVER", envValues) ?? string.Empty).Trim();
 
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
         {
@@ -65,6 +70,8 @@ public sealed class EnvAccountProvider : IAccountProvider
             Password = password,
             ServerName = serverName,
             ServerUrl = serverUrl,
+            ProxyEnabled = proxyEnabled,
+            ProxyServer = proxyServer,
         };
     }
 

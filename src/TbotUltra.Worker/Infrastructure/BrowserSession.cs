@@ -295,6 +295,22 @@ public sealed partial class BrowserSession : IAsyncDisposable
             Headless = false,
         };
 
+        // Per-account proxy. Set on launch so every context of this browser (main, bonus-video,
+        // isolated external) routes through it — traffic cannot leak past the proxy. OFF by default.
+        if (_account.ProxyEnabled && ProxyParser.TryBuild(_account.ProxyServer, out var proxy, out var proxyWarning))
+        {
+            launchOptions.Proxy = proxy;
+            _log?.Invoke($"[browser] using proxy '{ProxyParser.MaskForLog(_account.ProxyServer)}' for account '{_account.Name}'.");
+            if (proxyWarning is not null)
+            {
+                _log?.Invoke($"[browser] proxy warning for account '{_account.Name}': {proxyWarning}");
+            }
+        }
+        else if (_account.ProxyEnabled)
+        {
+            _log?.Invoke($"[browser] proxy is enabled for account '{_account.Name}' but the server string is empty/invalid; running without a proxy.");
+        }
+
         if (keepNativePopupBlocker)
         {
             // Playwright disables Chromium's popup blocker by default. Keep the native blocker on for

@@ -100,6 +100,17 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
 
 ## 4. Beslutslogg (ADR — append-only)
 
+- **2026-06-28** — **Kontospecifik proxy (egress-IP per konto).** Nya per-konto-nycklar i `.env`
+  (`TBOT_<NAME>_PROXY_ENABLED`, `TBOT_<NAME>_PROXY_SERVER`) hanteras i `EnvAccountStore` (Desktop, write)
+  och `EnvAccountProvider` (Worker, read) → `AccountOptions.ProxyEnabled/ProxyServer`. UI: checkbox
+  "Use proxy" (OFF default) + serverfält i `AccountsWindow`. Proxyn appliceras på **en** punkt —
+  `BrowserSession.CreateChromiumLaunchOptions` (launch-nivå) — så alla kontexter (huvud/bonus-video/
+  isolerad) ärver den och ingen trafik läcker förbi. Formatlogik (host:port, scheme://, inline
+  `user:pass@`, maskering, Chromium-proxyfelkoder) ligger i `ProxyParser` (Worker, enhetstestad).
+  Dött/felkonfigurerat proxy ger tydligt `[proxy]`-fel i `GotoAsync` istället för att se ut som
+  Travian-strul. Gäller från nästa session-start (kontobyte = full omstart). SOCKS+auth stöds ej av
+  Chromium → varning loggas. WebRTC/DNS-läckhärdning och flera samtidiga instanser: utanför scope.
+
 - **2026-06-09** — **Construct klassificerar blockering innan navigerande verifiering.**
   Vid utebliven construct-knapp lases resursbrist och krav medan den riktiga slot/category-sidan fortfarande
   ar oppen. Ko-/progresskontroller far darefter navigera till `dorf2`; innan ett sista retry oppnas och

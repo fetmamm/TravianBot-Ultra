@@ -66,6 +66,10 @@ public sealed class SessionPacer
     private bool _manualSleep;
     private bool _runtimeLoaded;
     private SessionSleepReason _pendingSleepReason;
+    // When set, a manual "Run now" override is suppressing the schedule restriction until this time
+    // (the next moment the schedule would allow running on its own), so the bot can run through a
+    // disallowed off-hours window the user explicitly chose to override.
+    private DateTimeOffset? _scheduleOverrideUntil;
 
     public SessionPacer(Func<DateTimeOffset>? now = null)
     {
@@ -79,7 +83,7 @@ public sealed class SessionPacer
     public SessionPacerPhase Phase { get; private set; } = SessionPacerPhase.Disabled;
     public SessionSleepReason SleepReason { get; private set; }
     public bool CanWakeNow => Phase == SessionPacerPhase.Sleeping
-        && SleepReason is SessionSleepReason.SessionPacing or SessionSleepReason.Manual;
+        && SleepReason is SessionSleepReason.SessionPacing or SessionSleepReason.Manual or SessionSleepReason.Schedule;
     public TimeSpan? TimeUntilSleep => _runDeadline is null ? null : Positive(_runDeadline.Value - _now());
     public TimeSpan? TimeUntilWake => _wakeAt is null ? null : Positive(_wakeAt.Value - _now());
     public TimeSpan? ActiveRunDuration => _activeRunDuration;
@@ -257,6 +261,7 @@ public sealed class SessionPacer
         _manualSleep = false;
         SleepReason = SessionSleepReason.None;
         _pendingSleepReason = SessionSleepReason.None;
+        _scheduleOverrideUntil = null;
         Phase = SessionPacerPhase.Disabled;
         _runStartedAt = null;
         _runDeadline = null;
@@ -317,6 +322,16 @@ public sealed class SessionPacer
         if (!CanWakeNow)
         {
             return;
+        }
+
+        // Waking out of a scheduled off-hours sleep is an explicit override: keep the schedule
+        // restriction suppressed until it would next permit running on its own, so the bot actually
+        // runs through the disallowed window instead of immediately going back to sleep.
+        if (SleepReason == SessionSleepReason.Schedule)
+        {
+            var now = _now();
+            _scheduleOverrideUntil = GetNextScheduleTransition(now, allowed: true) ?? now.AddDays(1);
+            Logger?.Invoke("[pacing] manual Run now: overriding the schedule for the current off-hours window.");
         }
 
         CompleteSleepAndWake();
@@ -409,7 +424,14 @@ public sealed class SessionPacer
     private SessionSleepReason GetActiveRestriction(DateTimeOffset now)
     {
         UpdateRuntimeDate(now);
-        if (!IsScheduleAllowed(now))
+
+        // Expire a manual schedule override once we reach the point the schedule would allow anyway.
+        if (_scheduleOverrideUntil is not null && now >= _scheduleOverrideUntil.Value)
+        {
+            _scheduleOverrideUntil = null;
+        }
+
+        if (_scheduleOverrideUntil is null && !IsScheduleAllowed(now))
         {
             return SessionSleepReason.Schedule;
         }

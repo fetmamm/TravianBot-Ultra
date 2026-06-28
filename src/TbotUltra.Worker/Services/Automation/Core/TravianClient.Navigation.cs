@@ -4,6 +4,7 @@ using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Travian;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Configuration;
+using TbotUltra.Worker.Infrastructure;
 using System.Text.Json.Serialization;
 using System.Text.Json;
 using System.Globalization;
@@ -130,18 +131,28 @@ public sealed partial class TravianClient
         var beforeUrl = _page.Url;
         RecordConstructionNavigation("goto", url);
         Notify($"[nav] GOTO start target='{url}' from='{beforeUrl}' pages={TryGetPageCountForDiagnostics()}");
-        await RetryAsync($"navigate to {pathOrUrl}", async () =>
+        try
         {
-            var response = await _page.GotoAsync(url, new PageGotoOptions
+            await RetryAsync($"navigate to {pathOrUrl}", async () =>
             {
-                WaitUntil = WaitUntilState.DOMContentLoaded,
-                Timeout = _config.TimeoutMs,
-            });
-            if (response is not null && response.Headers.TryGetValue("date", out var dateHeader))
-            {
-                RecordServerTime(dateHeader);
-            }
-        }, cancellationToken: cancellationToken);
+                var response = await _page.GotoAsync(url, new PageGotoOptions
+                {
+                    WaitUntil = WaitUntilState.DOMContentLoaded,
+                    Timeout = _config.TimeoutMs,
+                });
+                if (response is not null && response.Headers.TryGetValue("date", out var dateHeader))
+                {
+                    RecordServerTime(dateHeader);
+                }
+            }, cancellationToken: cancellationToken);
+        }
+        catch (Exception ex) when (_account.ProxyEnabled && ProxyParser.LooksLikeProxyError(ex.Message))
+        {
+            // Make a dead/misconfigured proxy unmistakable instead of looking like a Travian outage.
+            Notify($"[proxy] Navigation failed through the proxy for account '{_account.Name}' "
+                + $"(server '{ProxyParser.MaskForLog(_account.ProxyServer)}'). Check the proxy in Manage account. {ex.Message}");
+            throw;
+        }
         
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         Notify($"[nav] GOTO done target='{url}' current='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");

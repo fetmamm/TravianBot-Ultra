@@ -290,6 +290,9 @@ public partial class MainWindow
         SessionPacingRunNowButton.Visibility = _sessionPacer.CanWakeNow
             ? Visibility.Visible
             : Visibility.Collapsed;
+        SessionPacingRunNowButton.ToolTip = _sessionPacer.SleepReason == SessionSleepReason.Schedule
+            ? "Run now (override the off-hours schedule)"
+            : "Run now";
         UpdateSessionPacingTooltip();
         ApplySessionSleepingUiState();
 
