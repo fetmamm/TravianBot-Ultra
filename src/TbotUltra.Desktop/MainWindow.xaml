@@ -302,19 +302,27 @@
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
                     <!-- Session pacing / Next sleep (background pulses via code) -->
                     <!-- Fixed width so the card does not resize as the status text/Run now button changes. -->
-                    <Border x:Name="SessionPacingBorder" Style="{StaticResource MetricCard}" Width="172">
+                    <Border x:Name="SessionPacingBorder" Style="{StaticResource MetricCard}" Width="194">
                         <StackPanel>
                             <TextBlock Text="Session" Style="{StaticResource MetricLabel}" />
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE916;" Style="{StaticResource MetricIcon}" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="&#xE916;" Style="{StaticResource MetricIcon}" />
                                 <TextBlock x:Name="SessionPacingStatusTextBlock"
+                                           Grid.Column="1"
                                            Text="Session pacing"
                                            Style="{StaticResource MetricValue}"
                                            FontSize="13"
+                                           TextTrimming="CharacterEllipsis"
                                            VerticalAlignment="Center" />
                                 <!-- Compact play-glyph button (tooltip "Run now") so the card can stay narrow
                                      while still fitting the sleeping status text plus the wake action. -->
                                 <Button x:Name="SessionPacingRunNowButton"
+                                        Grid.Column="2"
                                         Content="&#xE768;"
                                         FontFamily="Segoe MDL2 Assets"
                                         Margin="6,0,0,0"
@@ -327,7 +335,7 @@
                                         Visibility="Collapsed"
                                         ToolTip="Run now"
                                         Click="SessionPacingRunNowButton_Click" />
-                            </StackPanel>
+                            </Grid>
                         </StackPanel>
                     </Border>
 
