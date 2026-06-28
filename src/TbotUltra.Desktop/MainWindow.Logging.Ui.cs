@@ -29,7 +29,11 @@ public partial class MainWindow
             return true;
         }
 
-        if (_terminalCleanMode && row.IsVerbose)
+        // The Pacing view is an explicit opt-in to the high-volume session/action/wait lines, which are
+        // otherwise verbose. When it is selected, show them even in Clean mode — Clean would hide almost
+        // all of them and the tab would look empty. Other views keep the normal Clean filtering.
+        var pacingViewSelected = _terminalFilterCategory == LogCategory.Pacing;
+        if (_terminalCleanMode && row.IsVerbose && !pacingViewSelected)
         {
             return false;
         }

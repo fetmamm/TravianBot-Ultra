@@ -580,8 +580,19 @@ public partial class MainWindow
 
         if (window.SyncRequested)
         {
-            var keys = GetAllVillageKeyInfos().Select(info => info.Key).ToList();
+            var villageInfos = GetAllVillageKeyInfos();
+            var keys = villageInfos.Select(info => info.Key).ToList();
             SmithyUpgradeTargetsStore.SaveForVillages(_projectRoot, account, keys, window.Result);
+            // Selecting troops re-enables each village's Upgrade Troops group (any may have been
+            // auto-disabled on a previous "All done"). No selection leaves the toggles untouched.
+            if (window.Result.Count > 0)
+            {
+                var troopsGroupKey = QueueGroupCatalog.GetKey(QueueGroup.Troops);
+                foreach (var info in villageInfos)
+                {
+                    PersistAutomationGroupEnabledForVillage(info, enabled: true, troopsGroupKey);
+                }
+            }
             // Drop every village's stale smithy queue item so the loop re-enqueues with the synced targets.
             var removedAll = RemoveSmithyQueueItemsForVillage(null);
             _troopTrainingViewModel.InfoText = $"Synced Smithy upgrade options to {keys.Count} village(s).";
@@ -591,6 +602,12 @@ public partial class MainWindow
         }
 
         SmithyUpgradeTargetsStore.Save(_projectRoot, account, villageInfo.Key, window.Result);
+        // Selecting troops re-enables this village's Upgrade Troops group (it may have been auto-disabled
+        // when a previous run reported "All done"). No selection leaves the toggle untouched.
+        if (window.Result.Count > 0)
+        {
+            PersistAutomationGroupEnabledForVillage(villageInfo, enabled: true, QueueGroupCatalog.GetKey(QueueGroup.Troops));
+        }
         // Drop this village's stale smithy queue item (old troop snapshot) so the loop re-enqueues with the
         // new selection — otherwise the dedup keeps the old targets running until the stale item completes.
         var removed = RemoveSmithyQueueItemsForVillage(villageInfo.Name);
@@ -619,6 +636,15 @@ public partial class MainWindow
     internal void OnTroopsTrainingOptionsClicked()
     {
         OpenTroopSettingsWindow(null);
+    }
+
+    // Village settings "Upgrade troops" gear: opens the same Smithy "Upgrade options" popup as the Troops
+    // panel button, for the currently selected village. Mirrors the Build troops gear so the user reaches
+    // the upgrade selection straight from Village settings.
+    private void OpenSmithyUpgradeSettingsFromVillageSettings(IReadOnlyList<VillageSettingsRow> villageSettingsRows)
+    {
+        _ = villageSettingsRows;
+        OnTroopsUpgradeOptionsClicked();
     }
 
     private void OpenTroopSettingsFromVillageSettings(IReadOnlyList<VillageSettingsRow> villageSettingsRows)

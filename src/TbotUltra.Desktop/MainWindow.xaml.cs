@@ -139,6 +139,8 @@ public partial class MainWindow : Window
 
     private readonly string _projectRoot;
     private readonly string _versionPath;
+    private string _currentVersion = "dev";
+    private UpdateChecker.UpdateStatus? _updateStatus;
     private readonly string _botConfigPath;
     private readonly string _envPath;
     private readonly string _serverCatalogPath;
@@ -164,24 +166,40 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _buildQueueCountdownTimer;
     private readonly DispatcherTimer _resourceSnapshotRefreshTimer;
     private readonly DispatcherTimer _troopTrainingDeferredRefreshDebounceTimer;
-    private readonly ObservableCollection<TerminalEntryRow> _terminalEntries = [];
+    // Terminal entries now live on TerminalViewModel; this delegates so existing
+    // code-behind that mutates the collection in place keeps working unchanged.
+    private ObservableCollection<TerminalEntryRow> _terminalEntries => _terminalViewModel.Entries;
     private ICollectionView? _terminalView;
     private ICollectionView? _alarmView;
     private LogCategory _terminalFilterCategory = LogCategory.All;
     private bool _terminalCleanMode = true;
-    private readonly ObservableCollection<AlarmEntryRow> _alarmEntries = [];
-    private readonly ObservableCollection<TravianBuildQueueRow> _travianBuildQueueRows = [];
-    private readonly ObservableCollection<TravianSmithyQueueRow> _travianSmithyQueueRows = [];
-    private readonly ObservableCollection<LoopTaskOption> _automationLoopTasks = [];
+    // Alarm entries now live on AlarmsViewModel; this delegates so existing
+    // code-behind that mutates the collection in place keeps working unchanged.
+    private ObservableCollection<AlarmEntryRow> _alarmEntries => _alarmsViewModel.Entries;
+    // Build/smithy queue rows now live on TravianQueueViewModel; these delegate
+    // so existing code-behind that mutates the collections in place keeps working.
+    private ObservableCollection<TravianBuildQueueRow> _travianBuildQueueRows => _travianQueueViewModel.BuildQueueRows;
+    private ObservableCollection<TravianSmithyQueueRow> _travianSmithyQueueRows => _travianQueueViewModel.SmithyQueueRows;
+    // Loop-task source now lives on AutomationLoopViewModel; this delegates so
+    // existing code-behind that mutates the collection in place keeps working.
+    private ObservableCollection<LoopTaskOption> _automationLoopTasks => _automationLoopViewModel.Tasks;
     private ICollectionView? _automationLoopTasksView;
-    private readonly ObservableCollection<ResourceTransferVillageItem> _resourceTransferVillages = [];
+    // Resource Transfer villages now live on ResourceTransferViewModel; this
+    // delegates so existing code-behind that mutates the collection in place
+    // (scan/persist/payload) keeps working unchanged.
+    private ObservableCollection<ResourceTransferVillageItem> _resourceTransferVillages => _resourceTransferViewModel.Villages;
     private bool _suppressResourceTransferConfigWrite;
-    private readonly ObservableCollection<ReinforcementVillageItem> _reinforcementVillages = [];
-    private readonly ObservableCollection<ReinforcementVillageItem> _reinforcementSourceVillages = [];
-    private readonly ObservableCollection<ReinforcementTroopRuleItem> _reinforcementTroopRules = [];
+    // Reinforcement villages + troop rules now live on ReinforcementViewModel;
+    // these delegate so existing code-behind that mutates the collections in
+    // place (scan/persist/payload) keeps working unchanged.
+    private ObservableCollection<ReinforcementVillageItem> _reinforcementVillages => _reinforcementViewModel.Villages;
+    private ObservableCollection<ReinforcementVillageItem> _reinforcementSourceVillages => _reinforcementViewModel.SourceVillages;
+    private ObservableCollection<ReinforcementTroopRuleItem> _reinforcementTroopRules => _reinforcementViewModel.TroopRules;
     private List<ReinforcementTroopRule> _configuredReinforcementTroopRules = [];
     private bool _suppressReinforcementConfigWrite;
-    private readonly ObservableCollection<FarmListStatusRow> _farmLists = [];
+    // Farm-list rows now live on FarmListsViewModel; this delegates so existing
+    // code-behind that mutates the collection in place keeps working unchanged.
+    private ObservableCollection<FarmListStatusRow> _farmLists => _farmListsViewModel.FarmLists;
     // Building slots now live on BuildingsViewModel; this delegates so existing
     // code-behind that mutates _buildingRows in place keeps working unchanged.
     private ObservableCollection<BuildingSlotRow> _buildingRows => _buildingsViewModel.BuildingSlots;
@@ -232,6 +250,13 @@ public partial class MainWindow : Window
     private readonly TroopTrainingViewModel _troopTrainingViewModel = App.Services.GetRequiredService<TroopTrainingViewModel>();
     private readonly ResourcesViewModel _resourcesViewModel = App.Services.GetRequiredService<ResourcesViewModel>();
     private readonly BuildingsViewModel _buildingsViewModel = App.Services.GetRequiredService<BuildingsViewModel>();
+    private readonly ResourceTransferViewModel _resourceTransferViewModel = App.Services.GetRequiredService<ResourceTransferViewModel>();
+    private readonly ReinforcementViewModel _reinforcementViewModel = App.Services.GetRequiredService<ReinforcementViewModel>();
+    private readonly FarmListsViewModel _farmListsViewModel = App.Services.GetRequiredService<FarmListsViewModel>();
+    private readonly TravianQueueViewModel _travianQueueViewModel = App.Services.GetRequiredService<TravianQueueViewModel>();
+    private readonly AutomationLoopViewModel _automationLoopViewModel = App.Services.GetRequiredService<AutomationLoopViewModel>();
+    private readonly AlarmsViewModel _alarmsViewModel = App.Services.GetRequiredService<AlarmsViewModel>();
+    private readonly TerminalViewModel _terminalViewModel = App.Services.GetRequiredService<TerminalViewModel>();
 
     /// <summary>
     /// Public accessor so XAML can bind to the hero view model via
@@ -606,6 +631,7 @@ public partial class MainWindow : Window
 
         LoadConfigToUi();
         LoadVersionToUi();
+        _ = CheckForUpdatesAsync();
         RefreshQueueUi();
         Closing += MainWindow_Closing;
         if (Application.Current is not null)
@@ -818,19 +844,36 @@ public partial class MainWindow : Window
     {
         try
         {
-            var version = File.Exists(_versionPath)
-                ? File.ReadAllText(_versionPath).Trim()
-                : "dev";
-            if (string.IsNullOrWhiteSpace(version))
-            {
-                version = "dev";
-            }
-
-            VersionTextBlock.Text = $"Version: {version}";
+            _currentVersion = UpdateChecker.ReadCurrentVersion(_versionPath);
+            VersionTextBlock.Text = $"Version: {_currentVersion}";
         }
         catch
         {
             VersionTextBlock.Text = "Version: -";
+        }
+    }
+
+    // Best-effort background check against GitHub's latest release. On a newer version, tint the Support
+    // button amber so the user notices; the Version button inside Support shows the details. Never blocks
+    // startup and never alarms — offline/rate-limited just leaves the button neutral.
+    private async Task CheckForUpdatesAsync()
+    {
+        try
+        {
+            var status = await UpdateChecker.CheckAsync(_currentVersion, CancellationToken.None);
+            _updateStatus = status;
+            if (status.UpdateAvailable && status.Release is not null)
+            {
+                SupportButton.Background = (Brush)FindResource("WarningBgBrush");
+                SupportButton.BorderBrush = (Brush)FindResource("WarningBorderBrush");
+                SupportButton.Foreground = (Brush)FindResource("WarningTextBrush");
+                SupportButton.ToolTip = $"Update available: v{status.Release.LatestVersion} — open Support";
+                AppendLog($"Update available: v{status.Release.LatestVersion} (current v{_currentVersion}).");
+            }
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Update check skipped: {ex.Message}");
         }
     }
 
@@ -1147,7 +1190,7 @@ public partial class MainWindow : Window
 
         if (string.Equals(reasonKey, TroopsBlockedReasonSmithyMissing, StringComparison.OrdinalIgnoreCase))
         {
-            var verifiedMissing = await VerifySmithyMissingAsync();
+            var verifiedMissing = await VerifySmithyMissingAsync(queueItem);
             if (verifiedMissing != true)
             {
                 _botService.MarkQueueItemDeferred(queueItem.Id, TimeSpan.FromSeconds(10));
@@ -1159,16 +1202,71 @@ public partial class MainWindow : Window
         }
 
         _botService.MarkQueueItemSucceeded(queueItem.Id);
+
+        // Both "All done" and "Smithy missing" are per-village: one village may have a smithy with nothing
+        // left to upgrade while another still has work (or no smithy at all). Disable the Upgrade Troops group
+        // for THIS village only so other villages keep running. Falls back to the global block when the task
+        // carries no village context.
+        if (DisableTroopsGroupForQueueItemVillage(queueItem, out var blockedVillageName))
+        {
+            AppendLog($"{logPrefix} BLOCKED task={queueItem.TaskName} | {reasonText} — Upgrade Troops disabled for "
+                + $"'{blockedVillageName}'. Re-select troops or re-enable the village's Troops group to resume.");
+            return true;
+        }
+
         SetTroopsBlockedState(reasonKey, reasonText);
         AppendLog($"{logPrefix} BLOCKED task={queueItem.TaskName} | {reasonText}");
         return true;
     }
 
-    private async Task<bool?> VerifySmithyMissingAsync()
+    // Turns the Upgrade Troops group OFF for the queue item's village only (per-village EnabledGroups), so
+    // other villages keep upgrading their own troops. Returns false when the item has no village context.
+    private bool DisableTroopsGroupForQueueItemVillage(QueueItem item, out string blockedVillageName)
+    {
+        var villageKey = GetQueueItemVillageKey(item);
+        var villageName = GetQueueItemVillageName(item);
+        blockedVillageName = NormalizeVillageName(villageName) ?? villageKey ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(villageKey))
+        {
+            return false;
+        }
+
+        var groupKey = QueueGroupCatalog.GetKey(QueueGroup.Troops);
+        void Apply()
+        {
+            var village = new VillageSettingsStore.VillageKeyInfo(villageKey, villageName ?? villageKey, null, null, false);
+            PersistAutomationGroupEnabledForVillage(village, enabled: false, groupKey);
+            RefreshAutomationLoopDashboardUi();
+        }
+
+        if (Dispatcher.CheckAccess())
+        {
+            Apply();
+        }
+        else
+        {
+            Dispatcher.Invoke(Apply);
+        }
+
+        return true;
+    }
+
+    private async Task<bool?> VerifySmithyMissingAsync(QueueItem queueItem)
     {
         try
         {
-            var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            // Verify the QUEUE ITEM's village, not the UI-selected one: during the continuous loop the running
+            // village often differs from the dropdown selection, and smithy-missing is a per-village decision.
+            // Falls back to the selected village when the item carries no village context.
+            var villageName = GetQueueItemVillageName(queueItem);
+            var villageUrl = GetQueueItemPayloadValue(queueItem, BotOptionPayloadKeys.TargetVillageUrl);
+            var options = (string.IsNullOrWhiteSpace(villageName) && string.IsNullOrWhiteSpace(villageUrl))
+                ? ApplySelectedVillageToOptions(LoadBotOptions())
+                : BotOptionsPayloadApplier.Apply(LoadBotOptions(), new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    [BotOptionPayloadKeys.TargetVillageName] = villageName ?? string.Empty,
+                    [BotOptionPayloadKeys.TargetVillageUrl] = villageUrl ?? string.Empty,
+                });
             var status = await _botService.ReadBuildingsStatusAsync(options, AppendLog, CancellationToken.None);
             var uiStatus = MergeBuildingStatusForUi(status);
             await Dispatcher.InvokeAsync(() =>
@@ -1513,7 +1611,11 @@ public partial class MainWindow : Window
 
     private void SupportButton_Click(object sender, RoutedEventArgs e)
     {
-        var support = new SupportWindow(_projectRoot, _terminalEntries.Select(entry => entry.Text).ToList())
+        var support = new SupportWindow(
+            _projectRoot,
+            _terminalEntries.Select(entry => entry.Text).ToList(),
+            _currentVersion,
+            _updateStatus)
         {
             Owner = this,
         };

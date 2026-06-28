@@ -7,6 +7,7 @@ public enum LogCategory
 {
     All = 0,
     Loop,
+    Pacing,
     Queue,
     Resources,
     Buildings,
@@ -32,6 +33,7 @@ public static class LogClassifier
     [
         (LogCategory.All, "All"),
         (LogCategory.Loop, "Loop"),
+        (LogCategory.Pacing, "Pacing"),
         (LogCategory.Queue, "Queue"),
         (LogCategory.Resources, "Resources"),
         (LogCategory.Buildings, "Buildings"),
@@ -53,6 +55,19 @@ public static class LogClassifier
         }
 
         var value = message.ToLowerInvariant();
+
+        // Pacing first: session/action/wait timing lines get their own view so the user can watch when the
+        // bot is waiting — action pacing before a click/page load, loop/auto-queue idle waits, and session
+        // sleep/wake. Matched ahead of Loop/Login because several of these also contain "[loop "/"session".
+        if (value.Contains("[pacing]")
+            || value.Contains("[keep-alive")
+            || value.Contains("sleep starting")
+            || value.Contains("session waking")
+            || value.Contains("after session sleep")
+            || ((value.Contains("[loop ") || value.Contains("[autoq ")) && value.Contains("] wait ")))
+        {
+            return LogCategory.Pacing;
+        }
 
         if (value.Contains("[loop ") || value.Contains("[tick]") || value.Contains("[loop-pick"))
         {

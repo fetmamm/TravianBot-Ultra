@@ -36,53 +36,95 @@ public sealed partial class TravianClient
     private async Task<string> RunAdventureVideoBonusAsync(string boxClass, string label, CancellationToken cancellationToken)
     {
         Notify($"[adventure-video] starting — {label} via bonus video");
-        await EnsureLoggedInAsync();
 
-        if (_runInIsolatedBonusVideoBrowserAsync is not null && !_config.IsPrivateServer)
-        {
-            var earlyResult = await TryReadAdventureVideoEarlyResultAsync(boxClass, label, cancellationToken);
-            if (earlyResult is not null)
-            {
-                return earlyResult;
-            }
-
-            var result = await _runInIsolatedBonusVideoBrowserAsync(
-                async (videoPage, videoCancellationToken) =>
-                {
-                    var videoClient = CreateIsolatedBonusVideoClient(videoPage);
-                    return await videoClient.RunAdventureVideoBonusInCurrentBrowserAsync(
-                        boxClass,
-                        label,
-                        videoCancellationToken);
-                },
-                cancellationToken);
-
-            await ReturnMainPageAfterIsolatedBonusVideoAsync();
-            return result;
-        }
-
-        // Fallback for tests/non-session callers. Normal Official runs use the isolated video browser
-        // above so the main Travian context never loads consentmanager/oadts/adscale.
-        _setConsentDomainsAllowed?.Invoke(true);
+        // The bonus video is best-effort: it must NEVER throw into the hero flow, or a video error (browser
+        // launch failure, navigation timeout, login needed in the isolated browser, captcha, ...) would abort
+        // the much more important hero adventure dispatch. Swallow everything except cancellation and return a
+        // status string; failure details go to the verbose log (hidden in Clean) so problems stay discoverable.
         try
         {
-            return await RunAdventureVideoBonusInCurrentBrowserAsync(boxClass, label, cancellationToken);
+            await EnsureLoggedInAsync();
+
+            if (_runInIsolatedBonusVideoBrowserAsync is not null && !_config.IsPrivateServer)
+            {
+                var earlyResult = await TryReadAdventureVideoEarlyResultAsync(boxClass, label, cancellationToken);
+                if (earlyResult is not null)
+                {
+                    return earlyResult;
+                }
+
+                try
+                {
+                    return await _runInIsolatedBonusVideoBrowserAsync(
+                        async (videoPage, videoCancellationToken) =>
+                        {
+                            var videoClient = CreateIsolatedBonusVideoClient(videoPage);
+                            return await videoClient.RunAdventureVideoBonusInCurrentBrowserAsync(
+                                boxClass,
+                                label,
+                                videoCancellationToken,
+                                isIsolated: true);
+                        },
+                        cancellationToken);
+                }
+                finally
+                {
+                    // Always return the main browser to dorf1, even when the isolated video threw, so the rest
+                    // of the hero flow never continues sitting on the adventures page (videoFeature box).
+                    await ReturnMainPageAfterIsolatedBonusVideoAsync();
+                }
+            }
+
+            // Fallback for tests/non-session callers. Normal Official runs use the isolated video browser
+            // above so the main Travian context never loads consentmanager/oadts/adscale.
+            _setConsentDomainsAllowed?.Invoke(true);
+            try
+            {
+                return await RunAdventureVideoBonusInCurrentBrowserAsync(boxClass, label, cancellationToken);
+            }
+            finally
+            {
+                // Re-block the ad/consent domains, then quarantine the current tab to about:blank before
+                // any DOM reads or state saves can retrigger the resident consentmanager/oadts/adscale
+                // timers. Only after that cleanup do we navigate to dorf1.
+                _setConsentDomainsAllowed?.Invoke(false);
+                await FlushResidentAdProvidersAsync();
+            }
         }
-        finally
+        catch (OperationCanceledException)
         {
-            // Re-block the ad/consent domains, then quarantine the current tab to about:blank before
-            // any DOM reads or state saves can retrigger the resident consentmanager/oadts/adscale
-            // timers. Only after that cleanup do we navigate to dorf1.
-            _setConsentDomainsAllowed?.Invoke(false);
-            await FlushResidentAdProvidersAsync();
+            // A stop/cancel must abort cleanly — let it propagate so the hero task actually stops.
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Notify($"[adventure-video:verbose] {label}: bonus video failed and was skipped so the hero is still dispatched: {ex.GetType().Name}: {ex.Message}");
+            return $"{label}: bonus video could not run and was skipped ({ex.Message}).";
         }
     }
 
     private async Task<string> RunAdventureVideoBonusInCurrentBrowserAsync(
         string boxClass,
         string label,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool isIsolated = false)
     {
+        if (isIsolated)
+        {
+            // The isolated video browser is seeded with the main session's cookies. If those are no longer
+            // valid we must NOT enter credentials here: a second login would invalidate the main browser's
+            // session (Travian allows a single active session) and log the bot out. Navigate, then verify
+            // read-only; skip the video instead of logging in so the main session is never disturbed.
+            await OpenHeroAdventuresPageAsync(cancellationToken);
+            if (!await IsLoggedInAsync())
+            {
+                Notify($"[adventure-video:verbose] {label}: isolated video browser is not logged in (stale cookies); skipping so the main session is not disturbed.");
+                return $"{label}: skipped — the bonus-video browser was not logged in.";
+            }
+
+            return await RunAdventureVideoBonusCoreAsync(boxClass, label, cancellationToken);
+        }
+
         await EnsureLoggedInAsync();
         return await RunAdventureVideoBonusCoreAsync(boxClass, label, cancellationToken);
     }
@@ -230,6 +272,11 @@ public sealed partial class TravianClient
     {
         await OpenHeroAdventuresPageAsync(cancellationToken);
 
+        // The isolated video browser is seeded without consent (FilterForeignSubdomainState strips it), so
+        // in GDPR/consent regions the consentmanager dialog overlays the page on load. Accept it up front so
+        // the box state reads correctly and the ad stack is allowed to initialize. No-op when absent.
+        await AcceptConsentManagerIfPresentAsync(cancellationToken);
+
         var state = await ReadAdventureVideoStateAsync(boxClass, cancellationToken);
         Notify($"[adventure-video] {label}: box state before watching: {state}");
         if (state == "active")
@@ -254,6 +301,14 @@ public sealed partial class TravianClient
 
         if (!await StartAdventureVideoAsync(label, cancellationToken))
         {
+            // Distinguish a missing-codec machine from a transient "no ad" so the user gets an actionable
+            // message instead of retrying forever on a browser that can never decode the H.264/AAC ad.
+            if (!await IsH264PlaybackSupportedAsync(cancellationToken))
+            {
+                return $"{label}: this browser cannot play the ad video (missing H.264/AAC codecs). Install "
+                    + "Google Chrome on this machine so the bonus videos can run.";
+            }
+
             return $"{label}: the bonus video player did not open (likely no ad available or blocked). Try again later.";
         }
 
@@ -264,9 +319,20 @@ public sealed partial class TravianClient
         var confirmed = await WaitForAdventureVideoActiveAsync(boxClass, label, cancellationToken);
         await LogAdventureVideoBoxHtmlAsync(boxClass, label, "after waiting for reward", cancellationToken);
 
-        return confirmed
-            ? $"{label} activated; the bonus is now active for the next adventure."
-            : $"{label}: bonus video ran but activation was not confirmed within {AdventureVideoTimeoutSeconds}s.";
+        if (confirmed)
+        {
+            return $"{label} activated; the bonus is now active for the next adventure.";
+        }
+
+        // Not confirmed: a missing-codec browser can still render an error iframe (so StartVideo "succeeded")
+        // yet never grant the reward. Surface the actionable codec hint here too instead of a generic timeout.
+        if (!await IsH264PlaybackSupportedAsync(cancellationToken))
+        {
+            return $"{label}: this browser cannot play the ad video (missing H.264/AAC codecs). Install "
+                + "Google Chrome on this machine so the bonus videos can run.";
+        }
+
+        return $"{label}: bonus video ran but activation was not confirmed within {AdventureVideoTimeoutSeconds}s.";
     }
 
     /// <summary>
@@ -351,7 +417,7 @@ public sealed partial class TravianClient
                 """);
             if (!ready)
             {
-                await Task.Delay(250, cancellationToken);
+                await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
                 continue;
             }
 
@@ -375,7 +441,7 @@ public sealed partial class TravianClient
                 return true;
             }
 
-            await Task.Delay(250, cancellationToken);
+            await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
         }
 
         return false;
@@ -394,6 +460,9 @@ public sealed partial class TravianClient
         for (var attempt = 1; attempt <= 16; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            // Consent can appear late (when the ad is first requested), so keep accepting it while we wait
+            // for the player — without consent the ad iframe never renders in consent regions.
+            await AcceptConsentManagerIfPresentAsync(cancellationToken);
             playerReady = await _page.EvaluateAsync<bool>(
                 """
                 () => {
@@ -413,34 +482,154 @@ public sealed partial class TravianClient
 
         if (!playerReady)
         {
-            Notify($"[adventure-video] {label}: video player iframe did not appear.");
+            Notify($"[adventure-video:verbose] {label}: video player iframe did not appear.");
             return false;
         }
 
-        // Let the ad frame load its player (the centered play button) before clicking it, then click
-        // once. A single trusted click reliably starts the ad; re-clicking risks toggling pause.
+        // Let the ad frame load its player (the centered play button) before clicking it.
         await Task.Delay(1500, cancellationToken);
-        try
+
+        // Up to two trusted clicks. The first can be swallowed by a consentmanager overlay that pops with
+        // the ad request; we only re-click when such an overlay was found and accepted between attempts, so
+        // a click is never sent into an already-playing ad (which could toggle pause).
+        for (var clickAttempt = 1; clickAttempt <= 2; clickAttempt++)
         {
-            var box = await _page.Locator("#videoArea, #videoFeature iframe").First.BoundingBoxAsync();
-            if (box is null)
+            cancellationToken.ThrowIfCancellationRequested();
+            try
             {
-                Notify($"[adventure-video] {label}: could not locate the video area to click play.");
+                var area = _page.Locator("#videoArea, #videoFeature iframe").First;
+                // Scroll the player into view first: a click at a bounding-box center that sits below the
+                // fold lands nowhere, which was one way the play button "wasn't clicked".
+                await area.ScrollIntoViewIfNeededAsync(new LocatorScrollIntoViewIfNeededOptions { Timeout = 3000 });
+                var box = await area.BoundingBoxAsync();
+                if (box is null)
+                {
+                    Notify($"[adventure-video:verbose] {label}: could not locate the video area to click play.");
+                    return false;
+                }
+
+                var x = box.X + box.Width / 2;
+                var y = box.Y + box.Height / 2;
+                await _page.Mouse.ClickAsync(x, y);
+                Notify($"[adventure-video:verbose] {label}: clicked play (trusted) at video area center ({x:0},{y:0}) attempt={clickAttempt}; waiting for playthrough.");
+            }
+            catch (PlaywrightException ex)
+            {
+                Notify($"[adventure-video:verbose] {label}: could not click the play button: {ex.Message}");
                 return false;
             }
 
-            var x = box.X + box.Width / 2;
-            var y = box.Y + box.Height / 2;
-            await _page.Mouse.ClickAsync(x, y);
-            Notify($"[adventure-video] {label}: clicked play (trusted) at video area center ({x:0},{y:0}); waiting for playthrough.");
-        }
-        catch (PlaywrightException ex)
-        {
-            Notify($"[adventure-video] {label}: could not click the play button: {ex.Message}");
-            return false;
+            // If a consent overlay intercepted the click, accept it and click once more; otherwise the click
+            // reached the player and we are done (no blind re-click into a playing ad).
+            await Task.Delay(1000, cancellationToken);
+            if (!await AcceptConsentManagerIfPresentAsync(cancellationToken))
+            {
+                break;
+            }
+
+            Notify($"[adventure-video:verbose] {label}: consent dialog intercepted the click; accepted and retrying.");
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Accepts the consentmanager (CMP/TCF) consent dialog when present so the bonus-video ad stack
+    /// (oadts/adscale/Google IMA) is allowed to initialize. Without consent the player never loads in
+    /// consent regions (GDPR), which is why the play button could not be clicked for some users. The dialog
+    /// renders either first-party on the Travian page (<c>#cmpbox</c>) or inside a consentmanager.net
+    /// iframe; both are handled. The isolated video browser is discarded on close, so accepting leaks
+    /// nothing into the main session. Returns true when an "Accept all" button was clicked.
+    /// </summary>
+    private async Task<bool> AcceptConsentManagerIfPresentAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        const string acceptScript =
+            """
+            (root) => {
+              const scope = root || document;
+              const box = scope.querySelector('#cmpbox, .cmpbox, [class*="cmpbox" i]') || scope;
+              if (box !== scope) {
+                const style = window.getComputedStyle(box);
+                if (style.display === 'none' || style.visibility === 'hidden') return false;
+              }
+              const acceptText = /accept all|accept|agree|alle akzeptieren|zustimmen|godk[äa]nn|acceptera|tout accepter|accetta/i;
+              const btn = box.querySelector('.cmpboxbtnyes, button.cmpboxbtnyes, a.cmpboxbtnyes')
+                || Array.from(box.querySelectorAll('a, button, .cmpboxbtn')).find(b =>
+                     acceptText.test(((b.textContent || '') + ' ' + (b.getAttribute('aria-label') || '')).trim()));
+              if (!btn) return false;
+              btn.click();
+              return true;
+            }
+            """;
+
+        // First-party overlay on the Travian page.
+        try
+        {
+            if (await _page.EvaluateAsync<bool>(acceptScript, null))
+            {
+                Notify("[adventure-video:verbose] accepted consentmanager consent (first-party overlay).");
+                return true;
+            }
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            // Page mid-navigation; the next poll retries.
+        }
+
+        // consentmanager.net iframe fallback.
+        foreach (var frame in _page.Frames)
+        {
+            if (string.IsNullOrEmpty(frame.Url)
+                || !frame.Url.Contains("consentmanager", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            try
+            {
+                if (await frame.EvaluateAsync<bool>(acceptScript, null))
+                {
+                    Notify("[adventure-video:verbose] accepted consentmanager consent (iframe).");
+                    return true;
+                }
+            }
+            catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+            {
+                // Frame detached/navigating; ignore and let the next poll retry.
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether the current browser can decode the H.264/AAC the bonus ads use. Playwright's bundled
+    /// Chromium cannot (only the system Chrome/Edge channel ships the proprietary codecs), so a false here
+    /// means the machine has no codec-capable browser installed and the videos can never play.
+    /// </summary>
+    private async Task<bool> IsH264PlaybackSupportedAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        try
+        {
+            return await _page.EvaluateAsync<bool>(
+                """
+                () => {
+                  try {
+                    const v = document.createElement('video');
+                    const mp4 = v.canPlayType('video/mp4; codecs="avc1.42E01E"');
+                    const aac = v.canPlayType('audio/mp4; codecs="mp4a.40.2"');
+                    return (mp4 === 'probably' || mp4 === 'maybe') && aac !== '';
+                  } catch (_) { return false; }
+                }
+                """);
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            // Unknown on a transient read — don't mislead with a codec error.
+            return true;
+        }
     }
 
     /// <summary>
@@ -452,7 +641,9 @@ public sealed partial class TravianClient
     {
         var startUtc = DateTimeOffset.UtcNow;
         var deadlineUtc = startUtc.AddSeconds(AdventureVideoTimeoutSeconds);
-        var reloaded = false;
+        const int maxReloads = 2;
+        var reloadCount = 0;
+        var lastReloadUtc = startUtc;
         while (DateTimeOffset.UtcNow < deadlineUtc)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -465,14 +656,20 @@ public sealed partial class TravianClient
                 return true;
             }
 
-            // Once we're past roughly the video length and the player has closed, reload the
-            // adventures page once so the box reflects the granted reward.
-            var elapsedSeconds = (DateTimeOffset.UtcNow - startUtc).TotalSeconds;
-            if (!reloaded && elapsedSeconds >= AdventureVideoTimeoutSeconds / 2.0
+            // Once the player has closed, reload the adventures page so the box reflects the granted reward.
+            // Reload up to twice, spaced out: with a single reload a reward that lands late (long ad, or the
+            // dialog only closing near the end) was missed and falsely reported as "not confirmed".
+            var now = DateTimeOffset.UtcNow;
+            var elapsedSeconds = (now - startUtc).TotalSeconds;
+            var sinceReloadSeconds = (now - lastReloadUtc).TotalSeconds;
+            if (reloadCount < maxReloads
+                && elapsedSeconds >= AdventureVideoTimeoutSeconds / 3.0
+                && sinceReloadSeconds >= 15
                 && !await IsAdventureVideoDialogOpenAsync(cancellationToken))
             {
-                reloaded = true;
-                Notify($"[adventure-video] {label}: video dialog closed; reloading adventures page to read reward state.");
+                reloadCount++;
+                lastReloadUtc = now;
+                Notify($"[adventure-video:verbose] {label}: video dialog closed; reloading adventures page to read reward state (reload {reloadCount}/{maxReloads}).");
                 await OpenHeroAdventuresPageAsync(cancellationToken);
             }
         }

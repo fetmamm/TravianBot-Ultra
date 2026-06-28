@@ -146,6 +146,15 @@ public partial class MainWindow
     // (legacy/global tasks) so rotation treats those as the default group.
     private string? GetQueueItemVillageKey(QueueItem item)
     {
+        // Newer items stamp the stable coordinate key at enqueue (ApplySelectedVillageToPayload /
+        // BuildVillageRuntimePayload). Prefer it: it is unique and survives renames and a lost-then-
+        // refounded village that shares a name, where name/url resolution can pick the wrong village.
+        var explicitKey = GetQueueItemPayloadValue(item, BotOptionPayloadKeys.TargetVillageKey);
+        if (!string.IsNullOrWhiteSpace(explicitKey))
+        {
+            return _villageSettingsStore.ResolveCanonicalKey(explicitKey);
+        }
+
         var name = GetQueueItemVillageName(item);
         var url = GetQueueItemPayloadValue(item, BotOptionPayloadKeys.TargetVillageUrl);
         if (string.IsNullOrWhiteSpace(name) && string.IsNullOrWhiteSpace(url))
@@ -153,7 +162,7 @@ public partial class MainWindow
             return null;
         }
 
-        // Queue payloads carry no coordinates, so key by the village NAME, then resolve it through the
+        // Legacy items carry no coordinates, so key by the village NAME, then resolve it through the
         // settings store to the canonical coordinate key. This keeps queue gating AND the per-village queue
         // rotation pointer (seeded with the coordinate key on Switch village) using one consistent identity.
         // Fall back to the newdid url only when there is no name.
@@ -208,6 +217,9 @@ public partial class MainWindow
         _lastDisplayedVillageSignature = signature;
         VillagesInfoTextBlock.Text = $"Villages: {villages.Count}";
         SyncDashboardVillageUiFromVillages(villages, status.ActiveVillage);
+        // A newly founded village shows up here first. Queue a one-time dorf1/dorf2 analysis for any village
+        // we have no cached layout for, the same way un-analyzed villages are analyzed at login.
+        QueueNewVillagesForFirstAnalysis(villages);
     }
 
     private static string BuildVillageSignature(IReadOnlyList<Village> villages)
@@ -241,25 +253,56 @@ public partial class MainWindow
             GetQueueItemVillageKey,
             id => _botService.PauseQueueItem(id));
 
-        if (disabledVillages.Count > 0)
+        // Retention-based cleanup of lost/destroyed villages: a village confirmed missing from the live
+        // list for longer than LostVillageRetention is treated as gone for good. Remove its lingering
+        // queue items first (while the record still exists so legacy name-keyed items resolve to it), then
+        // drop the stale record so a refounded same-name village is unambiguous going forward.
+        var removedQueueItems = 0;
+        var removedVillages = _villageSettingsStore.GetVillagesConfirmedMissingSince(
+            DateTimeOffset.UtcNow - LostVillageRetention);
+        if (removedVillages.Count > 0)
+        {
+            var removedKeys = removedVillages
+                .Select(v => v.Key)
+                .Where(key => !string.IsNullOrWhiteSpace(key))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            removedQueueItems = ConfirmedVillageQueueReconciler.RemoveItemsForVillages(
+                _botService.GetQueueItemsForDisplay(),
+                removedKeys,
+                GetQueueItemVillageKey,
+                id => _botService.RemoveQueueItem(id));
+            _villageSettingsStore.RemoveVillages(removedKeys);
+        }
+
+        if (disabledVillages.Count > 0 || removedVillages.Count > 0)
         {
             RefreshVillageEnabledStateOnDashboard();
         }
 
-        if (pausedQueueItems > 0)
+        if (pausedQueueItems > 0 || removedQueueItems > 0)
         {
             RequestQueueUiRefresh();
         }
 
-        if (disabledVillages.Count > 0 || pausedQueueItems > 0)
+        if (disabledVillages.Count > 0 || pausedQueueItems > 0 || removedVillages.Count > 0)
         {
+            var removedVillageNames = removedVillages
+                .Select(v => string.IsNullOrWhiteSpace(v.Name) ? v.Key : v.Name)
+                .ToList();
             AppendLog(
                 $"[village-reconcile] source={source} confirmedVillages={confirmed.Count} " +
                 $"disabledVillages={disabledVillages.Count} " +
-                $"pausedQueueItems={pausedQueueItems}" +
-                (disabledVillages.Count == 0 ? string.Empty : $" names='{string.Join(", ", disabledVillages)}'"));
+                $"pausedQueueItems={pausedQueueItems} " +
+                $"removedVillages={removedVillages.Count} removedQueueItems={removedQueueItems}" +
+                (disabledVillages.Count == 0 ? string.Empty : $" disabledNames='{string.Join(", ", disabledVillages)}'") +
+                (removedVillages.Count == 0 ? string.Empty : $" removedNames='{string.Join(", ", removedVillageNames)}'"));
         }
     }
+
+    // How long a village may be confirmed-missing from the live login/scan list before it is treated as
+    // lost/destroyed and pruned (with its lingering queue items). Conservative so a transient bad read or
+    // a few days offline never deletes a real village's queue.
+    private static readonly TimeSpan LostVillageRetention = TimeSpan.FromDays(3);
 
     private static HashSet<string> BuildConfirmedLiveVillageKeys(IReadOnlyList<Village> villages)
     {
@@ -581,6 +624,7 @@ public partial class MainWindow
             PersistVillageHeroResourcesFromSettingsRow,
             PersistVillageGroupsFromSettingsRow,
             OpenTroopSettingsFromVillageSettings,
+            OpenSmithyUpgradeSettingsFromVillageSettings,
             OpenTownHallSettingsFromVillageSettings,
             OpenHeroResourceSettingsFromVillageSettings,
             OnVillageSettingsSaved)
@@ -694,7 +738,7 @@ public partial class MainWindow
                 break;
             }
 
-            await Task.Delay(120);
+            await Task.Delay(Random.Shared.Next(150, 350)); // Random wait
         }
 
         RefreshQueueUi();

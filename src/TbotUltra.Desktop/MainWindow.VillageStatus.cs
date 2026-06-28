@@ -145,7 +145,7 @@ public partial class MainWindow
             AppendLog($"Building scan looked incomplete ({buildingScanIssue}). Retrying once...");
         }
 
-        await Task.Delay(350, cancellationToken);
+        await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
         return await ReadVillageStatusAsync(options, cancellationToken, resourceOnly, forceCurrentVillage, currentPageOnly);
     }
 

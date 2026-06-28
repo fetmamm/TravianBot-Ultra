@@ -541,7 +541,7 @@ public partial class MainWindow
                 break;
             }
 
-            await Task.Delay(120);
+            await Task.Delay(Random.Shared.Next(150, 350)); // Random wait
         }
     }
 

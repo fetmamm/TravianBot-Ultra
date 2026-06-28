@@ -153,7 +153,10 @@ public sealed partial class TravianClient
             var clicked = await TryClickFirstVisibleEnabledAsync(
                 "button.textButtonV2.collectRewards, button.collectRewards",
                 cancellationToken,
-                reason: "daily quest collect rewards");
+                reason: "daily quest collect rewards",
+                // Short timeout: fail fast to the JS fallback if the button is present but not actionable,
+                // instead of burning the full 20s page timeout.
+                timeoutMs: 3000);
             if (!clicked)
             {
                 await DelayBeforeClickAsync(cancellationToken, "daily quest collect rewards fallback");
@@ -266,7 +269,10 @@ public sealed partial class TravianClient
                     cancellationToken,
                     requiredText: "Collect",
                     requireExactText: true,
-                    reason: "daily quest collect reward");
+                    reason: "daily quest collect reward",
+                    // Short timeout: fail fast to the JS fallback if the button is present but not actionable,
+                    // instead of burning the full 20s page timeout.
+                    timeoutMs: 3000);
                 if (!clicked)
                 {
                     await DelayBeforeClickAsync(cancellationToken, "daily quest collect reward fallback");

@@ -25,6 +25,12 @@
                 <TextBlock Text="Select one source list and one or more destination farm lists."
                            Margin="0,4,0,0"
                            Foreground="{DynamicResource TextSecondaryBrush}" />
+                <Border x:Name="IncompleteReadWarningBorder" Visibility="Collapsed"
+                        Margin="0,8,0,0" CornerRadius="6" Padding="10,8"
+                        Background="#3A2A00" BorderBrush="#C9962B" BorderThickness="1">
+                    <TextBlock x:Name="IncompleteReadWarningTextBlock" TextWrapping="Wrap"
+                               Foreground="#F2C14E" />
+                </Border>
             </StackPanel>
 
             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
@@ -101,6 +107,7 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
                             <TextBlock Text="Amount per list" VerticalAlignment="Center" />
@@ -149,6 +156,10 @@
                                       Margin="0,14,0,0"
                                       Content="Don't add duplicates already present in any farm list"
                                       IsChecked="True" Checked="InputChanged" Unchecked="InputChanged" />
+                            <CheckBox x:Name="SkipLowPopVillagesCheckBox" Grid.Row="5" Grid.ColumnSpan="2"
+                                      Margin="0,8,0,0"
+                                      Content="Don't add villages with 8 population or less"
+                                      IsChecked="False" Checked="InputChanged" Unchecked="InputChanged" />
                         </Grid>
                     </Border>
 

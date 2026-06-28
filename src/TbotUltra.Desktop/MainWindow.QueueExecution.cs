@@ -17,6 +17,24 @@ public partial class MainWindow
         AutoQueue,
     }
 
+    // How many consecutive requirement defers a construction item may accumulate before it is abandoned
+    // (marked Failed). At the worker's ~5 min requirement-defer cadence this is roughly an hour of retries,
+    // long enough for a genuinely in-progress prerequisite to finish but bounded so a never-coming one
+    // doesn't defer forever.
+    private const int MaxConsecutiveRequirementDefers = 12;
+
+    // Whether the queue item's village currently has a browser-confirmed construction in progress. Used to
+    // hold off abandoning a requirement-stalled item while the prerequisite might be that active build.
+    private bool VillageHasActiveConstruction(QueueItem item)
+    {
+        var name = NormalizeVillageName(GetQueueItemVillageName(item));
+        var status = name is not null && _villageStatusCacheByName.TryGetValue(name, out var cached)
+            ? cached
+            : _lastBuildingStatus;
+        return status is not null
+            && ConstructionQueueState.ResolveCurrentActiveConstructions(status).Count > 0;
+    }
+
     private async Task<bool> ExecuteSingleQueueItemAsync(
         QueueItem item,
         BotOptions options,
@@ -104,6 +122,23 @@ public partial class MainWindow
         CancellationToken cancellationToken)
     {
         _botService.MarkQueueItemSucceeded(item.Id);
+
+        // Confirmed already-built construct: the worker found the target slot already holds the building, so
+        // the task can never construct. Remove it from the queue (not leave it as junk) — the user wants a
+        // construct whose building already exists cleared out, and the worker only returns this after a live
+        // confirmation. Nothing else to refresh: the slot already has the building.
+        if (string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase)
+            && executionResult.LastTask?.ConstructionOutcome == ConstructionTaskOutcome.AlreadyExists)
+        {
+            if (_botService.RemoveQueueItem(item.Id))
+            {
+                AppendLog($"[queue] removed construct task — building already exists (confirmed). {executionResult.LastTask?.Message}");
+            }
+
+            RequestQueueUiRefresh();
+            return false;
+        }
+
         var fullConstructionRefreshDone = false;
         if (IsResourceUpgradeTask(item.TaskName))
         {
@@ -283,6 +318,45 @@ public partial class MainWindow
                     updatedPayload[BotOptionPayloadKeys.UpgradeDeferClassificationVersion] =
                         ConstructionQueueState.CurrentDeferClassificationVersion;
                     payloadChanged = true;
+
+                    // Safety net for an unsatisfiable requirement. Requirement defers don't consume Retries
+                    // (the prerequisite could still arrive), so without a bound a construct whose prerequisite
+                    // never comes — e.g. the desktop cascade missed a cross-village/not-yet-loaded dependent —
+                    // would defer forever. Count consecutive requirement defers and abandon (mark Failed +
+                    // alarm) once the prerequisite has clearly not been built after many retries. Any other
+                    // defer reason resets the counter below.
+                    if (string.Equals(
+                            updatedPayload[BotOptionPayloadKeys.UpgradeDeferReason],
+                            BotOptionPayloadKeys.UpgradeDeferReasonRequirements,
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        var requirementDeferCount =
+                            (TryGetIntPayloadValue(item.Payload, BotOptionPayloadKeys.RequirementDeferCount) ?? 0) + 1;
+                        updatedPayload[BotOptionPayloadKeys.RequirementDeferCount] = requirementDeferCount.ToString();
+
+                        // Never abandon while the village is actively building something — the prerequisite
+                        // may be that in-progress construction (e.g. a user-started Academy 15 that Hospital
+                        // waits on). Only give up once the village build queue is idle and the requirement is
+                        // still unmet, which means the prerequisite is genuinely not coming.
+                        if (requirementDeferCount >= MaxConsecutiveRequirementDefers
+                            && !VillageHasActiveConstruction(item))
+                        {
+                            _botService.MarkQueueItemExecutionFailed(item.Id);
+                            AppendLog(
+                                $"{logPrefix} ABANDONED {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
+                                $"requirement still unmet after {requirementDeferCount} retries — the prerequisite " +
+                                $"building is not built, queued or in progress. Removed from the active queue. " +
+                                $"Source='{ex.Message.Replace(Environment.NewLine, " ")}'");
+                            RaiseAlarmIfQueueItemPermanentlyFailed(item, ex.Message);
+                            await Dispatcher.InvokeAsync(RefreshVillageActivityIndicatorsOnDashboard);
+                            return true;
+                        }
+                    }
+                    else
+                    {
+                        // Progress is possible again — start a fresh count next time requirements stall.
+                        updatedPayload.Remove(BotOptionPayloadKeys.RequirementDeferCount);
+                    }
 
                     if (string.Equals(
                             updatedPayload[BotOptionPayloadKeys.UpgradeDeferReason],

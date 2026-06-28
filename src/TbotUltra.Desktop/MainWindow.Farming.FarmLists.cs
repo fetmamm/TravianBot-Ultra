@@ -24,6 +24,11 @@ public partial class MainWindow
     private readonly HashSet<string> _analyzedFarmCoordinates = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, int?> _farmListCapacitiesByName = new(StringComparer.OrdinalIgnoreCase);
 
+    // Farm lists whose last analysis read fewer target coordinates than the list claims to hold (e.g. an
+    // expansion that did not finish). Their farms can be missed by the "don't add duplicates" check, so the
+    // Add-farms dialog warns when this is non-empty. Format: "'Name' read/total".
+    private IReadOnlyList<string> _farmListIncompleteReads = [];
+
     private static bool IsRealFarmListRow(FarmListStatusRow row)
     {
         return !row.IsPlaceholder;
@@ -175,6 +180,7 @@ public partial class MainWindow
         var mergedByName = new Dictionary<string, (int Active, int Total, int? RemainingSeconds, string? ListId, int? Capacity, IReadOnlyList<string> Coordinates)>(StringComparer.OrdinalIgnoreCase);
         var orderedNames = new List<string>();
         var analyzedCoordinates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var incompleteReads = new List<string>();
         foreach (var list in lists)
         {
             if (list is null)
@@ -190,6 +196,14 @@ public partial class MainWindow
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
             analyzedCoordinates.UnionWith(incomingCoordinates);
+
+            // Tier 1 detection: a fully-read list yields one coordinate per farm. Fewer means the read
+            // missed targets (incomplete expansion or an unexpected DOM), so the dedup check can miss them.
+            var listTotal = Math.Max(0, list.TotalFarmCount);
+            if (listTotal > 0 && incomingCoordinates.Count < listTotal)
+            {
+                incompleteReads.Add($"'{normalizedName}' {incomingCoordinates.Count}/{listTotal}");
+            }
             if (!mergedByName.TryGetValue(normalizedName, out var existing))
             {
                 orderedNames.Add(normalizedName);
@@ -223,6 +237,7 @@ public partial class MainWindow
                 _farmLists.Clear();
                 _analyzedFarmCoordinates.Clear();
                 _analyzedFarmCoordinates.UnionWith(analyzedCoordinates);
+                _farmListIncompleteReads = incompleteReads;
                 _farmListCapacitiesByName.Clear();
                 var displayedRows = 0;
                 foreach (var name in orderedNames)
@@ -282,6 +297,12 @@ public partial class MainWindow
         if (mergedByName.Count > MaxFarmListsShown)
         {
             AppendLog($"Farm list UI limited to {MaxFarmListsShown} rows (detected {mergedByName.Count}).");
+        }
+
+        if (incompleteReads.Count > 0)
+        {
+            AppendLog($"[farm-list] WARNING: {incompleteReads.Count} farm list(s) not fully read "
+                + $"({string.Join(", ", incompleteReads)}). Duplicate protection may miss those farms — re-run Analyze.");
         }
     }
 
@@ -510,7 +531,8 @@ public partial class MainWindow
                         null,
                         sourceLists,
                         targetLists,
-                        new HashSet<string>(_analyzedFarmCoordinates, StringComparer.OrdinalIgnoreCase));
+                        new HashSet<string>(_analyzedFarmCoordinates, StringComparer.OrdinalIgnoreCase),
+                        _farmListIncompleteReads);
                 }
 
                 async Task<OfficialFarmAddRunResult> RunOfficialPlansAsync(

@@ -164,7 +164,10 @@ public sealed partial class TravianClient
                     cancellationToken,
                     requiredText: "Collect",
                     requireExactText: true,
-                    reason: "task collect reward");
+                    reason: "task collect reward",
+                    // Short timeout: a collect button that is present but not actionable (overlay/animation)
+                    // should fail fast to the JS fallback below, not waste the full 20s page timeout.
+                    timeoutMs: 3000);
                 if (!clicked)
                 {
                     await DelayBeforeClickAsync(cancellationToken, "task collect reward fallback");
@@ -223,18 +226,18 @@ public sealed partial class TravianClient
     }
 
     // Randomized delay between internal clicks/steps in the auto-collect tasks/daily-quests flows
-    // only (configured by CollectStepDelayMinMs/MaxMs, default 800-2500ms). Set both to 0 to disable.
+    // only (configured by CollectStepDelayMin/MaxSeconds, default 0.8-2.5s). Set both to 0 to disable.
     // Deliberately does not log per delay to avoid log noise in these tight click loops.
     private Task ApplyCollectStepDelayAsync(CancellationToken cancellationToken)
     {
-        var min = Math.Max(0, _config.CollectStepDelayMinMs);
-        var max = Math.Max(min, _config.CollectStepDelayMaxMs);
-        if (max <= 0)
+        var minMs = (int)Math.Round(Math.Max(0, _config.CollectStepDelayMinSeconds) * 1000);
+        var maxMs = Math.Max(minMs, (int)Math.Round(_config.CollectStepDelayMaxSeconds * 1000));
+        if (maxMs <= 0)
         {
             return Task.CompletedTask;
         }
 
-        var delayMs = Random.Shared.Next(min, max + 1);
+        var delayMs = Random.Shared.Next(minMs, maxMs + 1);
         return delayMs > 0 ? Task.Delay(delayMs, cancellationToken) : Task.CompletedTask;
     }
 

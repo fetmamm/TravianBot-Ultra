@@ -478,6 +478,7 @@ public sealed partial class TravianClient
                 await NotifyCurrentResourceProductionForUiAsync(cancellationToken);
 
                 var attemptedAny = false;
+                var anyQueuedTowardTarget = false;
                 var blockReasons = new List<string>();
                 foreach (var candidate in candidateRows)
                 {
@@ -492,6 +493,21 @@ public sealed partial class TravianClient
                     if (level >= preliminaryTarget)
                     {
                         Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} level={level} already meets preliminary target {preliminaryTarget}. Skipping.");
+                        continue;
+                    }
+
+                    // Over-build guard (matches the single-slot UpgradeResourceToLevelAsync): if this resource
+                    // type already has a queued/in-progress upgrade that reaches the target, do NOT click again.
+                    // The build page of a slot with a pending upgrade offers the NEXT level (target+1), so a
+                    // second click would overshoot the requested target. This fires on Plus/Roman accounts where
+                    // a second queue slot is free while one upgrade is already in flight. Active constructions are
+                    // name-keyed (no slot id), so same-named fields are treated conservatively: a sibling's queued
+                    // upgrade defers this one until the queue clears (self-corrects next scan, never over-builds).
+                    var highestQueuedLevel = await ReadHighestKnownQueuedResourceLevelAsync(resourceName, level, cancellationToken);
+                    if (highestQueuedLevel >= preliminaryTarget)
+                    {
+                        anyQueuedTowardTarget = true;
+                        Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} '{resourceName}' already has a queued upgrade reaching level {highestQueuedLevel} (target {preliminaryTarget}). Skipping to avoid over-building.");
                         continue;
                     }
 
@@ -625,6 +641,14 @@ public sealed partial class TravianClient
 
                 if (!attemptedAny)
                 {
+                    if (blockReasons.Count == 0 && anyQueuedTowardTarget)
+                    {
+                        // Nothing left to click, but at least one field still has a queued upgrade reaching the
+                        // target. Defer (re-check after it finishes) instead of declaring "all done" prematurely.
+                        var queuedWait = await ReadQueuedResourceWaitSecondsAsync(string.Empty, null, cancellationToken);
+                        return $"Resource fields: queued upgrade(s) already reaching target level {targetLevel}. Upgrades made: {upgrades}. queue_wait_seconds={queuedWait}";
+                    }
+
                     if (blockReasons.Count == 0)
                     {
                         return $"All resource fields are at or above target level {targetLevel}. Upgrades made: {upgrades}.";

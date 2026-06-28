@@ -7,7 +7,9 @@ using System.Text.Json.Serialization;
 
 namespace TbotUltra.Worker.Services;
 
-public sealed partial class TravianClient
+// Combat surface of the TravianClient facade. The interface list is declared on
+// this partial to co-locate the contract with the domain it covers.
+public sealed partial class TravianClient : ICombatClient
 {
     private static readonly string[] CatapultConfirmButtonSelectors =
     [

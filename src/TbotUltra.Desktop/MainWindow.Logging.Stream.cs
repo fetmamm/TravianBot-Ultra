@@ -894,6 +894,10 @@ public partial class MainWindow
                 && value.Contains("transient navigation context error")
                 && value.Contains("retrying"))
             || value.Contains("the calling thread cannot access this object because a different thread owns it")
+            // A single browser-click candidate that times out is non-fatal: the helper falls back to a JS
+            // click and the higher-level flow logs its own result. The "timeout" keyword makes IsAlarmMessage
+            // flag it, so keep it in the alarm list but auto-acknowledged (not a red, unacknowledged alarm).
+            || (value.Contains("[browser-click]") && value.Contains("skipped candidate"))
             || (value.Contains("ui sync snapshot failed")
                 && value.Contains("execution context was destroyed"))
             // Best-effort logout before session sleep; a timeout here is harmless (the next login still

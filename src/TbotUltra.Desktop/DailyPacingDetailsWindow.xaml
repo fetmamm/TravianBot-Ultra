@@ -29,23 +29,28 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0">
                     <TextBlock Text="Online time today" Foreground="{DynamicResource TextSubtleBrush}" FontSize="11" />
-                    <TextBlock x:Name="OnlineTodayTextBlock" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="18" FontWeight="SemiBold" />
+                    <TextBlock x:Name="OnlineTodayTextBlock" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="16" FontWeight="SemiBold" />
                 </StackPanel>
-                <StackPanel Grid.Column="1" Margin="14,0,0,0">
+                <StackPanel Grid.Column="1" Margin="12,0,0,0">
                     <TextBlock Text="Time left" Foreground="{DynamicResource TextSubtleBrush}" FontSize="11" />
-                    <TextBlock x:Name="TimeLeftTextBlock" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="18" FontWeight="SemiBold" />
+                    <TextBlock x:Name="TimeLeftTextBlock" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="16" FontWeight="SemiBold" />
                 </StackPanel>
-                <StackPanel Grid.Column="2" Margin="14,0,0,0">
+                <StackPanel Grid.Column="2" Margin="12,0,0,0">
                     <TextBlock Text="Daily limit" Foreground="{DynamicResource TextSubtleBrush}" FontSize="11" />
-                    <TextBlock x:Name="DailyLimitTextBlock" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="18" FontWeight="SemiBold" />
+                    <TextBlock x:Name="DailyLimitTextBlock" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="16" FontWeight="SemiBold" />
                 </StackPanel>
-                <StackPanel Grid.Column="3" Margin="14,0,0,0">
+                <StackPanel Grid.Column="3" Margin="12,0,0,0">
                     <TextBlock Text="Week total" Foreground="{DynamicResource TextSubtleBrush}" FontSize="11" />
-                    <TextBlock x:Name="WeekTotalTextBlock" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="18" FontWeight="SemiBold" />
+                    <TextBlock x:Name="WeekTotalTextBlock" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="16" FontWeight="SemiBold" />
+                </StackPanel>
+                <StackPanel Grid.Column="4" Margin="12,0,0,0">
+                    <TextBlock Text="Account total" Foreground="{DynamicResource TextSubtleBrush}" FontSize="11" />
+                    <TextBlock x:Name="AccountTotalTextBlock" Foreground="{DynamicResource SuccessTextBrush}" FontSize="16" FontWeight="SemiBold" />
                 </StackPanel>
             </Grid>
         </Border>
@@ -67,6 +72,20 @@
                         <DataGridTextColumn Header="Usage" Binding="{Binding Usage}" Width="1.4*" />
                     </DataGrid.Columns>
                 </DataGrid>
+            </TabItem>
+
+            <TabItem Header="Graph">
+                <Border Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="8"
+                        Margin="0,4,0,0">
+                    <Canvas x:Name="ChartCanvas"
+                            Background="Transparent"
+                            ClipToBounds="True"
+                            SizeChanged="ChartCanvas_SizeChanged" />
+                </Border>
             </TabItem>
 
             <TabItem Header="Tasks">

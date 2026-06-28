@@ -600,6 +600,16 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
         Assert.Equal(expected, BotTaskRunner.IsBlockedTaskResult(result));
     }
 
+    [Theory]
+    [InlineData("Construct skipped: Rally Point already exists at slot 39 (confirmed 'Rally Point' level 1). Removing from queue.", ConstructionTaskOutcome.AlreadyExists)]
+    [InlineData("Constructed Warehouse in slot 20 (confirmed level 1 on dorf2).", ConstructionTaskOutcome.ConfirmedComplete)]
+    [InlineData("Slot 20: already at level 3.", ConstructionTaskOutcome.AlreadySatisfied)]
+    [InlineData("Queued Marketplace in slot 21. Evidence: ...", ConstructionTaskOutcome.QueuedOrInProgress)]
+    public void BotTaskRunner_ClassifyConstructionTaskResult_MapsKnownResults(string result, ConstructionTaskOutcome expected)
+    {
+        Assert.Equal(expected, BotTaskRunner.ClassifyConstructionTaskResult("construct_building", result));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))

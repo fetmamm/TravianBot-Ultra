@@ -28,7 +28,8 @@ public sealed record SessionPacerSettings(
     IReadOnlyList<int>? AllowedHours = null,
     int DailyMaxHours = 0,
     DateOnly? RuntimeDate = null,
-    double RuntimeSeconds = 0);
+    double RuntimeSeconds = 0,
+    int DailyMaxVariationPercent = PacingDefaults.SessionPacingDailyMaxVariationPercent);
 
 public sealed record SessionPacerRuntimeState(DateOnly Date, double RuntimeSeconds);
 
@@ -65,6 +66,10 @@ public sealed class SessionPacer
     private bool _manualSleep;
     private bool _runtimeLoaded;
     private SessionSleepReason _pendingSleepReason;
+    // When set, a manual "Run now" override is suppressing the schedule restriction until this time
+    // (the next moment the schedule would allow running on its own), so the bot can run through a
+    // disallowed off-hours window the user explicitly chose to override.
+    private DateTimeOffset? _scheduleOverrideUntil;
 
     public SessionPacer(Func<DateTimeOffset>? now = null)
     {
@@ -78,7 +83,7 @@ public sealed class SessionPacer
     public SessionPacerPhase Phase { get; private set; } = SessionPacerPhase.Disabled;
     public SessionSleepReason SleepReason { get; private set; }
     public bool CanWakeNow => Phase == SessionPacerPhase.Sleeping
-        && SleepReason is SessionSleepReason.SessionPacing or SessionSleepReason.Manual;
+        && SleepReason is SessionSleepReason.SessionPacing or SessionSleepReason.Manual or SessionSleepReason.Schedule;
     public TimeSpan? TimeUntilSleep => _runDeadline is null ? null : Positive(_runDeadline.Value - _now());
     public TimeSpan? TimeUntilWake => _wakeAt is null ? null : Positive(_wakeAt.Value - _now());
     public TimeSpan? ActiveRunDuration => _activeRunDuration;
@@ -86,11 +91,11 @@ public sealed class SessionPacer
     public SessionPacerRuntimeState RuntimeState => new(_runtimeDate, _runtimeSeconds);
     public string StatusText => Phase switch
     {
-        SessionPacerPhase.Running => $"Next sleep in: {Format(TimeUntilSleep)}",
-        SessionPacerPhase.Paused => $"Paused - next sleep in: {Format(_pausedRunRemaining)}",
-        SessionPacerPhase.Sleeping when SleepReason == SessionSleepReason.Schedule => $"Scheduled off - {Format(TimeUntilWake)}",
-        SessionPacerPhase.Sleeping when SleepReason == SessionSleepReason.DailyLimit => $"Daily limit - {Format(TimeUntilWake)}",
-        SessionPacerPhase.Sleeping => $"Sleeping - {Format(TimeUntilWake)}",
+        SessionPacerPhase.Running => $"Next sleep: {Format(TimeUntilSleep)}",
+        SessionPacerPhase.Paused => $"Paused - next sleep: {Format(_pausedRunRemaining)}",
+        // All sleep reasons (session pacing, scheduled off-hours, daily limit, manual) show the same
+        // "Sleeping: <countdown>" badge. The reason stays available via SleepReason / the Run-now button.
+        SessionPacerPhase.Sleeping => $"Sleeping: {Format(TimeUntilWake)}",
         _ => _automationActive ? "Session pacing off" : "Session pacing",
     };
 
@@ -256,6 +261,7 @@ public sealed class SessionPacer
         _manualSleep = false;
         SleepReason = SessionSleepReason.None;
         _pendingSleepReason = SessionSleepReason.None;
+        _scheduleOverrideUntil = null;
         Phase = SessionPacerPhase.Disabled;
         _runStartedAt = null;
         _runDeadline = null;
@@ -316,6 +322,16 @@ public sealed class SessionPacer
         if (!CanWakeNow)
         {
             return;
+        }
+
+        // Waking out of a scheduled off-hours sleep is an explicit override: keep the schedule
+        // restriction suppressed until it would next permit running on its own, so the bot actually
+        // runs through the disallowed window instead of immediately going back to sleep.
+        if (SleepReason == SessionSleepReason.Schedule)
+        {
+            var now = _now();
+            _scheduleOverrideUntil = GetNextScheduleTransition(now, allowed: true) ?? now.AddDays(1);
+            Logger?.Invoke("[pacing] manual Run now: overriding the schedule for the current off-hours window.");
         }
 
         CompleteSleepAndWake();
@@ -408,7 +424,14 @@ public sealed class SessionPacer
     private SessionSleepReason GetActiveRestriction(DateTimeOffset now)
     {
         UpdateRuntimeDate(now);
-        if (!IsScheduleAllowed(now))
+
+        // Expire a manual schedule override once we reach the point the schedule would allow anyway.
+        if (_scheduleOverrideUntil is not null && now >= _scheduleOverrideUntil.Value)
+        {
+            _scheduleOverrideUntil = null;
+        }
+
+        if (_scheduleOverrideUntil is null && !IsScheduleAllowed(now))
         {
             return SessionSleepReason.Schedule;
         }
@@ -520,8 +543,12 @@ public sealed class SessionPacer
 
         var date = DateOnly.FromDateTime(now.DateTime);
         var baseMinutes = _settings.DailyMaxHours * 60.0;
-        var spread = baseMinutes * _settings.VariationPercent / 100.0;
-        var variedMinutes = baseMinutes + (DeterministicSignedFraction($"daily:{date:yyyyMMdd}") * spread);
+        // Daily-max uses its OWN variation (DailyMaxVariationPercent), not the run/sleep/schedule
+        // VariationPercent. A per-day fraction keyed on the calendar day number (splitmix64) so the limit
+        // is stable within a day but genuinely spreads across consecutive days — the old date-string FNV
+        // hash clustered near zero for runs of adjacent days, which made the cap look like it never varied.
+        var spread = baseMinutes * _settings.DailyMaxVariationPercent / 100.0;
+        var variedMinutes = baseMinutes + (DeterministicDailyFraction(date) * spread);
         return Math.Max(1, variedMinutes) * 60;
     }
 
@@ -602,6 +629,19 @@ public sealed class SessionPacer
         return (hash / (double)uint.MaxValue * 2) - 1;
     }
 
+    // Well-distributed signed fraction in [-1, 1] for a calendar day. Uses the splitmix64 finalizer on the
+    // day number, which fully avalanches, so consecutive days produce uncorrelated values (unlike hashing
+    // the date string, where adjacent days share a long prefix and clustered near zero). Deterministic, so
+    // the daily-max limit stays the same across app restarts within a day.
+    private static double DeterministicDailyFraction(DateOnly date)
+    {
+        var z = unchecked((ulong)date.DayNumber + 0x9E3779B97F4A7C15UL);
+        z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9UL;
+        z = (z ^ (z >> 27)) * 0x94D049BB133111EBUL;
+        z ^= z >> 31;
+        return (z / (double)ulong.MaxValue * 2) - 1;
+    }
+
     // Start of the wall-clock day in the clock source's own offset (not the machine timezone), so the
     // pacer stays consistent with the injected clock. With the default clock (DateTimeOffset.Now) the
     // offset is the local one, so production behavior is unchanged.
@@ -639,6 +679,7 @@ public sealed class SessionPacer
             SleepMinutes = Math.Max(30, settings.SleepMinutes),
             VariationPercent = Math.Clamp(settings.VariationPercent, 0, 100),
             DailyMaxHours = Math.Clamp(settings.DailyMaxHours, 0, 24),
+            DailyMaxVariationPercent = Math.Clamp(settings.DailyMaxVariationPercent, 0, 50),
             RuntimeSeconds = Math.Max(0, settings.RuntimeSeconds),
         };
     }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Windows;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Tasks;
 using TbotUltra.Desktop.Models;
@@ -87,23 +88,32 @@ public partial class MainWindow
     // one prerequisite can invalidate others, so re-scan until the queue is stable.
     private void CascadeRemoveUnsatisfiedBuildingQueueItems()
     {
-        if (_lastBuildingStatus is null)
-        {
-            return;
-        }
-
         var removedAny = false;
         bool removedThisPass;
         do
         {
             removedThisPass = false;
+            // Validate every village's building items against ITS OWN status and queue — building
+            // requirements are per-village. Removals come from the selected-village-filtered grid, but a
+            // multi-village queue can still hold dependents in other villages; checking each against its own
+            // cached status keeps them from being wrongly kept (or wrongly removed by another village's queue).
             var items = GetActiveQueueItems()
-                .Where(IsQueueItemForSelectedVillageOrGlobal)
+                .Where(item => IsBuildingMutationTask(item.TaskName))
                 .ToList();
 
             foreach (var item in items)
             {
-                if (!TryGetUnsatisfiedBuildingRemovalReason(item, out var reason))
+                // No snapshot for this item's village (never loaded/cached) → can't validate, leave it.
+                // Selected/village-less items fall back to the cached selected-village status (risk: removing
+                // a prerequisite before buildings were read would otherwise skip cleanup entirely).
+                var villageStatus = ResolveBuildingStatusForQueueItem(item);
+                if (villageStatus is null)
+                {
+                    continue;
+                }
+
+                var queueFilter = BuildSameVillageQueueFilter(item);
+                if (!TryGetUnsatisfiedBuildingRemovalReason(item, villageStatus, queueFilter, out var reason))
                 {
                     continue;
                 }
@@ -126,7 +136,193 @@ public partial class MainWindow
         }
     }
 
-    private bool TryGetUnsatisfiedBuildingRemovalReason(QueueItem item, out string reason)
+    // Non-mutating dry run of what removing `selected` would drop besides itself: the same-slot higher-level
+    // upgrades plus everything the requirement/orphan cascade would then remove. Mirrors the real removal
+    // order (same-slot first, then cascade fixpoint) so the preview matches what actually happens. Returns
+    // the extra items (selected excluded), in queue order.
+    private List<QueueItem> ComputeBuildingQueueRemovalPreview(QueueItem selected)
+    {
+        var active = GetActiveQueueItems();
+        var removedIds = new HashSet<Guid> { selected.Id };
+
+        // Same-slot higher upgrades (mirrors CascadeRemoveHigherSameSlotBuildingUpgrades).
+        if (string.Equals(selected.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+            && TryReadBuildingUpgradePayload(selected.Payload, out var selectedSlotId, out var selectedTarget)
+            && selectedTarget.HasValue)
+        {
+            foreach (var item in active.Where(IsQueueItemForSelectedVillageOrGlobal))
+            {
+                if (removedIds.Contains(item.Id))
+                {
+                    continue;
+                }
+
+                if (string.Equals(item.TaskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase)
+                    && TryReadBuildingUpgradePayload(item.Payload, out var maxSlotId, out _)
+                    && maxSlotId == selectedSlotId)
+                {
+                    removedIds.Add(item.Id);
+                }
+                else if (string.Equals(item.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+                    && TryReadBuildingUpgradePayload(item.Payload, out var upgradeSlotId, out var target)
+                    && upgradeSlotId == selectedSlotId && target.HasValue && target.Value > selectedTarget.Value)
+                {
+                    removedIds.Add(item.Id);
+                }
+            }
+        }
+
+        // Requirement/orphan cascade fixpoint (mirrors CascadeRemoveUnsatisfiedBuildingQueueItems). The
+        // queue filter excludes already-doomed items so each pass validates against the trimmed queue.
+        bool changed;
+        do
+        {
+            changed = false;
+            foreach (var item in active.Where(i => IsBuildingMutationTask(i.TaskName) && !removedIds.Contains(i.Id)))
+            {
+                var status = ResolveBuildingStatusForQueueItem(item);
+                if (status is null)
+                {
+                    continue;
+                }
+
+                var baseFilter = BuildSameVillageQueueFilter(item);
+                bool Filter(QueueItem other) => baseFilter(other) && !removedIds.Contains(other.Id);
+                if (TryGetUnsatisfiedBuildingRemovalReason(item, status, Filter, out _))
+                {
+                    removedIds.Add(item.Id);
+                    changed = true;
+                    break;
+                }
+            }
+        }
+        while (changed);
+
+        return active.Where(item => item.Id != selected.Id && removedIds.Contains(item.Id)).ToList();
+    }
+
+    // Confirmation popup listing the follow-on items a removal would also drop. Returns true to proceed.
+    private bool ConfirmCascadingQueueRemoval(QueueItem selected, IReadOnlyList<QueueItem> alsoRemoved)
+    {
+        const int maxListed = 15;
+        var listed = alsoRemoved.Take(maxListed).Select(item => $"  • {BuildQueueDisplayName(item)}");
+        var body = string.Join("\n", listed);
+        if (alsoRemoved.Count > maxListed)
+        {
+            body += $"\n  • … and {alsoRemoved.Count - maxListed} more";
+        }
+
+        var message =
+            $"'{BuildQueueDisplayName(selected)}' is a prerequisite for {alsoRemoved.Count} other queued " +
+            $"item(s). Removing it will also remove the following, since they could no longer be built:\n\n" +
+            $"{body}\n\nRemove all of them?";
+
+        var choice = AppDialog.ShowCustom(
+            this,
+            message,
+            "Remove dependent queue items",
+            new (string, MessageBoxResult)[]
+            {
+                ("Remove all", MessageBoxResult.Yes),
+                ("Cancel", MessageBoxResult.Cancel),
+            },
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel,
+            MessageBoxResult.Cancel);
+        return choice == MessageBoxResult.Yes;
+    }
+
+    // When an "upgrade to level N" item is removed for a slot, the higher-level upgrades queued for the
+    // SAME slot are part of the same progression the user is cancelling. The worker loops each upgrade up
+    // to its target, so leaving them would keep climbing the building past the removed level. Remove every
+    // queued upgrade for this slot with a higher target (and any "upgrade to max", which always exceeds an
+    // explicit level). Lower-target upgrades are independent goals and are left untouched. Selected-village
+    // (or village-less) items only, matching the rest of the queue-cascade logic.
+    private void CascadeRemoveHigherSameSlotBuildingUpgrades(int slotId, int removedTargetLevel)
+    {
+        var higherUpgrades = GetActiveQueueItems()
+            .Where(IsQueueItemForSelectedVillageOrGlobal)
+            .Where(item =>
+            {
+                if (string.Equals(item.TaskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase)
+                    && TryReadBuildingUpgradePayload(item.Payload, out var maxSlotId, out _))
+                {
+                    return maxSlotId == slotId;
+                }
+
+                if (string.Equals(item.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+                    && TryReadBuildingUpgradePayload(item.Payload, out var upgradeSlotId, out var target))
+                {
+                    return upgradeSlotId == slotId && target.HasValue && target.Value > removedTargetLevel;
+                }
+
+                return false;
+            })
+            .ToList();
+
+        foreach (var item in higherUpgrades)
+        {
+            if (_botService.RemoveQueueItem(item.Id))
+            {
+                ForgetBuildingQueueCachesForItem(item);
+                AppendLog($"Removed queued {item.TaskName}: slot {slotId} upgrade above the removed level {removedTargetLevel}.");
+            }
+        }
+    }
+
+    // Resolves the selected village's building status for queue-cascade validation: the live snapshot when
+    // loaded, otherwise the cached status for that village. Null only when neither exists.
+    private VillageStatus? ResolveSelectedVillageBuildingStatus()
+    {
+        if (_lastBuildingStatus is not null)
+        {
+            return _lastBuildingStatus;
+        }
+
+        var name = NormalizeVillageName(GetSelectedVillageName());
+        return name is not null && _villageStatusCacheByName.TryGetValue(name, out var cached)
+            ? cached
+            : null;
+    }
+
+    // Building status for the village a queue item targets: live snapshot for the selected (or village-less)
+    // item, otherwise that village's cached status. Null when the village has no snapshot to validate against.
+    private VillageStatus? ResolveBuildingStatusForQueueItem(QueueItem item)
+    {
+        var villageName = NormalizeVillageName(GetQueueItemVillageName(item));
+        var selectedName = NormalizeVillageName(GetSelectedVillageName());
+        if (villageName is null
+            || (selectedName is not null && string.Equals(villageName, selectedName, StringComparison.OrdinalIgnoreCase)))
+        {
+            return ResolveSelectedVillageBuildingStatus();
+        }
+
+        return _villageStatusCacheByName.TryGetValue(villageName, out var cached) ? cached : null;
+    }
+
+    // Queue filter scoping requirement checks to the item's own village (plus village-less/global items).
+    // Prevents another village's queued work from falsely satisfying — or blocking — this village.
+    private Func<QueueItem, bool> BuildSameVillageQueueFilter(QueueItem item)
+    {
+        var villageName = NormalizeVillageName(GetQueueItemVillageName(item));
+        if (villageName is null)
+        {
+            return IsQueueItemForSelectedVillageOrGlobal;
+        }
+
+        return other =>
+        {
+            var otherVillage = NormalizeVillageName(GetQueueItemVillageName(other));
+            return otherVillage is null
+                || string.Equals(otherVillage, villageName, StringComparison.OrdinalIgnoreCase);
+        };
+    }
+
+    private bool TryGetUnsatisfiedBuildingRemovalReason(
+        QueueItem item,
+        VillageStatus status,
+        Func<QueueItem, bool> queueFilter,
+        out string reason)
     {
         reason = string.Empty;
 
@@ -140,7 +336,12 @@ public partial class MainWindow
                 return false;
             }
 
-            var missing = MissingRequirements(_lastBuildingStatus!, requirements);
+            // UI resource-tab rows only reflect the selected village, so include them only for it.
+            var missing = MissingRequirements(
+                status,
+                requirements,
+                queueFilter,
+                includeUiResourceRows: IsQueueItemForSelectedVillageOrGlobal(item));
             if (missing.Count > 0)
             {
                 reason = $"slot {constructSlotId} requirement no longer met ({string.Join(", ", missing.Select(req => $"{req.Name} {req.Level}+"))}).";
@@ -156,7 +357,7 @@ public partial class MainWindow
                 || string.Equals(item.TaskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase))
             && TryReadBuildingUpgradePayload(item.Payload, out var upgradeSlotId, out _))
         {
-            var slotIsBuilt = _lastBuildingStatus!.Buildings
+            var slotIsBuilt = status.Buildings
                 .Any(b => b.SlotId == upgradeSlotId && (b.Level ?? 0) > 0);
             if (slotIsBuilt)
             {
@@ -164,7 +365,7 @@ public partial class MainWindow
             }
 
             var constructQueuedForSlot = GetActiveQueueItems()
-                .Where(IsQueueItemForSelectedVillageOrGlobal)
+                .Where(queueFilter)
                 .Any(other => string.Equals(other.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase)
                     && TryReadBuildingConstructPayload(other.Payload, out var otherSlotId, out _, out _)
                     && otherSlotId == upgradeSlotId);
@@ -203,6 +404,14 @@ public partial class MainWindow
         if (!string.IsNullOrWhiteSpace(selectedVillageUrl))
         {
             payload[BotOptionPayloadKeys.TargetVillageUrl] = selectedVillageUrl;
+        }
+
+        // Stamp the stable coordinate key so the item's village identity survives renames and a
+        // lost-then-refounded village that shares a name (name/url alone resolve to the wrong village).
+        var selectedVillageKey = GetSelectedVillageKey();
+        if (!string.IsNullOrWhiteSpace(selectedVillageKey))
+        {
+            payload[BotOptionPayloadKeys.TargetVillageKey] = selectedVillageKey;
         }
 
         // Gate NPC trade per village: enabled only when the account-wide master (Auto settings) AND this

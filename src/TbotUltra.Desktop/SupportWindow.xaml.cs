@@ -5,6 +5,8 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
+using TbotUltra.Desktop.Services;
 
 namespace TbotUltra.Desktop;
 
@@ -15,13 +17,43 @@ public partial class SupportWindow : Window
 
     private readonly string _projectRoot;
     private readonly IReadOnlyList<string> _terminalEntries;
+    private readonly string _currentVersion;
+    private readonly UpdateChecker.UpdateStatus? _updateStatus;
 
-    public SupportWindow(string projectRoot, IReadOnlyList<string> terminalEntries)
+    public SupportWindow(
+        string projectRoot,
+        IReadOnlyList<string> terminalEntries,
+        string currentVersion,
+        UpdateChecker.UpdateStatus? updateStatus)
     {
         InitializeComponent();
         ThemeChrome.EnableEarlyDarkTitleBar(this);
         _projectRoot = projectRoot;
         _terminalEntries = terminalEntries;
+        _currentVersion = string.IsNullOrWhiteSpace(currentVersion) ? "dev" : currentVersion;
+        _updateStatus = updateStatus;
+        ApplyVersionButtonState();
+    }
+
+    // Amber when a newer release exists, neutral grey otherwise — same tinted style as the other buttons.
+    private void ApplyVersionButtonState()
+    {
+        var updateAvailable = _updateStatus?.UpdateAvailable == true;
+        var bg = updateAvailable ? "WarningBgBrush" : "SurfaceBrush";
+        var border = updateAvailable ? "WarningBorderBrush" : "BorderMutedBrush";
+        var text = updateAvailable ? "WarningTextBrush" : "TextMutedBrush";
+        VersionButton.Background = (Brush)FindResource(bg);
+        VersionButton.BorderBrush = (Brush)FindResource(border);
+        VersionButton.Foreground = (Brush)FindResource(text);
+        VersionButton.ToolTip = updateAvailable
+            ? $"Update available: v{_updateStatus!.Release!.LatestVersion}"
+            : "Check the app version";
+    }
+
+    private void VersionButton_Click(object sender, RoutedEventArgs e)
+    {
+        var window = new VersionWindow(_currentVersion, _updateStatus) { Owner = this };
+        window.ShowDialog();
     }
 
     private void DiscordButton_Click(object sender, RoutedEventArgs e)

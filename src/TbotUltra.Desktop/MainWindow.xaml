@@ -302,7 +302,7 @@
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
                     <!-- Session pacing / Next sleep (background pulses via code) -->
                     <!-- Fixed width so the card does not resize as the status text/Run now button changes. -->
-                    <Border x:Name="SessionPacingBorder" Style="{StaticResource MetricCard}" Width="176">
+                    <Border x:Name="SessionPacingBorder" Style="{StaticResource MetricCard}" Width="172">
                         <StackPanel>
                             <TextBlock Text="Session" Style="{StaticResource MetricLabel}" />
                             <StackPanel Orientation="Horizontal">
@@ -365,7 +365,7 @@
                     </Border>
 
                     <!-- Fixed width so the clock value does not jiggle the card as the time updates. -->
-                    <Border Style="{StaticResource MetricCard}" Width="152">
+                    <Border Style="{StaticResource MetricCard}" Width="174">
                         <StackPanel>
                             <TextBlock Text="Time" Style="{StaticResource MetricLabel}" />
                             <StackPanel Orientation="Horizontal">
@@ -3096,6 +3096,7 @@
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                         <Button x:Name="QueueRemoveButton" Content="Remove" Width="76" Click="QueueRemoveButton_Click" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" />
+                                        <Button x:Name="QueueRedoButton" Content="Redo" Width="76" Margin="6,0,0,0" Click="QueueRedoButton_Click" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" ToolTip="Bring back the queue item(s) removed by the last Remove" />
                                         <Rectangle Width="1" Fill="{DynamicResource BorderSubtleBrush}" Margin="10,3,10,3" />
                                         <Button x:Name="QueueMoveUpButton" Content="↑" Width="36" Click="QueueMoveUpButton_Click" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" ToolTip="Move up" />
                                         <Button x:Name="QueueMoveDownButton" Content="↓" Width="36" Margin="6,0,0,0" Click="QueueMoveDownButton_Click" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" ToolTip="Move down" />

@@ -11,6 +11,7 @@ using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Accounts;
 using TbotUltra.Core.Tasks;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Worker;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
@@ -1234,8 +1235,21 @@ public partial class MainWindow
     }
 
     private List<BuildingRequirementEntry> MissingRequirements(VillageStatus status, IReadOnlyList<BuildingRequirementEntry> requirements)
+        => MissingRequirements(status, requirements, IsQueueItemForSelectedVillageOrGlobal, includeUiResourceRows: true);
+
+    // Per-village requirement check. `queueFilter` scopes which queued items count toward satisfying a
+    // requirement (selected-village-or-global for the UI, same-village-or-global for the cascade so another
+    // village's queue can't falsely satisfy — or block — this village). `includeUiResourceRows` adds the
+    // live Resources-tab levels, which only reflect the selected village, so it is off for other villages
+    // (their resource-field levels come from the cached status instead).
+    private List<BuildingRequirementEntry> MissingRequirements(
+        VillageStatus status,
+        IReadOnlyList<BuildingRequirementEntry> requirements,
+        Func<QueueItem, bool> queueFilter,
+        bool includeUiResourceRows)
     {
-        var projectedStatus = BuildProjectedBuildingStatus(status);
+        var villageItems = GetActiveQueueItems().Where(queueFilter).ToList();
+        var projectedStatus = BuildProjectedBuildingStatus(status, villageItems);
         var missing = new List<BuildingRequirementEntry>();
         foreach (var requirement in requirements)
         {
@@ -1251,19 +1265,27 @@ public partial class MainWindow
                 .Select(item => item.Level!.Value)
                 .DefaultIfEmpty(0)
                 .Max();
-            var fromUiResourceRows = MaxLevelInUiResourceRows(requirement.Name);
+            var fromUiResourceRows = includeUiResourceRows ? MaxLevelInUiResourceRows(requirement.Name) : 0;
             // A queued (not yet built) construct of the required building counts as level 1: constructing
             // a building yields level 1 in-game, so queuing a prerequisite building should already unlock
             // the dependent one. Construct+upgrade chains are covered by projectedStatus above (the upgrade
             // projects the target level onto the constructed slot); this only adds the lone-construct case.
-            var fromQueuedConstructs = QueuedConstructProvidesRequirement(requirement.Name) ? 1 : 0;
+            var fromQueuedConstructs = QueuedConstructProvidesRequirement(requirement.Name, villageItems) ? 1 : 0;
             // A queued (pending) resource-field upgrade to level N satisfies a resource-field prerequisite
             // (e.g. Iron Mine 10 for an Iron Foundry) before it finishes, matching how queued building
             // upgrades/constructs already unlock dependent buildings.
-            var fromQueuedResourceUpgrades = MaxQueuedResourceUpgradeLevel(requirement.Name);
+            var fromQueuedResourceUpgrades = MaxQueuedResourceUpgradeLevel(requirement.Name, villageItems);
+            // A building currently under construction (browser-confirmed active queue) to level N satisfies a
+            // prerequisite before it finishes — e.g. the user manually started Academy 15, so Hospital (which
+            // requires Academy 15) can be queued now. The worker still defers the dependent build until the
+            // prerequisite actually completes. Mirrors how queued program constructs/upgrades above unlock
+            // dependent buildings, but covers in-progress builds the program did not queue itself.
+            var fromActiveConstructions = MaxActiveConstructionLevel(status, requirement.Name);
             var level = Math.Max(
                 Math.Max(fromBuildings, fromResourceFields),
-                Math.Max(Math.Max(fromUiResourceRows, fromQueuedConstructs), fromQueuedResourceUpgrades));
+                Math.Max(
+                    Math.Max(fromUiResourceRows, fromQueuedConstructs),
+                    Math.Max(fromQueuedResourceUpgrades, fromActiveConstructions)));
             if (level < requirement.Level)
             {
                 missing.Add(requirement);
@@ -1273,25 +1295,53 @@ public partial class MainWindow
         return missing;
     }
 
-    private bool QueuedConstructProvidesRequirement(string requirementName)
+    private static bool QueuedConstructProvidesRequirement(string requirementName, IReadOnlyList<QueueItem> villageItems)
     {
         if (string.IsNullOrWhiteSpace(requirementName))
         {
             return false;
         }
 
-        return GetActiveQueueItems()
-            .Where(IsQueueItemForSelectedVillageOrGlobal)
+        return villageItems
             .Where(item => string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase))
             .Any(item => TryReadBuildingConstructPayload(item.Payload, out _, out _, out var name)
                 && !string.IsNullOrWhiteSpace(name)
                 && name.Contains(requirementName, StringComparison.OrdinalIgnoreCase));
     }
 
+    // How recently an in-progress build must have been read to be trusted as satisfying a prerequisite.
+    // A build the user cancels in the browser lingers in the cached snapshot until the next scan; bounding
+    // reliance to a fresh read keeps a stale (possibly cancelled) one from unlocking dependents indefinitely.
+    private static readonly TimeSpan ActiveConstructionRequirementFreshness = TimeSpan.FromMinutes(30);
+
+    // Highest target level of a building currently under construction (browser-confirmed ActiveConstructions)
+    // whose name matches the prerequisite. Counts in-progress builds the program did not queue itself (e.g. a
+    // user-started Academy upgrade), so a dependent building can be queued ahead and built once the
+    // prerequisite finishes. Returns 0 when no active construction matches.
+    private static int MaxActiveConstructionLevel(VillageStatus status, string requirementName)
+    {
+        if (string.IsNullOrWhiteSpace(requirementName))
+        {
+            return 0;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        return ConstructionQueueState.ResolveCurrentActiveConstructions(status)
+            .Where(item => item.Level is not null
+                && !string.IsNullOrWhiteSpace(item.Name)
+                && item.Name.Contains(requirementName, StringComparison.OrdinalIgnoreCase)
+                // Only a freshly read build is trusted (see ActiveConstructionRequirementFreshness). Items
+                // without a read timestamp keep the prior behavior rather than being dropped.
+                && (item.Finish is null || now - item.Finish.ReadAtUtc <= ActiveConstructionRequirementFreshness))
+            .Select(item => item.Level!.Value)
+            .DefaultIfEmpty(0)
+            .Max();
+    }
+
     // Highest target level of a queued (pending) resource-field upgrade for the prerequisite's resource
     // category (Woodcutter/Clay Pit/Iron Mine/Cropland). Returns 0 for non-resource requirements.
     // upgrade_all_resources_to_level raises every field, so its target counts for any resource category.
-    private int MaxQueuedResourceUpgradeLevel(string requirementName)
+    private static int MaxQueuedResourceUpgradeLevel(string requirementName, IReadOnlyList<QueueItem> villageItems)
     {
         var reqCategory = ResourceCategory(requirementName);
         if (reqCategory is null)
@@ -1300,7 +1350,7 @@ public partial class MainWindow
         }
 
         var best = 0;
-        foreach (var item in GetActiveQueueItems().Where(IsQueueItemForSelectedVillageOrGlobal))
+        foreach (var item in villageItems)
         {
             var payload = item.Payload;
             int? target = null;

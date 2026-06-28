@@ -1,6 +1,7 @@
 ## Läs först
 - Läs och följ `docs/ENGINEERING_NOTES.md` innan du ändrar selektorer, sökvägar eller serverlogik.
 - Den innehåller projektets konventioner, regler för de två servervarianterna (Official/SS-Travi), beslutslogg och kända fallgropar — följ dem och uppdatera filen löpande med relevanta delar.
+- `docs/ARCHITECTURE.md` är fil- och funktionskartan: var varje feature bor + namn-/strukturkonventioner. Använd för att hitta rätt fil snabbt och håll den uppdaterad när strukturen ändras.
 
 ## Kodregler
 - Försök att inte ändra kod som inte behöver ändras.
@@ -11,7 +12,7 @@
 - All kod skrivs på engelska. UI ska vara på engelska.
 - Duplicera inte kod i onödan. Försök återanvända om det går.
 - Skriv kod som går att återanvända och är enkel att underhålla och felsöka
-- Skriv loggar i nya funktioner med mer så det enkelt går att felöka i framtiden
+- Skriv loggar i nya funktioner så det enkelt går att felöka i framtiden
 
 ## Hjälpfunktioner
 - Skapa inte hjälpfunktioner enbart för att minska antalet kodrader.

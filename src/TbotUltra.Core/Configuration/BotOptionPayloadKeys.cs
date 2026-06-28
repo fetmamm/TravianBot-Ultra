@@ -4,6 +4,10 @@ public static class BotOptionPayloadKeys
 {
     public const string TargetVillageName = "target_village_name";
     public const string TargetVillageUrl = "target_village_url";
+    // Stable per-village identity (coordinate key, e.g. "xy:24|-65") stamped at enqueue time. Coordinates
+    // survive renames AND lost-and-refounded villages that share a name, so queue gating/rotation never
+    // resolve a queue item to the wrong village by name. Older items without this fall back to name/url.
+    public const string TargetVillageKey = "target_village_key";
 
     public const string ResourceUpgradeSlotId = "resource_upgrade_slot_id";
     public const string ResourceUpgradeTargetLevel = "resource_upgrade_target_level";
@@ -38,6 +42,10 @@ public static class BotOptionPayloadKeys
     public const string UpgradeDeferReasonRequirements = "requirements";
     public const string UpgradeDeferReasonStorageCapacity = "storage_capacity";
     public const string UpgradeDeferReasonRetry = "retry";
+    // Consecutive requirement-defer counter. Requirement defers do not consume Retries (the prerequisite
+    // could still arrive), so this bounds how long an item whose prerequisite never comes keeps retrying
+    // before it is abandoned. Reset whenever the item defers for any other reason or makes progress.
+    public const string RequirementDeferCount = "requirement_defer_count";
     public const string StorageDependencyParentId = "storage_dependency_parent_id";
     public const string StorageDependencyItemId = "storage_dependency_item_id";
     public const string StorageDependencyKind = "storage_dependency_kind";
@@ -70,10 +78,10 @@ public static class BotOptionPayloadKeys
     public const string ReduceAdventureTime = "reduce_adventure_time";
     public const string AutoCollectTasksEnabled = "auto_collect_tasks_enabled";
     public const string AutoCollectDailyQuestsEnabled = "auto_collect_daily_quests_enabled";
-    // Randomized delay (ms) between internal clicks/steps in the auto-collect tasks/daily-quests
+    // Randomized delay (seconds) between internal clicks/steps in the auto-collect tasks/daily-quests
     // flows only. Min/max; set both to 0 to disable. Keeps these fast bursts from looking robotic.
-    public const string CollectStepDelayMinMs = "collect_step_delay_min_ms";
-    public const string CollectStepDelayMaxMs = "collect_step_delay_max_ms";
+    public const string CollectStepDelayMinSeconds = "collect_step_delay_min_seconds";
+    public const string CollectStepDelayMaxSeconds = "collect_step_delay_max_seconds";
     public const string HeroResourceTransferEnabled = "hero_resource_transfer_enabled";
     // Caps how much may be pulled from the hero inventory per resource for a single construction
     // top-up. When the needed amount for any resource exceeds the limit, the transfer is skipped and
@@ -183,6 +191,7 @@ public static class BotOptionPayloadKeys
     public const string SessionPacingVariationPercent = "session_pacing_variation_percent";
     public const string SessionPacingAllowedHours = "session_pacing_allowed_hours";
     public const string SessionPacingDailyMaxHours = "session_pacing_daily_max_hours";
+    public const string SessionPacingDailyMaxVariationPercent = "session_pacing_daily_max_variation_percent";
     public const string SessionPacingRuntimeDate = "session_pacing_runtime_date";
     public const string SessionPacingRuntimeSeconds = "session_pacing_runtime_seconds";
     public const string SessionPacingDailyHistory = "session_pacing_daily_history";

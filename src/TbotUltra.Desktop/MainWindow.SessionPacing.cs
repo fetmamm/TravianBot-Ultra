@@ -81,7 +81,8 @@ public partial class MainWindow
             ReadAllowedHours(config),
             ReadInt(config, BotOptionPayloadKeys.SessionPacingDailyMaxHours, PacingDefaults.SessionPacingDailyMaxHours, 0, 24),
             ReadRuntimeDate(config),
-            ReadDouble(config, BotOptionPayloadKeys.SessionPacingRuntimeSeconds, 0, 0, 86400)),
+            ReadDouble(config, BotOptionPayloadKeys.SessionPacingRuntimeSeconds, 0, 0, 86400),
+            ReadInt(config, BotOptionPayloadKeys.SessionPacingDailyMaxVariationPercent, PacingDefaults.SessionPacingDailyMaxVariationPercent, 0, 50)),
             reloadRuntime);
     }
 
@@ -289,6 +290,9 @@ public partial class MainWindow
         SessionPacingRunNowButton.Visibility = _sessionPacer.CanWakeNow
             ? Visibility.Visible
             : Visibility.Collapsed;
+        SessionPacingRunNowButton.ToolTip = _sessionPacer.SleepReason == SessionSleepReason.Schedule
+            ? "Run now (override the off-hours schedule)"
+            : "Run now";
         UpdateSessionPacingTooltip();
         ApplySessionSleepingUiState();
 
@@ -316,29 +320,44 @@ public partial class MainWindow
     private void DailyPacingDetailsButton_Click(object sender, RoutedEventArgs e)
     {
         var progress = _sessionPacer.GetDailyProgress();
-        var weekRows = BuildDailyPacingWeekRows(progress, out var weekTotalText);
+        var dayRows = BuildDailyPacingDayRows(progress, out var weekTotalText, out var accountTotalText, out var chartPoints);
         var taskRows = BuildDailyPacingTaskRows();
         var window = new DailyPacingDetailsWindow(
             FormatDailyDetailsDuration(progress.OnlineToday),
             progress.TimeLeft is null ? "Off" : FormatDailyDetailsDuration(progress.TimeLeft.Value),
             progress.Limit is null ? "Off" : FormatDailyDetailsDuration(progress.Limit.Value),
             weekTotalText,
-            weekRows,
-            taskRows)
+            accountTotalText,
+            dayRows,
+            taskRows,
+            chartPoints)
         {
             Owner = this,
         };
         window.ShowDialog();
     }
 
-    private IReadOnlyList<DailyPacingDayRow> BuildDailyPacingWeekRows(SessionPacerDailyProgress progress, out string weekTotalText)
+    // Builds one row per recorded day (no day cap — covers the account's full history), plus the chart
+    // series. Outputs both the last-7-day "Week total" and the all-time "Account total".
+    private IReadOnlyList<DailyPacingDayRow> BuildDailyPacingDayRows(
+        SessionPacerDailyProgress progress,
+        out string weekTotalText,
+        out string accountTotalText,
+        out IReadOnlyList<DailyPacingChartPoint> chartPoints)
     {
         var history = ReadDailyPacingHistory()
             .ToDictionary(entry => entry.Date);
-        var rows = new List<DailyPacingDayRow>();
-        var totalOnline = TimeSpan.Zero;
 
-        for (var date = progress.Date.AddDays(-6); date <= progress.Date; date = date.AddDays(1))
+        // Span from the earliest recorded day (or today if none) to today, filling gap days with zero so
+        // the list and graph read continuously day by day.
+        var earliest = history.Keys.Append(progress.Date).Min();
+        var rows = new List<DailyPacingDayRow>();
+        var points = new List<DailyPacingChartPoint>();
+        var totalOnline = TimeSpan.Zero;
+        var weekOnline = TimeSpan.Zero;
+        var weekCutoff = progress.Date.AddDays(-6);
+
+        for (var date = earliest; date <= progress.Date; date = date.AddDays(1))
         {
             var online = TimeSpan.Zero;
             TimeSpan? limit = null;
@@ -357,15 +376,26 @@ public partial class MainWindow
             }
 
             totalOnline += online;
+            if (date >= weekCutoff)
+            {
+                weekOnline += online;
+            }
 
             rows.Add(new DailyPacingDayRow(
                 date.ToString("yyyy-MM-dd"),
                 FormatDailyDetailsDuration(online),
                 limit is null ? "Off" : FormatDailyDetailsDuration(limit.Value),
                 FormatDailyUsage(online, limit)));
+
+            points.Add(new DailyPacingChartPoint(
+                date.ToString("MM-dd"),
+                online.TotalHours,
+                limit?.TotalHours));
         }
 
-        weekTotalText = FormatDailyDetailsDuration(totalOnline);
+        weekTotalText = FormatDailyDetailsDuration(weekOnline);
+        accountTotalText = FormatDailyDetailsDuration(totalOnline);
+        chartPoints = points;
         return rows.OrderByDescending(row => row.Date).ToList();
     }
 
@@ -402,9 +432,10 @@ public partial class MainWindow
 
     private void UpsertDailyPacingHistory(JsonObject config, SessionPacerDailyProgress progress)
     {
-        var cutoff = progress.Date.AddDays(-6);
+        // Keep the FULL history (no day cap) so Account total and the day-by-day list/graph cover all time.
+        // One entry per day is tiny, so the unbounded growth is negligible on disk.
         var entries = ReadDailyPacingHistory(config)
-            .Where(entry => entry.Date >= cutoff && entry.Date <= progress.Date)
+            .Where(entry => entry.Date <= progress.Date)
             .ToDictionary(entry => entry.Date);
 
         entries[progress.Date] = new DailyPacingHistoryEntry(
@@ -573,7 +604,11 @@ public partial class MainWindow
             && _isLoggedIn
             && !_accountScanInProgress
             && (!_uiBusy || automationActive));
-        SetEnabled(VillageComboBox, !sleeping && !_uiBusy);
+        // Selecting a village in the combo is a pure view/queue-context change (cached data only — it never
+        // navigates the browser or wakes the bot; see VillageComboBox_SelectionChanged). Keep it usable while
+        // sleeping so the user can browse villages and inspect queues. The actual "Switch village" move still
+        // blocks during sleep (SwitchToActiveVillageAsync -> BlockIfSessionSleeping), so sleep stays unbroken.
+        SetEnabled(VillageComboBox, !_uiBusy);
         SetEnabled(AnalyzeFarmListsButton, !sleeping && !_farmingOperationBusy);
         SetEnabled(FarmListSendAllNowButton, !sleeping && !_farmingOperationBusy && _farmingFeaturesAvailable && _farmLists.Any(IsRealFarmListRow));
         SetEnabled(AnalyzeNatarsProfileButton, !sleeping && !_farmingOperationBusy && _farmingFeaturesAvailable);

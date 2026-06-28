@@ -13,17 +13,38 @@ Aktivt beslut, 2026-06-20. Detaljerna bakom de korta reglerna i
   `img.unit.uNN` eller `t=tN`, inte radordning (oresearchade trupper saknar rad). Pagaende research lases
   ENBART fran `table.under_progress .timer`; radens `.inlineIcon.duration` ar byggtid, inte progress.
   "Research is already being conducted." = ko upptagen; "Exchange resources"/"Enough resources on" = resursbrist.
+  "Smithy level too low" = truppen ar vid smithyns nivatak -> `SmithyTroopOutcome.SmithyLevelTooLow`, TERMINAL
+  (skippas, inte defer). Utan detta hamnade trupp under mal men vid taket i InProgress-fallbacken och spammade
+  tasken nar anvandarens malniva lag over smithyns niva.
 - Valda trupper + malnivaer sparas konto-scopeat i `smithy_upgrade.json` och skickas som task-payload
   `smithy_upgrade_targets="u21=20;..."`; tom payload = no-op. Stateless tolkning i `SmithyPageParser` (Core, enhetstestad).
   Den kontinuerliga loopen injicerar payloaden per by (`MainWindow.ContinuousLoop`) — utan den blir loop-tasken no-op.
 - Vanta in actionable sida med `WaitForPageReadyAsync` fore radlasning. Resursbrist: om `hero_resource_transfer_enabled`
   och Official klickas truppens egen `.inlineIcon.resource.transfer` och "Transfer selected" bekraftas endast nar Travian
   aktiverar den (hero racker); ett forsok per trupp/korning. Maste smithyn sjalv byggas och byggkon ar full -> defer pa
-  `UpgradeBuildingToMaxAsync`-resultatets `queue_wait_seconds` (ingen idé att forsoka nar byggkon ar full). Plus: tva
-  forbattringar kan ko:as om raden fortsatt visar Improve efter forsta klicket.
+  `UpgradeBuildingToMaxAsync`-resultatets `queue_wait_seconds` (ingen idé att forsoka nar byggkon ar full).
+- Plus ger TVA samtidiga research-slots (som andra byggkon). `UpgradeSelectedTroopsAtSmithyAsync` laser Plus
+  via `GetCachedTribeAndPlusAsync` -> `maxConcurrentUpgrades = plus ? 2 : 1`, klickar en Improve per pass och
+  laser om for att fylla nasta slot. Aktivt antal = `under_progress`-rader (`dashQueue.Count`). Defer pa
+  research-kotimern ENDAST nar kon ar full (`activeCount >= maxConcurrentUpgrades`) eller en ledig slot inte
+  kunde fyllas efter stall-retries; med ledig fyllbar slot vantas pa resurs-ETA/moderat omkoll i stallet for
+  att inte lata slot 2 sta tom timmar. Efter ett klick kan React-omrendering doja nasta Improve-knapp -> upp
+  till 3 reload-forsok (`consecutiveFreeSlotStallReads`) innan defer, sa racet inte lamnar slot 2 tom.
 - Worker emitterar `[smithy-queue] entries_json=...` fran verkliga `under_progress`-rader. Desktop lagrar
   namn, malniva och absolut sluttid i byns `SmithyUpgradeStatus`; Queue-ruta, ikoner och loopkort laser
   samma SOT. Tom/glitch-lasning far inte radera en aktiv framtida ko; posten forsvinner nar sluttiden passeras.
+- Inget kvar att gora: nar ALLA valda trupper ar terminala (at-target/maxed/smithy-too-low/not-researched)
+  och inget forbattrades (`pending==0 && improved==0`) returnerar workern `"Smithy: All done — ..."`.
+  `ThrowIfTroopsGroupBlocked` kastar da `TaskBlockedPermanentlyException(troops_blocked=all_done)`; desktop
+  (`TryHandleTroopsBlockedExecutionAsync`) stanger av Troops-gruppen PER BY via
+  `DisableTroopsGroupForQueueItemVillage` -> `PersistAutomationGroupEnabledForVillage(by, false, "troops")`
+  (kobyns `EnabledGroups`). Andra byar med egna smithy-val fortsatter alltsa kora. Ateruppta: valj trupper i
+  upgrade-options-popupen (icke-tom, single/sync re-enablar byns Troops-grupp) eller sla pa byns Troops-toggle
+  i village settings.
+- BADE `all_done` OCH `troops_blocked=smithy_missing` ar per by — en by kan ha smithy med inget kvar att gora
+  medan en annan saknar smithy helt. Bada gar genom `DisableTroopsGroupForQueueItemVillage` (efter att
+  smithy_missing forst verifierats via `VerifySmithyMissingAsync`). Det globala `SetTroopsBlockedState` anvands
+  bara som fallback nar tasken saknar bykontext.
 
 ## Bygg trupper (Barracks/Stable/Workshop)
 

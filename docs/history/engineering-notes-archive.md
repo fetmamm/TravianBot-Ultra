@@ -100,6 +100,17 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
 
 ## 4. Beslutslogg (ADR — append-only)
 
+- **2026-06-28** — **Kontospecifik proxy (egress-IP per konto).** Nya per-konto-nycklar i `.env`
+  (`TBOT_<NAME>_PROXY_ENABLED`, `TBOT_<NAME>_PROXY_SERVER`) hanteras i `EnvAccountStore` (Desktop, write)
+  och `EnvAccountProvider` (Worker, read) → `AccountOptions.ProxyEnabled/ProxyServer`. UI: checkbox
+  "Use proxy" (OFF default) + serverfält i `AccountsWindow`. Proxyn appliceras på **en** punkt —
+  `BrowserSession.CreateChromiumLaunchOptions` (launch-nivå) — så alla kontexter (huvud/bonus-video/
+  isolerad) ärver den och ingen trafik läcker förbi. Formatlogik (host:port, scheme://, inline
+  `user:pass@`, maskering, Chromium-proxyfelkoder) ligger i `ProxyParser` (Worker, enhetstestad).
+  Dött/felkonfigurerat proxy ger tydligt `[proxy]`-fel i `GotoAsync` istället för att se ut som
+  Travian-strul. Gäller från nästa session-start (kontobyte = full omstart). SOCKS+auth stöds ej av
+  Chromium → varning loggas. WebRTC/DNS-läckhärdning och flera samtidiga instanser: utanför scope.
+
 - **2026-06-09** — **Construct klassificerar blockering innan navigerande verifiering.**
   Vid utebliven construct-knapp lases resursbrist och krav medan den riktiga slot/category-sidan fortfarande
   ar oppen. Ko-/progresskontroller far darefter navigera till `dorf2`; innan ett sista retry oppnas och
@@ -226,6 +237,54 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   fortsätter samma nedräkning i stället för att skapa en ny varierad session. Endast bekräftad
   **Stop bot** (samt appstängning) gör full `Reset`. Hero resource max-use-defaulten är åter 5000
   både i `BotOptionsFactory` och standardkonfigurationen.
+
+- **2026-06-23** — **Byggkö-borttagning: robustare kaskad + kedjeavbrott + Redo + bounded requirement-defer.**
+  (1) `MaxActiveConstructionLevel` (`MainWindow.Buildings.cs`) räknar nu in browser-bekräftade pågående
+  byggen mot krav, så en användarstartad t.ex. Academy 15 låser upp köläggning av beroende byggnad
+  (workern deferrar tills den faktiskt är klar). Endast färska läsningar räknas
+  (`ActiveConstructionRequirementFreshness` 30 min) så ett avbrutet bygge i cachen inte låser upp i all
+  evighet. (2) Att ta bort en `upgrade_building_to_level` (slot S, niv N) tar via
+  `CascadeRemoveHigherSameSlotBuildingUpgrades` även bort köade upgrades för samma slot med högre target
+  (+ `upgrade_building_to_max`) — workern loopar annars upp byggnaden förbi den borttagna nivån. Lägre
+  targets lämnas. (3) `CascadeRemoveUnsatisfiedBuildingQueueItems` validerar nu **per by** (inte bara vald
+  by) mot respektive bys live/cachade status, och faller tillbaka på cache när live-snapshot saknas. Krav-
+  kollen (`MissingRequirements`/`QueuedConstructProvidesRequirement`/`MaxQueuedResourceUpgradeLevel`)
+  tar en `queueFilter` så en annan bys kö inte falskt uppfyller/blockerar. (4) Construct vars krav aldrig
+  kommer (kaskad missade) deferrade förut för evigt (requirement-defer förbrukar inte Retries); nu räknas
+  upp till `MaxConsecutiveRequirementDefers` (12) och itemet abandonas (Failed + larm) — men aldrig medan
+  byn har ett aktivt bygge (`VillageHasActiveConstruction`), så ett legitimt pågående kravbygge inte
+  avbryts. Payload-nyckel `requirement_defer_count`. (5) Ny **Redo**-knapp (`QueueRedoButton`) återställer
+  itemen som senaste Remove tog bort (selected + kaskaderade), via before/after-diff; engångs.
+  (6) Remove på en kravbyggnad med efterföljande beroenden visar nu en bekräftelsedialog som listar exakt
+  vilka köposter som också tas bort (`ComputeBuildingQueueRemovalPreview` — icke-muterande dry-run som
+  speglar borttagningsordningen, `ConfirmCascadingQueueRemoval`). Ingen dialog när inget beroende dras med.
+
+- **2026-06-23** — **Uppdateringskoll mot GitHub (Fas 1: upptäck + ladda ner).** Ny `UpdateChecker`
+  (`Services/UpdateChecker.cs`) läser nuvarande version ur `VERSION`-filen bredvid exe:n (fallback "dev")
+  och frågar `api.github.com/repos/fetmamm/Tbot_ultra_new/releases/latest` (kräver User-Agent-header).
+  Jämför semver, plockar portable-asseten (`*-portable.zip` → `browser_download_url`). Allt fail-soft
+  (offline/rate-limit → "ingen ny version känd", inget larm). Körs fire-and-forget vid appstart efter
+  `LoadVersionToUi`; vid ny version tintas Support-knappen amber (`Warning*`-brushar) + tooltip. Contact-
+  popupen (`SupportWindow`) har en **Version**-knapp (grå=up-to-date/okänt, gul=ny version) som öppnar
+  `VersionWindow`: visar nuvarande/senaste version, **Download…** (SaveFileDialog → streamad nedladdning med
+  progress → visa i Utforskaren) och **GitHub releases**. README-badgen (v0.3.7) är inaktuell
+  mot `VERSION` (0.4.3) men används inte av appen (medvetet ej synkad).
+
+- **2026-06-23** — **Uppdatering Fas 2: ett-klicks self-update för portable.** Ny `SelfUpdater`
+  (`Services/SelfUpdater.cs`) + knapp **"Update & restart"** i `VersionWindow` (syns bara när ny version finns,
+  portable-asset finns och bygget inte är "dev" + exe heter `Tbot Ultra.exe`). Flöde: bekräftelsedialog →
+  ladda ner zip till `%LOCALAPPDATA%\TbotUltra\update` → packa upp → hitta app-mappen (innehåller
+  `Tbot Ultra.exe`) → skriv + starta ett **fristående PowerShell-uppdaterarskript** (synligt fönster med
+  status-label + marquee-progressbar) → `Application.Current.Shutdown()`. Skriptet väntar på appens PID,
+  kör `robocopy <staging> <install> /E` (overlay, inte /MIR) med **undantag** `/XD config logs playwright`
+  och `/XF .env`, startar om `Tbot Ultra.exe`, städar staging. Bevaras: hela `config/` (konton, **kö**,
+  settings, cacher, browser-session under `config/accounts/<konto>/session/`), `.env`, `logs/`,
+  `playwright/` (legacy auth). Skrivs över: exe/DLL:er, `VERSION`, `ms-playwright`, `.playwright`, captcha-
+  runtime. Extern process krävs eftersom appen inte kan skriva över sina egna körande filer; inga CI-/release-
+  ändringar (skriptet kopierar från den uppackade zip:en). Kvarvarande risker: robocopy utan /MIR raderar inte
+  filer som tagits bort i nya versionen (stale loose DLL:er kan ligga kvar, ofarligt för single-file), och en
+  avbruten overlay kan teoretiskt lämna blandade binärer (helt atomiskt mapp-swap går ej i portable). Om
+  `queue_clear_on_shutdown` är på rensas kön vid omstart enligt användarens egen setting.
 
 - **2026-06-08** — **Village overview tappar inte byggkö-status vid en partiell DOM-miss.**
   Dashboardens Buildings-ikoner drevs enbart av `ReadBuildQueueAsync`; om den breda kö-selektorn

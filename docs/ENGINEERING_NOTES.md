@@ -3,7 +3,7 @@
 > Las detta innan du andrar selektorer, sokvagar, konfiguration eller serverlogik.
 > Filen ar styrande och ska hallas kort, aktuell och under 300 rader.
 
-Se aven `AGENTS.md`, `CLAUDE.md`, `README.md` och `docs/REFACTOR_PLAN.md`.
+Se aven `docs/ARCHITECTURE.md` (fil- och funktionskarta), `AGENTS.md`, `CLAUDE.md`, `README.md`.
 Djupa mekanismdetaljer ligger i `docs/adr/` och historiken i `docs/history/`.
 
 ## 1. Projektoversikt
@@ -167,6 +167,13 @@ En ny formaga ska kunna enhetstestas till stor del utan browser. God-klasserna s
   tva poster. Fallback: newdid (`did:N`), sen namn (`name:..`). `VillageSettingsStore` kanoniserar via
   koordinater (`CanonicalKey`) och migrerar/slar ihop gamla `did:`-poster vid inlasning. Koobjekt bar bara
   namn/url -> namnbaserad nyckel; `NormalizeKey`/`ResolveCanonicalKey` mappar `name:..` till `xy:..`.
+- Koposter stamplar den stabila koordinatnyckeln (`target_village_key`) vid enqueue
+  (`ApplySelectedVillageToPayload`/`BuildVillageRuntimePayload`); `GetQueueItemVillageKey` laser den FORST
+  (fallback namn/url for gamla poster). Annars resolvas en ny by med ATERANVANT namn (forlorad + omgrundad)
+  till fel by och posterna gating:as/pausas bort. Forlorade byar rensas retention-baserat: en by som ar
+  bekraftat saknad (koordinatidentitet) ur login/scan-listan i `LostVillageRetention` (3 dygn) prunas och
+  dess kvarvarande Pending/Paused-koposter tas bort (`ConfirmedMissingSinceUtc` ->
+  `GetVillagesConfirmedMissingSince`/`RemoveVillages` + `ConfirmedVillageQueueReconciler.RemoveItemsForVillages`).
 - Login ska anvanda action pacing och vanta pa full sidladdning. Login-state `unknown` under navigation ar
   normalt en transient ladd-race; captcha, `manual_step` och `logged_out` ar inte det.
 - Playwright `Target crashed` ar transient: kassera shared browser-session, defer:a queue-posten kort och
@@ -201,6 +208,11 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
   `dorf2`, och krav success vara malspecifik (slot-level/matchande aktiv konstruktion). Saknade krav = temporar defer.
 - Byggnadsuppgradering far ateranvanda aktuell `build.php?id=N` for slot snapshot endast nar sidan ar ratt slot,
   inte stale och kan lasa niva + namn/gid; annars ska flodet falla tillbaka till `dorf2`.
+- Construct mot en slot som redan har byggnaden (stale construct-task, eller fast specialslot RP=39/Wall=40 som
+  finns fran grundning) far INTE ALARM:a pa saknad construct-choice-DOM. `ConstructBuildingAsync` lasar slotens
+  build-sida live (`TryReadExistingBuildingOnSlotBuildPageAsync`); bekraftad befintlig byggnad (level >= 1, ingen
+  `#contract_building*`) -> returnera "already exists at slot" som klassas `ConstructionTaskOutcome.AlreadyExists`
+  och desktop TAR BORT posten ur kon (`HandleQueueItemSucceededAsync`). Maste vara live-bekraftat fore borttagning.
 - `gid 13` ar Smithy (ingen separat Armoury pa `gid 12`). Smithy/trupptraning anvander browserbekraftade
   SOT-koer (`SmithyUpgradeStatus` / traningskon) och unit-id-ikon for truppidentitet.
 
@@ -286,7 +298,11 @@ Ingen omskrivning och inget nytt ramverk. Refaktorera stegvis och beteendebevara
 5. Infor ViewModel-granser panel for panel.
 
 Lamna `TravianClient`-partialernas fungerande navigations-/sekvenslogik orord vid ren refaktorering.
-Detaljer och matningar finns i `docs/REFACTOR_PLAN.md`.
+
+Seams finns nu (`IFarmingClient`/`IBuildingClient`/`IHeroClient`/`ICombatClient`/`ISessionClient`,
+implementerade direkt av `TravianClient`). Collaborator-extraktion bakom dem ar medvetet
+uppskjuten: gor en doman i taget med live-smoke-test mellan stegen, inte som obevakat svep.
+Detaljer: [ADR 2026-06-25](adr/2026-06-25-travianclient-seams.md).
 
 ## 9. Dokumentationsregler
 
@@ -310,3 +326,4 @@ Aldre beslut och detaljerad historik finns i:
 - [Construction queue och build-status](adr/2026-06-20-construction-queue.md)
 - [Smithy och trupptraning](adr/2026-06-20-smithy-troop-training.md)
 - [Map Oasis och kartparsning](adr/2026-06-20-map-oasis-scan.md)
+- [TravianClient-seams och refaktorstatus](adr/2026-06-25-travianclient-seams.md)

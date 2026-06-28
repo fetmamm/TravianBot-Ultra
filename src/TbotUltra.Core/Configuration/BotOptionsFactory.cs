@@ -179,8 +179,8 @@ public static class BotOptionsFactory
             ReduceAdventureTime = configuration.GetValue(BotOptionPayloadKeys.ReduceAdventureTime, false),
             AutoCollectTasksEnabled = configuration.GetValue(BotOptionPayloadKeys.AutoCollectTasksEnabled, true),
             AutoCollectDailyQuestsEnabled = configuration.GetValue(BotOptionPayloadKeys.AutoCollectDailyQuestsEnabled, true),
-            CollectStepDelayMinMs = configuration.GetValue(BotOptionPayloadKeys.CollectStepDelayMinMs, PacingDefaults.CollectStepDelayMinMs),
-            CollectStepDelayMaxMs = configuration.GetValue(BotOptionPayloadKeys.CollectStepDelayMaxMs, PacingDefaults.CollectStepDelayMaxMs),
+            CollectStepDelayMinSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.CollectStepDelayMinSeconds, PacingDefaults.CollectStepDelayMinSeconds)),
+            CollectStepDelayMaxSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.CollectStepDelayMaxSeconds, PacingDefaults.CollectStepDelayMaxSeconds)),
             HeroResourceTransferEnabled = configuration.GetValue(BotOptionPayloadKeys.HeroResourceTransferEnabled, true),
             HeroResourceMaxUseEnabled = configuration.GetValue(BotOptionPayloadKeys.HeroResourceMaxUseEnabled, true),
             HeroResourceMaxUsePerResource = configuration.GetValue(BotOptionPayloadKeys.HeroResourceMaxUsePerResource, 5000),
@@ -347,8 +347,8 @@ public static class BotOptionsFactory
             HeroResourceUseTownHall = source.HeroResourceUseTownHall,
             AutoCollectTasksEnabled = source.AutoCollectTasksEnabled,
             AutoCollectDailyQuestsEnabled = source.AutoCollectDailyQuestsEnabled,
-            CollectStepDelayMinMs = source.CollectStepDelayMinMs,
-            CollectStepDelayMaxMs = source.CollectStepDelayMaxMs,
+            CollectStepDelayMinSeconds = source.CollectStepDelayMinSeconds,
+            CollectStepDelayMaxSeconds = source.CollectStepDelayMaxSeconds,
             UpgradeSelectorProfile = source.UpgradeSelectorProfile,
             NatarVillageSelection = string.IsNullOrWhiteSpace(natarVillageSelectionOverride)
                 ? source.NatarVillageSelection

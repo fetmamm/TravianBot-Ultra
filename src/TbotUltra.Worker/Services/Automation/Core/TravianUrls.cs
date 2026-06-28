@@ -53,6 +53,17 @@ internal static class TravianUrls
             : null;
     }
 
+    // True only when the page is actually the build-slot page (build.php?id=slot). Other pages such as
+    // dorf2.php?id=slot&gid=N carry the same id= query param, so an id match alone is NOT enough to prove
+    // we are on the upgrade page — checking for build.php prevents reading/clicking the upgrade button on
+    // the village overview, which silently leaves the bot stuck on dorf2 ("could not find Upgrade to level").
+    internal static bool IsBuildPageForSlot(string? url, int slotId)
+    {
+        return !string.IsNullOrWhiteSpace(url)
+            && url.Contains("build.php", StringComparison.OrdinalIgnoreCase)
+            && ExtractSlotIdFromUrl(url) == slotId;
+    }
+
     internal static string SafePathSegment(string value)
     {
         if (string.IsNullOrWhiteSpace(value))

@@ -37,4 +37,45 @@ public static class ConfirmedVillageQueueReconciler
 
         return paused;
     }
+
+    /// <summary>
+    /// Removes the lingering queue items that belong to villages confirmed lost/destroyed (their keys are
+    /// in <paramref name="removedVillageKeys"/>). Only non-terminal junk is removed (Pending/Paused); a
+    /// Running item is left untouched, and Succeeded/Failed/Canceled history is kept. Returns the count
+    /// removed. Must be called BEFORE the village records are dropped so name-based key resolution still
+    /// maps legacy items to the removed village.
+    /// </summary>
+    public static int RemoveItemsForVillages(
+        IReadOnlyList<QueueItem> items,
+        IReadOnlySet<string> removedVillageKeys,
+        Func<QueueItem, string?> villageKeyOf,
+        Func<Guid, bool> removeItem)
+    {
+        if (items.Count == 0 || removedVillageKeys.Count == 0)
+        {
+            return 0;
+        }
+
+        var removed = 0;
+        foreach (var item in items)
+        {
+            if (item.Status is not (QueueStatus.Pending or QueueStatus.Paused))
+            {
+                continue;
+            }
+
+            var villageKey = villageKeyOf(item);
+            if (string.IsNullOrWhiteSpace(villageKey) || !removedVillageKeys.Contains(villageKey))
+            {
+                continue;
+            }
+
+            if (removeItem(item.Id))
+            {
+                removed++;
+            }
+        }
+
+        return removed;
+    }
 }

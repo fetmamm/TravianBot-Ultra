@@ -10,7 +10,9 @@ using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Worker.Services;
 
-public sealed partial class TravianClient
+// Building surface of the TravianClient facade. The interface list is declared
+// on this partial to co-locate the contract with the domain it covers.
+public sealed partial class TravianClient : IBuildingClient
 {
 
     public async Task<VillageStatus> ReadBuildingsStatusAsync(CancellationToken cancellationToken = default)
@@ -1070,7 +1072,7 @@ public sealed partial class TravianClient
         string operationLabel,
         CancellationToken cancellationToken)
     {
-        if (TravianUrls.ExtractSlotIdFromUrl(_page.Url) != slotId)
+        if (!TravianUrls.IsBuildPageForSlot(_page.Url, slotId))
         {
             await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
         }
@@ -1481,6 +1483,21 @@ public sealed partial class TravianClient
             }
             await GotoAsync(url, cancellationToken);
             await PauseForManualStepIfVisibleAsync($"Manual verification on slot {slotId} construct page.", cancellationToken);
+
+            // Confirmed already-built guard: a stale construct task can target a slot that already holds the
+            // building — e.g. a special fixed slot (Rally Point slot 39 / Wall slot 40 exist from founding)
+            // or a building that appeared since the task was queued. Such a slot's build page shows the
+            // building's upgrade UI, not a construct-choice page, so EnsureExpectedConstructChoicePageAsync
+            // would burn retries and ALARM. Wait for the build page, then if it confirms an existing building
+            // return a remove result so the queue drops the impossible task instead of failing it forever.
+            await WaitForBuildSlotContextAsync(slotId, 5000, cancellationToken);
+            var existingBuilding = await TryReadExistingBuildingOnSlotBuildPageAsync(slotId);
+            if (existingBuilding is { Level: >= 1 } built)
+            {
+                Notify($"[construct] slot {slotId} already holds '{built.Name}' level {built.Level} — confirmed already built; removing task from queue.");
+                return $"Construct skipped: {buildingName} already exists at slot {slotId} (confirmed '{built.Name}' level {built.Level}). Removing from queue.";
+            }
+
             await EnsureExpectedConstructChoicePageAsync(slotId, gid, url, "construct", cancellationToken);
 
             // Step 2: read build page state, duration and population from one page analysis.
@@ -1889,6 +1906,13 @@ public sealed partial class TravianClient
         }
         Notify($"Smithy found at slot {smithySlotId.Value}.");
 
+        // Travian Plus grants a second concurrent Smithy research slot (same idea as the second build queue
+        // slot for construction). Read it once so the loop greedily fills BOTH slots before deferring,
+        // instead of stopping after one. Unknown Plus is treated as 1 slot (conservative, never over-fills).
+        var (_, smithyPlusActive) = await GetCachedTribeAndPlusAsync(cancellationToken);
+        var maxConcurrentUpgrades = smithyPlusActive ? 2 : 1;
+        Notify($"Smithy: Plus={smithyPlusActive}; max concurrent upgrades={maxConcurrentUpgrades}.");
+
         // Targets still needing a decision, keyed by their identity (dedupes duplicate selections).
         var pending = new Dictionary<string, SmithyTroopTarget>(StringComparer.OrdinalIgnoreCase);
         foreach (var target in targetList)
@@ -1906,6 +1930,9 @@ public sealed partial class TravianClient
         var skipped = 0;
         var consecutiveEmptyReloads = 0;
         var consecutiveZeroDurationReloads = 0;
+        // A slot is free but the page showed no ready Improve button (usually a React re-render race right
+        // after starting a research). Bounded reloads to fill the free slot before giving up.
+        var consecutiveFreeSlotStallReads = 0;
         // Last Smithy research queue we reported to the dashboard ("[smithy-queue]"), to emit on change only.
         string? lastQueueCsv = null;
         // Troops we already tried to top up from the hero this run — bounds hero transfers to one attempt
@@ -1987,6 +2014,9 @@ public sealed partial class TravianClient
                 lastQueueCsv = dashQueueJson;
             }
 
+            // Smithy slots currently occupied (live under_progress rows). With Plus this can be 2.
+            var activeUpgradeCount = dashQueue.Count;
+
             // Classify every pending target. Terminal outcomes (maxed / already at target / not researched)
             // are logged and removed. Queue-busy and resource-shortage keep the troop pending and contribute
             // a wait time so the task defers and re-checks (picking up freed queue slots / incoming resources)
@@ -2016,6 +2046,13 @@ public sealed partial class TravianClient
                         break;
                     case SmithyTroopOutcome.AlreadyAtTarget:
                         Notify($"Smithy: '{label}' already at level {row!.CurrentLevel} (target {target.TargetLevel}). Skipping.");
+                        pending.Remove(target.Key);
+                        skipped += 1;
+                        break;
+                    case SmithyTroopOutcome.SmithyLevelTooLow:
+                        // Terminal: the troop is at the smithy's level cap and can't reach the requested
+                        // target until the smithy building is upgraded. Skip instead of deferring forever.
+                        Notify($"Smithy: '{label}' is at level {row!.CurrentLevel}; the smithy level is too low to reach target {target.TargetLevel}. Upgrade the smithy first. Skipping.");
                         pending.Remove(target.Key);
                         skipped += 1;
                         break;
@@ -2094,13 +2131,39 @@ public sealed partial class TravianClient
                 break;
             }
 
+            // With Plus, a research can start while another runs. A free slot means we should keep trying
+            // to fill it rather than deferring on the (long) active research timer.
+            var hasFreeSlot = activeUpgradeCount < maxConcurrentUpgrades;
+
+            // Free slot but nothing was clickable, and no resource shortage explains it: the Improve buttons
+            // most likely hadn't re-rendered yet after the previous click (React). Reload a few times to fill
+            // the free slot before deferring, so the second Plus slot isn't left idle until the first finishes.
+            if (toClick is null && hasFreeSlot && anyResearchInProgress && !anyWaitingForResources)
+            {
+                consecutiveFreeSlotStallReads += 1;
+                if (consecutiveFreeSlotStallReads < 3)
+                {
+                    Notify($"Smithy: slot free ({activeUpgradeCount}/{maxConcurrentUpgrades}) but no Improve button was ready; reloading to fill it (attempt {consecutiveFreeSlotStallReads}/3).");
+                    await TryReloadSmithyAsync(cancellationToken);
+                    continue;
+                }
+            }
+            else
+            {
+                consecutiveFreeSlotStallReads = 0;
+            }
+
             if (anyResearchInProgress || anyWaitingForResources)
             {
                 // Use the soonest concrete signal: the active research timer (queue busy) or the resource
                 // ETA. When neither exposes an exact time, re-check on a moderate interval so the task picks
                 // up a freed queue slot / incoming resources. Deferring never blocks the other loop groups.
                 var waitCandidates = new List<int>();
-                if (anyResearchInProgress)
+                // Wait on the research-queue timer when the queue is genuinely FULL, OR when a free slot
+                // could not be filled after the stall reloads above (e.g. the only pending troop is the one
+                // already researching, so the free Plus slot isn't usable until it finishes). With a fillable
+                // free slot we fall through to the resource ETA / moderate re-check instead of the long timer.
+                if (anyResearchInProgress && (!hasFreeSlot || consecutiveFreeSlotStallReads >= 3))
                 {
                     var timers = await RetryAsync(
                         "Smithy: read queue timers",
@@ -2171,7 +2234,15 @@ public sealed partial class TravianClient
         }
 
         await GotoAsync(Paths.Buildings, cancellationToken);
-        return $"Smithy: improved {improved} troop(s), skipped {skipped}.";
+
+        // All selected troops resolved to a terminal state (at target / maxed / smithy level too low /
+        // not researched) and nothing was improved this run: report "All done" so the task runner
+        // permanently blocks the Troops group (ThrowIfTroopsGroupBlocked -> troops_blocked=all_done). The
+        // desktop then switches the dashboard "Upgrade Troops" card OFF instead of re-running every loop.
+        var nothingToDo = pending.Count == 0 && improved == 0;
+        return nothingToDo
+            ? $"Smithy: All done — nothing left to upgrade (improved {improved}, skipped {skipped})."
+            : $"Smithy: improved {improved} troop(s), skipped {skipped}.";
     }
 
     // Emits one raw object per Smithy troop row for the browser-free SmithyPageParser to classify.
@@ -3802,7 +3873,7 @@ public sealed partial class TravianClient
         {
             try
             {
-                if (!skipNavigationIfOnExpectedSlot || TravianUrls.ExtractSlotIdFromUrl(_page.Url) != slotId)
+                if (!skipNavigationIfOnExpectedSlot || !TravianUrls.IsBuildPageForSlot(_page.Url, slotId))
                 {
                     await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
                 }
@@ -4017,6 +4088,18 @@ public sealed partial class TravianClient
                         // so the action keyword cannot distinguish them — the text ("Construct building" vs
                         // "Upgrade to level N") is the reliable signal.
                         const isConstruct = /construct\s+building/i.test(displayText);
+                        // Village-map level badges (e.g. dorf2 building-slot overlays
+                        // `<a class="level colorlayer good aidNN <tribe>" href="build.php?id=N">`) link to
+                        // build.php but only carry the slot's current level number — they are NOT upgrade
+                        // controls. They leak in via the bare `href build.php` signal below and, being the
+                        // only "candidate" found, mask the real blocked state into a false CanUpgrade →
+                        // misleading "could not find Upgrade to level N" alarm. The `colorlayer` overlay class
+                        // never appears on a real upgrade button, so exclude it.
+                        const isLevelBadge = classes.includes('colorlayer') || controlClasses.includes('colorlayer');
+                        // The hero adventure button is green (`... adventure green attention`) but unrelated to
+                        // building upgrades; it leaks in via the bare `green` signal. The `adventure` class
+                        // never appears on a real upgrade button, so exclude it.
+                        const isAdventure = classes.includes('adventure') || controlClasses.includes('adventure');
                         const isSpeedup = inOfficialSpeedupSection || classes.includes('purple') || controlClasses.includes('purple') || classes.includes('videofeaturebutton') || controlClasses.includes('videofeaturebutton') || combined.includes('videoFeature') || combined.includes('videofeature') || combined.includes('faster');
                         const inUpgradeContainer = !!element.closest('.upgradeBuilding, .contract, .contractWrapper, .build_details, .buildingWrapper, #contract, form[action*="build.php"]');
                         const hasUpgradeSignals =
@@ -4045,7 +4128,7 @@ public sealed partial class TravianClient
                           && !href.includes('action=build')
                           && !formAction.includes('build.php');
 
-                        if (!hasUpgradeSignals || isGold || isPaymentShop || isConstruct || isSpeedup || looksLikePrimaryNoise || displayText.length === 0) {
+                        if (!hasUpgradeSignals || isGold || isPaymentShop || isConstruct || isLevelBadge || isAdventure || isSpeedup || looksLikePrimaryNoise || displayText.length === 0) {
                           continue;
                         }
 
@@ -4409,6 +4492,50 @@ public sealed partial class TravianClient
         }
     }
 
+    /// <summary>
+    /// Confirms whether the slot's build page already shows an EXISTING building (not a construct-choice
+    /// page) and returns its name + level. Used by construct to detect a slot that is already occupied
+    /// (e.g. a special fixed slot like Rally Point/Wall, or a building that was built since the task was
+    /// queued) so the task can be removed instead of failing on the missing construct-choice DOM.
+    /// Returns null when the page still offers construct choices or no built-building header is present.
+    /// </summary>
+    private async Task<(string Name, int Level)?> TryReadExistingBuildingOnSlotBuildPageAsync(int slotId)
+    {
+        try
+        {
+            var result = await _page.EvaluateAsync<string?>(
+                """
+                (slotId) => {
+                  const url = location.href.toLowerCase();
+                  if (!url.includes('build.php') || !url.includes(`id=${slotId}`)) return null;
+                  // A construct-choice page offers new buildings — never treat that as "already built".
+                  if (document.querySelector('[id^="contract_building"], #contract_building')) return null;
+                  const header = document.querySelector('h1.titleInHeader, h1');
+                  const text = (header?.textContent || '').trim();
+                  const m = text.match(/^(.*?)\s*(?:level|stufe|nivå)\s*(\d{1,2})/i);
+                  if (!m) return null;
+                  const level = Number(m[2]);
+                  if (!(level >= 1)) return null;
+                  return JSON.stringify({ name: m[1].trim(), level });
+                }
+                """,
+                slotId);
+            if (string.IsNullOrWhiteSpace(result))
+            {
+                return null;
+            }
+
+            using var doc = System.Text.Json.JsonDocument.Parse(result);
+            var name = doc.RootElement.GetProperty("name").GetString() ?? string.Empty;
+            var level = doc.RootElement.GetProperty("level").GetInt32();
+            return (name, level);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private async Task<int> ReadQueuedBuildingWaitSecondsAsync(
         string buildingName,
         int fallbackSeconds,
@@ -4583,17 +4710,15 @@ public sealed partial class TravianClient
 
     private async Task EnsureExpectedBuildSlotPageAsync(int slotId, string operationLabel, CancellationToken cancellationToken = default)
     {
-        var currentSlotId = TravianUrls.ExtractSlotIdFromUrl(_page.Url);
-        if (currentSlotId != slotId)
+        if (!TravianUrls.IsBuildPageForSlot(_page.Url, slotId))
         {
-            // A prior read in the upgrade flow (ReadActiveConstructionsAsync / ReadBuildQueueAsync)
-            // can navigate away from the build slot page to dorf2.php. Re-open the slot so the
-            // upgrade click targets the right building instead of failing on the wrong page.
-            // (Notably triggered on official Travian, where build.php?id=N redirects to add &gid=.)
+            // A prior read/redirect in the upgrade flow (ReadActiveConstructionsAsync / ReadBuildQueueAsync
+            // / a post-click redirect) can leave us on dorf2.php?id=slot, which carries the same id= param
+            // as build.php?id=slot. Re-open the slot so the upgrade click targets the build page instead of
+            // silently running on the village overview. (Official build.php?id=N also adds &gid=.)
             await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
             await EnsureLoggedInAsync();
-            currentSlotId = TravianUrls.ExtractSlotIdFromUrl(_page.Url);
-            if (currentSlotId != slotId)
+            if (!TravianUrls.IsBuildPageForSlot(_page.Url, slotId))
             {
                 throw new InvalidOperationException(
                     $"{operationLabel} expected build.php?id={slotId}, but current url is '{_page.Url}'.");
@@ -4676,6 +4801,9 @@ public sealed partial class TravianClient
             await _page.WaitForFunctionAsync(
                 """
                 ({ slotId }) => {
+                  // Must be the build page itself — dorf2.php?id=slot carries the same id= and even has
+                  // build.php links, so the id+selector check alone would falsely pass on the overview.
+                  if (!/build\.php/i.test(window.location.pathname)) return false;
                   const currentSlot = (() => {
                     const match = window.location.href.match(/[?&]id=(\d+)/);
                     return match ? Number(match[1]) : null;
