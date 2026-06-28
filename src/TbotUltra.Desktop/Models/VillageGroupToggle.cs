@@ -14,6 +14,8 @@ public sealed class VillageGroupToggle : INotifyPropertyChanged
     public string Description { get; init; } = string.Empty;
 
     private bool _isEnabled;
+    private bool _canToggle = true;
+
     public bool IsEnabled
     {
         get => _isEnabled;
@@ -25,6 +27,21 @@ public sealed class VillageGroupToggle : INotifyPropertyChanged
             }
 
             _isEnabled = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool CanToggle
+    {
+        get => _canToggle;
+        set
+        {
+            if (_canToggle == value)
+            {
+                return;
+            }
+
+            _canToggle = value;
             OnPropertyChanged();
         }
     }

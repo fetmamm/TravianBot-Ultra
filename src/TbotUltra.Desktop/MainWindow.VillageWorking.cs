@@ -9,6 +9,7 @@ using TbotUltra.Core.Travian;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Domain;
+using TbotUltra.Worker.Services;
 
 namespace TbotUltra.Desktop;
 
@@ -637,14 +638,37 @@ public partial class MainWindow
         {
             foreach (var option in _automationLoopTasks)
             {
-                option.IsEnabled = groups.Contains(option.TaskName, StringComparer.OrdinalIgnoreCase);
+                var isBreweryGroup = string.Equals(
+                    option.TaskName,
+                    QueueGroupCatalog.GetKey(QueueGroup.BreweryCelebration),
+                    StringComparison.OrdinalIgnoreCase);
+                option.IsEnabled = (!isBreweryGroup || info.IsCapital)
+                    && groups.Contains(option.TaskName, StringComparer.OrdinalIgnoreCase);
             }
 
+            UpdateBreweryCelebrationToggleAvailability(info);
             RefreshAutomationLoopDashboardUi();
         }
         finally
         {
             _suppressAutomationLoopConfigWrite = false;
+        }
+    }
+
+    private void UpdateBreweryCelebrationToggleAvailability(VillageSettingsStore.VillageKeyInfo? selectedVillage)
+    {
+        var breweryKey = QueueGroupCatalog.GetKey(QueueGroup.BreweryCelebration);
+        var canToggleBrewery = selectedVillage?.IsCapital == true;
+        foreach (var option in _automationLoopTasks)
+        {
+            if (string.Equals(option.TaskName, breweryKey, StringComparison.OrdinalIgnoreCase))
+            {
+                option.CanToggle = canToggleBrewery;
+            }
+            else
+            {
+                option.CanToggle = true;
+            }
         }
     }
 
@@ -659,6 +683,12 @@ public partial class MainWindow
 
         var enabled = _automationLoopTasks
             .Where(item => item.IsEnabled)
+            .Where(item =>
+                info.IsCapital
+                || !string.Equals(
+                    item.TaskName,
+                    QueueGroupCatalog.GetKey(QueueGroup.BreweryCelebration),
+                    StringComparison.OrdinalIgnoreCase))
             .Select(item => item.TaskName)
             .ToList();
         _villageSettingsStore.SetEnabledGroups(info, enabled);

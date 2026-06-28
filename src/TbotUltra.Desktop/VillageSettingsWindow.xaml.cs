@@ -128,13 +128,23 @@ public partial class VillageSettingsWindow : Window
 
     private static DataTemplate BuildToggleCellTemplate(string bindingPath)
     {
+        var canToggleBindingPath = ResolveCanToggleBindingPath(bindingPath);
         var xaml =
             "<DataTemplate xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">"
             + "<CheckBox Style=\"{DynamicResource ToggleSwitchBlueStyle}\" HorizontalAlignment=\"Center\" "
             + "VerticalAlignment=\"Center\" Margin=\"6,2\" "
+            + $"IsEnabled=\"{{Binding {canToggleBindingPath}}}\" "
             + $"IsChecked=\"{{Binding {bindingPath}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}}\" />"
             + "</DataTemplate>";
         return (DataTemplate)XamlReader.Parse(xaml);
+    }
+
+    private static string ResolveCanToggleBindingPath(string bindingPath)
+    {
+        const string enabledSuffix = ".IsEnabled";
+        return bindingPath.EndsWith(enabledSuffix, StringComparison.Ordinal)
+            ? bindingPath[..^enabledSuffix.Length] + ".CanToggle"
+            : "CanToggle";
     }
 
     private DataTemplate BuildGroupCellTemplate(string groupKey, string bindingPath)
@@ -173,6 +183,7 @@ public partial class VillageSettingsWindow : Window
         toggle.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Center);
         toggle.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
         toggle.SetValue(FrameworkElement.MarginProperty, new Thickness(6, 2, 2, 2));
+        toggle.SetBinding(UIElement.IsEnabledProperty, new System.Windows.Data.Binding(ResolveCanToggleBindingPath(bindingPath)));
         toggle.SetBinding(ToggleButton.IsCheckedProperty, new System.Windows.Data.Binding(bindingPath)
         {
             Mode = System.Windows.Data.BindingMode.TwoWay,

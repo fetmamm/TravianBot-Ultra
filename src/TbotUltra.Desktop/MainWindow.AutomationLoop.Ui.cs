@@ -310,6 +310,9 @@ public partial class MainWindow
 
     private void UpdateAutomationLoopRunningIndicators()
     {
+        var selectedVillage = GetSelectedVillageKeyInfoOrNull();
+        UpdateBreweryCelebrationToggleAvailability(selectedVillage);
+
         // Before login the dashboard shows nothing: no group runs and persisted (deferred) queue items must
         // not surface their countdown timers. Render every card idle with no timer until the user logs in.
         if (!_isLoggedIn)
@@ -367,6 +370,9 @@ public partial class MainWindow
                 continue;
             }
 
+            var isBreweryGroupOutsideCapital = group == QueueGroup.BreweryCelebration
+                && selectedVillage?.IsCapital != true;
+
             // Filter to the selected village (keeping village-less/global items) so each group card shows
             // THIS village's queued count, deferred timer and state — different villages have different
             // construction timers etc.
@@ -395,7 +401,13 @@ public partial class MainWindow
             item.IsRunning = runningGroup.HasValue && runningGroup.Value == group;
             item.IsBlocked = false;
             item.BlockedText = "Blocked";
-            if ((runningItem is not null || item.IsRunning) && !hasLiveSmithyWait)
+            if (isBreweryGroupOutsideCapital)
+            {
+                item.StateText = "Capital only";
+                item.DetailText = "Toggle this in the capital village.";
+                item.RemainingSeconds = null;
+            }
+            else if ((runningItem is not null || item.IsRunning) && !hasLiveSmithyWait)
             {
                 item.StateText = "Running";
                 item.DetailText = runningItem is not null
@@ -926,6 +938,18 @@ public partial class MainWindow
     {
         if (sender is not ToggleButton { DataContext: LoopTaskOption option } toggle)
         {
+            return;
+        }
+
+        if (QueueGroupCatalog.TryParse(option.TaskName, out var clickedGroup)
+            && clickedGroup == QueueGroup.BreweryCelebration
+            && GetSelectedVillageKeyInfoOrNull()?.IsCapital != true)
+        {
+            option.CanToggle = false;
+            option.IsEnabled = false;
+            toggle.IsChecked = false;
+            AppendLog("Brewery Celebration group can only be changed in the capital village.");
+            RefreshAutomationLoopDashboardUi();
             return;
         }
 
