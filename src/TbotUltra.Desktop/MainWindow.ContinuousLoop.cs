@@ -480,6 +480,110 @@ public partial class MainWindow
         return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
     }
 
+    // Villages discovered at runtime (e.g. the user just founded one) that still need a one-time dorf1/dorf2
+    // analysis so automation knows their layout. Dispatcher-owned (same threading as _villageStatusCacheByName):
+    // filled on the UI thread from village reads, drained one-per-loop-pass via Dispatcher round-trips.
+    private sealed record PendingVillageAnalysis(string Name, string? Url, int Attempts);
+    private readonly Dictionary<string, PendingVillageAnalysis> _villagesPendingFirstAnalysis = new(StringComparer.OrdinalIgnoreCase);
+    private const int MaxFirstAnalysisAttempts = 3;
+
+    // Queues any confirmed village we have no cached dorf1/dorf2 layout for. Gated by the same setting as the
+    // login-time analysis so disabling startup analysis also disables this runtime variant (and avoids login
+    // noise, since the login flow caches villages before the first periodic refresh runs).
+    private void QueueNewVillagesForFirstAnalysis(IReadOnlyList<Village> villages)
+    {
+        if (!LoadBotOptions().PostLoginAnalyzeNewVillages)
+        {
+            return;
+        }
+
+        var missing = NewVillageStartupAnalyzer.FindVillagesWithoutKnownStatus(villages, _villageStatusCacheByName);
+        foreach (var village in missing)
+        {
+            var name = NormalizeVillageName(village.Name);
+            if (name is null || _villagesPendingFirstAnalysis.ContainsKey(name))
+            {
+                continue;
+            }
+
+            _villagesPendingFirstAnalysis[name] = new PendingVillageAnalysis(name, village.Url, 0);
+            AppendLog($"[new-village-runtime] Discovered '{name}' without cached dorf1/dorf2 status. Queued for one-time analysis.");
+        }
+    }
+
+    private bool HasCachedDorf1Dorf2Status(string villageName)
+        => _villageStatusCacheByName.TryGetValue(villageName, out var status)
+           && status.ResourceFields is { Count: > 0 }
+           && status.Buildings is { Count: > 0 };
+
+    // Picks the next village still needing analysis (Dispatcher thread). Drops entries that became cached
+    // meanwhile, or that exhausted their attempts, and counts the attempt for the returned one.
+    private (string Name, string? Url)? TakeNextVillagePendingFirstAnalysis()
+    {
+        foreach (var key in _villagesPendingFirstAnalysis.Keys.ToList())
+        {
+            var entry = _villagesPendingFirstAnalysis[key];
+            if (HasCachedDorf1Dorf2Status(key))
+            {
+                _villagesPendingFirstAnalysis.Remove(key);
+                continue;
+            }
+
+            if (entry.Attempts >= MaxFirstAnalysisAttempts)
+            {
+                _villagesPendingFirstAnalysis.Remove(key);
+                AppendLog($"[new-village-runtime] Giving up first analysis for '{entry.Name}' after {entry.Attempts} attempt(s).");
+                continue;
+            }
+
+            _villagesPendingFirstAnalysis[key] = entry with { Attempts = entry.Attempts + 1 };
+            return (entry.Name, entry.Url);
+        }
+
+        return null;
+    }
+
+    // Reads dorf1/dorf2 once for a runtime-discovered village so automation knows its layout — the same
+    // one-time analysis done for un-analyzed villages at login. Drains one village per loop pass and never
+    // runs while sleeping (no browser activity during sleep). Each task switches to its own village anyway,
+    // so leaving the browser on the analyzed village self-corrects on the next pick.
+    private async Task MaybeAnalyzeNewVillageDuringContinuousLoopAsync(BotOptions options, CancellationToken token)
+    {
+        if (IsSessionSleeping)
+        {
+            return;
+        }
+
+        var pick = await Dispatcher.InvokeAsync(TakeNextVillagePendingFirstAnalysis);
+        if (pick is null)
+        {
+            return;
+        }
+
+        var (name, url) = pick.Value;
+        try
+        {
+            AppendLog($"[new-village-runtime] Analyzing '{name}' (dorf1/dorf2) so automation knows its layout.");
+            var status = await _botService.ReadVillageStatusAsync(options, AppendLog, name, url, token);
+            await Dispatcher.InvokeAsync(() =>
+            {
+                CacheVillageStatus(status, name);
+                _villagesPendingFirstAnalysis.Remove(name);
+            });
+            AppendLog($"[new-village-runtime] Cached '{name}': fields={status.ResourceFields.Count}, buildings={status.Buildings.Count}.");
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Keep it queued (attempt already counted) for a later pass; a transient nav/read error must not
+            // silently drop the analysis. TakeNext drops it once attempts are exhausted.
+            AppendLog($"[new-village-runtime] Could not analyze '{name}': {ex.Message}");
+        }
+    }
+
     private async Task EnsureContinuousLoopConstructionStatusAsync(BotOptions options, CancellationToken cancellationToken)
     {
         if (!_continuousLoopConstructionStatusNeedsSync
@@ -1224,6 +1328,7 @@ public partial class MainWindow
                 await EnsureChromiumInstalledAsync();
                 await HonorPendingVillageSwitchAsync(options, token);
                 await EnsureContinuousLoopConstructionStatusAsync(options, token);
+                await MaybeAnalyzeNewVillageDuringContinuousLoopAsync(options, token);
                 await EnsureContinuousLoopRuntimeItemsAsync(options);
                 await MaybeCheckInboxDuringContinuousLoopAsync();
 

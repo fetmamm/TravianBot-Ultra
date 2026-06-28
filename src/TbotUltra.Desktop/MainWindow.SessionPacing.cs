@@ -601,7 +601,11 @@ public partial class MainWindow
             && _isLoggedIn
             && !_accountScanInProgress
             && (!_uiBusy || automationActive));
-        SetEnabled(VillageComboBox, !sleeping && !_uiBusy);
+        // Selecting a village in the combo is a pure view/queue-context change (cached data only — it never
+        // navigates the browser or wakes the bot; see VillageComboBox_SelectionChanged). Keep it usable while
+        // sleeping so the user can browse villages and inspect queues. The actual "Switch village" move still
+        // blocks during sleep (SwitchToActiveVillageAsync -> BlockIfSessionSleeping), so sleep stays unbroken.
+        SetEnabled(VillageComboBox, !_uiBusy);
         SetEnabled(AnalyzeFarmListsButton, !sleeping && !_farmingOperationBusy);
         SetEnabled(FarmListSendAllNowButton, !sleeping && !_farmingOperationBusy && _farmingFeaturesAvailable && _farmLists.Any(IsRealFarmListRow));
         SetEnabled(AnalyzeNatarsProfileButton, !sleeping && !_farmingOperationBusy && _farmingFeaturesAvailable);

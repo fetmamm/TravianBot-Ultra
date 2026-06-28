@@ -217,6 +217,9 @@ public partial class MainWindow
         _lastDisplayedVillageSignature = signature;
         VillagesInfoTextBlock.Text = $"Villages: {villages.Count}";
         SyncDashboardVillageUiFromVillages(villages, status.ActiveVillage);
+        // A newly founded village shows up here first. Queue a one-time dorf1/dorf2 analysis for any village
+        // we have no cached layout for, the same way un-analyzed villages are analyzed at login.
+        QueueNewVillagesForFirstAnalysis(villages);
     }
 
     private static string BuildVillageSignature(IReadOnlyList<Village> villages)
