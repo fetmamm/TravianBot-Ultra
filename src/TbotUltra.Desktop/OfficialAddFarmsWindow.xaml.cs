@@ -474,7 +474,8 @@ public partial class OfficialAddFarmsWindow : Window
                 referenceVillage,
                 oasisTypes,
                 includeOccupied,
-                SkipLowPopVillagesCheckBox.IsChecked == true);
+                SkipLowPopVillagesCheckBox.IsChecked == true,
+                requireUnoccupiedOasis: source.IsOasisList && !includeOccupied);
             if (coordinates.Count == 0)
             {
                 continue;

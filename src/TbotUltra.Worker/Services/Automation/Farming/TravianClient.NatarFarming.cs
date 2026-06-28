@@ -67,6 +67,7 @@ public sealed partial class TravianClient
             coordinate.Y.Value,
             lid,
             false,
+            false,
             cancellationToken);
         if (saveOutcome == AddRaidSaveOutcome.Failed)
         {
@@ -269,6 +270,7 @@ public sealed partial class TravianClient
                 coordinate.Y,
                 lid,
                 useDefaultTroops,
+                coordinate.RequireUnoccupiedOasis,
                 cancellationToken);
 
             if (saveOutcome == AddRaidSaveOutcome.Added)
@@ -294,6 +296,13 @@ public sealed partial class TravianClient
                 notFound++;
                 invalidCoordinates.Add(coordinate);
                 Notify($"{stepPrefix} Skipped ({coordinate.X}|{coordinate.Y}): there is no village at these coordinates.");
+                progress?.Report(new FarmAddProgress(farmListName, attempted, targetAddedCount, added, notFound));
+                continue;
+            }
+
+            if (saveOutcome == AddRaidSaveOutcome.OccupiedOasisSkipped)
+            {
+                Notify($"{stepPrefix} Skipped occupied oasis ({coordinate.X}|{coordinate.Y}) for '{farmListName}'.");
                 progress?.Report(new FarmAddProgress(farmListName, attempted, targetAddedCount, added, notFound));
                 continue;
             }
@@ -736,6 +745,7 @@ public sealed partial class TravianClient
         int y,
         string lid,
         bool useDefaultTroops,
+        bool requireUnoccupiedOasis,
         CancellationToken cancellationToken)
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared before filling Add Raid form.", cancellationToken);
@@ -876,38 +886,36 @@ public sealed partial class TravianClient
             Notify($"[farm-list] Add target Y filled with {y} for '{farmListName}'.");
             await Task.Delay(Random.Shared.Next(90, 220), cancellationToken); // Random wait
 
-            if (useDefaultTroops)
-            {
-                var validationTriggered = await _page.EvaluateAsync<bool>(
-                    """
-                    () => {
-                      const form = document.querySelector('#farmListTargetForm');
-                      if (!form) return false;
+            var validationTriggered = await _page.EvaluateAsync<bool>(
+                """
+                () => {
+                  const form = document.querySelector('#farmListTargetForm');
+                  if (!form) return false;
 
-                      const active = document.activeElement;
-                      if (active instanceof HTMLElement) {
-                        active.blur();
-                      }
+                  const active = document.activeElement;
+                  if (active instanceof HTMLElement) {
+                    active.blur();
+                  }
 
-                      const clickTarget = form.querySelector(
-                        '.targetSelection, .targetSelectionResultWrapper, .troopSelection, .actionButtons')
-                        || form;
-                      clickTarget.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-                      clickTarget.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
-                      clickTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-                      return true;
-                    }
-                    """);
-                if (!validationTriggered)
-                {
-                    Notify($"[farm-list] Could not trigger Add target validation for ({x}|{y}) in '{farmListName}'.");
-                    return AddRaidSaveOutcome.Failed;
+                  const clickTarget = form.querySelector(
+                    '.targetSelection, .targetSelectionResultWrapper, .troopSelection, .actionButtons')
+                    || form;
+                  clickTarget.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+                  clickTarget.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+                  clickTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                  return true;
                 }
-
-                Notify($"[farm-list] Add target validation triggered after coordinates for ({x}|{y}) in '{farmListName}'.");
-                await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
+                """);
+            if (!validationTriggered)
+            {
+                Notify($"[farm-list] Could not trigger Add target validation for ({x}|{y}) in '{farmListName}'.");
+                return AddRaidSaveOutcome.Failed;
             }
-            else
+
+            Notify($"[farm-list] Add target validation triggered after coordinates for ({x}|{y}) in '{farmListName}'.");
+            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
+
+            if (!useDefaultTroops)
             {
                 if (troopIndex is null)
                 {
@@ -965,28 +973,30 @@ public sealed partial class TravianClient
                 """);
             if (invalidCoordinates)
             {
-                await _page.EvaluateAsync(
+                await DismissAddTargetDialogAsync($"skipping invalid coordinates ({x}|{y})");
+                return AddRaidSaveOutcome.InvalidCoordinates;
+            }
+
+            if (requireUnoccupiedOasis)
+            {
+                var ownerText = await _page.EvaluateAsync<string?>(
                     """
                     () => {
                       const form = document.querySelector('#farmListTargetForm');
-                      const cancel = form?.querySelector('.actionButtons button.cancel')
-                        || document.querySelector('.dialogCancelButton');
-                      if (cancel) cancel.click();
+                      const owner = form?.querySelector(
+                        '.targetSelectionResultWrapper .targetWrapper .player a[href*="/profile"], ' +
+                        '.targetSelectionResultWrapper .targetWrapper .player a[href*="spieler.php"], ' +
+                        '.targetSelectionResultWrapper .targetWrapper .player');
+                      const text = (owner?.textContent || '').replace(/\s+/g, ' ').trim();
+                      return text.length > 0 ? text.replace(/^Player:\s*/i, '').trim() : null;
                     }
                     """);
-                try
+                if (!string.IsNullOrWhiteSpace(ownerText))
                 {
-                    await _page.WaitForFunctionAsync(
-                        "() => !document.querySelector('#farmListTargetForm')",
-                        null,
-                        new PageWaitForFunctionOptions { Timeout = 3000 });
+                    Notify($"[farm-list] Occupied oasis ({x}|{y}) owned by '{ownerText}' skipped before Save.");
+                    await DismissAddTargetDialogAsync($"skipping occupied oasis ({x}|{y})");
+                    return AddRaidSaveOutcome.OccupiedOasisSkipped;
                 }
-                catch (TimeoutException)
-                {
-                    Notify($"[farm-list] Invalid Add target dialog remained open after skipping ({x}|{y}).");
-                }
-
-                return AddRaidSaveOutcome.InvalidCoordinates;
             }
         }
 
@@ -1054,12 +1064,37 @@ public sealed partial class TravianClient
         return AddRaidSaveOutcome.Added;
     }
 
+    private async Task DismissAddTargetDialogAsync(string reason)
+    {
+        await _page.EvaluateAsync(
+            """
+            () => {
+              const form = document.querySelector('#farmListTargetForm');
+              const cancel = form?.querySelector('.actionButtons button.cancel')
+                || document.querySelector('.dialogCancelButton');
+              if (cancel) cancel.click();
+            }
+            """);
+        try
+        {
+            await _page.WaitForFunctionAsync(
+                "() => !document.querySelector('#farmListTargetForm')",
+                null,
+                new PageWaitForFunctionOptions { Timeout = 3000 });
+        }
+        catch (TimeoutException)
+        {
+            Notify($"[farm-list] Add target dialog remained open after {reason}.");
+        }
+    }
+
     private enum AddRaidSaveOutcome
     {
         Failed = 0,
         Added = 1,
         AlreadyInList = 2,
         InvalidCoordinates = 3,
+        OccupiedOasisSkipped = 4,
     }
 
 }

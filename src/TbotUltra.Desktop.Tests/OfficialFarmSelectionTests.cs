@@ -162,6 +162,31 @@ public sealed class OfficialFarmSelectionTests
         Assert.Equal((1, 1), (coordinate.X, coordinate.Y));
     }
 
+    [Fact]
+    public void Filter_MarksOasisCoordinatesForLiveUnoccupiedCheck()
+    {
+        var rows = new[]
+        {
+            OasisRow("1|1", "Wood", occupied: false),
+        };
+
+        var result = OfficialFarmSelection.Filter(
+            rows,
+            new HashSet<string>(),
+            amount: 10,
+            order: "distance_asc",
+            populationMode: "all",
+            populationLimit: 0,
+            maximumDistance: null,
+            skipDuplicates: true,
+            oasisTypes: new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Wood" },
+            includeOccupied: false,
+            requireUnoccupiedOasis: true);
+
+        var coordinate = Assert.Single(result);
+        Assert.True(coordinate.RequireUnoccupiedOasis);
+    }
+
     private static TravcoListStore.TravcoSavedRow Row(string coordinates, long pop, double distance) =>
         new()
         {

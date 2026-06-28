@@ -265,7 +265,7 @@ public sealed record FarmListLossDeactivationResult(
     int RowsDeactivated,
     int SkippedOasisRows);
 
-public sealed record FarmCoordinate(int X, int Y);
+public sealed record FarmCoordinate(int X, int Y, bool RequireUnoccupiedOasis = false);
 
 public sealed record FarmAddProgress(
     string FarmListName,
