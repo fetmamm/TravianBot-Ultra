@@ -317,6 +317,10 @@ public sealed partial class TravianClient
 
         await Task.Delay(Random.Shared.Next(200, 400), cancellationToken);
 
+        // The Add-target box is now open. Pause with the action-pacing click delay before typing the
+        // coordinates, so the bot doesn't fill the freshly-loaded form instantly (more human-like).
+        await DelayBeforeClickAsync(cancellationToken, "add farm: enter coordinates");
+
         var xInput = _page.Locator(
             "#farmListTargetForm input[name=\"x\"], " +
             "#farmListTargetForm input[name=\"xCoord\"], " +
@@ -440,7 +444,7 @@ public sealed partial class TravianClient
             }
         }
 
-        await Task.Delay(Random.Shared.Next(150, 350), cancellationToken);
+        await DelayBeforeClickAsync(cancellationToken, "add farm: save target");
         var clicked = await _page.EvaluateAsync<bool>(
             """
             () => {
