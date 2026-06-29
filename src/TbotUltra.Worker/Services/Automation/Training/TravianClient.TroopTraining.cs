@@ -65,12 +65,24 @@ public sealed partial class TravianClient
         IReadOnlyList<Building> buildings = knownBuildings ?? (await ReadBuildingsStatusAsync(cancellationToken)).Buildings;
         Notify($"[troops:verbose] queue scan:using {buildings.Count} known building(s).");
         var statuses = new List<TroopTrainingQueueStatus>();
-        foreach (var buildingType in new[]
-                 {
-                     TroopTrainingBuildingType.Barracks,
-                     TroopTrainingBuildingType.Stable,
-                     TroopTrainingBuildingType.Workshop,
-                 })
+        var enabledBuildingTypes = new List<TroopTrainingBuildingType>(3);
+        if (_config.TroopTrainingBarracksEnabled)
+        {
+            enabledBuildingTypes.Add(TroopTrainingBuildingType.Barracks);
+        }
+
+        if (_config.TroopTrainingStableEnabled)
+        {
+            enabledBuildingTypes.Add(TroopTrainingBuildingType.Stable);
+        }
+
+        if (_config.TroopTrainingWorkshopEnabled)
+        {
+            enabledBuildingTypes.Add(TroopTrainingBuildingType.Workshop);
+        }
+
+        Notify($"[troops:verbose] queue scan limited to {enabledBuildingTypes.Count} enabled building(s).");
+        foreach (var buildingType in enabledBuildingTypes)
         {
             Notify($"[troops:verbose] queue scan:reading {buildingType}.");
             var queueStatus = await ReadTroopTrainingQueueStatusAsync(buildings, buildingType, cancellationToken);

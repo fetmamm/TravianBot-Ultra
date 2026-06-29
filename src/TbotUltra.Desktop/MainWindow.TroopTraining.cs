@@ -1084,7 +1084,8 @@ public partial class MainWindow
         BotOptions options,
         CancellationToken cancellationToken,
         IReadOnlyList<Building>? knownBuildings = null,
-        bool refreshBuildingsBeforeRead = false)
+        bool refreshBuildingsBeforeRead = false,
+        bool includeSmithyStatus = true)
     {
         IReadOnlyList<Building>? effectiveBuildings = knownBuildings;
         if (refreshBuildingsBeforeRead)
@@ -1117,14 +1118,20 @@ public partial class MainWindow
         }
 
         var queueStatuses = await _botService.ReadTroopTrainingQueuesAsync(options, AppendLog, effectiveBuildings, cancellationToken);
-        var smithyStatus = await _botService.ReadSmithyUpgradeStatusAsync(options, AppendLog, effectiveBuildings, cancellationToken);
+        SmithyUpgradeStatus? smithyStatus = null;
+        if (includeSmithyStatus)
+        {
+            smithyStatus = await _botService.ReadSmithyUpgradeStatusAsync(options, AppendLog, effectiveBuildings, cancellationToken);
+        }
+
         await Dispatcher.InvokeAsync(() =>
         {
             // The in-building training queue is the source of truth: keep a still-ticking queue from the
             // per-village cache when this read came back empty (a partial / off-village read), so the
             // dashboard timer doesn't vanish. Mirrors ApplySmithyUpgradeStatus.
-            var queueVillageName = NormalizeVillageName(GetSelectedVillageName())
-                ?? NormalizeVillageName(_activeWorkingVillageName);
+            var queueVillageName = NormalizeVillageName(options.TargetVillageName)
+                ?? NormalizeVillageName(_activeWorkingVillageName)
+                ?? NormalizeVillageName(GetSelectedVillageName());
             if (queueVillageName is not null
                 && _villageStatusCacheByName.TryGetValue(queueVillageName, out var cachedVillageStatus))
             {
@@ -1142,7 +1149,7 @@ public partial class MainWindow
                 UpdateCachedTimerStatus(effectiveStatus.ActiveVillage, cached => cached with
                 {
                     TroopTrainingQueues = queueStatuses,
-                    SmithyUpgradeStatus = smithyStatus,
+                    SmithyUpgradeStatus = smithyStatus ?? cached.SmithyUpgradeStatus,
                 });
             }
             else
@@ -1157,23 +1164,35 @@ public partial class MainWindow
                     TroopTrainingQueues: queueStatuses), queueStatuses);
             }
 
-            ApplySmithyUpgradeStatus(smithyStatus);
+            if (smithyStatus is not null)
+            {
+                ApplySmithyUpgradeStatus(smithyStatus);
+            }
+
             UpdateAutomationLoopRunningIndicators();
         });
     }
 
-    private async Task RefreshTroopTrainingUiAfterBuildAsync(BotOptions options, CancellationToken cancellationToken)
+    private async Task RefreshTroopTrainingUiAfterBuildAsync(QueueItem item, BotOptions options, CancellationToken cancellationToken)
     {
-        await RefreshTroopTrainingQueuesAsync(options, cancellationToken, _lastBuildingStatus?.Buildings, refreshBuildingsBeforeRead: true);
+        var itemOptions = ApplyHeroResourceSettingsForQueueItem(
+            BotOptionsPayloadApplier.Apply(options, item.Payload),
+            item);
+        await RefreshTroopTrainingQueuesAsync(
+            itemOptions,
+            cancellationToken,
+            _lastBuildingStatus?.Buildings,
+            refreshBuildingsBeforeRead: true,
+            includeSmithyStatus: false);
 
         try
         {
-            await RefreshResourceSnapshotForUiAsync(options, cancellationToken, currentPageOnly: true);
+            await RefreshResourceSnapshotForUiAsync(itemOptions, cancellationToken, currentPageOnly: true);
         }
         catch (Exception ex)
         {
             AppendLog($"Troop build current-page resource refresh failed, falling back: {ex.Message}");
-            await RefreshResourceSnapshotForUiAsync(options, cancellationToken);
+            await RefreshResourceSnapshotForUiAsync(itemOptions, cancellationToken);
         }
     }
 }

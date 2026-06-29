@@ -183,7 +183,7 @@ public partial class MainWindow
         {
             try
             {
-                await RefreshTroopTrainingUiAfterBuildAsync(options, cancellationToken);
+                await RefreshTroopTrainingUiAfterBuildAsync(item, options, cancellationToken);
             }
             catch (Exception ex)
             {

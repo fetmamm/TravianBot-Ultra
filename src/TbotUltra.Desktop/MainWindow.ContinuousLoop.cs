@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Tasks;
+using TbotUltra.Core.Travian;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
 using TbotUltra.Worker;
@@ -286,6 +287,26 @@ public partial class MainWindow
 
             var trainingPayload = BuildVillageRuntimePayload(village);
             var villageTraining = TroopTrainingSettingsStore.Load(_projectRoot, troopTrainingAccount, GetVillageKey(village));
+            var trainingOptions = villageTraining is null
+                ? options
+                : BotOptionsPayloadApplier.Apply(options, villageTraining.ToDictionary());
+            if (!HasEnabledTroopTrainingBuilding(trainingOptions))
+            {
+                AppendLoopPickVerbose(
+                    $"[troops:verbose] skipped build_troops enqueue for '{village.Name}' — no troop-training building is enabled.",
+                    $"troops:no-enabled:{GetVillageKey(village)}");
+                continue;
+            }
+
+            var activeQueueWaitSeconds = ResolveActiveTroopTrainingQueueWaitSeconds(village, trainingOptions);
+            if (activeQueueWaitSeconds is > 0)
+            {
+                AppendLoopPickVerbose(
+                    $"[troops:verbose] skipped build_troops enqueue for '{village.Name}' — enabled training queue still active for {FormatSmithyDuration(activeQueueWaitSeconds.Value)}.",
+                    $"troops:active-queue:{GetVillageKey(village)}");
+                continue;
+            }
+
             if (villageTraining is not null)
             {
                 foreach (var pair in villageTraining.ToDictionary())
@@ -921,6 +942,70 @@ public partial class MainWindow
 
         payload[BotOptionPayloadKeys.NpcTradeEnabled] = IsNpcTradeEnabledForVillageKey(villageKey) ? "true" : "false";
         return payload;
+    }
+
+    private static bool HasEnabledTroopTrainingBuilding(BotOptions options)
+    {
+        return options.TroopTrainingBarracksEnabled
+            || options.TroopTrainingStableEnabled
+            || options.TroopTrainingWorkshopEnabled;
+    }
+
+    private int? ResolveActiveTroopTrainingQueueWaitSeconds(VillageSelectionItem village, BotOptions trainingOptions)
+    {
+        var enabledBuildingTypes = new HashSet<TroopTrainingBuildingType>();
+        if (trainingOptions.TroopTrainingBarracksEnabled)
+        {
+            enabledBuildingTypes.Add(TroopTrainingBuildingType.Barracks);
+        }
+
+        if (trainingOptions.TroopTrainingStableEnabled)
+        {
+            enabledBuildingTypes.Add(TroopTrainingBuildingType.Stable);
+        }
+
+        if (trainingOptions.TroopTrainingWorkshopEnabled)
+        {
+            enabledBuildingTypes.Add(TroopTrainingBuildingType.Workshop);
+        }
+
+        if (enabledBuildingTypes.Count == 0)
+        {
+            return null;
+        }
+
+        var villageName = NormalizeVillageName(village.Name);
+        VillageStatus? status = null;
+        if (villageName is not null)
+        {
+            _villageStatusCacheByName.TryGetValue(villageName, out status);
+        }
+
+        if (status is null
+            && _lastBuildingStatus is not null
+            && string.Equals(NormalizeVillageName(_lastBuildingStatus.ActiveVillage), villageName, StringComparison.OrdinalIgnoreCase))
+        {
+            status = _lastBuildingStatus;
+        }
+
+        var relevantQueues = status?.TroopTrainingQueues?
+            .Where(item => item.Exists && enabledBuildingTypes.Contains(item.BuildingType))
+            .ToList();
+        if (relevantQueues is null || relevantQueues.Count == 0)
+        {
+            return null;
+        }
+
+        var now = GetServerNow();
+        var remainingSeconds = relevantQueues
+            .Select(item => Math.Max(0, item.Finish?.RemainingSecondsAt(now) ?? item.RemainingSeconds ?? 0))
+            .ToList();
+        if (remainingSeconds.Any(seconds => seconds <= 0))
+        {
+            return null;
+        }
+
+        return remainingSeconds.Min();
     }
 
     private static bool IsAlwaysOnUtilityTask(string? taskName) =>
