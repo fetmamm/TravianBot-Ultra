@@ -241,6 +241,9 @@ xUnit. Each test file targets one class (e.g.
 `QueueStoreAndSchedulerTests`, `BuildingCatalogServiceTests`,
 `HeroViewModelTests`, `ServerDiscoveryServiceTests`).
 
+Run all tests with `.\scripts\Run-Tests.ps1`. It builds into `temp_build_out/test-bin/`
+so tests can run while the desktop app is open.
+
 ---
 
 ## `config/` — runtime state
