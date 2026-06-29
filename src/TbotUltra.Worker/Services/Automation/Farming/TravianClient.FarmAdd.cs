@@ -364,7 +364,6 @@ public sealed partial class TravianClient
         }
 
         Notify($"[farm-list] Add target validation triggered after coordinates for ({x}|{y}) in '{farmListName}'.");
-        await DelayBeforeClickAsync(cancellationToken);
 
         if (!useDefaultTroops)
         {
