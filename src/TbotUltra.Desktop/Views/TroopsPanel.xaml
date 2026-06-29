@@ -667,6 +667,8 @@
                                                     <TextBox Width="58"
                                                              Height="28"
                                                              VerticalAlignment="Center"
+                                                             TextAlignment="Center"
+                                                             VerticalContentAlignment="Center"
                                                              Text="{Binding TimedMinMinutesText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
                                                     <TextBlock Text="Max"
                                                                VerticalAlignment="Center"
@@ -675,6 +677,8 @@
                                                     <TextBox Width="58"
                                                              Height="28"
                                                              VerticalAlignment="Center"
+                                                             TextAlignment="Center"
+                                                             VerticalContentAlignment="Center"
                                                              Text="{Binding TimedMaxMinutesText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
                                                     <TextBlock Text="min"
                                                                Margin="8,0,0,0"

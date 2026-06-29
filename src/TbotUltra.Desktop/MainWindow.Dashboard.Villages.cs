@@ -66,6 +66,7 @@ public partial class MainWindow
 
         var ensuredItems = EnsureVillageSelectionItems(items);
 
+        var previousVillageKey = GetSelectedVillageKey();
         _suppressVillageSelectionChange = true;
         try
         {
@@ -80,6 +81,19 @@ public partial class MainWindow
         finally
         {
             _suppressVillageSelectionChange = false;
+        }
+
+        // The selection above is set with change events suppressed, so the programmatic restore
+        // (startup, login, account switch) skips the Troops-tab override load that a real user
+        // selection does through ShowSelectedVillageFromCache. Without this the Build-troops panel
+        // keeps the account-wide defaults instead of the selected village's saved settings (e.g. it
+        // showed Clubswinger/barracks-off after a restart even though the village had Spearman/on).
+        // Re-apply only when the selected village actually changed so steady-state status refreshes
+        // never clobber the panel with a redundant reload.
+        var newVillageKey = GetSelectedVillageKey();
+        if (!string.Equals(previousVillageKey, newVillageKey, StringComparison.OrdinalIgnoreCase))
+        {
+            ApplyTroopTrainingForSelectedVillage();
         }
 
         // Mirror the picker into the Queue tab's village dropdown so both stay in sync.
