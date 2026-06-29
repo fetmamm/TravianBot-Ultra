@@ -7,6 +7,8 @@ public sealed partial class TravianClient
 {
     private static readonly string[] BulkMessageRecipientSelectors =
     [
+        "#messageForm input#receiver",
+        "#messageForm input[name='an']",
         "input[name='recipients']",
         "textarea[name='recipients']",
         "input[name='recipient']",
@@ -33,6 +35,8 @@ public sealed partial class TravianClient
 
     private static readonly string[] BulkMessageSubjectSelectors =
     [
+        "#messageForm #subject input[name='be']",
+        "#messageForm input[name='be']",
         "input[name='subject']",
         "input[name*='subject' i]",
         "input[id*='subject' i]",
@@ -45,6 +49,8 @@ public sealed partial class TravianClient
 
     private static readonly string[] BulkMessageBodySelectors =
     [
+        "#messageForm textarea#message",
+        "#messageForm textarea[name='message']",
         "textarea[name='message']",
         "textarea[name*='message' i]",
         "textarea[name*='body' i]",
@@ -60,6 +66,8 @@ public sealed partial class TravianClient
 
     private static readonly string[] BulkMessageSendButtonSelectors =
     [
+        "#messageForm #send button[type='submit']",
+        "#messageForm button[value='Send']",
         "form button[type='submit']",
         "form input[type='submit']",
         "button[type='submit']",
@@ -85,6 +93,7 @@ public sealed partial class TravianClient
         Notify($"[bulk-messages] opening message writer for {playerNames.Count} recipient(s).");
         await EnsureLoggedInAsync();
         await GotoAsync(MessagesWritePath, cancellationToken);
+        await WaitForBulkMessageWriteFormAsync(cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening message writer.", cancellationToken);
 
         var recipients = await FindVisibleBulkMessageFieldAsync(BulkMessageRecipientSelectors, "recipients");
@@ -104,11 +113,11 @@ public sealed partial class TravianClient
 
         var recipientText = string.Join(';', playerNames.Select(name => name.Trim()).Where(name => name.Length > 0));
         await DelayBeforeClickAsync(cancellationToken, "bulk messages focus recipients");
-        await FillBulkMessageFieldAsync(recipients, recipientText, cancellationToken);
+        await FillBulkMessageFieldAsync(recipients, recipientText, "recipients", cancellationToken);
         await DelayBeforeClickAsync(cancellationToken, "bulk messages focus subject");
-        await FillBulkMessageFieldAsync(subjectInput, subject, cancellationToken);
+        await FillBulkMessageFieldAsync(subjectInput, subject, "subject", cancellationToken);
         await DelayBeforeClickAsync(cancellationToken, "bulk messages focus message");
-        await FillBulkMessageFieldAsync(body, message, cancellationToken);
+        await FillBulkMessageFieldAsync(body, message, "message body", cancellationToken);
 
         var sendButton = await FindVisibleBulkMessageFieldAsync(BulkMessageSendButtonSelectors, "send button");
         if (sendButton is null)
@@ -120,6 +129,29 @@ public sealed partial class TravianClient
         await sendButton.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs }).WaitAsync(cancellationToken);
         await WaitAfterBulkMessageSendAsync(cancellationToken);
         Notify($"[bulk-messages] sent batch to {playerNames.Count} recipient(s).");
+    }
+
+    private async Task WaitForBulkMessageWriteFormAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _page.Locator("#messageForm input#receiver, #messageForm input[name='an']")
+                .First
+                .WaitForAsync(new LocatorWaitForOptions
+                {
+                    State = WaitForSelectorState.Visible,
+                    Timeout = Math.Min(_config.TimeoutMs, 10000),
+                })
+                .WaitAsync(cancellationToken);
+        }
+        catch (TimeoutException)
+        {
+            throw new InvalidOperationException("Message write form did not load: recipient field was not visible.");
+        }
+        catch (PlaywrightException ex)
+        {
+            throw new InvalidOperationException($"Message write form did not load: {ex.Message}", ex);
+        }
     }
 
     private async Task<ILocator?> FindVisibleBulkMessageFieldAsync(IReadOnlyList<string> selectors, string label)
@@ -168,7 +200,7 @@ public sealed partial class TravianClient
         return null;
     }
 
-    private async Task FillBulkMessageFieldAsync(ILocator field, string value, CancellationToken cancellationToken)
+    private async Task FillBulkMessageFieldAsync(ILocator field, string value, string label, CancellationToken cancellationToken)
     {
         await field.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs }).WaitAsync(cancellationToken);
         await field.FillAsync(value, new LocatorFillOptions { Timeout = _config.TimeoutMs }).WaitAsync(cancellationToken);
@@ -179,6 +211,18 @@ public sealed partial class TravianClient
               element.dispatchEvent(new Event('change', { bubbles: true }));
             }
             """).WaitAsync(cancellationToken);
+
+        var actual = await field.EvaluateAsync<string>(
+            """
+            element => {
+              if ('value' in element) return element.value || '';
+              return element.textContent || '';
+            }
+            """).WaitAsync(cancellationToken);
+        if (!string.Equals(actual, value, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"Could not fill bulk message {label}: field value was not accepted.");
+        }
     }
 
     private async Task WaitAfterBulkMessageSendAsync(CancellationToken cancellationToken)
