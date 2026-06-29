@@ -21,12 +21,13 @@
 
         <TextBlock Grid.Row="0" Text="Version" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,12" />
 
-        <TextBlock x:Name="CurrentVersionText" Grid.Row="1" Margin="0,0,0,4"
+        <TextBlock x:Name="LatestVersionText" Grid.Row="1" Margin="0,0,0,4"
                    Foreground="{DynamicResource TextSubtleBrush}" />
-        <TextBlock x:Name="LatestVersionText" Grid.Row="2" Margin="0,0,0,8"
+        <TextBlock x:Name="CurrentVersionText" Grid.Row="2" Margin="0,0,0,8"
                    Foreground="{DynamicResource TextSubtleBrush}" />
 
-        <TextBlock x:Name="StatusText" Grid.Row="3" TextWrapping="Wrap" Margin="0,0,0,10" />
+        <TextBlock x:Name="StatusText" Grid.Row="3" TextWrapping="Wrap" Margin="0,0,0,10"
+                   Foreground="{DynamicResource TextPrimaryBrush}" />
 
         <ProgressBar x:Name="DownloadProgress" Grid.Row="4" Height="14" Minimum="0" Maximum="100"
                      Visibility="Collapsed" Margin="0,0,0,8" />
@@ -38,11 +39,16 @@
                     BorderBrush="{DynamicResource AccentBrush}"
                     Foreground="White"
                     Click="UpdateRestartButton_Click" />
-            <Button x:Name="DownloadButton" Content="Download…" Width="120" Height="30" Margin="0,0,8,0"
+            <Button x:Name="DownloadButton" Width="118" Height="42" Margin="0,0,8,0"
                     Background="{DynamicResource SuccessBgBrush}"
                     BorderBrush="{DynamicResource SuccessBorderBrush}"
                     Foreground="{DynamicResource SuccessTextBrush}"
-                    Click="DownloadButton_Click" />
+                    Click="DownloadButton_Click">
+                <TextBlock Text="Download latest release"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"
+                           LineHeight="14" />
+            </Button>
             <Button x:Name="ReleasesButton" Content="GitHub releases" Width="130" Height="30" Margin="0,0,8,0"
                     Click="ReleasesButton_Click" />
             <Button x:Name="CloseButton" Content="Close" Width="90" Height="30" Click="CloseButton_Click" />

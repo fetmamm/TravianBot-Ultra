@@ -348,6 +348,21 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
         return _taskRunner.ReadInboxStatusAsync(options, log, null, cancellationToken);
     }
 
+    public Task<BulkMessageAnalyzeResult> AnalyzeBulkMessagePlayersAsync(BotOptions options, BulkMessageAnalyzeRequest request, Action<string> log, IProgress<BulkMessageProgress>? progress, CancellationToken cancellationToken)
+    {
+        return _taskRunner.AnalyzeBulkMessagePlayersAsync(options, request, log, progress, null, cancellationToken);
+    }
+
+    public Task<BulkMessageSendResult> SendBulkMessagesAsync(BotOptions options, BulkMessageRequest request, Action<string> log, IProgress<BulkMessageProgress>? progress, CancellationToken cancellationToken)
+    {
+        return _taskRunner.SendBulkMessagesAsync(options, request, log, progress, null, cancellationToken);
+    }
+
+    public void ClearBulkMessageSentCache(BotOptions options, Action<string> log)
+    {
+        _taskRunner.ClearBulkMessageSentCache(options, log, null);
+    }
+
     public Task<HeroAdventureDispatchResult> SendHeroOnAdventureAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.SendHeroOnAdventureAsync(options, log, null, cancellationToken);

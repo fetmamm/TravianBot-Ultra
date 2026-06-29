@@ -66,12 +66,14 @@ Compatible with:
 - Increase adventure to hard button / video watch
 - Auto town hall celebrations
 
+
 - Read ingame status
 - Read village data
 - Clean dark mode UI
 - Multi-village support
 - Calculate building time and resource cost for buildings + resourcefields
-- Easy update to new version via the app
+- Easy update to new version via the app (checks at startup and hourly while open)
+- Support to use Proxy per account
 
 ## Future functions:
 
@@ -238,6 +240,9 @@ Views/                            BuildingsPanel, HeroPanel, InboxPanel,
 xUnit. Each test file targets one class (e.g.
 `QueueStoreAndSchedulerTests`, `BuildingCatalogServiceTests`,
 `HeroViewModelTests`, `ServerDiscoveryServiceTests`).
+
+Run all tests with `.\scripts\Run-Tests.ps1`. It builds into `temp_build_out/test-bin/`
+so tests can run while the desktop app is open.
 
 ---
 

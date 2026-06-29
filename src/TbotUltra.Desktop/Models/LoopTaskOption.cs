@@ -7,6 +7,7 @@ public sealed class LoopTaskOption : INotifyPropertyChanged
 {
     private bool _isEnabled;
     private bool _isVisible = true;
+    private bool _canToggle = true;
     private bool _isBlocked;
     private string _blockedText = "Blocked";
     private int _order;
@@ -49,6 +50,21 @@ public sealed class LoopTaskOption : INotifyPropertyChanged
             }
 
             _isVisible = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool CanToggle
+    {
+        get => _canToggle;
+        set
+        {
+            if (_canToggle == value)
+            {
+                return;
+            }
+
+            _canToggle = value;
             OnPropertyChanged();
         }
     }

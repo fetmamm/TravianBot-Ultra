@@ -310,6 +310,9 @@ public partial class MainWindow
 
     private void UpdateAutomationLoopRunningIndicators()
     {
+        var selectedVillage = GetSelectedVillageKeyInfoOrNull();
+        UpdateBreweryCelebrationToggleAvailability(selectedVillage);
+
         // Before login the dashboard shows nothing: no group runs and persisted (deferred) queue items must
         // not surface their countdown timers. Render every card idle with no timer until the user logs in.
         if (!_isLoggedIn)
@@ -367,6 +370,9 @@ public partial class MainWindow
                 continue;
             }
 
+            var isBreweryGroupOutsideCapital = group == QueueGroup.BreweryCelebration
+                && selectedVillage?.IsCapital != true;
+
             // Filter to the selected village (keeping village-less/global items) so each group card shows
             // THIS village's queued count, deferred timer and state — different villages have different
             // construction timers etc.
@@ -395,7 +401,13 @@ public partial class MainWindow
             item.IsRunning = runningGroup.HasValue && runningGroup.Value == group;
             item.IsBlocked = false;
             item.BlockedText = "Blocked";
-            if ((runningItem is not null || item.IsRunning) && !hasLiveSmithyWait)
+            if (isBreweryGroupOutsideCapital)
+            {
+                item.StateText = "Capital only";
+                item.DetailText = "Toggle this in the capital village.";
+                item.RemainingSeconds = null;
+            }
+            else if ((runningItem is not null || item.IsRunning) && !hasLiveSmithyWait)
             {
                 item.StateText = "Running";
                 item.DetailText = runningItem is not null
@@ -929,6 +941,18 @@ public partial class MainWindow
             return;
         }
 
+        if (QueueGroupCatalog.TryParse(option.TaskName, out var clickedGroup)
+            && clickedGroup == QueueGroup.BreweryCelebration
+            && GetSelectedVillageKeyInfoOrNull()?.IsCapital != true)
+        {
+            option.CanToggle = false;
+            option.IsEnabled = false;
+            toggle.IsChecked = false;
+            AppendLog("Brewery Celebration group can only be changed in the capital village.");
+            RefreshAutomationLoopDashboardUi();
+            return;
+        }
+
         var wasEnabled = option.IsEnabled;
         option.IsEnabled = toggle.IsChecked == true;
         if (wasEnabled
@@ -973,6 +997,12 @@ public partial class MainWindow
             && string.Equals(option.TaskName, QueueGroupCatalog.GetKey(QueueGroup.BreweryCelebration), StringComparison.OrdinalIgnoreCase))
         {
             ClearBreweryBlockedState();
+            if (_troopTrainingViewModel.IsAutoCelebrationAvailableForCurrentTribe
+                && !_troopTrainingViewModel.AutoCelebrationEnabled)
+            {
+                _troopTrainingViewModel.AutoCelebrationEnabled = true;
+                AppendLog("Brewery Celebration group enabled. Auto celebration was off and has been enabled.");
+            }
         }
         else if (!wasEnabled
             && option.IsEnabled
@@ -989,6 +1019,11 @@ public partial class MainWindow
         // Save these group toggles as the selected village's per-village override before waking
         // the loop, so runtime-item generation reads the new value immediately.
         SaveAutomationLoopGroupsForSelectedVillage();
+        if (QueueGroupCatalog.TryParse(option.TaskName, out var toggledGroup)
+            && toggledGroup == QueueGroup.BreweryCelebration)
+        {
+            PersistBreweryGroupForCapital(option.IsEnabled);
+        }
 
         var continuousLoopRunning = IsContinuousLoopRunning();
         var automationWillHandle = option.IsEnabled
@@ -1035,8 +1070,16 @@ public partial class MainWindow
         {
             try
             {
-                var options = ApplySelectedVillageToOptions(LoadBotOptions());
-                await RefreshBreweryCelebrationStatusAsync(options, _lastBuildingStatus, cancellationToken);
+                var capital = GetCapitalVillageSelectionSnapshot();
+                if (capital is null)
+                {
+                    AppendLog("Brewery celebration verification skipped: no capital village is loaded.");
+                    return;
+                }
+
+                var options = ApplyCapitalVillageToOptions(LoadBotOptions(), capital);
+                var status = ResolveCapitalBreweryStatusSeed(capital);
+                await RefreshBreweryCelebrationStatusAsync(options, status, cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {

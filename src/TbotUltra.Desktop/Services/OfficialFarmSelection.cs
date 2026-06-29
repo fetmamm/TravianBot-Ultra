@@ -14,6 +14,7 @@ public static class OfficialFarmSelection
     //   the reference village without rescraping. When null, the stored row.Distance is used (legacy).
     // oasisTypes: when supplied, only rows whose OasisType is in the set are kept (oasis source lists).
     // includeOccupied: when false, rows flagged IsOccupied are dropped (oasis source lists).
+    // requireUnoccupiedOasis: marks returned coordinates for a live Add-target owner check before Save.
     public static IReadOnlyList<FarmCoordinate> Filter(
         IEnumerable<TravcoListStore.TravcoSavedRow> sourceRows,
         IReadOnlySet<string> existingCoordinates,
@@ -26,7 +27,8 @@ public static class OfficialFarmSelection
         (int X, int Y)? referenceVillage = null,
         IReadOnlySet<string>? oasisTypes = null,
         bool includeOccupied = true,
-        bool skipLowPopulationVillages = false)
+        bool skipLowPopulationVillages = false,
+        bool requireUnoccupiedOasis = false)
     {
         if (amount <= 0)
         {
@@ -96,7 +98,7 @@ public static class OfficialFarmSelection
                 continue;
             }
 
-            result.Add(new FarmCoordinate(row.X, row.Y));
+            result.Add(new FarmCoordinate(row.X, row.Y, requireUnoccupiedOasis));
             if (result.Count >= amount)
             {
                 break;

@@ -34,6 +34,8 @@ namespace TbotUltra.Desktop;
 /// </summary>
 public partial class MainWindow
 {
+    private bool _lastAutoCelebrationEnabledForChangeTracking;
+
     private static bool IsTeutonsTribe(string? tribe)
     {
         return string.Equals(tribe?.Trim(), "Teutons", StringComparison.OrdinalIgnoreCase);
@@ -135,6 +137,10 @@ public partial class MainWindow
 
     private void OnTroopTrainingConfigChanged()
     {
+        var autoCelebrationTurnedOn = !_lastAutoCelebrationEnabledForChangeTracking
+            && _troopTrainingViewModel.AutoCelebrationEnabled;
+        _lastAutoCelebrationEnabledForChangeTracking = _troopTrainingViewModel.AutoCelebrationEnabled;
+
         // Account-wide settings (NPC trade, gold, celebration) go to the account config; the per-building
         // training rules go to the selected village's override so the Troops tab and the per-village
         // "Troop settings" popup edits the same data.
@@ -142,11 +148,137 @@ public partial class MainWindow
         PersistTroopTrainingForSelectedVillage();
         PersistAutoCelebrationPreferenceForActiveAccount(_troopTrainingViewModel.AutoCelebrationEnabled);
         UpdateAutomationLoopRunningIndicators();
+        if (autoCelebrationTurnedOn
+            && _troopTrainingViewModel.IsAutoCelebrationAvailableForCurrentTribe)
+        {
+            WakeBreweryCelebrationAutomation("Auto celebration enabled");
+        }
+
         if (_lastResourceStatusForUi is not null)
         {
             _troopTrainingDeferredRefreshDebounceTimer.Stop();
             _troopTrainingDeferredRefreshDebounceTimer.Start();
         }
+    }
+
+    private VillageSelectionItem? GetCapitalVillageSelectionSnapshot()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            return Dispatcher.Invoke(GetCapitalVillageSelectionSnapshot);
+        }
+
+        var source = (DashboardVillageList.ItemsSource as IEnumerable<VillageSelectionItem>)
+            ?? (VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem>)
+            ?? Enumerable.Empty<VillageSelectionItem>();
+
+        return source.FirstOrDefault(v =>
+            v.IsCapital
+            && !string.IsNullOrWhiteSpace(v.Name)
+            && !string.Equals(v.Name, "-", StringComparison.Ordinal));
+    }
+
+    private BotOptions ApplyCapitalVillageToOptions(BotOptions source, VillageSelectionItem capital)
+    {
+        var options = BotOptionsPayloadApplier.Apply(source, BuildVillageRuntimePayload(capital));
+        return ApplyHeroResourceSettingsForVillage(options, GetVillageKey(capital), capital.Name);
+    }
+
+    private VillageStatus ResolveCapitalBreweryStatusSeed(VillageSelectionItem capital)
+    {
+        var capitalName = NormalizeVillageName(capital.Name);
+        if (capitalName is not null
+            && _villageStatusCacheByName.TryGetValue(capitalName, out var cached))
+        {
+            return cached;
+        }
+
+        if (_lastBuildingStatus is not null
+            && (_lastBuildingStatus.IsCapital == true
+                || string.Equals(NormalizeVillageName(_lastBuildingStatus.ActiveVillage), capitalName, StringComparison.OrdinalIgnoreCase)))
+        {
+            return _lastBuildingStatus;
+        }
+
+        return new VillageStatus(
+            capital.Name,
+            [new Village(capital.Name, capital.Url, true, capital.CoordX, capital.CoordY, capital.Population)],
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            [],
+            [],
+            [],
+            Tribe: ResolveStoredTroopTrainingTribe(),
+            VillageCount: 1,
+            IsCapital: true);
+    }
+
+    private void WakeBreweryCelebrationAutomation(string reason)
+    {
+        var capital = GetCapitalVillageSelectionSnapshot();
+        if (capital is null)
+        {
+            AppendLog($"Brewery celebration: {reason}, but no capital village is loaded.");
+            return;
+        }
+
+        if (!IsGroupEnabledForVillage(GetVillageKey(capital), QueueGroup.BreweryCelebration))
+        {
+            return;
+        }
+
+        var continuousLoopRunning = IsContinuousLoopRunning();
+        if (continuousLoopRunning || _autoQueueRunning)
+        {
+            Interlocked.Exchange(ref _continuousLoopWakeRequested, 1);
+            if (_autoQueueRunning && !continuousLoopRunning)
+            {
+                _startContinuousLoopAfterQueueStop = true;
+                _loopController.RequestQueueStop();
+                AppendLog($"Brewery celebration: {reason}. Queue wait will stop and continuous loop will check it now.");
+            }
+            else
+            {
+                AppendLog($"Brewery celebration: {reason}. Continuous loop will check it now.");
+            }
+        }
+        else
+        {
+            TriggerBreweryCelebrationVerificationRefresh();
+        }
+    }
+
+    private void EnsureAutoCelebrationEnabledForBreweryGroup()
+    {
+        if (!_troopTrainingViewModel.IsAutoCelebrationAvailableForCurrentTribe
+            || _troopTrainingViewModel.AutoCelebrationEnabled)
+        {
+            return;
+        }
+
+        var capital = GetCapitalVillageSelectionSnapshot();
+        if (capital is null
+            || !IsGroupEnabledForVillage(GetVillageKey(capital), QueueGroup.BreweryCelebration))
+        {
+            return;
+        }
+
+        _troopTrainingViewModel.AutoCelebrationEnabled = true;
+        AppendLog("Brewery Celebration group is enabled for the capital. Auto celebration was off and has been enabled.");
+    }
+
+    private void PersistBreweryGroupForCapital(bool enabled)
+    {
+        var capital = GetCapitalVillageSelectionSnapshot();
+        if (capital is null)
+        {
+            AppendLog("Brewery celebration: could not sync group setting to capital because no capital village is loaded.");
+            return;
+        }
+
+        PersistAutomationGroupEnabledForVillage(
+            BuildVillageKeyInfo(capital),
+            enabled,
+            QueueGroupCatalog.GetKey(QueueGroup.BreweryCelebration));
     }
 
     private static bool TryResolveBrewerySlotIdFromStatus(VillageStatus status, out int slotId)
@@ -534,9 +666,15 @@ public partial class MainWindow
         try
         {
             await EnsureChromiumInstalledAsync();
-            var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            var capital = GetCapitalVillageSelectionSnapshot();
+            var options = capital is null
+                ? ApplySelectedVillageToOptions(LoadBotOptions())
+                : ApplyCapitalVillageToOptions(LoadBotOptions(), capital);
+            var status = capital is null
+                ? _lastBuildingStatus
+                : ResolveCapitalBreweryStatusSeed(capital);
             AppendLog($"[{operationId}] Manual celebration check requested.");
-            await RefreshBreweryCelebrationStatusAsync(options, _lastBuildingStatus, CancellationToken.None);
+            await RefreshBreweryCelebrationStatusAsync(options, status, CancellationToken.None);
             _troopTrainingViewModel.InfoText = "Celebration status refreshed.";
             CompleteOperation(operationId, sw, "Celebration check completed.");
         }

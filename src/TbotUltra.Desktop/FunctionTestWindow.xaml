@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Background="{DynamicResource AppBackgroundBrush}"
         Title="Test functions"
-        Height="450"
+        Height="500"
         Width="320"
-        MinHeight="450"
+        MinHeight="500"
         MinWidth="300"
         ShowInTaskbar="False">
     <Grid Margin="12">
@@ -104,6 +104,15 @@
                     ToolTip="Opens the hero adventures page, watches the 'Reduce adventure duration by 25%' bonus video, and confirms it is active for the next adventure."
                     ToolTipService.InitialShowDelay="500"
                     Click="TestReduceAdventuresTimeButton_Click" />
+
+            <Button x:Name="BulkMessagesButton"
+                    HorizontalAlignment="Left"
+                    Margin="0,8,0,0"
+                    Padding="10,4"
+                    Content="Bulk messages"
+                    ToolTip="Opens a popup that analyzes map.sql players and sends messages in batches of up to 25 recipients."
+                    ToolTipService.InitialShowDelay="500"
+                    Click="BulkMessagesButton_Click" />
         </StackPanel>
 
         <TextBlock Grid.Row="1"

@@ -46,6 +46,7 @@ public partial class MainWindow : Window
     private const int ContinuousKeepAliveMinIntervalSeconds = 60;
     private const int ContinuousKeepAliveMaxIntervalSeconds = 600;
     private const int ContinuousKeepAliveDueSoonSeconds = 120;
+    private const int UpdateCheckIntervalMinutes = 60;
     private const int NpcTradeGoldCost = 3;
     private const string RuntimeManualTaskPrefix = "desktop_runtime_manual";
 
@@ -166,6 +167,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _buildQueueCountdownTimer;
     private readonly DispatcherTimer _resourceSnapshotRefreshTimer;
     private readonly DispatcherTimer _troopTrainingDeferredRefreshDebounceTimer;
+    private readonly DispatcherTimer _updateCheckTimer;
     // Terminal entries now live on TerminalViewModel; this delegates so existing
     // code-behind that mutates the collection in place keeps working unchanged.
     private ObservableCollection<TerminalEntryRow> _terminalEntries => _terminalViewModel.Entries;
@@ -212,6 +214,7 @@ public partial class MainWindow : Window
     private FunctionTestWindow? _resourceTestFunctionsWindow;
     private SavePageHtmlWindow? _savePageHtmlWindow;
     private BulkSavePageHtmlWindow? _bulkSavePageHtmlWindow;
+    private BulkMessagesWindow? _bulkMessagesWindow;
     private bool _serverSpeedAlarmRaised;
     private readonly Dictionary<int, DateTimeOffset> _buildingClickCooldownBySlot = new();
     private readonly Dictionary<int, (int Target, DateTimeOffset At)> _buildingLastQueuedTargetBySlot = new();
@@ -222,6 +225,8 @@ public partial class MainWindow : Window
     private bool _suppressHeroHideModeApply;
     private Task? _loopTask;
     private bool _chromiumEnsured;
+    private bool _updateCheckRunning;
+    private string? _announcedUpdateVersion;
     private bool _suppressAccountSelectionChange;
     private bool _suppressVillageSelectionChange;
     private bool _resourceSnapshotRefreshRunning;
@@ -544,6 +549,8 @@ public partial class MainWindow : Window
         };
         _inboxRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(5) };
         _inboxRefreshTimer.Tick += async (_, _) => await HandleInboxRefreshTickAsync();
+        _updateCheckTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(UpdateCheckIntervalMinutes) };
+        _updateCheckTimer.Tick += async (_, _) => await CheckForUpdatesAsync();
         _buildQueueCountdownTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _buildQueueCountdownTimer.Tick += (_, _) => TickBuildQueueCountdown();
         _buildQueueCountdownTimer.Start();
@@ -632,6 +639,7 @@ public partial class MainWindow : Window
         LoadConfigToUi();
         LoadVersionToUi();
         _ = CheckForUpdatesAsync();
+        _updateCheckTimer.Start();
         RefreshQueueUi();
         Closing += MainWindow_Closing;
         if (Application.Current is not null)
@@ -713,6 +721,8 @@ public partial class MainWindow : Window
         // the Troops tab shows that village's settings, not just the account-wide defaults.
         ApplyTroopTrainingForSelectedVillage();
         ApplyTroopTrainingTribeState(ResolveStoredTroopTrainingTribe());
+        EnsureAutoCelebrationEnabledForBreweryGroup();
+        _lastAutoCelebrationEnabledForChangeTracking = _troopTrainingViewModel.AutoCelebrationEnabled;
         _troopTrainingViewModel.InfoText = "Configure troop building rules and refresh queues when needed.";
         _suppressHeroHideModeApply = true;
         try
@@ -853,14 +863,27 @@ public partial class MainWindow : Window
         }
     }
 
-    // Best-effort background check against GitHub's latest release. On a newer version, tint the Support
-    // button amber so the user notices; the Version button inside Support shows the details. Never blocks
-    // startup and never alarms — offline/rate-limited just leaves the button neutral.
+    // Best-effort background check against GitHub's latest release. Runs at startup and then hourly while
+    // the app is open. On a newer version, tint the Support button amber so the user notices; the Version
+    // button inside Support shows the details. Never blocks startup and never alarms — offline/rate-limited
+    // leaves the latest known status unchanged.
     private async Task CheckForUpdatesAsync()
     {
+        if (_updateCheckRunning)
+        {
+            return;
+        }
+
+        _updateCheckRunning = true;
         try
         {
             var status = await UpdateChecker.CheckAsync(_currentVersion, CancellationToken.None);
+            if (status.Release is null)
+            {
+                _updateStatus ??= status;
+                return;
+            }
+
             _updateStatus = status;
             if (status.UpdateAvailable && status.Release is not null)
             {
@@ -868,12 +891,31 @@ public partial class MainWindow : Window
                 SupportButton.BorderBrush = (Brush)FindResource("WarningBorderBrush");
                 SupportButton.Foreground = (Brush)FindResource("WarningTextBrush");
                 SupportButton.ToolTip = $"Update available: v{status.Release.LatestVersion} — open Support";
-                AppendLog($"Update available: v{status.Release.LatestVersion} (current v{_currentVersion}).");
+                if (!string.Equals(
+                    _announcedUpdateVersion,
+                    status.Release.LatestVersion,
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    _announcedUpdateVersion = status.Release.LatestVersion;
+                    AppendLog($"Update available: v{status.Release.LatestVersion} (current v{_currentVersion}).");
+                }
+            }
+            else
+            {
+                _announcedUpdateVersion = null;
+                SupportButton.ClearValue(Control.BackgroundProperty);
+                SupportButton.ClearValue(Control.BorderBrushProperty);
+                SupportButton.ClearValue(Control.ForegroundProperty);
+                SupportButton.ToolTip = "Support";
             }
         }
         catch (Exception ex)
         {
             AppendLog($"Update check skipped: {ex.Message}");
+        }
+        finally
+        {
+            _updateCheckRunning = false;
         }
     }
 

@@ -116,6 +116,15 @@ public static class AccountStoragePaths
             $"{NormalizeServerKey(serverUrl)}.json");
     }
 
+    public static string BulkMessageSentCachePath(string projectRoot, string accountName, string? serverUrl = null)
+    {
+        return Path.Combine(
+            AccountDirectory(projectRoot, accountName),
+            "cache",
+            "bulk-messages",
+            $"{NormalizeServerKey(serverUrl)}.json");
+    }
+
     // Per-account task queue. The queue used to be a single global config/queue.json shared by every
     // account; scoping it per account keeps one account's queued work from leaking into another.
     public static string AccountQueuePath(string projectRoot, string accountName)

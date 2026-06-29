@@ -55,6 +55,7 @@ public partial class VersionWindow : Window
         var release = _status?.Release;
         if (release is null)
         {
+            StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextPrimaryBrush");
             LatestVersionText.Text = "Latest version: unknown";
             StatusText.Text = "Could not check for the latest version (offline or rate-limited). "
                 + "You can still open the GitHub releases page.";
@@ -66,6 +67,7 @@ public partial class VersionWindow : Window
         var hasAsset = release.PortableDownloadUrl is not null;
         if (_status!.UpdateAvailable)
         {
+            StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "SuccessTextBrush");
             StatusText.Text = hasAsset
                 ? $"A new version (v{release.LatestVersion}) is available."
                 : $"A new version (v{release.LatestVersion}) is available. No portable asset was found on the "
@@ -73,6 +75,7 @@ public partial class VersionWindow : Window
         }
         else
         {
+            StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextPrimaryBrush");
             StatusText.Text = "You are running the latest version.";
         }
 

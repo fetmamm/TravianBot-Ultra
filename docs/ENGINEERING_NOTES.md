@@ -18,7 +18,7 @@ Beroenden: `Desktop` -> `Worker` -> `Core`.
 
 ```powershell
 dotnet build TbotUltra.sln
-dotnet test
+.\scripts\Run-Tests.ps1
 ```
 
 ## 2. Official och SS-Travi

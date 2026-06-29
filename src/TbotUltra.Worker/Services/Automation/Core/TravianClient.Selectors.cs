@@ -63,6 +63,9 @@ public sealed partial class TravianClient
     private string MessagesPath =>
         _config.IsPrivateServer ? Paths.Messages : "/messages";
 
+    private string MessagesWritePath =>
+        _config.IsPrivateServer ? $"{Paths.Messages}?t=1" : "/messages/write";
+
     private string ReportsPath =>
         _config.IsPrivateServer ? Paths.Reports : "/report";
 

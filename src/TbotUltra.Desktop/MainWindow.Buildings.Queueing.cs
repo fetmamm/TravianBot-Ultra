@@ -274,15 +274,19 @@ public partial class MainWindow
     // loaded, otherwise the cached status for that village. Null only when neither exists.
     private VillageStatus? ResolveSelectedVillageBuildingStatus()
     {
-        if (_lastBuildingStatus is not null)
+        var name = NormalizeVillageName(GetSelectedVillageName());
+        if (name is null)
         {
             return _lastBuildingStatus;
         }
 
-        var name = NormalizeVillageName(GetSelectedVillageName());
-        return name is not null && _villageStatusCacheByName.TryGetValue(name, out var cached)
-            ? cached
-            : null;
+        if (_lastBuildingStatus is not null
+            && string.Equals(NormalizeVillageName(_lastBuildingStatus.ActiveVillage), name, StringComparison.OrdinalIgnoreCase))
+        {
+            return _lastBuildingStatus;
+        }
+
+        return _villageStatusCacheByName.TryGetValue(name, out var cached) ? cached : null;
     }
 
     // Building status for the village a queue item targets: live snapshot for the selected (or village-less)

@@ -158,6 +158,7 @@ public partial class MainWindow
             ResetSessionPacing();
             _copyFeedbackTimer.Stop();
             _inboxRefreshTimer.Stop();
+            _updateCheckTimer.Stop();
             _buildQueueCountdownTimer.Stop();
             _resourceSnapshotRefreshTimer.Stop();
             _troopTrainingDeferredRefreshDebounceTimer.Stop();
@@ -221,6 +222,7 @@ public partial class MainWindow
             _resourceTestFunctionsWindow?.Close();
             _savePageHtmlWindow?.Close();
             _bulkSavePageHtmlWindow?.Close();
+            _bulkMessagesWindow?.Close();
         }
         catch (Exception ex)
         {

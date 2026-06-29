@@ -74,6 +74,9 @@ public interface IDesktopBotService
     Task NavigateToVillageResourceFieldsAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken);
     Task RefreshCurrentPageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<InboxStatus> ReadInboxStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
+    Task<BulkMessageAnalyzeResult> AnalyzeBulkMessagePlayersAsync(BotOptions options, BulkMessageAnalyzeRequest request, Action<string> log, IProgress<BulkMessageProgress>? progress, CancellationToken cancellationToken);
+    Task<BulkMessageSendResult> SendBulkMessagesAsync(BotOptions options, BulkMessageRequest request, Action<string> log, IProgress<BulkMessageProgress>? progress, CancellationToken cancellationToken);
+    void ClearBulkMessageSentCache(BotOptions options, Action<string> log);
     Task<HeroAdventureDispatchResult> SendHeroOnAdventureAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<bool> CheckAndReviveDeadHeroAsync(BotOptions options, bool autoRevive, Action<string> log, CancellationToken cancellationToken);
     Task<int?> RefreshAdventureCountAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);

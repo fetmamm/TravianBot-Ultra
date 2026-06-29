@@ -595,12 +595,21 @@ public partial class MainWindow
                 var enabledGroups = _villageSettingsStore.GetEnabledGroups(keyInfo)
                     ?? VillageSettingsStore.DefaultEnabledGroups;
                 var toggles = groupCards
-                    .Select(card => new VillageGroupToggle
+                    .Select(card =>
                     {
-                        GroupKey = card.Key,
-                        Title = card.Title,
-                        Description = card.Description,
-                        IsEnabled = enabledGroups.Contains(card.Key, StringComparer.OrdinalIgnoreCase),
+                        var isBreweryGroup = string.Equals(
+                            card.Key,
+                            QueueGroupCatalog.GetKey(QueueGroup.BreweryCelebration),
+                            StringComparison.OrdinalIgnoreCase);
+                        var canToggle = !isBreweryGroup || keyInfo.IsCapital;
+                        return new VillageGroupToggle
+                        {
+                            GroupKey = card.Key,
+                            Title = card.Title,
+                            Description = card.Description,
+                            CanToggle = canToggle,
+                            IsEnabled = canToggle && enabledGroups.Contains(card.Key, StringComparer.OrdinalIgnoreCase),
+                        };
                     })
                     .ToList();
 
@@ -656,7 +665,7 @@ public partial class MainWindow
         var previouslyEnabled = _villageSettingsStore.GetEnabledGroups(row.KeyInfo)
             ?? VillageSettingsStore.DefaultEnabledGroups;
         var enabled = row.GroupToggles
-            .Where(toggle => toggle.IsEnabled)
+            .Where(toggle => toggle.IsEnabled && toggle.CanToggle)
             .Select(toggle => toggle.GroupKey)
             .ToList();
         _villageSettingsStore.SetEnabledGroups(row.KeyInfo, enabled);
