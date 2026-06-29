@@ -66,6 +66,7 @@ private string HeroAdventuresPath =>
 - Official React-sidor maste vanta pa ett synligt/handlingsbart nyckelelement; DOM-narvaro ensam
   racker inte for klick. Anvand `await WaitForPageReadyAsync(ct)` nar hela sidan maste vara laddad —
   den kastar (TimeoutException, sista felet som inner) efter uttomda retries; anropare ska defer:a/retry:a.
+- Official `/messages/write` ar klassiskt form-DOM: recipient `#receiver`/`name=an`, subject `name=be`, body `textarea#message`.
 - Verifiera nya Official-selektorer live och gor en snabb SS-regressionskontroll.
 - Official farmlist loss cleanup laser `tr.slot`, `td.target`, `td.openContextMenu` och last-raid
   klasser (`attack_lost*`, `attack_won_withLosses*`); matcha inte SVG-paths for loss state.
@@ -228,6 +229,7 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
   inte vantar pa nasta intervall. Official-attributklick maste scope:a plus-knappen till exakt input-falt
   (`productionPoints` for resources).
 - Hero away avgors av travel-signaler/timer fore `heroHome`. Las `.heroState .timerReact` fore oscope:ad sidtext.
+  Dead/reviving Official-widget kan sakna home-link; los home village via `HeroAttributesPath` innan `[herohome]`.
   Health kan innehalla bidi-tecken; rensa dem fore numerisk parsing.
 - Resource transfer-dialogen kan renderas i `#dialogContent` utan wrapper, ibland lamna inputs pa 0 och
   anvanda CSS-klassen `disabled`; fyll exakt shortfall manuellt vid behov, klicka Official icon/confirm via
