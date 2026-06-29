@@ -219,10 +219,20 @@ public sealed partial class TravianClient
               return element.textContent || '';
             }
             """).WaitAsync(cancellationToken);
-        if (!string.Equals(actual, value, StringComparison.Ordinal))
+        if (!string.Equals(
+            NormalizeBulkMessageFieldValue(actual),
+            NormalizeBulkMessageFieldValue(value),
+            StringComparison.Ordinal))
         {
             throw new InvalidOperationException($"Could not fill bulk message {label}: field value was not accepted.");
         }
+    }
+
+    private static string NormalizeBulkMessageFieldValue(string? value)
+    {
+        return (value ?? string.Empty)
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n');
     }
 
     private async Task WaitAfterBulkMessageSendAsync(CancellationToken cancellationToken)

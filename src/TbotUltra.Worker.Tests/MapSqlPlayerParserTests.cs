@@ -11,8 +11,8 @@ public sealed class MapSqlPlayerParserTests
     {
         const string mapSql = """
             INSERT INTO `x_world` VALUES
-            (1,2,1,100,'Village One',10,'Alice',1,'ALLY',123,0,0,0,0),
-            (3,4,2,101,'Village Two',11,'Bob',2,'BETA',456,0,0,0,0);
+            (1,2,1,100,'Village One',10,'Alice',1,'ALLY',123,NULL,FALSE,NULL,NULL,NULL),
+            (3,4,2,101,'Village Two',11,'Bob',2,'BETA',456,NULL,FALSE,NULL,NULL,NULL);
             """;
 
         var rows = MapSqlPlayerParser.Parse(mapSql);
@@ -29,13 +29,27 @@ public sealed class MapSqlPlayerParserTests
     {
         const string mapSql = """
             INSERT INTO `x_world` VALUES
-            (-1,2,1,100,'Village, One',10,'Alice''s Name',1,'A\'Team',123,0,0,0,0);
+            (-1,2,1,100,'Village, One',10,'Alice''s Name',1,'A\'Team',123,NULL,FALSE,NULL,NULL,NULL);
             """;
 
         var row = Assert.Single(MapSqlPlayerParser.Parse(mapSql));
 
         Assert.Equal("Alice's Name", row.PlayerName);
         Assert.Equal("A'Team", row.Alliance);
+    }
+
+    [Fact]
+    public void Parse_DoesNotUsePlayerIdAsName()
+    {
+        const string mapSql = """
+            INSERT INTO `x_world` VALUES (82,-119,200,1,36264,'03',1519,'Bam Bamm',181,'Türk',630,NULL,FALSE,NULL,NULL,NULL);
+            """;
+
+        var row = Assert.Single(MapSqlPlayerParser.Parse(mapSql));
+
+        Assert.Equal("Bam Bamm", row.PlayerName);
+        Assert.Equal("Türk", row.Alliance);
+        Assert.Equal(630, row.Population);
     }
 
     [Fact]
