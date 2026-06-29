@@ -318,10 +318,13 @@ public partial class MainWindow
             _botService.EnqueueRuntime("build_troops", "Build troops", trainingPayload, priority: -50, maxRetries: 0);
         }
 
-        // Brewery celebration — capital only (the brewery exists only in the capital). Generated for the
-        // capital when it is enabled, its Auto Celebration group is on, and the tribe supports it.
-        if (_troopTrainingViewModel.IsAutoCelebrationAvailableForCurrentTribe
-            && _troopTrainingViewModel.AutoCelebrationEnabled)
+        // Brewery celebration — capital only (the brewery exists only in the capital). The capital's
+        // Brewery Celebration group toggle is the authoritative switch — same as every other per-village
+        // group above — and enabling it force-syncs the Troops-tab "Auto celebration" flag. Gate on the
+        // persisted group + tribe support only; do NOT also require that VM flag here. At startup the
+        // persisted group can be on while the flag has loaded off (it is only reconciled later), which
+        // left the celebration un-enqueued — "no ready item across villages" — until the user re-toggled.
+        if (_troopTrainingViewModel.IsAutoCelebrationAvailableForCurrentTribe)
         {
             var capital = automationVillages.FirstOrDefault(v => v.IsCapital);
             if (capital is not null
