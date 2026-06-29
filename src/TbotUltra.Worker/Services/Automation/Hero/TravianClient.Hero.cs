@@ -83,7 +83,7 @@ public sealed partial class TravianClient : IHeroClient
         // throws, so the dispatch below continues regardless of its outcome.
         if (_config.IncreaseAdventuresToHard)
         {
-            var hardResult = await IncreaseAdventuresToHardAsync(cancellationToken);
+            var hardResult = await IncreaseAdventuresToHardForSelectedAdventureAsync("top", cancellationToken);
             Notify($"[hero] increase-adventures-to-hard: {hardResult}");
         }
 
@@ -169,8 +169,9 @@ public sealed partial class TravianClient : IHeroClient
         }
 
         Notify($"Adventures on current page: {sidebar.AdventureCount}.");
-        // We're on dorf1 here; cheaply read the hero home village + state from the hero widget (no extra
-        // navigation) and surface it so the dashboard hero icon updates during normal polling too.
+        // We're on dorf1 here; cheaply read the hero home village + state from the hero widget. If a
+        // dead/reviving icon no longer exposes the home-village link, fall back to attributes once so the
+        // dashboard can still mark the correct village.
         await NotifyHeroHomeFromDorf1Async(cancellationToken);
         return sidebar.AdventureCount;
     }
@@ -199,10 +200,10 @@ public sealed partial class TravianClient : IHeroClient
 
     // Reads the hero home village + away/dead state from the dorf1 hero widget (the rally-point link in the
     // hero box points to the hero's HOME village; the icon class shows the state). Emits a [herohome] log
-    // line the desktop parses. Best-effort: silent when the widget/village name isn't present.
+    // line the desktop parses. Dead/reviving Official widgets can have an empty href, so those states fall
+    // back to /hero/attributes to resolve the village name.
     private async Task NotifyHeroHomeFromDorf1Async(CancellationToken cancellationToken)
     {
-        _ = cancellationToken;
         try
         {
             var raw = await _page.EvaluateAsync<string?>(
@@ -215,11 +216,13 @@ public sealed partial class TravianClient : IHeroClient
                     .replace(/\s*\(?-?\d+\s*[|｜]\s*-?\d+\)?\s*$/, '')
                     .trim();
                   const widget = document.querySelector('.heroStatus a[href*="build.php"][href*="id=39"]')
-                              || document.querySelector('a[href*="build.php"][href*="id=39"]');
-                  if (!widget) return null;
-                  const icon = widget.querySelector('i') || document.querySelector('.heroStatus i');
-                  const cls = icon ? (icon.className || '').toLowerCase() : '';
-                  const m = (widget.getAttribute('href') || '').match(/newdid=(\d+)/);
+                              || document.querySelector('a[href*="build.php"][href*="id=39"]')
+                              || document.querySelector('.heroStatus a')
+                              || document.querySelector('.heroStatus span')
+                              || document.querySelector('.heroStatus');
+                  const icon = widget?.querySelector?.('i') || document.querySelector('.heroStatus i');
+                  const cls = icon ? String(icon.className || '').toLowerCase() : '';
+                  const m = (widget?.getAttribute?.('href') || '').match(/newdid=(\d+)/);
                   const did = m ? m[1] : null;
                   // Canonical state signals from the top-bar/sidebar hero status. A travelling hero
                   // (adventure/attack/returning) shows a heroRunning/statusRunning icon or an arrival
@@ -245,7 +248,7 @@ public sealed partial class TravianClient : IHeroClient
                       if (nameEl) name = clean(nameEl.textContent);
                     }
                   }
-                  if (!name) return null;
+                  if (!name && !(dead || reviving)) return null;
                   return JSON.stringify({ name: name, away: away, dead: dead, reviving: reviving });
                 }
                 """);
@@ -257,14 +260,34 @@ public sealed partial class TravianClient : IHeroClient
             using var doc = System.Text.Json.JsonDocument.Parse(raw);
             var root = doc.RootElement;
             var name = root.TryGetProperty("name", out var n) ? n.GetString() : null;
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                return;
-            }
-
             var away = root.TryGetProperty("away", out var a) && a.GetBoolean();
             var dead = root.TryGetProperty("dead", out var d) && d.GetBoolean();
             var reviving = root.TryGetProperty("reviving", out var r) && r.GetBoolean();
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                if (!dead && !reviving)
+                {
+                    return;
+                }
+
+                Notify("[herohome] home village missing for dead/reviving hero; reading hero attributes.");
+                await GotoAsync(HeroAttributesPath, cancellationToken);
+                await WaitForPageReadyAsync(cancellationToken);
+                await PauseForManualStepIfVisibleAsync("Manual verification appeared while resolving hero home village.", cancellationToken);
+                await EnsureLoggedInAsync(cancellationToken: cancellationToken);
+
+                var heroHome = await ReadHeroHomeVillageInfoAsync(cancellationToken);
+                if (string.IsNullOrWhiteSpace(heroHome.Name))
+                {
+                    Notify("[herohome] hero attributes did not expose a home village name.");
+                    return;
+                }
+
+                name = heroHome.Name;
+                away = heroHome.Away;
+            }
+
             Notify($"[herohome] away={(away ? "true" : "false")} dead={(dead ? "true" : "false")} reviving={(reviving ? "true" : "false")} name={name.Trim()}");
         }
         catch
@@ -1228,9 +1251,11 @@ public sealed partial class TravianClient : IHeroClient
             // Self-skips if already active and never throws, so dispatch proceeds regardless.
             if (_config.IncreaseAdventuresToHard)
             {
-                var hardResult = await IncreaseAdventuresToHardAsync(cancellationToken);
+                var hardResult = await IncreaseAdventuresToHardForSelectedAdventureAsync(adventurePickOrder, cancellationToken);
                 Notify($"[hero] increase-adventures-to-hard: {hardResult}");
-                actions.Add("increase_danger_to_hard");
+                actions.Add(hardResult.Contains("already hard", StringComparison.OrdinalIgnoreCase)
+                    ? "increase_danger_to_hard_skipped_already_hard"
+                    : "increase_danger_to_hard");
             }
 
             if (_config.ReduceAdventureTime)
@@ -3086,6 +3111,147 @@ public sealed partial class TravianClient : IHeroClient
         return (dispatched, duration, returnSeconds);
     }
 
+    private async Task<string> IncreaseAdventuresToHardForSelectedAdventureAsync(string pickOrder, CancellationToken cancellationToken)
+    {
+        var selected = await ReadSelectedAdventureBeforeBonusAsync(pickOrder, cancellationToken);
+        if (selected?.Found == true)
+        {
+            var durationText = selected.DurationSeconds is > 0
+                ? $", duration={selected.DurationSeconds.Value}s"
+                : string.Empty;
+            Notify($"[hero] selected adventure before hard bonus: order={pickOrder}, difficulty={selected.Difficulty ?? "unknown"}{durationText}.");
+            if (string.Equals(selected.Difficulty, "hard", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Selected adventure is already hard; skipped increase-danger bonus video.";
+            }
+        }
+        else
+        {
+            Notify($"[hero] could not read selected adventure difficulty before hard bonus (order={pickOrder}); using existing bonus-video flow.");
+        }
+
+        return await IncreaseAdventuresToHardAsync(cancellationToken);
+    }
+
+    private async Task<AdventureSelectionPreviewJs?> ReadSelectedAdventureBeforeBonusAsync(string pickOrder, CancellationToken cancellationToken)
+    {
+        await OpenHeroAdventuresPageAsync(cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading adventure difficulty.", cancellationToken);
+
+        try
+        {
+            await _page.WaitForFunctionAsync(
+                """
+                () => !!document.querySelector('table.adventureList tbody tr, a.gotoAdventure[href*="start_adventure.php"]')
+                   || /on its way to an adventure/i.test(document.body?.innerText || '')
+                   || !!document.querySelector('.heroState, [class*="statusRunning"], [class*="heroRunning"]')
+                """,
+                null,
+                new PageWaitForFunctionOptions { Timeout = 6000 });
+        }
+        catch (TimeoutException)
+        {
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+        }
+
+        var raw = await _page.EvaluateAsync<string>(
+            $$"""
+            () => {
+              const order = '{{(pickOrder?.ToLowerInvariant() == "top" ? "top" : "shortest")}}';
+              const parseDuration = (text) => {
+                const m = (text || '').match(/(\d{1,3}):(\d{2}):(\d{2})/);
+                if (!m) return Number.MAX_SAFE_INTEGER;
+                return Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]);
+              };
+
+              const isDisabled = (node) =>
+                !node || (node.hasAttribute && node.hasAttribute('disabled'))
+                || (node.className || '').toString().toLowerCase().includes('disabled');
+
+              const collectContext = (root) => {
+                if (!root) return '';
+                const parts = [root.textContent || '', String(root.className || '')];
+                for (const node of root.querySelectorAll?.('*') || []) {
+                  parts.push(
+                    node.textContent || '',
+                    String(node.className || ''),
+                    node.getAttribute?.('title') || '',
+                    node.getAttribute?.('alt') || '',
+                    node.getAttribute?.('aria-label') || '',
+                    node.getAttribute?.('src') || '',
+                    node.getAttribute?.('data-tooltip') || '',
+                    node.getAttribute?.('data-title') || '',
+                    node.getAttribute?.('data-difficulty') || '');
+                }
+                return parts.join(' ').replace(/\s+/g, ' ').toLowerCase();
+              };
+
+              const readDifficulty = (node) => {
+                const scope = node.closest('tr')
+                  || node.closest('[class*="adventure" i]')
+                  || node.parentElement
+                  || node;
+                const difficultyCell = scope.querySelector?.('td.difficulty, [class*="difficulty" i]');
+                const difficultyText = collectContext(difficultyCell || scope);
+                if (/difficulty[_-]?hard|(^|[^a-z])hard([^a-z]|$)/.test(difficultyText)) return 'hard';
+                if (/difficulty[_-]?(normal|easy)|(^|[^a-z])normal([^a-z]|$)/.test(difficultyText)) return 'normal';
+                const text = collectContext(scope);
+                if (/(^|[^a-z])hard([^a-z]|$)|difficulty[^a-z0-9]*hard|adventure[^a-z0-9]*hard/.test(text)) return 'hard';
+                if (/(^|[^a-z])normal([^a-z]|$)|difficulty[^a-z0-9]*normal|adventure[^a-z0-9]*normal/.test(text)) return 'normal';
+                return 'unknown';
+              };
+
+              const rows = Array.from(document.querySelectorAll('table.adventureList tbody tr, #adventureListForm tbody tr'));
+              const rowEntries = rows.map(row => {
+                const durationCell = row.querySelector('td.moveTime, td.duration');
+                const duration = parseDuration(durationCell?.textContent || row.textContent || '');
+                return { node: row, duration };
+              });
+
+              const candidates = rowEntries.length > 0
+                ? []
+                : Array.from(document.querySelectorAll('a.gotoAdventure[href*="start_adventure.php"], a, button, input[type="submit"]'))
+                    .filter(node => {
+                      if (isDisabled(node)) return false;
+                      const text = ((node.textContent || '') + ' ' + (node.getAttribute('value') || '') + ' ' + (node.getAttribute('title') || '')).toLowerCase();
+                      const href = (node.getAttribute('href') || '').toLowerCase();
+                      return node.matches('a.gotoAdventure[href*="start_adventure.php"]')
+                        || text.includes('to the adventure')
+                        || text.includes('to adventure')
+                        || text.includes('start adventure')
+                        || text.includes('explore')
+                        || href.includes('hero.php?t=3&kid=')
+                        || href.includes('action=start');
+                    });
+
+              const actionEntries = candidates.map(node => {
+                const row = node.closest('tr');
+                const moveCell = row?.querySelector('td.moveTime, td.duration');
+                const duration = parseDuration(moveCell?.textContent || row?.textContent || '');
+                return { node, duration };
+              });
+
+              const entries = rowEntries.length > 0 ? rowEntries : actionEntries;
+              if (entries.length === 0) return JSON.stringify({ found: false });
+
+              if (order === 'shortest') entries.sort((a, b) => a.duration - b.duration);
+              const chosen = entries[0];
+              const duration = chosen.duration === Number.MAX_SAFE_INTEGER ? null : chosen.duration;
+              return JSON.stringify({
+                found: true,
+                difficulty: readDifficulty(chosen.node),
+                durationSeconds: duration
+              });
+            }
+            """);
+
+        return string.IsNullOrWhiteSpace(raw)
+            ? null
+            : JsonSerializer.Deserialize<AdventureSelectionPreviewJs>(raw);
+    }
+
     private async Task<int?> ReadAdventureReturnSecondsAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -3163,6 +3329,18 @@ public sealed partial class TravianClient : IHeroClient
 
         [JsonPropertyName("returnSeconds")]
         public int? ReturnSeconds { get; init; }
+    }
+
+    private sealed class AdventureSelectionPreviewJs
+    {
+        [JsonPropertyName("found")]
+        public bool Found { get; init; }
+
+        [JsonPropertyName("difficulty")]
+        public string? Difficulty { get; init; }
+
+        [JsonPropertyName("durationSeconds")]
+        public int? DurationSeconds { get; init; }
     }
 
     private async Task<bool> IsHeroInActiveVillageAsync(CancellationToken cancellationToken)
