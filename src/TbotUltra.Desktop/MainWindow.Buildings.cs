@@ -150,9 +150,9 @@ public partial class MainWindow
 
     internal void BuildingSlotCircleButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_lastBuildingStatus is null)
+        if (ResolveSelectedVillageBuildingStatus() is null)
         {
-            BuildingsInfoTextBlock.Text = "Load buildings first.";
+            BuildingsInfoTextBlock.Text = "Load buildings for the selected village first.";
             return;
         }
 
@@ -371,13 +371,14 @@ public partial class MainWindow
 
     private void ShowConstructChoicesForSlot(int slotId)
     {
-        if (_lastBuildingStatus is null)
+        var status = ResolveSelectedVillageBuildingStatus();
+        if (status is null || status.Buildings.Count == 0)
         {
-            BuildingsInfoTextBlock.Text = "Load buildings first.";
+            BuildingsInfoTextBlock.Text = "Load buildings for the selected village first.";
             return;
         }
 
-        var options = GetClassifiedConstructOptionsForSlot(slotId);
+        var options = GetClassifiedConstructOptionsForSlot(slotId, status);
         if (options.Count == 0)
         {
             BuildingsInfoTextBlock.Text = $"No constructable buildings available for slot {slotId} right now.";
@@ -459,14 +460,9 @@ public partial class MainWindow
         return trimmed.Replace("'", string.Empty).Replace("’", string.Empty);
     }
 
-    private IReadOnlyList<BuildingCatalogOption> GetClassifiedConstructOptionsForSlot(int slotId)
+    private IReadOnlyList<BuildingCatalogOption> GetClassifiedConstructOptionsForSlot(int slotId, VillageStatus sourceStatus)
     {
-        if (_lastBuildingStatus is null)
-        {
-            return [];
-        }
-
-        var status = BuildProjectedBuildingStatus(_lastBuildingStatus);
+        var status = BuildProjectedBuildingStatus(sourceStatus);
         var fullCatalog = BuildingCatalogService.GetFullCatalog(status.Tribe);
         var occupiedBuildings = status.Buildings
             .Where(b => (b.Level ?? 0) > 0)
@@ -603,7 +599,7 @@ public partial class MainWindow
                 continue;
             }
 
-            if (CanQueueConstructBuilding(slotId, option, out var reason))
+            if (CanQueueConstructBuilding(slotId, option, sourceStatus, out var reason))
             {
                 option.Availability = BuildingConstructAvailability.Available;
             }
@@ -630,14 +626,20 @@ public partial class MainWindow
 
     private bool CanQueueConstructBuilding(int slotId, BuildingCatalogOption selectedBuilding, out string reason)
     {
-        reason = string.Empty;
-        if (_lastBuildingStatus is null)
+        var status = ResolveSelectedVillageBuildingStatus();
+        if (status is null || status.Buildings.Count == 0)
         {
-            reason = "Load buildings first.";
+            reason = "Load buildings for the selected village first.";
             return false;
         }
 
-        var projectedStatus = BuildProjectedBuildingStatus(_lastBuildingStatus);
+        return CanQueueConstructBuilding(slotId, selectedBuilding, status, out reason);
+    }
+
+    private bool CanQueueConstructBuilding(int slotId, BuildingCatalogOption selectedBuilding, VillageStatus sourceStatus, out string reason)
+    {
+        reason = string.Empty;
+        var projectedStatus = BuildProjectedBuildingStatus(sourceStatus);
         var occupied = projectedStatus.Buildings.FirstOrDefault(item => item.SlotId == slotId
             && ((item.Level ?? 0) > 0
                 || ((item.Gid ?? 0) > 0 && !IsUnbuiltFixedSpecialSlot(slotId, item, selectedBuilding.Gid))));
