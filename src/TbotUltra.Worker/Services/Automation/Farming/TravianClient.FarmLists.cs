@@ -465,9 +465,15 @@ public sealed partial class TravianClient : IFarmingClient
                   const startButton = candidate.querySelector('button.startFarmList');
                   const startText = cleanNumericText(startButton?.textContent);
                   const startCountMatch = startText.match(/start\s*\((\d+)\)/i);
+                  const startCount = startCountMatch ? Number(startCountMatch[1]) : null;
+                  const startButtonDisabled =
+                    !startButton
+                    || startButton.disabled
+                    || startButton.getAttribute('disabled') !== null
+                    || (startButton.className || '').toLowerCase().includes('disabled');
                   const renderedSlots = Array.from(candidate.querySelectorAll('tbody tr.slot'));
                   let active = startCountMatch
-                    ? Number(startCountMatch[1])
+                    ? startCount
                     : renderedSlots.filter((row) => !row.classList.contains('disabled')).length;
 
                   if (!Number.isFinite(total) || total < 0) total = 0;
@@ -497,7 +503,11 @@ public sealed partial class TravianClient : IFarmingClient
                     capacity,
                     farmCoordinates,
                     timerText: '',
-                    disabled: Number.isFinite(running) && running > 0,
+                    // "Not ready" is the Start button's own state, NOT how many farms are currently out
+                    // raiding. A list with some targets still being raided ("22/37 being raided") keeps a
+                    // green, clickable "Start (N)" button for the N targets that ARE ready — it must still
+                    // be sendable. Only treat it as not-ready when that button is missing/disabled or 0.
+                    disabled: startButtonDisabled || startCount === 0,
                     lid
                   };
                 });
