@@ -1,4 +1,5 @@
 using Microsoft.Playwright;
+using System.Text.RegularExpressions;
 using TbotUltra.Core.Configuration;
 
 namespace TbotUltra.Worker.Services;
@@ -79,18 +80,33 @@ public sealed partial class TravianClient
         ".button-container:has(.text:text-is('Send'))",
     ];
 
-    public async Task SendBulkMessageBatchAsync(
+    private static readonly Regex BulkMessageMissingPlayerRegex =
+        new(@"^\s*The\s+name\s+(.+?)\s+does\s+not\s+exist\.?\s*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    public async Task<IReadOnlyList<string>> SendBulkMessageBatchAsync(
         IReadOnlyList<string> playerNames,
         string subject,
         string message,
         CancellationToken cancellationToken = default)
     {
-        if (playerNames.Count is < 1 or > 25)
+        var safePlayerNames = playerNames
+            .Select(name => (name ?? string.Empty).Trim())
+            .Where(name => name.Length > 0)
+            .Where(name => !MapSqlPlayerParser.IsProtectedPlayerName(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var skippedProtected = playerNames.Count - safePlayerNames.Count;
+        if (skippedProtected > 0)
+        {
+            Notify($"[bulk-messages] skipped {skippedProtected} protected/invalid recipient(s) before writing message.");
+        }
+
+        if (safePlayerNames.Count is < 1 or > 25)
         {
             throw new ArgumentOutOfRangeException(nameof(playerNames), "A message batch must contain 1 to 25 players.");
         }
 
-        Notify($"[bulk-messages] opening message writer for {playerNames.Count} recipient(s).");
+        Notify($"[bulk-messages] opening message writer for {safePlayerNames.Count} recipient(s).");
         await EnsureLoggedInAsync();
         await GotoAsync(MessagesWritePath, cancellationToken);
         await WaitForBulkMessageWriteFormAsync(cancellationToken);
@@ -111,7 +127,8 @@ public sealed partial class TravianClient
             throw new InvalidOperationException($"Could not find message write field(s): {missing}. Save the /messages/write DOM and add selectors.");
         }
 
-        var recipientText = string.Join(';', playerNames.Select(name => name.Trim()).Where(name => name.Length > 0));
+        var currentPlayerNames = safePlayerNames.ToList();
+        var recipientText = string.Join(';', currentPlayerNames);
         await DelayBeforeClickAsync(cancellationToken, "bulk messages focus recipients");
         await FillBulkMessageFieldAsync(recipients, recipientText, "recipients", cancellationToken);
         await DelayBeforeClickAsync(cancellationToken, "bulk messages focus subject");
@@ -125,10 +142,41 @@ public sealed partial class TravianClient
             throw new InvalidOperationException("Could not find the message Send button. Save the /messages/write DOM and add selectors.");
         }
 
-        await DelayBeforeClickAsync(cancellationToken, "bulk messages send");
-        await sendButton.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs }).WaitAsync(cancellationToken);
-        await WaitAfterBulkMessageSendAsync(cancellationToken);
-        Notify($"[bulk-messages] sent batch to {playerNames.Count} recipient(s).");
+        var retryGuard = 0;
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (currentPlayerNames.Count == 0)
+            {
+                throw new InvalidOperationException("Bulk message batch has no valid recipients left after removing missing players.");
+            }
+
+            await DelayBeforeClickAsync(cancellationToken, "bulk messages send");
+            await sendButton.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs }).WaitAsync(cancellationToken);
+            var missingPlayerName = await TryHandleBulkMessageMissingPlayerDialogAsync(currentPlayerNames, cancellationToken);
+            if (missingPlayerName is null)
+            {
+                await WaitAfterBulkMessageSendAsync(cancellationToken);
+                Notify($"[bulk-messages] sent batch to {currentPlayerNames.Count} recipient(s).");
+                return currentPlayerNames;
+            }
+
+            var removed = RemoveBulkMessageRecipient(currentPlayerNames, missingPlayerName);
+            if (!removed)
+            {
+                throw new InvalidOperationException($"Bulk message recipient '{missingPlayerName}' does not exist, but it could not be matched to the current batch.");
+            }
+
+            retryGuard++;
+            if (retryGuard > safePlayerNames.Count)
+            {
+                throw new InvalidOperationException("Bulk message missing-player retry guard reached.");
+            }
+
+            Notify($"[bulk-messages] removed missing recipient '{missingPlayerName}' and retrying batch with {currentPlayerNames.Count} recipient(s).");
+            await FillBulkMessageFieldAsync(recipients, string.Empty, "recipients", cancellationToken);
+            await FillBulkMessageFieldAsync(recipients, string.Join(';', currentPlayerNames), "recipients", cancellationToken);
+        }
     }
 
     private async Task WaitForBulkMessageWriteFormAsync(CancellationToken cancellationToken)
@@ -235,25 +283,96 @@ public sealed partial class TravianClient
             .Replace('\r', '\n');
     }
 
+    internal static string? TryExtractBulkMessageMissingPlayerName(string? dialogText)
+    {
+        if (string.IsNullOrWhiteSpace(dialogText))
+        {
+            return null;
+        }
+
+        var match = BulkMessageMissingPlayerRegex.Match(dialogText.Trim());
+        return match.Success ? match.Groups[1].Value.Trim() : null;
+    }
+
+    private async Task<string?> TryHandleBulkMessageMissingPlayerDialogAsync(
+        IReadOnlyCollection<string> attemptedPlayerNames,
+        CancellationToken cancellationToken)
+    {
+        var content = _page.Locator(".dialogOverlay.dialogVisible #dialogContent").First;
+        try
+        {
+            await content.WaitForAsync(new LocatorWaitForOptions
+            {
+                State = WaitForSelectorState.Visible,
+                Timeout = 1200,
+            }).WaitAsync(cancellationToken);
+        }
+        catch (TimeoutException)
+        {
+            return null;
+        }
+        catch (PlaywrightException)
+        {
+            return null;
+        }
+
+        var dialogText = await content.InnerTextAsync(new LocatorInnerTextOptions { Timeout = 2000 }).WaitAsync(cancellationToken);
+        var missingPlayerName = TryExtractBulkMessageMissingPlayerName(dialogText);
+        if (missingPlayerName is null)
+        {
+            return null;
+        }
+
+        var okButton = _page.Locator(".dialogOverlay.dialogVisible button.dialogButtonOk, .dialogOverlay.dialogVisible button.ok").First;
+        await DelayBeforeClickAsync(cancellationToken, "bulk messages missing player dialog ok");
+        await okButton.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs }).WaitAsync(cancellationToken);
+        try
+        {
+            await _page.Locator(".dialogOverlay.dialogVisible")
+                .First
+                .WaitForAsync(new LocatorWaitForOptions
+                {
+                    State = WaitForSelectorState.Hidden,
+                    Timeout = Math.Min(_config.TimeoutMs, 5000),
+                })
+                .WaitAsync(cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // The next field fill will fail clearly if the dialog still blocks the page.
+        }
+
+        var matchedName = attemptedPlayerNames.FirstOrDefault(name =>
+            string.Equals(
+                MapSqlPlayerParser.NormalizeNameKey(name),
+                MapSqlPlayerParser.NormalizeNameKey(missingPlayerName),
+                StringComparison.Ordinal));
+        return string.IsNullOrWhiteSpace(matchedName) ? missingPlayerName : matchedName;
+    }
+
+    private static bool RemoveBulkMessageRecipient(List<string> playerNames, string missingPlayerName)
+    {
+        var missingKey = MapSqlPlayerParser.NormalizeNameKey(missingPlayerName);
+        var removed = playerNames.RemoveAll(name =>
+            string.Equals(MapSqlPlayerParser.NormalizeNameKey(name), missingKey, StringComparison.Ordinal));
+        return removed > 0;
+    }
+
     private async Task WaitAfterBulkMessageSendAsync(CancellationToken cancellationToken)
     {
         try
         {
-            await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded, new PageWaitForLoadStateOptions
-            {
-                Timeout = Math.Min(_config.TimeoutMs, 8000),
-            }).WaitAsync(cancellationToken);
+            await WaitForPageReadyAsync(cancellationToken);
         }
-        catch
+        catch (OperationCanceledException)
         {
-            // Some React submissions do not navigate; validation below still catches visible errors.
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Notify($"[bulk-messages:verbose] message send page-ready wait failed or no navigation occurred: {ex.Message}");
         }
 
-        await ActionPacer.FromOptions(_config, Notify).DelayAsync(
-            _config.ActionPacingPageLoadMinSeconds,
-            _config.ActionPacingPageLoadMaxSeconds,
-            cancellationToken,
-            "after message send");
         await PauseForManualStepIfVisibleAsync("Manual verification appeared after sending a message.", cancellationToken);
 
         var hasVisibleError = await _page.EvaluateAsync<bool>(

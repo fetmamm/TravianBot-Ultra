@@ -10,6 +10,13 @@ internal sealed record MapSqlVillagePlayer(
 
 internal static class MapSqlPlayerParser
 {
+    private static readonly HashSet<string> ProtectedPlayerNameKeys =
+    [
+        "multihunter",
+        "natar",
+        "natars",
+    ];
+
     public static IReadOnlyList<MapSqlVillagePlayer> Parse(string mapSql)
     {
         if (string.IsNullOrWhiteSpace(mapSql))
@@ -75,7 +82,7 @@ internal static class MapSqlPlayerParser
             .Where(player => !sentKeys.Contains(player.Key))
             .Where(player => !excludedPlayerKeys.Contains(player.Key))
             .Where(player => !player.AllianceKeys.Overlaps(excludedAllianceKeys))
-            .Where(player => !string.Equals(player.Name, "Multihunter", StringComparison.OrdinalIgnoreCase))
+            .Where(player => !IsProtectedPlayerName(player.Name))
             .Select(player => new BulkMessagePlayer(
                 player.Name,
                 player.Alliance,
@@ -92,6 +99,11 @@ internal static class MapSqlPlayerParser
             EligiblePlayers: players.Count,
             SentCachedCount: sentCachedCount,
             Players: players);
+    }
+
+    public static bool IsProtectedPlayerName(string? value)
+    {
+        return ProtectedPlayerNameKeys.Contains(NormalizeNameKey(value));
     }
 
     public static string NormalizeNameKey(string? value)

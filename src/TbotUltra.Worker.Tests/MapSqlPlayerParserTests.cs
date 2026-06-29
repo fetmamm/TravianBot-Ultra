@@ -85,7 +85,7 @@ public sealed class MapSqlPlayerParserTests
     }
 
     [Fact]
-    public void Analyze_FiltersSentExcludedAllianceAndMultihunter()
+    public void Analyze_FiltersSentExcludedAllianceAndSystemPlayers()
     {
         var rows = new[]
         {
@@ -93,6 +93,7 @@ public sealed class MapSqlPlayerParserTests
             new MapSqlVillagePlayer("Bob", "BETA", 200),
             new MapSqlVillagePlayer("Charlie", "NOPE", 300),
             new MapSqlVillagePlayer("Multihunter", null, 400),
+            new MapSqlVillagePlayer("Natars", null, 500),
         };
 
         var result = MapSqlPlayerParser.Analyze(
@@ -103,7 +104,24 @@ public sealed class MapSqlPlayerParserTests
             BulkMessageSortOrder.PopulationDescending);
 
         Assert.Empty(result.Players);
-        Assert.Equal(4, result.PlayersAnalyzed);
+        Assert.Equal(5, result.PlayersAnalyzed);
         Assert.Equal(1, result.SentCachedCount);
+    }
+
+    [Theory]
+    [InlineData("Multihunter")]
+    [InlineData(" Natars ")]
+    [InlineData("Natar")]
+    public void IsProtectedPlayerName_BlocksSystemPlayers(string playerName)
+    {
+        Assert.True(MapSqlPlayerParser.IsProtectedPlayerName(playerName));
+    }
+
+    [Fact]
+    public void TryExtractBulkMessageMissingPlayerName_ReadsOfficialDialogText()
+    {
+        var name = TravianClient.TryExtractBulkMessageMissingPlayerName("The name grezullallala does not exist.");
+
+        Assert.Equal("grezullallala", name);
     }
 }
