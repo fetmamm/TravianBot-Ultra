@@ -12,6 +12,7 @@ public partial class MainWindow
     private void DashboardClearTimersButton_Click(object sender, RoutedEventArgs e)
     {
         var selectedVillageName = NormalizeVillageName(GetSelectedVillageName());
+        var selectedVillageKey = GetSelectedVillageKey();
         if (string.IsNullOrWhiteSpace(selectedVillageName))
         {
             AppDialog.Show(
@@ -26,9 +27,9 @@ public partial class MainWindow
         var confirmation = AppDialog.Show(
             this,
             $"Clear cached timers for '{selectedVillageName}' and request fresh status reads?\n\n"
-                + "This also clears that village's construction build-queue snapshot and resets its deferred "
-                + "construction retries, so a stuck \"waiting\" state (when nothing is actually building) can "
-                + "be reset. Queue page items will not be removed.",
+                + "This also clears that village's construction build-queue snapshot and resets all deferred "
+                + "group retry timers for the selected village, so stuck \"waiting\" states can retry now. "
+                + "Queue page items will not be removed.",
             "Clear timers",
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning,
@@ -39,15 +40,19 @@ public partial class MainWindow
         }
 
         // "Clear timers" clears the selected village's cached activity timers + construction snapshot and
-        // resets that village's deferred construction retries (a manual escape hatch for a stuck wait). It
-        // still must not wake the loop or navigate the browser, so it never starts the bot on its own — if
-        // the loop is already running it simply re-checks construction promptly; if stopped, nothing runs.
+        // resets that village's deferred group retries (manual escape hatch for a stuck wait). It does not
+        // start the bot from stopped, but it wakes an already-running loop so the groups retry promptly.
         ClearSelectedVillageRuntimeTimerCache(selectedVillageName);
-        ResetDeferredConstructionTimersForVillage(selectedVillageName);
-        RefreshQueueUi();
+        var resetCount = ResetDeferredQueueTimersForVillage(selectedVillageName, selectedVillageKey);
+        if (resetCount > 0)
+        {
+            Interlocked.Exchange(ref _continuousLoopWakeRequested, 1);
+        }
+
+        RequestQueueUiRefresh(immediate: true);
         RefreshVillageActivityIndicatorsOnDashboard();
         UpdateAutomationLoopRunningIndicators();
-        AppendLog($"Cleared cached timers and construction wait for village '{selectedVillageName}'. Queue items were kept and the bot was not started.");
+        AppendLog($"Cleared cached timers and reset {resetCount} deferred group timer(s) for village '{selectedVillageName}'. Queue items were kept.");
     }
 
     private void ClearSelectedVillageRuntimeTimerCache(string selectedVillageName)
@@ -102,21 +107,15 @@ public partial class MainWindow
         };
     }
 
-    // Resets the selected village's deferred construction retries to "now" so a stuck wait (e.g. a stale
-    // queue_full retry timed ~30 min out while nothing is building) is cleared. Only Construction-group
-    // items that are Pending with a future NextAttemptAt are rescheduled; the loop is not woken, so this
-    // does not start the bot — a running loop just re-checks construction on its next pass.
-    private void ResetDeferredConstructionTimersForVillage(string villageName)
+    // Resets the selected village's deferred queue timers to "now" across all automation groups. Queue
+    // items are kept; only pending future retries for this village are made ready.
+    private int ResetDeferredQueueTimersForVillage(string villageName, string? villageKey)
     {
         var now = DateTimeOffset.UtcNow;
         var deferred = _botService.GetQueueItemsForDisplay()
-            .Where(item => item.Group == QueueGroup.Construction
-                && item.Status == QueueStatus.Pending
+            .Where(item => item.Status == QueueStatus.Pending
                 && item.NextAttemptAt > now
-                && string.Equals(
-                    NormalizeVillageName(GetQueueItemVillageName(item)),
-                    villageName,
-                    StringComparison.OrdinalIgnoreCase))
+                && IsQueueItemForVillage(item, villageName, villageKey))
             .ToList();
 
         var reset = 0;
@@ -130,7 +129,23 @@ public partial class MainWindow
 
         if (reset > 0)
         {
-            AppendLog($"Reset {reset} deferred construction retry timer(s) for village '{villageName}'.");
+            AppendLog($"Reset {reset} deferred group retry timer(s) for village '{villageName}'.");
         }
+
+        return reset;
+    }
+
+    private bool IsQueueItemForVillage(QueueItem item, string villageName, string? villageKey)
+    {
+        if (!string.IsNullOrWhiteSpace(villageKey)
+            && string.Equals(GetQueueItemVillageKey(item), villageKey, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return string.Equals(
+            NormalizeVillageName(GetQueueItemVillageName(item)),
+            villageName,
+            StringComparison.OrdinalIgnoreCase);
     }
 }
