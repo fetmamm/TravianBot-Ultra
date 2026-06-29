@@ -1689,11 +1689,6 @@ public partial class MainWindow
             warnings.Add("[conservative] farming send mode is all-at-once; list-per-list is the conservative default.");
         }
 
-        if (options.CaptchaAutoSolveEnabled)
-        {
-            warnings.Add("[conservative] captcha auto-solve is enabled; default is manual verification.");
-        }
-
         var signature = string.Join("|", warnings);
         if (string.Equals(signature, _lastConservativeAutomationWarningSignature, StringComparison.Ordinal))
         {

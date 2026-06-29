@@ -33,8 +33,8 @@ These are contracts only — no logic was extracted out of the facade.
 
 | Folder | What | Key files |
 |---|---|---|
-| `Automation/Core/` | Client plumbing: login, navigation, session, captcha/manual-gate, account snapshot, villages, selectors, retry, page-tasks, capital cache | `TravianClient.cs` (state+ctor), `.Login`, `.Navigation`, `.UiSync`, `.ManualVerification`, `.CaptchaAutoSolve`, `.AccountSnapshot`, `.Villages`, `.Selectors`, `.RetryPolicy`, `.Tasks`, `.CapitalCache`; helpers `TravianSessionCache`, `TravianUrls`, `TravianParsing`, `CapitalCacheKey` |
-| `Automation/Farming/` | Farm lists, list creation, Natar farming | `TravianClient.FarmLists`, `.FarmListCreation`, `.NatarFarming`; `FarmListLossStateClassifier` |
+| `Automation/Core/` | Client plumbing: login, navigation, session, manual verification, account snapshot, villages, selectors, retry, page-tasks, capital cache | `TravianClient.cs` (state+ctor), `.Login`, `.Navigation`, `.UiSync`, `.ManualVerification`, `.AccountSnapshot`, `.Villages`, `.Selectors`, `.RetryPolicy`, `.Tasks`, `.CapitalCache`; helpers `TravianSessionCache`, `TravianUrls`, `TravianParsing`, `CapitalCacheKey` |
+| `Automation/Farming/` | Farm lists, list creation, Official Add Farms | `TravianClient.FarmLists`, `.FarmListCreation`, `.FarmAdd`; `FarmListLossStateClassifier` |
 | `Automation/Buildings/` | Construction & upgrades | `TravianClient.Buildings`, `.Upgrade`; `BuildingDomParser`, `BuildingNames`, `ConstructionSlots`, `BuildQueueFingerprints`, `UpgradeMath` |
 | `Automation/Hero/` | Hero, adventures, hero resources | `TravianClient.Hero`, `.HeroResourceTransfer`, `.AdventureDanger`; `HeroCalc` |
 | `Automation/Resources/` | Resource read/transfer, NPC trade | `TravianClient.Resources`, `.ResourceTransfer`, `.NpcTrade`; `ResourceCapacitySnapshot` |
@@ -53,7 +53,7 @@ One `partial class BotTaskRunner` in `Services/`, split by concern:
 |---|---|
 | `BotTaskRunner.cs` | Core: handler registry (`TaskHandlers`), fields, ctor, `ExecuteOnceAsync`, client-lease lifecycle, shutdown, map-oasis scan, shared records |
 | `BotTaskRunner.Session.cs` | Login/logout, post-login snapshot, stable account signals |
-| `BotTaskRunner.Farming.cs` | Farm-list / Natar public API |
+| `BotTaskRunner.Farming.cs` | Farm-list public API |
 | `BotTaskRunner.Combat.cs` | Catapult-wave reads & start |
 | `BotTaskRunner.VillageReads.cs` | Village / resource / buildings / page reads |
 | `BotTaskRunner.Hero.cs` | Hero adventure, revive, attributes, inventory |
@@ -62,10 +62,10 @@ One `partial class BotTaskRunner` in `Services/`, split by concern:
 | `BotTaskRunner.TaskHandlers.cs` | The static `Execute*` task handlers + snapshot writers + result classification |
 
 ### Other Worker services
-- `Services/Accounts/` — account provider, analysis store, hero/Natar caches.
+- `Services/Accounts/` — account provider, analysis store, hero caches.
 - `Services/Queue/` — queue store, scheduler, executor, group catalog.
 - `Services/Catalogs/` — building & task catalogs.
-- `Services/` (root) — `CaptchaAutoSolver`, `BrowserFailureClassifier`.
+- `Services/` (root) — `BrowserFailureClassifier`.
 - `Infrastructure/BrowserSession.cs` — Playwright browser lifecycle (partial; bonus-video,
   warmup/install and storage-state filtering live in `BrowserSession.<Area>.cs`).
 - `Domain/` — Worker DTOs (`TravianModels`, `MapOasisModels`, `TravcoModels`, queue types, exceptions).

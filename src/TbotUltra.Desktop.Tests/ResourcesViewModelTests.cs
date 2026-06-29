@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.ViewModels;
+using TbotUltra.Worker.Domain;
 using Xunit;
 
 namespace TbotUltra.Desktop.Tests;
@@ -117,5 +118,37 @@ public sealed class ResourcesViewModelTests
 
         Assert.False(vm.TryGetPendingTarget(1, out _));
         Assert.False(vm.TryGetPendingTarget(2, out _));
+    }
+
+    [Fact]
+    public void ApplyStorageForecasts_NegativeCropProduction_ShowsEmptyCountdownAndMarksCropStorage()
+    {
+        var vm = new ResourcesViewModel();
+        var status = new VillageStatus(
+            ActiveVillage: "Test",
+            Villages: [],
+            Resources: new Dictionary<string, string>(),
+            ResourceFields: [],
+            Buildings: [],
+            BuildQueue: [],
+            ResourceStorageForecasts:
+            [
+                new ResourceStorageForecast(
+                    ResourceKey: "crop",
+                    Current: 1200,
+                    Capacity: 4000,
+                    PercentOfCapacity: 30,
+                    ProductionPerHour: -600,
+                    SecondsToFull: null),
+            ]);
+
+        vm.ApplyStorageForecasts(status, renderImmediately: true);
+
+        var crop = vm.StorageBars.Single(item => item.ResourceKey == "crop");
+        Assert.True(crop.IsNegativeProduction);
+        Assert.Equal("1 200 / 4 000", crop.CurrentMaxText);
+        Assert.Equal("-600/h", crop.ProductionText);
+        Assert.Equal("Empty in 2h 0m", crop.TimeUntilFullText);
+        Assert.Contains("Time until empty: Empty in 2h 0m", crop.TooltipText);
     }
 }

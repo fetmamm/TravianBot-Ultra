@@ -81,18 +81,7 @@ public sealed partial class TravianClient : ISessionClient
 
         if (await CaptchaOrManualStepVisibleAsync())
         {
-            var screenshotPath = await CaptureManualVerificationScreenshotAsync("login-page", cancellationToken);
-            Notify($"[login] captcha/manual step detected for {_account.Name} — attempting auto-solve");
-            if (await TrySolveCaptchaAutomaticallyAsync("login-page", screenshotPath, cancellationToken))
-            {
-                var loggedInAfterAutoSolve = await WaitUntilLoggedInAsync(cancellationToken);
-                if (loggedInAfterAutoSolve)
-                {
-                    Notify($"[login] success ({_account.Name}) — captcha auto-solve cleared the block");
-                    await RefreshAccountFeatureSignalsAsync(cancellationToken);
-                    return;
-                }
-            }
+            await CaptureManualVerificationScreenshotAsync("login-page", cancellationToken);
 
             if (!_browserVisible)
             {
@@ -100,7 +89,7 @@ public sealed partial class TravianClient : ISessionClient
                     "Captcha/manual verification appeared while running headless.");
             }
 
-            Notify($"[login] ALARM: captcha auto-solve failed for {_account.Name}. Solve it manually in the browser — bot is paused.");
+            Notify($"[login] ALARM: captcha/manual step detected for {_account.Name}. Solve it manually in the browser — bot is paused.");
             await WaitForManualVerificationToClearAsync(cancellationToken);
         }
         else
@@ -159,17 +148,7 @@ public sealed partial class TravianClient : ISessionClient
 
         if (await CaptchaOrManualStepVisibleAsync())
         {
-            var screenshotPath = await CaptureManualVerificationScreenshotAsync("login-current-page", cancellationToken);
-            Notify($"[login] captcha/manual step on inline form for {_account.Name} — attempting auto-solve");
-            if (await TrySolveCaptchaAutomaticallyAsync("login-current-page", screenshotPath, cancellationToken))
-            {
-                var autoSolvedLoggedIn = await WaitUntilLoggedInAsync(cancellationToken);
-                if (autoSolvedLoggedIn)
-                {
-                    Notify($"[login] success ({_account.Name}) — inline form, captcha auto-solved");
-                    return autoSolvedLoggedIn;
-                }
-            }
+            await CaptureManualVerificationScreenshotAsync("login-current-page", cancellationToken);
 
             if (!_browserVisible)
             {

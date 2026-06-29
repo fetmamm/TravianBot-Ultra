@@ -6,9 +6,6 @@ public static class BotOptionsPayloadApplier
     {
         var targetVillageName = source.TargetVillageName;
         var targetVillageUrl = source.TargetVillageUrl;
-        var captchaAutoSolveEnabled = source.CaptchaAutoSolveEnabled;
-        var captchaSolverTimeoutSeconds = source.CaptchaSolverTimeoutSeconds;
-        var captchaSolverMaxAttempts = source.CaptchaSolverMaxAttempts;
         var resourceUpgradeSlotId = source.ResourceUpgradeSlotId;
         var resourceUpgradeTargetLevel = source.ResourceUpgradeTargetLevel;
         var resourceUpgradeMaxAttempts = source.ResourceUpgradeMaxAttempts;
@@ -45,7 +42,6 @@ public static class BotOptionsPayloadApplier
         var heroResourceUseBrewery = source.HeroResourceUseBrewery;
         var heroResourceUseTownHall = source.HeroResourceUseTownHall;
         var upgradeSelectorProfile = source.UpgradeSelectorProfile;
-        var natarVillageSelection = source.NatarVillageSelection;
         var continuousFarmListNames = source.ContinuousFarmListNames;
         var continuousFarmListIds = source.ContinuousFarmListIds;
         var continuousFarmDispatchDelayMinutes = source.ContinuousFarmDispatchDelayMinutes;
@@ -157,24 +153,6 @@ public static class BotOptionsPayloadApplier
                 if (key.Equals(BotOptionPayloadKeys.TargetVillageUrl, StringComparison.OrdinalIgnoreCase))
                 {
                     targetVillageUrl = value;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.CaptchaAutoSolveEnabled, StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var autoSolve))
-                {
-                    captchaAutoSolveEnabled = autoSolve;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.CaptchaSolverTimeoutSeconds, StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out var timeoutSeconds))
-                {
-                    captchaSolverTimeoutSeconds = timeoutSeconds;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.CaptchaSolverMaxAttempts, StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out var maxAttempts))
-                {
-                    captchaSolverMaxAttempts = maxAttempts;
                     continue;
                 }
 
@@ -1052,9 +1030,6 @@ public static class BotOptionsPayloadApplier
             Headless = source.Headless,
             TimeoutMs = source.TimeoutMs,
             ManualLoginTimeoutSeconds = source.ManualLoginTimeoutSeconds,
-            CaptchaAutoSolveEnabled = captchaAutoSolveEnabled,
-            CaptchaSolverTimeoutSeconds = captchaSolverTimeoutSeconds,
-            CaptchaSolverMaxAttempts = captchaSolverMaxAttempts,
             LoopIntervalSeconds = source.LoopIntervalSeconds,
             LoopTasks = source.LoopTasks,
             ContinuousLoopGroups = source.ContinuousLoopGroups,
@@ -1193,7 +1168,6 @@ public static class BotOptionsPayloadApplier
             HeroResourceUseBrewery = heroResourceUseBrewery,
             HeroResourceUseTownHall = heroResourceUseTownHall,
             UpgradeSelectorProfile = upgradeSelectorProfile,
-            NatarVillageSelection = natarVillageSelection,
         };
     }
 

@@ -23,8 +23,8 @@ dotnet build TbotUltra.sln
 
 ## 2. Official och SS-Travi
 
-Bada servervarianterna stods i samma kodbas. Official-stod ar ett lager ovanpa
-befintligt SS-stod, inte en fork eller separat adapterarkitektur.
+Official ar huvudmalet. SS-Travi finns kvar som legacy-flavor for kvarvarande
+paths/selektorer, men nya funktioner ska rikta Official om inget annat sags.
 
 ### ServerFlavor
 
@@ -32,7 +32,7 @@ befintligt SS-stod, inte en fork eller separat adapterarkitektur.
 2. `*.ss-travi.com` ar `SsTravi`; allt annat ar `Official`.
 3. Flavor far inte bindas fran config eller cachas separat.
 4. Lagg inte tillbaka `[ConfigurationKeyName("server_flavor")]`.
-5. Privatserverfunktioner (t.ex. Natar-floden) gate:as med `_config.IsPrivateServer`.
+5. Lagg inte tillbaka SS-only floden utan separat beslut.
 6. Kontrollera `[flavor]`-loggen vid misstankt fel serverbeteende.
 
 Detaljer: [ADR 2026-06-01](adr/2026-06-01-server-flavor.md).
@@ -185,6 +185,8 @@ En ny formaga ska kunna enhetstestas till stor del utan browser. God-klasserna s
   Bonus-video ska koras i isolerad temp-browser utan native popup-blocker och aldrig ladda ad-stack i main context;
   rena background-/DOM-prober ska inte spara storage state efter lasningen.
   Travco ska oppnas i isolerad browser-context, aldrig i Travian-contexten.
+- Official resource/production text kan innehalla bidi-markers och Unicode-minus (`\u2212`); DOM-number parsers
+  maste strippa `\u202A-\u202E`/`\u2066-\u2069` och normalisera minus innan `Number(...)`.
 - Session i `Sleeping` far inte vackas av refresh, login/logout, scan, test, bybyte eller auto-run.
   Continuous-loopens keep-alive (`MaybeKeepBrowserFreshDuringContinuousLoopAsync`) gate:ar pa `IsSessionSleeping`.
 - Portable single-file-builden maste innehalla `.playwright` och satta `PLAYWRIGHT_DRIVER_PATH`.
@@ -273,7 +275,6 @@ Full bakgrund och regressionsdetaljer: [engineering-notes-archive.md](history/en
 | Hero adventures, inventory, attributes | Stods; verifiera React-floden live |
 | Inbox, Tasks, Daily Quests | Stods; verifiera React-floden live |
 | NPC trade och hero resource transfer | Stods; verifiera live |
-| Natar | Endast SS-Travi |
 | Auctions | Kraver live-testning |
 | Farm lists | Official kraver Gold Club |
 

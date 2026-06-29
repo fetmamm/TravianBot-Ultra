@@ -80,7 +80,6 @@ public sealed class AccountDeletionService
         DeleteFileIfExists(AccountStoragePaths.FarmListsSnapshotPath(_projectRoot, accountName));
 
         DeleteLegacyAnalysisFiles(accountKey);
-        DeleteLegacyNatarFarmCacheFiles(accountKey);
         RemoveAccountFromLegacyManualFarmingPreferences(accountKey);
         RemoveAccountFromLegacyCapitalState(accountKey);
 
@@ -94,12 +93,6 @@ public sealed class AccountDeletionService
     private void DeleteLegacyAnalysisFiles(string accountKey)
     {
         var directory = Path.Combine(_projectRoot, AccountAnalysisConstants.RelativeDirectory);
-        DeleteLegacyAccountFiles(directory, accountKey);
-    }
-
-    private void DeleteLegacyNatarFarmCacheFiles(string accountKey)
-    {
-        var directory = Path.Combine(_projectRoot, "config", "cache", "natar-farms");
         DeleteLegacyAccountFiles(directory, accountKey);
     }
 

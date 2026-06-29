@@ -143,6 +143,42 @@ public sealed partial class TravianClient : IFarmingClient
         return clickState.ListCount;
     }
 
+    private async Task<bool> TryClickCaptchaSuccessDialogOkAsync(CancellationToken cancellationToken)
+    {
+        foreach (var selector in Selectors.CaptchaSuccessDialogOkButton)
+        {
+            var locator = _page.Locator(selector).First;
+            if (await locator.CountAsync() == 0)
+            {
+                continue;
+            }
+
+            try
+            {
+                if (!await locator.IsVisibleAsync())
+                {
+                    continue;
+                }
+
+                await RetryAsync($"click captcha success dialog selector {selector}", async () =>
+                {
+                    await DelayBeforeClickAsync(cancellationToken);
+                    await locator.ClickAsync(new LocatorClickOptions { Timeout = Math.Min(_config.TimeoutMs, 1500) });
+                }, cancellationToken: cancellationToken);
+                await Task.Delay(250, cancellationToken);
+                return true;
+            }
+            catch (PlaywrightException)
+            {
+            }
+            catch (TimeoutException)
+            {
+            }
+        }
+
+        return false;
+    }
+
     public async Task<FarmListLossDeactivationResult> DeactivateFarmListLossTargetsAsync(
         bool includeUnoccupiedOasis,
         CancellationToken cancellationToken = default)

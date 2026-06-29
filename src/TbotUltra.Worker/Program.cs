@@ -28,7 +28,6 @@ builder.Services
 
 builder.Services.AddSingleton<IAccountProvider>(new EnvAccountProvider(envPath));
 builder.Services.AddSingleton(new ProjectContext(projectRoot));
-builder.Services.AddSingleton<ICaptchaAutoSolver, CaptchaAutoSolver>();
 builder.Services.AddSingleton<IQueueStore>(new JsonQueueStore(queuePath));
 builder.Services.AddSingleton<IQueueScheduler, PriorityFifoQueueScheduler>();
 builder.Services.AddSingleton<BotTaskRunner>();

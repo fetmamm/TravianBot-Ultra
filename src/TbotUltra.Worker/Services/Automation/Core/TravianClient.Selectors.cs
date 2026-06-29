@@ -13,7 +13,6 @@ public sealed partial class TravianClient
         public const string RallyPointTroops = "/build.php?id=39&t=1";
         public const string RallyPointSendTroops = "/build.php?id=39&t=2";
         public const string PlayerProfile = "/spieler.php";
-        public const string PlayerProfileNatars = "/spieler.php?uid=3";
         public const string Statistics100 = "/statistiken.php?id=100";
         public const string Messages = "/nachrichten.php";
         public const string Reports = "/berichte.php";

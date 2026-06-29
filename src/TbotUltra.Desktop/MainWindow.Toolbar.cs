@@ -163,7 +163,6 @@ public partial class MainWindow
             _resourceSnapshotRefreshTimer.Stop();
             _troopTrainingDeferredRefreshDebounceTimer.Stop();
             _queueUiRefreshTimer.Stop();
-            _captchaAutoSolveElapsedTimer?.Stop();
             _loopController.RequestLoopStop();
             _loopController.RequestQueueStop();
             _loopController.CancelOperation();
@@ -218,7 +217,6 @@ public partial class MainWindow
             _travcoToolsWindow?.CloseForShutdown();
             _logsPopupWindow?.Close();
             _queuePopupWindow?.Close();
-            CloseCaptchaAutoSolvePopup();
             _resourceTestFunctionsWindow?.Close();
             _savePageHtmlWindow?.Close();
             _bulkSavePageHtmlWindow?.Close();

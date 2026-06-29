@@ -72,49 +72,6 @@ public partial class MainWindow : Window
         public ulong AvailExtendedVirtual;
     }
 
-    private sealed class NatarListRow : INotifyPropertyChanged
-    {
-        private bool _isChecked;
-        private bool _isUiSelected;
-
-        public int Index { get; init; }
-        public string VillageName { get; init; } = string.Empty;
-        public int X { get; init; }
-        public int Y { get; init; }
-
-        public bool IsChecked
-        {
-            get => _isChecked;
-            set
-            {
-                if (_isChecked == value)
-                {
-                    return;
-                }
-
-                _isChecked = value;
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsChecked)));
-            }
-        }
-
-        public bool IsUiSelected
-        {
-            get => _isUiSelected;
-            set
-            {
-                if (_isUiSelected == value)
-                {
-                    return;
-                }
-
-                _isUiSelected = value;
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsUiSelected)));
-            }
-        }
-
-        public event PropertyChangedEventHandler? PropertyChanged;
-    }
-
     private sealed record UiSyncVillagePayload(
         string? Name,
         string? Url,
@@ -154,13 +111,10 @@ public partial class MainWindow : Window
     private readonly EnvAccountStore _accountStore;
     private readonly AccountAnalysisStore _accountAnalysisStore;
     private readonly HeroAttributeSnapshotStore _heroAttributeSnapshotStore;
-    private readonly NatarFarmCacheStore _natarFarmCacheStore;
     private readonly ManualFarmingPreferenceStore _manualFarmingPreferenceStore;
     private readonly AccountDeletionService _accountDeletionService;
-    private readonly ServerDiscoveryService _serverDiscoveryService;
     private readonly ServerCatalogStore _serverCatalogStore;
     private readonly IDesktopBotService _botService;
-    private readonly ICaptchaAutoSolver _captchaAutoSolver;
     private readonly DispatcherTimer _clockTimer;
     private readonly DispatcherTimer _copyFeedbackTimer;
     private readonly DispatcherTimer _inboxRefreshTimer;
@@ -329,18 +283,9 @@ public partial class MainWindow : Window
     private bool _buildQueueReachedZeroPendingCompletion;
     private int _unacknowledgedAlarmCount;
     private bool _manualVerificationAlarmActive;
-    private int _captchaSessionSeenCount;
-    private int _captchaSessionSolvedCount;
-    private bool _captchaSessionActive;
     private int _npcTradeSessionCount;
     private int _npcTradeTroopSessionCount;
     private int _npcTradeBuildingSessionCount;
-    private AppDialog? _captchaAutoSolvePopup;
-    private DispatcherTimer? _captchaAutoSolveElapsedTimer;
-    private DateTimeOffset _captchaAutoSolveStartedAt;
-    private int _captchaAutoSolveMaxSeconds = 60;
-    private TextBlock? _captchaAutoSolveAttemptTextBlock;
-    private TextBlock? _captchaAutoSolveElapsedTextBlock;
     private DateTimeOffset _lastVerificationPopupAt = DateTimeOffset.MinValue;
     private DateTimeOffset _inlineWaitUntilUtc = DateTimeOffset.MinValue;
     private int _manualFarmSessionExecutionCount;
@@ -377,7 +322,6 @@ public partial class MainWindow : Window
     private bool _suppressFarmingSettingsConfigWrite;
     private bool _suppressTownHallCelebrationModeConfigWrite;
     private bool _farmingOperationBusy;
-    private bool _natarsProfileAnalyzed;
     private DateTimeOffset _lastFarmListsAnalysisAt = DateTimeOffset.MinValue;
     private VillageStatus? _lastBuildingStatus;
     private VillageStatus? _lastResourceStatusForUi;
@@ -461,14 +405,10 @@ public partial class MainWindow : Window
         InitializeSessionPacing();
         _accountAnalysisStore = new AccountAnalysisStore(_projectRoot);
         _heroAttributeSnapshotStore = new HeroAttributeSnapshotStore(_projectRoot);
-        _natarFarmCacheStore = new NatarFarmCacheStore(_projectRoot);
         _manualFarmingPreferenceStore = new ManualFarmingPreferenceStore(_projectRoot);
-        _serverDiscoveryService = new ServerDiscoveryService();
         _serverCatalogStore = new ServerCatalogStore(_serverCatalogPath);
         var projectContext = new ProjectContext(_projectRoot);
-        var captchaAutoSolver = new CaptchaAutoSolver(projectContext);
-        _captchaAutoSolver = captchaAutoSolver;
-        var taskRunner = new BotTaskRunner(_accountProvider, projectContext, captchaAutoSolver);
+        var taskRunner = new BotTaskRunner(_accountProvider, projectContext);
         // One-time migration of the old shared config/queue.json into the active account's per-account
         // queue file. Runs before the store is used so the recover/clear logic below sees the migrated items.
         QueueMigration.MigrateLegacyGlobalQueue(_projectRoot, _accountStore.ActiveAccountName(), AppendLog);
@@ -590,7 +530,6 @@ public partial class MainWindow : Window
         AlarmListBox.ItemsSource = _alarmView;
         TravianBuildQueueDataGrid.ItemsSource = _travianBuildQueueRows;
         TravianSmithyQueueDataGrid.ItemsSource = _travianSmithyQueueRows;
-        UpdateCaptchaStatsUi();
         UpdateNpcTradeStatsUi();
         _automationLoopTasksView = CollectionViewSource.GetDefaultView(_automationLoopTasks);
         _automationLoopTasksView.Filter = AutomationLoopTaskFilter;
@@ -656,7 +595,6 @@ public partial class MainWindow : Window
         UpdateSidebarSelection(DashboardNavButton);
         UpdateFarmingUiState();
         UpdateManualFarmingExecutionCounter();
-        SetNatarsProfileAnalyzed(false);
         _heroViewModel.LoadPriorityFromConfig(null);
         StartBackgroundWarmups();
     }
@@ -703,8 +641,6 @@ public partial class MainWindow : Window
         UpdateClockText();
         RefreshAccountPicker();
         SyncServerFromActiveAccount();
-        UpdateCaptchaCardVisibility();
-
         var options = ApplySelectedVillageToOptions(LoadBotOptions());
         var storedAutoCelebration = TryGetStoredAutoCelebrationPreference();
         var hasExplicitAutoCelebrationSetting = storedAutoCelebration.HasValue;
@@ -743,7 +679,7 @@ public partial class MainWindow : Window
         ApplyAutoCollectDailyQuestsConfigToUi(options);
         ApplyHeroResourceTransferConfigToUi(options);
 
-        // Account + runtime state below (account label, inbox counts, gold-club, Natars, hero snapshot) is
+        // Account + runtime state below (account label, inbox counts, gold-club, hero snapshot) is
         // seeded from caches/disk. That is only correct before login — startup or an account switch — when the
         // UI has no live state yet. When already logged in this method is reached only from a Settings-popup
         // save; re-seeding then would overwrite newer live state with stale cache values (e.g. the hero home
@@ -758,7 +694,6 @@ public partial class MainWindow : Window
                 UpdateAccountInfoLabel(account.Name);
                 UpdateInboxButtons(0, 0);
                 UpdateGoldClubInfoFromStoredAnalysis();
-                RefreshNatarsProfileAnalyzedFromCache();
                 LoadHeroAttributeSnapshotForActiveAccount(account.Name);
             }
             catch (Exception ex)
@@ -776,58 +711,7 @@ public partial class MainWindow : Window
 
                 UpdateInboxButtons(0, 0);
                 UpdateGoldClubInfo(null);
-                SetNatarsProfileAnalyzed(false);
             }
-        }
-
-        // Hide/show Natar-only controls based on whether the active server is the private server.
-        ApplyNatarFeatureVisibility();
-    }
-
-    private void RefreshNatarsProfileAnalyzedFromCache()
-    {
-        if (!IsNatarFarmingAvailable())
-        {
-            return;
-        }
-
-        AppendLog("[RefreshNatarsProfileAnalyzedFromCache] Started");
-        try
-        {
-            var accountName = _accountStore.ActiveAccountName();
-            var serverUrl = GetActiveAccountServerUrl();
-            var selectionMode = LoadBotOptions().NatarVillageSelection;
-            var analyzed = !string.IsNullOrWhiteSpace(accountName)
-                && !string.IsNullOrWhiteSpace(serverUrl)
-                && _natarFarmCacheStore.IsAnalyzed(accountName, serverUrl, selectionMode);
-            SetNatarsProfileAnalyzed(analyzed);
-        }
-        catch
-        {
-            SetNatarsProfileAnalyzed(false);
-        }
-        AppendLog("[RefreshNatarsProfileAnalyzedFromCache] Completed");
-    }
-
-    private NatarFarmCacheSnapshot? TryLoadActiveNatarFarmSnapshot()
-    {
-        try
-        {
-            var accountName = _accountStore.ActiveAccountName();
-            var serverUrl = GetActiveAccountServerUrl();
-            var selectionMode = LoadBotOptions().NatarVillageSelection;
-            if (string.IsNullOrWhiteSpace(accountName) || string.IsNullOrWhiteSpace(serverUrl))
-            {
-                return null;
-            }
-
-            return _natarFarmCacheStore.TryLoad(accountName, out var snapshot, serverUrl, selectionMode)
-                ? snapshot
-                : null;
-        }
-        catch
-        {
-            return null;
         }
     }
 

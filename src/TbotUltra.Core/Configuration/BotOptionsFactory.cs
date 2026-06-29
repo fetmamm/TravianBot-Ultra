@@ -49,9 +49,6 @@ public static class BotOptionsFactory
             Headless = configuration.GetValue("headless", false),
             TimeoutMs = configuration.GetValue("timeout_ms", 20000),
             ManualLoginTimeoutSeconds = configuration.GetValue("manual_login_timeout_seconds", 180),
-            CaptchaAutoSolveEnabled = configuration.GetValue(BotOptionPayloadKeys.CaptchaAutoSolveEnabled, false),
-            CaptchaSolverTimeoutSeconds = configuration.GetValue(BotOptionPayloadKeys.CaptchaSolverTimeoutSeconds, 60),
-            CaptchaSolverMaxAttempts = configuration.GetValue(BotOptionPayloadKeys.CaptchaSolverMaxAttempts, 3),
             LoopIntervalSeconds = configuration.GetValue("loop_interval_seconds", 60),
             LoopTasks = tasks,
             ContinuousLoopGroups = continuousLoopGroups,
@@ -189,7 +186,6 @@ public static class BotOptionsFactory
             HeroResourceUseBrewery = configuration.GetValue(BotOptionPayloadKeys.HeroResourceUseBrewery, false),
             HeroResourceUseTownHall = configuration.GetValue(BotOptionPayloadKeys.HeroResourceUseTownHall, false),
             UpgradeSelectorProfile = configuration[BotOptionPayloadKeys.UpgradeSelectorProfile] ?? "auto",
-            NatarVillageSelection = configuration["natar_village_selection"] ?? "farm_villages",
         };
     }
 
@@ -197,7 +193,6 @@ public static class BotOptionsFactory
         BotOptions source,
         bool? headlessOverride = null,
         int? resourceUpgradeTargetLevelOverride = null,
-        string? natarVillageSelectionOverride = null,
         string? targetVillageNameOverride = null,
         string? targetVillageUrlOverride = null)
     {
@@ -210,9 +205,6 @@ public static class BotOptionsFactory
             Headless = headlessOverride ?? source.Headless,
             TimeoutMs = source.TimeoutMs,
             ManualLoginTimeoutSeconds = source.ManualLoginTimeoutSeconds,
-            CaptchaAutoSolveEnabled = source.CaptchaAutoSolveEnabled,
-            CaptchaSolverTimeoutSeconds = source.CaptchaSolverTimeoutSeconds,
-            CaptchaSolverMaxAttempts = source.CaptchaSolverMaxAttempts,
             LoopIntervalSeconds = source.LoopIntervalSeconds,
             LoopTasks = source.LoopTasks,
             ContinuousLoopGroups = source.ContinuousLoopGroups,
@@ -350,9 +342,6 @@ public static class BotOptionsFactory
             CollectStepDelayMinSeconds = source.CollectStepDelayMinSeconds,
             CollectStepDelayMaxSeconds = source.CollectStepDelayMaxSeconds,
             UpgradeSelectorProfile = source.UpgradeSelectorProfile,
-            NatarVillageSelection = string.IsNullOrWhiteSpace(natarVillageSelectionOverride)
-                ? source.NatarVillageSelection
-                : natarVillageSelectionOverride,
         };
     }
 

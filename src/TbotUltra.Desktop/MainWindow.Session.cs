@@ -52,15 +52,6 @@ public partial class MainWindow
             AppendLog($"[{operationId}] INFO server={options.ServerName}, headless={options.Headless}");
             BrowserInfoTextBlock.Text = "Browser: starting";
 
-            // Warm the captcha solver lazily only for SS-Travi. Official servers do not use this
-            // captcha solver, so do not enqueue a warmup that only logs a normal skip on every login.
-            if (options.IsPrivateServer && options.CaptchaAutoSolveEnabled)
-            {
-                _backgroundTasks.Run(
-                    RunCaptchaWarmupAsync,
-                    ex => AppendLog($"Captcha warmup failed: {ex.Message}"));
-            }
-
             await EnsureChromiumInstalledAsync();
             // A visible browser opens as soon as login starts. Track that in a DEDICATED flag so a
             // captcha / manual-verification popup mid-login knows the window is already open (and doesn't
@@ -84,7 +75,6 @@ public partial class MainWindow
             // show them immediately; the fresh post-login read then updates the landing village.
             LoadVillageCacheForActiveAccount();
             LoadHeroHomeVillageForActiveAccount();
-            RefreshNatarsProfileAnalyzedFromCache();
             // Check if server is official
             var officialServer = IsOfficialTravianServer(options);
             ApplyPostLoginSnapshot(snapshot);
@@ -397,7 +387,6 @@ public partial class MainWindow
             AppendLog($"Active account changed to '{selected.Name}'. Previous session closed and state reset.");
             ResetVillageSelectionUi();
             SyncServerFromActiveAccount();
-            UpdateCaptchaCardVisibility();
             LoadConfigToUi();
             ConfigureSessionPacerFromConfig(reloadRuntime: true);
 
@@ -614,7 +603,6 @@ public partial class MainWindow
         _farmListCapacitiesByName.Clear();
         _lastFarmListsAnalysisAt = DateTimeOffset.MinValue;
         _farmingFeaturesAvailable = true;
-        SetNatarsProfileAnalyzed(false);
         if (FarmingStatusTextBlock is not null)
         {
             FarmingStatusTextBlock.Text = "No farm lists loaded. Click Analyze Farmlists.";
@@ -668,9 +656,6 @@ public partial class MainWindow
         _inlineWaitUntilUtc = DateTimeOffset.MinValue;
         _manualFarmSessionExecutionCount = 0;
         UpdateManualFarmingExecutionCounter();
-        _captchaSessionSeenCount = 0;
-        _captchaSessionSolvedCount = 0;
-        _captchaSessionActive = false;
         _npcTradeSessionCount = 0;
         _npcTradeTroopSessionCount = 0;
         _npcTradeBuildingSessionCount = 0;

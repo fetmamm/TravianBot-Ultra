@@ -14,8 +14,8 @@ public sealed class BotOptions
     public string BaseUrl { get; init; } = string.Empty;
 
     /// <summary>
-    /// Which kind of Travian server this is. Controls gating of private-server-only features
-    /// (e.g. Natar farming). Always derived from the <see cref="BaseUrl"/> host — the
+    /// Which kind of Travian server this is. Controls any remaining server-specific behavior.
+    /// Always derived from the <see cref="BaseUrl"/> host — the
     /// authoritative signal (e.g. *.ss-travi.com => SsTravi). It is deliberately NOT bound from
     /// config, so a stale <c>server_flavor</c> value left over from a previous server can never
     /// mis-detect the flavor (regardless of how this BotOptions instance was constructed).
@@ -23,8 +23,8 @@ public sealed class BotOptions
     public ServerFlavor ServerFlavor => ServerFlavorDetector.FromBaseUrl(BaseUrl);
 
     /// <summary>
-    /// True when connected to the SS-Travi private server. Use this to gate
-    /// private-server-only behaviour so it stays disabled on official servers.
+    /// True when connected to the SS-Travi private server. Use this only for
+    /// remaining legacy server-specific behaviour.
     /// </summary>
     public bool IsPrivateServer => ServerFlavor == ServerFlavor.SsTravi;
 
@@ -46,17 +46,6 @@ public sealed class BotOptions
     [ConfigurationKeyName("manual_login_timeout_seconds")]
     [Range(1, int.MaxValue)]
     public int ManualLoginTimeoutSeconds { get; init; } = 180;
-
-    [ConfigurationKeyName(BotOptionPayloadKeys.CaptchaAutoSolveEnabled)]
-    public bool CaptchaAutoSolveEnabled { get; init; }
-
-    [ConfigurationKeyName(BotOptionPayloadKeys.CaptchaSolverTimeoutSeconds)]
-    [Range(1, int.MaxValue)]
-    public int CaptchaSolverTimeoutSeconds { get; init; } = 60;
-
-    [ConfigurationKeyName(BotOptionPayloadKeys.CaptchaSolverMaxAttempts)]
-    [Range(1, int.MaxValue)]
-    public int CaptchaSolverMaxAttempts { get; init; } = 3;
 
     [ConfigurationKeyName("loop_interval_seconds")]
     [Range(1, int.MaxValue)]
@@ -487,6 +476,4 @@ public sealed class BotOptions
     [ConfigurationKeyName("upgrade_selector_profile")]
     public string UpgradeSelectorProfile { get; init; } = "auto";
 
-    [ConfigurationKeyName("natar_village_selection")]
-    public string NatarVillageSelection { get; init; } = "farm_villages";
 }

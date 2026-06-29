@@ -155,9 +155,6 @@ public sealed class BotConfigStore
         BotOptionPayloadKeys.ReinforcementsSendIntervalHours,
         BotOptionPayloadKeys.ReinforcementsSendVariationPercent,
         BotOptionPayloadKeys.UpgradeSelectorProfile,
-        BotOptionPayloadKeys.CaptchaAutoSolveEnabled,
-        BotOptionPayloadKeys.CaptchaSolverTimeoutSeconds,
-        BotOptionPayloadKeys.CaptchaSolverMaxAttempts,
         "loop_interval_seconds",
         "human_like_enabled",
         "human_like_speed",
@@ -167,7 +164,6 @@ public sealed class BotConfigStore
         "continuous_loop_groups",
         "continuous_loop_group_order",
         "dashboard_visible_groups",
-        "natar_village_selection",
         "addFarmsTroopCount",
     ];
 

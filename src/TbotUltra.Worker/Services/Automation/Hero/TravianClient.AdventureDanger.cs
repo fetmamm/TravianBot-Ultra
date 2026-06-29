@@ -161,7 +161,6 @@ public sealed partial class TravianClient
             interactive: _interactive,
             browserVisible: true,
             projectRoot: _projectRoot,
-            captchaAutoSolver: _captchaAutoSolver,
             statusCallback: _statusCallback,
             sessionCache: _session);
     }

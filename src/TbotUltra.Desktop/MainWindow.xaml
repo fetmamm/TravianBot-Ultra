@@ -407,17 +407,6 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Captchas only relevant on SS-Travi; shown/hidden in code via UpdateCaptchaCardVisibility. -->
-                    <Border x:Name="CaptchaStatsCard" Style="{StaticResource MetricCard}" Visibility="Collapsed">
-                        <StackPanel>
-                            <TextBlock Text="Captchas solved" Style="{StaticResource MetricLabel}" />
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE72E;" Style="{StaticResource MetricIcon}" />
-                                <TextBlock x:Name="CaptchaStatsTextBlock" Text="0/0" Style="{StaticResource MetricValue}" />
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
-
                     <Border Style="{StaticResource MetricCard}">
                         <StackPanel>
                             <TextBlock Text="Gold" Style="{StaticResource MetricLabel}" />
@@ -599,8 +588,18 @@
                                                 <DockPanel LastChildFill="False">
                                                     <TextBlock DockPanel.Dock="Left"
                                                                Text="{Binding CurrentMaxText}"
-                                                               Foreground="{DynamicResource TextMutedBrush}"
-                                                               FontSize="11" />
+                                                               FontSize="11">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsNegativeProduction}" Value="True">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource DangerTextBrush}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
                                                     <TextBlock DockPanel.Dock="Right"
                                                                Text="{Binding TimeUntilFullText}"
                                                                Foreground="{Binding StatusBrush}"
@@ -1824,23 +1823,8 @@
                                                     <RowDefinition Height="Auto" />
                                                 </Grid.RowDefinitions>
 
-                                                <Button x:Name="AnalyzeNatarsProfileButton"
-                                                        Grid.Row="0"
-                                                        Grid.Column="0"
-                                                        Content="Analyze natars profile"
-                                                        Width="170"
-                                                        Margin="0,0,0,6"
-                                                        ToolTip="Reads the Natars profile and saves the available farm villages for farming."
-                                                        Click="AnalyzeNatarsProfileButton_Click" />
-                                                <Button x:Name="ShowNatarsListButton"
-                                                        Grid.Row="1"
-                                                        Grid.Column="0"
-                                                        Content="Show natars list"
-                                                        Width="170"
-                                                        Margin="0,0,0,6"
-                                                        Click="ShowNatarsListButton_Click" />
                                                 <Button x:Name="StartManualFarmingButton"
-                                                        Grid.Row="2"
+                                                        Grid.Row="0"
                                                         Grid.Column="0"
                                                         Content="Start manual farming"
                                                         Width="170"
@@ -1848,23 +1832,6 @@
                                                         IsEnabled="False"
                                                         ToolTip="Starts manual farming with the selected farming settings."
                                                         Click="StartManualFarmingButton_Click" />
-
-                                                <StackPanel x:Name="NatarsAnalyzedPanel"
-                                                            Grid.Row="0"
-                                                            Grid.Column="1"
-                                                            Orientation="Horizontal"
-                                                            VerticalAlignment="Center"
-                                                            Margin="10,0,0,6">
-                                                    <TextBlock Text="Analyzed:"
-                                                               VerticalAlignment="Center"
-                                                               Foreground="{DynamicResource TextSecondaryBrush}"
-                                                               Margin="0,0,6,0" />
-                                                    <Ellipse x:Name="NatarsProfileAnalyzedIndicator"
-                                                             Width="14"
-                                                             Height="14"
-                                                             VerticalAlignment="Center"
-                                                             Fill="{DynamicResource BorderMutedBrush}" />
-                                                </StackPanel>
                                             </Grid>
                                         </StackPanel>
                                     </Border>

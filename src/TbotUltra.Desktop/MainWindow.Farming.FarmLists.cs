@@ -676,139 +676,8 @@ public partial class MainWindow
                 return;
             }
 
-            async Task<AddFarmsLoadResult> LoadAsync(CancellationToken token)
-            {
-                await EnsureChromiumInstalledAsync();
-                var available = await RefreshFarmListsFromServerAsync(options, token);
-                if (!available)
-                {
-                    return new AddFarmsLoadResult(false, null, [], 0);
-                }
-
-                if (!_farmLists.Any(IsRealFarmListRow))
-                {
-                    return new AddFarmsLoadResult(false, "No farm lists found on farmpage.", [], 0);
-                }
-
-                var optionsForDialog = _farmLists
-                    .Where(IsRealFarmListRow)
-                    .Select(item => new FarmListSelectionOption
-                    {
-                        Name = item.Name,
-                        ActiveFarmCount = item.ActiveFarmCount,
-                        TotalFarmCount = item.TotalFarmCount,
-                    })
-                    .ToList();
-
-                var natarCount = await _botService.EnsureNatarFarmCacheAndReturnToFarmListAsync(options, AppendLog, false, token);
-                if (natarCount <= 0)
-                {
-                    SetNatarsProfileAnalyzed(false);
-                    return new AddFarmsLoadResult(false, "No villages named 'Natar farm village' were found.", [], 0);
-                }
-
-                SetNatarsProfileAnalyzed(true);
-                return new AddFarmsLoadResult(true, null, optionsForDialog, natarCount);
-            }
-
-            var dialog = new AddFarmsToListWindow(
-                ResolveCurrentTribeForFarming(),
-                LoadAddFarmsTroopCount(),
-                LoadAsync,
-                operationToken)
-            {
-                Owner = this,
-            };
-
-            var addRequested = dialog.ShowDialog() == true && dialog.Targets.Count > 0;
-            if (!addRequested)
-            {
-                if (!string.IsNullOrWhiteSpace(dialog.LoadFailureMessage))
-                {
-                    AppDialog.Show(this, dialog.LoadFailureMessage, "Add farms", MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-
-                CompleteOperation(operationId, operationSw, string.IsNullOrWhiteSpace(dialog.LoadFailureMessage)
-                    ? "Add farms canceled."
-                    : dialog.LoadFailureMessage!);
-                return;
-            }
-
-            SaveAddFarmsTroopCount(dialog.TroopCount);
-            var troopType = dialog.SelectedTroopType;
-            var troopCount = dialog.TroopCount;
-            var targets = dialog.Targets;
-
-            var totalAdded = 0;
-            var totalExisting = 0;
-            var totalFailed = 0;
-            for (var i = 0; i < targets.Count; i++)
-            {
-                operationToken.ThrowIfCancellationRequested();
-                var target = targets[i];
-                var row = _farmLists.FirstOrDefault(item => string.Equals(item.Name, target.Name, StringComparison.OrdinalIgnoreCase));
-                var baseActive = row?.ActiveFarmCount ?? 0;
-                if (row is not null)
-                {
-                    row.IsProcessing = true;
-                }
-
-                try
-                {
-                    AppendLog($"Add farms [{i + 1}/{targets.Count}] list '{target.Name}' (requested {target.RequestedFarmCount}).");
-                    var progress = new Progress<int>(added =>
-                    {
-                        if (row is null)
-                        {
-                            return;
-                        }
-
-                        row.ActiveFarmCount = Math.Min(row.TotalFarmCount, baseActive + added);
-                        UpdateFarmingUiState();
-                    });
-
-                    var result = await _botService.AddFarmsFromNatarsAsync(
-                        options,
-                        target.Name,
-                        troopType,
-                        troopCount,
-                        target.RequestedFarmCount,
-                        AppendLog,
-                        progress,
-                        operationToken);
-
-                    totalAdded += result.AddedCount;
-                    totalExisting += result.AlreadyInListCount;
-                    totalFailed += result.FailedCount;
-
-                    if (row is not null)
-                    {
-                        row.ActiveFarmCount = Math.Min(row.TotalFarmCount, baseActive + result.AddedCount);
-                        UpdateFarmingUiState();
-                    }
-
-                    if (result.AlreadyInListCount > 0)
-                    {
-                        AppendLog($"Duplicate farms in '{target.Name}': {result.AlreadyInListCount} ('This village is already in the selected farm list.').");
-                    }
-                }
-                finally
-                {
-                    if (row is not null)
-                    {
-                        row.IsProcessing = false;
-                    }
-                }
-            }
-
-            await RefreshFarmListsFromServerAsync(options, operationToken);
-            AppDialog.Show(
-                this,
-                $"Lists processed: {targets.Count}.\nAdded: {totalAdded}, Already in list: {totalExisting}, Failed: {totalFailed}.",
-                "Add farms",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
-            CompleteOperation(operationId, operationSw, $"Add farms done. Lists={targets.Count}, Added={totalAdded}, Existing={totalExisting}, Failed={totalFailed}.");
+            AppendLog("Private-server Add Farms source has been removed. Use Official Travco lists.");
+            CompleteOperation(operationId, operationSw, "Add farms is available for Official Travco lists only.");
         }
         catch (OperationCanceledException)
         {
@@ -824,6 +693,33 @@ public partial class MainWindow
             SetFarmingFunctionRunning(false);
             DisposeOperationCts();
         }
+    }
+
+    private string ResolveCurrentTribeForFarming()
+    {
+        var tribeFromUi = TribeInfoTextBlock.Text?.Replace("Tribe:", string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
+        if (!string.IsNullOrWhiteSpace(tribeFromUi) && !string.Equals(tribeFromUi, "-", StringComparison.OrdinalIgnoreCase))
+        {
+            return tribeFromUi;
+        }
+
+        try
+        {
+            var accountName = _accountStore.ActiveAccountName();
+            if (!string.IsNullOrWhiteSpace(accountName)
+                && _accountAnalysisStore.TryLoad(accountName, out var analysis, GetActiveAccountServerUrl())
+                && analysis is not null
+                && !string.IsNullOrWhiteSpace(analysis.Tribe))
+            {
+                return analysis.Tribe;
+            }
+        }
+        catch
+        {
+            // Ignore lookup errors and use fallback tribe.
+        }
+
+        return "Unknown";
     }
 
     private async void CreateFarmListButton_Click(object sender, RoutedEventArgs e)
@@ -1056,8 +952,6 @@ public partial class MainWindow
         SetEnabled(FarmListsItemsControl, farmControlsEnabled);
         SetEnabled(FarmListSendAllNowButton, farmControlsEnabled && _farmLists.Any(IsRealFarmListRow));
         SetEnabled(AnalyzeFarmListsButton, sleepAllowsActions && !_farmingOperationBusy);
-        SetEnabled(AnalyzeNatarsProfileButton, farmControlsEnabled);
-        SetEnabled(ShowNatarsListButton, farmControlsEnabled && _natarsProfileAnalyzed);
         SetEnabled(StartManualFarmingButton, false);
         SetEnabled(StartCatapultWavesButton, farmControlsEnabled);
         UpdateManualFarmingRunningState();

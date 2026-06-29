@@ -263,12 +263,7 @@ public sealed partial class TravianClient
             return;
         }
 
-        var screenshotPath = await CaptureManualVerificationScreenshotAsync("manual-verification", cancellationToken);
-        if (await TrySolveCaptchaAutomaticallyAsync("manual-verification", screenshotPath, cancellationToken))
-        {
-            Notify("Captcha cleared automatically. Continuing.");
-            return;
-        }
+        await CaptureManualVerificationScreenshotAsync("manual-verification", cancellationToken);
 
         Notify($"{message} Solve it in the browser window. The bot is paused.");
         if (!_browserVisible)

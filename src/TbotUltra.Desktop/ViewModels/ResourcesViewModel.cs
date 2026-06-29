@@ -340,7 +340,14 @@ public sealed class ResourcesViewModel : BaseViewModel
         var percentText = FormatPercentText(forecast?.PercentOfCapacity, isFull);
         var currentMaxText = FormatCurrentMaxText(forecast?.Current, forecast?.Capacity);
         var productionText = FormatProductionText(forecast?.ProductionPerHour);
-        var timeUntilFullText = FormatTimeUntilFull(forecast?.SecondsToFull, forecast?.ProductionPerHour, forecast?.Current, forecast?.Capacity);
+        var isNegativeCropProduction = IsNegativeCropProduction(bar.ResourceKey, forecast?.ProductionPerHour);
+        var timeUntilFullText = FormatTimeUntilStorageLimit(
+            bar.ResourceKey,
+            forecast?.SecondsToFull,
+            forecast?.ProductionPerHour,
+            forecast?.Current,
+            forecast?.Capacity);
+        var timeUntilLabel = isNegativeCropProduction ? "Time until empty" : "Time until full";
 
         bar.PercentValue = percent;
         bar.PercentText = percentText;
@@ -348,8 +355,9 @@ public sealed class ResourcesViewModel : BaseViewModel
         bar.ProductionText = productionText;
         bar.TimeUntilFullText = timeUntilFullText;
         bar.IsFull = isFull;
+        bar.IsNegativeProduction = isNegativeCropProduction;
         bar.StatusBrush = isFull ? FullBrush : DefaultBrush;
-        bar.TooltipText = BuildTooltipText(percentText, currentMaxText, productionText, timeUntilFullText);
+        bar.TooltipText = BuildTooltipText(percentText, currentMaxText, productionText, timeUntilLabel, timeUntilFullText);
     }
 
     private static ResourceStorageForecast? ExtrapolateForecast(ResourceStorageForecast? forecast, double elapsedSeconds)
@@ -478,8 +486,26 @@ public sealed class ResourcesViewModel : BaseViewModel
         return $"{FormatGroupedNumber((long)Math.Round(productionPerHour.Value, MidpointRounding.AwayFromZero))}/h";
     }
 
-    private static string FormatTimeUntilFull(int? secondsToFull, double? productionPerHour, long? current, long? capacity)
+    private static string FormatTimeUntilStorageLimit(string resourceKey, int? secondsToFull, double? productionPerHour, long? current, long? capacity)
     {
+        if (IsNegativeCropProduction(resourceKey, productionPerHour))
+        {
+            if (current is null)
+            {
+                return "-";
+            }
+
+            if (current <= 0)
+            {
+                return "Empty";
+            }
+
+            var secondsToEmpty = ComputeSecondsUntilEmpty(current.Value, productionPerHour!.Value);
+            return secondsToEmpty is null || secondsToEmpty <= 0
+                ? "Soon"
+                : $"Empty in {FormatDuration(secondsToEmpty.Value)}";
+        }
+
         if (capacity is > 0 && current is not null && current.Value >= capacity.Value)
         {
             return "Full";
@@ -498,14 +524,36 @@ public sealed class ResourcesViewModel : BaseViewModel
         return FormatDuration(secondsToFull.Value);
     }
 
-    private static string BuildTooltipText(string percentText, string currentMaxText, string productionText, string timeUntilFullText)
+    private static bool IsNegativeCropProduction(string resourceKey, double? productionPerHour)
+    {
+        return string.Equals(resourceKey, "crop", StringComparison.OrdinalIgnoreCase)
+            && productionPerHour is not null
+            && !double.IsNaN(productionPerHour.Value)
+            && !double.IsInfinity(productionPerHour.Value)
+            && productionPerHour.Value < 0;
+    }
+
+    private static int? ComputeSecondsUntilEmpty(long current, double productionPerHour)
+    {
+        if (current <= 0 || productionPerHour >= 0 || double.IsNaN(productionPerHour) || double.IsInfinity(productionPerHour))
+        {
+            return null;
+        }
+
+        var computedSeconds = Math.Ceiling((current / Math.Abs(productionPerHour)) * 3600d);
+        return computedSeconds >= int.MaxValue
+            ? int.MaxValue
+            : (int)computedSeconds;
+    }
+
+    private static string BuildTooltipText(string percentText, string currentMaxText, string productionText, string timeUntilLabel, string timeUntilText)
     {
         return string.Join(Environment.NewLine,
         [
             $"Filled: {percentText}",
             $"Storage: {currentMaxText}",
             $"Production: {productionText}",
-            $"Time until full: {timeUntilFullText}",
+            $"{timeUntilLabel}: {timeUntilText}",
         ]);
     }
 

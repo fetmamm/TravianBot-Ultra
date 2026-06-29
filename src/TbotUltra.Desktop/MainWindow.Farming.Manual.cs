@@ -1,6 +1,4 @@
 using System;
-using TbotUltra.Core.Configuration;
-
 namespace TbotUltra.Desktop;
 
 public partial class MainWindow
@@ -82,13 +80,6 @@ public partial class MainWindow
 
         AppendLog("Cancel requested for the running farming operation.");
         _loopController.CancelOperation();
-    }
-
-    private static BotOptions ApplyManualFarmingSelectionToOptions(BotOptions options, string natarVillageSelection)
-    {
-        return BotOptionsFactory.CloneWithOverrides(
-            options,
-            natarVillageSelectionOverride: natarVillageSelection);
     }
 
     private void UpdateManualFarmingRunningState()

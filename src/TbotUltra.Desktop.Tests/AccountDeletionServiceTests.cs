@@ -40,7 +40,6 @@ public sealed class AccountDeletionServiceTests : IDisposable
         Assert.False(File.Exists(AccountStoragePaths.LegacyBrowserStatePath(_root, "alice")));
         Assert.False(File.Exists(AccountStoragePaths.BuildingsSnapshotPath(_root, "alice")));
         Assert.Empty(Directory.EnumerateFiles(Path.Combine(_root, "config", "account-analysis"), "alice*"));
-        Assert.Empty(Directory.EnumerateFiles(Path.Combine(_root, "config", "cache", "natar-farms"), "alice*"));
 
         var config = JsonNode.Parse(File.ReadAllText(_configPath))!.AsObject();
         var rules = config[BotOptionPayloadKeys.ReinforcementsTroopRules]!.AsArray();
@@ -187,7 +186,6 @@ public sealed class AccountDeletionServiceTests : IDisposable
         WriteFile(AccountStoragePaths.LegacyBrowserStatePath(_root, accountName), "{}");
         WriteFile(AccountStoragePaths.BuildingsSnapshotPath(_root, accountName), "{}");
         WriteFile(AccountStoragePaths.LegacyAnalysisPath(_root, accountName, "https://example.com"), "{}");
-        WriteFile(AccountStoragePaths.LegacyNatarFarmCachePath(_root, accountName, "https://example.com", "farm_villages"), "{}");
     }
 
     private static void WriteFile(string path, string content)

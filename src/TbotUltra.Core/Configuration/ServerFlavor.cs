@@ -2,8 +2,8 @@ namespace TbotUltra.Core.Configuration;
 
 /// <summary>
 /// Identifies which kind of Travian server the bot is connected to.
-/// Used to gate behaviour that only exists on the SS-Travi private server
-/// (e.g. Natar farming) so it stays hidden/disabled on official servers.
+/// Used to gate remaining behaviour that only exists on the SS-Travi private server
+/// so it stays hidden/disabled on official servers.
 /// </summary>
 public enum ServerFlavor
 {
@@ -14,7 +14,7 @@ public enum ServerFlavor
     Official = 0,
 
     /// <summary>
-    /// The SS-Travi private server (*.ss-travi.com). Enables private-server-only features.
+    /// The SS-Travi private server (*.ss-travi.com). Legacy private-server flavor.
     /// </summary>
     SsTravi = 1,
 }

@@ -810,10 +810,10 @@ public sealed partial class TravianClient
             var snapshot = await _page.EvaluateAsync<ResourceSnapshotDomReadResult>(
                 """
                 () => {
-                  const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+                  const clean = (value) => String(value || '').replace(/[\u202A-\u202E\u2066-\u2069]/g, '').replace(/\s+/g, ' ').trim();
                   const compact = (value) => clean(value).replace(/\s+/g, '');
                   const parseNumber = (value) => {
-                    const text = clean(value);
+                    const text = clean(value).replace(/[\u2212\u2012\u2013\u2014]/g, '-');
                     if (!text) return null;
                     const match = text.match(/([+-]?\d[\d\s.,']*)/);
                     if (!match) return null;
@@ -1213,9 +1213,9 @@ public sealed partial class TravianClient
             var snapshot = await _page.EvaluateAsync<ResourceSnapshotDomReadResult>(
                 """
                 () => {
-                  const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+                  const clean = (value) => String(value || '').replace(/[\u202A-\u202E\u2066-\u2069]/g, '').replace(/\s+/g, ' ').trim();
                   const parseNumber = (value) => {
-                    const text = clean(value);
+                    const text = clean(value).replace(/[\u2212\u2012\u2013\u2014]/g, '-');
                     if (!text) return null;
                     const match = text.match(/([+-]?\d[\d\s.,']*)/);
                     if (!match) return null;

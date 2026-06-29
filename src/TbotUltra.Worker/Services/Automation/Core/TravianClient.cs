@@ -45,8 +45,6 @@ public sealed partial class TravianClient
     private readonly string _projectRoot;
     private readonly string _capitalCachePath;
     private readonly HeroAttributeSnapshotStore _heroAttributeSnapshotStore;
-    private readonly NatarFarmCacheStore _natarFarmCacheStore;
-    private readonly ICaptchaAutoSolver? _captchaAutoSolver;
     private readonly Action<string>? _statusCallback;
     // Flips the browser session's consentmanager route block on/off; used only by the bonus-video flow,
     // which needs GDPR/TCF consent while the rest of the session keeps it blocked (no stray sync tabs).
@@ -236,9 +234,6 @@ public sealed partial class TravianClient
     private DateTimeOffset _lastUiSyncAt = DateTimeOffset.MinValue;
     private bool _lastEnsureLoggedInSucceeded { get => _session.LastEnsureLoggedInSucceeded; set => _session.LastEnsureLoggedInSucceeded = value; }
     private int _suppressEnsureUiSyncDepth;
-    private static readonly object NatarCacheSync = new();
-    private static readonly Dictionary<string, List<NatarCoordinateJs>> CachedNatarCoordinatesByAccount = new(StringComparer.OrdinalIgnoreCase);
-
     private sealed class CachedVillageResourceSnapshot
     {
         public IReadOnlyDictionary<string, double?> ProductionByHour { get; init; } = new Dictionary<string, double?>(StringComparer.OrdinalIgnoreCase);
@@ -254,7 +249,6 @@ public sealed partial class TravianClient
         bool interactive = true,
         bool browserVisible = true,
         string? projectRoot = null,
-        ICaptchaAutoSolver? captchaAutoSolver = null,
         Action<string>? statusCallback = null,
         TravianSessionCache? sessionCache = null,
         Action<bool>? setConsentDomainsAllowed = null,
@@ -277,8 +271,6 @@ public sealed partial class TravianClient
             : projectRoot;
         _capitalCachePath = AccountStoragePaths.CapitalStatePath(_projectRoot, _account.Name);
         _heroAttributeSnapshotStore = new HeroAttributeSnapshotStore(_projectRoot);
-        _natarFarmCacheStore = new NatarFarmCacheStore(_projectRoot);
-        _captchaAutoSolver = captchaAutoSolver;
         _statusCallback = statusCallback;
     }
 
@@ -539,18 +531,6 @@ public sealed partial class TravianClient
 
         [JsonPropertyName("disabled")]
         public bool Disabled { get; init; }
-    }
-
-    private sealed class NatarCoordinateJs
-    {
-        [JsonPropertyName("x")]
-        public int? X { get; init; }
-
-        [JsonPropertyName("y")]
-        public int? Y { get; init; }
-
-        [JsonPropertyName("villageName")]
-        public string? VillageName { get; init; }
     }
 
     private sealed class ActiveVillageCoordJs

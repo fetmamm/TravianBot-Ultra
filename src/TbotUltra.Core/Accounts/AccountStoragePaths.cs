@@ -159,16 +159,6 @@ public static class AccountStoragePaths
         return Path.Combine(projectRoot, AccountAnalysisConstants.RelativeDirectory, $"{NormalizeAccountKey(accountName)}__{NormalizeServerKey(serverUrl)}.json");
     }
 
-    public static string NatarFarmCachePath(string projectRoot, string accountName, string? serverUrl = null, string? selectionMode = null)
-    {
-        return Path.Combine(AccountDirectory(projectRoot, accountName), "cache", "natar-farms", $"{NormalizeServerKey(serverUrl)}__{NormalizeSelectionMode(selectionMode)}.json");
-    }
-
-    public static string LegacyNatarFarmCachePath(string projectRoot, string accountName, string? serverUrl = null, string? selectionMode = null)
-    {
-        return Path.Combine(projectRoot, "config", "cache", "natar-farms", $"{NormalizeAccountKey(accountName)}__{NormalizeServerKey(serverUrl)}__{NormalizeSelectionMode(selectionMode)}.json");
-    }
-
     public static string CapitalStatePath(string projectRoot, string accountName)
     {
         return Path.Combine(AccountDirectory(projectRoot, accountName), "cache", "capital-state.json");
