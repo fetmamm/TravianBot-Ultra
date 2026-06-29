@@ -214,6 +214,7 @@ public partial class MainWindow : Window
     private FunctionTestWindow? _resourceTestFunctionsWindow;
     private SavePageHtmlWindow? _savePageHtmlWindow;
     private BulkSavePageHtmlWindow? _bulkSavePageHtmlWindow;
+    private BulkMessagesWindow? _bulkMessagesWindow;
     private bool _serverSpeedAlarmRaised;
     private readonly Dictionary<int, DateTimeOffset> _buildingClickCooldownBySlot = new();
     private readonly Dictionary<int, (int Target, DateTimeOffset At)> _buildingLastQueuedTargetBySlot = new();

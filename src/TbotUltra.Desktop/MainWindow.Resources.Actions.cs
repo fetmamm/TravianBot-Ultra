@@ -90,6 +90,7 @@ public partial class MainWindow
         _resourceTestFunctionsWindow.ReinforcementsTestRequested += TestReinforcementsButton_Click;
         _resourceTestFunctionsWindow.IncreaseAdventuresToHardRequested += TestIncreaseAdventuresToHardButton_Click;
         _resourceTestFunctionsWindow.ReduceAdventuresTimeRequested += TestReduceAdventuresTimeButton_Click;
+        _resourceTestFunctionsWindow.BulkMessagesRequested += BulkMessagesButton_Click;
         _resourceTestFunctionsWindow.SavePageHtmlRequested += SavePageHtmlButton_Click;
         _resourceTestFunctionsWindow.Closed += (_, _) =>
         {
@@ -102,11 +103,160 @@ public partial class MainWindow
             _resourceTestFunctionsWindow.ReinforcementsTestRequested -= TestReinforcementsButton_Click;
             _resourceTestFunctionsWindow.IncreaseAdventuresToHardRequested -= TestIncreaseAdventuresToHardButton_Click;
             _resourceTestFunctionsWindow.ReduceAdventuresTimeRequested -= TestReduceAdventuresTimeButton_Click;
+            _resourceTestFunctionsWindow.BulkMessagesRequested -= BulkMessagesButton_Click;
             _resourceTestFunctionsWindow.SavePageHtmlRequested -= SavePageHtmlButton_Click;
             _resourceTestFunctionsWindow = null;
         };
 
         _resourceTestFunctionsWindow.Show();
+    }
+
+    private void BulkMessagesButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (BlockIfSessionSleeping("Bulk messages"))
+        {
+            return;
+        }
+
+        OpenBulkMessagesWindow(_resourceTestFunctionsWindow);
+    }
+
+    private void OpenBulkMessagesWindow(Window? sourceWindow = null)
+    {
+        if (_bulkMessagesWindow is not null)
+        {
+            if (!_bulkMessagesWindow.IsVisible)
+            {
+                _bulkMessagesWindow.Show();
+            }
+
+            _bulkMessagesWindow.Activate();
+            return;
+        }
+
+        _bulkMessagesWindow = new BulkMessagesWindow(
+            BulkMessagesAnalyzeRequestedAsync,
+            BulkMessagesSendRequestedAsync,
+            BulkMessagesClearCacheRequestedAsync,
+            CancellationToken.None)
+        {
+            Owner = sourceWindow?.Owner ?? _resourceTestFunctionsWindow ?? (Window)this,
+        };
+        _bulkMessagesWindow.Closed += (_, _) => _bulkMessagesWindow = null;
+        _bulkMessagesWindow.Show();
+        FinishPopupTransition(_bulkMessagesWindow, sourceWindow, closeSourceWindow: false);
+    }
+
+    private async Task<BulkMessageAnalyzeResult> BulkMessagesAnalyzeRequestedAsync(
+        BulkMessageAnalyzeRequest request,
+        IProgress<BulkMessageProgress> progress,
+        CancellationToken cancellationToken)
+    {
+        if (BlockIfSessionSleeping("Bulk messages"))
+        {
+            throw new OperationCanceledException(cancellationToken);
+        }
+
+        if (_loopController.HasActiveOperation)
+        {
+            throw new InvalidOperationException("Another operation is already running.");
+        }
+
+        var operationId = BeginOperation("BulkMessagesAnalyze");
+        var operationSw = Stopwatch.StartNew();
+        var operationToken = _loopController.StartOperation("operation");
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(operationToken, cancellationToken);
+        try
+        {
+            var options = LoadBotOptions();
+            var result = await _botService.AnalyzeBulkMessagePlayersAsync(
+                options,
+                request,
+                AppendLog,
+                progress,
+                linkedCts.Token);
+            CompleteOperation(operationId, operationSw, $"Bulk message analysis: players={result.PlayersAnalyzed}, eligible={result.EligiblePlayers}, cached={result.SentCachedCount}.");
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
+            SetManualExecutionOutcome(operationId, ManualExecutionOutcome.Canceled);
+            _operationNamesById.Remove(operationId);
+            AppendLog($"[{operationId}] [CANCELED] {operationSw.Elapsed.TotalSeconds:F1}s | Bulk message analysis canceled.");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            FailOperation(operationId, operationSw, ex);
+            throw;
+        }
+        finally
+        {
+            DisposeOperationCts();
+        }
+    }
+
+    private async Task<BulkMessageSendResult> BulkMessagesSendRequestedAsync(
+        BulkMessageRequest request,
+        IProgress<BulkMessageProgress> progress,
+        CancellationToken cancellationToken)
+    {
+        if (BlockIfSessionSleeping("Bulk messages"))
+        {
+            throw new OperationCanceledException(cancellationToken);
+        }
+
+        if (_loopController.HasActiveOperation)
+        {
+            throw new InvalidOperationException("Another operation is already running.");
+        }
+
+        var operationId = BeginOperation("BulkMessagesSend");
+        var operationSw = Stopwatch.StartNew();
+        var operationToken = _loopController.StartOperation("operation");
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(operationToken, cancellationToken);
+        try
+        {
+            var options = LoadBotOptions();
+            await EnsureChromiumInstalledAsync();
+            var result = await _botService.SendBulkMessagesAsync(
+                options,
+                request,
+                AppendLog,
+                progress,
+                linkedCts.Token);
+            CompleteOperation(operationId, operationSw, $"Bulk messages sent {result.SentCount}/{result.TargetCount}.");
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
+            SetManualExecutionOutcome(operationId, ManualExecutionOutcome.Canceled);
+            _operationNamesById.Remove(operationId);
+            AppendLog($"[{operationId}] [CANCELED] {operationSw.Elapsed.TotalSeconds:F1}s | Bulk message sending canceled.");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            FailOperation(operationId, operationSw, ex);
+            throw;
+        }
+        finally
+        {
+            DisposeOperationCts();
+        }
+    }
+
+    private Task BulkMessagesClearCacheRequestedAsync(CancellationToken cancellationToken)
+    {
+        if (_loopController.HasActiveOperation)
+        {
+            throw new InvalidOperationException("Another operation is already running.");
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        var options = LoadBotOptions();
+        _botService.ClearBulkMessageSentCache(options, AppendLog);
+        return Task.CompletedTask;
     }
 
     private const string SavePageHtmlDirectory = @"C:\Users\jespe\Documents\GitHub\Tbot_ultra_new\temp_build_out\DOM";

@@ -70,6 +70,7 @@ public sealed partial class BotTaskRunner
     private readonly IAccountProvider _accountProvider;
     private readonly ProjectContext _projectContext;
     private readonly AccountAnalysisStore _accountAnalysisStore;
+    private readonly BulkMessageSentCacheStore _bulkMessageSentCacheStore;
     private readonly ICaptchaAutoSolver _captchaAutoSolver;
     private readonly SemaphoreSlim _sessionGate = new(1, 1);
     private BrowserSession? _sharedVisibleSession;
@@ -88,6 +89,7 @@ public sealed partial class BotTaskRunner
         _projectContext = projectContext;
         _captchaAutoSolver = captchaAutoSolver;
         _accountAnalysisStore = new AccountAnalysisStore(projectContext.RootPath);
+        _bulkMessageSentCacheStore = new BulkMessageSentCacheStore(projectContext.RootPath);
     }
 
     public static IReadOnlyList<string> RegisteredTaskNames => TaskHandlers.Keys.ToList();

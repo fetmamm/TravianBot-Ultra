@@ -13,6 +13,7 @@ public partial class FunctionTestWindow : Window
     public event RoutedEventHandler? ReinforcementsTestRequested;
     public event RoutedEventHandler? IncreaseAdventuresToHardRequested;
     public event RoutedEventHandler? ReduceAdventuresTimeRequested;
+    public event RoutedEventHandler? BulkMessagesRequested;
     public event RoutedEventHandler? SavePageHtmlRequested;
 
     public FunctionTestWindow()
@@ -64,6 +65,11 @@ public partial class FunctionTestWindow : Window
     private void TestReduceAdventuresTimeButton_Click(object sender, RoutedEventArgs e)
     {
         ReduceAdventuresTimeRequested?.Invoke(sender, e);
+    }
+
+    private void BulkMessagesButton_Click(object sender, RoutedEventArgs e)
+    {
+        BulkMessagesRequested?.Invoke(sender, e);
     }
 
     private void SavePageHtmlButton_Click(object sender, RoutedEventArgs e)

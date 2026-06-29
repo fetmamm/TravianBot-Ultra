@@ -222,6 +222,7 @@ public partial class MainWindow
             _resourceTestFunctionsWindow?.Close();
             _savePageHtmlWindow?.Close();
             _bulkSavePageHtmlWindow?.Close();
+            _bulkMessagesWindow?.Close();
         }
         catch (Exception ex)
         {
