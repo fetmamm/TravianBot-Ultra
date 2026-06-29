@@ -1424,6 +1424,14 @@ public partial class MainWindow
                 if (next is not null)
                 {
                     AppendLog($"[LOOP {tickId}] PICK group={next.Group}, task={next.TaskName}, retries={next.Retries}/{next.MaxRetries}");
+                    // Pause pressed while picking: exit before sitting out the pre-task pacing delay. The
+                    // item stays pending and runs on resume — nothing is in flight yet, so this is safe and
+                    // makes Pause react immediately instead of waiting out a few seconds of pacing.
+                    if (_loopController.LoopStopRequested)
+                    {
+                        break;
+                    }
+
                     await ActionPacer.FromOptions(options, AppendLog).DelayAsync(
                         options.ActionPacingTaskMinSeconds,
                         options.ActionPacingTaskMaxSeconds,
@@ -1437,6 +1445,13 @@ public partial class MainWindow
                         token);
                     MarkContinuousBrowserActivity();
                     if (!shouldContinue)
+                    {
+                        break;
+                    }
+
+                    // Pause pressed during the task: skip the post-task cooldown (pure idle pacing, nothing
+                    // in flight) so the loop exits right after the action instead of waiting it out.
+                    if (_loopController.LoopStopRequested)
                     {
                         break;
                     }
@@ -1667,6 +1682,13 @@ public partial class MainWindow
                 QueueExecutionMode.AutoQueue,
                 cancellationToken);
             if (!shouldContinue)
+            {
+                return;
+            }
+
+            // Pause pressed during the task: skip the post-task cooldown (pure idle pacing, nothing in
+            // flight) so the queue run stops promptly instead of waiting it out.
+            if (_loopController.QueueStopRequested)
             {
                 return;
             }
