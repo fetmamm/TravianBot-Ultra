@@ -84,7 +84,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
@@ -144,7 +144,20 @@
                          IsEnabled="False" TextChanged="EditorField_Changed"
                          ToolTip="host:port or scheme://host:port. Auth: user:pass@host:port" />
 
-                <TextBlock x:Name="InfoTextBlock" Grid.Row="5" Grid.ColumnSpan="2" TextWrapping="Wrap" Foreground="{DynamicResource IronTextBrush}" />
+                <Border Grid.Row="5"
+                        Grid.ColumnSpan="2"
+                        Margin="0,12,0,0"
+                        Padding="10,8"
+                        VerticalAlignment="Bottom"
+                        Background="{DynamicResource ControlBackgroundBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="4">
+                    <TextBlock x:Name="InfoTextBlock"
+                               MinHeight="16"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource IronTextBrush}" />
+                </Border>
             </Grid>
         </Border>
 

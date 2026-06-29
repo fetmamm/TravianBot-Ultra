@@ -2,123 +2,160 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Background="{DynamicResource AppBackgroundBrush}"
-        Title="Test functions"
-        Height="500"
-        Width="320"
+        Title="Debug"
+        Height="560"
+        Width="460"
         MinHeight="500"
-        MinWidth="300"
+        MinWidth="420"
         ShowInTaskbar="False">
+    <Window.Resources>
+        <Style x:Key="DebugActionButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="Margin" Value="0,0,8,8" />
+            <Setter Property="Padding" Value="10,5" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+        </Style>
+    </Window.Resources>
     <Grid Margin="12">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Button x:Name="SavePageHtmlButton"
-                Grid.Row="0"
-                HorizontalAlignment="Right"
-                VerticalAlignment="Top"
-                Padding="8,4"
-                Content="Save HTML"
-                ToolTip="Opens a dialog to save the raw HTML of the page the browser is currently on to a file for later analysis."
-                ToolTipService.InitialShowDelay="500"
-                Click="SavePageHtmlButton_Click" />
-
-        <StackPanel Grid.Row="0" Orientation="Vertical">
-            <Button x:Name="TestResourceProductionButton"
-                    HorizontalAlignment="Left"
-                    Padding="10,4"
-                    Content="Read production/h"
-                    ToolTip="Reads resource production per hour from the current page (ReadCurrentPageResourceProductionPerHourAsync)."
+        <DockPanel Grid.Row="0" Margin="0,0,0,10">
+            <Button x:Name="SavePageHtmlButton"
+                    DockPanel.Dock="Right"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Padding="12,5"
+                    Content="Save HTML"
+                    Background="{DynamicResource PrimaryButtonBrush}"
+                    BorderBrush="{DynamicResource PrimaryButtonBrush}"
+                    Foreground="{DynamicResource TooltipForegroundBrush}"
+                    FontWeight="SemiBold"
+                    ToolTip="Opens a dialog to save the raw HTML of the page the browser is currently on to a file for later analysis."
                     ToolTipService.InitialShowDelay="500"
-                    Click="TestResourceProductionButton_Click" />
+                    Click="SavePageHtmlButton_Click" />
+            <TextBlock Text="Debug tools"
+                       FontSize="16"
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center" />
+        </DockPanel>
 
-            <Button x:Name="TestNavigateToBreweryButton"
-                    HorizontalAlignment="Left"
-                    Margin="0,8,0,0"
-                    Padding="10,4"
-                    Content="Navigate to brewery"
-                    ToolTip="Logs in, switches to the target village and opens the brewery building page, exactly as the auto celebration function does before reading status."
-                    ToolTipService.InitialShowDelay="500"
-                    Click="TestNavigateToBreweryButton_Click" />
+        <Border Grid.Row="1"
+                Margin="0,0,0,12"
+                Padding="10,8"
+                Background="{DynamicResource WarningBrush}"
+                BorderBrush="{DynamicResource WarningBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="6">
+            <TextBlock Text="Development and debugging only. Do not use these functions during normal gameplay."
+                       TextWrapping="Wrap"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource OnWarningBrush}" />
+        </Border>
 
-            <Button x:Name="TestStartCelebrationButton"
-                    HorizontalAlignment="Left"
-                    Margin="0,8,0,0"
-                    Padding="10,4"
-                    Content="Start celebration"
-                    ToolTip="Runs the full auto celebration function (RunBreweryCelebrationAsync): navigates to the brewery and starts a celebration if one can be started."
-                    ToolTipService.InitialShowDelay="500"
-                    Click="TestStartCelebrationButton_Click" />
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <Border Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource BorderSubtleBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="10"
+                        Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="Page diagnostics" FontWeight="SemiBold" Margin="0,0,0,8" />
+                        <UniformGrid Columns="2">
+                            <Button x:Name="TestResourceProductionButton"
+                                    Style="{DynamicResource DebugActionButtonStyle}"
+                                    Content="Read production/h"
+                                    ToolTip="Reads resource production per hour from the current page (ReadCurrentPageResourceProductionPerHourAsync)."
+                                    ToolTipService.InitialShowDelay="500"
+                                    Click="TestResourceProductionButton_Click" />
+                            <Button x:Name="TestReadSmithyQueueButton"
+                                    Style="{DynamicResource DebugActionButtonStyle}"
+                                    Content="Read smithy queue"
+                                    ToolTip="Reads only the Smithy queue from the current page. Open the Smithy page first."
+                                    ToolTipService.InitialShowDelay="500"
+                                    Click="TestReadSmithyQueueButton_Click" />
+                        </UniformGrid>
+                    </StackPanel>
+                </Border>
 
-            <Button x:Name="TestNpcTradeBarracksButton"
-                    HorizontalAlignment="Left"
-                    Margin="0,8,0,0"
-                    Padding="10,4"
-                    Content="Run NPC trade (Barracks)"
-                    ToolTip="Navigates to the Barracks, resolves its configured troop and forces the full NPC exchange click sequence for that unit (bypasses the threshold/gold gates so the flow can be tested). Costs 3 gold."
-                    ToolTipService.InitialShowDelay="500"
-                    Click="TestNpcTradeBarracksButton_Click" />
+                <Border Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource BorderSubtleBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="10"
+                        Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="Brewery and NPC" FontWeight="SemiBold" Margin="0,0,0,8" />
+                        <UniformGrid Columns="2">
+                            <Button x:Name="TestNavigateToBreweryButton"
+                                    Style="{DynamicResource DebugActionButtonStyle}"
+                                    Content="Navigate to brewery"
+                                    ToolTip="Logs in, switches to the target village and opens the brewery building page, exactly as the auto celebration function does before reading status."
+                                    ToolTipService.InitialShowDelay="500"
+                                    Click="TestNavigateToBreweryButton_Click" />
+                            <Button x:Name="TestStartCelebrationButton"
+                                    Style="{DynamicResource DebugActionButtonStyle}"
+                                    Content="Start celebration"
+                                    ToolTip="Runs the full auto celebration function (RunBreweryCelebrationAsync): navigates to the brewery and starts a celebration if one can be started."
+                                    ToolTipService.InitialShowDelay="500"
+                                    Click="TestStartCelebrationButton_Click" />
+                            <Button x:Name="TestNpcTradeBarracksButton"
+                                    Style="{DynamicResource DebugActionButtonStyle}"
+                                    Content="NPC trade: Barracks"
+                                    ToolTip="Navigates to the Barracks, resolves its configured troop and forces the full NPC exchange click sequence for that unit (bypasses the threshold/gold gates so the flow can be tested). Costs 3 gold."
+                                    ToolTipService.InitialShowDelay="500"
+                                    Click="TestNpcTradeBarracksButton_Click" />
+                            <Button x:Name="TestNpcTradeBuildingButton"
+                                    Style="{DynamicResource DebugActionButtonStyle}"
+                                    Content="NPC trade: Building"
+                                    ToolTip="Runs the building/resource-field NPC trade flow on the current page. Open a building page with missing resources first. Costs 3 gold if the trade is completed."
+                                    ToolTipService.InitialShowDelay="500"
+                                    Click="TestNpcTradeBuildingButton_Click" />
+                        </UniformGrid>
+                    </StackPanel>
+                </Border>
 
-            <Button x:Name="TestNpcTradeBuildingButton"
-                    HorizontalAlignment="Left"
-                    Margin="0,8,0,0"
-                    Padding="10,4"
-                    Content="Run NPC trade (building page)"
-                    ToolTip="Runs the building/resource-field NPC trade flow on the current page. Open a building page with missing resources first. Costs 3 gold if the trade is completed."
-                    ToolTipService.InitialShowDelay="500"
-                    Click="TestNpcTradeBuildingButton_Click" />
-
-            <Button x:Name="TestReadSmithyQueueButton"
-                    HorizontalAlignment="Left"
-                    Margin="0,8,0,0"
-                    Padding="10,4"
-                    Content="Read smithy queue"
-                    ToolTip="Reads only the Smithy queue from the current page. Open the Smithy page first."
-                    ToolTipService.InitialShowDelay="500"
-                    Click="TestReadSmithyQueueButton_Click" />
-
-            <Button x:Name="TestReinforcementsButton"
-                    HorizontalAlignment="Left"
-                    Margin="0,8,0,0"
-                    Padding="10,4"
-                    Content="Run reinforcements"
-                    ToolTip="Runs the reinforcement function with the saved Reinforcements settings. If only one village exists, the test still starts and reports the function result."
-                    ToolTipService.InitialShowDelay="500"
-                    Click="TestReinforcementsButton_Click" />
-
-            <Button x:Name="TestIncreaseAdventuresToHardButton"
-                    HorizontalAlignment="Left"
-                    Margin="0,8,0,0"
-                    Padding="10,4"
-                    Content="Increase adventure danger to hard"
-                    ToolTip="Opens the hero adventures page, watches the 'Increased adventure danger to hard' bonus video, and confirms 'Active for next normal adventure'."
-                    ToolTipService.InitialShowDelay="500"
-                    Click="TestIncreaseAdventuresToHardButton_Click" />
-
-            <Button x:Name="TestReduceAdventuresTimeButton"
-                    HorizontalAlignment="Left"
-                    Margin="0,8,0,0"
-                    Padding="10,4"
-                    Content="Reduce adventure time 25%"
-                    ToolTip="Opens the hero adventures page, watches the 'Reduce adventure duration by 25%' bonus video, and confirms it is active for the next adventure."
-                    ToolTipService.InitialShowDelay="500"
-                    Click="TestReduceAdventuresTimeButton_Click" />
-
-            <Button x:Name="BulkMessagesButton"
-                    HorizontalAlignment="Left"
-                    Margin="0,8,0,0"
-                    Padding="10,4"
-                    Content="Bulk messages"
-                    ToolTip="Opens a popup that analyzes map.sql players and sends messages in batches of up to 25 recipients."
-                    ToolTipService.InitialShowDelay="500"
-                    Click="BulkMessagesButton_Click" />
-        </StackPanel>
-
-        <TextBlock Grid.Row="1"
-                   Margin="0,10,0,0"
-                   Text="Manual test functions for the current browser page."
-                   TextWrapping="Wrap"
-                   Foreground="DimGray" />
+                <Border Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource BorderSubtleBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="10">
+                    <StackPanel>
+                        <TextBlock Text="Automation checks" FontWeight="SemiBold" Margin="0,0,0,8" />
+                        <UniformGrid Columns="2">
+                            <Button x:Name="TestReinforcementsButton"
+                                    Style="{DynamicResource DebugActionButtonStyle}"
+                                    Content="Run reinforcements"
+                                    ToolTip="Runs the reinforcement function with the saved Reinforcements settings. If only one village exists, the test still starts and reports the function result."
+                                    ToolTipService.InitialShowDelay="500"
+                                    Click="TestReinforcementsButton_Click" />
+                            <Button x:Name="TestIncreaseAdventuresToHardButton"
+                                    Style="{DynamicResource DebugActionButtonStyle}"
+                                    Content="Adventure: hard"
+                                    ToolTip="Opens the hero adventures page, watches the 'Increased adventure danger to hard' bonus video, and confirms 'Active for next normal adventure'."
+                                    ToolTipService.InitialShowDelay="500"
+                                    Click="TestIncreaseAdventuresToHardButton_Click" />
+                            <Button x:Name="TestReduceAdventuresTimeButton"
+                                    Style="{DynamicResource DebugActionButtonStyle}"
+                                    Content="Adventure: -25% time"
+                                    ToolTip="Opens the hero adventures page, watches the 'Reduce adventure duration by 25%' bonus video, and confirms it is active for the next adventure."
+                                    ToolTipService.InitialShowDelay="500"
+                                    Click="TestReduceAdventuresTimeButton_Click" />
+                            <Button x:Name="BulkMessagesButton"
+                                    Style="{DynamicResource DebugActionButtonStyle}"
+                                    Content="Bulk messages"
+                                    ToolTip="Opens a popup that analyzes map.sql players and sends messages in batches of up to 25 recipients."
+                                    ToolTipService.InitialShowDelay="500"
+                                    Click="BulkMessagesButton_Click" />
+                        </UniformGrid>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
     </Grid>
 </Window>

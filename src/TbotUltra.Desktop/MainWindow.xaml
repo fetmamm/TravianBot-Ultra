@@ -509,16 +509,9 @@
                             <DockPanel Margin="0,0,0,8">
                                 <Button x:Name="OpenResourceTestFunctionsButton"
                                         DockPanel.Dock="Right"
-                                        Content="Test functions"
+                                        Content="Debug"
                                         Padding="10,4"
                                         Click="OpenResourceTestFunctionsButton_Click" />
-                                <Button x:Name="TroopSettingsButton"
-                                        DockPanel.Dock="Right"
-                                        Content="Troop settings"
-                                        Padding="10,4"
-                                        Margin="0,0,8,0"
-                                        Click="TroopSettingsButton_Click"
-                                        ToolTip="Open the per-village troop training overview (which buildings train and which troop). Available on every page." />
                                 <Button x:Name="VillageSettingsButton"
                                         DockPanel.Dock="Right"
                                         Content="Village settings"

@@ -121,13 +121,19 @@ public sealed class BotOptions
     public int TroopTrainingBarracksKeepResourcesPercent { get; init; } = 10;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksRunMode)]
-    public string TroopTrainingBarracksRunMode { get; init; } = "resource_percent";
+    public string TroopTrainingBarracksRunMode { get; init; } = "timed";
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksMinimumTroops)]
     public int TroopTrainingBarracksMinimumTroops { get; init; } = 1;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksMinimumResourcesPercent)]
     public int TroopTrainingBarracksMinimumResourcesPercent { get; init; } = 50;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksTimedMinMinutes)]
+    public int TroopTrainingBarracksTimedMinMinutes { get; init; } = 30;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksTimedMaxMinutes)]
+    public int TroopTrainingBarracksTimedMaxMinutes { get; init; } = 180;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksCheckWood)]
     public bool TroopTrainingBarracksCheckWood { get; init; } = true;
@@ -157,13 +163,19 @@ public sealed class BotOptions
     public int TroopTrainingStableKeepResourcesPercent { get; init; } = 10;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableRunMode)]
-    public string TroopTrainingStableRunMode { get; init; } = "resource_percent";
+    public string TroopTrainingStableRunMode { get; init; } = "timed";
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableMinimumTroops)]
     public int TroopTrainingStableMinimumTroops { get; init; } = 1;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableMinimumResourcesPercent)]
     public int TroopTrainingStableMinimumResourcesPercent { get; init; } = 50;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableTimedMinMinutes)]
+    public int TroopTrainingStableTimedMinMinutes { get; init; } = 30;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableTimedMaxMinutes)]
+    public int TroopTrainingStableTimedMaxMinutes { get; init; } = 180;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableCheckWood)]
     public bool TroopTrainingStableCheckWood { get; init; } = true;
@@ -193,13 +205,19 @@ public sealed class BotOptions
     public int TroopTrainingWorkshopKeepResourcesPercent { get; init; } = 10;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopRunMode)]
-    public string TroopTrainingWorkshopRunMode { get; init; } = "resource_percent";
+    public string TroopTrainingWorkshopRunMode { get; init; } = "timed";
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopMinimumTroops)]
     public int TroopTrainingWorkshopMinimumTroops { get; init; } = 1;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopMinimumResourcesPercent)]
     public int TroopTrainingWorkshopMinimumResourcesPercent { get; init; } = 50;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopTimedMinMinutes)]
+    public int TroopTrainingWorkshopTimedMinMinutes { get; init; } = 30;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopTimedMaxMinutes)]
+    public int TroopTrainingWorkshopTimedMaxMinutes { get; init; } = 180;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopCheckWood)]
     public bool TroopTrainingWorkshopCheckWood { get; init; } = true;

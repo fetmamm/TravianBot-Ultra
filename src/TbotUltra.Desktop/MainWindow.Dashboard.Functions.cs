@@ -44,7 +44,11 @@ public partial class MainWindow
         // start the bot from stopped, but it wakes an already-running loop so the groups retry promptly.
         ClearSelectedVillageRuntimeTimerCache(selectedVillageName);
         var resetCount = ResetDeferredQueueTimersForVillage(selectedVillageName, selectedVillageKey);
-        if (resetCount > 0)
+        _continuousConstructionRotationVillageKey = selectedVillageKey;
+        SetContinuousGroupRotationVillageKey(QueueGroup.TroopTraining, selectedVillageKey);
+        SetContinuousGroupRotationVillageKey(QueueGroup.Troops, selectedVillageKey);
+        SetContinuousGroupRotationVillageKey(QueueGroup.Farming, selectedVillageKey);
+        if (IsContinuousLoopRunning() || _autoQueueRunning)
         {
             Interlocked.Exchange(ref _continuousLoopWakeRequested, 1);
         }

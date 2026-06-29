@@ -620,7 +620,7 @@
                                                                            Foreground="{DynamicResource TooltipForegroundBrush}"
                                                                            Margin="0,0,0,6" />
                                                                 <TextBlock TextWrapping="Wrap"
-                                                                           Text="Min troops starts training when the current troop count drops below the value to the right." />
+                                                                           Text="Timed starts training, then waits a random delay between the min and max minutes before trying again." />
                                                                 <TextBlock Margin="0,6,0,0"
                                                                            TextWrapping="Wrap"
                                                                            Text="% resources starts training when available resources reach the selected percent threshold." />
@@ -640,30 +640,47 @@
                                             <StackPanel Grid.Column="1"
                                                         Orientation="Horizontal"
                                                         VerticalAlignment="Center">
-                                                <RadioButton Content="Min troops"
+                                                <RadioButton Content="Timed"
                                                              Margin="0,0,12,0"
-                                                             IsChecked="{Binding IsMinimumTroopsMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                             IsChecked="{Binding IsTimedMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                                 <RadioButton Content="% resources"
                                                              IsChecked="{Binding IsResourcePercentMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             </StackPanel>
 
                                             <Grid Grid.Column="2">
-                                                <TextBox Width="88"
-                                                         Height="28"
-                                                         HorizontalAlignment="Left"
-                                                         VerticalAlignment="Center"
-                                                         Text="{Binding MinimumTroopsText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}">
-                                                    <TextBox.Style>
-                                                        <Style TargetType="TextBox">
+                                                <StackPanel Orientation="Horizontal"
+                                                            VerticalAlignment="Center">
+                                                    <StackPanel.Style>
+                                                        <Style TargetType="StackPanel">
                                                             <Setter Property="Visibility" Value="Collapsed" />
                                                             <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding UsesMinimumTroopsMode}" Value="True">
+                                                                <DataTrigger Binding="{Binding UsesTimedMode}" Value="True">
                                                                     <Setter Property="Visibility" Value="Visible" />
                                                                 </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
-                                                    </TextBox.Style>
-                                                </TextBox>
+                                                    </StackPanel.Style>
+                                                    <TextBlock Text="Min"
+                                                               VerticalAlignment="Center"
+                                                               Margin="0,0,6,0"
+                                                               Foreground="{DynamicResource TextSubtleBrush}" />
+                                                    <TextBox Width="58"
+                                                             Height="28"
+                                                             VerticalAlignment="Center"
+                                                             Text="{Binding TimedMinMinutesText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                                    <TextBlock Text="Max"
+                                                               VerticalAlignment="Center"
+                                                               Margin="10,0,6,0"
+                                                               Foreground="{DynamicResource TextSubtleBrush}" />
+                                                    <TextBox Width="58"
+                                                             Height="28"
+                                                             VerticalAlignment="Center"
+                                                             Text="{Binding TimedMaxMinutesText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                                    <TextBlock Text="min"
+                                                               Margin="8,0,0,0"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                </StackPanel>
 
                                                     <StackPanel Orientation="Horizontal"
                                                                 VerticalAlignment="Center">

@@ -38,6 +38,8 @@ public sealed partial class TroopTrainingViewModel : BaseViewModel
         nameof(TroopTrainingBuildingOption.RunMode),
         nameof(TroopTrainingBuildingOption.MinimumTroops),
         nameof(TroopTrainingBuildingOption.MinimumResourcesPercent),
+        nameof(TroopTrainingBuildingOption.TimedMinMinutes),
+        nameof(TroopTrainingBuildingOption.TimedMaxMinutes),
     ];
 
     private bool _isConfigSuppressed;
@@ -224,6 +226,8 @@ public sealed partial class TroopTrainingViewModel : BaseViewModel
                         option.RunMode = options.TroopTrainingBarracksRunMode;
                         option.MinimumTroops = options.TroopTrainingBarracksMinimumTroops;
                         option.MinimumResourcesPercent = options.TroopTrainingBarracksMinimumResourcesPercent;
+                        option.TimedMinMinutes = options.TroopTrainingBarracksTimedMinMinutes;
+                        option.TimedMaxMinutes = options.TroopTrainingBarracksTimedMaxMinutes;
                         break;
                     case TroopTrainingBuildingType.Stable:
                         option.IsEnabled = options.TroopTrainingStableEnabled;
@@ -234,6 +238,8 @@ public sealed partial class TroopTrainingViewModel : BaseViewModel
                         option.RunMode = options.TroopTrainingStableRunMode;
                         option.MinimumTroops = options.TroopTrainingStableMinimumTroops;
                         option.MinimumResourcesPercent = options.TroopTrainingStableMinimumResourcesPercent;
+                        option.TimedMinMinutes = options.TroopTrainingStableTimedMinMinutes;
+                        option.TimedMaxMinutes = options.TroopTrainingStableTimedMaxMinutes;
                         break;
                     case TroopTrainingBuildingType.Workshop:
                         option.IsEnabled = options.TroopTrainingWorkshopEnabled;
@@ -244,6 +250,8 @@ public sealed partial class TroopTrainingViewModel : BaseViewModel
                         option.RunMode = options.TroopTrainingWorkshopRunMode;
                         option.MinimumTroops = options.TroopTrainingWorkshopMinimumTroops;
                         option.MinimumResourcesPercent = options.TroopTrainingWorkshopMinimumResourcesPercent;
+                        option.TimedMinMinutes = options.TroopTrainingWorkshopTimedMinMinutes;
+                        option.TimedMaxMinutes = options.TroopTrainingWorkshopTimedMaxMinutes;
                         break;
                 }
             }
@@ -301,6 +309,8 @@ public sealed partial class TroopTrainingViewModel : BaseViewModel
                 option.RunMode = building.RunMode;
                 option.MinimumTroops = building.MinimumTroops;
                 option.MinimumResourcesPercent = building.MinimumResourcesPercent;
+                option.TimedMinMinutes = building.TimedMinMinutes;
+                option.TimedMaxMinutes = building.TimedMaxMinutes;
             }
 
             // The Troops tab shows one Wood/Clay/Iron/Crop set shared by all buildings; the payload stores
@@ -335,6 +345,8 @@ public sealed partial class TroopTrainingViewModel : BaseViewModel
                 option.RunMode,
                 option.MinimumTroops,
                 option.MinimumResourcesPercent,
+                option.TimedMinMinutes,
+                option.TimedMaxMinutes,
                 CheckWood,
                 CheckClay,
                 CheckIron,

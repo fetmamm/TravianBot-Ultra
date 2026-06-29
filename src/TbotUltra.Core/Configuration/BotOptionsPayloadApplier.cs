@@ -66,6 +66,8 @@ public static class BotOptionsPayloadApplier
         var troopTrainingBarracksRunMode = source.TroopTrainingBarracksRunMode;
         var troopTrainingBarracksMinimumTroops = source.TroopTrainingBarracksMinimumTroops;
         var troopTrainingBarracksMinimumResourcesPercent = source.TroopTrainingBarracksMinimumResourcesPercent;
+        var troopTrainingBarracksTimedMinMinutes = source.TroopTrainingBarracksTimedMinMinutes;
+        var troopTrainingBarracksTimedMaxMinutes = source.TroopTrainingBarracksTimedMaxMinutes;
         var troopTrainingBarracksCheckWood = source.TroopTrainingBarracksCheckWood;
         var troopTrainingBarracksCheckClay = source.TroopTrainingBarracksCheckClay;
         var troopTrainingBarracksCheckIron = source.TroopTrainingBarracksCheckIron;
@@ -78,6 +80,8 @@ public static class BotOptionsPayloadApplier
         var troopTrainingStableRunMode = source.TroopTrainingStableRunMode;
         var troopTrainingStableMinimumTroops = source.TroopTrainingStableMinimumTroops;
         var troopTrainingStableMinimumResourcesPercent = source.TroopTrainingStableMinimumResourcesPercent;
+        var troopTrainingStableTimedMinMinutes = source.TroopTrainingStableTimedMinMinutes;
+        var troopTrainingStableTimedMaxMinutes = source.TroopTrainingStableTimedMaxMinutes;
         var troopTrainingStableCheckWood = source.TroopTrainingStableCheckWood;
         var troopTrainingStableCheckClay = source.TroopTrainingStableCheckClay;
         var troopTrainingStableCheckIron = source.TroopTrainingStableCheckIron;
@@ -90,6 +94,8 @@ public static class BotOptionsPayloadApplier
         var troopTrainingWorkshopRunMode = source.TroopTrainingWorkshopRunMode;
         var troopTrainingWorkshopMinimumTroops = source.TroopTrainingWorkshopMinimumTroops;
         var troopTrainingWorkshopMinimumResourcesPercent = source.TroopTrainingWorkshopMinimumResourcesPercent;
+        var troopTrainingWorkshopTimedMinMinutes = source.TroopTrainingWorkshopTimedMinMinutes;
+        var troopTrainingWorkshopTimedMaxMinutes = source.TroopTrainingWorkshopTimedMaxMinutes;
         var troopTrainingWorkshopCheckWood = source.TroopTrainingWorkshopCheckWood;
         var troopTrainingWorkshopCheckClay = source.TroopTrainingWorkshopCheckClay;
         var troopTrainingWorkshopCheckIron = source.TroopTrainingWorkshopCheckIron;
@@ -537,7 +543,7 @@ public static class BotOptionsPayloadApplier
 
                 if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksRunMode, StringComparison.OrdinalIgnoreCase))
                 {
-                    troopTrainingBarracksRunMode = value;
+                    troopTrainingBarracksRunMode = NormalizeTroopTrainingRunMode(value);
                     continue;
                 }
 
@@ -552,6 +558,20 @@ public static class BotOptionsPayloadApplier
                     && int.TryParse(value, out var barracksMinimumResourcesPercent))
                 {
                     troopTrainingBarracksMinimumResourcesPercent = Math.Clamp(barracksMinimumResourcesPercent, 0, 100);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksTimedMinMinutes, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var barracksTimedMinMinutes))
+                {
+                    troopTrainingBarracksTimedMinMinutes = Math.Max(1, barracksTimedMinMinutes);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksTimedMaxMinutes, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var barracksTimedMaxMinutes))
+                {
+                    troopTrainingBarracksTimedMaxMinutes = Math.Max(1, barracksTimedMaxMinutes);
                     continue;
                 }
 
@@ -617,7 +637,7 @@ public static class BotOptionsPayloadApplier
 
                 if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableRunMode, StringComparison.OrdinalIgnoreCase))
                 {
-                    troopTrainingStableRunMode = value;
+                    troopTrainingStableRunMode = NormalizeTroopTrainingRunMode(value);
                     continue;
                 }
 
@@ -632,6 +652,20 @@ public static class BotOptionsPayloadApplier
                     && int.TryParse(value, out var stableMinimumResourcesPercent))
                 {
                     troopTrainingStableMinimumResourcesPercent = Math.Clamp(stableMinimumResourcesPercent, 0, 100);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableTimedMinMinutes, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var stableTimedMinMinutes))
+                {
+                    troopTrainingStableTimedMinMinutes = Math.Max(1, stableTimedMinMinutes);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableTimedMaxMinutes, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var stableTimedMaxMinutes))
+                {
+                    troopTrainingStableTimedMaxMinutes = Math.Max(1, stableTimedMaxMinutes);
                     continue;
                 }
 
@@ -697,7 +731,7 @@ public static class BotOptionsPayloadApplier
 
                 if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopRunMode, StringComparison.OrdinalIgnoreCase))
                 {
-                    troopTrainingWorkshopRunMode = value;
+                    troopTrainingWorkshopRunMode = NormalizeTroopTrainingRunMode(value);
                     continue;
                 }
 
@@ -712,6 +746,20 @@ public static class BotOptionsPayloadApplier
                     && int.TryParse(value, out var workshopMinimumResourcesPercent))
                 {
                     troopTrainingWorkshopMinimumResourcesPercent = Math.Clamp(workshopMinimumResourcesPercent, 0, 100);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopTimedMinMinutes, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var workshopTimedMinMinutes))
+                {
+                    troopTrainingWorkshopTimedMinMinutes = Math.Max(1, workshopTimedMinMinutes);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopTimedMaxMinutes, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var workshopTimedMaxMinutes))
+                {
+                    troopTrainingWorkshopTimedMaxMinutes = Math.Max(1, workshopTimedMaxMinutes);
                     continue;
                 }
 
@@ -1057,6 +1105,8 @@ public static class BotOptionsPayloadApplier
             TroopTrainingBarracksRunMode = troopTrainingBarracksRunMode,
             TroopTrainingBarracksMinimumTroops = troopTrainingBarracksMinimumTroops,
             TroopTrainingBarracksMinimumResourcesPercent = troopTrainingBarracksMinimumResourcesPercent,
+            TroopTrainingBarracksTimedMinMinutes = troopTrainingBarracksTimedMinMinutes,
+            TroopTrainingBarracksTimedMaxMinutes = troopTrainingBarracksTimedMaxMinutes,
             TroopTrainingBarracksCheckWood = troopTrainingBarracksCheckWood,
             TroopTrainingBarracksCheckClay = troopTrainingBarracksCheckClay,
             TroopTrainingBarracksCheckIron = troopTrainingBarracksCheckIron,
@@ -1069,6 +1119,8 @@ public static class BotOptionsPayloadApplier
             TroopTrainingStableRunMode = troopTrainingStableRunMode,
             TroopTrainingStableMinimumTroops = troopTrainingStableMinimumTroops,
             TroopTrainingStableMinimumResourcesPercent = troopTrainingStableMinimumResourcesPercent,
+            TroopTrainingStableTimedMinMinutes = troopTrainingStableTimedMinMinutes,
+            TroopTrainingStableTimedMaxMinutes = troopTrainingStableTimedMaxMinutes,
             TroopTrainingStableCheckWood = troopTrainingStableCheckWood,
             TroopTrainingStableCheckClay = troopTrainingStableCheckClay,
             TroopTrainingStableCheckIron = troopTrainingStableCheckIron,
@@ -1081,6 +1133,8 @@ public static class BotOptionsPayloadApplier
             TroopTrainingWorkshopRunMode = troopTrainingWorkshopRunMode,
             TroopTrainingWorkshopMinimumTroops = troopTrainingWorkshopMinimumTroops,
             TroopTrainingWorkshopMinimumResourcesPercent = troopTrainingWorkshopMinimumResourcesPercent,
+            TroopTrainingWorkshopTimedMinMinutes = troopTrainingWorkshopTimedMinMinutes,
+            TroopTrainingWorkshopTimedMaxMinutes = troopTrainingWorkshopTimedMaxMinutes,
             TroopTrainingWorkshopCheckWood = troopTrainingWorkshopCheckWood,
             TroopTrainingWorkshopCheckClay = troopTrainingWorkshopCheckClay,
             TroopTrainingWorkshopCheckIron = troopTrainingWorkshopCheckIron,
@@ -1200,4 +1254,9 @@ public static class BotOptionsPayloadApplier
 
         return Math.Clamp(value, 0, 3600);
     }
+
+    private static string NormalizeTroopTrainingRunMode(string? value)
+        => string.Equals(value, "resource_percent", StringComparison.OrdinalIgnoreCase)
+            ? "resource_percent"
+            : "timed";
 }

@@ -1033,9 +1033,10 @@ public partial class MainWindow
     /// </summary>
     internal void OnTroopsBuildNowClicked()
     {
-        EnqueueQuickTask("build_troops", "Build troops");
+        var payload = _troopTrainingViewModel.BuildVillageTrainingPayload().ToDictionary();
+        EnqueueQuickTask("build_troops", "Build troops", payload);
         _troopTrainingViewModel.InfoText = "Queued: build troops.";
-        AppendLog("Queued build_troops task.");
+        AppendLog("Queued build_troops task with selected village troop-training settings.");
     }
 
     /// <summary>

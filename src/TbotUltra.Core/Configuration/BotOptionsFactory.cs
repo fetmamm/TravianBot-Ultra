@@ -72,9 +72,11 @@ public static class BotOptionsFactory
             TroopTrainingBarracksMaxQueueHours = configuration[BotOptionPayloadKeys.TroopTrainingBarracksMaxQueueHours] ?? "no_limit",
             TroopTrainingBarracksAmountMode = configuration[BotOptionPayloadKeys.TroopTrainingBarracksAmountMode] ?? "maximum",
             TroopTrainingBarracksKeepResourcesPercent = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.TroopTrainingBarracksKeepResourcesPercent, 10), 0, 95),
-            TroopTrainingBarracksRunMode = configuration[BotOptionPayloadKeys.TroopTrainingBarracksRunMode] ?? "resource_percent",
+            TroopTrainingBarracksRunMode = NormalizeTroopTrainingRunMode(configuration[BotOptionPayloadKeys.TroopTrainingBarracksRunMode]),
             TroopTrainingBarracksMinimumTroops = Math.Max(1, configuration.GetValue(BotOptionPayloadKeys.TroopTrainingBarracksMinimumTroops, 1)),
             TroopTrainingBarracksMinimumResourcesPercent = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.TroopTrainingBarracksMinimumResourcesPercent, 50), 0, 100),
+            TroopTrainingBarracksTimedMinMinutes = Math.Max(1, configuration.GetValue(BotOptionPayloadKeys.TroopTrainingBarracksTimedMinMinutes, 30)),
+            TroopTrainingBarracksTimedMaxMinutes = Math.Max(1, configuration.GetValue(BotOptionPayloadKeys.TroopTrainingBarracksTimedMaxMinutes, 180)),
             TroopTrainingBarracksCheckWood = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingBarracksCheckWood, true),
             TroopTrainingBarracksCheckClay = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingBarracksCheckClay, true),
             TroopTrainingBarracksCheckIron = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingBarracksCheckIron, true),
@@ -84,9 +86,11 @@ public static class BotOptionsFactory
             TroopTrainingStableMaxQueueHours = configuration[BotOptionPayloadKeys.TroopTrainingStableMaxQueueHours] ?? "no_limit",
             TroopTrainingStableAmountMode = configuration[BotOptionPayloadKeys.TroopTrainingStableAmountMode] ?? "maximum",
             TroopTrainingStableKeepResourcesPercent = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.TroopTrainingStableKeepResourcesPercent, 10), 0, 95),
-            TroopTrainingStableRunMode = configuration[BotOptionPayloadKeys.TroopTrainingStableRunMode] ?? "resource_percent",
+            TroopTrainingStableRunMode = NormalizeTroopTrainingRunMode(configuration[BotOptionPayloadKeys.TroopTrainingStableRunMode]),
             TroopTrainingStableMinimumTroops = Math.Max(1, configuration.GetValue(BotOptionPayloadKeys.TroopTrainingStableMinimumTroops, 1)),
             TroopTrainingStableMinimumResourcesPercent = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.TroopTrainingStableMinimumResourcesPercent, 50), 0, 100),
+            TroopTrainingStableTimedMinMinutes = Math.Max(1, configuration.GetValue(BotOptionPayloadKeys.TroopTrainingStableTimedMinMinutes, 30)),
+            TroopTrainingStableTimedMaxMinutes = Math.Max(1, configuration.GetValue(BotOptionPayloadKeys.TroopTrainingStableTimedMaxMinutes, 180)),
             TroopTrainingStableCheckWood = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingStableCheckWood, true),
             TroopTrainingStableCheckClay = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingStableCheckClay, true),
             TroopTrainingStableCheckIron = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingStableCheckIron, true),
@@ -96,9 +100,11 @@ public static class BotOptionsFactory
             TroopTrainingWorkshopMaxQueueHours = configuration[BotOptionPayloadKeys.TroopTrainingWorkshopMaxQueueHours] ?? "no_limit",
             TroopTrainingWorkshopAmountMode = configuration[BotOptionPayloadKeys.TroopTrainingWorkshopAmountMode] ?? "maximum",
             TroopTrainingWorkshopKeepResourcesPercent = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopKeepResourcesPercent, 10), 0, 95),
-            TroopTrainingWorkshopRunMode = configuration[BotOptionPayloadKeys.TroopTrainingWorkshopRunMode] ?? "resource_percent",
+            TroopTrainingWorkshopRunMode = NormalizeTroopTrainingRunMode(configuration[BotOptionPayloadKeys.TroopTrainingWorkshopRunMode]),
             TroopTrainingWorkshopMinimumTroops = Math.Max(1, configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopMinimumTroops, 1)),
             TroopTrainingWorkshopMinimumResourcesPercent = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopMinimumResourcesPercent, 50), 0, 100),
+            TroopTrainingWorkshopTimedMinMinutes = Math.Max(1, configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopTimedMinMinutes, 30)),
+            TroopTrainingWorkshopTimedMaxMinutes = Math.Max(1, configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopTimedMaxMinutes, 180)),
             TroopTrainingWorkshopCheckWood = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopCheckWood, true),
             TroopTrainingWorkshopCheckClay = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopCheckClay, true),
             TroopTrainingWorkshopCheckIron = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopCheckIron, true),
@@ -232,6 +238,8 @@ public static class BotOptionsFactory
             TroopTrainingBarracksRunMode = source.TroopTrainingBarracksRunMode,
             TroopTrainingBarracksMinimumTroops = source.TroopTrainingBarracksMinimumTroops,
             TroopTrainingBarracksMinimumResourcesPercent = source.TroopTrainingBarracksMinimumResourcesPercent,
+            TroopTrainingBarracksTimedMinMinutes = source.TroopTrainingBarracksTimedMinMinutes,
+            TroopTrainingBarracksTimedMaxMinutes = source.TroopTrainingBarracksTimedMaxMinutes,
             TroopTrainingBarracksCheckWood = source.TroopTrainingBarracksCheckWood,
             TroopTrainingBarracksCheckClay = source.TroopTrainingBarracksCheckClay,
             TroopTrainingBarracksCheckIron = source.TroopTrainingBarracksCheckIron,
@@ -244,6 +252,8 @@ public static class BotOptionsFactory
             TroopTrainingStableRunMode = source.TroopTrainingStableRunMode,
             TroopTrainingStableMinimumTroops = source.TroopTrainingStableMinimumTroops,
             TroopTrainingStableMinimumResourcesPercent = source.TroopTrainingStableMinimumResourcesPercent,
+            TroopTrainingStableTimedMinMinutes = source.TroopTrainingStableTimedMinMinutes,
+            TroopTrainingStableTimedMaxMinutes = source.TroopTrainingStableTimedMaxMinutes,
             TroopTrainingStableCheckWood = source.TroopTrainingStableCheckWood,
             TroopTrainingStableCheckClay = source.TroopTrainingStableCheckClay,
             TroopTrainingStableCheckIron = source.TroopTrainingStableCheckIron,
@@ -256,6 +266,8 @@ public static class BotOptionsFactory
             TroopTrainingWorkshopRunMode = source.TroopTrainingWorkshopRunMode,
             TroopTrainingWorkshopMinimumTroops = source.TroopTrainingWorkshopMinimumTroops,
             TroopTrainingWorkshopMinimumResourcesPercent = source.TroopTrainingWorkshopMinimumResourcesPercent,
+            TroopTrainingWorkshopTimedMinMinutes = source.TroopTrainingWorkshopTimedMinMinutes,
+            TroopTrainingWorkshopTimedMaxMinutes = source.TroopTrainingWorkshopTimedMaxMinutes,
             TroopTrainingWorkshopCheckWood = source.TroopTrainingWorkshopCheckWood,
             TroopTrainingWorkshopCheckClay = source.TroopTrainingWorkshopCheckClay,
             TroopTrainingWorkshopCheckIron = source.TroopTrainingWorkshopCheckIron,
@@ -407,6 +419,11 @@ public static class BotOptionsFactory
 
         return Math.Clamp(value, 0, 3600);
     }
+
+    private static string NormalizeTroopTrainingRunMode(string? value)
+        => string.Equals(value, "resource_percent", StringComparison.OrdinalIgnoreCase)
+            ? "resource_percent"
+            : "timed";
 
     private static List<ReinforcementTroopRule> NormalizeReinforcementTroopRules(IEnumerable<ReinforcementTroopRule> rules)
     {

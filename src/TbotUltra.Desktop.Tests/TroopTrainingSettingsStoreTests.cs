@@ -51,7 +51,7 @@ public sealed class TroopTrainingSettingsStoreTests : IDisposable
     private static TroopTrainingPayload Make(bool barracksEnabled = false, string troop = "", int fallback = 120)
     {
         var building = new TroopTrainingBuildingPayload(
-            barracksEnabled, troop, "no_limit", "maximum", 0, "resource_percent", 0, 0, true, true, true, true);
+            barracksEnabled, troop, "no_limit", "maximum", 0, "timed", 0, 0, 30, 180, true, true, true, true);
         return new TroopTrainingPayload(building, building, building, fallback);
     }
 

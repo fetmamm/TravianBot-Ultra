@@ -87,6 +87,10 @@ document.querySelector('#stockBarWarehouse, .warehouse .capacity .value')
 - Aldre konto-scopeade varden i `bot.json` migreras en gang till kontots `settings.json` och tas bort globalt.
 - Reinforcement send-intervall/variation ar account-scopeat; `Queue now` skickar direkt, auto-gruppen skapar en deferred runtime-post baserat pa senaste lyckade send.
 - Ko, bycache, Smithy, troop training, hero/cache och ovrig runtime-state anvander kontoavgransade paths.
+- `build_troops`-queueitems ska alltid snapshotta vald bys `TroopTrainingPayload`; annars faller workern
+  tillbaka till global/default troop-training config (t.ex. 50% resources) i stallet for konto+by-overriden.
+- Build troops `timed` ar per-by/per-byggnad: efter lyckad training defer:as samma queue item med
+  slumpad `timed_min_minutes`-`timed_max_minutes` delay. Default ar 30-180 min.
 - Kontobyte ar full UI/cache-reset, men respektive kontos separata ko och settings ska bevaras, och
   `bot.json`:s konto-scopeade pekare (by-/farmlist-namn/ids) rensas via `ClearPersistedAccountScopedConfig`
   sa de inte lacker till nasta konto.
@@ -135,7 +139,7 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
   for infoikoner; langre listor ligger i en begransad `ScrollViewer`, inte expandera resten av dashboarden.
   Automation-loop-kort sparar per-by gruppvarde fore wake och vacker bade Continuous Loop och vantande AutoQueue.
 - Aktivitetstimers sparas som absoluta UTC-sluttider och raknas om vid cache-load; utgangna poster rensas
-  som stale. `Clear timers` ar vald-by-scope, tar aldrig bort Queue-sidans poster och vacker inte loopen.
+  som stale. `Clear timers` ar vald-by-scope, tar aldrig bort Queue-sidans poster och vacker en korande loop.
   Som manuell aterstallning rensar den ocksa vald bys construction-snapshot (`ActiveConstructions`) och
   nollstaller deferred construction-retries sa ett fastnat "waiting" utan faktiskt bygge kan brytas.
 - Construction- och byggkologik (ActiveConstructions som SOT, queue-full-defer, storage-capacity, estimat):

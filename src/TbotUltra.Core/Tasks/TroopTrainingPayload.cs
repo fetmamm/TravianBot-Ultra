@@ -12,6 +12,8 @@ public sealed record TroopTrainingBuildingPayload(
     string RunMode,
     int MinimumTroops,
     int MinimumResourcesPercent,
+    int TimedMinMinutes,
+    int TimedMaxMinutes,
     bool CheckWood,
     bool CheckClay,
     bool CheckIron,
@@ -59,6 +61,8 @@ public sealed record TroopTrainingPayload(
             || !TryReadInt(payload, keys.KeepResourcesPercent, 0, 0, 100, out var keepResourcesPercent)
             || !TryReadInt(payload, keys.MinimumTroops, 0, 0, int.MaxValue, out var minimumTroops)
             || !TryReadInt(payload, keys.MinimumResourcesPercent, 0, 0, 100, out var minimumResourcesPercent)
+            || !TryReadInt(payload, keys.TimedMinMinutes, 30, 1, int.MaxValue, out var timedMinMinutes)
+            || !TryReadInt(payload, keys.TimedMaxMinutes, 180, 1, int.MaxValue, out var timedMaxMinutes)
             || !TryReadBool(payload, keys.CheckWood, true, out var checkWood)
             || !TryReadBool(payload, keys.CheckClay, true, out var checkClay)
             || !TryReadBool(payload, keys.CheckIron, true, out var checkIron)
@@ -73,9 +77,11 @@ public sealed record TroopTrainingPayload(
             ReadTrimmed(payload, keys.MaxQueueHours) ?? "no_limit",
             ReadTrimmed(payload, keys.AmountMode) ?? "fixed",
             keepResourcesPercent,
-            ReadTrimmed(payload, keys.RunMode) ?? "continuous",
+            NormalizeRunMode(ReadTrimmed(payload, keys.RunMode)),
             minimumTroops,
             minimumResourcesPercent,
+            timedMinMinutes,
+            timedMaxMinutes,
             checkWood,
             checkClay,
             checkIron,
@@ -91,9 +97,11 @@ public sealed record TroopTrainingPayload(
         result[keys.MaxQueueHours] = string.IsNullOrWhiteSpace(value.MaxQueueHours) ? "no_limit" : value.MaxQueueHours.Trim();
         result[keys.AmountMode] = string.IsNullOrWhiteSpace(value.AmountMode) ? "fixed" : value.AmountMode.Trim();
         result[keys.KeepResourcesPercent] = Math.Clamp(value.KeepResourcesPercent, 0, 100).ToString();
-        result[keys.RunMode] = string.IsNullOrWhiteSpace(value.RunMode) ? "continuous" : value.RunMode.Trim();
+        result[keys.RunMode] = NormalizeRunMode(value.RunMode);
         result[keys.MinimumTroops] = Math.Max(0, value.MinimumTroops).ToString();
         result[keys.MinimumResourcesPercent] = Math.Clamp(value.MinimumResourcesPercent, 0, 100).ToString();
+        result[keys.TimedMinMinutes] = Math.Max(1, value.TimedMinMinutes).ToString();
+        result[keys.TimedMaxMinutes] = Math.Max(1, value.TimedMaxMinutes).ToString();
         result[keys.CheckWood] = value.CheckWood ? "true" : "false";
         result[keys.CheckClay] = value.CheckClay ? "true" : "false";
         result[keys.CheckIron] = value.CheckIron ? "true" : "false";
@@ -130,6 +138,11 @@ public sealed record TroopTrainingPayload(
             : null;
     }
 
+    private static string NormalizeRunMode(string? value)
+        => string.Equals(value, "resource_percent", StringComparison.OrdinalIgnoreCase)
+            ? "resource_percent"
+            : "timed";
+
     private static BuildingKeys ResolveKeys(TroopTrainingBuildingType buildingType)
     {
         return buildingType switch
@@ -143,6 +156,8 @@ public sealed record TroopTrainingPayload(
                 BotOptionPayloadKeys.TroopTrainingBarracksRunMode,
                 BotOptionPayloadKeys.TroopTrainingBarracksMinimumTroops,
                 BotOptionPayloadKeys.TroopTrainingBarracksMinimumResourcesPercent,
+                BotOptionPayloadKeys.TroopTrainingBarracksTimedMinMinutes,
+                BotOptionPayloadKeys.TroopTrainingBarracksTimedMaxMinutes,
                 BotOptionPayloadKeys.TroopTrainingBarracksCheckWood,
                 BotOptionPayloadKeys.TroopTrainingBarracksCheckClay,
                 BotOptionPayloadKeys.TroopTrainingBarracksCheckIron,
@@ -156,6 +171,8 @@ public sealed record TroopTrainingPayload(
                 BotOptionPayloadKeys.TroopTrainingStableRunMode,
                 BotOptionPayloadKeys.TroopTrainingStableMinimumTroops,
                 BotOptionPayloadKeys.TroopTrainingStableMinimumResourcesPercent,
+                BotOptionPayloadKeys.TroopTrainingStableTimedMinMinutes,
+                BotOptionPayloadKeys.TroopTrainingStableTimedMaxMinutes,
                 BotOptionPayloadKeys.TroopTrainingStableCheckWood,
                 BotOptionPayloadKeys.TroopTrainingStableCheckClay,
                 BotOptionPayloadKeys.TroopTrainingStableCheckIron,
@@ -169,6 +186,8 @@ public sealed record TroopTrainingPayload(
                 BotOptionPayloadKeys.TroopTrainingWorkshopRunMode,
                 BotOptionPayloadKeys.TroopTrainingWorkshopMinimumTroops,
                 BotOptionPayloadKeys.TroopTrainingWorkshopMinimumResourcesPercent,
+                BotOptionPayloadKeys.TroopTrainingWorkshopTimedMinMinutes,
+                BotOptionPayloadKeys.TroopTrainingWorkshopTimedMaxMinutes,
                 BotOptionPayloadKeys.TroopTrainingWorkshopCheckWood,
                 BotOptionPayloadKeys.TroopTrainingWorkshopCheckClay,
                 BotOptionPayloadKeys.TroopTrainingWorkshopCheckIron,
@@ -185,6 +204,8 @@ public sealed record TroopTrainingPayload(
         string RunMode,
         string MinimumTroops,
         string MinimumResourcesPercent,
+        string TimedMinMinutes,
+        string TimedMaxMinutes,
         string CheckWood,
         string CheckClay,
         string CheckIron,

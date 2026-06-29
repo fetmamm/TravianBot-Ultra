@@ -120,6 +120,8 @@ public static class BotOptionPayloadKeys
     public const string TroopTrainingBarracksRunMode = "troop_training_barracks_run_mode";
     public const string TroopTrainingBarracksMinimumTroops = "troop_training_barracks_minimum_troops";
     public const string TroopTrainingBarracksMinimumResourcesPercent = "troop_training_barracks_minimum_resources_percent";
+    public const string TroopTrainingBarracksTimedMinMinutes = "troop_training_barracks_timed_min_minutes";
+    public const string TroopTrainingBarracksTimedMaxMinutes = "troop_training_barracks_timed_max_minutes";
     public const string TroopTrainingBarracksCheckWood = "troop_training_barracks_check_wood";
     public const string TroopTrainingBarracksCheckClay = "troop_training_barracks_check_clay";
     public const string TroopTrainingBarracksCheckIron = "troop_training_barracks_check_iron";
@@ -132,6 +134,8 @@ public static class BotOptionPayloadKeys
     public const string TroopTrainingStableRunMode = "troop_training_stable_run_mode";
     public const string TroopTrainingStableMinimumTroops = "troop_training_stable_minimum_troops";
     public const string TroopTrainingStableMinimumResourcesPercent = "troop_training_stable_minimum_resources_percent";
+    public const string TroopTrainingStableTimedMinMinutes = "troop_training_stable_timed_min_minutes";
+    public const string TroopTrainingStableTimedMaxMinutes = "troop_training_stable_timed_max_minutes";
     public const string TroopTrainingStableCheckWood = "troop_training_stable_check_wood";
     public const string TroopTrainingStableCheckClay = "troop_training_stable_check_clay";
     public const string TroopTrainingStableCheckIron = "troop_training_stable_check_iron";
@@ -144,6 +148,8 @@ public static class BotOptionPayloadKeys
     public const string TroopTrainingWorkshopRunMode = "troop_training_workshop_run_mode";
     public const string TroopTrainingWorkshopMinimumTroops = "troop_training_workshop_minimum_troops";
     public const string TroopTrainingWorkshopMinimumResourcesPercent = "troop_training_workshop_minimum_resources_percent";
+    public const string TroopTrainingWorkshopTimedMinMinutes = "troop_training_workshop_timed_min_minutes";
+    public const string TroopTrainingWorkshopTimedMaxMinutes = "troop_training_workshop_timed_max_minutes";
     public const string TroopTrainingWorkshopCheckWood = "troop_training_workshop_check_wood";
     public const string TroopTrainingWorkshopCheckClay = "troop_training_workshop_check_clay";
     public const string TroopTrainingWorkshopCheckIron = "troop_training_workshop_check_iron";
