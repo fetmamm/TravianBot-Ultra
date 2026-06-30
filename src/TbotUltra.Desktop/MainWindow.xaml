@@ -256,7 +256,7 @@
             </Grid.RowDefinitions>
 
             <!-- Topbar: each metric in its own card (label on top, value below).
-                 Session + Time stay left; the rest are right-aligned with a gap between. -->
+                 Session (with clock) + daily pacing stay left; the rest are right-aligned with a gap between. -->
             <Grid Grid.Row="0" Margin="0,0,0,8">
                 <Grid.Resources>
                     <Style x:Key="MetricLabel" TargetType="TextBlock">
@@ -298,13 +298,17 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <!-- Left group: Session + Time -->
+                <!-- Left group: Session (with clock) + daily pacing -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
                     <!-- Session pacing / Next sleep (background pulses via code) -->
                     <!-- Fixed width so the card does not resize as the status text/Run now button changes. -->
                     <Border x:Name="SessionPacingBorder" Style="{StaticResource MetricCard}" Width="194">
                         <StackPanel>
-                            <TextBlock Text="Session" Style="{StaticResource MetricLabel}" />
+                            <!-- Clock sits where the "Session" label used to; the status line below shows Next sleep. -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
+                                <TextBlock Text="&#xE823;" Style="{StaticResource MetricIcon}" />
+                                <TextBlock x:Name="ClockTextBlock" Text="-" Style="{StaticResource MetricValue}" FontSize="13" />
+                            </StackPanel>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
@@ -369,17 +373,6 @@
                                 <TextBlock Grid.Row="1" Grid.Column="0" Text="Time left" Style="{StaticResource DailyMetricLabel}" />
                                 <TextBlock x:Name="DailyLeftTextBlock" Grid.Row="1" Grid.Column="1" Text="-" Style="{StaticResource DailyMetricValue}" Margin="6,0,0,0" />
                             </Grid>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Fixed width so the clock value does not jiggle the card as the time updates. -->
-                    <Border Style="{StaticResource MetricCard}" Width="174">
-                        <StackPanel>
-                            <TextBlock Text="Time" Style="{StaticResource MetricLabel}" />
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE823;" Style="{StaticResource MetricIcon}" />
-                                <TextBlock x:Name="ClockTextBlock" Text="-" Style="{StaticResource MetricValue}" FontSize="13" />
-                            </StackPanel>
                         </StackPanel>
                     </Border>
 

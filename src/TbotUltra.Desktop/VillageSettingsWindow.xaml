@@ -52,6 +52,16 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
                 <DataGridTextColumn Binding="{Binding Name}" Width="Auto" IsReadOnly="True">
+                    <DataGridTextColumn.ElementStyle>
+                        <!-- Gold for the capital, same as the Village overview on the dashboard. -->
+                        <Style TargetType="TextBlock">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding KeyInfo.IsCapital}" Value="True">
+                                    <Setter Property="Foreground" Value="{DynamicResource CapitalBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
                     <DataGridTextColumn.Header>
                         <TextBlock Text="Village" VerticalAlignment="Center" />
                     </DataGridTextColumn.Header>

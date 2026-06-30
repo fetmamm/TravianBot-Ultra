@@ -196,6 +196,13 @@ public partial class MainWindow
             return urlSpeed;
         }
 
+        // No server configured at all (e.g. fresh install, no accounts added) — nothing to detect,
+        // so stay silent instead of alarming. The alarm only matters when a server is set but unparseable.
+        if (string.IsNullOrWhiteSpace(serverName) && string.IsNullOrWhiteSpace(serverUrl))
+        {
+            return 1.0;
+        }
+
         if (!_serverSpeedAlarmRaised)
         {
             _serverSpeedAlarmRaised = true;

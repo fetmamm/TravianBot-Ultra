@@ -39,12 +39,12 @@
                     BorderBrush="{DynamicResource AccentBrush}"
                     Foreground="White"
                     Click="UpdateRestartButton_Click" />
-            <Button x:Name="DownloadButton" Width="118" Height="42" Margin="0,0,8,0"
+            <Button x:Name="DownloadButton" Width="158" Height="42" Margin="0,0,8,0"
                     Background="{DynamicResource SuccessBgBrush}"
                     BorderBrush="{DynamicResource SuccessBorderBrush}"
                     Foreground="{DynamicResource SuccessTextBrush}"
                     Click="DownloadButton_Click">
-                <TextBlock Text="Download latest release"
+                <TextBlock Text="Download latest release from Github"
                            TextWrapping="Wrap"
                            TextAlignment="Center"
                            LineHeight="14" />

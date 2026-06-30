@@ -1171,6 +1171,9 @@ public partial class MainWindow
             }
 
             UpdateAutomationLoopRunningIndicators();
+            // Repaint the dashboard village list so the per-village Troops B/S/W icon reflects the
+            // just-read training queue (it renders from the per-village cache updated above).
+            RefreshVillageActivityIndicatorsOnDashboard();
         });
     }
 

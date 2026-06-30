@@ -427,6 +427,24 @@ public partial class MainWindow
                     }
                 }
 
+                // build_troops always DEFERS on its happy path: it queues troops, then returns
+                // queue_wait_seconds for the cooldown. That skips the success-path troop refresh, so the
+                // per-village troop-training queue cache (and the Troops B/S/W icon) stayed grey even though
+                // a training queue is now active. Re-read the village's queues when troops were actually
+                // queued, so the icon turns green and the state is cached (and thus persisted across restart).
+                if (string.Equals(item.TaskName, "build_troops", StringComparison.OrdinalIgnoreCase)
+                    && ex.Message.Contains("queued", StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        await RefreshTroopTrainingUiAfterBuildAsync(item, LoadBotOptions(), CancellationToken.None);
+                    }
+                    catch (Exception refreshEx)
+                    {
+                        AppendLog($"Troop training refresh after deferred build skipped: {refreshEx.Message}");
+                    }
+                }
+
                 // Repaint the per-village overview icons so the deferred task shows its amber "waiting" state.
                 await Dispatcher.InvokeAsync(RefreshVillageActivityIndicatorsOnDashboard);
                 return true;
