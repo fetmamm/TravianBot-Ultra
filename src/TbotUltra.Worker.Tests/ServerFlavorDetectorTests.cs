@@ -19,23 +19,4 @@ public sealed class ServerFlavorDetectorTests
     {
         Assert.Equal(expected, ServerFlavorDetector.FromBaseUrl(baseUrl));
     }
-
-    [Theory]
-    [InlineData("official", ServerFlavor.Official)]
-    [InlineData("ss_travi", ServerFlavor.SsTravi)]
-    [InlineData("ss-travi", ServerFlavor.SsTravi)]
-    [InlineData("private", ServerFlavor.SsTravi)]
-    public void ParseExplicit_ParsesKnownValues(string value, ServerFlavor expected)
-    {
-        Assert.Equal(expected, ServerFlavorDetector.ParseExplicit(value));
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData(null)]
-    [InlineData("something-unknown")]
-    public void ParseExplicit_ReturnsNullForMissingOrUnknown(string? value)
-    {
-        Assert.Null(ServerFlavorDetector.ParseExplicit(value));
-    }
 }

@@ -20,8 +20,7 @@ public enum ServerFlavor
 }
 
 /// <summary>
-/// Helpers for resolving the <see cref="ServerFlavor"/> of a server from its URL/host
-/// or from an explicit configuration value.
+/// Helpers for resolving the <see cref="ServerFlavor"/> of a server from its URL/host.
 /// </summary>
 public static class ServerFlavorDetector
 {
@@ -49,26 +48,6 @@ public static class ServerFlavorDetector
             || host.EndsWith("." + SsTraviHostSuffix, StringComparison.OrdinalIgnoreCase)
             ? ServerFlavor.SsTravi
             : ServerFlavor.Official;
-    }
-
-    /// <summary>
-    /// Parses an explicit configuration string (e.g. "official" / "ss_travi" / "sstravi") into a
-    /// <see cref="ServerFlavor"/>. Returns <c>null</c> when the value is missing or unrecognized,
-    /// so callers can fall back to auto-detection.
-    /// </summary>
-    public static ServerFlavor? ParseExplicit(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        return value.Trim().ToLowerInvariant() switch
-        {
-            "official" or "legends" or "travian" => ServerFlavor.Official,
-            "sstravi" or "ss_travi" or "ss-travi" or "private" => ServerFlavor.SsTravi,
-            _ => null,
-        };
     }
 
     private static string ExtractHost(string value)

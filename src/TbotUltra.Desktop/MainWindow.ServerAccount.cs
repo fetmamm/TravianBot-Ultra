@@ -55,16 +55,6 @@ public partial class MainWindow
                 changed = true;
             }
 
-            var currentFlavor = config["server_flavor"]?.GetValue<string>() ?? string.Empty;
-            var targetFlavor = ServerFlavorDetector.FromBaseUrl(targetUrl) == ServerFlavor.SsTravi
-                ? "ss_travi"
-                : "official";
-            if (!string.Equals(currentFlavor, targetFlavor, StringComparison.OrdinalIgnoreCase))
-            {
-                config["server_flavor"] = targetFlavor;
-                changed = true;
-            }
-
             if (changed)
             {
                 _botConfigStore.Save(config);
