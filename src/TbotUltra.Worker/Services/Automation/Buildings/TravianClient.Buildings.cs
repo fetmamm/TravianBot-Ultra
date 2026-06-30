@@ -1808,7 +1808,7 @@ public sealed partial class TravianClient : IBuildingClient
             // consent / React widgets) and runs on a separate snapshot, so a positional Nth(index) can
             // resolve to a different — often hidden — element and hang ClickAsync for the full timeout.
             // Pinning the exact button by id avoids that misalignment; Nth stays as a last-resort fallback
-            // for the rare candidate that has no id (e.g. some private-server submit inputs).
+            // for the rare candidate that has no id.
             var clickTarget = !string.IsNullOrWhiteSpace(clickId)
                 ? _page.Locator($"[id=\"{clickId}\"]").First
                 : _page.Locator("button, input[type='submit'], input[type='button'], a, div.addHoverClick, div.button-container").Nth(clickIndex!.Value);
@@ -3575,9 +3575,8 @@ public sealed partial class TravianClient : IBuildingClient
 
         var raw = await ReadActiveConstructionsOnCurrentPageAsync();
         // The construction queue only renders on dorf1/dorf2 (source of truth). If the current page
-        // has none and we are not already on a village overview, read it on dorf2 — on every server
-        // flavor (not just Official), otherwise SS-Travi build pages report an empty queue and the
-        // slot gate wrongly thinks a slot is free.
+        // has none and we are not already on a village overview, read it on dorf2. Some build
+        // pages can otherwise report an empty queue and the slot gate wrongly thinks a slot is free.
         if (raw.Count == 0
             && allowNavigationToBuildings
             && !IsCurrentUrlForPath(Paths.Buildings)

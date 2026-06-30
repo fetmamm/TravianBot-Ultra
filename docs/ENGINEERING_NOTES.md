@@ -1,7 +1,7 @@
 # Engineering Notes - TbotUltra
 
 > Las detta innan du andrar selektorer, sokvagar, konfiguration eller serverlogik.
-> Filen ar styrande och ska hallas kort, aktuell och under 300 rader.
+> Filen ar styrande och ska hallas kort, aktuell och mellan 200-300 rader.
 
 Se aven `docs/ARCHITECTURE.md` (fil- och funktionskarta), `AGENTS.md`, `CLAUDE.md`, `README.md`.
 Djupa mekanismdetaljer ligger i `docs/adr/` och historiken i `docs/history/`.
@@ -21,10 +21,10 @@ dotnet build TbotUltra.sln
 .\scripts\Run-Tests.ps1
 ```
 
-## 2. Official och SS-Travi
+## 2. Official och legacy-serverkod
 
-Official ar huvudmalet. SS-Travi finns kvar som legacy-flavor for kvarvarande
-paths/selektorer, men nya funktioner ska rikta Official om inget annat sags.
+Official ar huvudmalet. Kvarvarande SS-Travi/legacy-flavor finns endast for
+inte annu borttagna paths/selektorer och ska minska stegvis.
 
 ### ServerFlavor
 
@@ -47,7 +47,7 @@ private string HeroAdventuresPath =>
     _config.IsPrivateServer ? Paths.HeroAdventures : "/hero/adventures";
 ```
 
-| Sida | Official | SS/legacy |
+| Sida | Official | Legacy |
 |---|---|---|
 | Hero adventures | `/hero/adventures` | `/hero_adventure.php` |
 | Hero inventory | `/hero/inventory` | `/hero_inventory.php` |
@@ -60,8 +60,8 @@ private string HeroAdventuresPath =>
 
 ### Selektorer och React
 
-- Selektorandringar ar additiva: behall SS/legacy-selektorn och lagg Official som fallback.
-  Ersatt inte en fungerande SS-selektor utan verifierad anledning.
+- Selektorandringar ar additiva tills legacy-grenen tas bort: behall fungerande legacy-selektor
+  och lagg Official som fallback. Ta bort en doman i taget med live-verifiering.
 - Scope:a breda selektorer till ratt widget/dialog for att undvika falska traffar.
 - Official React-sidor maste vanta pa ett synligt/handlingsbart nyckelelement; DOM-narvaro ensam
   racker inte for klick. Anvand `await WaitForPageReadyAsync(ct)` nar hela sidan maste vara laddad —
@@ -71,7 +71,8 @@ private string HeroAdventuresPath =>
 - Bulk messages ska hantera Official-dialogen `The name X does not exist.` genom att klicka OK, rensa recipient-faltet, ta bort X ur aktuell batch och forsoka igen utan att cacha X som skickad.
 - Official `map.sql`/`x_world`: player id ar kolumn 7; skicka aldrig den som namn. Player name ar kolumn 8,
   alliance name kolumn 10, population kolumn 11 (0-baserat: 7,9,10).
-- Verifiera nya Official-selektorer live och gor en snabb SS-regressionskontroll.
+- Verifiera nya Official-selektorer live. Gor legacy-regression endast om kvarvarande
+  legacy-gren avsiktligt andras.
 - Official farmlist loss cleanup laser `tr.slot`, `td.target`, `td.openContextMenu` och last-raid
   klasser (`attack_lost*`, `attack_won_withLosses*`); matcha inte SVG-paths for loss state.
 
@@ -124,7 +125,7 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
   Mode ar account-default `small`/`big` med per-by override; `big` faller tillbaka till `small` under
   Town Hall level 10. Big-start-selector ska live-verifieras forst nar en level 10 Town Hall finns.
   Small-start logic ska vara scope:ad till `.build_details` och small-celebration-raden; verifiera Official
-  och SS live innan selectorandringar markeras som bekraftade.
+  live innan selectorandringar markeras som bekraftade.
 
 ### Desktop
 
@@ -328,7 +329,7 @@ Aldre beslut och detaljerad historik finns i:
 
 - [ADR-katalogen](adr/)
 - [Fullt Engineering Notes-arkiv](history/engineering-notes-archive.md)
-- [Server flavor och Official/SS](adr/2026-06-01-server-flavor.md)
+- [Server flavor och legacy-kod](adr/2026-06-01-server-flavor.md)
 - [UI theme](adr/2026-06-03-ui-theme.md)
 - [Multi-village och konto-state](adr/2026-06-05-multi-village.md)
 - [Dashboard overview](adr/2026-06-06-dashboard-overview.md)

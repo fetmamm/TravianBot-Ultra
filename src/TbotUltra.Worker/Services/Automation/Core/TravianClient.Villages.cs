@@ -830,8 +830,7 @@ public sealed partial class TravianClient
             }
             """);
 
-        // Official only: trust the active village's population read from the sidebar. SS-Travi
-        // markup differs, so the sidebar population is ignored there and only profile data is used.
+        // Trust the active village's population read from the Official sidebar.
         var useSidebarPopulation = !_config.IsPrivateServer;
         return raw
             .Where(item => !string.IsNullOrWhiteSpace(item.Name))

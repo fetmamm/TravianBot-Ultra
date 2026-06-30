@@ -2,15 +2,14 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Background="{DynamicResource AppBackgroundBrush}"
-        Title="Version"
-        Height="300"
-        Width="480"
-        MinHeight="280"
-        MinWidth="440"
+        Title="Update"
+        Height="240"
+        Width="440"
+        MinHeight="220"
+        MinWidth="420"
         WindowStartupLocation="CenterOwner">
-    <Grid Margin="16">
+    <Grid Margin="20">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -19,39 +18,61 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Text="Version" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,12" />
+        <TextBlock x:Name="HeadingText" Grid.Row="0" Text="Update available"
+                   FontSize="18" FontWeight="SemiBold" Margin="0,0,0,4" />
 
-        <TextBlock x:Name="LatestVersionText" Grid.Row="1" Margin="0,0,0,4"
+        <TextBlock x:Name="StatusText" Grid.Row="1" TextWrapping="Wrap" Margin="0,0,0,14"
                    Foreground="{DynamicResource TextSubtleBrush}" />
-        <TextBlock x:Name="CurrentVersionText" Grid.Row="2" Margin="0,0,0,8"
-                   Foreground="{DynamicResource TextSubtleBrush}" />
 
-        <TextBlock x:Name="StatusText" Grid.Row="3" TextWrapping="Wrap" Margin="0,0,0,10"
-                   Foreground="{DynamicResource TextPrimaryBrush}" />
+        <Border Grid.Row="2"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderSubtleBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="12"
+                Margin="0,0,0,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
 
-        <ProgressBar x:Name="DownloadProgress" Grid.Row="4" Height="14" Minimum="0" Maximum="100"
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Current" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" />
+                    <TextBlock x:Name="CurrentVersionText" Margin="0,4,0,0"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1">
+                    <TextBlock Text="Latest" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" />
+                    <TextBlock x:Name="LatestVersionText" Margin="0,4,0,0"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource SuccessTextBrush}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <ProgressBar x:Name="DownloadProgress" Grid.Row="3" Height="10" Minimum="0" Maximum="100"
                      Visibility="Collapsed" Margin="0,0,0,8" />
 
-        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-            <Button x:Name="UpdateRestartButton" Content="Update &amp; restart" Width="140" Height="30" Margin="0,0,8,0"
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button x:Name="UpdateRestartButton" Content="Update &amp; restart" Width="124" Height="32" Margin="0,0,8,0"
                     Visibility="Collapsed"
                     Background="{DynamicResource AccentBrush}"
                     BorderBrush="{DynamicResource AccentBrush}"
-                    Foreground="White"
+                    Foreground="{DynamicResource OnAccentBrush}"
                     Click="UpdateRestartButton_Click" />
-            <Button x:Name="DownloadButton" Width="158" Height="42" Margin="0,0,8,0"
+            <Button x:Name="DownloadButton" Content="Download" Width="86" Height="32" Margin="0,0,8,0"
                     Background="{DynamicResource SuccessBgBrush}"
                     BorderBrush="{DynamicResource SuccessBorderBrush}"
                     Foreground="{DynamicResource SuccessTextBrush}"
-                    Click="DownloadButton_Click">
-                <TextBlock Text="Download latest release from Github"
-                           TextWrapping="Wrap"
-                           TextAlignment="Center"
-                           LineHeight="14" />
-            </Button>
-            <Button x:Name="ReleasesButton" Content="GitHub releases" Width="130" Height="30" Margin="0,0,8,0"
+                    Click="DownloadButton_Click" />
+            <Button x:Name="ReleasesButton" Content="Releases" Width="78" Height="32" Margin="0,0,8,0"
                     Click="ReleasesButton_Click" />
-            <Button x:Name="CloseButton" Content="Close" Width="90" Height="30" Click="CloseButton_Click" />
+            <Button x:Name="CloseButton" Content="Close" Width="68" Height="32" Click="CloseButton_Click" />
         </StackPanel>
     </Grid>
 </Window>

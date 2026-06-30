@@ -3,7 +3,7 @@
 Navigation map for the solution: **where each feature lives**, plus the file/folder
 conventions. Goal: find the right file fast (human or AI) without reading whole classes.
 
-Read `docs/ENGINEERING_NOTES.md` first for rules, Official/SS-Travi behavior, and pitfalls.
+Read `docs/ENGINEERING_NOTES.md` first for rules, Official-first behavior, remaining legacy branches, and pitfalls.
 This file is a map only — no behavior rules. Keep it current when structure changes.
 
 ---

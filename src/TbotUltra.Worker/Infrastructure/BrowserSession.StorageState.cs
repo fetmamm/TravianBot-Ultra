@@ -27,11 +27,10 @@ public sealed partial class BrowserSession
         await StorageStateGate.WaitAsync();
         try
         {
-            // Strip cookies/localStorage that belong to a SISTER server (e.g. mga.ss-travi.com while
-            // this account is on elt.ss-travi.com). All SS-Travi servers share the ss-travi.com domain,
-            // so a stray sister-server session can otherwise persist in this account's saved state and
-            // keep triggering cross-promo popups on every login. We keep the account's own host plus
-            // shared parent-domain cookies (which login needs) and drop only foreign sibling subdomains.
+            // Strip cookies/localStorage that belong to a sibling server. A stray sibling
+            // session can otherwise persist in this account's saved state and keep triggering
+            // cross-server popups on every login. Keep the account's own host plus shared
+            // parent-domain cookies (which login may need), and drop only foreign siblings.
             await ClearTransientExternalStorageOriginsAsync(force: false);
             var stateJson = await _context.StorageStateAsync();
             stateJson = FilterForeignSubdomainState(stateJson);
@@ -48,9 +47,9 @@ public sealed partial class BrowserSession
         DeleteLegacyStorageStateIfPresent();
     }
 
-    // Removes cookies and localStorage origins that belong to a sister subdomain of the account's
-    // server (e.g. mga.ss-travi.com when the account is on elt.ss-travi.com). Keeps the account's own
-    // host, parent/shared domains (ss-travi.com — needed for login), and any sub-host of the account.
+    // Removes cookies and localStorage origins that belong to a sibling subdomain of the
+    // account's server. Keeps the account's own host, parent/shared domains, and any
+    // sub-host of the account.
     private string FilterForeignSubdomainState(string stateJson)
     {
         string accountHost;

@@ -101,7 +101,7 @@ Follow `AGENTS.md` and `docs/ENGINEERING_NOTES.md` before implementation. Change
 ### Verification
 
 - Restart after login and verify the session is restored.
-- Verify Official and SS-Travi independently.
+- Verify Official. Check legacy branches only when intentionally touched.
 - Record save frequency before and after the change.
 
 ## 4. Background Browser Refresh
@@ -129,7 +129,7 @@ Follow `AGENTS.md` and `docs/ENGINEERING_NOTES.md` before implementation. Change
 ### Verification
 
 - Define maximum acceptable staleness per indicator.
-- Test sleeping, paused, busy, login, village-switch, Official, and SS-Travi states.
+- Test sleeping, paused, busy, login, village-switch, and Official states.
 - Confirm background work never wakes a sleeping session.
 
 ## 5. Incremental Queue and Travco UI Updates
@@ -258,7 +258,7 @@ Follow `AGENTS.md` and `docs/ENGINEERING_NOTES.md` before implementation. Change
 
 - Handle these changes last and independently.
 - Visually verify supported resolutions and Windows scaling levels.
-- Regression-test popup blocking on both Official and SS-Travi.
+- Regression-test popup blocking on Official.
 
 ## Quick Wins
 

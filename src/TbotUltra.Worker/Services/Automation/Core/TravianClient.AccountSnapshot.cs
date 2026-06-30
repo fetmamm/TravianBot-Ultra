@@ -592,8 +592,8 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
               const match = html.match(/"goldClub"\s*:\s*(true|false)/i);
               if (match) return match[1].toLowerCase() === 'true';
 
-              // Fallback for server variants without the GraphQL blob (e.g. SS-Travi): the Gold Club
-              // master-build button, or a builder marker in the village-list sidebar.
+              // Fallback for variants without the GraphQL blob: the Gold Club master-build
+              // button, or a builder marker in the village-list sidebar.
               if (document.querySelector('#buttonBuild')) return true;
               const sidebar = document.querySelector('#sidebarBoxVillagelist');
               return /buildOff|buildOn|builder=On/.test(sidebar?.innerHTML || '');

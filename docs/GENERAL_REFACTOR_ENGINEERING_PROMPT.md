@@ -24,7 +24,7 @@ Filen ska innehålla det som en utvecklare eller AI-agent behöver läsa innan d
 2. Dela upp innehållet i:
    - Aktiva arkitekturregler
    - Viktiga kodningskonventioner
-   - Official vs SS-Travi-regler
+   - Official-first regler och kvarvarande legacy-grenar
    - Selektorregler
    - Aktuella kända fallgropar
    - Nuvarande målarkitektur
@@ -37,7 +37,7 @@ Filen ska innehålla det som en utvecklare eller AI-agent behöver läsa innan d
    - Projektöversikt
    - Arkitektur: `Core`, `Worker`, `Desktop`
    - Regler för `ServerFlavor`
-   - Regler för Official vs SS-Travi
+   - Regler för Official-first och kvarvarande legacy-grenar
    - Additiva selektorändringar
    - Flavor-aware paths
    - Regler för nya features
