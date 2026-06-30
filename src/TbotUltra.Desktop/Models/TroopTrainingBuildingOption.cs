@@ -18,7 +18,7 @@ public sealed class TroopTrainingBuildingOption : INotifyPropertyChanged
     private int _minimumTroops = 1;
     private int _minimumResourcesPercent = 50;
     private int _timedMinMinutes = 30;
-    private int _timedMaxMinutes = 180;
+    private int _timedMaxMinutes = 120;
     private bool _checkWood = true;
     private bool _checkClay = true;
     private bool _checkIron = true;

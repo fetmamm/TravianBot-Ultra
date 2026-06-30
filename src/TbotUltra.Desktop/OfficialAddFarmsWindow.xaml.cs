@@ -119,6 +119,10 @@ public partial class OfficialAddFarmsWindow : Window
     private IReadOnlyList<string> _customTroopTypes = [];
     private List<OasisTypeFilter> _oasisTypeFilters = [];
     private bool _loaded;
+    // Dead villages ("no village at these coordinates") seen so far, accumulated from progress so a
+    // cancelled run can still offer to remove them from the Travco source list.
+    private readonly List<FarmCoordinate> _invalidCoordinatesSoFar = [];
+    private int _lastAddedCount;
 
     public OfficialFarmAddRunResult? RunResult { get; private set; }
     public string? LoadFailureMessage { get; private set; }
@@ -223,10 +227,7 @@ public partial class OfficialAddFarmsWindow : Window
                 .ToList();
 
             SourceListComboBox.SelectedIndex = SourceListComboBox.Items.Count > 0 ? 0 : -1;
-            if (TargetListsListBox.Items.Count > 0 && TargetListsListBox.Items[0] is TargetOption first)
-            {
-                first.IsChecked = true;
-            }
+            // No destination farm list is checked by default — the user picks which one(s) to add to.
 
             LoadingOverlay.Hide();
             RefreshState();
@@ -354,6 +355,11 @@ public partial class OfficialAddFarmsWindow : Window
                 $"Current list: {value.FarmListName}\n" +
                 $"Checked: {value.ProcessedCount}\n" +
                 $"Invalid: {value.NotFoundCount}";
+            _lastAddedCount = value.AddedCount;
+            if (value.InvalidCoordinate is { } invalid && !_invalidCoordinatesSoFar.Contains(invalid))
+            {
+                _invalidCoordinatesSoFar.Add(invalid);
+            }
         });
 
         try
@@ -371,7 +377,26 @@ public partial class OfficialAddFarmsWindow : Window
         catch (OperationCanceledException)
         {
             LoadingOverlay.Hide();
-            DialogResult = false;
+            // Cancelled mid-run: still surface the dead villages found so far so the caller can offer to
+            // remove them from the Travco source list (otherwise cancelling would silently keep retrying
+            // the same non-existent coordinates on the next run).
+            if (_invalidCoordinatesSoFar.Count > 0 && SourceListComboBox.SelectedItem is SourceOption cancelledSource)
+            {
+                RunResult = new OfficialFarmAddRunResult(
+                    Requested: 0,
+                    Added: _lastAddedCount,
+                    Duplicates: 0,
+                    Failed: _invalidCoordinatesSoFar.Count,
+                    InvalidCoordinates: _invalidCoordinatesSoFar.ToList(),
+                    SourceListId: cancelledSource.Id,
+                    SourceListName: cancelledSource.Name);
+                DialogResult = true;
+            }
+            else
+            {
+                DialogResult = false;
+            }
+
             Close();
         }
         catch (Exception ex)

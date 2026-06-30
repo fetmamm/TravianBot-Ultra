@@ -62,7 +62,7 @@ public sealed record TroopTrainingPayload(
             || !TryReadInt(payload, keys.MinimumTroops, 0, 0, int.MaxValue, out var minimumTroops)
             || !TryReadInt(payload, keys.MinimumResourcesPercent, 0, 0, 100, out var minimumResourcesPercent)
             || !TryReadInt(payload, keys.TimedMinMinutes, 30, 1, int.MaxValue, out var timedMinMinutes)
-            || !TryReadInt(payload, keys.TimedMaxMinutes, 180, 1, int.MaxValue, out var timedMaxMinutes)
+            || !TryReadInt(payload, keys.TimedMaxMinutes, 120, 1, int.MaxValue, out var timedMaxMinutes)
             || !TryReadBool(payload, keys.CheckWood, true, out var checkWood)
             || !TryReadBool(payload, keys.CheckClay, true, out var checkClay)
             || !TryReadBool(payload, keys.CheckIron, true, out var checkIron)

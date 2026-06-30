@@ -564,7 +564,8 @@ public partial class MainWindow
                                 processedBeforeList + value.ProcessedCount,
                                 requested,
                                 addedBeforeList + value.AddedCount,
-                                notFoundBeforeList + value.NotFoundCount));
+                                notFoundBeforeList + value.NotFoundCount,
+                                value.InvalidCoordinate));
                         });
 
                         AppendLog(

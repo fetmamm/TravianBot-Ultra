@@ -503,7 +503,7 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
         Assert.False(parsed.Barracks.CheckIron);
         Assert.Equal(60, parsed.FallbackCooldownSeconds);
         var serialized = parsed.ToDictionary();
-        Assert.Equal(37, serialized.Count);
+        Assert.Equal(43, serialized.Count);
         Assert.Equal("true", serialized[BotOptionPayloadKeys.TroopTrainingBarracksEnabled]);
         Assert.Equal("Clubswinger", serialized[BotOptionPayloadKeys.TroopTrainingBarracksTroopType]);
         Assert.Equal("100", serialized[BotOptionPayloadKeys.TroopTrainingBarracksKeepResourcesPercent]);

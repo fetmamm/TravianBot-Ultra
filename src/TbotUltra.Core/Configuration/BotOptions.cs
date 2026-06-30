@@ -133,7 +133,7 @@ public sealed class BotOptions
     public int TroopTrainingBarracksTimedMinMinutes { get; init; } = 30;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksTimedMaxMinutes)]
-    public int TroopTrainingBarracksTimedMaxMinutes { get; init; } = 180;
+    public int TroopTrainingBarracksTimedMaxMinutes { get; init; } = 120;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksCheckWood)]
     public bool TroopTrainingBarracksCheckWood { get; init; } = true;
@@ -175,7 +175,7 @@ public sealed class BotOptions
     public int TroopTrainingStableTimedMinMinutes { get; init; } = 30;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableTimedMaxMinutes)]
-    public int TroopTrainingStableTimedMaxMinutes { get; init; } = 180;
+    public int TroopTrainingStableTimedMaxMinutes { get; init; } = 120;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableCheckWood)]
     public bool TroopTrainingStableCheckWood { get; init; } = true;
@@ -217,7 +217,7 @@ public sealed class BotOptions
     public int TroopTrainingWorkshopTimedMinMinutes { get; init; } = 30;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopTimedMaxMinutes)]
-    public int TroopTrainingWorkshopTimedMaxMinutes { get; init; } = 180;
+    public int TroopTrainingWorkshopTimedMaxMinutes { get; init; } = 120;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopCheckWood)]
     public bool TroopTrainingWorkshopCheckWood { get; init; } = true;

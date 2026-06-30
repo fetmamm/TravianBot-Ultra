@@ -272,7 +272,10 @@ public sealed record FarmAddProgress(
     int ProcessedCount,
     int TotalCount,
     int AddedCount,
-    int NotFoundCount);
+    int NotFoundCount,
+    // Carries the coordinate of a target that had no village, so a cancelled run can still offer to
+    // remove the dead coordinates found so far. Null for every other progress report.
+    FarmCoordinate? InvalidCoordinate = null);
 
 public sealed record FarmAddResult(
     string FarmListName,

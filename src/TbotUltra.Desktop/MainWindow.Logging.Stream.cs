@@ -755,7 +755,6 @@ public partial class MainWindow
     private void UpdateNpcTradeStatsUi()
     {
         var goldSpent = _npcTradeSessionCount * NpcTradeGoldCost;
-        SetGoldHighlightedValueText(NpcTradeSessionStatsTextBlock, "", goldSpent, neutralLabelBrush: NeutralStatsBrush);
         // The detail-panel TextBlock has its own dark base color (#111827) — preserve that for the
         // label and only swap the value color when it's worth highlighting.
         SetGoldHighlightedValueText(NpcTradeGoldSpentTextBlock, "Gold spent: ", goldSpent, neutralLabelBrush: null);

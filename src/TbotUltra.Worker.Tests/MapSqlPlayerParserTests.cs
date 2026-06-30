@@ -11,8 +11,8 @@ public sealed class MapSqlPlayerParserTests
     {
         const string mapSql = """
             INSERT INTO `x_world` VALUES
-            (1,2,1,100,'Village One',10,'Alice',1,'ALLY',123,NULL,FALSE,NULL,NULL,NULL),
-            (3,4,2,101,'Village Two',11,'Bob',2,'BETA',456,NULL,FALSE,NULL,NULL,NULL);
+            (1,2,1,100,'Village One',10,1001,'Alice',1,'ALLY',123,NULL,FALSE,NULL,NULL,NULL),
+            (3,4,2,101,'Village Two',11,1002,'Bob',2,'BETA',456,NULL,FALSE,NULL,NULL,NULL);
             """;
 
         var rows = MapSqlPlayerParser.Parse(mapSql);
@@ -29,7 +29,7 @@ public sealed class MapSqlPlayerParserTests
     {
         const string mapSql = """
             INSERT INTO `x_world` VALUES
-            (-1,2,1,100,'Village, One',10,'Alice''s Name',1,'A\'Team',123,NULL,FALSE,NULL,NULL,NULL);
+            (-1,2,1,100,'Village, One',10,1001,'Alice''s Name',1,'A\'Team',123,NULL,FALSE,NULL,NULL,NULL);
             """;
 
         var row = Assert.Single(MapSqlPlayerParser.Parse(mapSql));

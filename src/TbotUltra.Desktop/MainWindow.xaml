@@ -400,15 +400,6 @@
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
                     <Border Style="{StaticResource MetricCard}">
                         <StackPanel>
-                            <TextBlock Text="Gold spent" Style="{StaticResource MetricLabel}" />
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock x:Name="NpcTradeSessionStatsTextBlock" Text="0" Style="{StaticResource MetricValue}" />
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Style="{StaticResource MetricCard}">
-                        <StackPanel>
                             <TextBlock Text="Gold" Style="{StaticResource MetricLabel}" />
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock x:Name="ServerResourcesTextBlock" Text="-" Style="{StaticResource MetricValue}" />

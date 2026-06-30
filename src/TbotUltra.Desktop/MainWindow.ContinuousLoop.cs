@@ -420,6 +420,20 @@ public partial class MainWindow
                 if (selectedFarmLists.Count > 0 || (sendsAllListsAtOnce && availableFarmListCount > 0))
                 {
                     var payload = new FarmingPayload(selectedFarmLists, selectedSnapshot.Ids).ToDictionary();
+                    // Run farming FROM the village the Farming group is toggled on (e.g. 940) instead of
+                    // wherever the previous task left the browser: tag the task with that village so
+                    // BotTaskRunner switches there first. The farm-list overview is account-wide, so every
+                    // selected list still gets sent from that village's rally point.
+                    var farmingVillage = automationVillages
+                        .FirstOrDefault(v => IsGroupEnabledForVillage(GetVillageKey(v), QueueGroup.Farming));
+                    if (farmingVillage is not null)
+                    {
+                        foreach (var pair in BuildVillageRuntimePayload(farmingVillage))
+                        {
+                            payload[pair.Key] = pair.Value;
+                        }
+                    }
+
                     var displayName = sendsAllListsAtOnce ? "Send all farmlists" : "Send selected farmlists";
                     _botService.EnqueueRuntime("send_farmlists", displayName, payload, priority: -50, maxRetries: 0);
                 }

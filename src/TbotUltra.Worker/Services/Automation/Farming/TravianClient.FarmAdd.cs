@@ -96,26 +96,38 @@ public sealed partial class TravianClient
         var notFound = 0;
         var attempted = 0;
         var invalidCoordinates = new List<FarmCoordinate>();
+        // When a coordinate has no village the Add-target form is left open (see TryFillAddRaidFormAndSaveAsync),
+        // so the next coordinate is typed straight into it instead of closing + reopening the dialog every miss.
+        var reuseOpenForm = false;
         for (var i = 0; i < coordinates.Count && added < targetAddedCount; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            currentFarmCount = await ReadOfficialFarmListFarmCountAsync(lid, cancellationToken);
-            if (!currentFarmCount.HasValue)
-            {
-                throw new InvalidOperationException($"Could not verify the current farm count for '{farmListName}'.");
-            }
 
-            if (currentFarmCount.Value >= OfficialFarmListCapacity)
+            // On a reused (already-open) form the farm count cannot have changed since the last miss, so skip
+            // the re-read — it would otherwise query the list sitting behind the open dialog.
+            if (!reuseOpenForm)
             {
-                Notify($"[farm-list] '{farmListName}' reached 100/100; stopping before another Add target attempt.");
-                break;
+                currentFarmCount = await ReadOfficialFarmListFarmCountAsync(lid, cancellationToken);
+                if (!currentFarmCount.HasValue)
+                {
+                    throw new InvalidOperationException($"Could not verify the current farm count for '{farmListName}'.");
+                }
+
+                if (currentFarmCount.Value >= OfficialFarmListCapacity)
+                {
+                    Notify($"[farm-list] '{farmListName}' reached 100/100; stopping before another Add target attempt.");
+                    break;
+                }
             }
 
             var coordinate = coordinates[i];
             attempted++;
             var stepPrefix = $"[checked={attempted}, added={added}/{targetAddedCount}]";
 
-            await OpenAddRaidFormAsync(lid, cancellationToken);
+            if (!reuseOpenForm)
+            {
+                await OpenAddRaidFormAsync(lid, cancellationToken);
+            }
 
             var saveOutcome = await TryFillAddRaidFormAndSaveAsync(
                 farmListName,
@@ -127,6 +139,10 @@ public sealed partial class TravianClient
                 useDefaultTroops,
                 coordinate.RequireUnoccupiedOasis,
                 cancellationToken);
+
+            // Every outcome closes the form (saved or dismissed) except an invalid coordinate, which leaves it
+            // open for the next attempt. Reset here and only re-arm reuse on the invalid branch below.
+            reuseOpenForm = false;
 
             if (saveOutcome == AddRaidSaveOutcome.Added)
             {
@@ -150,7 +166,9 @@ public sealed partial class TravianClient
                 notFound++;
                 invalidCoordinates.Add(coordinate);
                 Notify($"{stepPrefix} Skipped ({coordinate.X}|{coordinate.Y}): there is no village at these coordinates.");
-                progress?.Report(new FarmAddProgress(farmListName, attempted, targetAddedCount, added, notFound));
+                progress?.Report(new FarmAddProgress(farmListName, attempted, targetAddedCount, added, notFound, coordinate));
+                // Keep the open form and type the next coordinate straight into it.
+                reuseOpenForm = true;
                 continue;
             }
 
@@ -325,14 +343,15 @@ public sealed partial class TravianClient
             "#farmListTargetForm input[name=\"x\"], " +
             "#farmListTargetForm input[name=\"xCoord\"], " +
             "#farmListTargetForm input[id*=\"xCoord\" i]").First;
-        await TypeHumanlyAsync(xInput, x.ToString(System.Globalization.CultureInfo.InvariantCulture), cancellationToken);
-        Notify($"[farm-list] Add target X filled with {x} for '{farmListName}'.");
-        await Task.Delay(Random.Shared.Next(90, 220), cancellationToken);
-
         var yInput = _page.Locator(
             "#farmListTargetForm input[name=\"y\"], " +
             "#farmListTargetForm input[name=\"yCoord\"], " +
             "#farmListTargetForm input[id*=\"yCoord\" i]").First;
+
+        await TypeHumanlyAsync(xInput, x.ToString(System.Globalization.CultureInfo.InvariantCulture), cancellationToken);
+        Notify($"[farm-list] Add target X filled with {x} for '{farmListName}'.");
+        await Task.Delay(Random.Shared.Next(90, 220), cancellationToken);
+
         await TypeHumanlyAsync(yInput, y.ToString(System.Globalization.CultureInfo.InvariantCulture), cancellationToken);
         Notify($"[farm-list] Add target Y filled with {y} for '{farmListName}'.");
         await Task.Delay(Random.Shared.Next(90, 220), cancellationToken);
@@ -364,6 +383,10 @@ public sealed partial class TravianClient
         }
 
         Notify($"[farm-list] Add target validation triggered after coordinates for ({x}|{y}) in '{farmListName}'.");
+        // Functional wait (not just pacing): after the coordinates are entered Travian runs an async
+        // lookup that loads the target's village name / owner. Without this pause the form is read before
+        // that lookup resolves, so every target wrongly comes back as "no village at these coordinates".
+        await DelayBeforeClickAsync(cancellationToken, "add farm: load target data");
 
         if (!useDefaultTroops)
         {
@@ -417,7 +440,8 @@ public sealed partial class TravianClient
             """);
         if (invalidCoordinates)
         {
-            await DismissAddTargetDialogAsync($"skipping invalid coordinates ({x}|{y})");
+            // Leave the Add-target form open so the caller can type the next coordinate straight into it
+            // (TypeHumanlyAsync clears each field first), instead of closing and reopening for every miss.
             return AddRaidSaveOutcome.InvalidCoordinates;
         }
 
