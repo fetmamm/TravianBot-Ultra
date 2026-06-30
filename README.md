@@ -29,7 +29,11 @@ The project goal forward is official Travian Legends servers. SS-Travi remains l
 ## Howto use
 The program is very easy to use and to install. No need to host own servers etc.
 
-Just download, open and then run the program.
+Just download, open and then run the program. Click `manage` to add your account (email + pw) and server.
+
+Then click `Login` and it will login / scan your account. Then set it up as you want.
+
+The program is highly configurable with alot of settings to tweak as you like.
 
 ### Download / install
 
