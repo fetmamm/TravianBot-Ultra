@@ -26,6 +26,31 @@ Advanced open-source `Travian Bot` for Travian Legends with automation, farming,
 
 The project goal forward is official Travian Legends servers. SS-Travi remains legacy-only.
 
+## Howto use
+The program is very easy to use and to install. No need to host own servers etc, just download, open and then run the program.
+
+# Download
+
+Goto the latest [Releases](../../releases) page and download:
+
+- **Portable** (`tbot-ultra-win-x64-...-portable.zip`)
+
+Extract the zip file
+
+Run `Tbot Ultra.exe` inside the extracted folder.
+
+Windows may show a SmartScreen or certificate warning because the application is not digitally signed. This is normal and does not indicate a virus or security issue.
+
+If prompted, click More info → Run anyway.
+
+Set up your account and server inside the app (**Account → Manage**)
+
+**Multiple accounts at once:** with the portable build, extract a separate copy of the
+folder per account (e.g. `Tbot-account1\`, `Tbot-account2\`) and run them at the same
+time — each copy keeps its own config, account, browser session and logs. Don't run two
+instances from the same folder.
+
+
 ## What can this program do?
 
 Tbot Ultra is an automation tool for Travian. It helps players automate repetitive tasks such as village management, resource handling, farming, troops, construction and so much more.
@@ -88,29 +113,6 @@ All features is configurable to all the players villages. So different villages 
 ## Known bugs:
 
 Please visit the [issues page](https://github.com/fetmamm/Tbot_ultra_new/issues) for known bugs or the [Discord channel](https://discord.gg/7bgzKy9sHK).
-
----
-
-## Download
-
-Goto the latest [Releases](../../releases) page and download:
-
-- **Portable** (`tbot-ultra-win-x64-...-portable.zip`)
-
-Extract the zip file
-
-Run `Tbot Ultra.exe` inside the extracted folder.
-
-Windows may show a SmartScreen or certificate warning because the application is not digitally signed. This is normal and does not indicate a virus or security issue.
-
-If prompted, click More info → Run anyway.
-
-Set up your account and server inside the app (**Account → Manage**)
-
-**Multiple accounts at once:** with the portable build, extract a separate copy of the
-folder per account (e.g. `Tbot-account1\`, `Tbot-account2\`) and run them at the same
-time — each copy keeps its own config, account, browser session and logs. Don't run two
-instances from the same folder.
 
 ---
 
