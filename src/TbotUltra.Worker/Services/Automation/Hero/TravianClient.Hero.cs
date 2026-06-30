@@ -673,6 +673,17 @@ public sealed partial class TravianClient : IHeroClient
         return revived;
     }
 
+    // Lightweight current-page probe (no navigation): the top-bar hero status shows an
+    // <i class="heroReviving"> icon on every page while the hero regenerates. The periodic refresh uses
+    // this to release a hero_manage that was deferred for the full revive time when the user revives the
+    // hero early (e.g. with a bucket), so adventures resume without waiting out the original countdown.
+    public async Task<bool> IsHeroRevivingOnCurrentPageAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return await _page.EvaluateAsync<bool>(
+            "() => !!document.querySelector('.heroStatus i.heroReviving, i.heroReviving, [class*=\"heroReviving\"]')");
+    }
+
     private async Task<bool> ReviveHeroOnInventoryAsync(CancellationToken cancellationToken)
     {
         Notify("[hero] revive flow starting (inventory page)");
@@ -1257,9 +1268,24 @@ public sealed partial class TravianClient : IHeroClient
         if (isReviving)
         {
             actions.Add("adventure_skipped_hero_reviving");
+
+            // If we only saw the reviving icon (e.g. status read on dorf1) without the countdown, open the
+            // attributes page once — the "Remaining revival time" timer lives in the .heroRevive box there —
+            // so we can defer by the hero's real revive ETA instead of blind-polling every few minutes.
+            if (status.ReviveRemainingSeconds is not > 0)
+            {
+                await GotoAsync(HeroAttributesPath, cancellationToken);
+                await WaitForPageReadyAsync(cancellationToken);
+                status = await ReadHeroStatusAsync(cancellationToken);
+            }
+
             heroReturnWaitSeconds ??= status.ReviveRemainingSeconds is > 0
                 ? status.ReviveRemainingSeconds
                 : HeroAdventureBlockedRetrySeconds;
+            Notify("[hero] reviving — deferring until revive completes: "
+                + (status.ReviveRemainingSeconds is > 0
+                    ? TravianParsing.FormatDuration(status.ReviveRemainingSeconds.Value)
+                    : "unknown (5m fallback)"));
         }
         else if (adventureCount > 0 && canSendByHp && inVillage)
         {
@@ -1685,7 +1711,10 @@ public sealed partial class TravianClient : IHeroClient
               const dead = deadIcon || /\bdead\b|\btot\b|\bdeceased\b|\bdöd\b/.test(text);
 
               const effectiveDead = !reviving && (dead || /hero\s+is\s+dead/i.test(statusText));
-              const reviveTimerNode = statusMessage?.querySelector('.timer[value], [counting="down"][value], .timer');
+              const reviveTimerNode = statusMessage?.querySelector('.timer[value], [counting="down"][value], .timer')
+                // Official Travian (T4.6) /hero/attributes: the revive countdown is a span.timerReact inside
+                // the .heroRevive box ("Remaining revival time: 04:33:53"), not in .heroStatusMessage.
+                || document.querySelector('.heroRevive .timerReact, .heroRevive .details .timerReact, .heroRevive .timer');
               const reviveTimer = reviveTimerNode?.getAttribute('value')
                 ? Number(reviveTimerNode.getAttribute('value'))
                 : parseTimer(reviveTimerNode?.textContent || '');

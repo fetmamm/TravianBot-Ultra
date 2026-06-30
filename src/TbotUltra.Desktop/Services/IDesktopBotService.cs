@@ -77,6 +77,7 @@ public interface IDesktopBotService
     Task<bool> CheckAndReviveDeadHeroAsync(BotOptions options, bool autoRevive, Action<string> log, CancellationToken cancellationToken);
     Task<int?> RefreshAdventureCountAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<bool> HasHeroLevelUpIndicatorOnCurrentPageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
+    Task<bool> IsHeroRevivingOnCurrentPageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<bool> HasClaimableTasksOnCurrentPageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<bool> HasClaimableDailyQuestsOnCurrentPageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<HeroAttributeSnapshot> ReadHeroAttributesAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);

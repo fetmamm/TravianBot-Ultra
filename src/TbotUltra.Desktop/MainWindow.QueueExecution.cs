@@ -445,6 +445,22 @@ public partial class MainWindow
                     }
                 }
 
+                // hero_manage deferred for the full revive time. Tag the item so the periodic 16s refresh
+                // can release it early if the user revives the hero sooner (e.g. with a bucket) — otherwise
+                // adventures would idle until the original revive countdown elapsed.
+                if (string.Equals(item.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase)
+                    && ex.Message.Contains("hero_reviving", StringComparison.OrdinalIgnoreCase))
+                {
+                    var revivingPayload = new Dictionary<string, string>(item.Payload, StringComparer.OrdinalIgnoreCase)
+                    {
+                        [HeroDeferReasonKey] = HeroDeferReasonReviving,
+                    };
+                    if (_botService.UpdateDeferredQueueItem(item.Id, revivingPayload))
+                    {
+                        item.Payload = revivingPayload;
+                    }
+                }
+
                 // Repaint the per-village overview icons so the deferred task shows its amber "waiting" state.
                 await Dispatcher.InvokeAsync(RefreshVillageActivityIndicatorsOnDashboard);
                 return true;

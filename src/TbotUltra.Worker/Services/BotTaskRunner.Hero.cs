@@ -112,6 +112,31 @@ public sealed partial class BotTaskRunner
         return found;
     }
 
+    // Cheap current-page probe (no navigation) used by the periodic refresh to decide whether a
+    // hero_manage deferred for the full revive time can be released early (e.g. user bucket-revived).
+    // Returns false on any failure so it never disrupts the refresh.
+    public async Task<bool> IsHeroRevivingOnCurrentPageAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        var reviving = false;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                reviving = await client.IsHeroRevivingOnCurrentPageAsync(cancellationToken);
+            },
+            saveStateMode: BrowserStateSaveMode.Skip);
+
+        return reviving;
+    }
+
     // Cheap current-page probe (no navigation) used by the periodic refresh to decide whether
     // to queue collect_tasks. Returns false on any failure so it never disrupts the refresh.
     public async Task<bool> HasClaimableTasksOnCurrentPageAsync(
