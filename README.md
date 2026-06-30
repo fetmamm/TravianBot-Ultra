@@ -136,7 +136,6 @@ the others.
 |---|---|
 | `src/` | All C# projects (see "Source tree" below). |
 | `config/` | Runtime configuration and persisted state (queue, accounts, caches). |
-| `Captcha_solver/` | Legacy captcha-solver files, no longer wired into the app. |
 | `assets/` | App icons used by the WPF project and installer. |
 | `installer/` | Inno Setup script (`TbotUltraSetup.iss`) for building the Windows installer. |
 | `playwright/` | Local Playwright browser cache (downloaded on first run). |
@@ -263,13 +262,6 @@ cache/                     capital-state, manual-farming prefs
 ```
 
 `.env` lives at repo root and holds credentials / per-account secrets.
-
----
-
-## `Captcha_solver/`
-
-Legacy Python ML project for the old SS-Travi captcha solver. It is no longer
-wired into the C# app.
 
 ---
 
