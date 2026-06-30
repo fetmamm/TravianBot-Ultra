@@ -67,7 +67,7 @@ public sealed partial class TravianClient
             preferTownHallCelebration: true);
     }
 
-    // Generic Official build-page hero top-up: probes for a transfer icon, applies the per-resource use
+    // Generic build-page hero top-up: probes for a transfer icon, applies the per-resource use
     // limit / cached-inventory gates, then opens and confirms the transfer dialog. Shared by construction
     // and brewery; the per-consumer gating is done by the callers above.
     private async Task<bool> TryHeroResourceTransferOnCurrentBuildPageAsync(
@@ -76,11 +76,6 @@ public sealed partial class TravianClient
         bool preferTownHallCelebration = false)
     {
         _heroTransferOverLimitWaitSeconds = null;
-
-        if (_config.IsPrivateServer)
-        {
-            return false;
-        }
 
         if (!_config.HeroResourceTransferEnabled)
         {

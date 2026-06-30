@@ -763,8 +763,8 @@ public sealed partial class TravianClient
                     container.querySelector('.coordinateY')?.textContent
                     || node.parentElement?.querySelector('.coordinateY')?.textContent
                     || '');
-                  // Official only: the active village's row carries its current population in
-                  // a "div.population > span". Only the active row exposes it; read it scoped to
+                  // The active village's row carries its current population in
+                  // a "div.population > span". Read it scoped to
                   // the active container, falling back to the active sidebar entry on the page.
                   const isActive = classText.includes('active');
                   let population = null;
@@ -830,15 +830,14 @@ public sealed partial class TravianClient
             }
             """);
 
-        // Trust the active village's population read from the Official sidebar.
-        var useSidebarPopulation = !_config.IsPrivateServer;
+        // Trust the active village's population read from the sidebar.
         return raw
             .Where(item => !string.IsNullOrWhiteSpace(item.Name))
             .Select(item =>
             {
                 var (cachedX, cachedY) = TryGetCachedVillageCoords(item.Name!);
                 int? sidebarPopulation = null;
-                if (useSidebarPopulation && item.IsActive && item.Population is int pop)
+                if (item.IsActive && item.Population is int pop)
                 {
                     sidebarPopulation = pop;
                     Notify($"[population] active village '{item.Name}' from sidebar = {pop}");
@@ -893,33 +892,29 @@ public sealed partial class TravianClient
             await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading villages on spieler.php.", cancellationToken);
             await EnsureLoggedInAsync();
 
-            // The official profile (contentV2) renders the villages table client-side, and the
+            // The profile can render the villages table client-side, and the
             // population cell (td.inhabitants) is filled in slightly after the row shell. Reading
             // too early returns the village name/coords/capital but a null population. Best-effort
-            // wait for a populated inhabitants cell before parsing. SS renders server-side, so this
-            // is gated to official and is tolerant (timeout falls through to the parse anyway).
-            if (!_config.IsPrivateServer)
+            // wait for a populated inhabitants cell before parsing; timeout falls through to the parse anyway.
+            try
             {
-                try
-                {
-                    await _page.WaitForFunctionAsync(
-                        """
-                        () => {
-                          const cells = document.querySelectorAll('table.villages td.inhabitants, td.inhabitants');
-                          for (const cell of cells) {
-                            if (/\d/.test((cell.textContent || ''))) {
-                              return true;
-                            }
-                          }
-                          return false;
+                await _page.WaitForFunctionAsync(
+                    """
+                    () => {
+                      const cells = document.querySelectorAll('table.villages td.inhabitants, td.inhabitants');
+                      for (const cell of cells) {
+                        if (/\d/.test((cell.textContent || ''))) {
+                          return true;
                         }
-                        """,
-                        new PageWaitForFunctionOptions { Timeout = 3000 });
-                }
-                catch
-                {
-                    Notify("[scan:verbose] official villages table population cell not ready within wait; parsing current DOM.");
-                }
+                      }
+                      return false;
+                    }
+                    """,
+                    new PageWaitForFunctionOptions { Timeout = 3000 });
+            }
+            catch
+            {
+                Notify("[scan:verbose] villages table population cell not ready within wait; parsing current DOM.");
             }
 
             var raw = await _page.EvaluateAsync<PlayerProfileVillageRowJs[]>(
