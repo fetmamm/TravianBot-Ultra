@@ -81,11 +81,12 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
-                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
@@ -144,7 +145,7 @@
                          IsEnabled="False" TextChanged="EditorField_Changed"
                          ToolTip="host:port or scheme://host:port. Auth: user:pass@host:port" />
 
-                <Border Grid.Row="5"
+                <Border Grid.Row="6"
                         Grid.ColumnSpan="2"
                         Margin="0,12,0,0"
                         Padding="10,8"
