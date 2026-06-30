@@ -45,7 +45,7 @@ public sealed partial class TravianClient
         {
             await EnsureLoggedInAsync();
 
-            if (_runInIsolatedBonusVideoBrowserAsync is not null && !_config.IsPrivateServer)
+            if (_runInIsolatedBonusVideoBrowserAsync is not null)
             {
                 var earlyResult = await TryReadAdventureVideoEarlyResultAsync(boxClass, label, cancellationToken);
                 if (earlyResult is not null)

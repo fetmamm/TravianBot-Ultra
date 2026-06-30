@@ -493,9 +493,7 @@ public sealed partial class TravianClient : IHeroClient
             return;
         }
 
-        await GotoAsync(Paths.HeroAdventureLegacy, cancellationToken);
-        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared on legacy hero adventures page.", cancellationToken);
+        Notify("[hero:verbose] no adventure rows found after opening hero adventures page.");
     }
 
     private async Task OpenHeroAdventuresPageAsync(CancellationToken cancellationToken)
@@ -517,12 +515,12 @@ public sealed partial class TravianClient : IHeroClient
         }
         catch (Exception ex) when (IsTransientExecutionContextException(ex))
         {
-            Notify($"Hero adventures modern page hit transient navigation issue. Falling back to {Paths.HeroAdventureLegacy}.");
+            Notify($"Hero adventures page hit transient navigation issue; retrying {HeroAdventuresPath}. {ex.Message}");
         }
 
-        await GotoAsync(Paths.HeroAdventureLegacy, cancellationToken);
+        await GotoAsync(HeroAdventuresPath, cancellationToken);
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared on legacy hero adventures page.", cancellationToken);
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared on hero adventures page.", cancellationToken);
     }
 
     private async Task<bool> IsHeroAdventuresPageAsync(CancellationToken cancellationToken)
@@ -534,12 +532,7 @@ public sealed partial class TravianClient : IHeroClient
                 """
                 () => {
                   const url = (window.location.href || '').toLowerCase();
-                  // SS/legacy: /hero_adventure.php or /hero.php?t=3. Official (T4.6): /hero/adventures.
-                  if (url.includes('/hero_adventure.php') || url.includes('/hero.php?t=3') || url.includes('/hero/adventures')) {
-                    return true;
-                  }
-
-                  if (document.querySelector('a.gotoAdventure[href*="start_adventure.php"]')) {
+                  if (url.includes('/hero/adventures')) {
                     return true;
                   }
 
@@ -567,8 +560,7 @@ public sealed partial class TravianClient : IHeroClient
                 const href = (node.getAttribute('href') || '').toLowerCase();
                 return text.includes('to the adventure')
                     || text.includes('to adventure')
-                    || text.includes('explore')
-                    || href.includes('hero.php?t=3&kid=');
+                    || text.includes('explore');
               });
             }
             """);
@@ -618,9 +610,9 @@ public sealed partial class TravianClient : IHeroClient
                 return cls.includes('disabled') || cls.includes('inactive');
               };
 
-              // Strategy 1: direct match on adventure detail link (Travian's standard URL pattern).
+              // Strategy 1: direct match on adventure detail link.
               const direct = document.querySelector(
-                'a[href*="hero.php?t=3&kid="], a[href*="hero.php?t=3&amp;kid="], #adventureListForm a[href*="kid="]'
+                '#adventureListForm a[href*="kid="], a[href*="/hero/adventures"]'
               );
               if (direct && !isDisabled(direct)) {
                 direct.click();
@@ -637,8 +629,8 @@ public sealed partial class TravianClient : IHeroClient
                     || text.includes('to adventure')
                     || text.includes('start adventure')
                     || text.includes('explore')
-                    || href.includes('hero.php?t=3&kid=')
-                    || href.includes('action=start');
+                    || href.includes('action=start')
+                    || href.includes('/hero/adventures');
               });
               if (!target) return false;
               target.click();
@@ -686,40 +678,10 @@ public sealed partial class TravianClient : IHeroClient
 
     private async Task<bool> ReviveHeroOnInventoryAsync(CancellationToken cancellationToken)
     {
-        Notify("[hero] revive flow starting (inventory page)");
-        await GotoAsync(HeroInventoryPath, cancellationToken);
+        Notify("[hero] revive flow starting (attributes page)");
+        await GotoAsync(HeroAttributesPath, cancellationToken);
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening hero inventory.", cancellationToken);
-
-        // Make sure the Attributes tab is active. The Revive button is rendered there.
-        var onAttributesTab = await _page.EvaluateAsync<bool>(
-            """
-            () => {
-              const url = window.location.href.toLowerCase();
-              const active = document.querySelector('a.tabItem.active, a.active.tabItem');
-              if (active && /attribute/i.test(active.textContent || '')) return true;
-              return !!document.querySelector('button#save.startTraining, button#save.green');
-            }
-            """);
-
-        if (!onAttributesTab)
-        {
-            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
-            var clicked = await _page.EvaluateAsync<bool>(
-                """
-                () => {
-                  const link = Array.from(document.querySelectorAll('a.tabItem, a.tab, a'))
-                    .find(a => /attribute/i.test(a.textContent || '') && /hero_inventory\.php/i.test(a.getAttribute('href') || ''));
-                  if (!link) return false;
-                  link.click();
-                  return true;
-                }
-                """);
-            if (clicked)
-            {
-                await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-            }
-        }
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening hero attributes.", cancellationToken);
 
         // Read the revive duration shown above the button (example: 00:00:03) before clicking revive.
         var reviveDurationRaw = await _page.EvaluateAsync<string?>(
@@ -1190,10 +1152,10 @@ public sealed partial class TravianClient : IHeroClient
 
         var minHpThreshold = Math.Clamp(minHpForAdventure, 1, 100);
 
-        // Official Travian (T4.6) does not expose HP in the sidebar, but /hero/attributes shows it.
+        // The sidebar can miss HP, but /hero/attributes shows it.
         // Read HP before opening /hero/adventures so low-HP decisions do not require an extra
         // adventures -> attributes -> adventures round trip.
-        if (!_config.IsPrivateServer && adventureHintCount > 0 && inVillage && !status.IsDead && hpPercent is null)
+        if (adventureHintCount > 0 && inVillage && !status.IsDead && hpPercent is null)
         {
             hpPercent = await ReadHeroHpPercentOfficialAsync(cancellationToken);
         }
@@ -1251,7 +1213,7 @@ public sealed partial class TravianClient : IHeroClient
             }
         }
 
-        // Official sometimes fails to expose HP immediately after the hero returns. If the sidebar
+        // The sidebar sometimes fails to expose HP immediately after the hero returns. If the sidebar
         // says the hero is home, do not defer 10 minutes on unknown HP; try to dispatch instead.
         // A reviving hero (orange revive timer) can read as "alive, home" on the attribute page while its
         // adventure button is disabled. Trying anyway only wastes a danger-video watch and then loops on
@@ -1262,7 +1224,7 @@ public sealed partial class TravianClient : IHeroClient
             && !isReviving
             && (hpPercent.HasValue
                 ? hpPercent.Value >= minHpThreshold
-                : !_config.IsPrivateServer && inVillage);
+                : inVillage);
         var hpTooLow = false;
 
         if (isReviving)
@@ -1380,116 +1342,6 @@ public sealed partial class TravianClient : IHeroClient
 
         return $"{summary}. Actions: {string.Join(", ", actions)}.";
 
-        // Step 1: dorf1 — quick hero-in-village check + sidebar HP read.
-        #if false
-        await GotoAsync(Paths.Resources, cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening dorf1 for hero check.", cancellationToken);
-        await EnsureLoggedInAsync();
-        var inVillage = await IsHeroInActiveVillageAsync(cancellationToken);
-        var heroHpFromSidebar = await ReadHeroHpFromSidebarAsync(cancellationToken);
-
-        // Step 2: /hero_adventure.php — authoritative adventure count + selection target.
-        await OpenHeroAdventuresPageAsync(cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared on adventures page.", cancellationToken);
-        var adventureCount = await CountAdventureRowsAsync(cancellationToken);
-
-        var status = await ReadHeroStatusAsync(cancellationToken);
-        if (!status.Exists && adventureCount == 0)
-        {
-            return "Hero page is unavailable for this account.";
-        }
-
-        // Use the most reliable readings: adventure count from list, HP from sidebar fallback if status read failed.
-        var hpPercent = status.HpPercent ?? heroHpFromSidebar;
-        var actions = new List<string>();
-
-        if (status.IsDead && autoRevive)
-        {
-            var revived = await TryReviveHeroAsync(cancellationToken);
-            actions.Add(revived ? "revive_started" : "revive_not_available");
-            // Re-read after revive attempt.
-            await GotoAsync(HeroAdventuresPath, cancellationToken);
-            status = await ReadHeroStatusAsync(cancellationToken);
-            adventureCount = await CountAdventureRowsAsync(cancellationToken);
-            hpPercent = status.HpPercent ?? await ReadHeroHpFromSidebarAsync(cancellationToken);
-        }
-
-        var heroLeveledUp = await HasHeroLevelUpIndicatorAsync(cancellationToken);
-        if (heroLeveledUp) Notify("Hero level up detected.");
-
-        // Step 3: when auto-allocate is on, always check the attributes tab. The level-up speech
-        // bubble disappears once the user has visited /hero_inventory, and the /hero_adventure.php
-        // status read can't see #availablePoints — neither is reliable as a gate, so we let the
-        // allocator itself decide via the authoritative attributes-tab snapshot.
-        if (autoAssignPoints)
-        {
-            var allocated = await TryAllocateHeroPointsAsync(statPriority, cancellationToken);
-            if (allocated > 0)
-            {
-                actions.Add($"points_allocated={allocated}");
-            }
-            // Return to adventure page for dispatch.
-            await OpenHeroAdventuresPageAsync(cancellationToken);
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared after allocating points.", cancellationToken);
-        }
-
-        // Step 4: dispatch adventure if hero is in village, has HP and adventures exist.
-        // Unknown HP (null) is sendable on official Travian only (SVG HP bar, no numeric value).
-        var canSendByHp = !status.IsDead
-            && (hpPercent.HasValue ? hpPercent.Value >= Math.Clamp(minHpForAdventure, 1, 100) : !_config.IsPrivateServer);
-        var heroReturnWaitSeconds = status.SecondsUntilReturn;
-        if (adventureCount > 0 && canSendByHp && inVillage)
-        {
-            var (sent, durationSeconds, returnSeconds) = await TrySendHeroToAdventureAsync(adventurePickOrder, cancellationToken);
-            heroReturnWaitSeconds = returnSeconds > 0 ? returnSeconds : durationSeconds > 0 ? durationSeconds * 2 : null;
-            if (sent)
-            {
-                actions.Add($"adventure_sent({adventurePickOrder},duration={durationSeconds}s,return_eta={heroReturnWaitSeconds ?? 0}s)");
-            }
-            else
-            {
-                actions.Add("adventure_not_clickable");
-            }
-        }
-        else if (adventureCount > 0 && !inVillage)
-        {
-            actions.Add("adventure_skipped_hero_away");
-        }
-        else if (adventureCount > 0 && !canSendByHp)
-        {
-            actions.Add($"adventure_skipped_hp_too_low(hp={hpPercent?.ToString() ?? "?"}%)");
-        }
-
-        // Step 5: end on /hero_inventory.php (Attributes) — that's where the user wants to land.
-        await GotoAsync(HeroInventoryPath, cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while returning to hero inventory.", cancellationToken);
-        await ExpandAttributesPanelIfClosedAsync(cancellationToken);
-
-        // Step 6: apply Hide hero / stay-with-troops preference if it differs from current.
-        if (hideModeEnabled)
-        {
-            var hideApplied = await ApplyHeroHideModeAsync(hideMode, cancellationToken);
-            if (hideApplied) actions.Add($"hide_mode_set={(string.Equals(hideMode, "fight", StringComparison.OrdinalIgnoreCase) ? "fight" : "hide")}");
-        }
-
-        var summary = $"Hero status: dead={status.IsDead}, hp={hpPercent?.ToString() ?? "?"}%, adventures={adventureCount}, points={status.UnassignedPoints}, in_village={inVillage}";
-        if (heroReturnWaitSeconds is > 0 && actions.Count == 0)
-        {
-            return $"{summary}. Hero is away. queue_wait_seconds={heroReturnWaitSeconds.Value}";
-        }
-
-        if (actions.Count == 0)
-        {
-            return $"{summary}. No hero action was needed.";
-        }
-
-        if (heroReturnWaitSeconds is > 0)
-        {
-            return $"{summary}. Actions: {string.Join(", ", actions)}. queue_wait_seconds={heroReturnWaitSeconds.Value}";
-        }
-
-        return $"{summary}. Actions: {string.Join(", ", actions)}.";
-        #endif
     }
 
     public async Task<string> SpendHeroAttributePointsAsync(
@@ -1510,11 +1362,7 @@ public sealed partial class TravianClient : IHeroClient
         return await _page.EvaluateAsync<int>(
             """
             () => {
-              // SS/legacy: each adventure is a gotoAdventure link.
-              const legacy = document.querySelectorAll('a.gotoAdventure[href*="start_adventure.php"]').length;
-              if (legacy > 0) return legacy;
-              // Official Travian (T4.6): adventures are rows in <table class="... adventureList">.
-              const official = document.querySelectorAll('table.adventureList tbody tr').length;
+              const official = document.querySelectorAll('table.adventureList tbody tr, #adventureListForm tbody tr').length;
               if (official > 0) return official;
               // Last resort: the sidebar adventure badge count (a.adventure -> .content, e.g. "3").
               const badge = document.querySelector('a.adventure[href*="/hero/adventures"] .content, a[href*="/hero/adventures"] .content');
@@ -1565,17 +1413,10 @@ public sealed partial class TravianClient : IHeroClient
             return cachedSnapshot with { AdventureCount = adventureCount };
         }
 
-        if (_config.IsPrivateServer)
-        {
-            await EnsureHeroInventoryAttributesTabAsync(cancellationToken);
-        }
-        else
-        {
-            await GotoAsync(HeroAttributesPath, cancellationToken);
-            await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening hero attributes.", cancellationToken);
-            await EnsureLoggedInAsync();
-        }
+        await GotoAsync(HeroAttributesPath, cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
+        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening hero attributes.", cancellationToken);
+        await EnsureLoggedInAsync();
 
         if (adventureCount is null)
         {
@@ -1726,13 +1567,7 @@ public sealed partial class TravianClient : IHeroClient
                 ?? parseNumber(document.querySelector('[id*="health" i]')?.textContent || '');
 
               const adventures =
-                // Modern Travian: speech-bubble badge on the adventure menu icon (works from any page).
-                parseNumber(document.querySelector('a[href*="hero_adventure.php"] .speechBubbleContent')?.textContent || '')
-                ?? parseNumber(document.querySelector('a[href*="hero_adventure.php"] .speechBubble')?.textContent || '')
-                ?? parseNumber(document.querySelector('a[href*="hero.php?t=3"] .speechBubbleContent')?.textContent || '')
-                ?? parseNumber(document.querySelector('a[href*="hero.php?t=3"] .speechBubble')?.textContent || '')
-                // Official Travian (T4.6): adventure menu anchor /hero/adventures with count in .content.
-                ?? parseNumber(document.querySelector('a.adventure[href*="/hero/adventures"] .content')?.textContent || '')
+                parseNumber(document.querySelector('a.adventure[href*="/hero/adventures"] .content')?.textContent || '')
                 ?? parseNumber(document.querySelector('a[href*="/hero/adventures"] .content')?.textContent || '')
                 // Adventures list page: count rows directly.
                 ?? (document.querySelectorAll('#adventureListForm tbody tr, table.adventureList tbody tr').length || null)
@@ -2301,177 +2136,7 @@ public sealed partial class TravianClient : IHeroClient
 
     private async Task<int> TryAllocateHeroPointsAsync(string priority, CancellationToken cancellationToken)
     {
-        if (!_config.IsPrivateServer)
-        {
-            return await AllocateHeroPointsOfficialAsync(priority, cancellationToken);
-        }
-
-        Notify("[hero:verbose] TryAllocateHeroPoints entered");
-        await EnsureHeroInventoryAttributesTabAsync(cancellationToken);
-        // The plus buttons live inside the collapsible panel; expand it so Travian's click
-        // handler accepts the input. Read-only flows skip this on purpose (it's a slow toggle).
-        await ExpandAttributesPanelIfClosedAsync(cancellationToken);
-
-        // Diagnostic: dump what Travian's DOM exposes for free points so we can see why a "4/4" page reads 0.
-        var diag = await _page.EvaluateAsync<string>(
-            """
-            () => {
-              const ap = document.querySelector('#availablePoints');
-              const apClass = document.querySelector('.availablePoints');
-              const pointsValue = document.querySelector('th.pointsValue');
-              const tableExists = !!document.querySelector('#attributesOfHero');
-              return JSON.stringify({
-                url: location.href,
-                tableExists,
-                apId: ap ? (ap.textContent || '') : null,
-                apClassText: apClass ? (apClass.textContent || '') : null,
-                pointsValueText: pointsValue ? (pointsValue.textContent || '').replace(/\s+/g,' ').trim() : null
-              });
-            }
-            """);
-        Notify($"[hero:verbose] allocate DOM diag: {diag}");
-
-        var snapshot = await ReadHeroInventorySnapshotAsync(cancellationToken);
-        Notify($"[hero] free attribute points found: {snapshot.FreePoints}");
-        if (snapshot.FreePoints <= 0)
-        {
-            return 0;
-        }
-
-        var priorities = HeroCalc.ParseHeroStatPriority(priority);
-        var allocated = 0;
-        foreach (var stat in priorities)
-        {
-            if (allocated >= snapshot.FreePoints)
-            {
-                break;
-            }
-
-            Notify($"Hero attribute prioritized: {GetHeroAttributeDisplayName(stat)}.");
-            // Click + until either freePoints exhausted or the add button refuses (becomes .disabled),
-            // which is the only reliable "maxed" signal — the row's textContent contains numbers like
-            // base Fighting Strength (100) that are NOT the points-used value.
-            while (allocated < snapshot.FreePoints)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var clicked = await ClickHeroAttributePlusAsync(stat, cancellationToken);
-                if (!clicked)
-                {
-                    Notify($"Hero attribute maxed or unavailable: {GetHeroAttributeDisplayName(stat)}.");
-                    break;
-                }
-
-                allocated += 1;
-            }
-        }
-
-        if (allocated <= 0)
-        {
-            return 0;
-        }
-
-        var saved = await ClickHeroSaveChangesAsync(cancellationToken);
-        if (saved)
-        {
-            InvalidateCachedHeroAttributeSnapshot();
-            Notify("[hero] attribute points saved");
-        }
-
-        return saved ? allocated : 0;
-    }
-
-    private async Task EnsureHeroInventoryAttributesTabAsync(CancellationToken cancellationToken)
-    {
-        await GotoAsync(HeroInventoryPath, cancellationToken);
-        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening hero inventory.", cancellationToken);
-        await EnsureLoggedInAsync();
-
-        if (!IsCurrentUrlForPath(HeroInventoryPath))
-        {
-            await GotoAsync(HeroInventoryPath, cancellationToken);
-            await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared after re-opening hero inventory.", cancellationToken);
-        }
-
-        var onAttributesTab = await _page.EvaluateAsync<bool>(
-            """
-            () => {
-              const url = window.location.href.toLowerCase();
-              const active = document.querySelector('a.tabItem.active, a.active.tabItem');
-              if (active && /attribute/i.test(active.textContent || '')) return true;
-              return !!document.querySelector('a.setPoint, td.pointsValueSetter.add');
-            }
-            """);
-
-        if (onAttributesTab)
-        {
-            return;
-        }
-
-        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
-        var clicked = await _page.EvaluateAsync<bool>(
-            """
-            () => {
-              const link = Array.from(document.querySelectorAll('a.tabItem, a.tab, a'))
-                .find(a => /attribute/i.test(a.textContent || '') && /hero_inventory\.php/i.test(a.getAttribute('href') || ''));
-              if (!link) return false;
-              link.click();
-              return true;
-            }
-            """);
-
-        if (clicked)
-        {
-            await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening hero attributes tab.", cancellationToken);
-        }
-
-        // The attributes table is in DOM regardless of whether the collapsible panel is expanded —
-        // we don't block on expansion here. Callers that need to CLICK (e.g. assign points) must
-        // call ExpandAttributesPanelIfClosedAsync themselves; pure reads don't.
-        var tableReady = await WaitForAttributesTableAsync(cancellationToken, timeoutMs: _config.IsPrivateServer ? 4000 : 1000);
-        if (!tableReady && _config.IsPrivateServer)
-        {
-            Notify($"Hero attributes table missing after tab click — reloading {HeroInventoryPath}.");
-            await GotoAsync(HeroInventoryPath, cancellationToken);
-            await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-            tableReady = await WaitForAttributesTableAsync(cancellationToken, timeoutMs: 6000);
-            if (!tableReady)
-            {
-                Notify($"Hero attributes table still missing after reload. url='{_page.Url}'.");
-            }
-        }
-        else if (!tableReady)
-        {
-            // Official Travian (T4.6) renders the attributes panel with React and has no
-            // a.setPoint / td.pointsValueSetter markup, so this table never appears for the
-            // SS reader. Skip the reload + long retry (it just wasted ~13s every loop).
-            Notify("Hero attributes table not present (official Travian uses a React attributes panel); skipping retry.");
-        }
-
-        // Fire-and-forget: open the panel so the user lands on a visually-expanded panel if they
-        // look at the browser. We do NOT wait for confirmation — the read path doesn't need it.
-        await TryClickExpandPanelFireAndForgetAsync();
-    }
-
-    private async Task TryClickExpandPanelFireAndForgetAsync()
-    {
-        try
-        {
-            await _page.EvaluateAsync(
-                """
-                () => {
-                  const sw = document.querySelector('.hero_inventory #attributes img.openedClosedSwitch')
-                          || document.querySelector('img.openedClosedSwitch');
-                  if (!sw || !sw.classList.contains('switchClosed')) return;
-                  const bar = sw.closest('.openCloseSwitchBar') || sw;
-                  bar.click();
-                }
-                """);
-        }
-        catch (PlaywrightException) { }
-        catch (TimeoutException) { }
+        return await AllocateHeroPointsOfficialAsync(priority, cancellationToken);
     }
 
     private async Task<bool> WaitForAttributesTableAsync(CancellationToken cancellationToken, int timeoutMs)
@@ -2485,9 +2150,7 @@ public sealed partial class TravianClient : IHeroClient
             await _page.WaitForFunctionAsync(
                 """
                 () => {
-                  // Modern hero V2 attributes page.
                   if (document.querySelector('.heroAttributes input[name="power"], input[name="productionPoints"], .heroAttributes .pointsAvailable')) return true;
-                  // Legacy table layout.
                   const table = document.querySelector('#attributesOfHero');
                   if (!table) return false;
                   const ap = document.querySelector('#availablePoints');
@@ -2509,55 +2172,6 @@ public sealed partial class TravianClient : IHeroClient
         {
             return false;
         }
-    }
-
-    private async Task ExpandAttributesPanelIfClosedAsync(CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        // The single source of truth for "panel is collapsed" is the `switchClosed` class on
-        // `img.openedClosedSwitch`. Travian's toggle script swaps that class on click, so layout
-        // and computed-style checks can race the XHR / animation and produce false negatives.
-        // We try up to twice — if the first click accidentally closed an already-open panel
-        // (rare, but possible if the class hadn't been updated yet), the second click re-opens it.
-        for (var attempt = 0; attempt < 2; attempt++)
-        {
-            var clicked = await _page.EvaluateAsync<bool>(
-                """
-                () => {
-                  const sw = document.querySelector('.hero_inventory #attributes img.openedClosedSwitch')
-                          || document.querySelector('img.openedClosedSwitch');
-                  if (!sw || !sw.classList.contains('switchClosed')) return false;
-                  const bar = sw.closest('.openCloseSwitchBar') || sw;
-                  bar.click();
-                  return true;
-                }
-                """);
-
-            if (!clicked)
-            {
-                return;
-            }
-
-            try
-            {
-                await _page.WaitForFunctionAsync(
-                    """
-                    () => {
-                      const sw = document.querySelector('.hero_inventory #attributes img.openedClosedSwitch')
-                              || document.querySelector('img.openedClosedSwitch');
-                      return !!sw && !sw.classList.contains('switchClosed');
-                    }
-                    """,
-                    null,
-                    new PageWaitForFunctionOptions { Timeout = 3000 });
-                return;
-            }
-            catch (PlaywrightException) { }
-            catch (TimeoutException) { }
-        }
-
-        Notify("Hero attributes panel did not visibly expand after 2 toggle attempts — proceeding anyway.");
     }
 
     // Reads the four resource consumables the hero is carrying (wood=item145, clay=item146,
@@ -2684,20 +2298,19 @@ public sealed partial class TravianClient : IHeroClient
                       const m = (el.textContent || '').replace(/[^\d-]/g, '');
                       return m ? Number(m) || 0 : 0;
                     };
-                    // Reads an attribute's allocated points. Modern hero V2: <input name="power"> etc.
-                    // (names: power/offBonus/defBonus/productionPoints). Legacy: row id ("attributepower")
-                    // with an <input name^="attribute"> or a <td class="points"> text. Try modern first.
-                    const attrPoints = (modernName, legacyRowId) => {
+                    // Reads an attribute's allocated points. Prefer hero V2 inputs and keep the
+                    // table fallback so read-only snapshots remain tolerant of older markup.
+                    const attrPoints = (modernName, tableRowId) => {
                       const modern = document.querySelector('input[name="' + modernName + '"]');
                       if (modern) return Number(modern.value) || 0;
-                      const row = document.getElementById(legacyRowId);
+                      const row = document.getElementById(tableRowId);
                       if (!row) return 0;
                       const input = row.querySelector('input[type="text"][name^="attribute"]');
                       if (input) return Number(input.value) || 0;
                       const td = row.querySelector('td.points');
                       return td ? readDigit(td) : 0;
                     };
-                    // Free points: modern ".pointsAvailable", legacy "#availablePoints".
+                    // Free points: ".pointsAvailable" on hero V2, "#availablePoints" in table markup.
                     const freePointsEl = document.querySelector('.heroAttributes .pointsAvailable, .pointsAvailable, #availablePoints');
                     const parseTimer = (value) => {
                       const text = (value || '').replace(/\s+/g, ' ').trim();
@@ -2759,65 +2372,14 @@ public sealed partial class TravianClient : IHeroClient
             ?? new HeroAttributeSnapshot();
     }
 
-    private async Task<bool> ClickHeroAttributePlusAsync(string stat, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
-        return await _page.EvaluateAsync<bool>(
-            """
-            (name) => {
-              const clean = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
-              const labelsByName = {
-                fighting_strength: ['fighting strength'],
-                offence_bonus: ['offence bonus', 'offense bonus'],
-                defence_bonus: ['defence bonus', 'defense bonus'],
-                resources: ['resources']
-              };
-
-              const row = Array.from(document.querySelectorAll('tr, .attribute, .heroAttribute, .row'))
-                .find(item => {
-                  const text = clean(item.textContent || '');
-                  return (labelsByName[name] || []).some(label => text.includes(label));
-                });
-              if (!row) return false;
-
-              // Travian renders a sub (-) and add (+) cell per row. The first matching `a.setPoint`
-              // in DOM order is the SUB button, which is .disabled when value is 0 — never click that.
-              const button = row.querySelector('td.pointsValueSetter.add a.setPoint')
-                || Array.from(row.querySelectorAll('a.setPoint')).pop();
-              if (!button) return false;
-              const cls = clean(button.className || '');
-              if (cls.includes('disabled')) return false;
-              button.click();
-              return true;
-            }
-            """,
-            stat);
-    }
-
     public async Task<string> SetHeroHideModeOnlyAsync(string hideMode, CancellationToken cancellationToken = default)
     {
         Notify($"[hero] set hide mode — requested='{hideMode}'");
         var desired = string.Equals(hideMode, "fight", StringComparison.OrdinalIgnoreCase) ? "fight" : "hide";
-        if (!_config.IsPrivateServer)
-        {
-            var officialChanged = await ApplyOfficialHeroHideModeAsync(desired, cancellationToken);
-            return officialChanged
-                ? $"Hero hide mode applied: {desired}."
-                : $"Hero hide mode already '{desired}' — no change.";
-        }
-
-        var inVillage = await IsHeroInActiveVillageAsync(cancellationToken);
-        if (!inVillage)
-        {
-            Notify("Hero hide mode skipped: hero is away, avoiding inventory navigation.");
-            return "Hero hide mode skipped because hero is away.";
-        }
-
-        var changed = await ApplyHeroHideModeAsync(hideMode, cancellationToken);
+        var changed = await ApplyOfficialHeroHideModeAsync(desired, cancellationToken);
         return changed
-            ? $"Hero hide mode applied: {hideMode}."
-            : $"Hero hide mode already '{hideMode}' — no change.";
+            ? $"Hero hide mode applied: {desired}."
+            : $"Hero hide mode already '{desired}' — no change.";
     }
 
     private async Task<bool> ApplyOfficialHeroHideModeAsync(string desired, CancellationToken cancellationToken)
@@ -2869,76 +2431,6 @@ public sealed partial class TravianClient : IHeroClient
         }
 
         return changed;
-    }
-
-    private async Task<bool> ApplyHeroHideModeAsync(string hideMode, CancellationToken cancellationToken)
-    {
-        var desired = string.Equals(hideMode, "fight", StringComparison.OrdinalIgnoreCase) ? "fight" : "hide";
-        await EnsureHeroInventoryAttributesTabAsync(cancellationToken);
-
-        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
-        var changed = await _page.EvaluateAsync<bool>(
-            """
-            (desired) => {
-              const radios = Array.from(document.querySelectorAll('input[type="radio"][name="attackBehaviour"]'));
-              if (radios.length === 0) return false;
-              const target = radios.find(r => (r.getAttribute('value') || '').toLowerCase() === desired);
-              if (!target) return false;
-              if (target.checked) return false;
-              target.checked = true;
-              target.click();
-              target.dispatchEvent(new Event('change', { bubbles: true }));
-              return true;
-            }
-            """,
-            desired);
-
-        if (!changed)
-        {
-            return false;
-        }
-
-        await ClickHeroSaveChangesAsync(cancellationToken);
-        Notify($"Hero hide mode set to '{desired}'.");
-        return true;
-    }
-
-    private async Task<bool> ClickHeroSaveChangesAsync(CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var saved = await TryClickFirstVisibleEnabledAsync(
-            "button, input[type='submit'], a, .button-container",
-            cancellationToken,
-            requiredText: "Save changes",
-            reason: "hero save changes");
-        if (!saved)
-        {
-            await DelayBeforeClickAsync(cancellationToken, "hero save changes fallback");
-            saved = await _page.EvaluateAsync<bool>(
-            """
-            () => {
-              const candidates = Array.from(document.querySelectorAll('button, input[type="submit"], a, .button-container'));
-              const target = candidates.find(node => {
-                const text = ((node.textContent || '') + ' ' + (node.getAttribute?.('value') || '')).toLowerCase();
-                const cls = (node.className || '').toString().toLowerCase();
-                const disabled = cls.includes('disabled') || !!node.getAttribute?.('disabled');
-                return text.includes('save changes') && !disabled;
-              });
-              if (!target) return false;
-              target.click();
-              return true;
-            }
-            """);
-        }
-
-        if (!saved)
-        {
-            return false;
-        }
-
-        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared after saving hero points.", cancellationToken);
-        return true;
     }
 
     private string BuildHeroAttributeSnapshotCacheKey()
@@ -3031,7 +2523,7 @@ public sealed partial class TravianClient : IHeroClient
         {
             await _page.WaitForFunctionAsync(
                 """
-                () => !!document.querySelector('table.adventureList tbody tr, a.gotoAdventure[href*="start_adventure.php"]')
+                () => !!document.querySelector('table.adventureList tbody tr, #adventureListForm tbody tr')
                    || /on its way to an adventure/i.test(document.body?.innerText || '')
                    || !!document.querySelector('.heroState, [class*="statusRunning"], [class*="heroRunning"]')
                 """,
@@ -3061,18 +2553,16 @@ public sealed partial class TravianClient : IHeroClient
                 !node || (node.hasAttribute && node.hasAttribute('disabled'))
                 || (node.className || '').toString().toLowerCase().includes('disabled');
 
-              const candidates = Array.from(document.querySelectorAll('a.gotoAdventure[href*="start_adventure.php"], a, button, input[type="submit"]'))
+              const candidates = Array.from(document.querySelectorAll('a, button, input[type="submit"]'))
                 .filter(node => {
                   if (isDisabled(node)) return false;
                   const text = ((node.textContent || '') + ' ' + (node.getAttribute('value') || '') + ' ' + (node.getAttribute('title') || '')).toLowerCase();
                   const href = (node.getAttribute('href') || '').toLowerCase();
-                  return node.matches('a.gotoAdventure[href*="start_adventure.php"]')
-                    || text.includes('to the adventure')
+                  return text.includes('to the adventure')
                     || text.includes('to adventure')
                     || text.includes('start adventure')
                     || text.includes('explore')
-                    || href.includes('hero.php?t=3&kid=')
-                    || href.includes('action=start');
+                    || href.includes('/hero/adventures');
                 });
               if (candidates.length === 0) return JSON.stringify({ ok: false });
 
@@ -3103,9 +2593,8 @@ public sealed partial class TravianClient : IHeroClient
         var fallbackReturnSeconds = duration > 0 ? duration * 2 : 0;
 
         // Step 2: confirm the adventure.
-        // SS/legacy navigates to start_adventure.php with a #start (button[name="s1"]) button.
-        // Official Travian (T4.6) instead opens a React confirmation modal with a "Continue"
-        // button (class "...continue...") and does NOT navigate — the modal needs a moment to
+        // Official Travian opens a React confirmation modal with a "Continue" button
+        // (class "...continue...") and does NOT navigate — the modal needs a moment to
         // render, so poll for the confirm button before giving up.
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await PauseForManualStepIfVisibleAsync("Manual verification appeared on adventure detail page.", cancellationToken);
@@ -3122,10 +2611,6 @@ public sealed partial class TravianClient : IHeroClient
                   const isDisabled = (n) => !n
                     || (n.hasAttribute && n.hasAttribute('disabled'))
                     || /(^|\s)disabled(\s|$)/i.test((n.className || '').toString());
-                  // SS/legacy: start button on the adventure detail page.
-                  const start = document.querySelector('button#start[name="s1"], button[name="s1"], button#start');
-                  if (start && !isDisabled(start)) { start.click(); return true; }
-                  // Official (T4.6): "Continue" button in the confirmation modal.
                   const cont = Array.from(document.querySelectorAll('button.continue, button'))
                     .find(n => !isDisabled(n) && /\bcontinue\b/i.test((n.value || '') + ' ' + (n.textContent || '')));
                   if (cont) { cont.click(); return true; }
@@ -3191,7 +2676,7 @@ public sealed partial class TravianClient : IHeroClient
         {
             await _page.WaitForFunctionAsync(
                 """
-                () => !!document.querySelector('table.adventureList tbody tr, a.gotoAdventure[href*="start_adventure.php"]')
+                () => !!document.querySelector('table.adventureList tbody tr, #adventureListForm tbody tr')
                    || /on its way to an adventure/i.test(document.body?.innerText || '')
                    || !!document.querySelector('.heroState, [class*="statusRunning"], [class*="heroRunning"]')
                 """,
@@ -3261,18 +2746,16 @@ public sealed partial class TravianClient : IHeroClient
 
               const candidates = rowEntries.length > 0
                 ? []
-                : Array.from(document.querySelectorAll('a.gotoAdventure[href*="start_adventure.php"], a, button, input[type="submit"]'))
+                : Array.from(document.querySelectorAll('a, button, input[type="submit"]'))
                     .filter(node => {
                       if (isDisabled(node)) return false;
                       const text = ((node.textContent || '') + ' ' + (node.getAttribute('value') || '') + ' ' + (node.getAttribute('title') || '')).toLowerCase();
                       const href = (node.getAttribute('href') || '').toLowerCase();
-                      return node.matches('a.gotoAdventure[href*="start_adventure.php"]')
-                        || text.includes('to the adventure')
+                      return text.includes('to the adventure')
                         || text.includes('to adventure')
                         || text.includes('start adventure')
                         || text.includes('explore')
-                        || href.includes('hero.php?t=3&kid=')
-                        || href.includes('action=start');
+                        || href.includes('/hero/adventures');
                     });
 
               const actionEntries = candidates.map(node => {

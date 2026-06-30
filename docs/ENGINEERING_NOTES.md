@@ -21,10 +21,10 @@ dotnet build TbotUltra.sln
 .\scripts\Run-Tests.ps1
 ```
 
-## 2. Official och legacy-serverkod
+## 2. Official och kvarvarande legacy-serverkod
 
 Official ar huvudmalet. Kvarvarande SS-Travi/legacy-flavor finns endast for
-inte annu borttagna paths/selektorer och ska minska stegvis.
+inte annu borttagna selectors/config-delar och ska minska stegvis.
 
 ### ServerFlavor
 
@@ -39,29 +39,23 @@ Detaljer: [ADR 2026-06-01](adr/2026-06-01-server-flavor.md).
 
 ### Sokvagar
 
-Anvand flavor-aware helpers i `TravianClient.Selectors.cs` nar URL skiljer; anropa dem i
-`GotoAsync(...)`, hardkoda inte en variants path i flodeslogiken.
+Runtime-path helpers i `TravianClient.Selectors.cs` ar Official-only. Anropa helpers i
+`GotoAsync(...)` och hardkoda inte duplicerade URL:er i flodeslogiken.
 
-```csharp
-private string HeroAdventuresPath =>
-    _config.IsPrivateServer ? Paths.HeroAdventures : "/hero/adventures";
-```
-
-| Sida | Official | Legacy |
-|---|---|---|
-| Hero adventures | `/hero/adventures` | `/hero_adventure.php` |
-| Hero inventory | `/hero/inventory` | `/hero_inventory.php` |
-| Player profile | `/profile/{id}` | `/spieler.php` |
-| Messages | `/messages` | `/nachrichten.php` |
-| Reports | `/report` | `/berichte.php` |
-| Statistics | `/statistics` | `/statistiken.php` |
-| Village overview | `/village/statistics` | `/dorf3.php` |
-| Rally point tabs | `gid=16&tt=N` | `t=N` |
+| Sida | Official path |
+|---|---|
+| Hero adventures | `/hero/adventures` |
+| Hero inventory | `/hero/inventory` |
+| Hero attributes | `/hero/attributes` |
+| Messages | `/messages` |
+| Write message | `/messages/write` |
+| Reports | `/report` |
+| Rally point tabs | `build.php?id=39&gid=16&tt=N` |
 
 ### Selektorer och React
 
-- Selektorandringar ar additiva tills legacy-grenen tas bort: behall fungerande legacy-selektor
-  och lagg Official som fallback. Ta bort en doman i taget med live-verifiering.
+- Selektorandringar ska vara Official-scope:ade och live-verifieras nar de ror React-sidor.
+  Lagg inte till legacy-fallback utan separat beslut.
 - Scope:a breda selektorer till ratt widget/dialog for att undvika falska traffar.
 - Official React-sidor maste vanta pa ett synligt/handlingsbart nyckelelement; DOM-narvaro ensam
   racker inte for klick. Anvand `await WaitForPageReadyAsync(ct)` nar hela sidan maste vara laddad —
@@ -71,8 +65,7 @@ private string HeroAdventuresPath =>
 - Bulk messages ska hantera Official-dialogen `The name X does not exist.` genom att klicka OK, rensa recipient-faltet, ta bort X ur aktuell batch och forsoka igen utan att cacha X som skickad.
 - Official `map.sql`/`x_world`: player id ar kolumn 7; skicka aldrig den som namn. Player name ar kolumn 8,
   alliance name kolumn 10, population kolumn 11 (0-baserat: 7,9,10).
-- Verifiera nya Official-selektorer live. Gor legacy-regression endast om kvarvarande
-  legacy-gren avsiktligt andras.
+- Verifiera nya Official-selektorer live.
 - Official farmlist loss cleanup laser `tr.slot`, `td.target`, `td.openContextMenu` och last-raid
   klasser (`attack_lost*`, `attack_won_withLosses*`); matcha inte SVG-paths for loss state.
 
@@ -115,7 +108,7 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
   `TravianClient` storre med ny stateless logik.
 - Bevara fungerande navigations- och klickordning om beteendeforandring inte uttryckligen kravs.
 - Registrera nya tasks via befintlig handler-dictionary i `BotTaskRunner`.
-- Selektorer ska vara additiva och paths flavor-aware. Logga tillrackligt med kontext for framtida felsokning.
+- Selektorer ska vara Official-scope:ade och path helpers Official-only. Logga tillrackligt med kontext for framtida felsokning.
 - Hero-resurstransfer ar per-by/per-konsument gated: Village settings `Hero res.`,
   `HeroResourceUse{Construction,Smithy,Brewery,TownHall}` och `HeroResourceMaxUse*` (per by; Construction default true, Smithy/Brewery/Town Hall false, max limit alltid aktiv med default 5000). Generisk build-sidlogik i
   `TryHeroResourceTransferOnCurrentBuildPageAsync`; construction/brewery anropar via tunna gated wrappers,
@@ -230,8 +223,8 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
 
 ### Hero och React-dialoger
 
-- Hero-attributens defaultordning ar `resources,fighting_strength,offence_bonus,defence_bonus` pa bada
-  varianterna. UI-ordningen sparas konto-scopeat och anvands oforandrad vid poangtilldelning.
+- Hero-attributens defaultordning ar `resources,fighting_strength,offence_bonus,defence_bonus`.
+  UI-ordningen sparas konto-scopeat och anvands oforandrad vid poangtilldelning.
 - Background resource-refresh far no-navigation-kolla `i.levelUp.show` och ko:a `spend_hero_attribute_points`
   nar auto-assign och Hero-gruppen ar pa; dedupe:a endast aktiv `spend_hero_attribute_points` sa deferred
   `hero_manage` for adventures inte blockerar attributpoang, och vacka en sovande Continuous Loop sa poangen
@@ -292,11 +285,11 @@ Full bakgrund och regressionsdetaljer: [engineering-notes-archive.md](history/en
 ## 7. Recept for Official-stod
 
 1. Spara renderad HTML via appens `Save Page HTML` i korrekt tillstand.
-2. Jamfor Official-markup mot SS och nuvarande selektorer.
-3. Lagg till Official som fallback och anvand flavor-aware path vid behov.
+2. Jamfor Official-markup mot nuvarande selektorer.
+3. Uppdatera Official-scope:ade selektorer/path helpers vid behov.
 4. Isolera stateless parsing och lagg till fokuserade tester.
 5. Kor build och relevanta tester.
-6. Verifiera live pa Official och gor en snabb SS-regressionskontroll.
+6. Verifiera live pa Official.
 7. Uppdatera denna fil endast med fortsatt styrande regler; lagg detaljer i ADR/historik.
 
 ## 8. Malarkitektur
