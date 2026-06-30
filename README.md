@@ -35,7 +35,9 @@ Then click `Login` and it will login / scan your account. Then set it up as you 
 
 The program is highly configurable with alot of settings to tweak as you like.
 
-### Download / install
+To start, click `Start bot`
+
+## Download / install
 
 Goto the latest [Releases](../../releases) page and download:
 
@@ -48,8 +50,6 @@ Run `Tbot Ultra.exe` inside the extracted folder.
 Windows may show a SmartScreen or certificate warning because the application is not digitally signed. This is normal and does not indicate a virus or security issue.
 
 If prompted, click More info → Run anyway.
-
-Set up your account and server inside the app (**Account → Manage**)
 
 **Multiple accounts at once:** with the portable build, extract a separate copy of the
 folder per account (e.g. `Tbot-account1\`, `Tbot-account2\`) and run them at the same
