@@ -39,7 +39,7 @@ public sealed partial class TravianClient : IFarmingClient
             await WaitForFarmListsRenderedAsync(cancellationToken);
             await EnsureOfficialFarmListsExpandedAsync(cancellationToken);
             rows = await ReadFarmListsFromCurrentPageAsync(cancellationToken);
-            if (rows.Count > 0 || _config.IsPrivateServer || attempt == maxAttempts)
+            if (rows.Count > 0 || attempt == maxAttempts)
             {
                 break;
             }
@@ -52,15 +52,10 @@ public sealed partial class TravianClient : IFarmingClient
         return rows;
     }
 
-    // Waits for the Official farm list wrappers to render before reading, so a slow React mount does
+    // Waits for the farm list wrappers to render before reading, so a slow React mount does
     // not make us read an empty page. A genuinely empty account simply times out and reads zero.
     private async Task WaitForFarmListsRenderedAsync(CancellationToken cancellationToken)
     {
-        if (_config.IsPrivateServer)
-        {
-            return;
-        }
-
         try
         {
             await _page.WaitForFunctionAsync(
@@ -308,11 +303,6 @@ public sealed partial class TravianClient : IFarmingClient
 
     private async Task WaitForOfficialFarmListRenderAsync(CancellationToken cancellationToken)
     {
-        if (_config.IsPrivateServer)
-        {
-            return;
-        }
-
         try
         {
             await _page.WaitForFunctionAsync(
@@ -349,11 +339,6 @@ public sealed partial class TravianClient : IFarmingClient
 
     private async Task EnsureOfficialFarmListsExpandedAsync(CancellationToken cancellationToken)
     {
-        if (_config.IsPrivateServer)
-        {
-            return;
-        }
-
         // Expand every collapsed list and scroll each into view so Travian lazy-renders its slot rows
         // (which carry the target coordinates). A single pass can leave large/slow lists half-rendered,
         // so retry the expand+scroll a few rounds until every list reports all of its rows.
