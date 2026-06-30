@@ -734,12 +734,6 @@ public partial class MainWindow
         }
 
         var options = ApplySelectedVillageToOptions(LoadBotOptions());
-        if (options.IsPrivateServer)
-        {
-            AppendLog("Create Farmlists is currently available on official servers only.");
-            return;
-        }
-
         var villages = GetFarmListCreationVillages();
         if (villages.Count == 0)
         {

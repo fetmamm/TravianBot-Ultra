@@ -14,11 +14,6 @@ public sealed partial class TravianClient
         CancellationToken cancellationToken = default)
     {
         LogFunctionStarted();
-        if (_config.IsPrivateServer)
-        {
-            throw new InvalidOperationException("Create Farmlists is currently available on official servers only.");
-        }
-
         var names = request.Names
             .Select(name => name.Trim())
             .Where(name => !string.IsNullOrWhiteSpace(name))
