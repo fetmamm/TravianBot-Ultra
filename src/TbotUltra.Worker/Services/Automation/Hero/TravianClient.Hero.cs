@@ -11,6 +11,9 @@ public sealed partial class TravianClient : IHeroClient
 {
     private const int HeroLowHpRetrySeconds = 60;
     private const int HeroLowHpMaxDeferSeconds = 30 * 60;
+    // Fallback defer when the hero looks home/alive but the adventure button is disabled (e.g. a
+    // just-revived cooldown). Prevents the loop from completing-and-instantly-re-queueing hero_manage.
+    private const int HeroAdventureBlockedRetrySeconds = 5 * 60;
     private HeroOintmentRetryKey? _lastHeroOintmentMissKey;
     private bool? _lastHeroAutoUseOintmentsEnabled;
 
@@ -1239,13 +1242,26 @@ public sealed partial class TravianClient : IHeroClient
 
         // Official sometimes fails to expose HP immediately after the hero returns. If the sidebar
         // says the hero is home, do not defer 10 minutes on unknown HP; try to dispatch instead.
+        // A reviving hero (orange revive timer) can read as "alive, home" on the attribute page while its
+        // adventure button is disabled. Trying anyway only wastes a danger-video watch and then loops on
+        // "adventure_not_clickable". Treat reviving like away: never attempt the adventure, defer instead.
+        var isReviving = string.Equals(status.State, "Reviving", StringComparison.OrdinalIgnoreCase)
+            || status.ReviveRemainingSeconds is > 0;
         var canSendByHp = !status.IsDead
+            && !isReviving
             && (hpPercent.HasValue
                 ? hpPercent.Value >= minHpThreshold
                 : !_config.IsPrivateServer && inVillage);
         var hpTooLow = false;
 
-        if (adventureCount > 0 && canSendByHp && inVillage)
+        if (isReviving)
+        {
+            actions.Add("adventure_skipped_hero_reviving");
+            heroReturnWaitSeconds ??= status.ReviveRemainingSeconds is > 0
+                ? status.ReviveRemainingSeconds
+                : HeroAdventureBlockedRetrySeconds;
+        }
+        else if (adventureCount > 0 && canSendByHp && inVillage)
         {
             // Optionally raise the next adventure's danger to hard (bonus video) before dispatching.
             // Self-skips if already active and never throws, so dispatch proceeds regardless.
@@ -1274,6 +1290,10 @@ public sealed partial class TravianClient : IHeroClient
             else
             {
                 actions.Add("adventure_not_clickable");
+                // Button disabled even though the hero looks home/alive (e.g. just-revived cooldown).
+                // Defer instead of completing, so the loop does not instantly re-queue (and re-watch the
+                // danger video) in a tight loop that never resolves.
+                heroReturnWaitSeconds ??= HeroAdventureBlockedRetrySeconds;
             }
         }
         else if (!inVillage && !status.IsDead)
