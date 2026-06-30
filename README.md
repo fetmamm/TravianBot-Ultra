@@ -31,7 +31,7 @@ The program is very easy to use and to install. No need to host own servers etc.
 
 Just download, open and then run the program.
 
-### Download
+### Download / install
 
 Goto the latest [Releases](../../releases) page and download:
 
