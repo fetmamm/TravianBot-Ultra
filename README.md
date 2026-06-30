@@ -27,9 +27,11 @@ Advanced open-source `Travian Bot` for Travian Legends with automation, farming,
 The project goal forward is official Travian Legends servers. SS-Travi remains legacy-only.
 
 ## Howto use
-The program is very easy to use and to install. No need to host own servers etc, just download, open and then run the program.
+The program is very easy to use and to install. No need to host own servers etc.
 
-# Download
+Just download, open and then run the program.
+
+### Download
 
 Goto the latest [Releases](../../releases) page and download:
 
