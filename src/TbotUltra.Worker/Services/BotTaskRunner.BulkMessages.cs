@@ -15,7 +15,6 @@ public sealed partial class BotTaskRunner
         string? accountName = null,
         CancellationToken cancellationToken = default)
     {
-        EnsureBulkMessagesSupported(options);
         var account = _accountProvider.LoadAccount(accountName);
         progress?.Report(new BulkMessageProgress("Analyzing players", 0, 0));
 
@@ -42,7 +41,6 @@ public sealed partial class BotTaskRunner
         string? accountName = null,
         CancellationToken cancellationToken = default)
     {
-        EnsureBulkMessagesSupported(options);
         ValidateBulkMessageRequest(request);
 
         var account = _accountProvider.LoadAccount(accountName);
@@ -133,7 +131,6 @@ public sealed partial class BotTaskRunner
         Action<string> log,
         string? accountName = null)
     {
-        EnsureBulkMessagesSupported(options);
         var account = _accountProvider.LoadAccount(accountName);
         _bulkMessageSentCacheStore.Clear(account.Name, options.BaseUrl);
         log($"[bulk-messages] sent-player cache cleared for account '{account.Name}' server '{options.BaseUrl.TrimEnd('/')}'.");
@@ -166,14 +163,6 @@ public sealed partial class BotTaskRunner
         };
         client.DefaultRequestHeaders.UserAgent.ParseAdd("TbotUltra/1.0");
         return client;
-    }
-
-    private static void EnsureBulkMessagesSupported(BotOptions options)
-    {
-        if (options.IsPrivateServer)
-        {
-            throw new NotSupportedException("Bulk messages currently supports Official servers only.");
-        }
     }
 
     private static void ValidateBulkMessageRequest(BulkMessageRequest request)
