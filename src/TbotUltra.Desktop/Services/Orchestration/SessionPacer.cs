@@ -337,6 +337,37 @@ public sealed class SessionPacer
         CompleteSleepAndWake();
     }
 
+    // True when a fresh online session would immediately be forced to sleep by an active restriction
+    // (off-hours schedule or the daily runtime limit). Lets the caller skip the login + analyze stack and
+    // go straight to sleep instead of logging in only to log out and sleep again.
+    public bool ShouldSleepNow()
+    {
+        return _settings.Enabled
+            && Phase != SessionPacerPhase.Sleeping
+            && GetActiveRestriction(_now()) != SessionSleepReason.None;
+    }
+
+    // Puts the pacer straight into the currently-due restriction sleep (schedule / daily limit) without
+    // going online first. Returns false when no restriction is active. Used when the user presses Login
+    // during a planned off-hours / daily-limit window.
+    public bool BeginScheduledSleepNow()
+    {
+        if (!_settings.Enabled || Phase == SessionPacerPhase.Sleeping)
+        {
+            return false;
+        }
+
+        var restriction = GetActiveRestriction(_now());
+        if (restriction == SessionSleepReason.None)
+        {
+            return false;
+        }
+
+        _pendingSleepReason = restriction;
+        BeginSleep(manual: false);
+        return true;
+    }
+
     public void TickForTests() => TickTimer();
 
     private void StartNewRun(DateTimeOffset now)

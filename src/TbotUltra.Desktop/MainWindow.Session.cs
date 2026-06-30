@@ -28,6 +28,14 @@ public partial class MainWindow
             return;
         }
 
+        // If session pacing is in a planned off-hours / daily-limit window, logging in would run the whole
+        // login + analyze stack only to immediately sleep and log back out. Go straight to sleep instead;
+        // the user can press the pacing Run-now (play) button to override and log in normally.
+        if (TryEnterPlannedSleepInsteadOfLogin())
+        {
+            return;
+        }
+
         // Guard against re-entrancy (e.g. double-clicking Login or clicking while a login is
         // already running). The button is also disabled via ToggleUiBusy, but this is belt-and-suspenders.
         if (_loginInProgress)

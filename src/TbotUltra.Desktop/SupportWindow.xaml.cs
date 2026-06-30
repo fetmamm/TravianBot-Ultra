@@ -35,19 +35,29 @@ public partial class SupportWindow : Window
         ApplyVersionButtonState();
     }
 
-    // Amber when a newer release exists, neutral grey otherwise — same tinted style as the other buttons.
+    private SolidColorBrush? _versionPulseBrush;
+
+    // Breathes gold (same slow pulse as the dashboard Support button / session sleep) when a newer release
+    // exists, neutral grey otherwise — so the user clearly sees an update is available.
     private void ApplyVersionButtonState()
     {
         var updateAvailable = _updateStatus?.UpdateAvailable == true;
-        var bg = updateAvailable ? "WarningBgBrush" : "SurfaceBrush";
-        var border = updateAvailable ? "WarningBorderBrush" : "BorderMutedBrush";
-        var text = updateAvailable ? "WarningTextBrush" : "TextMutedBrush";
-        VersionButton.Background = (Brush)FindResource(bg);
-        VersionButton.BorderBrush = (Brush)FindResource(border);
-        VersionButton.Foreground = (Brush)FindResource(text);
-        VersionButton.ToolTip = updateAvailable
-            ? $"Update available: v{_updateStatus!.Release!.LatestVersion}"
-            : "Check the app version";
+        if (updateAvailable)
+        {
+            VersionButton.BorderBrush = (Brush)FindResource("WarningBorderBrush");
+            VersionButton.Foreground = (Brush)FindResource("WarningTextBrush");
+            _versionPulseBrush ??= new SolidColorBrush(ThemeColors.Get("WarningBgBrush"));
+            VersionButton.Background = _versionPulseBrush;
+            MainWindow.StartGoldBreathePulse(_versionPulseBrush);
+            VersionButton.ToolTip = $"Update available: v{_updateStatus!.Release!.LatestVersion}";
+            return;
+        }
+
+        _versionPulseBrush?.BeginAnimation(SolidColorBrush.ColorProperty, null);
+        VersionButton.Background = (Brush)FindResource("SurfaceBrush");
+        VersionButton.BorderBrush = (Brush)FindResource("BorderMutedBrush");
+        VersionButton.Foreground = (Brush)FindResource("TextMutedBrush");
+        VersionButton.ToolTip = "Check the app version";
     }
 
     private void VersionButton_Click(object sender, RoutedEventArgs e)

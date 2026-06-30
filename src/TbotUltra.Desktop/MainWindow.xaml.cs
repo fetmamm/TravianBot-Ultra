@@ -748,9 +748,9 @@ public partial class MainWindow : Window
     }
 
     // Best-effort background check against GitHub's latest release. Runs at startup and then hourly while
-    // the app is open. On a newer version, tint the Support button amber so the user notices; the Version
-    // button inside Support shows the details. Never blocks startup and never alarms — offline/rate-limited
-    // leaves the latest known status unchanged.
+    // the app is open. On a newer version, the Support (message) button breathes gold so the user notices;
+    // the Version button inside Support shows the details. Never blocks startup and never alarms —
+    // offline/rate-limited leaves the latest known status unchanged.
     private async Task CheckForUpdatesAsync()
     {
         if (_updateCheckRunning)
@@ -771,9 +771,7 @@ public partial class MainWindow : Window
             _updateStatus = status;
             if (status.UpdateAvailable && status.Release is not null)
             {
-                SupportButton.Background = (Brush)FindResource("WarningBgBrush");
-                SupportButton.BorderBrush = (Brush)FindResource("WarningBorderBrush");
-                SupportButton.Foreground = (Brush)FindResource("WarningTextBrush");
+                ApplySupportButtonUpdatePulse(true);
                 SupportButton.ToolTip = $"Update available: v{status.Release.LatestVersion} — open Support";
                 if (!string.Equals(
                     _announcedUpdateVersion,
@@ -787,9 +785,7 @@ public partial class MainWindow : Window
             else
             {
                 _announcedUpdateVersion = null;
-                SupportButton.ClearValue(Control.BackgroundProperty);
-                SupportButton.ClearValue(Control.BorderBrushProperty);
-                SupportButton.ClearValue(Control.ForegroundProperty);
+                ApplySupportButtonUpdatePulse(false);
                 SupportButton.ToolTip = "Support";
             }
         }

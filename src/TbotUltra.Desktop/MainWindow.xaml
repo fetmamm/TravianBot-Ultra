@@ -256,7 +256,7 @@
             </Grid.RowDefinitions>
 
             <!-- Topbar: each metric in its own card (label on top, value below).
-                 Session (with clock) + daily pacing stay left; the rest are right-aligned with a gap between. -->
+                 Session + daily pacing stay left; the rest are right-aligned with a gap between. -->
             <Grid Grid.Row="0" Margin="0,0,0,8">
                 <Grid.Resources>
                     <Style x:Key="MetricLabel" TargetType="TextBlock">
@@ -298,17 +298,13 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <!-- Left group: Session (with clock) + daily pacing -->
+                <!-- Left group: Session + daily pacing -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
                     <!-- Session pacing / Next sleep (background pulses via code) -->
                     <!-- Fixed width so the card does not resize as the status text/Run now button changes. -->
                     <Border x:Name="SessionPacingBorder" Style="{StaticResource MetricCard}" Width="194">
                         <StackPanel>
-                            <!-- Clock sits where the "Session" label used to; the status line below shows Next sleep. -->
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
-                                <TextBlock Text="&#xE823;" Style="{StaticResource MetricIcon}" />
-                                <TextBlock x:Name="ClockTextBlock" Text="-" Style="{StaticResource MetricValue}" FontSize="13" />
-                            </StackPanel>
+                            <TextBlock Text="Session" Style="{StaticResource MetricLabel}" />
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
@@ -442,25 +438,36 @@
                 </StackPanel>
             </Grid>
 
-            <!-- Status + Next task styled as rounded cards matching the metric cards above. -->
+            <!-- Time + Status + Next task styled as rounded cards matching the metric cards above. Time gets
+                 its own compact card on the left; Status and Next task share the remaining width. -->
             <Grid Grid.Row="1" Margin="0,0,0,8">
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="8" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="8" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <!-- Left half: status mini-log -->
+                <!-- Time: own compact card, left of Status. -->
                 <Border Grid.Column="0" Style="{StaticResource MetricCard}" Margin="0">
                     <StackPanel Orientation="Horizontal">
-                        <Ellipse Width="8" Height="8" Fill="{DynamicResource SuccessBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBlock Text="Status" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBlock x:Name="StatusMiniLogTextBlock" Text="Ready." Foreground="{DynamicResource DataGridCellTextBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="Time" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock x:Name="ClockTextBlock" Text="-" Foreground="{DynamicResource DataGridCellTextBrush}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Border>
 
-                <!-- Right half: what the bot will run next (read-only mirror of the loop selector). -->
+                <!-- Status mini-log -->
                 <Border Grid.Column="2" Style="{StaticResource MetricCard}" Margin="0">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="8" Height="8" Fill="{DynamicResource SuccessBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock Text="Status" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock x:Name="StatusMiniLogTextBlock" Text="Ready." Foreground="{DynamicResource DataGridCellTextBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </Border>
+
+                <!-- What the bot will run next (read-only mirror of the loop selector). -->
+                <Border Grid.Column="4" Style="{StaticResource MetricCard}" Margin="0">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="Next task" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0" />
                         <TextBlock x:Name="NextTaskTextBlock" Text="-" Foreground="{DynamicResource DataGridCellTextBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
