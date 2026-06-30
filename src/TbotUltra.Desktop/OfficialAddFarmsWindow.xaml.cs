@@ -432,6 +432,7 @@ public partial class OfficialAddFarmsWindow : Window
         var plans = BuildPlans();
         var requested = plans.Sum(plan => plan.DesiredCount);
         var selectedTargets = plans.Count;
+        AmountComboBox.IsEnabled = AmountModeRadioButton.IsChecked == true;
         SourceCountTextBlock.Text = sourceCount.ToString(CultureInfo.InvariantCulture);
         SummaryTextBlock.Text =
             $"Selected destination lists: {selectedTargets}. Villages scheduled: {requested}. " +
