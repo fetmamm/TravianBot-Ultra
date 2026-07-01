@@ -1211,11 +1211,13 @@ public partial class MainWindow
         var itemOptions = ApplyHeroResourceSettingsForQueueItem(
             BotOptionsPayloadApplier.Apply(options, item.Payload),
             item);
+        // No dorf2 buildings re-read here: build_troops doesn't change the building list, and the queue
+        // read below reuses the statuses the task just read (session snapshot) instead of re-navigating.
         await RefreshTroopTrainingQueuesAsync(
             itemOptions,
             cancellationToken,
             _lastBuildingStatus?.Buildings,
-            refreshBuildingsBeforeRead: true,
+            refreshBuildingsBeforeRead: false,
             includeSmithyStatus: false);
 
         try

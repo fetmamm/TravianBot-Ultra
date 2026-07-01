@@ -26,4 +26,11 @@ public sealed class TravianSessionCache
     public System.DateTimeOffset CachedVillagesAt { get; set; } = System.DateTimeOffset.MinValue;
     public System.DateTimeOffset CachedVillagesPopulationAt { get; set; } = System.DateTimeOffset.MinValue;
     public bool PopulationBaselineRead { get; set; }
+
+    // Troop training queue statuses read while build_troops ran, keyed by building type, plus the
+    // village they were read on. The post-build queue read reuses them (when fresh and still on the
+    // same village) instead of re-navigating to each troop building the task just visited.
+    public string? TroopQueueSnapshotVillage { get; set; }
+    public System.Collections.Generic.Dictionary<TbotUltra.Core.Travian.TroopTrainingBuildingType, Domain.TroopTrainingQueueStatus>? TroopQueueSnapshotByBuilding { get; set; }
+    public System.DateTimeOffset TroopQueueSnapshotAt { get; set; } = System.DateTimeOffset.MinValue;
 }

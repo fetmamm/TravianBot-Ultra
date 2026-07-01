@@ -76,6 +76,10 @@ document.querySelector('.warehouse .capacity .value')
   tillbaka till global/default troop-training config (t.ex. 50% resources) i stallet for konto+by-overriden.
 - Build troops `timed` ar per-by/per-byggnad: efter lyckad training defer:as samma queue item med
   slumpad `timed_min_minutes`-`timed_max_minutes` delay. Default ar 30-180 min.
+- `build_troops` sparar sina ko-avlasningar (scan + efter submit) i `TravianSessionCache.TroopQueueSnapshot*`
+  per by/byggnadstyp. `ReadTroopTrainingQueuesAsync` ateranvander snapshoten (max 90s, samma aktiva by)
+  sa post-build UI-refreshen inte navigerar om till dorf2 + barracks/stable/workshop som tasken nyss besokte.
+  Post-build-refreshen kor ocksa `refreshBuildingsBeforeRead: false` — trupptraning andrar inte byggnadslistan.
 - Kontobyte ar full UI/cache-reset, men respektive kontos separata ko och settings ska bevaras, och
   `bot.json`:s konto-scopeade pekare (by-/farmlist-namn/ids) rensas via `ClearPersistedAccountScopedConfig`
   sa de inte lacker till nasta konto.
