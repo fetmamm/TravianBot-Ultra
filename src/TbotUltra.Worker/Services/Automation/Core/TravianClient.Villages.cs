@@ -18,7 +18,7 @@ public sealed partial class TravianClient
     {
         Notify("[scan] all-village status scan starting");
         var returnVillageName = await TryReadActiveVillageNameSafeAsync(cancellationToken);
-        await GotoAsync(_config.VillageOverviewPath, cancellationToken);
+        await GotoAsync(Paths.Resources, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the village overview.", cancellationToken);
         await EnsureLoggedInAsync();
 
@@ -44,7 +44,7 @@ public sealed partial class TravianClient
                 }
                 else
                 {
-                    await GotoAsync(_config.VillageOverviewPath, cancellationToken);
+                    await GotoAsync(Paths.Resources, cancellationToken);
                 }
 
                 await PauseForManualStepIfVisibleAsync(

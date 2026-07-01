@@ -1057,8 +1057,6 @@ public static class BotOptionsPayloadApplier
         {
             ServerName = source.ServerName,
             BaseUrl = source.BaseUrl,
-            LoginPath = source.LoginPath,
-            VillageOverviewPath = source.VillageOverviewPath,
             Headless = source.Headless,
             TimeoutMs = source.TimeoutMs,
             ManualLoginTimeoutSeconds = source.ManualLoginTimeoutSeconds,

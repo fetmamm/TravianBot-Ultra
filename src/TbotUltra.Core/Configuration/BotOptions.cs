@@ -13,14 +13,6 @@ public sealed class BotOptions
     [Required]
     public string BaseUrl { get; init; } = string.Empty;
 
-    [ConfigurationKeyName("login_path")]
-    [Required]
-    public string LoginPath { get; init; } = "/login.php";
-
-    [ConfigurationKeyName("village_overview_path")]
-    [Required]
-    public string VillageOverviewPath { get; init; } = "/dorf1.php";
-
     [ConfigurationKeyName("headless")]
     public bool Headless { get; init; }
 

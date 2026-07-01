@@ -174,12 +174,6 @@ public sealed class BotConfigStore
 
     private static readonly HashSet<string> AccountScopedKeys = new(AccountScopedKeyValues, StringComparer.OrdinalIgnoreCase);
 
-    private static readonly HashSet<string> DeprecatedTechnicalKeys = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "login_path",
-        "village_overview_path",
-    };
-
     // Serializes all config file I/O. bot.json and the per-account settings.json are read and written
     // from many concurrent contexts (UI dispatcher, continuous loop, and several background Task.Run
     // refreshes). Unsynchronized File.ReadAllText/File.WriteAllText calls overlapped and produced
@@ -203,7 +197,6 @@ public sealed class BotConfigStore
     public JsonObject LoadForAccount(string accountName)
     {
         var config = LoadGlobal();
-        RemoveDeprecatedTechnicalKeys(config);
 
         if (string.IsNullOrWhiteSpace(accountName) || string.IsNullOrWhiteSpace(_projectRoot))
         {
@@ -240,7 +233,6 @@ public sealed class BotConfigStore
     public void SaveGlobal(JsonObject config)
     {
         var globalConfig = config.DeepClone().AsObject();
-        RemoveDeprecatedTechnicalKeys(globalConfig);
         foreach (var key in AccountScopedKeys)
         {
             globalConfig.Remove(key);
@@ -254,8 +246,6 @@ public sealed class BotConfigStore
 
     public void SaveForAccount(string accountName, JsonObject config)
     {
-        RemoveDeprecatedTechnicalKeys(config);
-
         if (!string.IsNullOrWhiteSpace(accountName) && !string.IsNullOrWhiteSpace(_projectRoot))
         {
             SaveAccountScopedValues(accountName, config);
@@ -270,7 +260,6 @@ public sealed class BotConfigStore
             }
         }
 
-        RemoveDeprecatedTechnicalKeys(globalConfig);
         SaveJson(_configPath, globalConfig);
     }
 
@@ -335,7 +324,6 @@ public sealed class BotConfigStore
             }
         }
 
-        RemoveDeprecatedTechnicalKeys(accountConfig);
         var path = AccountStoragePaths.AccountSettingsPath(_projectRoot!, accountName);
         SaveJson(path, accountConfig);
     }
@@ -472,7 +460,6 @@ public sealed class BotConfigStore
                 return new JsonObject();
             }
 
-            RemoveDeprecatedTechnicalKeys(node);
             return node;
         }
         catch
@@ -524,14 +511,6 @@ public sealed class BotConfigStore
         catch
         {
             return string.Empty;
-        }
-    }
-
-    private static void RemoveDeprecatedTechnicalKeys(JsonObject config)
-    {
-        foreach (var key in DeprecatedTechnicalKeys)
-        {
-            config.Remove(key);
         }
     }
 

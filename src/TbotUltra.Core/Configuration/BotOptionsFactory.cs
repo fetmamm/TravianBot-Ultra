@@ -41,8 +41,6 @@ public static class BotOptionsFactory
         {
             ServerName = configuration["server_name"] ?? string.Empty,
             BaseUrl = baseUrl,
-            LoginPath = configuration["login_path"] ?? "/login.php",
-            VillageOverviewPath = configuration["village_overview_path"] ?? "/dorf1.php",
             Headless = configuration.GetValue("headless", false),
             TimeoutMs = configuration.GetValue("timeout_ms", 20000),
             ManualLoginTimeoutSeconds = configuration.GetValue("manual_login_timeout_seconds", 180),
@@ -201,8 +199,6 @@ public static class BotOptionsFactory
         {
             ServerName = source.ServerName,
             BaseUrl = source.BaseUrl,
-            LoginPath = source.LoginPath,
-            VillageOverviewPath = source.VillageOverviewPath,
             Headless = headlessOverride ?? source.Headless,
             TimeoutMs = source.TimeoutMs,
             ManualLoginTimeoutSeconds = source.ManualLoginTimeoutSeconds,

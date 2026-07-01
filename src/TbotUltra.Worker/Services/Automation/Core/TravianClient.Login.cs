@@ -33,7 +33,7 @@ public sealed partial class TravianClient : ISessionClient
         if (state == "unknown" && IsLikelyGamePageUrl(_page.Url))
         {
             Notify("[login] state unknown on game page; rechecking dorf1 before opening login page.");
-            await GotoAsync(_config.VillageOverviewPath, cancellationToken);
+            await GotoAsync(Paths.Resources, cancellationToken);
             if (await IsLoggedInAsync())
             {
                 Notify($"[login] already logged in as '{_account.Name}' after dorf1 recheck");
@@ -51,7 +51,7 @@ public sealed partial class TravianClient : ISessionClient
             return;
         }
 
-        await GotoAsync(_config.LoginPath, cancellationToken);
+        await GotoAsync(Paths.Login, cancellationToken);
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await PauseForManualStepIfVisibleAsync("Manual verification appeared on the login page.", cancellationToken);
         if (await IsLoggedInAsync())
@@ -176,7 +176,7 @@ public sealed partial class TravianClient : ISessionClient
         _sessionTribe = null;
         _cachedTribe = null;
         _cachedGoldClubEnabled = null;
-        await GotoAsync(_config.VillageOverviewPath, cancellationToken);
+        await GotoAsync(Paths.Resources, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared before logout.", cancellationToken);
         if (!await IsLoggedInAsync())
         {
@@ -196,10 +196,10 @@ public sealed partial class TravianClient : ISessionClient
                 return;
             }
 
-            Notify("[logout] click did not confirm sign-out — trying legacy logout URLs.");
+            Notify("[logout] click did not confirm sign-out — trying the Official logout URL.");
         }
 
-        // Fallback for servers where the logout control is missing or the click did not take effect.
+        // Fallback when the logout control is missing or the click did not take effect.
         foreach (var candidatePath in Paths.LogoutCandidates)
         {
             await GotoAsync(candidatePath, cancellationToken);

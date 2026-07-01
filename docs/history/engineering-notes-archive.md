@@ -365,8 +365,8 @@ servervarianter är borttaget ur aktiv kod och ska inte återinföras.
   blocking the possible second construction slot.
 - **2026-06-03** — Logout på official T4.6: logout-kontrollen är ett `<a>` **utan href** och utan text
   (bara en SVG) som kör `Travian.api('auth/logout')` via `onclick`. Gamla `LogoutTriggers`
-  (`a[href*='logout']`, `a:has-text('Logout')`) matchade den **inte** → boten föll tillbaka till legacy
-  `/logout.php`. Additivt tillagt: `a[onclick*='auth/logout']`, `a.layoutButton.logout`, `a.logout[onclick]`.
+  (`a[href*='logout']`, `a:has-text('Logout')`) matchade den **inte**. Additivt tillagt:
+  `a[onclick*='auth/logout']`, `a.layoutButton.logout`, `a.logout[onclick]`.
   Kontrollen är dessutom ofta **gömd bakom en meny** → en vanlig `ClickAsync` faller på actionability och
   timeoutar (15s × retries). Därför **dispatch:as klick-eventet** (`DispatchEventAsync(selector, "click")`)
   i `TryTriggerLogoutAsync`, vilket kör elementets egen `onclick`/navigering utan att vänta på synlighet.

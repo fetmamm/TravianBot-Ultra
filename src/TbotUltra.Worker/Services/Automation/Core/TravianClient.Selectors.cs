@@ -5,6 +5,7 @@ public sealed partial class TravianClient
     private static class Paths
     {
         public const string Resources = "/dorf1.php";
+        public const string Login = "/login.php";
         public const string Buildings = "/dorf2.php";
         public const string PlayerProfile = "/spieler.php";
         public const string Statistics100 = "/statistiken.php?id=100";
@@ -21,9 +22,7 @@ public sealed partial class TravianClient
 
         public static readonly IReadOnlyList<string> LogoutCandidates = new[]
         {
-            "/logout.php",
-            "/?action=logout",
-            "/index.php?logout=1",
+            "/logout",
         };
     }
 
@@ -106,14 +105,8 @@ public sealed partial class TravianClient
             "a.layoutButton.logout",
             "a.logout[onclick]",
             "a[href*='logout']",
-            "button[name*='logout' i]",
-            "input[name*='logout' i]",
-            "form[action*='logout'] button[type='submit']",
-            "form[action*='logout'] input[type='submit']",
             "a:has-text('Logout')",
             "a:has-text('Log out')",
-            "button:has-text('Logout')",
-            "button:has-text('Log out')",
         };
 
         public static readonly string[] CaptchaSubmitButton =
