@@ -384,8 +384,8 @@ public sealed partial class TravianClient
                 return null;
               };
 
-              // SS/legacy names the resource inputs r1..r4; official Travian (T4.6) names them
-              // lumber/clay/iron/crop (wood is "lumber"), so match both flavors.
+              // Official Travian (T4.6) names resource inputs lumber/clay/iron/crop
+              // (wood is "lumber"). Keep r1..r4 selectors as tolerated fallback names.
               const resourceOk =
                 setValue(first(['input[name="r1"]', 'input#r1', 'input[name="lumber"]', 'input[name*="wood" i]', 'input[aria-label*="wood" i]']), wood) &&
                 setValue(first(['input[name="r2"]', 'input#r2', 'input[name="clay"]', 'input[name*="clay" i]', 'input[aria-label*="clay" i]']), clay) &&

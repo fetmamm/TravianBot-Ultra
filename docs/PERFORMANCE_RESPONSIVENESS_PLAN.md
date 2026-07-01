@@ -4,7 +4,7 @@ Status: Analysis and future implementation plan only. No fixes from this plan ha
 
 ## Goal
 
-Improve normal-use responsiveness without changing automation behavior, server-flavor behavior, task ordering, or account/village isolation.
+Improve normal-use responsiveness without changing automation behavior, server behavior, task ordering, or account/village isolation.
 
 Follow `AGENTS.md` and `docs/ENGINEERING_NOTES.md` before implementation. Changes should be small, measurable, and introduced one area at a time.
 
@@ -274,6 +274,6 @@ Follow `AGENTS.md` and `docs/ENGINEERING_NOTES.md` before implementation. Change
 - Implement one priority area per change set.
 - Add timing or count diagnostics before optimization, then remove noisy temporary diagnostics.
 - Preserve existing behavior unless the plan explicitly identifies an acceptable staleness tradeoff.
-- Do not combine performance work with selector, path, or server-flavor changes.
+- Do not combine performance work with selector, path, or server changes.
 - Update `docs/ENGINEERING_NOTES.md` only when a new enduring rule or pitfall is established.
 - Update `README.md` only when user-visible behavior or configuration changes.

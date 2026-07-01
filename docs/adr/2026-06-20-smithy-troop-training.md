@@ -8,8 +8,8 @@ Aktivt beslut, 2026-06-20. Detaljerna bakom de korta reglerna i
 ## Smithy troop-upgrade
 
 - `gid 13` ar Smithy; det finns ingen separat Armoury pa `gid 12`.
-- Official-knappen ar `button[value="Improve"]` med `onclick ... action=research&t=tN`
-  (SS/legacy: "Upgrade"); matcha pa `action=research`/text, aldrig bara knapptext. Identifiera trupp via
+- Official-knappen ar `button[value="Improve"]` med `onclick ... action=research&t=tN`;
+  matcha pa `action=research`/text, aldrig bara knapptext. Identifiera trupp via
   `img.unit.uNN` eller `t=tN`, inte radordning (oresearchade trupper saknar rad). Pagaende research lases
   ENBART fran `table.under_progress .timer`; radens `.inlineIcon.duration` ar byggtid, inte progress.
   "Research is already being conducted." = ko upptagen; "Exchange resources"/"Enough resources on" = resursbrist.
@@ -50,9 +50,9 @@ Aktivt beslut, 2026-06-20. Detaljerna bakom de korta reglerna i
 
 - Traningsformularet keyar mangd-inputen pa det tribe-relativa truppslotet `t1..t10`
   (Official: Ram = `t7`), INTE det globala unit-id:t (Ram = `u27`). Identifiera raden via unit-id-ikonen
-  (`img.uNN`) och las radens verkliga input-namn — fungerar pa bada varianter. Anvand
+  (`img.uNN`) och las radens verkliga input-namn. Anvand
   `TroopCatalog.ResolveTroopIndex` for slotet och `ResolveTravianUnitId` enbart for ikonidentifiering.
-  Max-lanken: SS `tN.value=NN`, Official `...val(NN)`; matcha bada plus numerisk lanktext, scopeat till raden.
+  Max-lanken matchas via Official `...val(NN)` plus numerisk lanktext, scopeat till raden.
 - Traningskon ar SOT for traningstimers, precis som construction: las kvarvarande sekunder ur
   `table.under_progress td.dur .timer` (`value`/`data-value` eller text), ankra som absolut `TimerSnapshot`
   pa servertid (`_serverTimeUtc`). `TroopTrainingQueueState.PreserveKnownActiveQueue` behaller en levande ko

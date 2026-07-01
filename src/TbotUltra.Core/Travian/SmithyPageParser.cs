@@ -172,8 +172,8 @@ public static class SmithyPageParser
         var errorText = GetString(element, "errorText").Trim().ToLowerInvariant();
 
         // A clickable troop-research button: Official renders value="Improve" with an onclick that
-        // navigates to action=research; SS/legacy renders an "Upgrade" button. Either way the worker only
-        // flags hasResearchButton when the button is enabled and is not a gold/exchange/video button.
+        // navigates to action=research. The worker only flags hasResearchButton when the button is
+        // enabled and is not a gold/exchange/video button.
         var canImprove = GetBool(element, "hasResearchButton");
 
         var researchInProgress = errorText.Contains("research is already being conducted")

@@ -51,7 +51,6 @@ Föreslagen struktur:
 ```text
 docs/
   adr/
-    2026-06-01-server-flavor.md
     2026-06-03-ui-theme.md
     2026-06-05-multi-village.md
     2026-06-06-dashboard-overview.md

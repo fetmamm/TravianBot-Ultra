@@ -7,11 +7,10 @@ Aktivt beslut, 2026-06-09.
 ## Beslut
 
 - Official farmlists lases fran renderad React-markup under `#rallyPointFarmList`.
-- SS/legacy-parsern behalls som fallback.
 - Analyze Farmlists anvander huvudfonstrets gemensamma, avbrytbara loading-overlay.
 - Create Farmlists analyserar befintliga listor fore skapande, stoppar dubblettnamn och verifierar varje skapad lista.
 - Official har hogst 100 farms per lista; kapacitet lases om fore varje add.
-- Official Add Farms anvander sparade Travco-listor; Natar-kallan ar SS-only.
+- Official Add Farms anvander sparade Travco-listor.
 - Add target kor sekventiellt, verifierar exakt list-id, vantar pa React Save och fortsatter efter valideringsfel.
 - Travco DOM-resultat lases som `JsonElement` och konverteras darefter till domanmodeller.
 

@@ -1880,8 +1880,8 @@ public sealed partial class TravianClient : IBuildingClient
     /// Improves only the user-selected troops at the Smithy, each up to its own target level. Reads every
     /// troop row, classifies it (improvable / already at target / maxed / no resources / queue busy / not
     /// researched), clicks Improve for an available targeted troop, and defers on the live queue timer when
-    /// the smithy is busy. Robust on both Official ("Improve" buttons) and SS/legacy ("Upgrade") variants:
-    /// rows are identified by unit id (img.unit.uNN) or troop slot (t=tN), never by button text alone.
+    /// the smithy is busy. Rows are identified by unit id (img.unit.uNN) or troop slot (t=tN),
+    /// never by button text alone.
     /// </summary>
     public async Task<string> UpgradeSelectedTroopsAtSmithyAsync(
         IReadOnlyList<SmithyTroopTarget> targets,

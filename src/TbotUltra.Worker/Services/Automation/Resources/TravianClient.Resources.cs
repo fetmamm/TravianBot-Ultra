@@ -1037,7 +1037,8 @@ public sealed partial class TravianClient
                     """
                     () => {
                       const hasResourceValue = !!document.querySelector('#l1, #stockBarResource1 .value, #stockBarResource1');
-                      // SS uses #stockBar* ids; official Travian (T4.6) uses .warehouse/.granary > .capacity > .value.
+                      // Official Travian (T4.6) uses .warehouse/.granary > .capacity > .value.
+                      // Older stockBar ids remain tolerated fallback selectors.
                       const hasCapacity = !!document.querySelector('#stockBarWarehouse, #stockBarGranary, #stockBarSilo, .warehouse .capacity .value, .granary .capacity .value');
                       const hasProduction = !!document.querySelector('#production td.num, #production tbody tr');
                       return hasResourceValue && hasCapacity && hasProduction;

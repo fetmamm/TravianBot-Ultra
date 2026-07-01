@@ -314,7 +314,6 @@ Aldre beslut och detaljerad historik finns i:
 
 - [ADR-katalogen](adr/)
 - [Fullt Engineering Notes-arkiv](history/engineering-notes-archive.md)
-- [Server flavor och legacy-kod](adr/2026-06-01-server-flavor.md)
 - [UI theme](adr/2026-06-03-ui-theme.md)
 - [Multi-village och konto-state](adr/2026-06-05-multi-village.md)
 - [Dashboard overview](adr/2026-06-06-dashboard-overview.md)

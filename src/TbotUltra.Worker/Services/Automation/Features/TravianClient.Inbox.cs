@@ -430,7 +430,7 @@ public sealed partial class TravianClient
         try
         {
             // Step 1: trigger "Mark all as read". Official Travian (T4.6) uses a button with class
-            // "markAsRead" (onclick handleMarkAsRead); SS uses a button-content / value label.
+            // "markAsRead" (onclick handleMarkAsRead); text/value labels remain tolerated fallbacks.
             var triggered = await _page.EvaluateAsync<bool>(
                 """
                 () => {

@@ -17,7 +17,7 @@ await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
 
 | Projekt | Ansvar |
 |---|---|
-| `TbotUltra.Core` | Konfiguration (`BotOptions`, `ServerFlavor`), task-payloads, trupp-/byggnadskataloger. Ingen browser/UI. |
+| `TbotUltra.Core` | Konfiguration (`BotOptions`), task-payloads, trupp-/byggnadskataloger. Ingen browser/UI. |
 | `TbotUltra.Worker` | Spelautomation via Playwright. `TravianClient` (partial, ~15 filer i `Services/Automation/`) äger all server-interaktion. `BotTaskRunner` kör tasks. |
 | `TbotUltra.Desktop` | WPF-UI. `MainWindow` (många partials) + ViewModels. `LoadBotOptions()` läser `bot.json` → `BotOptionsFactory`. |
 
@@ -25,62 +25,45 @@ Beroenden: `Desktop` → `Worker` → `Core`.
 
 ---
 
-## 2. Två servervarianter — Official vs SS-Travi ⭐
+## 2. Official-only
 
-Boten stödjer **både** officiella Travian Legends-servrar (T4.6) **och** SS-Travi-privatservrar
-ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
+Boten riktas framåt mot officiella Travian Legends-servrar (T4.6). Tidigare stöd för alternativa
+servervarianter är borttaget ur aktiv kod och ska inte återinföras.
 
-### Grundregler (lätta att göra fel — gör inte fel)
+### Grundregler
 
-1. **`ServerFlavor` härleds ALLTID från `BaseUrl`-host.** Aldrig från config, aldrig cachad.
-   `*.ss-travi.com` → `SsTravi`, allt annat → `Official`. Se `BotOptions.ServerFlavor`
-   (computed property) och `ServerFlavorDetector.FromBaseUrl`.
-   - ❌ Lägg **inte** tillbaka `[ConfigurationKeyName("server_flavor")]`-bindning — det orsakade
-     en bugg där ett gammalt värde i `bot.json` gjorde att SS feltolkades som Official.
+1. **Selektorändringar ska vara Official-scope:ade.** Lägg inte tillbaka alternativa serverfallbacks
+   utan separat beslut.
 
-2. **Selektorändringar är ADDITIVA.** SS-selektorn provas **först**, officiell läggs till som
-   **fallback** — ersätt aldrig en SS-selektor. Mönster:
-   ```js
-   // SS uses #stockBarWarehouse; official (T4.6) uses .warehouse .capacity .value.
-   document.querySelector('#stockBarWarehouse, .warehouse .capacity .value')
-   ```
+2. **Sökvägar ska gå via Official-only helpers** (i `TravianClient.Selectors.cs`) när samma path används
+   på flera ställen. Använd helpern i `GotoAsync(...)`, inte duplicerade URL-strängar i flödeslogiken.
 
-3. **Sökvägar som skiljer → flavor-aware helper** (i `TravianClient.Selectors.cs`):
-   ```csharp
-   private string HeroAdventuresPath => _config.IsPrivateServer ? Paths.HeroAdventures : "/hero/adventures";
-   ```
-   Använd helpern i `GotoAsync(...)`, inte `Paths.X` direkt, för sidor som skiljer.
-
-4. **Privatserver-only features gate:as bakom `_config.IsPrivateServer`** (t.ex. Natar-farming),
-   så de göms/inaktiveras på officiell.
-
-5. **React-sidor** (officiella `/hero/adventures`, `/hero/attributes`, `/auctions/*`) renderas
+3. **React-sidor** (officiella `/hero/adventures`, `/hero/attributes`, `/auctions/*`) renderas
    klient-sida → **vänta in render** innan du läser/klickar (`WaitForFunctionAsync` på ett
    nyckelelement), och **verifiera live** — de går inte att härleda säkert ur sparad HTML.
 
-### URL-skillnader (officiell vs SS)
+### Official paths
 
-| Sida | Officiell (T4.6) | SS / legacy |
-|---|---|---|
-| Hero adventures | `/hero/adventures` | `/hero_adventure.php` (+ `/hero.php?t=3`) |
-| Hero inventory | `/hero/inventory` | `/hero_inventory.php` |
-| Player profile | `/profile/{id}` (redirect från spieler) | `/spieler.php` |
-| Messages | `/messages` | `/nachrichten.php` |
-| Reports | `/report` | `/berichte.php` |
-| Statistics | `/statistics` | `/statistiken.php` |
-| Village overview | `/village/statistics` | `/dorf3.php` |
-| Rally point-flikar | `build.php?id=39&gid=16&**tt**=N` | `build.php?id=39&**t**=N` |
-| Marketplace-flikar | `build.php?id=..&gid=17&**t**=N` | (samma `t=`) |
-| dorf1 / dorf2 / karte | samma `.php` | samma |
+| Sida | Path |
+|---|---|
+| Hero adventures | `/hero/adventures` |
+| Hero inventory | `/hero/inventory` |
+| Player profile | `/profile/{id}` (redirect från spieler) |
+| Messages | `/messages` |
+| Reports | `/report` |
+| Statistics | `/statistics` |
+| Village overview | `/village/statistics` |
+| Rally point-flikar | `build.php?id=39&gid=16&tt=N` |
+| Marketplace-flikar | `build.php?id=..&gid=17&t=N` |
 
 ### Markup-skillnader värda att minnas
 
 - **Stam:** officiell taggar `div.buildingSlot`/`img.building` med stamklass (`gaul`, `roman`, …).
-  SS/ikon-baserat. Läs stam från klassen (säkrast).
+  Läs stam från klassen.
 - **Plus:** officiell quick-links (`villageQuickLinks`) är **gröna** med Plus, **guld** utan
   (knappen är `disabled` i båda — färgen är signalen).
-- **Resurser/lager:** officiell `.warehouse/.granary .capacity .value`; SS `#stockBar*`.
-- **Bylista/byte:** officiell `div.listEntry.village[data-did]` (ingen `newdid`-länk); SS `a[href*="newdid"]`.
+- **Resurser/lager:** officiell `.warehouse/.granary .capacity .value`.
+- **Bylista/byte:** officiell `div.listEntry.village[data-did]` (ingen `newdid`-länk).
 - **Hero away:** officiell `i.heroRunning` (dorf1) / `.heroState i.statusRunning` + `span.timerReact` (adventures).
 - **NPC trade:** officiell knapp `button.exchange[value="Exchange resources"]` → dialog (`#npc`,
   `name="desired0..3"`, `button[value="Distribute remaining resources."]`, `#npc_market_button`).
@@ -93,8 +76,7 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   `config/accounts/<account>/settings.json` och läsas som overlay ovanpå `bot.json`.
 - **Kontobyte = full reset** — inget från gamla kontot ska ligga kvar laddat/cachat.
 - Bygg: `dotnet build TbotUltra.sln`. Test: `dotnet test src/TbotUltra.Worker.Tests/...` (+ Desktop.Tests).
-- Diagnostik: `[flavor]`-raden vid login visar `ServerFlavor`/`IsPrivateServer`/`baseUrl`
-  (döljs i Clean-loggläge).
+- Diagnostik ska logga server/baseUrl utan att återinföra servervariant-switchar.
 
 ---
 
@@ -140,7 +122,7 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   skapas via `#createFarmListForm`, verifieras i renderad DOM och sidan refreshas innan ett nytt försök
   om namnet inte syns. Körningen är sekventiell och popupens loading kan avbrytas.
 
-- **2026-06-09** — **Add Farms använder Travco-källor på Official och Natars endast på SS-Travi.**
+- **2026-06-09** — **Add Farms använder Travco-källor på Official.**
   Official-dialogen väljer en sparad Travco-lista och en eller flera mål-farmlistor samt stödjer antal, distance-/population-
   sortering, populationströskel, maximal distance och dubblettfilter. Analyze expanderar Official-listorna,
   läser koordinater från samtliga renderade slots och sparar dem i farmlist-snapshoten för jämförelse.
@@ -159,7 +141,7 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   Officiell Rally Point-farmlist använder `build.php?id=39&gid=16&tt=99` och renderar listor som
   `#rallyPointFarmList .farmListWrapper`. Namn och list-ID läses från `.farmListName .name` respektive
   `[data-list]`; antal läses från Start-knappen och Add target-kapaciteten, som finns kvar även när listan
-  är kollapsad. Listorna expanderas endast när koordinater ska läsas. SS/legacy-parsern behålls som fallback.
+  är kollapsad. Listorna expanderas endast när koordinater ska läsas.
 
 - **2026-06-08** — **Travco inactive search använder en separat tab och JsonElement-baserad DOM-läsning.**
   Official-only-flödet återanvänder den synliga browser-contexten. Popupen väljer by, dagar och sortering;
@@ -320,12 +302,10 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   countdownen. Icke-blockerande, loggas en gång (ej spam). Per resurs, inte totalt. Tog bort "Hero
   inventory updated."-texten.
 
-- **2026-06-01** — Officiell-server-stöd byggs som **lager i ett repo** med flavor-flagga,
-  **inte** en fork eller `IServerAdapter`-refaktor. Skäl: undvik dubbel-underhåll (~80 % delad kod).
-- **2026-06-01** — `ServerFlavor` är en **computed property från `BaseUrl`**, aldrig config-bunden.
-  Skäl: config-bindning gjorde att en stale `server_flavor` feltolkade SS som Official.
-- **2026-06-01** — Behåll SS-selektor-fallbacks även om SS fasas ut (inerta/ofarliga på officiell);
-  ta hellre bort **Natar-featuren** + tagga en `ss-stable`-punkt än att rensa spridda selektorer.
+- **2026-06-01** — Officiell-server-stöd byggdes först som lager i ett repo. Senare beslut:
+  runtime-stödet ska vara Official-only och gamla servervariant-switchar ska inte tillbaka.
+- **2026-06-01** — En gammal `server_flavor`-confignyckel får rensas vid load, men ska inte binda
+  runtime-beteende eller återinföras i `BotOptions`.
 - **2026-06-01** — `Tribe` är stabil per konto/server och får seedas från account analysis-cache.
   `GoldClubEnabled` får bara latched-cachas när det är `true`; `false` ska kunna omprövas.
 - **2026-06-02** — Hero-resurstransfer vid resursbrist (official-only, opt-in `HeroResourceTransferEnabled`,
@@ -362,8 +342,8 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   (`AutoCollectDailyQuestsEnabled`, default OFF). The 16s dashboard refresh checks the current page for
   `a.dailyQuests .indicator` with `!`, queues `collect_daily_quests`, opens the React dialog, clicks
   `collectRewards`, collects clickable `button.collect.collectable` rewards, then closes the dialog.
-- **2026-06-02** — Hero attribute priority default is flavor-aware: official servers default to
-  `resources,fighting_strength,offence_bonus,defence_bonus`; SS/legacy keeps the old combat-first order.
+- **2026-06-02** — Hero attribute priority default is
+  `resources,fighting_strength,offence_bonus,defence_bonus`.
   `hero_stat_priority` is account-scoped, so explicit user reordering is preserved per account.
 - **2026-06-03** — Hero resource-transfer dialog resyncs hero inventory cache from the dialog's live
   `.count` values before clicking "Transfer selected", then deducts the transferred amounts after confirm.
@@ -390,8 +370,8 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   `/logout.php`. Additivt tillagt: `a[onclick*='auth/logout']`, `a.layoutButton.logout`, `a.logout[onclick]`.
   Kontrollen är dessutom ofta **gömd bakom en meny** → en vanlig `ClickAsync` faller på actionability och
   timeoutar (15s × retries). Därför **dispatch:as klick-eventet** (`DispatchEventAsync(selector, "click")`)
-  i `TryTriggerLogoutAsync`, vilket kör elementets egen `onclick`/navigering utan att vänta på synlighet
-  (funkar även för SS href-länkar). Utloggning bekräftas **positivt** via `WaitForLoggedOutAsync` (väntar
+  i `TryTriggerLogoutAsync`, vilket kör elementets egen `onclick`/navigering utan att vänta på synlighet.
+  Utloggning bekräftas **positivt** via `WaitForLoggedOutAsync` (väntar
   in login-scenen: `#loginScene`/`body.login`/lösenordsfält) i stället för "frånvaro av inloggad-markörer"
   — en sida som fortfarande renderar lästes annars som falsk utloggning.
 
@@ -1007,8 +987,8 @@ ur **samma kodbas**, valt vid körning av `ServerFlavor`-flaggan.
   + `WaitForAttributesTableAsync` använde gamla selektorer (`#availablePoints`, row-id `attributepower`,
   `input[name^="attribute"]`, `#attributesOfHero`, `.heroStatusMessage`) som inte finns på den moderna
   hero V2-attributsidan → allt blev 0. Nu läses modern layout först: free points `.pointsAvailable`,
-  attribut via `input[name="power|offBonus|defBonus|productionPoints"]`, status via `.heroState`; legacy-
-  selektorerna kvar som fallback (SS-Travi). `readDigit` strippar bidi-märken/tusentalsavgränsare.
+  attribut via `input[name="power|offBonus|defBonus|productionPoints"]`, status via `.heroState`.
+  `readDigit` strippar bidi-märken/tusentalsavgränsare.
   **Ordning vid login:** hero-attribut-analysen (`RefreshHeroStatsAsync`, styrd av *Post-login: analyze
   hero*) körs redan EFTER hero-inventory-läsningen (inventory läses i post-login-snapshoten, attribut i
   steg 4) — ingen ändring behövdes. Worker 324 gröna; Desktop-exe copy-lock när appen kör = ej kompfel.

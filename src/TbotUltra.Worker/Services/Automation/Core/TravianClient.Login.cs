@@ -216,7 +216,7 @@ public sealed partial class TravianClient : ISessionClient
     // Triggers the logout control. The official T4.6 control is an <a> with only an onclick
     // (Travian.api('auth/logout')) and is often hidden behind a menu, so a normal actionability-gated
     // click times out. Dispatching the click event runs the element's own handler/navigation directly,
-    // without waiting for visibility/stability — which also works for the SS/legacy href-based links.
+    // without waiting for visibility/stability.
     private async Task<bool> TryTriggerLogoutAsync(CancellationToken cancellationToken)
     {
         foreach (var selector in Selectors.LogoutTriggers)

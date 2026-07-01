@@ -101,7 +101,7 @@ public sealed partial class TravianClient
         public static readonly string[] LogoutTriggers =
         {
             // Official T4.6: the logout control is an <a> with no href and only an SVG icon — it fires
-            // Travian.api('auth/logout') via onclick. Match it by the onclick/class (SS keeps href-based ones below).
+            // Travian.api('auth/logout') via onclick. Match it by the onclick/class first.
             "a[onclick*='auth/logout']",
             "a.layoutButton.logout",
             "a.logout[onclick]",

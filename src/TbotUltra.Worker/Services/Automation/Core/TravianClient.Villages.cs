@@ -448,7 +448,7 @@ public sealed partial class TravianClient
                     }
                   }
 
-                  // Legacy/SS or other layouts: static anchors carrying newdid in the href.
+                  // Fallback layouts: static anchors carrying newdid in the href.
                   const candidates = [
                     ...document.querySelectorAll('a.village-name'),
                     ...document.querySelectorAll('#sidebarBoxVillagelist a[href*="newdid"]'),
@@ -1000,7 +1000,7 @@ public sealed partial class TravianClient
                     const villageHref = resolveVillageHref(row, nameAnchor?.getAttribute('href') || '');
                     // Prefer the actual coordinate link (karte.php?x=..&y=..) over the village-name
                     // link, which on official Travian also points at karte.php but only carries ?d=<did>.
-                    // Official uses td.coordinates; SS uses td.coords.
+                    // Official uses td.coordinates; td.coords remains a tolerated fallback.
                     const coordAnchor =
                       row.querySelector('td.coordinates a[href*="x="], a[href*="karte.php?x="], a[href*="x="][href*="y="]')
                       || row.querySelector('td.coords a[href*="karte.php"], a[href*="karte.php"]');
@@ -1029,8 +1029,8 @@ public sealed partial class TravianClient
                     const cropMatch = rowText.match(/\b(\d{1,2})\s*c\b/i) || name.match(/\b(\d{1,2})\s*c\b/i);
                     const cropFields = cropMatch ? Number.parseInt(cropMatch[1], 10) : null;
 
-                    // SS marks the capital with span.mainVillage; official Travian uses
-                    // span.additionalInfo with the text "(Capital)" in the name cell.
+                    // Official Travian uses span.additionalInfo with the text "(Capital)" in the
+                    // name cell; older capital markers remain tolerated fallbacks.
                     const isCapital = !!row.querySelector('span.mainVillage, td.isCapital, .capital')
                       || Array.from(row.querySelectorAll('span.additionalInfo')).some(node => /\bcapital\b/i.test(node.textContent || ''));
                     const key = `${name}|${coord.x ?? ''}|${coord.y ?? ''}`;

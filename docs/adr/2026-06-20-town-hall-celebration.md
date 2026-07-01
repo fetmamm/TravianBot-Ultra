@@ -13,6 +13,6 @@
 ## Selectorstatus
 
 - Small-start path ar implementerad med scoped `.build_details`-logik: small-celebration-rad + `.act` action.
-- Live-DOM verifiering pa Official och SS-Travi kunde inte goras i denna implementation och maste goras innan
+- Live-DOM verifiering pa Official kunde inte goras i denna implementation och maste goras innan
   selektorn betraktas som bekraftad.
 - Big-start-selector ar avsiktligt ej implementerad tills en Town Hall level 10 finns att verifiera mot.
