@@ -412,7 +412,7 @@ public partial class MainWindow : Window
         // queue file. Runs before the store is used so the recover/clear logic below sees the migrated items.
         QueueMigration.MigrateLegacyGlobalQueue(_projectRoot, _accountStore.ActiveAccountName(), AppendLog);
         // The queue is now per account; the store resolves the active account's queue.json per operation.
-        var queueStore = new JsonQueueStore(() => AccountStoragePaths.AccountQueuePath(_projectRoot, _accountStore.ActiveAccountName()));
+        var queueStore = new JsonQueueStore(() => AccountStoragePaths.AccountQueuePath(_projectRoot, _accountStore.ActiveAccountName()), AppendLog);
         _accountDeletionService = new AccountDeletionService(_projectRoot, _accountStore, _botConfigStore, queueStore);
         var queueScheduler = new PriorityFifoQueueScheduler();
         var queueExecutor = new QueueExecutor(taskRunner);

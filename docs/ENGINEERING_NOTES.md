@@ -87,6 +87,11 @@ document.querySelector('.warehouse .capacity .value')
 - All ko- och slotbaserad UI-harledning filtreras till vald by eller uttryckligen globala items.
 - Settings-fonstret far inte skriva konto-scopeade overlay-varden tillbaka till global config.
 - Config-/cache-stores skriver via `AtomicFile.WriteAllText` (temp-fil + `File.Move`); nya stores ska folja samma monster.
+- All fil-IO under OneDrive-synkade Documents ska retry:a bade `IOException` och `UnauthorizedAccessException`
+  (transient ERROR_ACCESS_DENIED fran OneDrive/antivirus). Finns i `AtomicFile.RetryFileIo`,
+  `JsonQueueStore.RetryFileIo` och `BrowserSession.ReplaceStorageStateWithRetryAsync`.
+- Korrupt `queue.json` kastas inte langre for evigt: `JsonQueueStore.LoadMutable` karantaniserar filen
+  (`queue.json.corrupt-<stamp>`), loggar och fortsatter med tom ko.
 
 For en ny dashboard-bool ska hela configkedjan uppdateras:
 `BotOptionPayloadKeys` -> `BotOptions` -> `BotOptionsFactory` ->

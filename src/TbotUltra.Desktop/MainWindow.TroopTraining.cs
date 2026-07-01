@@ -543,15 +543,24 @@ public partial class MainWindow
 
     private async Task RefreshBreweryCelebrationStatusAsync(BotOptions options, VillageStatus? status, CancellationToken cancellationToken)
     {
+        // This method runs on background threads too (queue-loop refreshes), so all viewmodel/UI
+        // updates must go through the dispatcher — direct calls threw
+        // "The calling thread cannot access this object because a different thread owns it".
         if (status is null)
         {
-            _troopTrainingViewModel.ResetBreweryCelebrationStatus();
-            UpdateAutomationLoopRunningIndicators();
+            await Dispatcher.InvokeAsync(() =>
+            {
+                _troopTrainingViewModel.ResetBreweryCelebrationStatus();
+                UpdateAutomationLoopRunningIndicators();
+            });
             return;
         }
 
-        ApplyLocalBreweryCelebrationStatus(status);
-        UpdateAutomationLoopRunningIndicators();
+        await Dispatcher.InvokeAsync(() =>
+        {
+            ApplyLocalBreweryCelebrationStatus(status);
+            UpdateAutomationLoopRunningIndicators();
+        });
 
         // Bail only when we can be certain a remote read is pointless.
         // Crucially, do NOT skip just because the local buildings scan missed gid=35 —
