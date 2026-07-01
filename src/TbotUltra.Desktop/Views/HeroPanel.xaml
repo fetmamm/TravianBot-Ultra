@@ -78,9 +78,6 @@
                                     <CheckBox Content="Auto revive" IsChecked="{Binding AutoRevive}" Margin="0,0,0,6" />
                                     <CheckBox Content="Auto assign attribute points" IsChecked="{Binding AutoAssignPoints}" Margin="0,0,0,6" />
                                     <CheckBox Content="Auto use ointments" IsChecked="{Binding AutoUseOintments}" Margin="0,0,0,6" />
-                                    <CheckBox Content="Manage hero defence"
-                                              IsChecked="{Binding HideModeControlEnabled}"
-                                              Margin="0,0,0,6" />
                                     <CheckBox Content="Increase adventures to hard"
                                               IsChecked="{Binding IncreaseAdventuresToHard}"
                                               Margin="0,0,0,6"
@@ -170,12 +167,7 @@
                         </Border>
                     </Grid>
                     <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="12" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0">
+                        <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                                 <TextBlock Text="Adventure pick order"
                                            Foreground="{DynamicResource TextSecondaryBrush}"
@@ -225,73 +217,6 @@
                                     <RadioButton Content="Top adventure first"
                                                  GroupName="HeroAdventureOrder"
                                                  IsChecked="{Binding IsAdventurePickTop}" />
-                                </StackPanel>
-                            </Border>
-                        </StackPanel>
-                        <StackPanel Grid.Column="2">
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                <TextBlock Text="Hero defense"
-                                           Foreground="{DynamicResource TextSecondaryBrush}"
-                                           FontSize="12"
-                                           FontWeight="SemiBold"
-                                           VerticalAlignment="Center" />
-                                <Border Width="14"
-                                        Height="14"
-                                        Margin="6,0,0,0"
-                                        CornerRadius="7"
-                                        Background="{DynamicResource ControlBackgroundBrush}"
-                                        BorderBrush="{DynamicResource BorderBrush}"
-                                        BorderThickness="1"
-                                        VerticalAlignment="Center"
-                                        ToolTipService.InitialShowDelay="0">
-                                    <Border.ToolTip>
-                                        <ToolTip MaxWidth="340">
-                                            <StackPanel Width="300">
-                                                <TextBlock Text="Hero defense"
-                                                           FontWeight="SemiBold"
-                                                           Foreground="{DynamicResource TooltipForegroundBrush}"
-                                                           Margin="0,0,0,6" />
-                                                <TextBlock TextWrapping="Wrap"
-                                                           Text="Controls whether the hero hides during an attack on the home village or stays and fights with the troops." />
-                                            </StackPanel>
-                                        </ToolTip>
-                                    </Border.ToolTip>
-                                    <TextBlock Text="i"
-                                               FontSize="10"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextMutedBrush}"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center"
-                                               TextAlignment="Center" />
-                                </Border>
-                            </StackPanel>
-                            <Border BorderBrush="{DynamicResource BorderSubtleBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="6"
-                                    Padding="10"
-                                    Opacity="1">
-                                <Border.Style>
-                                    <Style TargetType="Border">
-                                        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HideModeControlEnabled}" Value="False">
-                                                <Setter Property="Background" Value="{DynamicResource AppBackgroundBrush}" />
-                                                <Setter Property="Opacity" Value="0.62" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Border.Style>
-                                <StackPanel Orientation="Vertical"
-                                            IsEnabled="{Binding HideModeControlEnabled}">
-                                    <RadioButton Content="Hero will hide during an attack on their home village."
-                                                 GroupName="HeroHideMode"
-                                                 IsChecked="{Binding IsHideModeHide}"
-                                                 Margin="0,0,0,4"
-                                                 Checked="HeroHideModeRadio_Checked" />
-                                    <RadioButton Content="Your hero will stay with the troops."
-                                                 GroupName="HeroHideMode"
-                                                 IsChecked="{Binding IsHideModeFight}"
-                                                 Checked="HeroHideModeRadio_Checked" />
                                 </StackPanel>
                             </Border>
                         </StackPanel>

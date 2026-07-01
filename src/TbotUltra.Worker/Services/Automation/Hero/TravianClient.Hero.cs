@@ -1098,8 +1098,6 @@ public sealed partial class TravianClient : IHeroClient
         bool autoUseOintments,
         string statPriority,
         string adventurePickOrder = "shortest",
-        bool hideModeEnabled = false,
-        string hideMode = "hide",
         int heroHpRegenPerDayPercent = 100,
         CancellationToken cancellationToken = default)
     {
@@ -1407,7 +1405,7 @@ public sealed partial class TravianClient : IHeroClient
             cancellationToken);
         var adventureCount = TryResolveAdventureCount(quick);
         var cachedSnapshot = TryGetCachedHeroAttributeSnapshot();
-        if (cachedSnapshot is not null && !quick.HasUnassignedPointsSignal && !string.IsNullOrWhiteSpace(cachedSnapshot.HideMode))
+        if (cachedSnapshot is not null && !quick.HasUnassignedPointsSignal)
         {
             Notify("Hero attribute snapshot served from cache.");
             return cachedSnapshot with { AdventureCount = adventureCount };
@@ -1441,7 +1439,7 @@ public sealed partial class TravianClient : IHeroClient
 
         SaveCachedHeroAttributeSnapshot(snapshot);
         Notify(
-            $"Hero inventory snapshot: free points={snapshot.FreePoints}, fighting strength={snapshot.FightingStrength}, offence bonus={snapshot.OffenceBonus}, defence bonus={snapshot.DefenceBonus}, resources={snapshot.Resources}, adventures={(snapshot.AdventureCount?.ToString() ?? "?")}, hideMode={snapshot.HideMode ?? "?"}.");
+            $"Hero inventory snapshot: free points={snapshot.FreePoints}, fighting strength={snapshot.FightingStrength}, offence bonus={snapshot.OffenceBonus}, defence bonus={snapshot.DefenceBonus}, resources={snapshot.Resources}, adventures={(snapshot.AdventureCount?.ToString() ?? "?")}.");
         return snapshot;
     }
 
@@ -2334,8 +2332,6 @@ public sealed partial class TravianClient : IHeroClient
                     const reviveTimer = reviveTimerNode?.getAttribute?.('value')
                       ? Number(reviveTimerNode.getAttribute('value'))
                       : parseTimer(reviveTimerNode?.textContent || '');
-                    const hideSwitch = document.querySelector('.heroHideSwitch input[name="attackBehaviour"], input[name="attackBehaviour"][value="hide"]');
-
                     return JSON.stringify({
                       ok: true,
                       levelUpAvailable: !!document.querySelector('.bigSpeechBubble.levelUp'),
@@ -2345,8 +2341,7 @@ public sealed partial class TravianClient : IHeroClient
                       defenceBonus: attrPoints('defBonus', 'attributedefBonus'),
                       resources: attrPoints('productionPoints', 'attributeproductionPoints'),
                       heroState: reviving ? 'Reviving' : dead ? 'Dead' : 'Alive',
-                      reviveRemainingSeconds: Number.isFinite(reviveTimer) ? Math.max(0, Math.trunc(reviveTimer)) : null,
-                      hideMode: hideSwitch ? (hideSwitch.checked ? 'hide' : 'fight') : null
+                      reviveRemainingSeconds: Number.isFinite(reviveTimer) ? Math.max(0, Math.trunc(reviveTimer)) : null
                     });
                   } catch (e) {
                     return JSON.stringify({ ok: false, error: String(e && e.message || e) });
@@ -2370,67 +2365,6 @@ public sealed partial class TravianClient : IHeroClient
         // Without this, every field silently deserializes to its default (0/false).
         return JsonSerializer.Deserialize<HeroAttributeSnapshot>(rawJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
             ?? new HeroAttributeSnapshot();
-    }
-
-    public async Task<string> SetHeroHideModeOnlyAsync(string hideMode, CancellationToken cancellationToken = default)
-    {
-        Notify($"[hero] set hide mode — requested='{hideMode}'");
-        var desired = string.Equals(hideMode, "fight", StringComparison.OrdinalIgnoreCase) ? "fight" : "hide";
-        var changed = await ApplyOfficialHeroHideModeAsync(desired, cancellationToken);
-        return changed
-            ? $"Hero hide mode applied: {desired}."
-            : $"Hero hide mode already '{desired}' — no change.";
-    }
-
-    private async Task<bool> ApplyOfficialHeroHideModeAsync(string desired, CancellationToken cancellationToken)
-    {
-        await GotoAsync(HeroAttributesPath, cancellationToken);
-        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening hero attributes.", cancellationToken);
-        await EnsureLoggedInAsync();
-
-        try
-        {
-            await _page.WaitForFunctionAsync(
-                """
-                () => !!document.querySelector('.heroHideSwitch input[name="attackBehaviour"], input[name="attackBehaviour"][value="hide"]')
-                """,
-                null,
-                new PageWaitForFunctionOptions { Timeout = 5000 }).WaitAsync(cancellationToken);
-        }
-        catch (TimeoutException)
-        {
-            Notify("Hero hide mode switch not found on official attributes page.");
-            return false;
-        }
-        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
-        {
-            Notify($"Hero hide mode switch read hit transient navigation context: {ex.Message}");
-            return false;
-        }
-
-        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
-        var changed = await _page.EvaluateAsync<bool>(
-            """
-            (desired) => {
-              const checkbox = document.querySelector('.heroHideSwitch input[name="attackBehaviour"], input[name="attackBehaviour"][value="hide"]');
-              if (!checkbox) return false;
-              const shouldHide = (desired || '').toLowerCase() !== 'fight';
-              if (!!checkbox.checked === shouldHide) return false;
-              checkbox.click();
-              checkbox.dispatchEvent(new Event('change', { bubbles: true }));
-              return true;
-            }
-            """,
-            desired);
-
-        if (changed)
-        {
-            await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-            Notify($"Hero hide mode set to '{desired}' on official attributes page.");
-        }
-
-        return changed;
     }
 
     private string BuildHeroAttributeSnapshotCacheKey()

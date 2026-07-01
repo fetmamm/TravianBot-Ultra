@@ -15,7 +15,7 @@ namespace TbotUltra.Desktop;
 /// Hero / Adventures host-side logic. After 3b5 the Hero TabItem is rendered
 /// by <see cref="Views.HeroPanel"/>; this partial holds the methods that
 /// panel calls back into for service-bound work (refresh stats, refresh
-/// adventures, queue adventure, hide-mode push) plus the
+/// adventures, queue adventure) plus the
 /// host-only helpers (priority persist, blocked-state interplay) that need
 /// access to MainWindow's private state.
 ///
@@ -71,8 +71,8 @@ public partial class MainWindow
             config[BotOptionPayloadKeys.HeroAutoUseOintments] = _heroViewModel.AutoUseOintments;
             config[BotOptionPayloadKeys.HeroStatPriority] = _heroViewModel.BuildPriorityPayload();
             config[BotOptionPayloadKeys.HeroAdventurePickOrder] = _heroViewModel.AdventurePickOrder;
-            config[BotOptionPayloadKeys.HeroHideModeEnabled] = _heroViewModel.HideModeControlEnabled;
-            config[BotOptionPayloadKeys.HeroHideMode] = _heroViewModel.HideMode;
+            config.Remove("hero_hide_mode_enabled");
+            config.Remove("hero_hide_mode");
             config[BotOptionPayloadKeys.HeroContinuousAdventures] = _heroViewModel.ContinuousAdventures;
             config[BotOptionPayloadKeys.IncreaseAdventuresToHard] = _heroViewModel.IncreaseAdventuresToHard;
             config[BotOptionPayloadKeys.ReduceAdventureTime] = _heroViewModel.ReduceAdventureTime;
@@ -113,7 +113,6 @@ public partial class MainWindow
     private void ApplyHeroSnapshotToUi(HeroAttributeSnapshot snapshot, string? adventureStatusText = null)
     {
         _heroViewModel.ApplyAttributeSnapshot(snapshot);
-        ApplyHeroHideModeSnapshotToUi(snapshot.HideMode);
         var heroReviving = string.Equals(snapshot.HeroState, "Reviving", StringComparison.OrdinalIgnoreCase);
         var heroDead = string.Equals(snapshot.HeroState, "Dead", StringComparison.OrdinalIgnoreCase);
         // SetHeroState keeps the last-known home village when the name is null (hero away/dead pages may not
@@ -127,40 +126,6 @@ public partial class MainWindow
         if (!string.IsNullOrWhiteSpace(adventureStatusText))
         {
             _heroViewModel.AdventureStatusText = adventureStatusText;
-        }
-    }
-
-    private void ApplyHeroHideModeSnapshotToUi(string? hideMode)
-    {
-        if (string.IsNullOrWhiteSpace(hideMode))
-        {
-            return;
-        }
-
-        var normalized = string.Equals(hideMode, "fight", StringComparison.OrdinalIgnoreCase) ? "fight" : "hide";
-        if (string.Equals(_heroViewModel.HideMode, normalized, StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
-        _suppressHeroHideModeApply = true;
-        try
-        {
-            if (string.Equals(normalized, "fight", StringComparison.OrdinalIgnoreCase))
-            {
-                _heroViewModel.IsHideModeFight = true;
-            }
-            else
-            {
-                _heroViewModel.IsHideModeHide = true;
-            }
-
-            PersistHeroSettingsToConfig();
-            AppendLog($"Hero hide mode synced from Travian: {normalized}.");
-        }
-        finally
-        {
-            _suppressHeroHideModeApply = false;
         }
     }
 
@@ -201,31 +166,6 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// Pushes the current hide-mode (read from <see cref="_heroViewModel"/>)
-    /// to the worker as a <c>hero_set_hide_mode</c> task. The
-    /// <see cref="_suppressHeroHideModeApply"/> guard prevents the call
-    /// while LoadConfigToUi is replaying persisted state into the bound
-    /// radio buttons.
-    /// </summary>
-    internal void OnHeroHideModeChanged()
-    {
-        if (_suppressHeroHideModeApply || !IsLoaded)
-        {
-            return;
-        }
-
-        PersistHeroSettingsToConfig();
-        if (!_heroViewModel.HideModeControlEnabled)
-        {
-            return;
-        }
-
-        var mode = _heroViewModel.HideMode;
-        var payload = new HeroPayload(HideModeEnabled: true, HideMode: mode).ToDictionary();
-        EnqueueQuickTask("hero_set_hide_mode", $"Set hero hide mode to '{mode}'", payload);
-    }
-
-    /// <summary>
     /// Validates form input and queues one or more
     /// <c>hero_manage</c> task(s). Called by the panel's Hero-adventure
     /// button.
@@ -245,9 +185,7 @@ public partial class MainWindow
             AutoAssignPoints: _heroViewModel.AutoAssignPoints,
             AutoUseOintments: _heroViewModel.AutoUseOintments,
             StatPriority: _heroViewModel.BuildPriorityPayload(),
-            AdventurePickOrder: _heroViewModel.AdventurePickOrder,
-            HideModeEnabled: _heroViewModel.HideModeControlEnabled,
-            HideMode: _heroViewModel.HideMode).ToDictionary();
+            AdventurePickOrder: _heroViewModel.AdventurePickOrder).ToDictionary();
 
         var continuous = _heroViewModel.ContinuousAdventures;
         var copies = 1;

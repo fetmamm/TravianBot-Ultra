@@ -176,7 +176,6 @@ public partial class MainWindow : Window
     private readonly HashSet<int> _buildingDemolishingSlots = new();
     private static readonly IReadOnlyDictionary<int, (double Left, double Top)> BuildingSlotLayoutById = BuildingsViewModel.CreateBuildingSlotLayout();
 
-    private bool _suppressHeroHideModeApply;
     private Task? _loopTask;
     private bool _chromiumEnsured;
     private bool _updateCheckRunning;
@@ -660,15 +659,7 @@ public partial class MainWindow : Window
         EnsureAutoCelebrationEnabledForBreweryGroup();
         _lastAutoCelebrationEnabledForChangeTracking = _troopTrainingViewModel.AutoCelebrationEnabled;
         _troopTrainingViewModel.InfoText = "Configure troop building rules and refresh queues when needed.";
-        _suppressHeroHideModeApply = true;
-        try
-        {
-            _heroViewModel.LoadSettingsFromConfig(options);
-        }
-        finally
-        {
-            _suppressHeroHideModeApply = false;
-        }
+        _heroViewModel.LoadSettingsFromConfig(options);
 
         _resourcesViewModel.LoadSettingsFromConfig(options);
         ApplyResourceTransferConfigToUi(options);
@@ -1284,11 +1275,6 @@ public partial class MainWindow : Window
 
     private void HeroViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (_suppressHeroHideModeApply)
-        {
-            return;
-        }
-
         if (e.PropertyName is not (
             nameof(HeroViewModel.MinHpForAdventure)
             or nameof(HeroViewModel.HeroHpRegenPerDayPercent)
@@ -1297,9 +1283,6 @@ public partial class MainWindow : Window
             or nameof(HeroViewModel.AutoUseOintments)
             or nameof(HeroViewModel.IsAdventurePickTop)
             or nameof(HeroViewModel.IsAdventurePickShortest)
-            or nameof(HeroViewModel.HideModeControlEnabled)
-            or nameof(HeroViewModel.IsHideModeFight)
-            or nameof(HeroViewModel.IsHideModeHide)
             or nameof(HeroViewModel.ContinuousAdventures)
             or nameof(HeroViewModel.IncreaseAdventuresToHard)
             or nameof(HeroViewModel.ReduceAdventureTime)))

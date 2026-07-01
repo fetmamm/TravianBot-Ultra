@@ -45,8 +45,6 @@ public sealed partial class BotTaskRunner
             ["hero_manage"] = ExecuteHeroManageAsync,
             // Spends available hero attribute points using the configured stat priority.
             ["spend_hero_attribute_points"] = ExecuteSpendHeroAttributePointsAsync,
-            // Opens the hero attributes tab and sets the Hide hero / stay-with-troops radio.
-            ["hero_set_hide_mode"] = ExecuteHeroSetHideModeAsync,
             // Walks through the Smithy and clicks every "Upgrade" button until none remain.
             ["upgrade_troops_at_smithy"] = ExecuteUpgradeTroopsAtSmithyAsync,
             // Builds troops from Barracks, Stable, or Workshop based on configured rules.

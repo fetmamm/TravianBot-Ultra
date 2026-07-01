@@ -144,7 +144,6 @@ public sealed record HeroAttributeSnapshot(
     int? AdventureCount = null,
     string HeroState = "Unknown",
     int? ReviveRemainingSeconds = null,
-    string? HideMode = null,
     // The hero's home village name, read from the attributes page ("Home village is village X").
     // Null when not found. Used by the dashboard to mark which village hosts the hero.
     string? HomeVillageName = null,
