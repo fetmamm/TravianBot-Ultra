@@ -476,27 +476,81 @@ public partial class MainWindow
                 .ToList();
             if (CanRunReinforcements(options, out _))
             {
-                var payload = new ReinforcementsPayload(
-                    Enabled: true,
-                    TargetVillageName: options.ReinforcementsTargetVillageName,
-                    SourceVillageNames: selectedSources,
-                    TroopRules: BuildReinforcementRulesForRun()).ToDictionary();
-                payload[BotOptionPayloadKeys.ReinforcementsSendIntervalHours] = options.ReinforcementsSendIntervalHours.ToString();
-                payload[BotOptionPayloadKeys.ReinforcementsSendVariationPercent] = options.ReinforcementsSendVariationPercent.ToString();
-
+                var payload = BuildAutomaticReinforcementPayload(options, selectedSources);
                 var delay = ResolveReinforcementAutomaticSendDelay(options, queueItems);
-                var item = _botService.EnqueueRuntime("send_reinforcements_between_villages", "Reinforcements", payload, priority: -50, maxRetries: 0);
-                if (delay > TimeSpan.Zero && _botService.UpdateDeferredQueueItem(item.Id, payload, delay))
-                {
-                    var variationLabel = options.ReinforcementsSendVariationPercent <= 0
-                        ? "No variation"
-                        : $"{options.ReinforcementsSendVariationPercent}%";
-                    AppendLog(
-                        $"Reinforcements: next automatic send scheduled in {FormatCountdown((int)Math.Ceiling(delay.TotalSeconds))} "
-                        + $"(interval={options.ReinforcementsSendIntervalHours}h, variation={variationLabel}).");
-                }
+                ScheduleAutomaticReinforcementSend(payload, delay, options);
             }
         }
+    }
+
+    private Dictionary<string, string> BuildAutomaticReinforcementPayload(BotOptions options, IReadOnlyList<string> selectedSources)
+    {
+        var payload = new ReinforcementsPayload(
+            Enabled: true,
+            TargetVillageName: options.ReinforcementsTargetVillageName,
+            SourceVillageNames: selectedSources,
+            TroopRules: BuildReinforcementRulesForRun()).ToDictionary();
+        payload[BotOptionPayloadKeys.ReinforcementsSendIntervalHours] = options.ReinforcementsSendIntervalHours.ToString();
+        payload[BotOptionPayloadKeys.ReinforcementsSendVariationPercent] = options.ReinforcementsSendVariationPercent.ToString();
+        return payload;
+    }
+
+    private TimeSpan CalculateNextReinforcementAutomaticSendDelay(BotOptions options)
+    {
+        var intervalHours = ReinforcementSendDefaults.NormalizeIntervalHours(options.ReinforcementsSendIntervalHours);
+        var variationPercent = ReinforcementSendDefaults.NormalizeVariationPercent(options.ReinforcementsSendVariationPercent);
+        return ReinforcementSendDefaults.CalculateSendDelay(intervalHours, variationPercent);
+    }
+
+    private bool ScheduleAutomaticReinforcementSend(Dictionary<string, string> payload, TimeSpan delay, BotOptions options)
+    {
+        var item = _botService.EnqueueRuntime("send_reinforcements_between_villages", "Reinforcements", payload, priority: -50, maxRetries: 0);
+        if (delay <= TimeSpan.Zero)
+        {
+            return true;
+        }
+
+        if (!_botService.UpdateDeferredQueueItem(item.Id, payload, delay))
+        {
+            _botService.RemoveQueueItem(item.Id);
+            AppendLog("Reinforcements: failed to schedule next automatic send.");
+            return false;
+        }
+
+        var variationLabel = options.ReinforcementsSendVariationPercent <= 0
+            ? "No variation"
+            : $"{options.ReinforcementsSendVariationPercent}%";
+        AppendLog(
+            $"Reinforcements: next automatic send scheduled in {FormatCountdown((int)Math.Ceiling(delay.TotalSeconds))} "
+            + $"(interval={options.ReinforcementsSendIntervalHours}h, variation={variationLabel}).");
+        RequestQueueUiRefresh();
+        return true;
+    }
+
+    private void ScheduleNextReinforcementSendAfterSuccess(BotOptions options)
+    {
+        if (!GetContinuousLoopEnabledGroupsInOrder().Contains(QueueGroup.Reinforcements)
+            || !CanRunReinforcements(options, out _))
+        {
+            return;
+        }
+
+        var hasActiveReinforcementItem = _botService.GetQueueItemsForDisplay()
+            .Any(item =>
+                string.Equals(item.TaskName, "send_reinforcements_between_villages", StringComparison.OrdinalIgnoreCase)
+                && item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused);
+        if (hasActiveReinforcementItem)
+        {
+            return;
+        }
+
+        var selectedSources = options.ReinforcementsSourceVillageNames
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Where(name => !string.Equals(name, options.ReinforcementsTargetVillageName, StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var payload = BuildAutomaticReinforcementPayload(options, selectedSources);
+        ScheduleAutomaticReinforcementSend(payload, CalculateNextReinforcementAutomaticSendDelay(options), options);
     }
 
     private static TimeSpan ResolveReinforcementAutomaticSendDelay(BotOptions options, IReadOnlyList<QueueItem> queueItems)

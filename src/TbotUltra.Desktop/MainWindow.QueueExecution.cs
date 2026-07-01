@@ -201,6 +201,10 @@ public partial class MainWindow
                 AppendLog($"Brewery celebration refresh after run failed: {ex.Message}");
             }
         }
+        else if (string.Equals(item.TaskName, "send_reinforcements_between_villages", StringComparison.OrdinalIgnoreCase))
+        {
+            ScheduleNextReinforcementSendAfterSuccess(options);
+        }
 
         return fullConstructionRefreshDone;
     }
