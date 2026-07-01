@@ -1414,7 +1414,7 @@ public partial class MainWindow : Window
         _buildQueueRemainingSeconds = constructionTimer.RemainingSeconds ?? -1;
         _buildQueueReachedZeroPendingCompletion = false;
         ApplyTroopsAvailabilityFromVillageStatus(status);
-        _troopTrainingViewModel.ApplyStatus(status, status.TroopTrainingQueues ?? _lastBuildingStatus?.TroopTrainingQueues);
+        _troopTrainingViewModel.ApplyStatus(status, ResolveTroopTrainingQueuesForStatus(status));
         if (status.SmithyUpgradeStatus is not null)
         {
             ApplySmithyUpgradeStatus(status.SmithyUpgradeStatus);

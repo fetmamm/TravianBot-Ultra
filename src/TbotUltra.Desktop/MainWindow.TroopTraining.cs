@@ -969,6 +969,33 @@ public partial class MainWindow
         _troopTrainingViewModel.ApplyVillageTrainingPayload(payload);
     }
 
+    private IReadOnlyList<TroopTrainingQueueStatus>? ResolveTroopTrainingQueuesForStatus(VillageStatus status)
+    {
+        if (status.TroopTrainingQueues is not null)
+        {
+            return status.TroopTrainingQueues;
+        }
+
+        var statusName = NormalizeVillageName(status.ActiveVillage);
+        if (statusName is null)
+        {
+            return null;
+        }
+
+        if (_villageStatusCacheByName.TryGetValue(statusName, out var cached))
+        {
+            return cached.TroopTrainingQueues;
+        }
+
+        return _lastBuildingStatus is not null
+            && string.Equals(
+                NormalizeVillageName(_lastBuildingStatus.ActiveVillage),
+                statusName,
+                StringComparison.OrdinalIgnoreCase)
+            ? _lastBuildingStatus.TroopTrainingQueues
+            : null;
+    }
+
     // Persists the Troops tab's building rules (enable/troop/amount/run trigger/checks/fallback) as the
     // selected village's per-village override. Account-wide settings (NPC trade, gold, celebration) are
     // saved separately by PersistTroopTrainingConfig. Falls back to the account-wide config when no
@@ -1097,8 +1124,9 @@ public partial class MainWindow
                 effectiveBuildings = refreshedStatus.Buildings;
                 await Dispatcher.InvokeAsync(() =>
                 {
+                    var troopTrainingQueues = ResolveTroopTrainingQueuesForStatus(refreshedStatus);
                     _lastBuildingStatus = _lastBuildingStatus is null
-                        ? refreshedStatus
+                        ? refreshedStatus with { TroopTrainingQueues = troopTrainingQueues }
                         : _lastBuildingStatus with
                         {
                             ActiveVillage = refreshedStatus.ActiveVillage,
@@ -1106,9 +1134,10 @@ public partial class MainWindow
                             Tribe = refreshedStatus.Tribe,
                             Buildings = refreshedStatus.Buildings,
                             IsCapital = refreshedStatus.IsCapital,
+                            TroopTrainingQueues = troopTrainingQueues,
                         };
 
-                    _troopTrainingViewModel.ApplyStatus(_lastBuildingStatus, _lastBuildingStatus?.TroopTrainingQueues);
+                    _troopTrainingViewModel.ApplyStatus(_lastBuildingStatus, troopTrainingQueues);
                 });
                 await RefreshBreweryCelebrationStatusAsync(options, refreshedStatus, cancellationToken);
             }

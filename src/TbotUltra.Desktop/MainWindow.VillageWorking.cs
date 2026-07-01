@@ -724,6 +724,7 @@ public partial class MainWindow
 
         if (_villageStatusCacheByName.TryGetValue(name, out var existing))
         {
+            var now = DateTimeOffset.UtcNow;
             status = ConstructionQueueState.PreserveKnownConstructionState(status, existing);
             if (status.SmithyUpgradeStatus is not null)
             {
@@ -732,11 +733,17 @@ public partial class MainWindow
                     SmithyUpgradeStatus = SmithyQueueState.PreserveKnownActiveQueue(
                         status.SmithyUpgradeStatus,
                         existing.SmithyUpgradeStatus,
-                        DateTimeOffset.UtcNow),
+                        now),
                 };
             }
             status = status with
             {
+                TroopTrainingQueues = status.TroopTrainingQueues is null
+                    ? existing.TroopTrainingQueues
+                    : TroopTrainingQueueState.PreserveKnownActiveQueue(
+                        status.TroopTrainingQueues,
+                        existing.TroopTrainingQueues,
+                        now),
                 SmithyUpgradeStatus = status.SmithyUpgradeStatus ?? existing.SmithyUpgradeStatus,
                 BreweryCelebrationStatus = status.BreweryCelebrationStatus ?? existing.BreweryCelebrationStatus,
                 FarmLists = status.FarmLists ?? existing.FarmLists,
@@ -1072,6 +1079,7 @@ public partial class MainWindow
         SetResourceRows([]);
         // Empty the storage bars (show "-") rather than leaving another village's values up.
         _resourcesViewModel.ResetStorageForecasts();
+        _troopTrainingViewModel.ResetQueueStatus();
         BuildingsInfoTextBlock.Text = $"No data for '{villageName}' yet. Press \"Switch village\" to load it.";
     }
 
