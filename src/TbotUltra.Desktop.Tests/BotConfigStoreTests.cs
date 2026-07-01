@@ -106,7 +106,6 @@ public sealed class BotConfigStoreTests : IDisposable
                 ["server_name"] = "Global",
                 ["base_url"] = "https://example.com",
                 [BotOptionPayloadKeys.HeroMinHpForAdventure] = 60,
-                ["server_flavor"] = "legacy_value",
                 ["login_path"] = "/login.php",
                 ["village_overview_path"] = "/dorf1.php",
             });
@@ -119,7 +118,6 @@ public sealed class BotConfigStoreTests : IDisposable
         var global = JsonNode.Parse(File.ReadAllText(_configPath))!.AsObject();
         Assert.Equal("Global", global["server_name"]!.GetValue<string>());
         Assert.False(global.ContainsKey(BotOptionPayloadKeys.HeroMinHpForAdventure));
-        Assert.False(global.ContainsKey("server_flavor"));
         Assert.False(global.ContainsKey("login_path"));
         Assert.False(global.ContainsKey("village_overview_path"));
 

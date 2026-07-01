@@ -304,8 +304,7 @@ servervarianter är borttaget ur aktiv kod och ska inte återinföras.
 
 - **2026-06-01** — Officiell-server-stöd byggdes först som lager i ett repo. Senare beslut:
   runtime-stödet ska vara Official-only och gamla servervariant-switchar ska inte tillbaka.
-- **2026-06-01** — En gammal `server_flavor`-confignyckel får rensas vid load, men ska inte binda
-  runtime-beteende eller återinföras i `BotOptions`.
+- **2026-06-01** — Servervariant ska inte binda runtime-beteende eller återinföras i `BotOptions`.
 - **2026-06-01** — `Tribe` är stabil per konto/server och får seedas från account analysis-cache.
   `GoldClubEnabled` får bara latched-cachas när det är `true`; `false` ska kunna omprövas.
 - **2026-06-02** — Hero-resurstransfer vid resursbrist (official-only, opt-in `HeroResourceTransferEnabled`,

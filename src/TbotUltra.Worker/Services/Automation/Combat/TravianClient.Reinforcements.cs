@@ -400,13 +400,11 @@ public sealed partial class TravianClient
             """
             () => {
               const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
-              // Official Travian (T4.6) uses name="eventType" with reinforcement value "5";
-              // name="c" remains a tolerated fallback.
-              const radioButtons = Array.from(document.querySelectorAll('input[type="radio"][name="c"], input[type="radio"][name="eventType"]'));
+              const radioButtons = Array.from(document.querySelectorAll('input[type="radio"][name="eventType"]'));
               const radio = radioButtons.find(node => {
                 const value = (node.getAttribute('value') || '').trim();
                 const label = normalize(node.parentElement?.textContent || node.closest('label')?.textContent || '');
-                return value === '2' || value === '5' || label.includes('reinforcement') || label.includes('support');
+                return value === '5' || label.includes('reinforcement') || label.includes('support');
               });
               if (!radio) return false;
               radio.checked = true;

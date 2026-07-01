@@ -88,8 +88,7 @@ public sealed partial class TravianClient
             """
             () => {
               const hasCoords = !!document.querySelector('input[name="x"], input[name="y"], input[name*="xCoord" i], input[name*="yCoord" i], input[id*="xCoord" i], input[id*="yCoord" i]');
-              // Official Travian (T4.6) uses name="eventType"; name="c" remains a tolerated fallback.
-              const hasAttackMode = !!document.querySelector('input[type="radio"][name="c"], input[type="radio"][name="eventType"]');
+              const hasAttackMode = !!document.querySelector('input[type="radio"][name="eventType"]');
               const body = (document.body?.innerText || '').toLowerCase();
               return hasCoords && hasAttackMode && body.includes('send troops');
             }
@@ -386,9 +385,8 @@ public sealed partial class TravianClient
             return await _page.EvaluateAsync<bool>(
                 """
                 (raidAttack) => {
-                  // Official Travian (T4.6) uses name="eventType"; name="c" remains a tolerated fallback.
                   // Attack (3) and raid (4) values are stable values.
-                  const radioButtons = Array.from(document.querySelectorAll('input[type="radio"][name="c"], input[type="radio"][name="eventType"]'));
+                  const radioButtons = Array.from(document.querySelectorAll('input[type="radio"][name="eventType"]'));
                   const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
                   const radio = radioButtons.find(node => {
                     const value = (node.getAttribute('value') || '').trim();

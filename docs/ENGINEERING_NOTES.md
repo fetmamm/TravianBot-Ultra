@@ -26,8 +26,7 @@ dotnet build TbotUltra.sln
 Official Travian Legends ar enda malet framåt. Lagg inte tillbaka alternativa
 servervarianter, runtime-switchar for servertyp eller selectorfallbacks for andra servertyper.
 
-`server_flavor` ar endast en deprecated config-nyckel som rensas bort av config-store.
-Den far inte anvandas for runtime-beteende eller laggas tillbaka i `BotOptions`.
+Servervariant far inte sparas i config, anvandas for runtime-beteende eller laggas tillbaka i `BotOptions`.
 
 ### Sokvagar
 
@@ -62,7 +61,7 @@ Runtime-path helpers i `TravianClient.Selectors.cs` ar Official-only. Anropa hel
   klasser (`attack_lost*`, `attack_won_withLosses*`); matcha inte SVG-paths for loss state.
 
 ```js
-document.querySelector('#stockBarWarehouse, .warehouse .capacity .value')
+document.querySelector('.warehouse .capacity .value')
 ```
 
 ## 3. Konfiguration och konto-state

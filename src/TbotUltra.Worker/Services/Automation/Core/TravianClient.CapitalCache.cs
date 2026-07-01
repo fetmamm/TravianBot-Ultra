@@ -33,14 +33,12 @@ public sealed partial class TravianClient
                   if (!wanted) return 'unknown';
 
                   // Official Travian (T4.6) adds span.additionalInfo with the text "(Capital)"
-                  // inside the village's td.name cell. Older capital markers remain tolerated.
-                  let capitalSpan = document.querySelector('span.mainVillage');
-                  if (!capitalSpan) {
-                    for (const info of document.querySelectorAll('td.name span.additionalInfo, span.additionalInfo')) {
-                      if (/\bcapital\b/i.test(info.textContent || '')) {
-                        capitalSpan = info;
-                        break;
-                      }
+                  // inside the village's td.name cell.
+                  let capitalSpan = null;
+                  for (const info of document.querySelectorAll('td.name span.additionalInfo, span.additionalInfo')) {
+                    if (/\bcapital\b/i.test(info.textContent || '')) {
+                      capitalSpan = info;
+                      break;
                     }
                   }
                   if (!capitalSpan) return 'unknown';

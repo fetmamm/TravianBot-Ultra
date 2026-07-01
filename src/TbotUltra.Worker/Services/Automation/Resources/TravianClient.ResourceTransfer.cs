@@ -385,12 +385,12 @@ public sealed partial class TravianClient
               };
 
               // Official Travian (T4.6) names resource inputs lumber/clay/iron/crop
-              // (wood is "lumber"). Keep r1..r4 selectors as tolerated fallback names.
+              // (wood is "lumber").
               const resourceOk =
-                setValue(first(['input[name="r1"]', 'input#r1', 'input[name="lumber"]', 'input[name*="wood" i]', 'input[aria-label*="wood" i]']), wood) &&
-                setValue(first(['input[name="r2"]', 'input#r2', 'input[name="clay"]', 'input[name*="clay" i]', 'input[aria-label*="clay" i]']), clay) &&
-                setValue(first(['input[name="r3"]', 'input#r3', 'input[name="iron"]', 'input[name*="iron" i]', 'input[aria-label*="iron" i]']), iron) &&
-                setValue(first(['input[name="r4"]', 'input#r4', 'input[name="crop"]', 'input[name*="crop" i]', 'input[aria-label*="crop" i]']), crop);
+                setValue(first(['input[name="lumber"]', 'input[name*="wood" i]', 'input[aria-label*="wood" i]']), wood) &&
+                setValue(first(['input[name="clay"]', 'input[name*="clay" i]', 'input[aria-label*="clay" i]']), clay) &&
+                setValue(first(['input[name="iron"]', 'input[name*="iron" i]', 'input[aria-label*="iron" i]']), iron) &&
+                setValue(first(['input[name="crop"]', 'input[name*="crop" i]', 'input[aria-label*="crop" i]']), crop);
               if (!resourceOk) return false;
 
               let targetOk = false;

@@ -3962,7 +3962,7 @@ public sealed partial class TravianClient : IBuildingClient
                       };
 
                       const readServerNow = () => {
-                        const candidates = ['#servertime .timeStandard', '#servertime', '.serverTime', '#stockBarTimer'];
+                        const candidates = ['#servertime .timeStandard', '#servertime', '.serverTime'];
                         for (const sel of candidates) {
                           const el = document.querySelector(sel);
                           const t = clean(el?.textContent || '');

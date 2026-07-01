@@ -176,7 +176,6 @@ public sealed class BotConfigStore
 
     private static readonly HashSet<string> DeprecatedTechnicalKeys = new(StringComparer.OrdinalIgnoreCase)
     {
-        "server_flavor",
         "login_path",
         "village_overview_path",
     };

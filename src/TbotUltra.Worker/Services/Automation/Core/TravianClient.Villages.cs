@@ -994,20 +994,19 @@ public sealed partial class TravianClient
                     const name = clean(nameAnchor?.textContent || row.querySelector('td.name, td.village')?.textContent || '');
                     if (!name) continue;
 
-                    const profileLikeRow = !!row.querySelector('td.coords, a[href*="karte.php"], span.mainVillage');
+                    const profileLikeRow = !!row.querySelector('td.coordinates, a[href*="karte.php"], span.additionalInfo');
                     if (!profileLikeRow) continue;
 
                     const villageHref = resolveVillageHref(row, nameAnchor?.getAttribute('href') || '');
                     // Prefer the actual coordinate link (karte.php?x=..&y=..) over the village-name
                     // link, which on official Travian also points at karte.php but only carries ?d=<did>.
-                    // Official uses td.coordinates; td.coords remains a tolerated fallback.
                     const coordAnchor =
                       row.querySelector('td.coordinates a[href*="x="], a[href*="karte.php?x="], a[href*="x="][href*="y="]')
-                      || row.querySelector('td.coords a[href*="karte.php"], a[href*="karte.php"]');
+                      || row.querySelector('a[href*="karte.php"]');
                     const coordHref = coordAnchor?.getAttribute('href') || '';
-                    const coordXText = clean(row.querySelector('td.coords .coordinateX, td.coordinates .coordinateX')?.textContent || '');
-                    const coordYText = clean(row.querySelector('td.coords .coordinateY, td.coordinates .coordinateY')?.textContent || '');
-                    const coordText = clean(coordAnchor?.textContent || row.querySelector('td.coords')?.textContent || '');
+                    const coordXText = clean(row.querySelector('td.coordinates .coordinateX')?.textContent || '');
+                    const coordYText = clean(row.querySelector('td.coordinates .coordinateY')?.textContent || '');
+                    const coordText = clean(coordAnchor?.textContent || row.querySelector('td.coordinates')?.textContent || '');
                     const coord = parseCoords(
                       coordHref
                       || (coordXText && coordYText ? `${coordXText}|${coordYText}` : '')
@@ -1029,10 +1028,7 @@ public sealed partial class TravianClient
                     const cropMatch = rowText.match(/\b(\d{1,2})\s*c\b/i) || name.match(/\b(\d{1,2})\s*c\b/i);
                     const cropFields = cropMatch ? Number.parseInt(cropMatch[1], 10) : null;
 
-                    // Official Travian uses span.additionalInfo with the text "(Capital)" in the
-                    // name cell; older capital markers remain tolerated fallbacks.
-                    const isCapital = !!row.querySelector('span.mainVillage, td.isCapital, .capital')
-                      || Array.from(row.querySelectorAll('span.additionalInfo')).some(node => /\bcapital\b/i.test(node.textContent || ''));
+                    const isCapital = Array.from(row.querySelectorAll('span.additionalInfo')).some(node => /\bcapital\b/i.test(node.textContent || ''));
                     const key = `${name}|${coord.x ?? ''}|${coord.y ?? ''}`;
                     if (seen.has(key)) continue;
                     seen.add(key);
@@ -1308,18 +1304,12 @@ public sealed partial class TravianClient
 
               return {
                 warehouse: readFirst([
-                  '#stockBarWarehouse .value',
-                  '#stockBarWarehouse',
                   '#warehouse .value',
                   '#warehouse',
                   '[id*="warehouse" i][data-max]',
                   '[class*="warehouse" i]'
                 ]),
                 granary: readFirst([
-                  '#stockBarGranary .value',
-                  '#stockBarGranary',
-                  '#stockBarSilo .value',
-                  '#stockBarSilo',
                   '#granary .value',
                   '#granary',
                   '#silo .value',
