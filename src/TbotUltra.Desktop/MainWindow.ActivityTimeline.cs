@@ -307,12 +307,12 @@ public partial class MainWindow
         }
     }
 
-    private IReadOnlyList<DailyPacingTimelineRow> BuildDailyPacingTimelineRows(DateOnly firstDate, DateOnly lastDate)
+    private IReadOnlyList<DailyPacingTimelineSegment> BuildDailyPacingTimelineSegments(DateOnly firstDate, DateOnly lastDate)
     {
         var nowUtc = DateTimeOffset.UtcNow;
         var nowLocal = nowUtc.ToLocalTime();
         var entries = ReadSessionActivityHistoryWithCurrent(nowUtc);
-        var rows = new List<DailyPacingTimelineRow>();
+        var segments = new List<DailyPacingTimelineSegment>();
 
         for (var date = lastDate; date >= firstDate; date = date.AddDays(-1))
         {
@@ -332,10 +332,10 @@ public partial class MainWindow
             {
                 if (segment.Start > cursor)
                 {
-                    rows.Add(BuildTimelineRow(date, cursor, segment.Start, "Offline", "Program closed or logged out"));
+                    segments.Add(BuildTimelineSegment(date, cursor, segment.Start, "Offline", "Program closed or logged out"));
                 }
 
-                rows.Add(BuildTimelineRow(
+                segments.Add(BuildTimelineSegment(
                     date,
                     segment.Start,
                     segment.End,
@@ -346,11 +346,11 @@ public partial class MainWindow
 
             if (dayEnd > cursor)
             {
-                rows.Add(BuildTimelineRow(date, cursor, dayEnd, "Offline", "Program closed or logged out"));
+                segments.Add(BuildTimelineSegment(date, cursor, dayEnd, "Offline", "Program closed or logged out"));
             }
         }
 
-        return rows.Where(row => row.Duration != "0min").ToList();
+        return segments.Where(segment => segment.EndHour > segment.StartHour).ToList();
     }
 
     private static (DateTimeOffset Start, DateTimeOffset End, string State, string? Label)? ToLocalSegment(
@@ -368,19 +368,40 @@ public partial class MainWindow
         return (start < dayStart ? dayStart : start, end > dayEnd ? dayEnd : end, entry.State, entry.Label);
     }
 
-    private static DailyPacingTimelineRow BuildTimelineRow(
+    private static DailyPacingTimelineSegment BuildTimelineSegment(
         DateOnly date,
         DateTimeOffset start,
         DateTimeOffset end,
         string state,
         string details)
     {
-        return new DailyPacingTimelineRow(
+        return new DailyPacingTimelineSegment(
             date.ToString("yyyy-MM-dd"),
-            $"{start:HH:mm}-{end:HH:mm}",
+            ToStartHourOfDay(start),
+            ToEndHourOfDay(start, end),
             state,
-            FormatDailyDetailsDuration(end - start),
             details);
+    }
+
+    private static double ToStartHourOfDay(DateTimeOffset value)
+    {
+        return Math.Clamp(
+            value.TimeOfDay.TotalHours,
+            0,
+            24);
+    }
+
+    private static double ToEndHourOfDay(DateTimeOffset start, DateTimeOffset end)
+    {
+        if (end.Date > start.Date && end.TimeOfDay == TimeSpan.Zero)
+        {
+            return 24;
+        }
+
+        return Math.Clamp(
+            end.TimeOfDay.TotalHours,
+            0,
+            24);
     }
 
     private static string HumanizeActivityState(string state) => state switch

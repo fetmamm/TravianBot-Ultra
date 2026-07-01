@@ -113,22 +113,20 @@
             </TabItem>
 
             <TabItem Header="Timeline">
-                <DataGrid x:Name="TimelineDataGrid"
-                          AutoGenerateColumns="False"
-                          CanUserAddRows="False"
-                          CanUserDeleteRows="False"
-                          IsReadOnly="True"
-                          HeadersVisibility="Column"
-                          GridLinesVisibility="None"
-                          Margin="0">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Date" Binding="{Binding Date}" Width="*" />
-                        <DataGridTextColumn Header="Time" Binding="{Binding Time}" Width="1.4*" />
-                        <DataGridTextColumn Header="State" Binding="{Binding State}" Width="*" />
-                        <DataGridTextColumn Header="Duration" Binding="{Binding Duration}" Width="*" />
-                        <DataGridTextColumn Header="Details" Binding="{Binding Details}" Width="2*" />
-                    </DataGrid.Columns>
-                </DataGrid>
+                <Border Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="8"
+                        Margin="0,4,0,0">
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                  VerticalScrollBarVisibility="Auto">
+                        <Canvas x:Name="TimelineCanvas"
+                                Background="Transparent"
+                                ClipToBounds="True"
+                                SizeChanged="TimelineCanvas_SizeChanged" />
+                    </ScrollViewer>
+                </Border>
             </TabItem>
         </TabControl>
 

@@ -347,7 +347,6 @@ public partial class MainWindow
         var progress = _sessionPacer.GetDailyProgress();
         var activityToday = GetSessionActivityDaySummary(progress.Date);
         DailyOnlineTextBlock.Text = FormatDailyProgressDuration(progress.OnlineToday);
-        DailyWaitingTextBlock.Text = FormatDailyProgressDuration(activityToday.Waiting);
         DailyLeftTextBlock.Text = progress.TimeLeft is null
             ? "-"
             : FormatDailyProgressDuration(progress.TimeLeft.Value);
@@ -369,7 +368,7 @@ public partial class MainWindow
             out var chartPoints,
             out var firstTimelineDate);
         var taskRows = BuildDailyPacingTaskRows();
-        var timelineRows = BuildDailyPacingTimelineRows(firstTimelineDate, progress.Date);
+        var timelineSegments = BuildDailyPacingTimelineSegments(firstTimelineDate, progress.Date);
         var window = new DailyPacingDetailsWindow(
             FormatDailyDetailsDuration(progress.OnlineToday),
             FormatDailyDetailsDuration(activityToday.Waiting),
@@ -379,7 +378,7 @@ public partial class MainWindow
             accountTotalText,
             dayRows,
             taskRows,
-            timelineRows,
+            timelineSegments,
             chartPoints)
         {
             Owner = this,
