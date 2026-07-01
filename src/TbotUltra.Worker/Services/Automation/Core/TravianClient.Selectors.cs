@@ -5,69 +5,53 @@ public sealed partial class TravianClient
     private static class Paths
     {
         public const string Resources = "/dorf1.php";
+        public const string Login = "/login.php";
         public const string Buildings = "/dorf2.php";
-        // /hero.php is intentionally absent — it lands on the Appearance tab on T4.5+. Use HeroAdventures or HeroInventory.
-        public const string HeroAdventures = "/hero_adventure.php";
-        public const string HeroAdventureLegacy = "/hero.php?t=3";
-        public const string HeroInventory = "/hero_inventory.php";
-        public const string RallyPointTroops = "/build.php?id=39&t=1";
-        public const string RallyPointSendTroops = "/build.php?id=39&t=2";
         public const string PlayerProfile = "/spieler.php";
-        public const string PlayerProfileNatars = "/spieler.php?uid=3";
         public const string Statistics100 = "/statistiken.php?id=100";
-        public const string Messages = "/nachrichten.php";
-        public const string Reports = "/berichte.php";
-        // Official Travian (T4.6) Questmaster task overview. Used only on official servers.
+        // Questmaster task overview.
         public const string Tasks = "/tasks";
 
-        public const string FarmListPage = "/build.php?id=39&t=99";
         public const string FarmListFastUp = "/build.php?id=39&fastUP=0";
 
         public static string BuildBySlot(int slotId) =>
             $"/build.php?id={slotId}";
 
         public static string FarmListBySlotId(string lid) =>
-            $"/build.php?id=39&t=99&action=showSlot&lid={lid}";
+            $"/build.php?id=39&gid=16&tt=99&action=showSlot&lid={lid}";
 
         public static readonly IReadOnlyList<string> LogoutCandidates = new[]
         {
-            "/logout.php",
-            "/?action=logout",
-            "/index.php?logout=1",
+            "/logout",
         };
     }
 
-    // Rally Point tab URLs differ by server flavor: SS/legacy uses build.php?id=39&t=N,
-    // while official Travian (T4.6) uses build.php?id=39&gid=16&tt=N.
     private string RallyPointTroopsPath =>
-        _config.IsPrivateServer ? Paths.RallyPointTroops : "/build.php?id=39&gid=16&tt=1";
+        "/build.php?id=39&gid=16&tt=1";
 
     private string RallyPointSendTroopsPath =>
-        _config.IsPrivateServer ? Paths.RallyPointSendTroops : "/build.php?id=39&gid=16&tt=2";
+        "/build.php?id=39&gid=16&tt=2";
 
     private string RallyPointFarmListPath =>
-        _config.IsPrivateServer ? Paths.FarmListPage : "/build.php?id=39&gid=16&tt=99";
+        "/build.php?id=39&gid=16&tt=99";
 
-    // Hero pages: SS/legacy uses /hero_*.php (+ /hero.php?t=3 for adventures);
-    // official Travian (T4.6) uses REST-style /hero/<section>.
     private string HeroAdventuresPath =>
-        _config.IsPrivateServer ? Paths.HeroAdventures : "/hero/adventures";
+        "/hero/adventures";
 
     private string HeroInventoryPath =>
-        _config.IsPrivateServer ? Paths.HeroInventory : "/hero/inventory";
+        "/hero/inventory";
 
     private string HeroAttributesPath =>
-        _config.IsPrivateServer ? Paths.HeroInventory : "/hero/attributes";
+        "/hero/attributes";
 
-    // Inbox: SS/legacy uses German .php routes; official Travian (T4.6) uses /messages and /report.
     private string MessagesPath =>
-        _config.IsPrivateServer ? Paths.Messages : "/messages";
+        "/messages";
 
     private string MessagesWritePath =>
-        _config.IsPrivateServer ? $"{Paths.Messages}?t=1" : "/messages/write";
+        "/messages/write";
 
     private string ReportsPath =>
-        _config.IsPrivateServer ? Paths.Reports : "/report";
+        "/report";
 
     private static class Selectors
     {
@@ -116,19 +100,13 @@ public sealed partial class TravianClient
         public static readonly string[] LogoutTriggers =
         {
             // Official T4.6: the logout control is an <a> with no href and only an SVG icon — it fires
-            // Travian.api('auth/logout') via onclick. Match it by the onclick/class (SS keeps href-based ones below).
+            // Travian.api('auth/logout') via onclick. Match it by the onclick/class first.
             "a[onclick*='auth/logout']",
             "a.layoutButton.logout",
             "a.logout[onclick]",
             "a[href*='logout']",
-            "button[name*='logout' i]",
-            "input[name*='logout' i]",
-            "form[action*='logout'] button[type='submit']",
-            "form[action*='logout'] input[type='submit']",
             "a:has-text('Logout')",
             "a:has-text('Log out')",
-            "button:has-text('Logout')",
-            "button:has-text('Log out')",
         };
 
         public static readonly string[] CaptchaSubmitButton =

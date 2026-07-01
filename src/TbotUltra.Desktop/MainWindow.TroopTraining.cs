@@ -969,6 +969,33 @@ public partial class MainWindow
         _troopTrainingViewModel.ApplyVillageTrainingPayload(payload);
     }
 
+    private IReadOnlyList<TroopTrainingQueueStatus>? ResolveTroopTrainingQueuesForStatus(VillageStatus status)
+    {
+        if (status.TroopTrainingQueues is not null)
+        {
+            return status.TroopTrainingQueues;
+        }
+
+        var statusName = NormalizeVillageName(status.ActiveVillage);
+        if (statusName is null)
+        {
+            return null;
+        }
+
+        if (_villageStatusCacheByName.TryGetValue(statusName, out var cached))
+        {
+            return cached.TroopTrainingQueues;
+        }
+
+        return _lastBuildingStatus is not null
+            && string.Equals(
+                NormalizeVillageName(_lastBuildingStatus.ActiveVillage),
+                statusName,
+                StringComparison.OrdinalIgnoreCase)
+            ? _lastBuildingStatus.TroopTrainingQueues
+            : null;
+    }
+
     // Persists the Troops tab's building rules (enable/troop/amount/run trigger/checks/fallback) as the
     // selected village's per-village override. Account-wide settings (NPC trade, gold, celebration) are
     // saved separately by PersistTroopTrainingConfig. Falls back to the account-wide config when no
@@ -1033,9 +1060,10 @@ public partial class MainWindow
     /// </summary>
     internal void OnTroopsBuildNowClicked()
     {
-        EnqueueQuickTask("build_troops", "Build troops");
+        var payload = _troopTrainingViewModel.BuildVillageTrainingPayload().ToDictionary();
+        EnqueueQuickTask("build_troops", "Build troops", payload);
         _troopTrainingViewModel.InfoText = "Queued: build troops.";
-        AppendLog("Queued build_troops task.");
+        AppendLog("Queued build_troops task with selected village troop-training settings.");
     }
 
     /// <summary>
@@ -1084,7 +1112,8 @@ public partial class MainWindow
         BotOptions options,
         CancellationToken cancellationToken,
         IReadOnlyList<Building>? knownBuildings = null,
-        bool refreshBuildingsBeforeRead = false)
+        bool refreshBuildingsBeforeRead = false,
+        bool includeSmithyStatus = true)
     {
         IReadOnlyList<Building>? effectiveBuildings = knownBuildings;
         if (refreshBuildingsBeforeRead)
@@ -1095,8 +1124,9 @@ public partial class MainWindow
                 effectiveBuildings = refreshedStatus.Buildings;
                 await Dispatcher.InvokeAsync(() =>
                 {
+                    var troopTrainingQueues = ResolveTroopTrainingQueuesForStatus(refreshedStatus);
                     _lastBuildingStatus = _lastBuildingStatus is null
-                        ? refreshedStatus
+                        ? refreshedStatus with { TroopTrainingQueues = troopTrainingQueues }
                         : _lastBuildingStatus with
                         {
                             ActiveVillage = refreshedStatus.ActiveVillage,
@@ -1104,9 +1134,10 @@ public partial class MainWindow
                             Tribe = refreshedStatus.Tribe,
                             Buildings = refreshedStatus.Buildings,
                             IsCapital = refreshedStatus.IsCapital,
+                            TroopTrainingQueues = troopTrainingQueues,
                         };
 
-                    _troopTrainingViewModel.ApplyStatus(_lastBuildingStatus, _lastBuildingStatus?.TroopTrainingQueues);
+                    _troopTrainingViewModel.ApplyStatus(_lastBuildingStatus, troopTrainingQueues);
                 });
                 await RefreshBreweryCelebrationStatusAsync(options, refreshedStatus, cancellationToken);
             }
@@ -1117,14 +1148,20 @@ public partial class MainWindow
         }
 
         var queueStatuses = await _botService.ReadTroopTrainingQueuesAsync(options, AppendLog, effectiveBuildings, cancellationToken);
-        var smithyStatus = await _botService.ReadSmithyUpgradeStatusAsync(options, AppendLog, effectiveBuildings, cancellationToken);
+        SmithyUpgradeStatus? smithyStatus = null;
+        if (includeSmithyStatus)
+        {
+            smithyStatus = await _botService.ReadSmithyUpgradeStatusAsync(options, AppendLog, effectiveBuildings, cancellationToken);
+        }
+
         await Dispatcher.InvokeAsync(() =>
         {
             // The in-building training queue is the source of truth: keep a still-ticking queue from the
             // per-village cache when this read came back empty (a partial / off-village read), so the
             // dashboard timer doesn't vanish. Mirrors ApplySmithyUpgradeStatus.
-            var queueVillageName = NormalizeVillageName(GetSelectedVillageName())
-                ?? NormalizeVillageName(_activeWorkingVillageName);
+            var queueVillageName = NormalizeVillageName(options.TargetVillageName)
+                ?? NormalizeVillageName(_activeWorkingVillageName)
+                ?? NormalizeVillageName(GetSelectedVillageName());
             if (queueVillageName is not null
                 && _villageStatusCacheByName.TryGetValue(queueVillageName, out var cachedVillageStatus))
             {
@@ -1142,7 +1179,7 @@ public partial class MainWindow
                 UpdateCachedTimerStatus(effectiveStatus.ActiveVillage, cached => cached with
                 {
                     TroopTrainingQueues = queueStatuses,
-                    SmithyUpgradeStatus = smithyStatus,
+                    SmithyUpgradeStatus = smithyStatus ?? cached.SmithyUpgradeStatus,
                 });
             }
             else
@@ -1157,23 +1194,38 @@ public partial class MainWindow
                     TroopTrainingQueues: queueStatuses), queueStatuses);
             }
 
-            ApplySmithyUpgradeStatus(smithyStatus);
+            if (smithyStatus is not null)
+            {
+                ApplySmithyUpgradeStatus(smithyStatus);
+            }
+
             UpdateAutomationLoopRunningIndicators();
+            // Repaint the dashboard village list so the per-village Troops B/S/W icon reflects the
+            // just-read training queue (it renders from the per-village cache updated above).
+            RefreshVillageActivityIndicatorsOnDashboard();
         });
     }
 
-    private async Task RefreshTroopTrainingUiAfterBuildAsync(BotOptions options, CancellationToken cancellationToken)
+    private async Task RefreshTroopTrainingUiAfterBuildAsync(QueueItem item, BotOptions options, CancellationToken cancellationToken)
     {
-        await RefreshTroopTrainingQueuesAsync(options, cancellationToken, _lastBuildingStatus?.Buildings, refreshBuildingsBeforeRead: true);
+        var itemOptions = ApplyHeroResourceSettingsForQueueItem(
+            BotOptionsPayloadApplier.Apply(options, item.Payload),
+            item);
+        await RefreshTroopTrainingQueuesAsync(
+            itemOptions,
+            cancellationToken,
+            _lastBuildingStatus?.Buildings,
+            refreshBuildingsBeforeRead: true,
+            includeSmithyStatus: false);
 
         try
         {
-            await RefreshResourceSnapshotForUiAsync(options, cancellationToken, currentPageOnly: true);
+            await RefreshResourceSnapshotForUiAsync(itemOptions, cancellationToken, currentPageOnly: true);
         }
         catch (Exception ex)
         {
             AppendLog($"Troop build current-page resource refresh failed, falling back: {ex.Message}");
-            await RefreshResourceSnapshotForUiAsync(options, cancellationToken);
+            await RefreshResourceSnapshotForUiAsync(itemOptions, cancellationToken);
         }
     }
 }

@@ -40,8 +40,6 @@ public sealed class BotOptionsPayloadApplierTests
         {
             ServerName = "srv",
             BaseUrl = "https://example.com",
-            LoginPath = "/login.php",
-            VillageOverviewPath = "/dorf1.php",
             ResourceUpgradeSlotId = 1,
             ResourceUpgradeTargetLevel = 2,
             BuildingUpgradeSlotId = 3,
@@ -166,8 +164,6 @@ public sealed class BotOptionsPayloadApplierTests
         {
             ["server_name"] = "srv",
             ["base_url"] = "https://example.com",
-            ["login_path"] = "/login.php",
-            ["village_overview_path"] = "/dorf1.php",
             [BotOptionPayloadKeys.ResourceTransferEnabled] = "true",
             [BotOptionPayloadKeys.ResourceTransferTargetVillageName] = "Target",
             [$"{BotOptionPayloadKeys.ResourceTransferSourceVillageNames}:0"] = "A",
@@ -202,8 +198,6 @@ public sealed class BotOptionsPayloadApplierTests
         {
             ["server_name"] = "srv",
             ["base_url"] = "https://example.com",
-            ["login_path"] = "/login.php",
-            ["village_overview_path"] = "/dorf1.php",
         };
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(values)
@@ -241,8 +235,6 @@ public sealed class BotOptionsPayloadApplierTests
         {
             ServerName = "srv",
             BaseUrl = "https://example.com",
-            LoginPath = "/login.php",
-            VillageOverviewPath = "/dorf1.php",
             HeroResourceMaxUseEnabled = true,
             HeroResourceMaxUsePerResource = 5000,
         };
@@ -315,27 +307,6 @@ public sealed class BotOptionsPayloadApplierTests
     }
 
     [Fact]
-    public void FromConfiguration_UsesResourcesFirstHeroPriorityOnPrivateServerByDefault()
-    {
-        var values = new Dictionary<string, string?>
-        {
-            ["server_name"] = "SS",
-            ["base_url"] = "https://mga.ss-travi.com",
-        };
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(values)
-            .Build();
-
-        var options = BotOptionsFactory.FromConfiguration(configuration);
-
-        Assert.True(options.NpcTradeEnabled);
-        Assert.True(options.NpcTradeConstructionEnabled);
-        Assert.False(options.AllowGoldSpending);
-        Assert.Equal(800, options.GoldLimit);
-        Assert.Equal("resources,fighting_strength,offence_bonus,defence_bonus", options.HeroStatPriority);
-    }
-
-    [Fact]
     public void FromConfiguration_ExplicitGoldAndNpcSettingsOverrideOfficialDefaults()
     {
         var values = new Dictionary<string, string?>
@@ -366,8 +337,6 @@ public sealed class BotOptionsPayloadApplierTests
         {
             ["server_name"] = "srv",
             ["base_url"] = "https://example.com",
-            ["login_path"] = "/login.php",
-            ["village_overview_path"] = "/dorf1.php",
             [BotOptionPayloadKeys.ReinforcementsEnabled] = "true",
             [BotOptionPayloadKeys.ReinforcementsTargetVillageName] = "Target",
             [BotOptionPayloadKeys.ReinforcementsSendIntervalHours] = "12",
@@ -403,8 +372,6 @@ public sealed class BotOptionsPayloadApplierTests
         {
             ["server_name"] = "srv",
             ["base_url"] = "https://example.com",
-            ["login_path"] = "/login.php",
-            ["village_overview_path"] = "/dorf1.php",
             [$"{BotOptionPayloadKeys.ReinforcementsTroopRules}:0:sourceVillageName"] = "",
             [$"{BotOptionPayloadKeys.ReinforcementsTroopRules}:0:troopType"] = "Clubswinger",
             [$"{BotOptionPayloadKeys.ReinforcementsTroopRules}:0:amountMode"] = "fixed",

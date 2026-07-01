@@ -22,8 +22,7 @@ public sealed class HeroAttributeSnapshotStoreTests : IDisposable
             DefenceBonus: 4,
             Resources: 68,
             AdventureCount: 5,
-            HeroState: "Home",
-            HideMode: "fight");
+            HeroState: "Home");
 
         store.Save("account-one", "https://ts100.example.com", expected);
 

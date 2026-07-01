@@ -18,7 +18,7 @@ public sealed partial class TravianClient
     {
         Notify("[scan] all-village status scan starting");
         var returnVillageName = await TryReadActiveVillageNameSafeAsync(cancellationToken);
-        await GotoAsync(_config.VillageOverviewPath, cancellationToken);
+        await GotoAsync(Paths.Resources, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the village overview.", cancellationToken);
         await EnsureLoggedInAsync();
 
@@ -44,7 +44,7 @@ public sealed partial class TravianClient
                 }
                 else
                 {
-                    await GotoAsync(_config.VillageOverviewPath, cancellationToken);
+                    await GotoAsync(Paths.Resources, cancellationToken);
                 }
 
                 await PauseForManualStepIfVisibleAsync(
@@ -448,7 +448,7 @@ public sealed partial class TravianClient
                     }
                   }
 
-                  // Legacy/SS or other layouts: static anchors carrying newdid in the href.
+                  // Fallback layouts: static anchors carrying newdid in the href.
                   const candidates = [
                     ...document.querySelectorAll('a.village-name'),
                     ...document.querySelectorAll('#sidebarBoxVillagelist a[href*="newdid"]'),
@@ -763,8 +763,8 @@ public sealed partial class TravianClient
                     container.querySelector('.coordinateY')?.textContent
                     || node.parentElement?.querySelector('.coordinateY')?.textContent
                     || '');
-                  // Official only: the active village's row carries its current population in
-                  // a "div.population > span". Only the active row exposes it; read it scoped to
+                  // The active village's row carries its current population in
+                  // a "div.population > span". Read it scoped to
                   // the active container, falling back to the active sidebar entry on the page.
                   const isActive = classText.includes('active');
                   let population = null;
@@ -830,16 +830,14 @@ public sealed partial class TravianClient
             }
             """);
 
-        // Official only: trust the active village's population read from the sidebar. SS-Travi
-        // markup differs, so the sidebar population is ignored there and only profile data is used.
-        var useSidebarPopulation = !_config.IsPrivateServer;
+        // Trust the active village's population read from the sidebar.
         return raw
             .Where(item => !string.IsNullOrWhiteSpace(item.Name))
             .Select(item =>
             {
                 var (cachedX, cachedY) = TryGetCachedVillageCoords(item.Name!);
                 int? sidebarPopulation = null;
-                if (useSidebarPopulation && item.IsActive && item.Population is int pop)
+                if (item.IsActive && item.Population is int pop)
                 {
                     sidebarPopulation = pop;
                     Notify($"[population] active village '{item.Name}' from sidebar = {pop}");
@@ -894,33 +892,29 @@ public sealed partial class TravianClient
             await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading villages on spieler.php.", cancellationToken);
             await EnsureLoggedInAsync();
 
-            // The official profile (contentV2) renders the villages table client-side, and the
+            // The profile can render the villages table client-side, and the
             // population cell (td.inhabitants) is filled in slightly after the row shell. Reading
             // too early returns the village name/coords/capital but a null population. Best-effort
-            // wait for a populated inhabitants cell before parsing. SS renders server-side, so this
-            // is gated to official and is tolerant (timeout falls through to the parse anyway).
-            if (!_config.IsPrivateServer)
+            // wait for a populated inhabitants cell before parsing; timeout falls through to the parse anyway.
+            try
             {
-                try
-                {
-                    await _page.WaitForFunctionAsync(
-                        """
-                        () => {
-                          const cells = document.querySelectorAll('table.villages td.inhabitants, td.inhabitants');
-                          for (const cell of cells) {
-                            if (/\d/.test((cell.textContent || ''))) {
-                              return true;
-                            }
-                          }
-                          return false;
+                await _page.WaitForFunctionAsync(
+                    """
+                    () => {
+                      const cells = document.querySelectorAll('table.villages td.inhabitants, td.inhabitants');
+                      for (const cell of cells) {
+                        if (/\d/.test((cell.textContent || ''))) {
+                          return true;
                         }
-                        """,
-                        new PageWaitForFunctionOptions { Timeout = 3000 });
-                }
-                catch
-                {
-                    Notify("[scan:verbose] official villages table population cell not ready within wait; parsing current DOM.");
-                }
+                      }
+                      return false;
+                    }
+                    """,
+                    new PageWaitForFunctionOptions { Timeout = 3000 });
+            }
+            catch
+            {
+                Notify("[scan:verbose] villages table population cell not ready within wait; parsing current DOM.");
             }
 
             var raw = await _page.EvaluateAsync<PlayerProfileVillageRowJs[]>(
@@ -1000,20 +994,19 @@ public sealed partial class TravianClient
                     const name = clean(nameAnchor?.textContent || row.querySelector('td.name, td.village')?.textContent || '');
                     if (!name) continue;
 
-                    const profileLikeRow = !!row.querySelector('td.coords, a[href*="karte.php"], span.mainVillage');
+                    const profileLikeRow = !!row.querySelector('td.coordinates, a[href*="karte.php"], span.additionalInfo');
                     if (!profileLikeRow) continue;
 
                     const villageHref = resolveVillageHref(row, nameAnchor?.getAttribute('href') || '');
                     // Prefer the actual coordinate link (karte.php?x=..&y=..) over the village-name
                     // link, which on official Travian also points at karte.php but only carries ?d=<did>.
-                    // Official uses td.coordinates; SS uses td.coords.
                     const coordAnchor =
                       row.querySelector('td.coordinates a[href*="x="], a[href*="karte.php?x="], a[href*="x="][href*="y="]')
-                      || row.querySelector('td.coords a[href*="karte.php"], a[href*="karte.php"]');
+                      || row.querySelector('a[href*="karte.php"]');
                     const coordHref = coordAnchor?.getAttribute('href') || '';
-                    const coordXText = clean(row.querySelector('td.coords .coordinateX, td.coordinates .coordinateX')?.textContent || '');
-                    const coordYText = clean(row.querySelector('td.coords .coordinateY, td.coordinates .coordinateY')?.textContent || '');
-                    const coordText = clean(coordAnchor?.textContent || row.querySelector('td.coords')?.textContent || '');
+                    const coordXText = clean(row.querySelector('td.coordinates .coordinateX')?.textContent || '');
+                    const coordYText = clean(row.querySelector('td.coordinates .coordinateY')?.textContent || '');
+                    const coordText = clean(coordAnchor?.textContent || row.querySelector('td.coordinates')?.textContent || '');
                     const coord = parseCoords(
                       coordHref
                       || (coordXText && coordYText ? `${coordXText}|${coordYText}` : '')
@@ -1035,10 +1028,7 @@ public sealed partial class TravianClient
                     const cropMatch = rowText.match(/\b(\d{1,2})\s*c\b/i) || name.match(/\b(\d{1,2})\s*c\b/i);
                     const cropFields = cropMatch ? Number.parseInt(cropMatch[1], 10) : null;
 
-                    // SS marks the capital with span.mainVillage; official Travian uses
-                    // span.additionalInfo with the text "(Capital)" in the name cell.
-                    const isCapital = !!row.querySelector('span.mainVillage, td.isCapital, .capital')
-                      || Array.from(row.querySelectorAll('span.additionalInfo')).some(node => /\bcapital\b/i.test(node.textContent || ''));
+                    const isCapital = Array.from(row.querySelectorAll('span.additionalInfo')).some(node => /\bcapital\b/i.test(node.textContent || ''));
                     const key = `${name}|${coord.x ?? ''}|${coord.y ?? ''}`;
                     if (seen.has(key)) continue;
                     seen.add(key);
@@ -1314,18 +1304,12 @@ public sealed partial class TravianClient
 
               return {
                 warehouse: readFirst([
-                  '#stockBarWarehouse .value',
-                  '#stockBarWarehouse',
                   '#warehouse .value',
                   '#warehouse',
                   '[id*="warehouse" i][data-max]',
                   '[class*="warehouse" i]'
                 ]),
                 granary: readFirst([
-                  '#stockBarGranary .value',
-                  '#stockBarGranary',
-                  '#stockBarSilo .value',
-                  '#stockBarSilo',
                   '#granary .value',
                   '#granary',
                   '#silo .value',

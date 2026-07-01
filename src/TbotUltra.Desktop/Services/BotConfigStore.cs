@@ -38,8 +38,6 @@ public sealed class BotConfigStore
         BotOptionPayloadKeys.HeroAutoUseOintments,
         BotOptionPayloadKeys.HeroStatPriority,
         BotOptionPayloadKeys.HeroAdventurePickOrder,
-        BotOptionPayloadKeys.HeroHideModeEnabled,
-        BotOptionPayloadKeys.HeroHideMode,
         BotOptionPayloadKeys.HeroContinuousAdventures,
         BotOptionPayloadKeys.IncreaseAdventuresToHard,
         BotOptionPayloadKeys.ReduceAdventureTime,
@@ -78,6 +76,7 @@ public sealed class BotConfigStore
         BotOptionPayloadKeys.SessionPacingRuntimeDate,
         BotOptionPayloadKeys.SessionPacingRuntimeSeconds,
         BotOptionPayloadKeys.SessionPacingDailyHistory,
+        BotOptionPayloadKeys.SessionActivityHistory,
         BotOptionPayloadKeys.ActionPacingEnabled,
         BotOptionPayloadKeys.ActionPacingTaskMinSeconds,
         BotOptionPayloadKeys.ActionPacingTaskMaxSeconds,
@@ -97,6 +96,8 @@ public sealed class BotConfigStore
         BotOptionPayloadKeys.TroopTrainingBarracksRunMode,
         BotOptionPayloadKeys.TroopTrainingBarracksMinimumTroops,
         BotOptionPayloadKeys.TroopTrainingBarracksMinimumResourcesPercent,
+        BotOptionPayloadKeys.TroopTrainingBarracksTimedMinMinutes,
+        BotOptionPayloadKeys.TroopTrainingBarracksTimedMaxMinutes,
         BotOptionPayloadKeys.TroopTrainingBarracksCheckWood,
         BotOptionPayloadKeys.TroopTrainingBarracksCheckClay,
         BotOptionPayloadKeys.TroopTrainingBarracksCheckIron,
@@ -109,6 +110,8 @@ public sealed class BotConfigStore
         BotOptionPayloadKeys.TroopTrainingStableRunMode,
         BotOptionPayloadKeys.TroopTrainingStableMinimumTroops,
         BotOptionPayloadKeys.TroopTrainingStableMinimumResourcesPercent,
+        BotOptionPayloadKeys.TroopTrainingStableTimedMinMinutes,
+        BotOptionPayloadKeys.TroopTrainingStableTimedMaxMinutes,
         BotOptionPayloadKeys.TroopTrainingStableCheckWood,
         BotOptionPayloadKeys.TroopTrainingStableCheckClay,
         BotOptionPayloadKeys.TroopTrainingStableCheckIron,
@@ -121,6 +124,8 @@ public sealed class BotConfigStore
         BotOptionPayloadKeys.TroopTrainingWorkshopRunMode,
         BotOptionPayloadKeys.TroopTrainingWorkshopMinimumTroops,
         BotOptionPayloadKeys.TroopTrainingWorkshopMinimumResourcesPercent,
+        BotOptionPayloadKeys.TroopTrainingWorkshopTimedMinMinutes,
+        BotOptionPayloadKeys.TroopTrainingWorkshopTimedMaxMinutes,
         BotOptionPayloadKeys.TroopTrainingWorkshopCheckWood,
         BotOptionPayloadKeys.TroopTrainingWorkshopCheckClay,
         BotOptionPayloadKeys.TroopTrainingWorkshopCheckIron,
@@ -155,9 +160,6 @@ public sealed class BotConfigStore
         BotOptionPayloadKeys.ReinforcementsSendIntervalHours,
         BotOptionPayloadKeys.ReinforcementsSendVariationPercent,
         BotOptionPayloadKeys.UpgradeSelectorProfile,
-        BotOptionPayloadKeys.CaptchaAutoSolveEnabled,
-        BotOptionPayloadKeys.CaptchaSolverTimeoutSeconds,
-        BotOptionPayloadKeys.CaptchaSolverMaxAttempts,
         "loop_interval_seconds",
         "human_like_enabled",
         "human_like_speed",
@@ -167,18 +169,10 @@ public sealed class BotConfigStore
         "continuous_loop_groups",
         "continuous_loop_group_order",
         "dashboard_visible_groups",
-        "natar_village_selection",
         "addFarmsTroopCount",
     ];
 
     private static readonly HashSet<string> AccountScopedKeys = new(AccountScopedKeyValues, StringComparer.OrdinalIgnoreCase);
-
-    private static readonly HashSet<string> DeprecatedTechnicalKeys = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "server_flavor",
-        "login_path",
-        "village_overview_path",
-    };
 
     // Serializes all config file I/O. bot.json and the per-account settings.json are read and written
     // from many concurrent contexts (UI dispatcher, continuous loop, and several background Task.Run
@@ -203,7 +197,6 @@ public sealed class BotConfigStore
     public JsonObject LoadForAccount(string accountName)
     {
         var config = LoadGlobal();
-        RemoveDeprecatedTechnicalKeys(config);
 
         if (string.IsNullOrWhiteSpace(accountName) || string.IsNullOrWhiteSpace(_projectRoot))
         {
@@ -240,7 +233,6 @@ public sealed class BotConfigStore
     public void SaveGlobal(JsonObject config)
     {
         var globalConfig = config.DeepClone().AsObject();
-        RemoveDeprecatedTechnicalKeys(globalConfig);
         foreach (var key in AccountScopedKeys)
         {
             globalConfig.Remove(key);
@@ -254,8 +246,6 @@ public sealed class BotConfigStore
 
     public void SaveForAccount(string accountName, JsonObject config)
     {
-        RemoveDeprecatedTechnicalKeys(config);
-
         if (!string.IsNullOrWhiteSpace(accountName) && !string.IsNullOrWhiteSpace(_projectRoot))
         {
             SaveAccountScopedValues(accountName, config);
@@ -270,7 +260,6 @@ public sealed class BotConfigStore
             }
         }
 
-        RemoveDeprecatedTechnicalKeys(globalConfig);
         SaveJson(_configPath, globalConfig);
     }
 
@@ -335,7 +324,6 @@ public sealed class BotConfigStore
             }
         }
 
-        RemoveDeprecatedTechnicalKeys(accountConfig);
         var path = AccountStoragePaths.AccountSettingsPath(_projectRoot!, accountName);
         SaveJson(path, accountConfig);
     }
@@ -472,7 +460,6 @@ public sealed class BotConfigStore
                 return new JsonObject();
             }
 
-            RemoveDeprecatedTechnicalKeys(node);
             return node;
         }
         catch
@@ -524,14 +511,6 @@ public sealed class BotConfigStore
         catch
         {
             return string.Empty;
-        }
-    }
-
-    private static void RemoveDeprecatedTechnicalKeys(JsonObject config)
-    {
-        foreach (var key in DeprecatedTechnicalKeys)
-        {
-            config.Remove(key);
         }
     }
 

@@ -29,8 +29,6 @@ public static class BotOptionsFactory
         var queueWaitThresholdMode = configuration[BotOptionPayloadKeys.QueueWaitThresholdMode] ?? "smart";
 
         var baseUrl = (configuration["base_url"] ?? string.Empty).TrimEnd('/');
-        var serverFlavor = ServerFlavorDetector.FromBaseUrl(baseUrl);
-        var isOfficialServer = serverFlavor == ServerFlavor.Official;
         var heroStatPriority = string.IsNullOrWhiteSpace(configuration[BotOptionPayloadKeys.HeroStatPriority])
             ? DefaultHeroStatPriority
             : configuration[BotOptionPayloadKeys.HeroStatPriority]!;
@@ -43,15 +41,9 @@ public static class BotOptionsFactory
         {
             ServerName = configuration["server_name"] ?? string.Empty,
             BaseUrl = baseUrl,
-            // ServerFlavor is a computed property derived from BaseUrl — no assignment needed.
-            LoginPath = configuration["login_path"] ?? "/login.php",
-            VillageOverviewPath = configuration["village_overview_path"] ?? "/dorf1.php",
             Headless = configuration.GetValue("headless", false),
             TimeoutMs = configuration.GetValue("timeout_ms", 20000),
             ManualLoginTimeoutSeconds = configuration.GetValue("manual_login_timeout_seconds", 180),
-            CaptchaAutoSolveEnabled = configuration.GetValue(BotOptionPayloadKeys.CaptchaAutoSolveEnabled, false),
-            CaptchaSolverTimeoutSeconds = configuration.GetValue(BotOptionPayloadKeys.CaptchaSolverTimeoutSeconds, 60),
-            CaptchaSolverMaxAttempts = configuration.GetValue(BotOptionPayloadKeys.CaptchaSolverMaxAttempts, 3),
             LoopIntervalSeconds = configuration.GetValue("loop_interval_seconds", 60),
             LoopTasks = tasks,
             ContinuousLoopGroups = continuousLoopGroups,
@@ -75,9 +67,11 @@ public static class BotOptionsFactory
             TroopTrainingBarracksMaxQueueHours = configuration[BotOptionPayloadKeys.TroopTrainingBarracksMaxQueueHours] ?? "no_limit",
             TroopTrainingBarracksAmountMode = configuration[BotOptionPayloadKeys.TroopTrainingBarracksAmountMode] ?? "maximum",
             TroopTrainingBarracksKeepResourcesPercent = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.TroopTrainingBarracksKeepResourcesPercent, 10), 0, 95),
-            TroopTrainingBarracksRunMode = configuration[BotOptionPayloadKeys.TroopTrainingBarracksRunMode] ?? "resource_percent",
+            TroopTrainingBarracksRunMode = NormalizeTroopTrainingRunMode(configuration[BotOptionPayloadKeys.TroopTrainingBarracksRunMode]),
             TroopTrainingBarracksMinimumTroops = Math.Max(1, configuration.GetValue(BotOptionPayloadKeys.TroopTrainingBarracksMinimumTroops, 1)),
             TroopTrainingBarracksMinimumResourcesPercent = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.TroopTrainingBarracksMinimumResourcesPercent, 50), 0, 100),
+            TroopTrainingBarracksTimedMinMinutes = Math.Max(1, configuration.GetValue(BotOptionPayloadKeys.TroopTrainingBarracksTimedMinMinutes, 30)),
+            TroopTrainingBarracksTimedMaxMinutes = Math.Max(1, configuration.GetValue(BotOptionPayloadKeys.TroopTrainingBarracksTimedMaxMinutes, 120)),
             TroopTrainingBarracksCheckWood = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingBarracksCheckWood, true),
             TroopTrainingBarracksCheckClay = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingBarracksCheckClay, true),
             TroopTrainingBarracksCheckIron = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingBarracksCheckIron, true),
@@ -87,9 +81,11 @@ public static class BotOptionsFactory
             TroopTrainingStableMaxQueueHours = configuration[BotOptionPayloadKeys.TroopTrainingStableMaxQueueHours] ?? "no_limit",
             TroopTrainingStableAmountMode = configuration[BotOptionPayloadKeys.TroopTrainingStableAmountMode] ?? "maximum",
             TroopTrainingStableKeepResourcesPercent = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.TroopTrainingStableKeepResourcesPercent, 10), 0, 95),
-            TroopTrainingStableRunMode = configuration[BotOptionPayloadKeys.TroopTrainingStableRunMode] ?? "resource_percent",
+            TroopTrainingStableRunMode = NormalizeTroopTrainingRunMode(configuration[BotOptionPayloadKeys.TroopTrainingStableRunMode]),
             TroopTrainingStableMinimumTroops = Math.Max(1, configuration.GetValue(BotOptionPayloadKeys.TroopTrainingStableMinimumTroops, 1)),
             TroopTrainingStableMinimumResourcesPercent = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.TroopTrainingStableMinimumResourcesPercent, 50), 0, 100),
+            TroopTrainingStableTimedMinMinutes = Math.Max(1, configuration.GetValue(BotOptionPayloadKeys.TroopTrainingStableTimedMinMinutes, 30)),
+            TroopTrainingStableTimedMaxMinutes = Math.Max(1, configuration.GetValue(BotOptionPayloadKeys.TroopTrainingStableTimedMaxMinutes, 120)),
             TroopTrainingStableCheckWood = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingStableCheckWood, true),
             TroopTrainingStableCheckClay = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingStableCheckClay, true),
             TroopTrainingStableCheckIron = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingStableCheckIron, true),
@@ -99,16 +95,18 @@ public static class BotOptionsFactory
             TroopTrainingWorkshopMaxQueueHours = configuration[BotOptionPayloadKeys.TroopTrainingWorkshopMaxQueueHours] ?? "no_limit",
             TroopTrainingWorkshopAmountMode = configuration[BotOptionPayloadKeys.TroopTrainingWorkshopAmountMode] ?? "maximum",
             TroopTrainingWorkshopKeepResourcesPercent = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopKeepResourcesPercent, 10), 0, 95),
-            TroopTrainingWorkshopRunMode = configuration[BotOptionPayloadKeys.TroopTrainingWorkshopRunMode] ?? "resource_percent",
+            TroopTrainingWorkshopRunMode = NormalizeTroopTrainingRunMode(configuration[BotOptionPayloadKeys.TroopTrainingWorkshopRunMode]),
             TroopTrainingWorkshopMinimumTroops = Math.Max(1, configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopMinimumTroops, 1)),
             TroopTrainingWorkshopMinimumResourcesPercent = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopMinimumResourcesPercent, 50), 0, 100),
+            TroopTrainingWorkshopTimedMinMinutes = Math.Max(1, configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopTimedMinMinutes, 30)),
+            TroopTrainingWorkshopTimedMaxMinutes = Math.Max(1, configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopTimedMaxMinutes, 120)),
             TroopTrainingWorkshopCheckWood = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopCheckWood, true),
             TroopTrainingWorkshopCheckClay = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopCheckClay, true),
             TroopTrainingWorkshopCheckIron = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopCheckIron, true),
             TroopTrainingWorkshopCheckCrop = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopCheckCrop, true),
             TroopTrainingFallbackCooldownSeconds = ClampTroopTrainingFallbackCooldownSeconds(configuration.GetValue(BotOptionPayloadKeys.TroopTrainingFallbackCooldownSeconds, 120)),
-            NpcTradeEnabled = GetValueOrDefault(configuration, BotOptionPayloadKeys.NpcTradeEnabled, defaultValue: !isOfficialServer),
-            NpcTradeConstructionEnabled = GetValueOrDefault(configuration, BotOptionPayloadKeys.NpcTradeConstructionEnabled, defaultValue: !isOfficialServer),
+            NpcTradeEnabled = GetValueOrDefault(configuration, BotOptionPayloadKeys.NpcTradeEnabled, defaultValue: false),
+            NpcTradeConstructionEnabled = GetValueOrDefault(configuration, BotOptionPayloadKeys.NpcTradeConstructionEnabled, defaultValue: false),
             NpcTradeThresholdPercent = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.NpcTradeThresholdPercent, 90), 1, 100),
             NpcTradeAnalyzeWood = configuration.GetValue(BotOptionPayloadKeys.NpcTradeAnalyzeWood, true),
             NpcTradeAnalyzeClay = configuration.GetValue(BotOptionPayloadKeys.NpcTradeAnalyzeClay, true),
@@ -150,7 +148,7 @@ public static class BotOptionsFactory
             TargetVillageUrl = configuration[BotOptionPayloadKeys.TargetVillageUrl] ?? string.Empty,
             AllowGoldSpending = GetValueOrDefault(configuration, BotOptionPayloadKeys.AllowGoldSpending, defaultValue: false),
             AllowSilverSpending = configuration.GetValue("allow_silver_spending", false),
-            GoldLimit = configuration.GetValue(BotOptionPayloadKeys.GoldLimit, isOfficialServer ? 300 : 800),
+            GoldLimit = configuration.GetValue(BotOptionPayloadKeys.GoldLimit, 300),
             SilverLimit = configuration.GetValue("silver_limit", 100),
             ResourceUpgradeSlotId = configuration.GetValue<int?>(BotOptionPayloadKeys.ResourceUpgradeSlotId),
             ResourceUpgradeTargetLevel = configuration.GetValue<int?>(BotOptionPayloadKeys.ResourceUpgradeTargetLevel),
@@ -172,8 +170,6 @@ public static class BotOptionsFactory
             HeroAutoUseOintments = configuration.GetValue(BotOptionPayloadKeys.HeroAutoUseOintments, false),
             HeroStatPriority = heroStatPriority,
             HeroAdventurePickOrder = configuration[BotOptionPayloadKeys.HeroAdventurePickOrder] ?? "shortest",
-            HeroHideModeEnabled = configuration.GetValue(BotOptionPayloadKeys.HeroHideModeEnabled, false),
-            HeroHideMode = configuration[BotOptionPayloadKeys.HeroHideMode] ?? "hide",
             HeroContinuousAdventures = configuration.GetValue(BotOptionPayloadKeys.HeroContinuousAdventures, false),
             IncreaseAdventuresToHard = configuration.GetValue(BotOptionPayloadKeys.IncreaseAdventuresToHard, false),
             ReduceAdventureTime = configuration.GetValue(BotOptionPayloadKeys.ReduceAdventureTime, false),
@@ -189,7 +185,6 @@ public static class BotOptionsFactory
             HeroResourceUseBrewery = configuration.GetValue(BotOptionPayloadKeys.HeroResourceUseBrewery, false),
             HeroResourceUseTownHall = configuration.GetValue(BotOptionPayloadKeys.HeroResourceUseTownHall, false),
             UpgradeSelectorProfile = configuration[BotOptionPayloadKeys.UpgradeSelectorProfile] ?? "auto",
-            NatarVillageSelection = configuration["natar_village_selection"] ?? "farm_villages",
         };
     }
 
@@ -197,7 +192,6 @@ public static class BotOptionsFactory
         BotOptions source,
         bool? headlessOverride = null,
         int? resourceUpgradeTargetLevelOverride = null,
-        string? natarVillageSelectionOverride = null,
         string? targetVillageNameOverride = null,
         string? targetVillageUrlOverride = null)
     {
@@ -205,14 +199,9 @@ public static class BotOptionsFactory
         {
             ServerName = source.ServerName,
             BaseUrl = source.BaseUrl,
-            LoginPath = source.LoginPath,
-            VillageOverviewPath = source.VillageOverviewPath,
             Headless = headlessOverride ?? source.Headless,
             TimeoutMs = source.TimeoutMs,
             ManualLoginTimeoutSeconds = source.ManualLoginTimeoutSeconds,
-            CaptchaAutoSolveEnabled = source.CaptchaAutoSolveEnabled,
-            CaptchaSolverTimeoutSeconds = source.CaptchaSolverTimeoutSeconds,
-            CaptchaSolverMaxAttempts = source.CaptchaSolverMaxAttempts,
             LoopIntervalSeconds = source.LoopIntervalSeconds,
             LoopTasks = source.LoopTasks,
             ContinuousLoopGroups = source.ContinuousLoopGroups,
@@ -240,6 +229,8 @@ public static class BotOptionsFactory
             TroopTrainingBarracksRunMode = source.TroopTrainingBarracksRunMode,
             TroopTrainingBarracksMinimumTroops = source.TroopTrainingBarracksMinimumTroops,
             TroopTrainingBarracksMinimumResourcesPercent = source.TroopTrainingBarracksMinimumResourcesPercent,
+            TroopTrainingBarracksTimedMinMinutes = source.TroopTrainingBarracksTimedMinMinutes,
+            TroopTrainingBarracksTimedMaxMinutes = source.TroopTrainingBarracksTimedMaxMinutes,
             TroopTrainingBarracksCheckWood = source.TroopTrainingBarracksCheckWood,
             TroopTrainingBarracksCheckClay = source.TroopTrainingBarracksCheckClay,
             TroopTrainingBarracksCheckIron = source.TroopTrainingBarracksCheckIron,
@@ -252,6 +243,8 @@ public static class BotOptionsFactory
             TroopTrainingStableRunMode = source.TroopTrainingStableRunMode,
             TroopTrainingStableMinimumTroops = source.TroopTrainingStableMinimumTroops,
             TroopTrainingStableMinimumResourcesPercent = source.TroopTrainingStableMinimumResourcesPercent,
+            TroopTrainingStableTimedMinMinutes = source.TroopTrainingStableTimedMinMinutes,
+            TroopTrainingStableTimedMaxMinutes = source.TroopTrainingStableTimedMaxMinutes,
             TroopTrainingStableCheckWood = source.TroopTrainingStableCheckWood,
             TroopTrainingStableCheckClay = source.TroopTrainingStableCheckClay,
             TroopTrainingStableCheckIron = source.TroopTrainingStableCheckIron,
@@ -264,6 +257,8 @@ public static class BotOptionsFactory
             TroopTrainingWorkshopRunMode = source.TroopTrainingWorkshopRunMode,
             TroopTrainingWorkshopMinimumTroops = source.TroopTrainingWorkshopMinimumTroops,
             TroopTrainingWorkshopMinimumResourcesPercent = source.TroopTrainingWorkshopMinimumResourcesPercent,
+            TroopTrainingWorkshopTimedMinMinutes = source.TroopTrainingWorkshopTimedMinMinutes,
+            TroopTrainingWorkshopTimedMaxMinutes = source.TroopTrainingWorkshopTimedMaxMinutes,
             TroopTrainingWorkshopCheckWood = source.TroopTrainingWorkshopCheckWood,
             TroopTrainingWorkshopCheckClay = source.TroopTrainingWorkshopCheckClay,
             TroopTrainingWorkshopCheckIron = source.TroopTrainingWorkshopCheckIron,
@@ -333,8 +328,6 @@ public static class BotOptionsFactory
             HeroAutoUseOintments = source.HeroAutoUseOintments,
             HeroStatPriority = source.HeroStatPriority,
             HeroAdventurePickOrder = source.HeroAdventurePickOrder,
-            HeroHideModeEnabled = source.HeroHideModeEnabled,
-            HeroHideMode = source.HeroHideMode,
             HeroContinuousAdventures = source.HeroContinuousAdventures,
             IncreaseAdventuresToHard = source.IncreaseAdventuresToHard,
             ReduceAdventureTime = source.ReduceAdventureTime,
@@ -350,9 +343,6 @@ public static class BotOptionsFactory
             CollectStepDelayMinSeconds = source.CollectStepDelayMinSeconds,
             CollectStepDelayMaxSeconds = source.CollectStepDelayMaxSeconds,
             UpgradeSelectorProfile = source.UpgradeSelectorProfile,
-            NatarVillageSelection = string.IsNullOrWhiteSpace(natarVillageSelectionOverride)
-                ? source.NatarVillageSelection
-                : natarVillageSelectionOverride,
         };
     }
 
@@ -418,6 +408,11 @@ public static class BotOptionsFactory
 
         return Math.Clamp(value, 0, 3600);
     }
+
+    private static string NormalizeTroopTrainingRunMode(string? value)
+        => string.Equals(value, "resource_percent", StringComparison.OrdinalIgnoreCase)
+            ? "resource_percent"
+            : "timed";
 
     private static List<ReinforcementTroopRule> NormalizeReinforcementTroopRules(IEnumerable<ReinforcementTroopRule> rules)
     {

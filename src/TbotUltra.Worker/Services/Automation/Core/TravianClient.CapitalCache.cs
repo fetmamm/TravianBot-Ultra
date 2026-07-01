@@ -32,16 +32,13 @@ public sealed partial class TravianClient
                   const wanted = clean(vName).toLowerCase();
                   if (!wanted) return 'unknown';
 
-                  // SS (private) marks the capital row with span.mainVillage.
-                  // Official Travian (T4.6) instead adds span.additionalInfo with the
-                  // text "(Capital)" inside the village's td.name cell.
-                  let capitalSpan = document.querySelector('span.mainVillage');
-                  if (!capitalSpan) {
-                    for (const info of document.querySelectorAll('td.name span.additionalInfo, span.additionalInfo')) {
-                      if (/\bcapital\b/i.test(info.textContent || '')) {
-                        capitalSpan = info;
-                        break;
-                      }
+                  // Official Travian (T4.6) adds span.additionalInfo with the text "(Capital)"
+                  // inside the village's td.name cell.
+                  let capitalSpan = null;
+                  for (const info of document.querySelectorAll('td.name span.additionalInfo, span.additionalInfo')) {
+                    if (/\bcapital\b/i.test(info.textContent || '')) {
+                      capitalSpan = info;
+                      break;
                     }
                   }
                   if (!capitalSpan) return 'unknown';

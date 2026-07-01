@@ -183,7 +183,7 @@ public partial class MainWindow
         {
             try
             {
-                await RefreshTroopTrainingUiAfterBuildAsync(options, cancellationToken);
+                await RefreshTroopTrainingUiAfterBuildAsync(item, options, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -200,6 +200,10 @@ public partial class MainWindow
             {
                 AppendLog($"Brewery celebration refresh after run failed: {ex.Message}");
             }
+        }
+        else if (string.Equals(item.TaskName, "send_reinforcements_between_villages", StringComparison.OrdinalIgnoreCase))
+        {
+            ScheduleNextReinforcementSendAfterSuccess(options);
         }
 
         return fullConstructionRefreshDone;
@@ -424,6 +428,40 @@ public partial class MainWindow
                     catch (Exception refreshEx)
                     {
                         AppendLog($"Construction status refresh after defer skipped: {refreshEx.Message}");
+                    }
+                }
+
+                // build_troops always DEFERS on its happy path: it queues troops, then returns
+                // queue_wait_seconds for the cooldown. That skips the success-path troop refresh, so the
+                // per-village troop-training queue cache (and the Troops B/S/W icon) stayed grey even though
+                // a training queue is now active. Re-read the village's queues when troops were actually
+                // queued, so the icon turns green and the state is cached (and thus persisted across restart).
+                if (string.Equals(item.TaskName, "build_troops", StringComparison.OrdinalIgnoreCase)
+                    && ex.Message.Contains("queued", StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        await RefreshTroopTrainingUiAfterBuildAsync(item, LoadBotOptions(), CancellationToken.None);
+                    }
+                    catch (Exception refreshEx)
+                    {
+                        AppendLog($"Troop training refresh after deferred build skipped: {refreshEx.Message}");
+                    }
+                }
+
+                // hero_manage deferred for the full revive time. Tag the item so the periodic 16s refresh
+                // can release it early if the user revives the hero sooner (e.g. with a bucket) — otherwise
+                // adventures would idle until the original revive countdown elapsed.
+                if (string.Equals(item.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase)
+                    && ex.Message.Contains("hero_reviving", StringComparison.OrdinalIgnoreCase))
+                {
+                    var revivingPayload = new Dictionary<string, string>(item.Payload, StringComparer.OrdinalIgnoreCase)
+                    {
+                        [HeroDeferReasonKey] = HeroDeferReasonReviving,
+                    };
+                    if (_botService.UpdateDeferredQueueItem(item.Id, revivingPayload))
+                    {
+                        item.Payload = revivingPayload;
                     }
                 }
 

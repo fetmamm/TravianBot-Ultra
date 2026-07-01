@@ -13,11 +13,6 @@ public sealed partial class TravianClient
         IProgress<MapOasisScanProgress>? progress,
         CancellationToken cancellationToken)
     {
-        if (_config.IsPrivateServer)
-        {
-            throw new InvalidOperationException("Map oasis analysis supports official Travian servers only.");
-        }
-
         if (selectedTypes.Count == 0)
         {
             throw new InvalidOperationException("Select at least one oasis type.");

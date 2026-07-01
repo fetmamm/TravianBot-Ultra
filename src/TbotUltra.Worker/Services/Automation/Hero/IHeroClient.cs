@@ -4,7 +4,7 @@ namespace TbotUltra.Worker.Services;
 
 /// <summary>
 /// Hero operations exposed by <see cref="TravianClient"/>: adventures, revive,
-/// attribute management, inventory, hide mode, and adventure-danger tuning.
+/// attribute management, inventory, and adventure-danger tuning.
 /// Seam introduced ahead of extracting a dedicated hero collaborator (#7);
 /// <see cref="TravianClient"/> implements it directly for now, so behavior is
 /// unchanged.
@@ -19,6 +19,8 @@ public interface IHeroClient
 
     Task<bool> CheckAndReviveDeadHeroOnCurrentPageAsync(bool autoRevive, CancellationToken cancellationToken = default);
 
+    Task<bool> IsHeroRevivingOnCurrentPageAsync(CancellationToken cancellationToken = default);
+
     Task<string> ManageHeroAsync(
         int minHpForAdventure,
         bool autoRevive,
@@ -26,8 +28,6 @@ public interface IHeroClient
         bool autoUseOintments,
         string statPriority,
         string adventurePickOrder = "shortest",
-        bool hideModeEnabled = false,
-        string hideMode = "hide",
         int heroHpRegenPerDayPercent = 100,
         CancellationToken cancellationToken = default);
 
@@ -40,8 +40,6 @@ public interface IHeroClient
     Task<HeroInventoryResources> ReadHeroInventoryResourcesAsync(
         CancellationToken cancellationToken = default,
         bool suppressUiSync = false);
-
-    Task<string> SetHeroHideModeOnlyAsync(string hideMode, CancellationToken cancellationToken = default);
 
     HeroInventoryResources? TryGetCachedHeroInventory();
 

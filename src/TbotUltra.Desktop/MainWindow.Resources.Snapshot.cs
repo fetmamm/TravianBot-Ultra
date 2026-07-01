@@ -469,6 +469,8 @@ public partial class MainWindow
             }
         }
 
+        await TryReleaseRevivingHeroManageDeferAsync(options);
+
         await TryQueueSpendHeroAttributePointsForLevelUpIndicatorAsync(options);
 
         if (officialServer && refreshedStatus is not null)
@@ -856,6 +858,90 @@ public partial class MainWindow
         return Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out var uri)
             && (uri.Host.Equals("travian.com", StringComparison.OrdinalIgnoreCase)
                 || uri.Host.EndsWith(".travian.com", StringComparison.OrdinalIgnoreCase));
+    }
+
+    // Payload marker the failure handler writes onto a hero_manage that deferred for the full revive
+    // countdown (see HandleQueueItemFailureAsync), so this refresh can recognise and release it.
+    private const string HeroDeferReasonKey = "hero_defer_reason";
+    private const string HeroDeferReasonReviving = "reviving";
+
+    // Releases a hero_manage that was deferred for the full revive time when the hero is no longer reviving
+    // on the current page (e.g. the user revived early with a bucket), so the loop re-runs it now and
+    // resumes adventures instead of idling out the original countdown. Cheap: only reads the page when such
+    // a deferred item actually exists.
+    private async Task TryReleaseRevivingHeroManageDeferAsync(BotOptions options)
+    {
+        if (_heroReviveCheckRunning)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var deferredReviving = _botService.GetQueueItemsForDisplay()
+            .Where(item => string.Equals(item.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase))
+            .Where(item => item.Status == QueueStatus.Pending)
+            .Where(item => item.NextAttemptAt > now.AddSeconds(5))
+            .Where(item => item.Payload.TryGetValue(HeroDeferReasonKey, out var reason)
+                && string.Equals(reason, HeroDeferReasonReviving, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (deferredReviving.Count == 0)
+        {
+            return;
+        }
+
+        bool stillReviving;
+        _heroReviveCheckRunning = true;
+        try
+        {
+            stillReviving = await _botService.IsHeroRevivingOnCurrentPageAsync(options, AppendLog, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            if (IsTransientPageReadFailure(ex))
+            {
+                AppendLog($"[hero:verbose] reviving-release check skipped after transient page failure ({ex.Message})");
+            }
+            else
+            {
+                AppendLog($"Hero reviving-release check skipped: {ex.Message}");
+            }
+
+            return;
+        }
+        finally
+        {
+            _heroReviveCheckRunning = false;
+        }
+
+        if (stillReviving)
+        {
+            return;
+        }
+
+        var released = 0;
+        foreach (var item in deferredReviving)
+        {
+            var clearedPayload = new Dictionary<string, string>(item.Payload, StringComparer.OrdinalIgnoreCase);
+            clearedPayload.Remove(HeroDeferReasonKey);
+            if (_botService.UpdateDeferredQueueItem(item.Id, clearedPayload, TimeSpan.Zero))
+            {
+                released++;
+            }
+        }
+
+        if (released > 0)
+        {
+            AppendLog($"Hero: revive finished early (no reviving icon) — released {released} deferred hero_manage item(s) to run now.");
+            if (IsContinuousLoopRunning())
+            {
+                Interlocked.Exchange(ref _continuousLoopWakeRequested, 1);
+            }
+            else
+            {
+                TriggerQueueAutoRunFromEnqueue();
+            }
+        }
     }
 
     private async Task TryReviveDeadHeroFromCurrentPageAsync()

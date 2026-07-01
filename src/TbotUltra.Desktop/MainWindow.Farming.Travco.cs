@@ -34,12 +34,6 @@ public partial class MainWindow
         }
 
         var options = LoadBotOptions();
-        if (options.IsPrivateServer)
-        {
-            AppendLog("Travco inactive search supports official Travian servers only.");
-            return;
-        }
-
         var villages = GetTravcoVillages();
         if (villages.Count == 0)
         {
@@ -73,11 +67,6 @@ public partial class MainWindow
         CancellationToken cancellationToken)
     {
         var options = LoadBotOptions();
-        if (options.IsPrivateServer)
-        {
-            throw new InvalidOperationException("Travco inactive search supports official Travian servers only.");
-        }
-
         AppendLog(
             $"[travco-ui] analyze requested: coordinates=({request.X}|{request.Y}), days={request.DaysInactive}, order={request.OrderBy}.");
         if (IsContinuousLoopRunning() || _autoQueueRunning)

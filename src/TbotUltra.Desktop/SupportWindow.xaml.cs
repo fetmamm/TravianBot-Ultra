@@ -19,12 +19,14 @@ public partial class SupportWindow : Window
     private readonly IReadOnlyList<string> _terminalEntries;
     private readonly string _currentVersion;
     private readonly UpdateChecker.UpdateStatus? _updateStatus;
+    private readonly bool _muteUpdateNotifications;
 
     public SupportWindow(
         string projectRoot,
         IReadOnlyList<string> terminalEntries,
         string currentVersion,
-        UpdateChecker.UpdateStatus? updateStatus)
+        UpdateChecker.UpdateStatus? updateStatus,
+        bool muteUpdateNotifications = false)
     {
         InitializeComponent();
         ThemeChrome.EnableEarlyDarkTitleBar(this);
@@ -32,22 +34,33 @@ public partial class SupportWindow : Window
         _terminalEntries = terminalEntries;
         _currentVersion = string.IsNullOrWhiteSpace(currentVersion) ? "dev" : currentVersion;
         _updateStatus = updateStatus;
+        _muteUpdateNotifications = muteUpdateNotifications;
         ApplyVersionButtonState();
     }
 
-    // Amber when a newer release exists, neutral grey otherwise — same tinted style as the other buttons.
+    private SolidColorBrush? _versionPulseBrush;
+
+    // Breathes gold (same slow pulse as the dashboard Support button / session sleep) when a newer release
+    // exists, neutral grey otherwise — so the user clearly sees an update is available.
     private void ApplyVersionButtonState()
     {
-        var updateAvailable = _updateStatus?.UpdateAvailable == true;
-        var bg = updateAvailable ? "WarningBgBrush" : "SurfaceBrush";
-        var border = updateAvailable ? "WarningBorderBrush" : "BorderMutedBrush";
-        var text = updateAvailable ? "WarningTextBrush" : "TextMutedBrush";
-        VersionButton.Background = (Brush)FindResource(bg);
-        VersionButton.BorderBrush = (Brush)FindResource(border);
-        VersionButton.Foreground = (Brush)FindResource(text);
-        VersionButton.ToolTip = updateAvailable
-            ? $"Update available: v{_updateStatus!.Release!.LatestVersion}"
-            : "Check the app version";
+        var updateAvailable = _updateStatus?.UpdateAvailable == true && !_muteUpdateNotifications;
+        if (updateAvailable)
+        {
+            VersionButton.BorderBrush = (Brush)FindResource("WarningBorderBrush");
+            VersionButton.Foreground = (Brush)FindResource("WarningTextBrush");
+            _versionPulseBrush ??= new SolidColorBrush(ThemeColors.Get("WarningBgBrush"));
+            VersionButton.Background = _versionPulseBrush;
+            MainWindow.StartGoldBreathePulse(_versionPulseBrush);
+            VersionButton.ToolTip = $"Update available: v{_updateStatus!.Release!.LatestVersion}";
+            return;
+        }
+
+        _versionPulseBrush?.BeginAnimation(SolidColorBrush.ColorProperty, null);
+        VersionButton.Background = (Brush)FindResource("SurfaceBrush");
+        VersionButton.BorderBrush = (Brush)FindResource("BorderMutedBrush");
+        VersionButton.Foreground = (Brush)FindResource("TextMutedBrush");
+        VersionButton.ToolTip = "Check the app version";
     }
 
     private void VersionButton_Click(object sender, RoutedEventArgs e)

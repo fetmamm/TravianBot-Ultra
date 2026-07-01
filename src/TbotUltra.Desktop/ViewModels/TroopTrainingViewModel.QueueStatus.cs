@@ -52,16 +52,6 @@ public sealed partial class TroopTrainingViewModel
                 continue;
             }
 
-            if (option.Exists)
-            {
-                if (string.IsNullOrWhiteSpace(option.QueueStatusText))
-                {
-                    option.QueueStatusText = "Queue not loaded.";
-                }
-
-                continue;
-            }
-
             var buildingExists = status.Buildings.Any(item =>
                 item.SlotId is > 0
                 && ((option.BuildingType == TroopTrainingBuildingType.Barracks && (item.Gid ?? 0) == 19)
@@ -75,8 +65,10 @@ public sealed partial class TroopTrainingViewModel
                 option.QueueFinish = null;
                 option.QueueStatusText = "Building not found";
             }
-            else if (string.IsNullOrWhiteSpace(option.QueueStatusText))
+            else
             {
+                option.QueueRemainingSeconds = null;
+                option.QueueFinish = null;
                 option.QueueStatusText = "Queue not loaded.";
             }
         }

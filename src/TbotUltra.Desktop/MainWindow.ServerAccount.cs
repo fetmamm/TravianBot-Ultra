@@ -55,16 +55,6 @@ public partial class MainWindow
                 changed = true;
             }
 
-            var currentFlavor = config["server_flavor"]?.GetValue<string>() ?? string.Empty;
-            var targetFlavor = ServerFlavorDetector.FromBaseUrl(targetUrl) == ServerFlavor.SsTravi
-                ? "ss_travi"
-                : "official";
-            if (!string.Equals(currentFlavor, targetFlavor, StringComparison.OrdinalIgnoreCase))
-            {
-                config["server_flavor"] = targetFlavor;
-                changed = true;
-            }
-
             if (changed)
             {
                 _botConfigStore.Save(config);
@@ -77,29 +67,18 @@ public partial class MainWindow
         }
     }
 
-    private async Task<List<ServerOption>> FetchDefaultServerOptionsAsync(BotOptions options)
+    private Task<List<ServerOption>> FetchDefaultServerOptionsAsync(BotOptions options)
     {
-        try
+        var servers = new List<ServerOption>
         {
-            var servers = await _serverDiscoveryService.FetchServersAsync();
-            if (servers.Count > 0)
-            {
-                return servers;
-            }
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Server discovery failed, using fallback: {ex.Message}");
-        }
-
-        return
-        [
             new ServerOption
             {
                 Name = options.ServerName,
                 BaseUrl = options.BaseUrl,
             },
-        ];
+        };
+
+        return Task.FromResult(servers);
     }
 
     private List<ServerOption> FetchEffectiveServerOptions(IEnumerable<ServerOption> defaultServers)
@@ -217,6 +196,13 @@ public partial class MainWindow
             return urlSpeed;
         }
 
+        // No server configured at all (e.g. fresh install, no accounts added) — nothing to detect,
+        // so stay silent instead of alarming. The alarm only matters when a server is set but unparseable.
+        if (string.IsNullOrWhiteSpace(serverName) && string.IsNullOrWhiteSpace(serverUrl))
+        {
+            return 1.0;
+        }
+
         if (!_serverSpeedAlarmRaised)
         {
             _serverSpeedAlarmRaised = true;
@@ -237,23 +223,6 @@ public partial class MainWindow
         {
             return null;
         }
-    }
-
-    // Captchas only happen on SS-Travi servers, so the topbar "Captchas solved" card is shown only
-    // when the active account points at an SS-Travi URL and stays hidden for official servers.
-    private void UpdateCaptchaCardVisibility()
-    {
-        if (CaptchaStatsCard is null)
-        {
-            return;
-        }
-
-        var url = GetActiveAccountServerUrl();
-        var isSsTravi = !string.IsNullOrWhiteSpace(url)
-            && ServerFlavorDetector.FromBaseUrl(url) == ServerFlavor.SsTravi;
-        CaptchaStatsCard.Visibility = isSsTravi
-            ? System.Windows.Visibility.Visible
-            : System.Windows.Visibility.Collapsed;
     }
 
 }

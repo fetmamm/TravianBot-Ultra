@@ -317,11 +317,10 @@ public sealed partial class TravianClient : IBuildingClient
                         await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
                         continue;
                     }
-                    var flavorLabel = _config.IsPrivateServer ? "SsTravi" : "Official";
                     var candidateSummary = string.IsNullOrWhiteSpace(actionability.DebugSummary) ? "none" : actionability.DebugSummary;
                     return $"Slot {slotId}: could not find 'Upgrade to level {nextLevel}' button. "
                         + $"Reason: {actionability.Outcome} ({actionability.Reason}). "
-                        + $"flavor={flavorLabel} url='{_page.Url}' candidates=[{candidateSummary}]. "
+                        + $"url='{_page.Url}' candidates=[{candidateSummary}]. "
                         + $"Upgrades performed: {upgrades}.";
                 }
             }
@@ -1188,11 +1187,10 @@ public sealed partial class TravianClient : IBuildingClient
             }
         }
 
-        var flavor = _config.IsPrivateServer ? "SsTravi" : "Official";
         if (!string.IsNullOrWhiteSpace(lastError))
         {
             Notify($"[build:verbose] could not click 'Upgrade to level {nextLevel}' button "
-                + $"(slot {slotId}, flavor {flavor}, url '{_page.Url}'). Last click error: {lastError}");
+                + $"(slot {slotId}, url '{_page.Url}'). Last click error: {lastError}");
         }
         else
         {
@@ -1200,7 +1198,7 @@ public sealed partial class TravianClient : IBuildingClient
             // button was simply absent (wrong/half-loaded page, resource-blocked state) vs present but
             // not actionable. The caller falls back to actionability analysis for the candidate detail.
             Notify($"[build:verbose] no 'Upgrade to level {nextLevel}' button matched any selector "
-                + $"(slot {slotId}, flavor {flavor}, url '{_page.Url}'). Falling back to actionability analysis.");
+                + $"(slot {slotId}, url '{_page.Url}'). Falling back to actionability analysis.");
         }
 
         return false;
@@ -1372,11 +1370,10 @@ public sealed partial class TravianClient : IBuildingClient
                         await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
                         continue;
                     }
-                    var flavorLabel = _config.IsPrivateServer ? "SsTravi" : "Official";
                     var candidateSummary = string.IsNullOrWhiteSpace(actionability.DebugSummary) ? "none" : actionability.DebugSummary;
                     return $"Slot {slotId}: could not find 'Upgrade to level {nextLevel}' button. "
                         + $"Reason: {actionability.Outcome} ({actionability.Reason}). "
-                        + $"flavor={flavorLabel} url='{_page.Url}' candidates=[{candidateSummary}]. "
+                        + $"url='{_page.Url}' candidates=[{candidateSummary}]. "
                         + $"Upgrades performed: {upgrades}.";
                 }
             }
@@ -1719,7 +1716,7 @@ public sealed partial class TravianClient : IBuildingClient
               ));
               const seen = [];
               const matches = [];
-              // Match `?a=N`, `&a=N`, `?gid=N`, `&gid=N`, plus Cyrillic 'а' (U+0430) used by some private servers.
+              // Match `?a=N`, `&a=N`, `?gid=N`, `&gid=N`, plus Cyrillic 'а' (U+0430) as a tolerant fallback.
               const otherGidRe = /[?&](?:[aа]|gid)=(\d+)/gi;
               const constructActionRe = /\bconstruct(?:\s+building)?\b|\bbuild(?:\s+building)?\b|\bbauen\b|\bbygg\b|\bcostruisci\b/i;
               for (const el of candidates) {
@@ -1738,8 +1735,7 @@ public sealed partial class TravianClient : IBuildingClient
                 if (text.includes('npc') || text.includes('instant') || text.includes('faster') || classes.includes('gold') || classes.includes('purple') || classes.includes('videofeaturebutton') || inOfficialSpeedupSection) continue;
                 const isUpgrade = /upgrade\s+to\s+level/i.test(text);
                 if (isUpgrade) continue;
-                // Travian wraps each constructable building in `#contract_building{gid}` (private servers
-                // sometimes also use `#building{gid}` or [data-gid]). Search broadly.
+                // Travian wraps each constructable building in `#contract_building{gid}`; search broadly for fallbacks.
                 const wrapper = el.closest(
                   `#contract_building${gidText}, #building${gidText}, [id$="_building${gidText}"], [data-gid="${gidText}"], .gid${gidText}`
                 );
@@ -1808,7 +1804,7 @@ public sealed partial class TravianClient : IBuildingClient
             // consent / React widgets) and runs on a separate snapshot, so a positional Nth(index) can
             // resolve to a different — often hidden — element and hang ClickAsync for the full timeout.
             // Pinning the exact button by id avoids that misalignment; Nth stays as a last-resort fallback
-            // for the rare candidate that has no id (e.g. some private-server submit inputs).
+            // for the rare candidate that has no id.
             var clickTarget = !string.IsNullOrWhiteSpace(clickId)
                 ? _page.Locator($"[id=\"{clickId}\"]").First
                 : _page.Locator("button, input[type='submit'], input[type='button'], a, div.addHoverClick, div.button-container").Nth(clickIndex!.Value);
@@ -1884,8 +1880,8 @@ public sealed partial class TravianClient : IBuildingClient
     /// Improves only the user-selected troops at the Smithy, each up to its own target level. Reads every
     /// troop row, classifies it (improvable / already at target / maxed / no resources / queue busy / not
     /// researched), clicks Improve for an available targeted troop, and defers on the live queue timer when
-    /// the smithy is busy. Robust on both Official ("Improve" buttons) and SS/legacy ("Upgrade") variants:
-    /// rows are identified by unit id (img.unit.uNN) or troop slot (t=tN), never by button text alone.
+    /// the smithy is busy. Rows are identified by unit id (img.unit.uNN) or troop slot (t=tN),
+    /// never by button text alone.
     /// </summary>
     public async Task<string> UpgradeSelectedTroopsAtSmithyAsync(
         IReadOnlyList<SmithyTroopTarget> targets,
@@ -2107,11 +2103,10 @@ public sealed partial class TravianClient : IBuildingClient
             }
 
             // Resource shortage + the user enabled hero-inventory resources: top the troop up from the hero
-            // and re-evaluate (Official only, opt-in, best-effort). One attempt per troop per run so an
+            // and re-evaluate (opt-in, best-effort). One attempt per troop per run so an
             // ineffective transfer can't drain the hero in a loop.
             if (toClick is null
                 && firstNoResourceTarget is not null
-                && !_config.IsPrivateServer
                 && _config.HeroResourceTransferEnabled
                 && _config.HeroResourceUseSmithy
                 && heroTransferAttempted.Add(firstNoResourceTarget.Key))
@@ -3575,9 +3570,8 @@ public sealed partial class TravianClient : IBuildingClient
 
         var raw = await ReadActiveConstructionsOnCurrentPageAsync();
         // The construction queue only renders on dorf1/dorf2 (source of truth). If the current page
-        // has none and we are not already on a village overview, read it on dorf2 — on every server
-        // flavor (not just Official), otherwise SS-Travi build pages report an empty queue and the
-        // slot gate wrongly thinks a slot is free.
+        // has none and we are not already on a village overview, read it on dorf2. Some build
+        // pages can otherwise report an empty queue and the slot gate wrongly thinks a slot is free.
         if (raw.Count == 0
             && allowNavigationToBuildings
             && !IsCurrentUrlForPath(Paths.Buildings)
@@ -3968,7 +3962,7 @@ public sealed partial class TravianClient : IBuildingClient
                       };
 
                       const readServerNow = () => {
-                        const candidates = ['#servertime .timeStandard', '#servertime', '.serverTime', '#stockBarTimer'];
+                        const candidates = ['#servertime .timeStandard', '#servertime', '.serverTime'];
                         for (const sel of candidates) {
                           const el = document.querySelector(sel);
                           const t = clean(el?.textContent || '');

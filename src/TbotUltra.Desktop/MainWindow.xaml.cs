@@ -72,49 +72,6 @@ public partial class MainWindow : Window
         public ulong AvailExtendedVirtual;
     }
 
-    private sealed class NatarListRow : INotifyPropertyChanged
-    {
-        private bool _isChecked;
-        private bool _isUiSelected;
-
-        public int Index { get; init; }
-        public string VillageName { get; init; } = string.Empty;
-        public int X { get; init; }
-        public int Y { get; init; }
-
-        public bool IsChecked
-        {
-            get => _isChecked;
-            set
-            {
-                if (_isChecked == value)
-                {
-                    return;
-                }
-
-                _isChecked = value;
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsChecked)));
-            }
-        }
-
-        public bool IsUiSelected
-        {
-            get => _isUiSelected;
-            set
-            {
-                if (_isUiSelected == value)
-                {
-                    return;
-                }
-
-                _isUiSelected = value;
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsUiSelected)));
-            }
-        }
-
-        public event PropertyChangedEventHandler? PropertyChanged;
-    }
-
     private sealed record UiSyncVillagePayload(
         string? Name,
         string? Url,
@@ -154,13 +111,10 @@ public partial class MainWindow : Window
     private readonly EnvAccountStore _accountStore;
     private readonly AccountAnalysisStore _accountAnalysisStore;
     private readonly HeroAttributeSnapshotStore _heroAttributeSnapshotStore;
-    private readonly NatarFarmCacheStore _natarFarmCacheStore;
     private readonly ManualFarmingPreferenceStore _manualFarmingPreferenceStore;
     private readonly AccountDeletionService _accountDeletionService;
-    private readonly ServerDiscoveryService _serverDiscoveryService;
     private readonly ServerCatalogStore _serverCatalogStore;
     private readonly IDesktopBotService _botService;
-    private readonly ICaptchaAutoSolver _captchaAutoSolver;
     private readonly DispatcherTimer _clockTimer;
     private readonly DispatcherTimer _copyFeedbackTimer;
     private readonly DispatcherTimer _inboxRefreshTimer;
@@ -222,7 +176,6 @@ public partial class MainWindow : Window
     private readonly HashSet<int> _buildingDemolishingSlots = new();
     private static readonly IReadOnlyDictionary<int, (double Left, double Top)> BuildingSlotLayoutById = BuildingsViewModel.CreateBuildingSlotLayout();
 
-    private bool _suppressHeroHideModeApply;
     private Task? _loopTask;
     private bool _chromiumEnsured;
     private bool _updateCheckRunning;
@@ -329,18 +282,9 @@ public partial class MainWindow : Window
     private bool _buildQueueReachedZeroPendingCompletion;
     private int _unacknowledgedAlarmCount;
     private bool _manualVerificationAlarmActive;
-    private int _captchaSessionSeenCount;
-    private int _captchaSessionSolvedCount;
-    private bool _captchaSessionActive;
     private int _npcTradeSessionCount;
     private int _npcTradeTroopSessionCount;
     private int _npcTradeBuildingSessionCount;
-    private AppDialog? _captchaAutoSolvePopup;
-    private DispatcherTimer? _captchaAutoSolveElapsedTimer;
-    private DateTimeOffset _captchaAutoSolveStartedAt;
-    private int _captchaAutoSolveMaxSeconds = 60;
-    private TextBlock? _captchaAutoSolveAttemptTextBlock;
-    private TextBlock? _captchaAutoSolveElapsedTextBlock;
     private DateTimeOffset _lastVerificationPopupAt = DateTimeOffset.MinValue;
     private DateTimeOffset _inlineWaitUntilUtc = DateTimeOffset.MinValue;
     private int _manualFarmSessionExecutionCount;
@@ -377,7 +321,6 @@ public partial class MainWindow : Window
     private bool _suppressFarmingSettingsConfigWrite;
     private bool _suppressTownHallCelebrationModeConfigWrite;
     private bool _farmingOperationBusy;
-    private bool _natarsProfileAnalyzed;
     private DateTimeOffset _lastFarmListsAnalysisAt = DateTimeOffset.MinValue;
     private VillageStatus? _lastBuildingStatus;
     private VillageStatus? _lastResourceStatusForUi;
@@ -461,14 +404,10 @@ public partial class MainWindow : Window
         InitializeSessionPacing();
         _accountAnalysisStore = new AccountAnalysisStore(_projectRoot);
         _heroAttributeSnapshotStore = new HeroAttributeSnapshotStore(_projectRoot);
-        _natarFarmCacheStore = new NatarFarmCacheStore(_projectRoot);
         _manualFarmingPreferenceStore = new ManualFarmingPreferenceStore(_projectRoot);
-        _serverDiscoveryService = new ServerDiscoveryService();
         _serverCatalogStore = new ServerCatalogStore(_serverCatalogPath);
         var projectContext = new ProjectContext(_projectRoot);
-        var captchaAutoSolver = new CaptchaAutoSolver(projectContext);
-        _captchaAutoSolver = captchaAutoSolver;
-        var taskRunner = new BotTaskRunner(_accountProvider, projectContext, captchaAutoSolver);
+        var taskRunner = new BotTaskRunner(_accountProvider, projectContext);
         // One-time migration of the old shared config/queue.json into the active account's per-account
         // queue file. Runs before the store is used so the recover/clear logic below sees the migrated items.
         QueueMigration.MigrateLegacyGlobalQueue(_projectRoot, _accountStore.ActiveAccountName(), AppendLog);
@@ -501,6 +440,7 @@ public partial class MainWindow : Window
                 var serverNow = GetServerNow();
                 var dashboardTabSelected = IsMainTabSelected(DashboardTabItem);
 
+                UpdateSessionActivityState();
                 UpdateClockText(serverNow);
                 UpdateSessionPacingUi();
                 HandleBrowserClosedSignal();
@@ -590,7 +530,6 @@ public partial class MainWindow : Window
         AlarmListBox.ItemsSource = _alarmView;
         TravianBuildQueueDataGrid.ItemsSource = _travianBuildQueueRows;
         TravianSmithyQueueDataGrid.ItemsSource = _travianSmithyQueueRows;
-        UpdateCaptchaStatsUi();
         UpdateNpcTradeStatsUi();
         _automationLoopTasksView = CollectionViewSource.GetDefaultView(_automationLoopTasks);
         _automationLoopTasksView.Filter = AutomationLoopTaskFilter;
@@ -656,7 +595,6 @@ public partial class MainWindow : Window
         UpdateSidebarSelection(DashboardNavButton);
         UpdateFarmingUiState();
         UpdateManualFarmingExecutionCounter();
-        SetNatarsProfileAnalyzed(false);
         _heroViewModel.LoadPriorityFromConfig(null);
         StartBackgroundWarmups();
     }
@@ -703,8 +641,6 @@ public partial class MainWindow : Window
         UpdateClockText();
         RefreshAccountPicker();
         SyncServerFromActiveAccount();
-        UpdateCaptchaCardVisibility();
-
         var options = ApplySelectedVillageToOptions(LoadBotOptions());
         var storedAutoCelebration = TryGetStoredAutoCelebrationPreference();
         var hasExplicitAutoCelebrationSetting = storedAutoCelebration.HasValue;
@@ -724,15 +660,7 @@ public partial class MainWindow : Window
         EnsureAutoCelebrationEnabledForBreweryGroup();
         _lastAutoCelebrationEnabledForChangeTracking = _troopTrainingViewModel.AutoCelebrationEnabled;
         _troopTrainingViewModel.InfoText = "Configure troop building rules and refresh queues when needed.";
-        _suppressHeroHideModeApply = true;
-        try
-        {
-            _heroViewModel.LoadSettingsFromConfig(options);
-        }
-        finally
-        {
-            _suppressHeroHideModeApply = false;
-        }
+        _heroViewModel.LoadSettingsFromConfig(options);
 
         _resourcesViewModel.LoadSettingsFromConfig(options);
         ApplyResourceTransferConfigToUi(options);
@@ -743,7 +671,7 @@ public partial class MainWindow : Window
         ApplyAutoCollectDailyQuestsConfigToUi(options);
         ApplyHeroResourceTransferConfigToUi(options);
 
-        // Account + runtime state below (account label, inbox counts, gold-club, Natars, hero snapshot) is
+        // Account + runtime state below (account label, inbox counts, gold-club, hero snapshot) is
         // seeded from caches/disk. That is only correct before login — startup or an account switch — when the
         // UI has no live state yet. When already logged in this method is reached only from a Settings-popup
         // save; re-seeding then would overwrite newer live state with stale cache values (e.g. the hero home
@@ -758,7 +686,6 @@ public partial class MainWindow : Window
                 UpdateAccountInfoLabel(account.Name);
                 UpdateInboxButtons(0, 0);
                 UpdateGoldClubInfoFromStoredAnalysis();
-                RefreshNatarsProfileAnalyzedFromCache();
                 LoadHeroAttributeSnapshotForActiveAccount(account.Name);
             }
             catch (Exception ex)
@@ -776,58 +703,7 @@ public partial class MainWindow : Window
 
                 UpdateInboxButtons(0, 0);
                 UpdateGoldClubInfo(null);
-                SetNatarsProfileAnalyzed(false);
             }
-        }
-
-        // Hide/show Natar-only controls based on whether the active server is the private server.
-        ApplyNatarFeatureVisibility();
-    }
-
-    private void RefreshNatarsProfileAnalyzedFromCache()
-    {
-        if (!IsNatarFarmingAvailable())
-        {
-            return;
-        }
-
-        AppendLog("[RefreshNatarsProfileAnalyzedFromCache] Started");
-        try
-        {
-            var accountName = _accountStore.ActiveAccountName();
-            var serverUrl = GetActiveAccountServerUrl();
-            var selectionMode = LoadBotOptions().NatarVillageSelection;
-            var analyzed = !string.IsNullOrWhiteSpace(accountName)
-                && !string.IsNullOrWhiteSpace(serverUrl)
-                && _natarFarmCacheStore.IsAnalyzed(accountName, serverUrl, selectionMode);
-            SetNatarsProfileAnalyzed(analyzed);
-        }
-        catch
-        {
-            SetNatarsProfileAnalyzed(false);
-        }
-        AppendLog("[RefreshNatarsProfileAnalyzedFromCache] Completed");
-    }
-
-    private NatarFarmCacheSnapshot? TryLoadActiveNatarFarmSnapshot()
-    {
-        try
-        {
-            var accountName = _accountStore.ActiveAccountName();
-            var serverUrl = GetActiveAccountServerUrl();
-            var selectionMode = LoadBotOptions().NatarVillageSelection;
-            if (string.IsNullOrWhiteSpace(accountName) || string.IsNullOrWhiteSpace(serverUrl))
-            {
-                return null;
-            }
-
-            return _natarFarmCacheStore.TryLoad(accountName, out var snapshot, serverUrl, selectionMode)
-                ? snapshot
-                : null;
-        }
-        catch
-        {
-            return null;
         }
     }
 
@@ -839,6 +715,7 @@ public partial class MainWindow : Window
                 ? null
                 : displayName;
             UpdateExecutionStateIndicator();
+            UpdateSessionActivityState(forcePersist: true);
         }
 
         if (Dispatcher.CheckAccess())
@@ -864,8 +741,8 @@ public partial class MainWindow : Window
     }
 
     // Best-effort background check against GitHub's latest release. Runs at startup and then hourly while
-    // the app is open. On a newer version, tint the Support button amber so the user notices; the Version
-    // button inside Support shows the details. Never blocks startup and never alarms — offline/rate-limited
+    // the app is open. On a newer version, the Support (message) button breathes gold unless update
+    // notifications are muted in settings. Never blocks startup and never alarms — offline/rate-limited
     // leaves the latest known status unchanged.
     private async Task CheckForUpdatesAsync()
     {
@@ -887,14 +764,16 @@ public partial class MainWindow : Window
             _updateStatus = status;
             if (status.UpdateAvailable && status.Release is not null)
             {
-                SupportButton.Background = (Brush)FindResource("WarningBgBrush");
-                SupportButton.BorderBrush = (Brush)FindResource("WarningBorderBrush");
-                SupportButton.Foreground = (Brush)FindResource("WarningTextBrush");
-                SupportButton.ToolTip = $"Update available: v{status.Release.LatestVersion} — open Support";
-                if (!string.Equals(
-                    _announcedUpdateVersion,
-                    status.Release.LatestVersion,
-                    StringComparison.OrdinalIgnoreCase))
+                var muted = AreNewVersionNotificationsMuted();
+                ApplySupportButtonUpdatePulse(!muted);
+                SupportButton.ToolTip = muted
+                    ? "Support"
+                    : $"Update available: v{status.Release.LatestVersion} — open Support";
+                if (!muted
+                    && !string.Equals(
+                        _announcedUpdateVersion,
+                        status.Release.LatestVersion,
+                        StringComparison.OrdinalIgnoreCase))
                 {
                     _announcedUpdateVersion = status.Release.LatestVersion;
                     AppendLog($"Update available: v{status.Release.LatestVersion} (current v{_currentVersion}).");
@@ -903,9 +782,7 @@ public partial class MainWindow : Window
             else
             {
                 _announcedUpdateVersion = null;
-                SupportButton.ClearValue(Control.BackgroundProperty);
-                SupportButton.ClearValue(Control.BorderBrushProperty);
-                SupportButton.ClearValue(Control.ForegroundProperty);
+                ApplySupportButtonUpdatePulse(false);
                 SupportButton.ToolTip = "Support";
             }
         }
@@ -917,6 +794,28 @@ public partial class MainWindow : Window
         {
             _updateCheckRunning = false;
         }
+    }
+
+    private bool AreNewVersionNotificationsMuted()
+    {
+        try
+        {
+            return _botConfigStore.Load()[BotOptionPayloadKeys.DontNotifyNewVersion]?.GetValue<bool>() ?? false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private void RefreshUpdateNotificationState()
+    {
+        var muted = AreNewVersionNotificationsMuted();
+        var updateAvailable = _updateStatus?.UpdateAvailable == true && _updateStatus.Release is not null;
+        ApplySupportButtonUpdatePulse(updateAvailable && !muted);
+        SupportButton.ToolTip = updateAvailable && !muted
+            ? $"Update available: v{_updateStatus!.Release!.LatestVersion} — open Support"
+            : "Support";
     }
 
     private void EnqueueQuickTask(string taskName, string description, Dictionary<string, string>? payload = null)
@@ -1404,11 +1303,6 @@ public partial class MainWindow : Window
 
     private void HeroViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (_suppressHeroHideModeApply)
-        {
-            return;
-        }
-
         if (e.PropertyName is not (
             nameof(HeroViewModel.MinHpForAdventure)
             or nameof(HeroViewModel.HeroHpRegenPerDayPercent)
@@ -1417,9 +1311,6 @@ public partial class MainWindow : Window
             or nameof(HeroViewModel.AutoUseOintments)
             or nameof(HeroViewModel.IsAdventurePickTop)
             or nameof(HeroViewModel.IsAdventurePickShortest)
-            or nameof(HeroViewModel.HideModeControlEnabled)
-            or nameof(HeroViewModel.IsHideModeFight)
-            or nameof(HeroViewModel.IsHideModeHide)
             or nameof(HeroViewModel.ContinuousAdventures)
             or nameof(HeroViewModel.IncreaseAdventuresToHard)
             or nameof(HeroViewModel.ReduceAdventureTime)))
@@ -1523,7 +1414,7 @@ public partial class MainWindow : Window
         _buildQueueRemainingSeconds = constructionTimer.RemainingSeconds ?? -1;
         _buildQueueReachedZeroPendingCompletion = false;
         ApplyTroopsAvailabilityFromVillageStatus(status);
-        _troopTrainingViewModel.ApplyStatus(status, status.TroopTrainingQueues ?? _lastBuildingStatus?.TroopTrainingQueues);
+        _troopTrainingViewModel.ApplyStatus(status, ResolveTroopTrainingQueuesForStatus(status));
         if (status.SmithyUpgradeStatus is not null)
         {
             ApplySmithyUpgradeStatus(status.SmithyUpgradeStatus);
@@ -1657,7 +1548,8 @@ public partial class MainWindow : Window
             _projectRoot,
             _terminalEntries.Select(entry => entry.Text).ToList(),
             _currentVersion,
-            _updateStatus)
+            _updateStatus,
+            AreNewVersionNotificationsMuted())
         {
             Owner = this,
         };

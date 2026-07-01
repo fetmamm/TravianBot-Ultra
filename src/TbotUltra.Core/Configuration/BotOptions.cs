@@ -13,29 +13,6 @@ public sealed class BotOptions
     [Required]
     public string BaseUrl { get; init; } = string.Empty;
 
-    /// <summary>
-    /// Which kind of Travian server this is. Controls gating of private-server-only features
-    /// (e.g. Natar farming). Always derived from the <see cref="BaseUrl"/> host — the
-    /// authoritative signal (e.g. *.ss-travi.com => SsTravi). It is deliberately NOT bound from
-    /// config, so a stale <c>server_flavor</c> value left over from a previous server can never
-    /// mis-detect the flavor (regardless of how this BotOptions instance was constructed).
-    /// </summary>
-    public ServerFlavor ServerFlavor => ServerFlavorDetector.FromBaseUrl(BaseUrl);
-
-    /// <summary>
-    /// True when connected to the SS-Travi private server. Use this to gate
-    /// private-server-only behaviour so it stays disabled on official servers.
-    /// </summary>
-    public bool IsPrivateServer => ServerFlavor == ServerFlavor.SsTravi;
-
-    [ConfigurationKeyName("login_path")]
-    [Required]
-    public string LoginPath { get; init; } = "/login.php";
-
-    [ConfigurationKeyName("village_overview_path")]
-    [Required]
-    public string VillageOverviewPath { get; init; } = "/dorf1.php";
-
     [ConfigurationKeyName("headless")]
     public bool Headless { get; init; }
 
@@ -46,17 +23,6 @@ public sealed class BotOptions
     [ConfigurationKeyName("manual_login_timeout_seconds")]
     [Range(1, int.MaxValue)]
     public int ManualLoginTimeoutSeconds { get; init; } = 180;
-
-    [ConfigurationKeyName(BotOptionPayloadKeys.CaptchaAutoSolveEnabled)]
-    public bool CaptchaAutoSolveEnabled { get; init; }
-
-    [ConfigurationKeyName(BotOptionPayloadKeys.CaptchaSolverTimeoutSeconds)]
-    [Range(1, int.MaxValue)]
-    public int CaptchaSolverTimeoutSeconds { get; init; } = 60;
-
-    [ConfigurationKeyName(BotOptionPayloadKeys.CaptchaSolverMaxAttempts)]
-    [Range(1, int.MaxValue)]
-    public int CaptchaSolverMaxAttempts { get; init; } = 3;
 
     [ConfigurationKeyName("loop_interval_seconds")]
     [Range(1, int.MaxValue)]
@@ -132,13 +98,19 @@ public sealed class BotOptions
     public int TroopTrainingBarracksKeepResourcesPercent { get; init; } = 10;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksRunMode)]
-    public string TroopTrainingBarracksRunMode { get; init; } = "resource_percent";
+    public string TroopTrainingBarracksRunMode { get; init; } = "timed";
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksMinimumTroops)]
     public int TroopTrainingBarracksMinimumTroops { get; init; } = 1;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksMinimumResourcesPercent)]
     public int TroopTrainingBarracksMinimumResourcesPercent { get; init; } = 50;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksTimedMinMinutes)]
+    public int TroopTrainingBarracksTimedMinMinutes { get; init; } = 30;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksTimedMaxMinutes)]
+    public int TroopTrainingBarracksTimedMaxMinutes { get; init; } = 120;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksCheckWood)]
     public bool TroopTrainingBarracksCheckWood { get; init; } = true;
@@ -168,13 +140,19 @@ public sealed class BotOptions
     public int TroopTrainingStableKeepResourcesPercent { get; init; } = 10;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableRunMode)]
-    public string TroopTrainingStableRunMode { get; init; } = "resource_percent";
+    public string TroopTrainingStableRunMode { get; init; } = "timed";
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableMinimumTroops)]
     public int TroopTrainingStableMinimumTroops { get; init; } = 1;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableMinimumResourcesPercent)]
     public int TroopTrainingStableMinimumResourcesPercent { get; init; } = 50;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableTimedMinMinutes)]
+    public int TroopTrainingStableTimedMinMinutes { get; init; } = 30;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableTimedMaxMinutes)]
+    public int TroopTrainingStableTimedMaxMinutes { get; init; } = 120;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableCheckWood)]
     public bool TroopTrainingStableCheckWood { get; init; } = true;
@@ -204,13 +182,19 @@ public sealed class BotOptions
     public int TroopTrainingWorkshopKeepResourcesPercent { get; init; } = 10;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopRunMode)]
-    public string TroopTrainingWorkshopRunMode { get; init; } = "resource_percent";
+    public string TroopTrainingWorkshopRunMode { get; init; } = "timed";
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopMinimumTroops)]
     public int TroopTrainingWorkshopMinimumTroops { get; init; } = 1;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopMinimumResourcesPercent)]
     public int TroopTrainingWorkshopMinimumResourcesPercent { get; init; } = 50;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopTimedMinMinutes)]
+    public int TroopTrainingWorkshopTimedMinMinutes { get; init; } = 30;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopTimedMaxMinutes)]
+    public int TroopTrainingWorkshopTimedMaxMinutes { get; init; } = 120;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopCheckWood)]
     public bool TroopTrainingWorkshopCheckWood { get; init; } = true;
@@ -430,12 +414,6 @@ public sealed class BotOptions
     [ConfigurationKeyName("hero_adventure_pick_order")]
     public string HeroAdventurePickOrder { get; init; } = "shortest"; // "shortest" or "top"
 
-    [ConfigurationKeyName(BotOptionPayloadKeys.HeroHideModeEnabled)]
-    public bool HeroHideModeEnabled { get; init; }
-
-    [ConfigurationKeyName("hero_hide_mode")]
-    public string HeroHideMode { get; init; } = "hide"; // "hide" or "fight"
-
     [ConfigurationKeyName(BotOptionPayloadKeys.HeroContinuousAdventures)]
     public bool HeroContinuousAdventures { get; init; }
 
@@ -487,6 +465,4 @@ public sealed class BotOptions
     [ConfigurationKeyName("upgrade_selector_profile")]
     public string UpgradeSelectorProfile { get; init; } = "auto";
 
-    [ConfigurationKeyName("natar_village_selection")]
-    public string NatarVillageSelection { get; init; } = "farm_villages";
 }

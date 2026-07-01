@@ -100,21 +100,6 @@ public sealed class DesktopBotService : IDesktopBotService
         return _taskRunner.SendAllFarmListsNowAsync(options, log, null, cancellationToken);
     }
 
-    public Task<FarmAddResult> AddSingleFarmFromNatarsAsync(BotOptions options, string farmListName, string troopType, int troopCount, Action<string> log, CancellationToken cancellationToken)
-    {
-        return _taskRunner.AddSingleFarmFromNatarsAsync(options, farmListName, troopType, troopCount, log, null, cancellationToken);
-    }
-
-    public Task<int> EnsureNatarFarmCacheAndReturnToFarmListAsync(BotOptions options, Action<string> log, bool forceRefresh, CancellationToken cancellationToken)
-    {
-        return _taskRunner.EnsureNatarFarmCacheAndReturnToFarmListAsync(options, log, forceRefresh, null, cancellationToken);
-    }
-
-    public Task<FarmAddBatchResult> AddFarmsFromNatarsAsync(BotOptions options, string farmListName, string troopType, int troopCount, int requestedCount, Action<string> log, IProgress<int>? addedProgress, CancellationToken cancellationToken)
-    {
-        return _taskRunner.AddFarmsFromNatarsAsync(options, farmListName, troopType, troopCount, requestedCount, log, null, addedProgress, cancellationToken);
-    }
-
     public Task<FarmAddBatchResult> AddFarmsFromCoordinatesAsync(BotOptions options, string farmListName, string troopType, int troopCount, int requestedCount, IReadOnlyList<FarmCoordinate> coordinates, bool useDefaultTroops, Action<string> log, IProgress<FarmAddProgress>? progress, CancellationToken cancellationToken)
     {
         return _taskRunner.AddFarmsFromCoordinatesAsync(options, farmListName, troopType, troopCount, requestedCount, coordinates, useDefaultTroops, log, null, progress, cancellationToken);
@@ -123,11 +108,6 @@ public sealed class DesktopBotService : IDesktopBotService
     public Task<FarmListCreateBatchResult> CreateFarmListsAsync(BotOptions options, FarmListCreateRequest request, Action<string> log, IProgress<FarmListCreateProgress>? progress, CancellationToken cancellationToken)
     {
         return _taskRunner.CreateFarmListsAsync(options, request, log, null, progress, cancellationToken);
-    }
-
-    public Task<ManualFarmRunResult> StartManualFarmingFromNatarsAsync(BotOptions options, string troopType, long troopCount, int troopVariancePercent, bool raidAttack, Action<string> log, CancellationToken cancellationToken)
-    {
-        return _taskRunner.StartManualFarmingFromNatarsAsync(options, troopType, troopCount, troopVariancePercent, raidAttack, log, null, cancellationToken);
     }
 
     public Task<IReadOnlyDictionary<string, long>> ReadAvailableTroopsForCatapultWavesAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
@@ -381,6 +361,11 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
     public Task<bool> HasHeroLevelUpIndicatorOnCurrentPageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.HasHeroLevelUpIndicatorOnCurrentPageAsync(options, log, null, cancellationToken);
+    }
+
+    public Task<bool> IsHeroRevivingOnCurrentPageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.IsHeroRevivingOnCurrentPageAsync(options, log, null, cancellationToken);
     }
 
     public Task<bool> HasClaimableTasksOnCurrentPageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)

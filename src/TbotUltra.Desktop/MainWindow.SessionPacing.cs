@@ -122,12 +122,14 @@ public partial class MainWindow
     {
         ConfigureSessionPacerFromConfig();
         _sessionPacer.NotifyOnlineSessionStarted();
+        UpdateSessionActivityState(forcePersist: true);
         UpdateSessionPacingUi();
     }
 
     private void NotifySessionPacingOnlineStopped()
     {
         _sessionPacer.NotifyOnlineSessionStopped();
+        UpdateSessionActivityState(forcePersist: true);
         UpdateSessionPacingUi();
     }
 
@@ -203,11 +205,47 @@ public partial class MainWindow
 
             ConfigureSessionPacerFromConfig();
             _sessionPacer.BeginSleep(manual);
+            UpdateSessionActivityState(forcePersist: true);
         }
         finally
         {
             _sessionPacingSleepInProgress = false;
         }
+    }
+
+    // When the user presses Login during a planned off-hours / daily-limit window, skip the full login and
+    // go straight into the pacing sleep instead of logging in only to immediately log back out. Records
+    // "was logged in" as the pre-sleep state so the Run-now (play) button performs a normal login on
+    // override. Returns true when a planned sleep was entered (the caller should then stop the login).
+    private bool TryEnterPlannedSleepInsteadOfLogin()
+    {
+        if (_loginInProgress || _accountSwitchInProgress || _sessionPacingSleepInProgress)
+        {
+            return false;
+        }
+
+        // Use the latest pacing settings/runtime so the off-hours/daily-limit check is accurate.
+        ConfigureSessionPacerFromConfig();
+        if (!_sessionPacer.ShouldSleepNow())
+        {
+            return false;
+        }
+
+        // Run-now after this sleep should log in (the user asked to be online); it just isn't worth doing
+        // right now during the planned window. Nothing was running, so don't resume a loop on wake.
+        _wasLoggedInBeforeSleep = true;
+        _wasContinuousLoopRunningBeforeSleep = false;
+        _wasQueueAutoRunningBeforeSleep = false;
+
+        if (!_sessionPacer.BeginScheduledSleepNow())
+        {
+            return false;
+        }
+
+        AppendLog("[login] planned sleep window is active — entering sleep instead of logging in. "
+            + "Press the session pacing Run-now button to log in anyway.");
+        UpdateSessionPacingUi();
+        return true;
     }
 
     private async Task HandleSessionPacingWakeRequestedAsync()
@@ -307,29 +345,40 @@ public partial class MainWindow
         }
 
         var progress = _sessionPacer.GetDailyProgress();
+        var activityToday = GetSessionActivityDaySummary(progress.Date);
         DailyOnlineTextBlock.Text = FormatDailyProgressDuration(progress.OnlineToday);
         DailyLeftTextBlock.Text = progress.TimeLeft is null
             ? "-"
             : FormatDailyProgressDuration(progress.TimeLeft.Value);
 
         DailyPacingBorder.ToolTip = progress.Limit is null
-            ? "Daily max is disabled."
-            : $"Configured daily max: {progress.ConfiguredDailyMaxHours}h\nActual limit today: {FormatDailyProgressDuration(progress.Limit.Value)}\nOnline today: {FormatDailyProgressDuration(progress.OnlineToday)}";
+            ? $"Daily max is disabled.\nWaiting today: {FormatDailyProgressDuration(activityToday.Waiting)}"
+            : $"Configured daily max: {progress.ConfiguredDailyMaxHours}h\nActual limit today: {FormatDailyProgressDuration(progress.Limit.Value)}\nOnline today: {FormatDailyProgressDuration(progress.OnlineToday)}\nWaiting today: {FormatDailyProgressDuration(activityToday.Waiting)}";
     }
 
     private void DailyPacingDetailsButton_Click(object sender, RoutedEventArgs e)
     {
+        UpdateSessionActivityState(forcePersist: true);
         var progress = _sessionPacer.GetDailyProgress();
-        var dayRows = BuildDailyPacingDayRows(progress, out var weekTotalText, out var accountTotalText, out var chartPoints);
+        var activityToday = GetSessionActivityDaySummary(progress.Date);
+        var dayRows = BuildDailyPacingDayRows(
+            progress,
+            out var weekTotalText,
+            out var accountTotalText,
+            out var chartPoints,
+            out var firstTimelineDate);
         var taskRows = BuildDailyPacingTaskRows();
+        var timelineSegments = BuildDailyPacingTimelineSegments(firstTimelineDate, progress.Date);
         var window = new DailyPacingDetailsWindow(
             FormatDailyDetailsDuration(progress.OnlineToday),
+            FormatDailyDetailsDuration(activityToday.Waiting),
             progress.TimeLeft is null ? "Off" : FormatDailyDetailsDuration(progress.TimeLeft.Value),
             progress.Limit is null ? "Off" : FormatDailyDetailsDuration(progress.Limit.Value),
             weekTotalText,
             accountTotalText,
             dayRows,
             taskRows,
+            timelineSegments,
             chartPoints)
         {
             Owner = this,
@@ -343,7 +392,8 @@ public partial class MainWindow
         SessionPacerDailyProgress progress,
         out string weekTotalText,
         out string accountTotalText,
-        out IReadOnlyList<DailyPacingChartPoint> chartPoints)
+        out IReadOnlyList<DailyPacingChartPoint> chartPoints,
+        out DateOnly firstTimelineDate)
     {
         var history = ReadDailyPacingHistory()
             .ToDictionary(entry => entry.Date);
@@ -356,6 +406,8 @@ public partial class MainWindow
         var totalOnline = TimeSpan.Zero;
         var weekOnline = TimeSpan.Zero;
         var weekCutoff = progress.Date.AddDays(-6);
+        var activitySummaries = BuildSessionActivityDaySummaries(earliest, progress.Date, DateTimeOffset.UtcNow);
+        firstTimelineDate = earliest;
 
         for (var date = earliest; date <= progress.Date; date = date.AddDays(1))
         {
@@ -375,6 +427,9 @@ public partial class MainWindow
                 limit = progress.Limit;
             }
 
+            var activity = activitySummaries.TryGetValue(date, out var summary)
+                ? summary
+                : new SessionActivityDaySummary(date, TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero);
             totalOnline += online;
             if (date >= weekCutoff)
             {
@@ -384,6 +439,7 @@ public partial class MainWindow
             rows.Add(new DailyPacingDayRow(
                 date.ToString("yyyy-MM-dd"),
                 FormatDailyDetailsDuration(online),
+                FormatDailyDetailsDuration(activity.Waiting),
                 limit is null ? "Off" : FormatDailyDetailsDuration(limit.Value),
                 FormatDailyUsage(online, limit)));
 
@@ -611,8 +667,6 @@ public partial class MainWindow
         SetEnabled(VillageComboBox, !_uiBusy);
         SetEnabled(AnalyzeFarmListsButton, !sleeping && !_farmingOperationBusy);
         SetEnabled(FarmListSendAllNowButton, !sleeping && !_farmingOperationBusy && _farmingFeaturesAvailable && _farmLists.Any(IsRealFarmListRow));
-        SetEnabled(AnalyzeNatarsProfileButton, !sleeping && !_farmingOperationBusy && _farmingFeaturesAvailable);
-        SetEnabled(ShowNatarsListButton, !sleeping && !_farmingOperationBusy && _farmingFeaturesAvailable && _natarsProfileAnalyzed);
         SetEnabled(StartManualFarmingButton, false);
         SetEnabled(StartCatapultWavesButton, !sleeping && !_farmingOperationBusy && _farmingFeaturesAvailable);
         SetEnabled(ResourceTransferScanVillagesButton, !sleeping && !_uiBusy && !_resourceTransferScanRunning);
@@ -685,6 +739,50 @@ public partial class MainWindow
         // Clear any running animation before setting a fixed color.
         _pacingBrush!.BeginAnimation(SolidColorBrush.ColorProperty, null);
         _pacingBrush.Color = color;
+    }
+
+    private SolidColorBrush? _supportUpdatePulseBrush;
+
+    // Slow gold "breathing" pulse on the Support (message) button while an update is available, mirroring
+    // the session-sleep pulse so the user clearly notices a new release. Pass false to stop it and restore
+    // the button's neutral look.
+    private void ApplySupportButtonUpdatePulse(bool updateAvailable)
+    {
+        if (SupportButton is null)
+        {
+            return;
+        }
+
+        if (!updateAvailable)
+        {
+            _supportUpdatePulseBrush?.BeginAnimation(SolidColorBrush.ColorProperty, null);
+            SupportButton.ClearValue(Control.BackgroundProperty);
+            SupportButton.ClearValue(Control.BorderBrushProperty);
+            SupportButton.ClearValue(Control.ForegroundProperty);
+            return;
+        }
+
+        SupportButton.BorderBrush = (Brush)FindResource("WarningBorderBrush");
+        SupportButton.Foreground = (Brush)FindResource("WarningTextBrush");
+        _supportUpdatePulseBrush ??= new SolidColorBrush(ThemeColors.Get("WarningBgBrush"));
+        SupportButton.Background = _supportUpdatePulseBrush;
+        StartGoldBreathePulse(_supportUpdatePulseBrush);
+    }
+
+    // Shared "update available" gold breathe: amber background fading to gold and back, slow and looping.
+    // Used by both the dashboard Support button and the Support popup's Version button.
+    internal static void StartGoldBreathePulse(SolidColorBrush brush)
+    {
+        var animation = new ColorAnimation
+        {
+            From = ThemeColors.Get("WarningBgBrush"),
+            To = ThemeColors.Get("AmberPulseBrush"),
+            Duration = TimeSpan.FromSeconds(1.6),
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever,
+            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
+        };
+        brush.BeginAnimation(SolidColorBrush.ColorProperty, animation);
     }
 
     private static bool ReadBool(JsonObject config, string key, bool defaultValue)

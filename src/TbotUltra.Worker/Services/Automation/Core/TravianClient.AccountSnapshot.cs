@@ -81,9 +81,9 @@ public sealed partial class TravianClient
     public async Task<VillageStatus> ReadVillageStatusAsync(CancellationToken cancellationToken = default)
     {
         Notify("ReadVillageStatusAsync started");
-        if (!IsCurrentUrlForPath(_config.VillageOverviewPath))
+        if (!IsCurrentUrlForPath(Paths.Resources))
         {
-            await GotoAsync(_config.VillageOverviewPath, cancellationToken);
+            await GotoAsync(Paths.Resources, cancellationToken);
             await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the village overview.", cancellationToken);
         }
 
@@ -97,9 +97,9 @@ public sealed partial class TravianClient
         CancellationToken cancellationToken = default)
     {
         Notify("ReadVillageStatusAsync started with known villages/buildings");
-        if (!IsCurrentUrlForPath(_config.VillageOverviewPath))
+        if (!IsCurrentUrlForPath(Paths.Resources))
         {
-            await GotoAsync(_config.VillageOverviewPath, cancellationToken);
+            await GotoAsync(Paths.Resources, cancellationToken);
             await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the village overview.", cancellationToken);
         }
 
@@ -127,9 +127,9 @@ public sealed partial class TravianClient
             // flow passes skipOverviewNavigation=true when it just read the hero inventory and is
             // about to refresh villages from the profile anyway — that saves one dorf1 hop, since
             // ReadVillagesFromServerAsync navigates straight to the profile regardless.
-            if (!skipOverviewNavigation && !IsCurrentUrlForPath(_config.VillageOverviewPath))
+            if (!skipOverviewNavigation && !IsCurrentUrlForPath(Paths.Resources))
             {
-                await GotoAsync(_config.VillageOverviewPath, cancellationToken);
+                await GotoAsync(Paths.Resources, cancellationToken);
             }
 
             await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading account info.", cancellationToken);
@@ -175,7 +175,7 @@ public sealed partial class TravianClient
 public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(CancellationToken cancellationToken = default)
     {
         Notify("ReadAccountAnalysisSnapshotAsync started");
-        await GotoAsync(_config.VillageOverviewPath, cancellationToken);
+        await GotoAsync(Paths.Resources, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading account analysis.", cancellationToken);
         await EnsureLoggedInAsync();
         await RefreshCapitalStateForActiveVillageAsync(cancellationToken);
@@ -592,8 +592,8 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
               const match = html.match(/"goldClub"\s*:\s*(true|false)/i);
               if (match) return match[1].toLowerCase() === 'true';
 
-              // Fallback for server variants without the GraphQL blob (e.g. SS-Travi): the Gold Club
-              // master-build button, or a builder marker in the village-list sidebar.
+              // Fallback for variants without the GraphQL blob: the Gold Club master-build
+              // button, or a builder marker in the village-list sidebar.
               if (document.querySelector('#buttonBuild')) return true;
               const sidebar = document.querySelector('#sidebarBoxVillagelist');
               return /buildOff|buildOn|builder=On/.test(sidebar?.innerHTML || '');

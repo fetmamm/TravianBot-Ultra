@@ -810,10 +810,10 @@ public sealed partial class TravianClient
             var snapshot = await _page.EvaluateAsync<ResourceSnapshotDomReadResult>(
                 """
                 () => {
-                  const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+                  const clean = (value) => String(value || '').replace(/[\u202A-\u202E\u2066-\u2069]/g, '').replace(/\s+/g, ' ').trim();
                   const compact = (value) => clean(value).replace(/\s+/g, '');
                   const parseNumber = (value) => {
-                    const text = clean(value);
+                    const text = clean(value).replace(/[\u2212\u2012\u2013\u2014]/g, '-');
                     if (!text) return null;
                     const match = text.match(/([+-]?\d[\d\s.,']*)/);
                     if (!match) return null;
@@ -852,12 +852,12 @@ public sealed partial class TravianClient
                   };
 
                   return {
-                    wood: readFirstText(['#l1', '#stockBarResource1 .value', '#stockBarResource1']),
-                    clay: readFirstText(['#l2', '#stockBarResource2 .value', '#stockBarResource2']),
-                    iron: readFirstText(['#l3', '#stockBarResource3 .value', '#stockBarResource3']),
-                    crop: readFirstText(['#l4', '#stockBarResource4 .value', '#stockBarResource4']),
-                    warehouse: readFirstText(['#stockBarWarehouse', '#stockBarWarehouse .value', '#warehouse', '#warehouse .value', '.warehouse .capacity .value', '.warehouse .value']),
-                    granary: readFirstText(['#stockBarGranary', '#stockBarGranary .value', '#stockBarSilo', '#stockBarSilo .value', '#granary', '#granary .value', '#silo', '#silo .value', '.granary .capacity .value', '.granary .value']),
+                    wood: readFirstText(['#l1']),
+                    clay: readFirstText(['#l2']),
+                    iron: readFirstText(['#l3']),
+                    crop: readFirstText(['#l4']),
+                    warehouse: readFirstText(['#warehouse', '#warehouse .value', '.warehouse .capacity .value', '.warehouse .value']),
+                    granary: readFirstText(['#granary', '#granary .value', '#silo', '#silo .value', '.granary .capacity .value', '.granary .value']),
                     woodProduction: readProduction('r1'),
                     clayProduction: readProduction('r2'),
                     ironProduction: readProduction('r3'),
@@ -865,9 +865,9 @@ public sealed partial class TravianClient
                     diagnostics: [
                       `url=${location.pathname}${location.search}`,
                       `ready=${document.readyState}`,
-                      `l1=${readFirstText(['#l1', '#stockBarResource1 .value', '#stockBarResource1']) || '-'}`,
-                      `warehouseNode=${document.querySelector('#stockBarWarehouse, .warehouse .capacity .value') ? 'yes' : 'no'}`,
-                      `granaryNode=${document.querySelector('#stockBarGranary, .granary .capacity .value') ? 'yes' : 'no'}`,
+                      `l1=${readFirstText(['#l1']) || '-'}`,
+                      `warehouseNode=${document.querySelector('.warehouse .capacity .value, #warehouse') ? 'yes' : 'no'}`,
+                      `granaryNode=${document.querySelector('.granary .capacity .value, #granary, #silo') ? 'yes' : 'no'}`,
                       `productionNode=${document.querySelector('#production') ? 'yes' : 'no'}`,
                       `productionText=${String(readProduction('r1') ?? '-')}`,
                       `bodyClass=${document.body?.className || '-'}`
@@ -1036,9 +1036,8 @@ public sealed partial class TravianClient
                 await _page.WaitForFunctionAsync(
                     """
                     () => {
-                      const hasResourceValue = !!document.querySelector('#l1, #stockBarResource1 .value, #stockBarResource1');
-                      // SS uses #stockBar* ids; official Travian (T4.6) uses .warehouse/.granary > .capacity > .value.
-                      const hasCapacity = !!document.querySelector('#stockBarWarehouse, #stockBarGranary, #stockBarSilo, .warehouse .capacity .value, .granary .capacity .value');
+                      const hasResourceValue = !!document.querySelector('#l1');
+                      const hasCapacity = !!document.querySelector('.warehouse .capacity .value, .granary .capacity .value');
                       const hasProduction = !!document.querySelector('#production td.num, #production tbody tr');
                       return hasResourceValue && hasCapacity && hasProduction;
                     }
@@ -1115,8 +1114,8 @@ public sealed partial class TravianClient
                     `url=${location.pathname}${location.search}`,
                     `ready=${document.readyState}`,
                     `l1=${document.querySelector('#l1') ? 'yes' : 'no'}:${text('#l1')}`,
-                    `warehouse=${document.querySelector('#stockBarWarehouse, .warehouse .capacity .value') ? 'yes' : 'no'}:${text('#stockBarWarehouse, .warehouse .capacity .value')}`,
-                    `granary=${document.querySelector('#stockBarGranary, .granary .capacity .value') ? 'yes' : 'no'}:${text('#stockBarGranary, .granary .capacity .value')}`,
+                    `warehouse=${document.querySelector('.warehouse .capacity .value') ? 'yes' : 'no'}:${text('.warehouse .capacity .value')}`,
+                    `granary=${document.querySelector('.granary .capacity .value') ? 'yes' : 'no'}:${text('.granary .capacity .value')}`,
                     `production=${document.querySelector('#production') ? 'yes' : 'no'}`,
                     `villageMap=${document.querySelector('#village_map') ? 'yes' : 'no'}`,
                     `bodyClass=${document.body?.className || '-'}`
@@ -1155,10 +1154,10 @@ public sealed partial class TravianClient
               };
 
               const ids = {
-                wood: ['#l1', '#stockBarResource1 .value', '#stockBarResource1'],
-                clay: ['#l2', '#stockBarResource2 .value', '#stockBarResource2'],
-                iron: ['#l3', '#stockBarResource3 .value', '#stockBarResource3'],
-                crop: ['#l4', '#stockBarResource4 .value', '#stockBarResource4']
+                wood: ['#l1'],
+                clay: ['#l2'],
+                iron: ['#l3'],
+                crop: ['#l4']
               };
               const resources = {};
 
@@ -1213,9 +1212,9 @@ public sealed partial class TravianClient
             var snapshot = await _page.EvaluateAsync<ResourceSnapshotDomReadResult>(
                 """
                 () => {
-                  const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+                  const clean = (value) => String(value || '').replace(/[\u202A-\u202E\u2066-\u2069]/g, '').replace(/\s+/g, ' ').trim();
                   const parseNumber = (value) => {
-                    const text = clean(value);
+                    const text = clean(value).replace(/[\u2212\u2012\u2013\u2014]/g, '-');
                     if (!text) return null;
                     const match = text.match(/([+-]?\d[\d\s.,']*)/);
                     if (!match) return null;

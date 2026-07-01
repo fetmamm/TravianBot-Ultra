@@ -10,14 +10,16 @@ config/queue.json.lock
 config/servers.user.json
 config/account-analysis/
 config/cache/
+Data/Maps/
 
-# --- Python (captcha trainer) ---
+# --- Python / legacy captcha trainer ---
 .venv/
 __pycache__/
 *.pyc
 .pytest_cache/
 
-# Captcha training data (dev-only, not needed at runtime; kept on disk, not tracked)
+# Legacy captcha solver and training data are not needed for Official-first runtime.
+Captcha_solver/
 Captcha_solver/math_ai/dataset/
 Captcha_solver/math_ai/auto_dataset/
 Captcha_solver/math_ai/test_images/
@@ -30,14 +32,31 @@ ms-playwright/
 # --- Build output / logs / temp / IDE ---
 **/bin/
 **/obj/
+**/TestResults/
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+*.binlog
 logs/
 temp_build_out/
+**/temp_build_out/
 artifacts/
 .artifacts/
 .vs/
+.vscode/
+.idea/
+*.user
+*.rsuser
+*.suo
+*.userosscache
+*.sln.docstates
 **/debug_output/
 **/dataset_quarantine/
 **/review_dataset/
+*.tmp
+*.bak
+*.orig
 
 # --- Claude tooling ---
 /.claude

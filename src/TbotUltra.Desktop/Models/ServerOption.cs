@@ -1,6 +1,4 @@
 using System.ComponentModel;
-using System.Text.Json.Serialization;
-using TbotUltra.Core.Configuration;
 
 namespace TbotUltra.Desktop.Models;
 
@@ -36,24 +34,8 @@ public sealed class ServerOption : INotifyPropertyChanged
 
             _baseUrl = value;
             OnPropertyChanged(nameof(BaseUrl));
-            // The detected server flavor depends on the URL, so refresh it too.
-            OnPropertyChanged(nameof(ServerFlavor));
-            OnPropertyChanged(nameof(ServerTypeLabel));
         }
     }
-
-    /// <summary>
-    /// The server flavor detected from <see cref="BaseUrl"/>. Not persisted – it is always
-    /// derived from the URL so the catalog stays a simple name/url list.
-    /// </summary>
-    [JsonIgnore]
-    public ServerFlavor ServerFlavor => ServerFlavorDetector.FromBaseUrl(BaseUrl);
-
-    /// <summary>
-    /// Human-readable server type shown in the UI ("Official" / "SS-Travi").
-    /// </summary>
-    [JsonIgnore]
-    public string ServerTypeLabel => ServerFlavor == ServerFlavor.SsTravi ? "SS-Travi" : "Official";
 
     public override string ToString()
     {

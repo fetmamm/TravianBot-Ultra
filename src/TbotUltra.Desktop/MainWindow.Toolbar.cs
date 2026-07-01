@@ -121,6 +121,7 @@ public partial class MainWindow
         var saved = window.ShowDialog() == true;
         LoadConfigToUi();
         ConfigureSessionPacerFromConfig();
+        RefreshUpdateNotificationState();
         if (saved)
         {
             LogConservativeAutomationWarnings(LoadBotOptions());
@@ -154,6 +155,7 @@ public partial class MainWindow
             _loopController.MarkClosing();
             _inboxAutoEnabled = false;
             _clockTimer.Stop();
+            CloseCurrentSessionActivityInterval(DateTimeOffset.UtcNow);
             NotifySessionPacingOnlineStopped();
             ResetSessionPacing();
             _copyFeedbackTimer.Stop();
@@ -163,7 +165,6 @@ public partial class MainWindow
             _resourceSnapshotRefreshTimer.Stop();
             _troopTrainingDeferredRefreshDebounceTimer.Stop();
             _queueUiRefreshTimer.Stop();
-            _captchaAutoSolveElapsedTimer?.Stop();
             _loopController.RequestLoopStop();
             _loopController.RequestQueueStop();
             _loopController.CancelOperation();
@@ -218,7 +219,6 @@ public partial class MainWindow
             _travcoToolsWindow?.CloseForShutdown();
             _logsPopupWindow?.Close();
             _queuePopupWindow?.Close();
-            CloseCaptchaAutoSolvePopup();
             _resourceTestFunctionsWindow?.Close();
             _savePageHtmlWindow?.Close();
             _bulkSavePageHtmlWindow?.Close();

@@ -430,35 +430,13 @@ public sealed partial class TravianClient
         try
         {
             // Step 1: trigger "Mark all as read". Official Travian (T4.6) uses a button with class
-            // "markAsRead" (onclick handleMarkAsRead); SS uses a button-content / value label.
+            // "markAsRead" (onclick handleMarkAsRead).
             var triggered = await _page.EvaluateAsync<bool>(
                 """
                 () => {
-                  const clean = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
-                  const isMarkAllAsRead = (value) => {
-                    const text = clean(value);
-                    return text.includes('mark all as read') || text.includes('all as read') || text.includes('alle als gelesen');
-                  };
-
                   const official = document.querySelector("button.markAsRead, button[onclick*='handleMarkAsRead']");
                   if (official && !official.disabled) { official.click(); return true; }
-
-                  const contentNode = Array.from(document.querySelectorAll('div.button-content'))
-                    .find((node) => isMarkAllAsRead(node.textContent || ''));
-                  if (contentNode) {
-                    const clickable = contentNode.closest('button, a, div.button, li, span');
-                    (clickable || contentNode).click();
-                    return true;
-                  }
-
-                  const fallbackNode = Array.from(document.querySelectorAll("button, a, input[type='submit'], div.button, span"))
-                    .find((node) => isMarkAllAsRead(`${node.textContent || ''} ${node.getAttribute('value') || ''} ${node.getAttribute('title') || ''} ${node.getAttribute('aria-label') || ''}`));
-                  if (!fallbackNode) {
-                    return false;
-                  }
-
-                  fallbackNode.click();
-                  return true;
+                  return false;
                 }
                 """);
 

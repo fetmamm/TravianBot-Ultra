@@ -50,31 +50,35 @@ public partial class VersionWindow : Window
     // during an in-progress download, so it never clobbers a transient "Downloading…/Downloaded to…" message.
     private void RenderStatus()
     {
-        CurrentVersionText.Text = $"Current version: v{_currentVersion}";
+        CurrentVersionText.Text = $"v{_currentVersion}";
 
         var release = _status?.Release;
         if (release is null)
         {
+            HeadingText.Text = "Version";
             StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextPrimaryBrush");
-            LatestVersionText.Text = "Latest version: unknown";
-            StatusText.Text = "Could not check for the latest version (offline or rate-limited). "
-                + "You can still open the GitHub releases page.";
+            LatestVersionText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextMutedBrush");
+            LatestVersionText.Text = "Unknown";
+            StatusText.Text = "Could not check for updates. You can still open GitHub releases.";
             UpdateButtonStates();
             return;
         }
 
-        LatestVersionText.Text = $"Latest version: v{release.LatestVersion}";
+        LatestVersionText.Text = $"v{release.LatestVersion}";
         var hasAsset = release.PortableDownloadUrl is not null;
         if (_status!.UpdateAvailable)
         {
+            HeadingText.Text = "Update available";
+            LatestVersionText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "SuccessTextBrush");
             StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "SuccessTextBrush");
             StatusText.Text = hasAsset
-                ? $"A new version (v{release.LatestVersion}) is available."
-                : $"A new version (v{release.LatestVersion}) is available. No portable asset was found on the "
-                    + "release — use the GitHub releases page.";
+                ? "A newer release is ready to install."
+                : "A newer release is available, but no portable download was found. Open GitHub releases.";
         }
         else
         {
+            HeadingText.Text = "Version";
+            LatestVersionText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextPrimaryBrush");
             StatusText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextPrimaryBrush");
             StatusText.Text = "You are running the latest version.";
         }

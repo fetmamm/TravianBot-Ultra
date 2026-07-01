@@ -487,328 +487,192 @@ public partial class MainWindow
         try
         {
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
-            if (!options.IsPrivateServer)
-            {
-                async Task<OfficialAddFarmsLoadResult> LoadOfficialAsync(CancellationToken cancellationToken)
-                {
-                    await EnsureChromiumInstalledAsync();
-                    var available = await RefreshFarmListsFromServerAsync(options, cancellationToken);
-                    if (!available)
-                    {
-                        return new OfficialAddFarmsLoadResult(
-                            false,
-                            "Gold Club is not active.",
-                            [],
-                            [],
-                            new HashSet<string>());
-                    }
-
-                    var sourceLists = _travcoListStore.LoadAll()
-                        .Where(list => list.Rows.Any(row => row.Selected))
-                        .ToList();
-                    if (sourceLists.Count == 0)
-                    {
-                        return new OfficialAddFarmsLoadResult(
-                            false,
-                            "No saved Travco lists with selected farms were found.",
-                            [],
-                            [],
-                            new HashSet<string>());
-                    }
-
-                    var targetLists = _farmLists
-                        .Where(IsRealFarmListRow)
-                        .Select(item => new FarmListSelectionOption
-                        {
-                            Name = item.Name,
-                            ActiveFarmCount = item.ActiveFarmCount,
-                            TotalFarmCount = item.TotalFarmCount,
-                            Capacity = _farmListCapacitiesByName.GetValueOrDefault(item.Name),
-                        })
-                        .ToList();
-                    return new OfficialAddFarmsLoadResult(
-                        true,
-                        null,
-                        sourceLists,
-                        targetLists,
-                        new HashSet<string>(_analyzedFarmCoordinates, StringComparer.OrdinalIgnoreCase),
-                        _farmListIncompleteReads);
-                }
-
-                async Task<OfficialFarmAddRunResult> RunOfficialPlansAsync(
-                    IReadOnlyList<OfficialFarmAddPlan> plans,
-                    bool useDefaultTroops,
-                    string troopType,
-                    int troopCount,
-                    IProgress<FarmAddProgress> progress,
-                    CancellationToken cancellationToken)
-                {
-                    var requested = plans.Sum(plan => plan.DesiredCount);
-                    var processed = 0;
-                    var added = 0;
-                    var duplicates = 0;
-                    var failed = 0;
-                    var notFound = 0;
-                    var invalidCoordinates = new List<FarmCoordinate>();
-
-                    foreach (var plan in plans)
-                    {
-                        cancellationToken.ThrowIfCancellationRequested();
-                        var processedBeforeList = processed;
-                        var addedBeforeList = added;
-                        var notFoundBeforeList = notFound;
-                        var aggregateProgress = new Progress<FarmAddProgress>(value =>
-                        {
-                            progress.Report(new FarmAddProgress(
-                                value.FarmListName,
-                                processedBeforeList + value.ProcessedCount,
-                                requested,
-                                addedBeforeList + value.AddedCount,
-                                notFoundBeforeList + value.NotFoundCount));
-                        });
-
-                        AppendLog(
-                            $"Add farms from Travco: target='{plan.TargetName}', requested={plan.DesiredCount}, " +
-                            $"candidates={plan.Coordinates.Count}, " +
-                            $"troops={(useDefaultTroops ? "default" : $"{troopCount} {troopType}")}.");
-                        var result = await _botService.AddFarmsFromCoordinatesAsync(
-                            options,
-                            plan.TargetName,
-                            troopType,
-                            troopCount,
-                            plan.DesiredCount,
-                            plan.Coordinates,
-                            useDefaultTroops,
-                            AppendLog,
-                            aggregateProgress,
-                            cancellationToken);
-                        processed += result.AttemptedCount;
-                        added += result.AddedCount;
-                        duplicates += result.AlreadyInListCount;
-                        failed += result.FailedCount;
-                        notFound += result.NotFoundCount;
-                        invalidCoordinates.AddRange(result.InvalidCoordinates ?? []);
-                        AppendLog(
-                            $"Finished '{plan.TargetName}': added={result.AddedCount}, " +
-                            $"duplicates={result.AlreadyInListCount}, invalid={result.NotFoundCount}, " +
-                            $"failed={result.FailedCount}.");
-                    }
-
-                    return new OfficialFarmAddRunResult(
-                        requested,
-                        added,
-                        duplicates,
-                        failed,
-                        invalidCoordinates
-                            .Distinct()
-                            .ToList());
-                }
-
-                var villageOptions = GetFarmListCreationVillages()
-                    .Select(village => new OfficialAddFarmsWindow.AddFarmsVillageOption(
-                        village.Name,
-                        village.CoordX,
-                        village.CoordY))
-                    .ToList();
-                var officialDialog = new OfficialAddFarmsWindow(
-                    ResolveCurrentTribeForFarming(),
-                    LoadAddFarmsTroopCount(),
-                    LoadOfficialAsync,
-                    RunOfficialPlansAsync,
-                    operationToken,
-                    villageOptions,
-                    GetSelectedVillageName())
-                {
-                    Owner = this,
-                };
-                if (officialDialog.ShowDialog() != true || officialDialog.RunResult is null)
-                {
-                    if (!string.IsNullOrWhiteSpace(officialDialog.LoadFailureMessage))
-                    {
-                        AppDialog.Show(
-                            this,
-                            officialDialog.LoadFailureMessage,
-                            "Add farms",
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Information);
-                    }
-
-                    CompleteOperation(
-                        operationId,
-                        operationSw,
-                        string.IsNullOrWhiteSpace(officialDialog.LoadFailureMessage)
-                            ? "Add farms canceled."
-                            : officialDialog.LoadFailureMessage);
-                    return;
-                }
-
-                BusyOverlay.ShowCancel = false;
-                ShowBusyOverlay("Adding farms", "Finalizing farm list updates...");
-                await RefreshFarmListsFromServerAsync(options, operationToken);
-                var runResult = officialDialog.RunResult;
-                if (runResult.InvalidCoordinates.Count > 0)
-                {
-                    HideBusyOverlay();
-                    var removeInvalid = AppDialog.Show(
-                        this,
-                        $"{runResult.InvalidCoordinates.Count} invalid village coordinate(s) were found.\n\n" +
-                        $"Remove them from Travco list '{runResult.SourceListName}'?",
-                        "Remove invalid villages",
-                        MessageBoxButton.YesNo,
-                        MessageBoxImage.Question);
-                    if (removeInvalid == MessageBoxResult.Yes)
-                    {
-                        var removed = _travcoListStore.RemoveRowsByCoordinates(
-                            runResult.SourceListId,
-                            runResult.InvalidCoordinates);
-                        AppendLog(
-                            $"Removed {removed}/{runResult.InvalidCoordinates.Count} invalid coordinate(s) " +
-                            $"from Travco list '{runResult.SourceListName}'.");
-                    }
-                }
-
-                HideBusyOverlay();
-                CompleteOperation(
-                    operationId,
-                    operationSw,
-                    $"Added {runResult.Added}; duplicates {runResult.Duplicates}; failed {runResult.Failed}.");
-
-                return;
-            }
-
-            async Task<AddFarmsLoadResult> LoadAsync(CancellationToken token)
+            async Task<OfficialAddFarmsLoadResult> LoadOfficialAsync(CancellationToken cancellationToken)
             {
                 await EnsureChromiumInstalledAsync();
-                var available = await RefreshFarmListsFromServerAsync(options, token);
+                var available = await RefreshFarmListsFromServerAsync(options, cancellationToken);
                 if (!available)
                 {
-                    return new AddFarmsLoadResult(false, null, [], 0);
+                    return new OfficialAddFarmsLoadResult(
+                        false,
+                        "Gold Club is not active.",
+                        [],
+                        [],
+                        new HashSet<string>());
                 }
 
-                if (!_farmLists.Any(IsRealFarmListRow))
+                var sourceLists = _travcoListStore.LoadAll()
+                    .Where(list => list.Rows.Any(row => row.Selected))
+                    .ToList();
+                if (sourceLists.Count == 0)
                 {
-                    return new AddFarmsLoadResult(false, "No farm lists found on farmpage.", [], 0);
+                    return new OfficialAddFarmsLoadResult(
+                        false,
+                        "No saved Travco lists with selected farms were found.",
+                        [],
+                        [],
+                        new HashSet<string>());
                 }
 
-                var optionsForDialog = _farmLists
+                var targetLists = _farmLists
                     .Where(IsRealFarmListRow)
                     .Select(item => new FarmListSelectionOption
                     {
                         Name = item.Name,
                         ActiveFarmCount = item.ActiveFarmCount,
                         TotalFarmCount = item.TotalFarmCount,
+                        Capacity = _farmListCapacitiesByName.GetValueOrDefault(item.Name),
                     })
                     .ToList();
-
-                var natarCount = await _botService.EnsureNatarFarmCacheAndReturnToFarmListAsync(options, AppendLog, false, token);
-                if (natarCount <= 0)
-                {
-                    SetNatarsProfileAnalyzed(false);
-                    return new AddFarmsLoadResult(false, "No villages named 'Natar farm village' were found.", [], 0);
-                }
-
-                SetNatarsProfileAnalyzed(true);
-                return new AddFarmsLoadResult(true, null, optionsForDialog, natarCount);
+                return new OfficialAddFarmsLoadResult(
+                    true,
+                    null,
+                    sourceLists,
+                    targetLists,
+                    new HashSet<string>(_analyzedFarmCoordinates, StringComparer.OrdinalIgnoreCase),
+                    _farmListIncompleteReads);
             }
 
-            var dialog = new AddFarmsToListWindow(
+            async Task<OfficialFarmAddRunResult> RunOfficialPlansAsync(
+                IReadOnlyList<OfficialFarmAddPlan> plans,
+                bool useDefaultTroops,
+                string troopType,
+                int troopCount,
+                IProgress<FarmAddProgress> progress,
+                CancellationToken cancellationToken)
+            {
+                var requested = plans.Sum(plan => plan.DesiredCount);
+                var processed = 0;
+                var added = 0;
+                var duplicates = 0;
+                var failed = 0;
+                var notFound = 0;
+                var invalidCoordinates = new List<FarmCoordinate>();
+
+                foreach (var plan in plans)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var processedBeforeList = processed;
+                    var addedBeforeList = added;
+                    var notFoundBeforeList = notFound;
+                    var aggregateProgress = new Progress<FarmAddProgress>(value =>
+                    {
+                        progress.Report(new FarmAddProgress(
+                            value.FarmListName,
+                            processedBeforeList + value.ProcessedCount,
+                            requested,
+                            addedBeforeList + value.AddedCount,
+                            notFoundBeforeList + value.NotFoundCount,
+                            value.InvalidCoordinate));
+                    });
+
+                    AppendLog(
+                        $"Add farms from Travco: target='{plan.TargetName}', requested={plan.DesiredCount}, " +
+                        $"candidates={plan.Coordinates.Count}, " +
+                        $"troops={(useDefaultTroops ? "default" : $"{troopCount} {troopType}")}.");
+                    var result = await _botService.AddFarmsFromCoordinatesAsync(
+                        options,
+                        plan.TargetName,
+                        troopType,
+                        troopCount,
+                        plan.DesiredCount,
+                        plan.Coordinates,
+                        useDefaultTroops,
+                        AppendLog,
+                        aggregateProgress,
+                        cancellationToken);
+                    processed += result.AttemptedCount;
+                    added += result.AddedCount;
+                    duplicates += result.AlreadyInListCount;
+                    failed += result.FailedCount;
+                    notFound += result.NotFoundCount;
+                    invalidCoordinates.AddRange(result.InvalidCoordinates ?? []);
+                    AppendLog(
+                        $"Finished '{plan.TargetName}': added={result.AddedCount}, " +
+                        $"duplicates={result.AlreadyInListCount}, invalid={result.NotFoundCount}, " +
+                        $"failed={result.FailedCount}.");
+                }
+
+                return new OfficialFarmAddRunResult(
+                    requested,
+                    added,
+                    duplicates,
+                    failed,
+                    invalidCoordinates
+                        .Distinct()
+                        .ToList());
+            }
+
+            var villageOptions = GetFarmListCreationVillages()
+                .Select(village => new OfficialAddFarmsWindow.AddFarmsVillageOption(
+                    village.Name,
+                    village.CoordX,
+                    village.CoordY))
+                .ToList();
+            var officialDialog = new OfficialAddFarmsWindow(
                 ResolveCurrentTribeForFarming(),
                 LoadAddFarmsTroopCount(),
-                LoadAsync,
-                operationToken)
+                LoadOfficialAsync,
+                RunOfficialPlansAsync,
+                operationToken,
+                villageOptions,
+                GetSelectedVillageName())
             {
                 Owner = this,
             };
-
-            var addRequested = dialog.ShowDialog() == true && dialog.Targets.Count > 0;
-            if (!addRequested)
+            if (officialDialog.ShowDialog() != true || officialDialog.RunResult is null)
             {
-                if (!string.IsNullOrWhiteSpace(dialog.LoadFailureMessage))
+                if (!string.IsNullOrWhiteSpace(officialDialog.LoadFailureMessage))
                 {
-                    AppDialog.Show(this, dialog.LoadFailureMessage, "Add farms", MessageBoxButton.OK, MessageBoxImage.Information);
+                    AppDialog.Show(
+                        this,
+                        officialDialog.LoadFailureMessage,
+                        "Add farms",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
                 }
 
-                CompleteOperation(operationId, operationSw, string.IsNullOrWhiteSpace(dialog.LoadFailureMessage)
-                    ? "Add farms canceled."
-                    : dialog.LoadFailureMessage!);
+                CompleteOperation(
+                    operationId,
+                    operationSw,
+                    string.IsNullOrWhiteSpace(officialDialog.LoadFailureMessage)
+                        ? "Add farms canceled."
+                        : officialDialog.LoadFailureMessage);
                 return;
             }
 
-            SaveAddFarmsTroopCount(dialog.TroopCount);
-            var troopType = dialog.SelectedTroopType;
-            var troopCount = dialog.TroopCount;
-            var targets = dialog.Targets;
-
-            var totalAdded = 0;
-            var totalExisting = 0;
-            var totalFailed = 0;
-            for (var i = 0; i < targets.Count; i++)
+            BusyOverlay.ShowCancel = false;
+            ShowBusyOverlay("Adding farms", "Finalizing farm list updates...");
+            await RefreshFarmListsFromServerAsync(options, operationToken);
+            var runResult = officialDialog.RunResult;
+            if (runResult.InvalidCoordinates.Count > 0)
             {
-                operationToken.ThrowIfCancellationRequested();
-                var target = targets[i];
-                var row = _farmLists.FirstOrDefault(item => string.Equals(item.Name, target.Name, StringComparison.OrdinalIgnoreCase));
-                var baseActive = row?.ActiveFarmCount ?? 0;
-                if (row is not null)
+                HideBusyOverlay();
+                var removeInvalid = AppDialog.Show(
+                    this,
+                    $"{runResult.InvalidCoordinates.Count} invalid village coordinate(s) were found.\n\n" +
+                    $"Remove them from Travco list '{runResult.SourceListName}'?",
+                    "Remove invalid villages",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+                if (removeInvalid == MessageBoxResult.Yes)
                 {
-                    row.IsProcessing = true;
-                }
-
-                try
-                {
-                    AppendLog($"Add farms [{i + 1}/{targets.Count}] list '{target.Name}' (requested {target.RequestedFarmCount}).");
-                    var progress = new Progress<int>(added =>
-                    {
-                        if (row is null)
-                        {
-                            return;
-                        }
-
-                        row.ActiveFarmCount = Math.Min(row.TotalFarmCount, baseActive + added);
-                        UpdateFarmingUiState();
-                    });
-
-                    var result = await _botService.AddFarmsFromNatarsAsync(
-                        options,
-                        target.Name,
-                        troopType,
-                        troopCount,
-                        target.RequestedFarmCount,
-                        AppendLog,
-                        progress,
-                        operationToken);
-
-                    totalAdded += result.AddedCount;
-                    totalExisting += result.AlreadyInListCount;
-                    totalFailed += result.FailedCount;
-
-                    if (row is not null)
-                    {
-                        row.ActiveFarmCount = Math.Min(row.TotalFarmCount, baseActive + result.AddedCount);
-                        UpdateFarmingUiState();
-                    }
-
-                    if (result.AlreadyInListCount > 0)
-                    {
-                        AppendLog($"Duplicate farms in '{target.Name}': {result.AlreadyInListCount} ('This village is already in the selected farm list.').");
-                    }
-                }
-                finally
-                {
-                    if (row is not null)
-                    {
-                        row.IsProcessing = false;
-                    }
+                    var removed = _travcoListStore.RemoveRowsByCoordinates(
+                        runResult.SourceListId,
+                        runResult.InvalidCoordinates);
+                    AppendLog(
+                        $"Removed {removed}/{runResult.InvalidCoordinates.Count} invalid coordinate(s) " +
+                        $"from Travco list '{runResult.SourceListName}'.");
                 }
             }
 
-            await RefreshFarmListsFromServerAsync(options, operationToken);
-            AppDialog.Show(
-                this,
-                $"Lists processed: {targets.Count}.\nAdded: {totalAdded}, Already in list: {totalExisting}, Failed: {totalFailed}.",
-                "Add farms",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
-            CompleteOperation(operationId, operationSw, $"Add farms done. Lists={targets.Count}, Added={totalAdded}, Existing={totalExisting}, Failed={totalFailed}.");
+            HideBusyOverlay();
+            CompleteOperation(
+                operationId,
+                operationSw,
+                $"Added {runResult.Added}; duplicates {runResult.Duplicates}; failed {runResult.Failed}.");
+
+            return;
         }
         catch (OperationCanceledException)
         {
@@ -826,6 +690,33 @@ public partial class MainWindow
         }
     }
 
+    private string ResolveCurrentTribeForFarming()
+    {
+        var tribeFromUi = TribeInfoTextBlock.Text?.Replace("Tribe:", string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
+        if (!string.IsNullOrWhiteSpace(tribeFromUi) && !string.Equals(tribeFromUi, "-", StringComparison.OrdinalIgnoreCase))
+        {
+            return tribeFromUi;
+        }
+
+        try
+        {
+            var accountName = _accountStore.ActiveAccountName();
+            if (!string.IsNullOrWhiteSpace(accountName)
+                && _accountAnalysisStore.TryLoad(accountName, out var analysis, GetActiveAccountServerUrl())
+                && analysis is not null
+                && !string.IsNullOrWhiteSpace(analysis.Tribe))
+            {
+                return analysis.Tribe;
+            }
+        }
+        catch
+        {
+            // Ignore lookup errors and use fallback tribe.
+        }
+
+        return "Unknown";
+    }
+
     private async void CreateFarmListButton_Click(object sender, RoutedEventArgs e)
         => await GuardUiAsync(CreateFarmListButtonClickAsync);
 
@@ -837,12 +728,6 @@ public partial class MainWindow
         }
 
         var options = ApplySelectedVillageToOptions(LoadBotOptions());
-        if (options.IsPrivateServer)
-        {
-            AppendLog("Create Farmlists is currently available on official servers only.");
-            return;
-        }
-
         var villages = GetFarmListCreationVillages();
         if (villages.Count == 0)
         {
@@ -1056,8 +941,6 @@ public partial class MainWindow
         SetEnabled(FarmListsItemsControl, farmControlsEnabled);
         SetEnabled(FarmListSendAllNowButton, farmControlsEnabled && _farmLists.Any(IsRealFarmListRow));
         SetEnabled(AnalyzeFarmListsButton, sleepAllowsActions && !_farmingOperationBusy);
-        SetEnabled(AnalyzeNatarsProfileButton, farmControlsEnabled);
-        SetEnabled(ShowNatarsListButton, farmControlsEnabled && _natarsProfileAnalyzed);
         SetEnabled(StartManualFarmingButton, false);
         SetEnabled(StartCatapultWavesButton, farmControlsEnabled);
         UpdateManualFarmingRunningState();

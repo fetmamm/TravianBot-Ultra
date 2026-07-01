@@ -1,7 +1,7 @@
 # Engineering Notes - TbotUltra
 
 > Las detta innan du andrar selektorer, sokvagar, konfiguration eller serverlogik.
-> Filen ar styrande och ska hallas kort, aktuell och under 300 rader.
+> Filen ar styrande och ska hallas kort, aktuell och mellan 200-300 rader.
 
 Se aven `docs/ARCHITECTURE.md` (fil- och funktionskarta), `AGENTS.md`, `CLAUDE.md`, `README.md`.
 Djupa mekanismdetaljer ligger i `docs/adr/` och historiken i `docs/history/`.
@@ -10,7 +10,7 @@ Djupa mekanismdetaljer ligger i `docs/adr/` och historiken i `docs/history/`.
 
 | Projekt | Ansvar |
 |---|---|
-| `TbotUltra.Core` | Konfiguration (`BotOptions`, `ServerFlavor`), task-payloads och kataloger. Ingen browser eller UI. |
+| `TbotUltra.Core` | Konfiguration (`BotOptions`), task-payloads och kataloger. Ingen browser eller UI. |
 | `TbotUltra.Worker` | Spelautomation via Playwright. `TravianClient` ager serverinteraktion och `BotTaskRunner` kor tasks. |
 | `TbotUltra.Desktop` | WPF-UI med `MainWindow`-partials och ViewModels. `LoadBotOptions()` laser config via `BotOptionsFactory`. |
 
@@ -21,67 +21,61 @@ dotnet build TbotUltra.sln
 .\scripts\Run-Tests.ps1
 ```
 
-## 2. Official och SS-Travi
+## 2. Official-only
 
-Bada servervarianterna stods i samma kodbas. Official-stod ar ett lager ovanpa
-befintligt SS-stod, inte en fork eller separat adapterarkitektur.
+Official Travian Legends ar enda malet framåt. Lagg inte tillbaka alternativa
+servervarianter, runtime-switchar for servertyp eller selectorfallbacks for andra servertyper.
 
-### ServerFlavor
-
-1. `ServerFlavor` harleds alltid fran `BaseUrl`-host.
-2. `*.ss-travi.com` ar `SsTravi`; allt annat ar `Official`.
-3. Flavor far inte bindas fran config eller cachas separat.
-4. Lagg inte tillbaka `[ConfigurationKeyName("server_flavor")]`.
-5. Privatserverfunktioner (t.ex. Natar-floden) gate:as med `_config.IsPrivateServer`.
-6. Kontrollera `[flavor]`-loggen vid misstankt fel serverbeteende.
-
-Detaljer: [ADR 2026-06-01](adr/2026-06-01-server-flavor.md).
+Servervariant far inte sparas i config, anvandas for runtime-beteende eller laggas tillbaka i `BotOptions`.
 
 ### Sokvagar
 
-Anvand flavor-aware helpers i `TravianClient.Selectors.cs` nar URL skiljer; anropa dem i
-`GotoAsync(...)`, hardkoda inte en variants path i flodeslogiken.
+Runtime-path helpers i `TravianClient.Selectors.cs` ar Official-only. Anropa helpers i
+`GotoAsync(...)` och hardkoda inte duplicerade URL:er i flodeslogiken.
 
-```csharp
-private string HeroAdventuresPath =>
-    _config.IsPrivateServer ? Paths.HeroAdventures : "/hero/adventures";
-```
-
-| Sida | Official | SS/legacy |
-|---|---|---|
-| Hero adventures | `/hero/adventures` | `/hero_adventure.php` |
-| Hero inventory | `/hero/inventory` | `/hero_inventory.php` |
-| Player profile | `/profile/{id}` | `/spieler.php` |
-| Messages | `/messages` | `/nachrichten.php` |
-| Reports | `/report` | `/berichte.php` |
-| Statistics | `/statistics` | `/statistiken.php` |
-| Village overview | `/village/statistics` | `/dorf3.php` |
-| Rally point tabs | `gid=16&tt=N` | `t=N` |
+| Sida | Official path |
+|---|---|
+| Hero adventures | `/hero/adventures` |
+| Hero inventory | `/hero/inventory` |
+| Hero attributes | `/hero/attributes` |
+| Messages | `/messages` |
+| Write message | `/messages/write` |
+| Reports | `/report` |
+| Rally point tabs | `build.php?id=39&gid=16&tt=N` |
 
 ### Selektorer och React
 
-- Selektorandringar ar additiva: behall SS/legacy-selektorn och lagg Official som fallback.
-  Ersatt inte en fungerande SS-selektor utan verifierad anledning.
+- Selektorandringar ska vara Official-scope:ade och live-verifieras nar de ror React-sidor.
+  Lagg inte till legacy-fallback utan separat beslut.
 - Scope:a breda selektorer till ratt widget/dialog for att undvika falska traffar.
 - Official React-sidor maste vanta pa ett synligt/handlingsbart nyckelelement; DOM-narvaro ensam
   racker inte for klick. Anvand `await WaitForPageReadyAsync(ct)` nar hela sidan maste vara laddad —
   den kastar (TimeoutException, sista felet som inner) efter uttomda retries; anropare ska defer:a/retry:a.
-- Verifiera nya Official-selektorer live och gor en snabb SS-regressionskontroll.
+- Official `/messages/write` ar klassiskt form-DOM: recipient `#receiver`/`name=an`, subject `name=be`, body `textarea#message`.
+- Bulk messages far aldrig skriva till systemspelarna `Multihunter`, `Natar` eller `Natars`; filtrera bade vid analys och direkt fore send.
+- Bulk messages ska hantera Official-dialogen `The name X does not exist.` genom att klicka OK, rensa recipient-faltet, ta bort X ur aktuell batch och forsoka igen utan att cacha X som skickad.
+- Official `map.sql`/`x_world`: player id ar kolumn 7; skicka aldrig den som namn. Player name ar kolumn 8,
+  alliance name kolumn 10, population kolumn 11 (0-baserat: 7,9,10).
+- Verifiera nya Official-selektorer live.
 - Official farmlist loss cleanup laser `tr.slot`, `td.target`, `td.openContextMenu` och last-raid
   klasser (`attack_lost*`, `attack_won_withLosses*`); matcha inte SVG-paths for loss state.
 
 ```js
-document.querySelector('#stockBarWarehouse, .warehouse .capacity .value')
+document.querySelector('.warehouse .capacity .value')
 ```
 
 ## 3. Konfiguration och konto-state
 
-- `bot.json` innehaller endast verkligt globala program-/servervarden. `ServerFlavor` ar aldrig en sparad setting.
+- `bot.json` innehaller endast verkligt globala program-/servervarden. Servervariant ar ingen sparad setting.
 - Konto-/byspecifika val sparas i `config/accounts/<account>/settings.json`. Konto-overlay appliceras ovanpa
   global config; saknad overlay betyder defaults, aldrig ett annat kontos varden.
 - Aldre konto-scopeade varden i `bot.json` migreras en gang till kontots `settings.json` och tas bort globalt.
 - Reinforcement send-intervall/variation ar account-scopeat; `Queue now` skickar direkt, auto-gruppen skapar en deferred runtime-post baserat pa senaste lyckade send.
 - Ko, bycache, Smithy, troop training, hero/cache och ovrig runtime-state anvander kontoavgransade paths.
+- `build_troops`-queueitems ska alltid snapshotta vald bys `TroopTrainingPayload`; annars faller workern
+  tillbaka till global/default troop-training config (t.ex. 50% resources) i stallet for konto+by-overriden.
+- Build troops `timed` ar per-by/per-byggnad: efter lyckad training defer:as samma queue item med
+  slumpad `timed_min_minutes`-`timed_max_minutes` delay. Default ar 30-180 min.
 - Kontobyte ar full UI/cache-reset, men respektive kontos separata ko och settings ska bevaras, och
   `bot.json`:s konto-scopeade pekare (by-/farmlist-namn/ids) rensas via `ClearPersistedAccountScopedConfig`
   sa de inte lacker till nasta konto.
@@ -105,7 +99,7 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
   `TravianClient` storre med ny stateless logik.
 - Bevara fungerande navigations- och klickordning om beteendeforandring inte uttryckligen kravs.
 - Registrera nya tasks via befintlig handler-dictionary i `BotTaskRunner`.
-- Selektorer ska vara additiva och paths flavor-aware. Logga tillrackligt med kontext for framtida felsokning.
+- Selektorer ska vara Official-scope:ade och path helpers Official-only. Logga tillrackligt med kontext for framtida felsokning.
 - Hero-resurstransfer ar per-by/per-konsument gated: Village settings `Hero res.`,
   `HeroResourceUse{Construction,Smithy,Brewery,TownHall}` och `HeroResourceMaxUse*` (per by; Construction default true, Smithy/Brewery/Town Hall false, max limit alltid aktiv med default 5000). Generisk build-sidlogik i
   `TryHeroResourceTransferOnCurrentBuildPageAsync`; construction/brewery anropar via tunna gated wrappers,
@@ -115,7 +109,7 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
   Mode ar account-default `small`/`big` med per-by override; `big` faller tillbaka till `small` under
   Town Hall level 10. Big-start-selector ska live-verifieras forst nar en level 10 Town Hall finns.
   Small-start logic ska vara scope:ad till `.build_details` och small-celebration-raden; verifiera Official
-  och SS live innan selectorandringar markeras som bekraftade.
+  live innan selectorandringar markeras som bekraftade.
 
 ### Desktop
 
@@ -130,7 +124,7 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
   for infoikoner; langre listor ligger i en begransad `ScrollViewer`, inte expandera resten av dashboarden.
   Automation-loop-kort sparar per-by gruppvarde fore wake och vacker bade Continuous Loop och vantande AutoQueue.
 - Aktivitetstimers sparas som absoluta UTC-sluttider och raknas om vid cache-load; utgangna poster rensas
-  som stale. `Clear timers` ar vald-by-scope, tar aldrig bort Queue-sidans poster och vacker inte loopen.
+  som stale. `Clear timers` ar vald-by-scope, tar aldrig bort Queue-sidans poster och vacker en korande loop.
   Som manuell aterstallning rensar den ocksa vald bys construction-snapshot (`ActiveConstructions`) och
   nollstaller deferred construction-retries sa ett fastnat "waiting" utan faktiskt bygge kan brytas.
 - Construction- och byggkologik (ActiveConstructions som SOT, queue-full-defer, storage-capacity, estimat):
@@ -185,6 +179,8 @@ En ny formaga ska kunna enhetstestas till stor del utan browser. God-klasserna s
   Bonus-video ska koras i isolerad temp-browser utan native popup-blocker och aldrig ladda ad-stack i main context;
   rena background-/DOM-prober ska inte spara storage state efter lasningen.
   Travco ska oppnas i isolerad browser-context, aldrig i Travian-contexten.
+- Official resource/production text kan innehalla bidi-markers och Unicode-minus (`\u2212`); DOM-number parsers
+  maste strippa `\u202A-\u202E`/`\u2066-\u2069` och normalisera minus innan `Number(...)`.
 - Session i `Sleeping` far inte vackas av refresh, login/logout, scan, test, bybyte eller auto-run.
   Continuous-loopens keep-alive (`MaybeKeepBrowserFreshDuringContinuousLoopAsync`) gate:ar pa `IsSessionSleeping`.
 - Portable single-file-builden maste innehalla `.playwright` och satta `PLAYWRIGHT_DRIVER_PATH`.
@@ -218,14 +214,15 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
 
 ### Hero och React-dialoger
 
-- Hero-attributens defaultordning ar `resources,fighting_strength,offence_bonus,defence_bonus` pa bada
-  varianterna. UI-ordningen sparas konto-scopeat och anvands oforandrad vid poangtilldelning.
+- Hero-attributens defaultordning ar `resources,fighting_strength,offence_bonus,defence_bonus`.
+  UI-ordningen sparas konto-scopeat och anvands oforandrad vid poangtilldelning.
 - Background resource-refresh far no-navigation-kolla `i.levelUp.show` och ko:a `spend_hero_attribute_points`
   nar auto-assign och Hero-gruppen ar pa; dedupe:a endast aktiv `spend_hero_attribute_points` sa deferred
   `hero_manage` for adventures inte blockerar attributpoang, och vacka en sovande Continuous Loop sa poangen
   inte vantar pa nasta intervall. Official-attributklick maste scope:a plus-knappen till exakt input-falt
   (`productionPoints` for resources).
 - Hero away avgors av travel-signaler/timer fore `heroHome`. Las `.heroState .timerReact` fore oscope:ad sidtext.
+  Dead/reviving Official-widget kan sakna home-link; los home village via `HeroAttributesPath` innan `[herohome]`.
   Health kan innehalla bidi-tecken; rensa dem fore numerisk parsing.
 - Resource transfer-dialogen kan renderas i `#dialogContent` utan wrapper, ibland lamna inputs pa 0 och
   anvanda CSS-klassen `disabled`; fyll exakt shortfall manuellt vid behov, klicka Official icon/confirm via
@@ -273,18 +270,17 @@ Full bakgrund och regressionsdetaljer: [engineering-notes-archive.md](history/en
 | Hero adventures, inventory, attributes | Stods; verifiera React-floden live |
 | Inbox, Tasks, Daily Quests | Stods; verifiera React-floden live |
 | NPC trade och hero resource transfer | Stods; verifiera live |
-| Natar | Endast SS-Travi |
 | Auctions | Kraver live-testning |
 | Farm lists | Official kraver Gold Club |
 
 ## 7. Recept for Official-stod
 
 1. Spara renderad HTML via appens `Save Page HTML` i korrekt tillstand.
-2. Jamfor Official-markup mot SS och nuvarande selektorer.
-3. Lagg till Official som fallback och anvand flavor-aware path vid behov.
+2. Jamfor Official-markup mot nuvarande selektorer.
+3. Uppdatera Official-scope:ade selektorer/path helpers vid behov.
 4. Isolera stateless parsing och lagg till fokuserade tester.
 5. Kor build och relevanta tester.
-6. Verifiera live pa Official och gor en snabb SS-regressionskontroll.
+6. Verifiera live pa Official.
 7. Uppdatera denna fil endast med fortsatt styrande regler; lagg detaljer i ADR/historik.
 
 ## 8. Malarkitektur
@@ -317,7 +313,6 @@ Aldre beslut och detaljerad historik finns i:
 
 - [ADR-katalogen](adr/)
 - [Fullt Engineering Notes-arkiv](history/engineering-notes-archive.md)
-- [Server flavor och Official/SS](adr/2026-06-01-server-flavor.md)
 - [UI theme](adr/2026-06-03-ui-theme.md)
 - [Multi-village och konto-state](adr/2026-06-05-multi-village.md)
 - [Dashboard overview](adr/2026-06-06-dashboard-overview.md)

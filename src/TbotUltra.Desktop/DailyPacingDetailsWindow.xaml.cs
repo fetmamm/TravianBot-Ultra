@@ -11,6 +11,7 @@ namespace TbotUltra.Desktop;
 public sealed record DailyPacingDayRow(
     string Date,
     string Online,
+    string Waiting,
     string Limit,
     string Usage);
 
@@ -19,6 +20,13 @@ public sealed record DailyPacingTaskRow(
     int Runs,
     string LastRun,
     string PeakHour);
+
+public sealed record DailyPacingTimelineSegment(
+    string Date,
+    double StartHour,
+    double EndHour,
+    string State,
+    string Details);
 
 /// <summary>One day on the runtime graph: online hours, and the day's daily-max (limit) hours if set.</summary>
 public sealed record DailyPacingChartPoint(
@@ -29,25 +37,30 @@ public sealed record DailyPacingChartPoint(
 public partial class DailyPacingDetailsWindow : Window
 {
     private readonly IReadOnlyList<DailyPacingChartPoint> _chartPoints;
+    private readonly IReadOnlyList<DailyPacingTimelineSegment> _timelineSegments;
 
     public DailyPacingDetailsWindow(
         string onlineToday,
+        string waitingToday,
         string timeLeft,
         string dailyLimit,
         string weekTotal,
         string accountTotal,
         IReadOnlyList<DailyPacingDayRow> dayRows,
         IReadOnlyList<DailyPacingTaskRow> taskRows,
+        IReadOnlyList<DailyPacingTimelineSegment> timelineSegments,
         IReadOnlyList<DailyPacingChartPoint> chartPoints)
     {
         InitializeComponent();
         OnlineTodayTextBlock.Text = onlineToday;
+        WaitingTodayTextBlock.Text = waitingToday;
         TimeLeftTextBlock.Text = timeLeft;
         DailyLimitTextBlock.Text = dailyLimit;
         WeekTotalTextBlock.Text = weekTotal;
         AccountTotalTextBlock.Text = accountTotal;
         WeekDataGrid.ItemsSource = dayRows;
         TaskDataGrid.ItemsSource = taskRows;
+        _timelineSegments = timelineSegments;
         _chartPoints = chartPoints;
     }
 
@@ -59,6 +72,11 @@ public partial class DailyPacingDetailsWindow : Window
     private void ChartCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         RenderChart();
+    }
+
+    private void TimelineCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        RenderTimeline();
     }
 
     // Draws a bar-per-day runtime chart: green bars (online time), a dashed amber "Max" reference line
@@ -228,5 +246,142 @@ public partial class DailyPacingDetailsWindow : Window
         Item(bar, "Online");
         Item(max, "Max");
         Item(trend, "Trend");
+    }
+
+    private void RenderTimeline()
+    {
+        var canvas = TimelineCanvas;
+        canvas.Children.Clear();
+
+        var width = canvas.ActualWidth;
+        if (width < 120 || _timelineSegments.Count == 0)
+        {
+            return;
+        }
+
+        var dates = _timelineSegments
+            .Select(segment => segment.Date)
+            .Distinct()
+            .OrderByDescending(date => date, StringComparer.Ordinal)
+            .ToList();
+
+        const double leftPad = 74;
+        const double rightPad = 18;
+        const double topPad = 38;
+        const double rowHeight = 28;
+        const double barHeight = 14;
+        const double bottomPad = 28;
+        var plotW = Math.Max(40, width - leftPad - rightPad);
+        canvas.Height = topPad + dates.Count * rowHeight + bottomPad;
+
+        var axisBrush = (Brush)FindResource("BorderBrush");
+        var labelBrush = (Brush)FindResource("TextSubtleBrush");
+        var textBrush = (Brush)FindResource("TextPrimaryBrush");
+        var taskBrush = (Brush)FindResource("AccentBrush");
+        var waitingBrush = (Brush)FindResource("WarningBrush");
+        var sleepingBrush = (Brush)FindResource("InfoBrush");
+        var offlineBrush = (Brush)FindResource("BorderBrush");
+
+        double X(double hour) => leftPad + plotW * Math.Clamp(hour, 0, 24) / 24d;
+
+        for (var hour = 0; hour <= 24; hour += 6)
+        {
+            var x = X(hour);
+            canvas.Children.Add(new Line
+            {
+                X1 = x,
+                X2 = x,
+                Y1 = topPad - 8,
+                Y2 = topPad + dates.Count * rowHeight - 4,
+                Stroke = axisBrush,
+                StrokeThickness = 1,
+                Opacity = hour is 0 or 24 ? 0.65 : 0.25,
+            });
+            AddText(canvas, $"{hour:00}", x - 8, 12, labelBrush, 10);
+        }
+
+        for (var i = 0; i < dates.Count; i++)
+        {
+            var date = dates[i];
+            var y = topPad + i * rowHeight;
+            AddText(canvas, date, 4, y - 1, textBrush, 10);
+
+            var background = new Rectangle
+            {
+                Width = plotW,
+                Height = barHeight,
+                Fill = offlineBrush,
+                Opacity = 0.22,
+                RadiusX = 2,
+                RadiusY = 2,
+            };
+            Canvas.SetLeft(background, leftPad);
+            Canvas.SetTop(background, y);
+            canvas.Children.Add(background);
+
+            foreach (var segment in _timelineSegments.Where(segment => segment.Date == date))
+            {
+                var x = X(segment.StartHour);
+                var segmentWidth = Math.Max(1, X(segment.EndHour) - x);
+                var brush = segment.State switch
+                {
+                    "Task" => taskBrush,
+                    "Waiting" => waitingBrush,
+                    "Sleeping" => sleepingBrush,
+                    _ => offlineBrush,
+                };
+
+                var rect = new Rectangle
+                {
+                    Width = segmentWidth,
+                    Height = barHeight,
+                    Fill = brush,
+                    Opacity = segment.State == "Offline" ? 0.35 : 0.95,
+                    RadiusX = 2,
+                    RadiusY = 2,
+                    ToolTip = $"{segment.Date} {FormatTimelineHour(segment.StartHour)}-{FormatTimelineHour(segment.EndHour)}\n{segment.State}: {segment.Details}",
+                };
+                Canvas.SetLeft(rect, x);
+                Canvas.SetTop(rect, y);
+                canvas.Children.Add(rect);
+            }
+        }
+
+        AddTimelineLegend(canvas, leftPad, canvas.Height - 20, taskBrush, waitingBrush, sleepingBrush, offlineBrush, labelBrush);
+    }
+
+    private static void AddTimelineLegend(
+        Canvas canvas,
+        double x,
+        double y,
+        Brush task,
+        Brush waiting,
+        Brush sleeping,
+        Brush offline,
+        Brush label)
+    {
+        var cursor = x;
+        void Item(Brush swatch, string text, double opacity = 1)
+        {
+            var rect = new Rectangle { Width = 10, Height = 10, Fill = swatch, Opacity = opacity, RadiusX = 2, RadiusY = 2 };
+            Canvas.SetLeft(rect, cursor);
+            Canvas.SetTop(rect, y + 2);
+            canvas.Children.Add(rect);
+            AddText(canvas, text, cursor + 14, y, label, 10);
+            cursor += 14 + text.Length * 6.5 + 14;
+        }
+
+        Item(task, "Task");
+        Item(waiting, "Waiting");
+        Item(sleeping, "Sleeping");
+        Item(offline, "Offline", 0.45);
+    }
+
+    private static string FormatTimelineHour(double hour)
+    {
+        var totalMinutes = Math.Clamp((int)Math.Round(hour * 60), 0, 24 * 60);
+        var h = totalMinutes / 60;
+        var m = totalMinutes % 60;
+        return $"{h:00}:{m:00}";
     }
 }

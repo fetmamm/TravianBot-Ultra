@@ -45,8 +45,6 @@ public sealed partial class BotTaskRunner
             ["hero_manage"] = ExecuteHeroManageAsync,
             // Spends available hero attribute points using the configured stat priority.
             ["spend_hero_attribute_points"] = ExecuteSpendHeroAttributePointsAsync,
-            // Opens the hero attributes tab and sets the Hide hero / stay-with-troops radio.
-            ["hero_set_hide_mode"] = ExecuteHeroSetHideModeAsync,
             // Walks through the Smithy and clicks every "Upgrade" button until none remain.
             ["upgrade_troops_at_smithy"] = ExecuteUpgradeTroopsAtSmithyAsync,
             // Builds troops from Barracks, Stable, or Workshop based on configured rules.
@@ -71,7 +69,6 @@ public sealed partial class BotTaskRunner
     private readonly ProjectContext _projectContext;
     private readonly AccountAnalysisStore _accountAnalysisStore;
     private readonly BulkMessageSentCacheStore _bulkMessageSentCacheStore;
-    private readonly ICaptchaAutoSolver _captchaAutoSolver;
     private readonly SemaphoreSlim _sessionGate = new(1, 1);
     private BrowserSession? _sharedVisibleSession;
     private IPage? _sharedVisiblePage;
@@ -83,11 +80,10 @@ public sealed partial class BotTaskRunner
     private TravianSessionCache _sharedVisibleSessionCache = new();
     private int _browserClosedByUserSignal;
 
-    public BotTaskRunner(IAccountProvider accountProvider, ProjectContext projectContext, ICaptchaAutoSolver captchaAutoSolver)
+    public BotTaskRunner(IAccountProvider accountProvider, ProjectContext projectContext)
     {
         _accountProvider = accountProvider;
         _projectContext = projectContext;
-        _captchaAutoSolver = captchaAutoSolver;
         _accountAnalysisStore = new AccountAnalysisStore(projectContext.RootPath);
         _bulkMessageSentCacheStore = new BulkMessageSentCacheStore(projectContext.RootPath);
     }
@@ -444,7 +440,6 @@ public sealed partial class BotTaskRunner
             interactive: interactive,
             browserVisible: !options.Headless,
             projectRoot: _projectContext.RootPath,
-            captchaAutoSolver: options.IsPrivateServer ? _captchaAutoSolver : null,
             statusCallback: log,
             sessionCache: sessionCache,
             setConsentDomainsAllowed: setConsentDomainsAllowed,

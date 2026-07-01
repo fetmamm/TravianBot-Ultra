@@ -13,7 +13,7 @@ namespace TbotUltra.Desktop.Views;
 /// attribute priority list and routes button clicks back to the host
 /// MainWindow's internal "Core" methods, which still hold the
 /// service-bound logic (refresh stats / refresh adventures / queue
-/// adventure / hide-mode change). The panel reads its DataContext as a
+/// adventure). The panel reads its DataContext as a
 /// <see cref="HeroViewModel"/> inherited from the host TabItem.
 /// </summary>
 public partial class HeroPanel : UserControl
@@ -123,11 +123,6 @@ public partial class HeroPanel : UserControl
         }
 
         return null;
-    }
-
-    private void HeroHideModeRadio_Checked(object sender, RoutedEventArgs e)
-    {
-        Host?.OnHeroHideModeChanged();
     }
 
     private async void RefreshHeroStatsButton_Click(object sender, RoutedEventArgs e)

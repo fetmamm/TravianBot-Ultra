@@ -68,8 +68,8 @@ public sealed partial class TravianClient
 
     /// <summary>
     /// Performs the in-building NPC exchange click sequence on the current page for the
-    /// given unit: clicks the per-unit "NPC Trade" button, then "distribution Resources
-    /// remaining", then "distribution right now" (costs 3 gold). Assumes the building page
+    /// given unit: clicks the per-unit "NPC Trade" button, then "Distribute remaining
+    /// resources.", then "Redeem" (costs 3 gold). Assumes the building page
     /// is already open and the gates have already been evaluated by the caller.
     /// </summary>
     private async Task<bool> ExecuteNpcTradeClicksAsync(int troopUnitId, string buildingName, CancellationToken cancellationToken)
@@ -199,20 +199,17 @@ public sealed partial class TravianClient
             }
         }
 
-        // SS uses "distribution Resources remaining"; official Travian (T4.6) uses a button with
-        // value="Distribute remaining resources." (onclick exchangeResources.distribute(...)).
-        var distributeRemaining = _page.Locator("#mobile_npc_distribute, #submitText button, button:has-text('distribution Resources remaining'), button[onclick*='exchangeResources.distribute'], button[value='Distribute remaining resources.' i]").First;
-        if (!await TryClickDialogButtonAsync(distributeRemaining, "distribution Resources remaining", cancellationToken))
+        var distributeRemaining = _page.Locator("button[onclick*='exchangeResources.distribute'], button[value='Distribute remaining resources.' i]").First;
+        if (!await TryClickDialogButtonAsync(distributeRemaining, "Distribute remaining resources", cancellationToken))
         {
             return false;
         }
 
         await Task.Delay(400, cancellationToken);
 
-        // Official "Redeem" submit button is #npc_market_button (already covered), enabled only
-        // after the distribute step above.
-        var distributeNow = _page.Locator("#mobile_npc_confirm, #npc_market_button, button:has-text('distribution right now')").First;
-        if (!await TryClickDialogButtonAsync(distributeNow, "distribution right now", cancellationToken))
+        // Official "Redeem" submit button is enabled only after the distribute step above.
+        var distributeNow = _page.Locator("#npc_market_button").First;
+        if (!await TryClickDialogButtonAsync(distributeNow, "Redeem", cancellationToken))
         {
             return false;
         }
@@ -423,7 +420,7 @@ public sealed partial class TravianClient
               };
 
               const readServerNow = () => {
-                const candidates = ['#servertime .timeStandard', '#servertime', '.serverTime', '#stockBarTimer'];
+                const candidates = ['#servertime .timeStandard', '#servertime', '.serverTime'];
                 for (const selector of candidates) {
                   const element = document.querySelector(selector);
                   const match = clean(element?.textContent || '').match(/(\d{1,2}):(\d{2}):(\d{2})/);

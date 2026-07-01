@@ -33,7 +33,7 @@ public sealed partial class TravianClient : ISessionClient
         if (state == "unknown" && IsLikelyGamePageUrl(_page.Url))
         {
             Notify("[login] state unknown on game page; rechecking dorf1 before opening login page.");
-            await GotoAsync(_config.VillageOverviewPath, cancellationToken);
+            await GotoAsync(Paths.Resources, cancellationToken);
             if (await IsLoggedInAsync())
             {
                 Notify($"[login] already logged in as '{_account.Name}' after dorf1 recheck");
@@ -51,7 +51,7 @@ public sealed partial class TravianClient : ISessionClient
             return;
         }
 
-        await GotoAsync(_config.LoginPath, cancellationToken);
+        await GotoAsync(Paths.Login, cancellationToken);
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await PauseForManualStepIfVisibleAsync("Manual verification appeared on the login page.", cancellationToken);
         if (await IsLoggedInAsync())
@@ -81,18 +81,7 @@ public sealed partial class TravianClient : ISessionClient
 
         if (await CaptchaOrManualStepVisibleAsync())
         {
-            var screenshotPath = await CaptureManualVerificationScreenshotAsync("login-page", cancellationToken);
-            Notify($"[login] captcha/manual step detected for {_account.Name} — attempting auto-solve");
-            if (await TrySolveCaptchaAutomaticallyAsync("login-page", screenshotPath, cancellationToken))
-            {
-                var loggedInAfterAutoSolve = await WaitUntilLoggedInAsync(cancellationToken);
-                if (loggedInAfterAutoSolve)
-                {
-                    Notify($"[login] success ({_account.Name}) — captcha auto-solve cleared the block");
-                    await RefreshAccountFeatureSignalsAsync(cancellationToken);
-                    return;
-                }
-            }
+            await CaptureManualVerificationScreenshotAsync("login-page", cancellationToken);
 
             if (!_browserVisible)
             {
@@ -100,7 +89,7 @@ public sealed partial class TravianClient : ISessionClient
                     "Captcha/manual verification appeared while running headless.");
             }
 
-            Notify($"[login] ALARM: captcha auto-solve failed for {_account.Name}. Solve it manually in the browser — bot is paused.");
+            Notify($"[login] ALARM: captcha/manual step detected for {_account.Name}. Solve it manually in the browser — bot is paused.");
             await WaitForManualVerificationToClearAsync(cancellationToken);
         }
         else
@@ -159,17 +148,7 @@ public sealed partial class TravianClient : ISessionClient
 
         if (await CaptchaOrManualStepVisibleAsync())
         {
-            var screenshotPath = await CaptureManualVerificationScreenshotAsync("login-current-page", cancellationToken);
-            Notify($"[login] captcha/manual step on inline form for {_account.Name} — attempting auto-solve");
-            if (await TrySolveCaptchaAutomaticallyAsync("login-current-page", screenshotPath, cancellationToken))
-            {
-                var autoSolvedLoggedIn = await WaitUntilLoggedInAsync(cancellationToken);
-                if (autoSolvedLoggedIn)
-                {
-                    Notify($"[login] success ({_account.Name}) — inline form, captcha auto-solved");
-                    return autoSolvedLoggedIn;
-                }
-            }
+            await CaptureManualVerificationScreenshotAsync("login-current-page", cancellationToken);
 
             if (!_browserVisible)
             {
@@ -197,7 +176,7 @@ public sealed partial class TravianClient : ISessionClient
         _sessionTribe = null;
         _cachedTribe = null;
         _cachedGoldClubEnabled = null;
-        await GotoAsync(_config.VillageOverviewPath, cancellationToken);
+        await GotoAsync(Paths.Resources, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared before logout.", cancellationToken);
         if (!await IsLoggedInAsync())
         {
@@ -217,10 +196,10 @@ public sealed partial class TravianClient : ISessionClient
                 return;
             }
 
-            Notify("[logout] click did not confirm sign-out — trying legacy logout URLs.");
+            Notify("[logout] click did not confirm sign-out — trying the Official logout URL.");
         }
 
-        // Fallback for servers where the logout control is missing or the click did not take effect.
+        // Fallback when the logout control is missing or the click did not take effect.
         foreach (var candidatePath in Paths.LogoutCandidates)
         {
             await GotoAsync(candidatePath, cancellationToken);
@@ -237,7 +216,7 @@ public sealed partial class TravianClient : ISessionClient
     // Triggers the logout control. The official T4.6 control is an <a> with only an onclick
     // (Travian.api('auth/logout')) and is often hidden behind a menu, so a normal actionability-gated
     // click times out. Dispatching the click event runs the element's own handler/navigation directly,
-    // without waiting for visibility/stability — which also works for the SS/legacy href-based links.
+    // without waiting for visibility/stability.
     private async Task<bool> TryTriggerLogoutAsync(CancellationToken cancellationToken)
     {
         foreach (var selector in Selectors.LogoutTriggers)

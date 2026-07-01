@@ -39,7 +39,7 @@ public sealed partial class TravianClient : IFarmingClient
             await WaitForFarmListsRenderedAsync(cancellationToken);
             await EnsureOfficialFarmListsExpandedAsync(cancellationToken);
             rows = await ReadFarmListsFromCurrentPageAsync(cancellationToken);
-            if (rows.Count > 0 || _config.IsPrivateServer || attempt == maxAttempts)
+            if (rows.Count > 0 || attempt == maxAttempts)
             {
                 break;
             }
@@ -52,15 +52,10 @@ public sealed partial class TravianClient : IFarmingClient
         return rows;
     }
 
-    // Waits for the Official farm list wrappers to render before reading, so a slow React mount does
+    // Waits for the farm list wrappers to render before reading, so a slow React mount does
     // not make us read an empty page. A genuinely empty account simply times out and reads zero.
     private async Task WaitForFarmListsRenderedAsync(CancellationToken cancellationToken)
     {
-        if (_config.IsPrivateServer)
-        {
-            return;
-        }
-
         try
         {
             await _page.WaitForFunctionAsync(
@@ -141,6 +136,42 @@ public sealed partial class TravianClient : IFarmingClient
         await WaitForFarmListStartButtonsEnabledAsync(clickState.ListIds ?? [], cancellationToken);
         Notify($"[farm-list] send-all completed for {clickState.ListCount} list(s).");
         return clickState.ListCount;
+    }
+
+    private async Task<bool> TryClickCaptchaSuccessDialogOkAsync(CancellationToken cancellationToken)
+    {
+        foreach (var selector in Selectors.CaptchaSuccessDialogOkButton)
+        {
+            var locator = _page.Locator(selector).First;
+            if (await locator.CountAsync() == 0)
+            {
+                continue;
+            }
+
+            try
+            {
+                if (!await locator.IsVisibleAsync())
+                {
+                    continue;
+                }
+
+                await RetryAsync($"click captcha success dialog selector {selector}", async () =>
+                {
+                    await DelayBeforeClickAsync(cancellationToken);
+                    await locator.ClickAsync(new LocatorClickOptions { Timeout = Math.Min(_config.TimeoutMs, 1500) });
+                }, cancellationToken: cancellationToken);
+                await Task.Delay(250, cancellationToken);
+                return true;
+            }
+            catch (PlaywrightException)
+            {
+            }
+            catch (TimeoutException)
+            {
+            }
+        }
+
+        return false;
     }
 
     public async Task<FarmListLossDeactivationResult> DeactivateFarmListLossTargetsAsync(
@@ -272,11 +303,6 @@ public sealed partial class TravianClient : IFarmingClient
 
     private async Task WaitForOfficialFarmListRenderAsync(CancellationToken cancellationToken)
     {
-        if (_config.IsPrivateServer)
-        {
-            return;
-        }
-
         try
         {
             await _page.WaitForFunctionAsync(
@@ -313,11 +339,6 @@ public sealed partial class TravianClient : IFarmingClient
 
     private async Task EnsureOfficialFarmListsExpandedAsync(CancellationToken cancellationToken)
     {
-        if (_config.IsPrivateServer)
-        {
-            return;
-        }
-
         // Expand every collapsed list and scroll each into view so Travian lazy-renders its slot rows
         // (which carry the target coordinates). A single pass can leave large/slow lists half-rendered,
         // so retry the expand+scroll a few rounds until every list reports all of its rows.
@@ -429,9 +450,15 @@ public sealed partial class TravianClient : IFarmingClient
                   const startButton = candidate.querySelector('button.startFarmList');
                   const startText = cleanNumericText(startButton?.textContent);
                   const startCountMatch = startText.match(/start\s*\((\d+)\)/i);
+                  const startCount = startCountMatch ? Number(startCountMatch[1]) : null;
+                  const startButtonDisabled =
+                    !startButton
+                    || startButton.disabled
+                    || startButton.getAttribute('disabled') !== null
+                    || (startButton.className || '').toLowerCase().includes('disabled');
                   const renderedSlots = Array.from(candidate.querySelectorAll('tbody tr.slot'));
                   let active = startCountMatch
-                    ? Number(startCountMatch[1])
+                    ? startCount
                     : renderedSlots.filter((row) => !row.classList.contains('disabled')).length;
 
                   if (!Number.isFinite(total) || total < 0) total = 0;
@@ -461,7 +488,11 @@ public sealed partial class TravianClient : IFarmingClient
                     capacity,
                     farmCoordinates,
                     timerText: '',
-                    disabled: Number.isFinite(running) && running > 0,
+                    // "Not ready" is the Start button's own state, NOT how many farms are currently out
+                    // raiding. A list with some targets still being raided ("22/37 being raided") keeps a
+                    // green, clickable "Start (N)" button for the N targets that ARE ready — it must still
+                    // be sendable. Only treat it as not-ready when that button is missing/disabled or 0.
+                    disabled: startButtonDisabled || startCount === 0,
                     lid
                   };
                 });

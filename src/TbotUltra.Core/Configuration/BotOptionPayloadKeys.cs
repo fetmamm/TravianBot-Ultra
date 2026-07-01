@@ -64,6 +64,7 @@ public static class BotOptionPayloadKeys
     public const string BuildingConstructName = "building_construct_name";
     public const string TargetBuildingSlotOrName = "target_building_slot_or_name";
     public const string TargetLevel = "target_level";
+    public const string DontNotifyNewVersion = "dont_notify_new_version";
     public const string HeroMinHpForAdventure = "hero_min_hp_for_adventure";
     public const string HeroHpRegenPerDayPercent = "hero_hp_regen_per_day_percent";
     public const string HeroAutoRevive = "hero_auto_revive";
@@ -71,8 +72,6 @@ public static class BotOptionPayloadKeys
     public const string HeroAutoUseOintments = "hero_auto_use_ointments";
     public const string HeroStatPriority = "hero_stat_priority";
     public const string HeroAdventurePickOrder = "hero_adventure_pick_order"; // "shortest" or "top"
-    public const string HeroHideModeEnabled = "hero_hide_mode_enabled";
-    public const string HeroHideMode = "hero_hide_mode"; // "hide" or "fight"
     public const string HeroContinuousAdventures = "hero_continuous_adventures";
     public const string IncreaseAdventuresToHard = "increase_adventures_to_hard";
     public const string ReduceAdventureTime = "reduce_adventure_time";
@@ -120,6 +119,8 @@ public static class BotOptionPayloadKeys
     public const string TroopTrainingBarracksRunMode = "troop_training_barracks_run_mode";
     public const string TroopTrainingBarracksMinimumTroops = "troop_training_barracks_minimum_troops";
     public const string TroopTrainingBarracksMinimumResourcesPercent = "troop_training_barracks_minimum_resources_percent";
+    public const string TroopTrainingBarracksTimedMinMinutes = "troop_training_barracks_timed_min_minutes";
+    public const string TroopTrainingBarracksTimedMaxMinutes = "troop_training_barracks_timed_max_minutes";
     public const string TroopTrainingBarracksCheckWood = "troop_training_barracks_check_wood";
     public const string TroopTrainingBarracksCheckClay = "troop_training_barracks_check_clay";
     public const string TroopTrainingBarracksCheckIron = "troop_training_barracks_check_iron";
@@ -132,6 +133,8 @@ public static class BotOptionPayloadKeys
     public const string TroopTrainingStableRunMode = "troop_training_stable_run_mode";
     public const string TroopTrainingStableMinimumTroops = "troop_training_stable_minimum_troops";
     public const string TroopTrainingStableMinimumResourcesPercent = "troop_training_stable_minimum_resources_percent";
+    public const string TroopTrainingStableTimedMinMinutes = "troop_training_stable_timed_min_minutes";
+    public const string TroopTrainingStableTimedMaxMinutes = "troop_training_stable_timed_max_minutes";
     public const string TroopTrainingStableCheckWood = "troop_training_stable_check_wood";
     public const string TroopTrainingStableCheckClay = "troop_training_stable_check_clay";
     public const string TroopTrainingStableCheckIron = "troop_training_stable_check_iron";
@@ -144,6 +147,8 @@ public static class BotOptionPayloadKeys
     public const string TroopTrainingWorkshopRunMode = "troop_training_workshop_run_mode";
     public const string TroopTrainingWorkshopMinimumTroops = "troop_training_workshop_minimum_troops";
     public const string TroopTrainingWorkshopMinimumResourcesPercent = "troop_training_workshop_minimum_resources_percent";
+    public const string TroopTrainingWorkshopTimedMinMinutes = "troop_training_workshop_timed_min_minutes";
+    public const string TroopTrainingWorkshopTimedMaxMinutes = "troop_training_workshop_timed_max_minutes";
     public const string TroopTrainingWorkshopCheckWood = "troop_training_workshop_check_wood";
     public const string TroopTrainingWorkshopCheckClay = "troop_training_workshop_check_clay";
     public const string TroopTrainingWorkshopCheckIron = "troop_training_workshop_check_iron";
@@ -181,9 +186,6 @@ public static class BotOptionPayloadKeys
     public const string ReinforcementsSendVariationPercent = "reinforcements_send_variation_percent";
 
     public const string UpgradeSelectorProfile = "upgrade_selector_profile";
-    public const string CaptchaAutoSolveEnabled = "captcha_auto_solve_enabled";
-    public const string CaptchaSolverTimeoutSeconds = "captcha_solver_timeout_seconds";
-    public const string CaptchaSolverMaxAttempts = "captcha_solver_max_attempts";
 
     public const string SessionPacingEnabled = "session_pacing_enabled";
     public const string SessionPacingMaxRunMinutes = "session_pacing_max_run_minutes";
@@ -195,6 +197,7 @@ public static class BotOptionPayloadKeys
     public const string SessionPacingRuntimeDate = "session_pacing_runtime_date";
     public const string SessionPacingRuntimeSeconds = "session_pacing_runtime_seconds";
     public const string SessionPacingDailyHistory = "session_pacing_daily_history";
+    public const string SessionActivityHistory = "session_activity_history";
 
     public const string ActionPacingEnabled = "action_pacing_enabled";
     public const string ActionPacingTaskMinSeconds = "action_pacing_task_min_seconds";

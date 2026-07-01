@@ -144,7 +144,6 @@ public sealed record HeroAttributeSnapshot(
     int? AdventureCount = null,
     string HeroState = "Unknown",
     int? ReviveRemainingSeconds = null,
-    string? HideMode = null,
     // The hero's home village name, read from the attributes page ("Home village is village X").
     // Null when not found. Used by the dashboard to mark which village hosts the hero.
     string? HomeVillageName = null,
@@ -272,7 +271,10 @@ public sealed record FarmAddProgress(
     int ProcessedCount,
     int TotalCount,
     int AddedCount,
-    int NotFoundCount);
+    int NotFoundCount,
+    // Carries the coordinate of a target that had no village, so a cancelled run can still offer to
+    // remove the dead coordinates found so far. Null for every other progress report.
+    FarmCoordinate? InvalidCoordinate = null);
 
 public sealed record FarmAddResult(
     string FarmListName,

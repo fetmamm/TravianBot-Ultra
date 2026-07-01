@@ -150,17 +150,6 @@ public partial class MainWindow
                         alarmLinesForSessionLog.Add(line);
                     }
 
-                    if (IsCaptchaSessionStartMessage(part) && !_captchaSessionActive)
-                    {
-                        _captchaSessionSeenCount += 1;
-                        _captchaSessionActive = true;
-                    }
-
-                    if (IsCaptchaAutoSolveAttemptMessage(part))
-                    {
-                        ShowCaptchaAutoSolvePopup(part);
-                    }
-
                     if (IsManualVerificationAlarmMessage(part))
                     {
                         _manualVerificationAlarmActive = true;
@@ -172,24 +161,9 @@ public partial class MainWindow
                         _manualVerificationAlarmActive = false;
                     }
 
-                    if (_captchaSessionActive && IsCaptchaSolvedAutomaticallyMessage(part))
-                    {
-                        _captchaSessionSolvedCount += 1;
-                        _captchaSessionActive = false;
-                        AcknowledgeAllAlarmEntries();
-                        CloseCaptchaAutoSolvePopup();
-                    }
-                    else if (_captchaSessionActive && IsManualVerificationResolvedMessage(part))
-                    {
-                        _captchaSessionActive = false;
-                        CloseCaptchaAutoSolvePopup();
-                    }
-
                     if (part.Contains("manual verification appeared", StringComparison.OrdinalIgnoreCase)
-                        || part.Contains("captcha/manual", StringComparison.OrdinalIgnoreCase)
-                        || IsCaptchaAutoSolveFailedMessage(part))
+                        || part.Contains("captcha/manual", StringComparison.OrdinalIgnoreCase))
                     {
-                        CloseCaptchaAutoSolvePopup();
                         // During a visible login the browser window is open even though
                         // _browserSessionLikelyOpen is still false (it flips only after post-login finishes).
                         ShowManualVerificationPopup(_browserSessionLikelyOpen || _visibleBrowserLoginInProgress);
@@ -199,7 +173,6 @@ public partial class MainWindow
 
             TrimToMaxEntries(_terminalEntries, 1000);
             TrimToMaxEntries(_alarmEntries, 200);
-            UpdateCaptchaStatsUi();
             TryAppendSessionLogLines(logLinesForSessionLog, alarmLinesForSessionLog);
 
             if (lastRawMessage is not null)
@@ -579,124 +552,6 @@ public partial class MainWindow
         }
     }
 
-    private void ShowCaptchaAutoSolvePopup(string attemptMessage)
-    {
-        var (attempt, attempts) = ParseCaptchaAutoSolveAttempt(attemptMessage);
-        var timeoutSeconds = Math.Max(60, LoadBotOptions().CaptchaSolverTimeoutSeconds);
-        var maxSeconds = timeoutSeconds * Math.Max(1, attempts);
-
-        if (_captchaAutoSolvePopup is { IsVisible: true })
-        {
-            _captchaAutoSolveMaxSeconds = Math.Max(_captchaAutoSolveMaxSeconds, maxSeconds);
-            UpdateCaptchaAutoSolveAttemptText(attempt, attempts);
-            UpdateCaptchaAutoSolveElapsedText();
-            return;
-        }
-
-        _captchaAutoSolveStartedAt = DateTimeOffset.UtcNow;
-        _captchaAutoSolveMaxSeconds = maxSeconds;
-        _captchaAutoSolveAttemptTextBlock = new TextBlock
-        {
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 8, 0, 0),
-            Foreground = System.Windows.Media.Brushes.Gray,
-        };
-        _captchaAutoSolveElapsedTextBlock = new TextBlock
-        {
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 4, 0, 0),
-            Foreground = System.Windows.Media.Brushes.Gray,
-        };
-
-        var content = new StackPanel();
-        content.Children.Add(new TextBlock
-        {
-            Text = "Captcha detected. Tbot Ultra is trying to solve it automatically.",
-            TextWrapping = TextWrapping.Wrap,
-            Foreground = System.Windows.Media.Brushes.Black,
-        });
-        content.Children.Add(_captchaAutoSolveAttemptTextBlock);
-        content.Children.Add(_captchaAutoSolveElapsedTextBlock);
-
-        UpdateCaptchaAutoSolveAttemptText(attempt, attempts);
-        UpdateCaptchaAutoSolveElapsedText();
-
-        _captchaAutoSolvePopup = AppDialog.ShowModelessContent(
-            this,
-            content,
-            "Solving captcha",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information,
-            MessageBoxResult.OK);
-        _captchaAutoSolvePopup.Closed += (_, _) => ResetCaptchaAutoSolvePopupState();
-
-        _captchaAutoSolveElapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        _captchaAutoSolveElapsedTimer.Tick += (_, _) => UpdateCaptchaAutoSolveElapsedText();
-        _captchaAutoSolveElapsedTimer.Start();
-    }
-
-    private void CloseCaptchaAutoSolvePopup()
-    {
-        if (_captchaAutoSolvePopup is null)
-        {
-            return;
-        }
-
-        var popup = _captchaAutoSolvePopup;
-        _captchaAutoSolvePopup = null;
-        popup.Close();
-    }
-
-    private void ResetCaptchaAutoSolvePopupState()
-    {
-        _captchaAutoSolveElapsedTimer?.Stop();
-        _captchaAutoSolveElapsedTimer = null;
-        _captchaAutoSolvePopup = null;
-        _captchaAutoSolveAttemptTextBlock = null;
-        _captchaAutoSolveElapsedTextBlock = null;
-        _captchaAutoSolveStartedAt = DateTimeOffset.MinValue;
-        _captchaAutoSolveMaxSeconds = 60;
-    }
-
-    private void UpdateCaptchaAutoSolveAttemptText(int attempt, int attempts)
-    {
-        if (_captchaAutoSolveAttemptTextBlock is null)
-        {
-            return;
-        }
-
-        _captchaAutoSolveAttemptTextBlock.Text = $"Attempt: {attempt}/{attempts}";
-    }
-
-    private void UpdateCaptchaAutoSolveElapsedText()
-    {
-        if (_captchaAutoSolveElapsedTextBlock is null || _captchaAutoSolveStartedAt == DateTimeOffset.MinValue)
-        {
-            return;
-        }
-
-        var elapsedSeconds = (int)Math.Floor((DateTimeOffset.UtcNow - _captchaAutoSolveStartedAt).TotalSeconds);
-        elapsedSeconds = Math.Clamp(elapsedSeconds, 0, Math.Max(1, _captchaAutoSolveMaxSeconds));
-        _captchaAutoSolveElapsedTextBlock.Text = $"Elapsed time: {FormatCountdown(elapsedSeconds)} / {FormatCountdown(_captchaAutoSolveMaxSeconds)}";
-    }
-
-    private static (int Attempt, int Attempts) ParseCaptchaAutoSolveAttempt(string message)
-    {
-        var match = Regex.Match(message ?? string.Empty, @"attempt\s+(?<attempt>\d+)\s*/\s*(?<attempts>\d+)", RegexOptions.IgnoreCase);
-        if (!match.Success)
-        {
-            return (1, 1);
-        }
-
-        var attempt = int.TryParse(match.Groups["attempt"].Value, out var parsedAttempt)
-            ? Math.Max(1, parsedAttempt)
-            : 1;
-        var attempts = int.TryParse(match.Groups["attempts"].Value, out var parsedAttempts)
-            ? Math.Max(1, parsedAttempts)
-            : attempt;
-        return (Math.Min(attempt, attempts), attempts);
-    }
-
     private static void TrimToMaxEntries<T>(ObservableCollection<T> entries, int max)
     {
         while (entries.Count > max)
@@ -717,9 +572,7 @@ public partial class MainWindow
             || value.Contains("captcha/manual")
             || value.Contains("captcha/manual step detected")
             || value.Contains("solve it in the browser window")
-            || value.Contains("captured captcha screenshot")
-            || value.Contains("captcha auto-solve attempt")
-            || value.Contains("captcha solver result");
+            || value.Contains("captured captcha screenshot");
     }
 
     private static bool IsManualVerificationResolvedMessage(string message)
@@ -731,45 +584,8 @@ public partial class MainWindow
 
         var value = message.ToLowerInvariant();
         return value.Contains("manual verification cleared")
-            || value.Contains("captcha cleared automatically")
             || value.Contains("login completed")
             || value.Contains("login finished");
-    }
-
-    private static bool IsCaptchaSolvedAutomaticallyMessage(string message)
-    {
-        if (string.IsNullOrWhiteSpace(message))
-        {
-            return false;
-        }
-
-        return message.Contains("Captcha cleared automatically", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsCaptchaAutoSolveAttemptMessage(string message)
-    {
-        return !string.IsNullOrWhiteSpace(message)
-            && message.Contains("Captcha auto-solve attempt", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsCaptchaAutoSolveFailedMessage(string message)
-    {
-        return !string.IsNullOrWhiteSpace(message)
-            && message.Contains("Captcha auto-solve failed", StringComparison.OrdinalIgnoreCase)
-            && message.Contains("manual verification", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsCaptchaSessionStartMessage(string message)
-    {
-        if (string.IsNullOrWhiteSpace(message))
-        {
-            return false;
-        }
-
-        var value = message.ToLowerInvariant();
-        return value.Contains("captured captcha screenshot")
-            || value.Contains("manual verification appeared")
-            || value.Contains("captcha/manual step detected");
     }
 
     private static bool IsAlarmMessage(string message)
@@ -936,29 +752,9 @@ public partial class MainWindow
             && message.Contains(" for unit t", StringComparison.OrdinalIgnoreCase);
     }
 
-    private void UpdateCaptchaStatsUi()
-    {
-        CaptchaStatsTextBlock.Text = $"{_captchaSessionSolvedCount}/{_captchaSessionSeenCount}";
-        var solved = _captchaSessionSolvedCount;
-        var seen = _captchaSessionSeenCount;
-        if (solved > 0 && solved == seen)
-        {
-            CaptchaStatsTextBlock.Foreground = GreenHighlightBrush;
-        }
-        else if (solved < seen)
-        {
-            CaptchaStatsTextBlock.Foreground = YellowHighlightBrush;
-        }
-        else
-        {
-            CaptchaStatsTextBlock.Foreground = NeutralStatsBrush;
-        }
-    }
-
     private void UpdateNpcTradeStatsUi()
     {
         var goldSpent = _npcTradeSessionCount * NpcTradeGoldCost;
-        SetGoldHighlightedValueText(NpcTradeSessionStatsTextBlock, "", goldSpent, neutralLabelBrush: NeutralStatsBrush);
         // The detail-panel TextBlock has its own dark base color (#111827) — preserve that for the
         // label and only swap the value color when it's worth highlighting.
         SetGoldHighlightedValueText(NpcTradeGoldSpentTextBlock, "Gold spent: ", goldSpent, neutralLabelBrush: null);

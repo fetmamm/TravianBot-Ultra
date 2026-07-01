@@ -6,5 +6,5 @@ Identifiera alla fall där inställningar kan hamna ur synk efter laddning, spar
 Leta även efter inställningar där flera inputs påverkar samma funktion på olika sätt och skapa en tydlig och konsekvent hantering.
 Redovisa alla problem som hittades kortfattat i listformat med risk/reward.
 De åtgärder som hittas ska inte ändra befintlig funktionalitet utan istället göra mer robust.
-Målet är att programmet och funktionerna ska vara robusta och inte ha kryphål för fel som kan uppkomma.
+Målet är att programmet och funktionerna ska vara robusta och inte ha kryphål för fel som kan uppkomma, edge cases.
 Implementera inget. Återkom med en plan. Max 20 meningar.

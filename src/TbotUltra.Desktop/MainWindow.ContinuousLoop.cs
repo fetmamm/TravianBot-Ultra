@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Tasks;
+using TbotUltra.Core.Travian;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
 using TbotUltra.Worker;
@@ -286,6 +287,26 @@ public partial class MainWindow
 
             var trainingPayload = BuildVillageRuntimePayload(village);
             var villageTraining = TroopTrainingSettingsStore.Load(_projectRoot, troopTrainingAccount, GetVillageKey(village));
+            var trainingOptions = villageTraining is null
+                ? options
+                : BotOptionsPayloadApplier.Apply(options, villageTraining.ToDictionary());
+            if (!HasEnabledTroopTrainingBuilding(trainingOptions))
+            {
+                AppendLoopPickVerbose(
+                    $"[troops:verbose] skipped build_troops enqueue for '{village.Name}' — no troop-training building is enabled.",
+                    $"troops:no-enabled:{GetVillageKey(village)}");
+                continue;
+            }
+
+            var activeQueueWaitSeconds = ResolveActiveTroopTrainingQueueWaitSeconds(village, trainingOptions);
+            if (activeQueueWaitSeconds is > 0)
+            {
+                AppendLoopPickVerbose(
+                    $"[troops:verbose] skipped build_troops enqueue for '{village.Name}' — enabled training queue still active for {FormatSmithyDuration(activeQueueWaitSeconds.Value)}.",
+                    $"troops:active-queue:{GetVillageKey(village)}");
+                continue;
+            }
+
             if (villageTraining is not null)
             {
                 foreach (var pair in villageTraining.ToDictionary())
@@ -297,10 +318,13 @@ public partial class MainWindow
             _botService.EnqueueRuntime("build_troops", "Build troops", trainingPayload, priority: -50, maxRetries: 0);
         }
 
-        // Brewery celebration — capital only (the brewery exists only in the capital). Generated for the
-        // capital when it is enabled, its Auto Celebration group is on, and the tribe supports it.
-        if (_troopTrainingViewModel.IsAutoCelebrationAvailableForCurrentTribe
-            && _troopTrainingViewModel.AutoCelebrationEnabled)
+        // Brewery celebration — capital only (the brewery exists only in the capital). The capital's
+        // Brewery Celebration group toggle is the authoritative switch — same as every other per-village
+        // group above — and enabling it force-syncs the Troops-tab "Auto celebration" flag. Gate on the
+        // persisted group + tribe support only; do NOT also require that VM flag here. At startup the
+        // persisted group can be on while the flag has loaded off (it is only reconciled later), which
+        // left the celebration un-enqueued — "no ready item across villages" — until the user re-toggled.
+        if (_troopTrainingViewModel.IsAutoCelebrationAvailableForCurrentTribe)
         {
             var capital = automationVillages.FirstOrDefault(v => v.IsCapital);
             if (capital is not null
@@ -396,6 +420,20 @@ public partial class MainWindow
                 if (selectedFarmLists.Count > 0 || (sendsAllListsAtOnce && availableFarmListCount > 0))
                 {
                     var payload = new FarmingPayload(selectedFarmLists, selectedSnapshot.Ids).ToDictionary();
+                    // Run farming FROM the village the Farming group is toggled on (e.g. 940) instead of
+                    // wherever the previous task left the browser: tag the task with that village so
+                    // BotTaskRunner switches there first. The farm-list overview is account-wide, so every
+                    // selected list still gets sent from that village's rally point.
+                    var farmingVillage = automationVillages
+                        .FirstOrDefault(v => IsGroupEnabledForVillage(GetVillageKey(v), QueueGroup.Farming));
+                    if (farmingVillage is not null)
+                    {
+                        foreach (var pair in BuildVillageRuntimePayload(farmingVillage))
+                        {
+                            payload[pair.Key] = pair.Value;
+                        }
+                    }
+
                     var displayName = sendsAllListsAtOnce ? "Send all farmlists" : "Send selected farmlists";
                     _botService.EnqueueRuntime("send_farmlists", displayName, payload, priority: -50, maxRetries: 0);
                 }
@@ -438,27 +476,81 @@ public partial class MainWindow
                 .ToList();
             if (CanRunReinforcements(options, out _))
             {
-                var payload = new ReinforcementsPayload(
-                    Enabled: true,
-                    TargetVillageName: options.ReinforcementsTargetVillageName,
-                    SourceVillageNames: selectedSources,
-                    TroopRules: BuildReinforcementRulesForRun()).ToDictionary();
-                payload[BotOptionPayloadKeys.ReinforcementsSendIntervalHours] = options.ReinforcementsSendIntervalHours.ToString();
-                payload[BotOptionPayloadKeys.ReinforcementsSendVariationPercent] = options.ReinforcementsSendVariationPercent.ToString();
-
+                var payload = BuildAutomaticReinforcementPayload(options, selectedSources);
                 var delay = ResolveReinforcementAutomaticSendDelay(options, queueItems);
-                var item = _botService.EnqueueRuntime("send_reinforcements_between_villages", "Reinforcements", payload, priority: -50, maxRetries: 0);
-                if (delay > TimeSpan.Zero && _botService.UpdateDeferredQueueItem(item.Id, payload, delay))
-                {
-                    var variationLabel = options.ReinforcementsSendVariationPercent <= 0
-                        ? "No variation"
-                        : $"{options.ReinforcementsSendVariationPercent}%";
-                    AppendLog(
-                        $"Reinforcements: next automatic send scheduled in {FormatCountdown((int)Math.Ceiling(delay.TotalSeconds))} "
-                        + $"(interval={options.ReinforcementsSendIntervalHours}h, variation={variationLabel}).");
-                }
+                ScheduleAutomaticReinforcementSend(payload, delay, options);
             }
         }
+    }
+
+    private Dictionary<string, string> BuildAutomaticReinforcementPayload(BotOptions options, IReadOnlyList<string> selectedSources)
+    {
+        var payload = new ReinforcementsPayload(
+            Enabled: true,
+            TargetVillageName: options.ReinforcementsTargetVillageName,
+            SourceVillageNames: selectedSources,
+            TroopRules: BuildReinforcementRulesForRun()).ToDictionary();
+        payload[BotOptionPayloadKeys.ReinforcementsSendIntervalHours] = options.ReinforcementsSendIntervalHours.ToString();
+        payload[BotOptionPayloadKeys.ReinforcementsSendVariationPercent] = options.ReinforcementsSendVariationPercent.ToString();
+        return payload;
+    }
+
+    private TimeSpan CalculateNextReinforcementAutomaticSendDelay(BotOptions options)
+    {
+        var intervalHours = ReinforcementSendDefaults.NormalizeIntervalHours(options.ReinforcementsSendIntervalHours);
+        var variationPercent = ReinforcementSendDefaults.NormalizeVariationPercent(options.ReinforcementsSendVariationPercent);
+        return ReinforcementSendDefaults.CalculateSendDelay(intervalHours, variationPercent);
+    }
+
+    private bool ScheduleAutomaticReinforcementSend(Dictionary<string, string> payload, TimeSpan delay, BotOptions options)
+    {
+        var item = _botService.EnqueueRuntime("send_reinforcements_between_villages", "Reinforcements", payload, priority: -50, maxRetries: 0);
+        if (delay <= TimeSpan.Zero)
+        {
+            return true;
+        }
+
+        if (!_botService.UpdateDeferredQueueItem(item.Id, payload, delay))
+        {
+            _botService.RemoveQueueItem(item.Id);
+            AppendLog("Reinforcements: failed to schedule next automatic send.");
+            return false;
+        }
+
+        var variationLabel = options.ReinforcementsSendVariationPercent <= 0
+            ? "No variation"
+            : $"{options.ReinforcementsSendVariationPercent}%";
+        AppendLog(
+            $"Reinforcements: next automatic send scheduled in {FormatCountdown((int)Math.Ceiling(delay.TotalSeconds))} "
+            + $"(interval={options.ReinforcementsSendIntervalHours}h, variation={variationLabel}).");
+        RequestQueueUiRefresh();
+        return true;
+    }
+
+    private void ScheduleNextReinforcementSendAfterSuccess(BotOptions options)
+    {
+        if (!GetContinuousLoopEnabledGroupsInOrder().Contains(QueueGroup.Reinforcements)
+            || !CanRunReinforcements(options, out _))
+        {
+            return;
+        }
+
+        var hasActiveReinforcementItem = _botService.GetQueueItemsForDisplay()
+            .Any(item =>
+                string.Equals(item.TaskName, "send_reinforcements_between_villages", StringComparison.OrdinalIgnoreCase)
+                && item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused);
+        if (hasActiveReinforcementItem)
+        {
+            return;
+        }
+
+        var selectedSources = options.ReinforcementsSourceVillageNames
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Where(name => !string.Equals(name, options.ReinforcementsTargetVillageName, StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var payload = BuildAutomaticReinforcementPayload(options, selectedSources);
+        ScheduleAutomaticReinforcementSend(payload, CalculateNextReinforcementAutomaticSendDelay(options), options);
     }
 
     private static TimeSpan ResolveReinforcementAutomaticSendDelay(BotOptions options, IReadOnlyList<QueueItem> queueItems)
@@ -923,6 +1015,70 @@ public partial class MainWindow
         return payload;
     }
 
+    private static bool HasEnabledTroopTrainingBuilding(BotOptions options)
+    {
+        return options.TroopTrainingBarracksEnabled
+            || options.TroopTrainingStableEnabled
+            || options.TroopTrainingWorkshopEnabled;
+    }
+
+    private int? ResolveActiveTroopTrainingQueueWaitSeconds(VillageSelectionItem village, BotOptions trainingOptions)
+    {
+        var enabledBuildingTypes = new HashSet<TroopTrainingBuildingType>();
+        if (trainingOptions.TroopTrainingBarracksEnabled)
+        {
+            enabledBuildingTypes.Add(TroopTrainingBuildingType.Barracks);
+        }
+
+        if (trainingOptions.TroopTrainingStableEnabled)
+        {
+            enabledBuildingTypes.Add(TroopTrainingBuildingType.Stable);
+        }
+
+        if (trainingOptions.TroopTrainingWorkshopEnabled)
+        {
+            enabledBuildingTypes.Add(TroopTrainingBuildingType.Workshop);
+        }
+
+        if (enabledBuildingTypes.Count == 0)
+        {
+            return null;
+        }
+
+        var villageName = NormalizeVillageName(village.Name);
+        VillageStatus? status = null;
+        if (villageName is not null)
+        {
+            _villageStatusCacheByName.TryGetValue(villageName, out status);
+        }
+
+        if (status is null
+            && _lastBuildingStatus is not null
+            && string.Equals(NormalizeVillageName(_lastBuildingStatus.ActiveVillage), villageName, StringComparison.OrdinalIgnoreCase))
+        {
+            status = _lastBuildingStatus;
+        }
+
+        var relevantQueues = status?.TroopTrainingQueues?
+            .Where(item => item.Exists && enabledBuildingTypes.Contains(item.BuildingType))
+            .ToList();
+        if (relevantQueues is null || relevantQueues.Count == 0)
+        {
+            return null;
+        }
+
+        var now = GetServerNow();
+        var remainingSeconds = relevantQueues
+            .Select(item => Math.Max(0, item.Finish?.RemainingSecondsAt(now) ?? item.RemainingSeconds ?? 0))
+            .ToList();
+        if (remainingSeconds.Any(seconds => seconds <= 0))
+        {
+            return null;
+        }
+
+        return remainingSeconds.Min();
+    }
+
     private static bool IsAlwaysOnUtilityTask(string? taskName) =>
         string.Equals(taskName, "collect_tasks", StringComparison.OrdinalIgnoreCase)
         || string.Equals(taskName, "collect_daily_quests", StringComparison.OrdinalIgnoreCase);
@@ -1336,6 +1492,14 @@ public partial class MainWindow
                 if (next is not null)
                 {
                     AppendLog($"[LOOP {tickId}] PICK group={next.Group}, task={next.TaskName}, retries={next.Retries}/{next.MaxRetries}");
+                    // Pause pressed while picking: exit before sitting out the pre-task pacing delay. The
+                    // item stays pending and runs on resume — nothing is in flight yet, so this is safe and
+                    // makes Pause react immediately instead of waiting out a few seconds of pacing.
+                    if (_loopController.LoopStopRequested)
+                    {
+                        break;
+                    }
+
                     await ActionPacer.FromOptions(options, AppendLog).DelayAsync(
                         options.ActionPacingTaskMinSeconds,
                         options.ActionPacingTaskMaxSeconds,
@@ -1349,6 +1513,13 @@ public partial class MainWindow
                         token);
                     MarkContinuousBrowserActivity();
                     if (!shouldContinue)
+                    {
+                        break;
+                    }
+
+                    // Pause pressed during the task: skip the post-task cooldown (pure idle pacing, nothing
+                    // in flight) so the loop exits right after the action instead of waiting it out.
+                    if (_loopController.LoopStopRequested)
                     {
                         break;
                     }
@@ -1583,6 +1754,13 @@ public partial class MainWindow
                 return;
             }
 
+            // Pause pressed during the task: skip the post-task cooldown (pure idle pacing, nothing in
+            // flight) so the queue run stops promptly instead of waiting it out.
+            if (_loopController.QueueStopRequested)
+            {
+                return;
+            }
+
             await ApplyPostTaskCooldownAsync(next, options, cancellationToken);
         }
     }
@@ -1687,11 +1865,6 @@ public partial class MainWindow
         if (string.Equals(options.ContinuousFarmSendMode, FarmingDefaults.SendModeAllAtOnce, StringComparison.Ordinal))
         {
             warnings.Add("[conservative] farming send mode is all-at-once; list-per-list is the conservative default.");
-        }
-
-        if (options.CaptchaAutoSolveEnabled)
-        {
-            warnings.Add("[conservative] captcha auto-solve is enabled; default is manual verification.");
         }
 
         var signature = string.Join("|", warnings);

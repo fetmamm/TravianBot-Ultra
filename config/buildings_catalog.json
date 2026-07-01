@@ -1,7 +1,7 @@
 {
   "source": "Ported from kirilloid/travian (T4 Travian Legends formulas)",
   "speed": 1,
-  "note": "build_seconds_1x is at server speed 1x. Divide by server_speed for higher-speed servers (approximate; some private servers use modified formulas).",
+  "note": "build_seconds_1x is at server speed 1x. Divide by server_speed for higher-speed official servers.",
   "buildings": {
     "1": {
       "name": "Woodcutter",

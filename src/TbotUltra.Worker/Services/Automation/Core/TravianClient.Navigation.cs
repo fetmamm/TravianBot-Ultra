@@ -50,6 +50,12 @@ public sealed partial class TravianClient
     {
         await input.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
         await input.FillAsync(string.Empty, new LocatorFillOptions { Timeout = _config.TimeoutMs });
+        // Small settle so the clear commits before typing (a too-fast type races the field's reset). Then
+        // select any residual the field re-populated with — some Travian inputs reset an emptied field to
+        // "0" — so the first keystroke REPLACES it instead of landing in front of it (which produced e.g.
+        // "098" when re-typing into a reused Add-target form).
+        await Task.Delay(Random.Shared.Next(20, 45), cancellationToken);
+        await input.PressAsync("Control+A");
         // One randomized delay-per-keystroke per field, so different fields are typed at a slightly
         // different speed (e.g. ~45-110 ms/char) rather than a constant machine-like rhythm.
         await input.PressSequentiallyAsync(

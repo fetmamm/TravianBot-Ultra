@@ -22,7 +22,6 @@ namespace TbotUltra.Desktop.ViewModels;
 /// Hero state still on MainWindow (will migrate later):
 ///   - The drag-handler scratch state (anchor point, source item)
 ///   - The blocked-reason key + IsHeroGroupBlocked() helper
-///   - The hide-mode suppression flag
 ///   - All the async / service-bound code (refresh stats, refresh adventures,
 ///     queue manage). That moves once the relevant services live in DI.
 /// </summary>
@@ -56,9 +55,6 @@ public sealed class HeroViewModel : BaseViewModel
     private bool _autoUseOintments;
     private bool _isAdventurePickTop;
     private bool _isAdventurePickShortest = true;
-    private bool _hideModeControlEnabled;
-    private bool _isHideModeFight;
-    private bool _isHideModeHide = true;
     private bool _continuousAdventures;
     private bool _increaseAdventuresToHard;
     private bool _reduceAdventureTime;
@@ -296,45 +292,6 @@ public sealed class HeroViewModel : BaseViewModel
         }
     }
 
-    /// <summary>
-    /// Hero hide mode is set to "fight". Mutually exclusive with
-    /// <see cref="IsHideModeHide"/>.
-    /// </summary>
-    public bool IsHideModeFight
-    {
-        get => _isHideModeFight;
-        set
-        {
-            if (SetProperty(ref _isHideModeFight, value) && value)
-            {
-                IsHideModeHide = false;
-            }
-        }
-    }
-
-    /// <summary>True when the bot is allowed to change Travian's hero hide/fight switch.</summary>
-    public bool HideModeControlEnabled
-    {
-        get => _hideModeControlEnabled;
-        set => SetProperty(ref _hideModeControlEnabled, value);
-    }
-
-    /// <summary>
-    /// Hero hide mode is set to "hide". Mutually exclusive with
-    /// <see cref="IsHideModeFight"/>.
-    /// </summary>
-    public bool IsHideModeHide
-    {
-        get => _isHideModeHide;
-        set
-        {
-            if (SetProperty(ref _isHideModeHide, value) && value)
-            {
-                IsHideModeFight = false;
-            }
-        }
-    }
-
     /// <summary>True to keep re-queuing hero adventures while any remain.</summary>
     public bool ContinuousAdventures
     {
@@ -361,13 +318,9 @@ public sealed class HeroViewModel : BaseViewModel
     /// <summary>String form of the adventure pick order, "top" or "shortest".</summary>
     public string AdventurePickOrder => IsAdventurePickTop ? "top" : "shortest";
 
-    /// <summary>String form of the hide mode, "fight" or "hide".</summary>
-    public string HideMode => IsHideModeFight ? "fight" : "hide";
-
     /// <summary>
-    /// Loads all hero settings (min HP, revive, auto-assign, pick order,
-    /// hide mode) from a freshly read <see cref="BotOptions"/>. Also refreshes
-    /// the priority list.
+    /// Loads all hero settings from a freshly read <see cref="BotOptions"/>.
+    /// Also refreshes the priority list.
     /// </summary>
     public void LoadSettingsFromConfig(BotOptions options)
     {
@@ -376,7 +329,6 @@ public sealed class HeroViewModel : BaseViewModel
         AutoRevive = options.HeroAutoRevive;
         AutoAssignPoints = options.HeroAutoAssignPoints;
         AutoUseOintments = options.HeroAutoUseOintments;
-        HideModeControlEnabled = options.HeroHideModeEnabled;
         var topFirst = string.Equals(options.HeroAdventurePickOrder, "top", StringComparison.OrdinalIgnoreCase);
         if (topFirst)
         {
@@ -385,16 +337,6 @@ public sealed class HeroViewModel : BaseViewModel
         else
         {
             IsAdventurePickShortest = true;
-        }
-
-        var fightMode = string.Equals(options.HeroHideMode, "fight", StringComparison.OrdinalIgnoreCase);
-        if (fightMode)
-        {
-            IsHideModeFight = true;
-        }
-        else
-        {
-            IsHideModeHide = true;
         }
 
         ContinuousAdventures = options.HeroContinuousAdventures;

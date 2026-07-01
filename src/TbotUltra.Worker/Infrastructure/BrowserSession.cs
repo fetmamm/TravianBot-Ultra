@@ -189,10 +189,10 @@ public sealed partial class BrowserSession : IAsyncDisposable
             // BaseUrl not absolute — host check disabled, fall back to opener check only.
         }
 
-        // Close stray tabs the SS-Travi site spawns to OTHER hosts (cross-server promos like
-        // mga.ss-travi.com), plus any real popup (non-null Opener). The bot's own extra pages
-        // (catapult waves via NewPageAsync) live on the working server's host with no opener. External
-        // tools such as Travco run in isolated contexts, never in this Travian context.
+        // Close stray tabs that navigate to other hosts, plus any real popup (non-null Opener).
+        // The bot's own extra pages (catapult waves via NewPageAsync) live on the working
+        // server's host with no opener. External tools such as Travco run in isolated contexts,
+        // never in this Travian context.
         _context.Page += (_, popup) =>
         {
             if (ReferenceEquals(popup, page))
@@ -320,26 +320,23 @@ public sealed partial class BrowserSession : IAsyncDisposable
             launchOptions.IgnoreDefaultArgs = new[] { "--disable-popup-blocking" };
         }
 
-        // Official Travian's bonus videos require third-party cookies. Disable Chromium's
-        // third-party-cookie phaseout so the ad/consent flow can run.
-        if (!_config.IsPrivateServer)
-        {
-            launchOptions.Args = new[] { "--disable-features=TrackingProtection3pcd" };
+        // Bonus videos require third-party cookies. Disable Chromium's third-party-cookie
+        // phaseout so the ad/consent flow can run.
+        launchOptions.Args = new[] { "--disable-features=TrackingProtection3pcd" };
 
-            // The bonus ad videos are H.264/AAC, which Playwright's bundled open-source Chromium
-            // cannot decode ("format is not supported"). Use the system Google Chrome build, which
-            // ships the proprietary codecs. If Chrome is not installed we fall back to bundled
-            // Chromium (everything except the bonus videos still works).
-            var chromeChannel = ResolveInstalledChromeChannel();
-            if (chromeChannel is not null)
-            {
-                launchOptions.Channel = chromeChannel;
-                _log?.Invoke($"[browser] using system browser channel '{chromeChannel}' for codec support.");
-            }
-            else
-            {
-                _log?.Invoke("[browser] no system Chrome/Edge found; bonus videos may fail (missing H.264/AAC codecs).");
-            }
+        // The bonus ad videos are H.264/AAC, which Playwright's bundled open-source Chromium
+        // cannot decode ("format is not supported"). Use the system Google Chrome build, which
+        // ships the proprietary codecs. If Chrome is not installed we fall back to bundled
+        // Chromium (everything except the bonus videos still works).
+        var chromeChannel = ResolveInstalledChromeChannel();
+        if (chromeChannel is not null)
+        {
+            launchOptions.Channel = chromeChannel;
+            _log?.Invoke($"[browser] using system browser channel '{chromeChannel}' for codec support.");
+        }
+        else
+        {
+            _log?.Invoke("[browser] no system Chrome/Edge found; bonus videos may fail (missing H.264/AAC codecs).");
         }
 
         return launchOptions;

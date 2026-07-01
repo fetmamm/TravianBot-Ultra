@@ -2,10 +2,10 @@
 
 `Preview` of the program
 
-![Version](https://img.shields.io/badge/Version-v0.3.7-blue?style=for-the-badge)
+![Version](https://img.shields.io/badge/Version-v0.4.6-blue?style=for-the-badge)
 
 <p align="center">
-  <img src="assets/images/tbot_v037.png" alt="Tbot Ultra Dashboard">
+  <img src="assets/images/tbot_v046.png" alt="Tbot Ultra Dashboard">
 </p>
 
 ---
@@ -22,9 +22,40 @@ Here you can ask questions, report bugs and come with suggestions for new featur
 ---
 
 ## TBot Ultra - Advanced Travian Bot
-Advanced open-source `Travian Bot` for Travian Legends with automation, farming, building management, resource optimization and `multi-village support`.
+Advanced open-source `Travian Bot` for official Travian Legends servers with automation, farming, building management, resource optimization and `multi-village support`.
 
-Also works for SS-Travian private server but the main goal forward is the official Travian servers.
+The project target is official Travian Legends servers.
+
+## Howto use
+The program is very easy to use and to install. No need to host own servers etc.
+
+Just download, open and then run the program. Click `manage` to add your account (email + pw) and server.
+
+Then click `Login` and it will login / scan your account. Then set it up as you want.
+
+The program is highly configurable with alot of settings to tweak as you like.
+
+To start, click `Start bot`
+
+## Download / install
+
+Goto the latest [Releases](../../releases) page and download:
+
+- **Portable** (`tbot-ultra-win-x64-...-portable.zip`)
+
+Extract the zip file
+
+Run `Tbot Ultra.exe` inside the extracted folder.
+
+Windows may show a SmartScreen or certificate warning because the application is not digitally signed. This is normal and does not indicate a virus or security issue.
+
+If prompted, click More info → Run anyway.
+
+**Multiple accounts at once:** with the portable build, extract a separate copy of the
+folder per account (e.g. `Tbot-account1\`, `Tbot-account2\`) and run them at the same
+time — each copy keeps its own config, account, browser session and logs. Don't run two
+instances from the same folder.
+
 
 ## What can this program do?
 
@@ -35,11 +66,9 @@ Compatible with:
 
 - `Official Travian` — Travian Legends 4.6+ — Official servers
 
-- `SS-Travi` — T4.4 — Private server (Latest robust version = 0.2.6)
-
 `NOTE:` It is important that the language is set to `English` in the travian browser settings page.
 
-`Way forward:` The goal of the project forward is to focus on the official servers. SS-Travi is not being developement anymore.
+`Way forward:` new development targets official servers only.
 
 ## Features:
 
@@ -54,12 +83,11 @@ Compatible with:
 - Upgrade troops in smithy
 - Send resources between own villages
 - Send reinforcements between own villages
-- Auto Farming, send lists and manua farming
+- Auto farming and send lists
 - Create multiple farmlists with selected village and default troops
 - Send catapult waves
 - Session pacing
 - Auto sleep (logout and wait)
-- Captcha solver (SS-Travi servers)
 - Oasis scan for whole map (and add to farmlists)
 - Travco inactive search (and add to farmlists)
 - Reduce adventure duration 25% button / video watch
@@ -92,29 +120,6 @@ Please visit the [issues page](https://github.com/fetmamm/Tbot_ultra_new/issues)
 
 ---
 
-## Download
-
-Goto the latest [Releases](../../releases) page and download:
-
-- **Portable** (`tbot-ultra-win-x64-...-portable.zip`)
-
-Extract the zip file
-
-Run `Tbot Ultra.exe` inside the extracted folder.
-
-Windows may show a SmartScreen or certificate warning because the application is not digitally signed. This is normal and does not indicate a virus or security issue.
-
-If prompted, click More info → Run anyway.
-
-Set up your account and server inside the app (**Account → Manage**)
-
-**Multiple accounts at once:** with the portable build, extract a separate copy of the
-folder per account (e.g. `Tbot-account1\`, `Tbot-account2\`) and run them at the same
-time — each copy keeps its own config, account, browser session and logs. Don't run two
-instances from the same folder.
-
----
-
 ## Solution layout
 
 ```
@@ -137,7 +142,6 @@ the others.
 |---|---|
 | `src/` | All C# projects (see "Source tree" below). |
 | `config/` | Runtime configuration and persisted state (queue, accounts, caches). |
-| `Captcha_solver/` | Standalone Python + tiny C# launcher for captcha solving. |
 | `assets/` | App icons used by the WPF project and installer. |
 | `installer/` | Inno Setup script (`TbotUltraSetup.iss`) for building the Windows installer. |
 | `playwright/` | Local Playwright browser cache (downloaded on first run). |
@@ -188,18 +192,17 @@ Infrastructure/             BrowserSession (Playwright wrapper)
 
 Services/
   Accounts/                 EnvAccountProvider, AccountAnalysisStore,
-                            NatarFarmCacheStore
+                            account stores
   Automation/               TravianClient.* — partial classes per concern
                             (Buildings, Hero, Inbox, Resources, Catapults,
                              NpcTrade, ResourceTransfer, Reinforcements,
                              TroopTraining, BreweryCelebration, CapitalCache,
-                             CaptchaAutoSolve, RetryPolicy, Selectors)
+                             RetryPolicy, Selectors)
                             CatapultWavePlanner
   Catalogs/                 BuildingCatalogService, TaskCatalog
   Queue/                    JsonQueueStore, PriorityFifoQueueScheduler,
                             QueueExecutor, QueueGroupCatalog, interfaces
   BotTaskRunner.cs          dispatches a TaskDescriptor onto TravianClient
-  CaptchaAutoSolver.cs      bridge to the Python solver
 ```
 
 ### `src/TbotUltra.Desktop/` — WPF UI
@@ -228,7 +231,7 @@ Services/
   Orchestration/  LoopController
   AccountDeletionService, BotConfigStore, DesktopBotService,
   EnvAccountStore, ManualFarmingPreferenceStore,
-  ServerCatalogStore, ServerDiscoveryService
+  ServerCatalogStore
 Themes/                           Badges/Buttons/Toggles/Tooltips resources
 ViewModels/                       Hero, Inbox, Main, Resources, TroopTraining
 Views/                            BuildingsPanel, HeroPanel, InboxPanel,
@@ -239,7 +242,7 @@ Views/                            BuildingsPanel, HeroPanel, InboxPanel,
 
 xUnit. Each test file targets one class (e.g.
 `QueueStoreAndSchedulerTests`, `BuildingCatalogServiceTests`,
-`HeroViewModelTests`, `ServerDiscoveryServiceTests`).
+`HeroViewModelTests`, `ServerOptionTests`).
 
 Run all tests with `.\scripts\Run-Tests.ps1`. It builds into `temp_build_out/test-bin/`
 so tests can run while the desktop app is open.
@@ -261,19 +264,10 @@ accounts/<account>/        per-account state:
                              smithy_upgrade.json per-village Smithy targets
                              troop_training.json per-village troop-training rules
 account-analysis/          cached account snapshots
-cache/                     capital-state, manual-farming prefs, natar-farms
+cache/                     capital-state, manual-farming prefs
 ```
 
 `.env` lives at repo root and holds credentials / per-account secrets.
-
----
-
-## `Captcha_solver/`
-
-Optional component. C# launcher (`Program.cs`, `Program_test.csproj`) plus a
-Python ML project under `math_ai/` (Keras model, training and inference
-scripts, dataset folders). Started by the worker when an arithmetic captcha
-needs solving.
 
 ---
 
@@ -293,14 +287,14 @@ needs solving.
 
 - Runtime + UI fully C# (`TbotUltra.Desktop` + `TbotUltra.Worker`).
 - Queue persists per account in `config/accounts/<account>/queue.json`, managed from the Queue tab.
-- Captcha solving handled by the Python module in `Captcha_solver/`.
+- Captcha/manual verification is handled manually in the browser.
 
 ---
 
 ## Disclaimer
 
 This project is provided for educational purposes. Automating gameplay may
-violate the terms of service of Travian and/or private servers, and can lead
+violate the terms of service of Travian servers, and can lead
 to account bans. Use it at your own risk — the authors take no responsibility
 for any consequences of using this software.
 

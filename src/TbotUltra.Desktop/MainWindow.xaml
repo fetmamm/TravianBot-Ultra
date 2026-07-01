@@ -256,7 +256,7 @@
             </Grid.RowDefinitions>
 
             <!-- Topbar: each metric in its own card (label on top, value below).
-                 Session + Time stay left; the rest are right-aligned with a gap between. -->
+                 Session + daily pacing stay left; the rest are right-aligned with a gap between. -->
             <Grid Grid.Row="0" Margin="0,0,0,8">
                 <Grid.Resources>
                     <Style x:Key="MetricLabel" TargetType="TextBlock">
@@ -298,7 +298,7 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <!-- Left group: Session + Time -->
+                <!-- Left group: Session + daily pacing -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
                     <!-- Session pacing / Next sleep (background pulses via code) -->
                     <!-- Fixed width so the card does not resize as the status text/Run now button changes. -->
@@ -372,17 +372,6 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Fixed width so the clock value does not jiggle the card as the time updates. -->
-                    <Border Style="{StaticResource MetricCard}" Width="174">
-                        <StackPanel>
-                            <TextBlock Text="Time" Style="{StaticResource MetricLabel}" />
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE823;" Style="{StaticResource MetricIcon}" />
-                                <TextBlock x:Name="ClockTextBlock" Text="-" Style="{StaticResource MetricValue}" FontSize="13" />
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
-
                     <!-- The village the bot is currently working in (browser's village), so the user can see it
                          from any page in the UI. Set from SetActiveWorkingVillage. -->
                     <Border Style="{StaticResource MetricCard}" Width="130">
@@ -398,26 +387,6 @@
 
                 <!-- Right group: everything else, right-aligned -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
-                    <Border Style="{StaticResource MetricCard}">
-                        <StackPanel>
-                            <TextBlock Text="Gold spent" Style="{StaticResource MetricLabel}" />
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock x:Name="NpcTradeSessionStatsTextBlock" Text="0" Style="{StaticResource MetricValue}" />
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Captchas only relevant on SS-Travi; shown/hidden in code via UpdateCaptchaCardVisibility. -->
-                    <Border x:Name="CaptchaStatsCard" Style="{StaticResource MetricCard}" Visibility="Collapsed">
-                        <StackPanel>
-                            <TextBlock Text="Captchas solved" Style="{StaticResource MetricLabel}" />
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE72E;" Style="{StaticResource MetricIcon}" />
-                                <TextBlock x:Name="CaptchaStatsTextBlock" Text="0/0" Style="{StaticResource MetricValue}" />
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
-
                     <Border Style="{StaticResource MetricCard}">
                         <StackPanel>
                             <TextBlock Text="Gold" Style="{StaticResource MetricLabel}" />
@@ -469,25 +438,36 @@
                 </StackPanel>
             </Grid>
 
-            <!-- Status + Next task styled as rounded cards matching the metric cards above. -->
+            <!-- Time + Status + Next task styled as rounded cards matching the metric cards above. Time gets
+                 its own compact card on the left; Status and Next task share the remaining width. -->
             <Grid Grid.Row="1" Margin="0,0,0,8">
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="8" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="8" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <!-- Left half: status mini-log -->
+                <!-- Time: own compact card, left of Status. -->
                 <Border Grid.Column="0" Style="{StaticResource MetricCard}" Margin="0">
                     <StackPanel Orientation="Horizontal">
-                        <Ellipse Width="8" Height="8" Fill="{DynamicResource SuccessBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBlock Text="Status" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBlock x:Name="StatusMiniLogTextBlock" Text="Ready." Foreground="{DynamicResource DataGridCellTextBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="Time" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock x:Name="ClockTextBlock" Text="-" Foreground="{DynamicResource DataGridCellTextBrush}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Border>
 
-                <!-- Right half: what the bot will run next (read-only mirror of the loop selector). -->
+                <!-- Status mini-log -->
                 <Border Grid.Column="2" Style="{StaticResource MetricCard}" Margin="0">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="8" Height="8" Fill="{DynamicResource SuccessBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock Text="Status" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock x:Name="StatusMiniLogTextBlock" Text="Ready." Foreground="{DynamicResource DataGridCellTextBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </Border>
+
+                <!-- What the bot will run next (read-only mirror of the loop selector). -->
+                <Border Grid.Column="4" Style="{StaticResource MetricCard}" Margin="0">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="Next task" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0" />
                         <TextBlock x:Name="NextTaskTextBlock" Text="-" Foreground="{DynamicResource DataGridCellTextBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
@@ -520,16 +500,9 @@
                             <DockPanel Margin="0,0,0,8">
                                 <Button x:Name="OpenResourceTestFunctionsButton"
                                         DockPanel.Dock="Right"
-                                        Content="Test functions"
+                                        Content="Debug"
                                         Padding="10,4"
                                         Click="OpenResourceTestFunctionsButton_Click" />
-                                <Button x:Name="TroopSettingsButton"
-                                        DockPanel.Dock="Right"
-                                        Content="Troop settings"
-                                        Padding="10,4"
-                                        Margin="0,0,8,0"
-                                        Click="TroopSettingsButton_Click"
-                                        ToolTip="Open the per-village troop training overview (which buildings train and which troop). Available on every page." />
                                 <Button x:Name="VillageSettingsButton"
                                         DockPanel.Dock="Right"
                                         Content="Village settings"
@@ -599,8 +572,18 @@
                                                 <DockPanel LastChildFill="False">
                                                     <TextBlock DockPanel.Dock="Left"
                                                                Text="{Binding CurrentMaxText}"
-                                                               Foreground="{DynamicResource TextMutedBrush}"
-                                                               FontSize="11" />
+                                                               FontSize="11">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsNegativeProduction}" Value="True">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource DangerTextBrush}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
                                                     <TextBlock DockPanel.Dock="Right"
                                                                Text="{Binding TimeUntilFullText}"
                                                                Foreground="{Binding StatusBrush}"
@@ -1824,23 +1807,8 @@
                                                     <RowDefinition Height="Auto" />
                                                 </Grid.RowDefinitions>
 
-                                                <Button x:Name="AnalyzeNatarsProfileButton"
-                                                        Grid.Row="0"
-                                                        Grid.Column="0"
-                                                        Content="Analyze natars profile"
-                                                        Width="170"
-                                                        Margin="0,0,0,6"
-                                                        ToolTip="Reads the Natars profile and saves the available farm villages for farming."
-                                                        Click="AnalyzeNatarsProfileButton_Click" />
-                                                <Button x:Name="ShowNatarsListButton"
-                                                        Grid.Row="1"
-                                                        Grid.Column="0"
-                                                        Content="Show natars list"
-                                                        Width="170"
-                                                        Margin="0,0,0,6"
-                                                        Click="ShowNatarsListButton_Click" />
                                                 <Button x:Name="StartManualFarmingButton"
-                                                        Grid.Row="2"
+                                                        Grid.Row="0"
                                                         Grid.Column="0"
                                                         Content="Start manual farming"
                                                         Width="170"
@@ -1848,23 +1816,6 @@
                                                         IsEnabled="False"
                                                         ToolTip="Starts manual farming with the selected farming settings."
                                                         Click="StartManualFarmingButton_Click" />
-
-                                                <StackPanel x:Name="NatarsAnalyzedPanel"
-                                                            Grid.Row="0"
-                                                            Grid.Column="1"
-                                                            Orientation="Horizontal"
-                                                            VerticalAlignment="Center"
-                                                            Margin="10,0,0,6">
-                                                    <TextBlock Text="Analyzed:"
-                                                               VerticalAlignment="Center"
-                                                               Foreground="{DynamicResource TextSecondaryBrush}"
-                                                               Margin="0,0,6,0" />
-                                                    <Ellipse x:Name="NatarsProfileAnalyzedIndicator"
-                                                             Width="14"
-                                                             Height="14"
-                                                             VerticalAlignment="Center"
-                                                             Fill="{DynamicResource BorderMutedBrush}" />
-                                                </StackPanel>
                                             </Grid>
                                         </StackPanel>
                                     </Border>

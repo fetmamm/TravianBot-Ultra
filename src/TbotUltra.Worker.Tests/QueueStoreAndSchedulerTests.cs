@@ -164,7 +164,6 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
                 "demolish_building_to_level",
                 "hero_manage",
                 "spend_hero_attribute_points",
-                "hero_set_hide_mode",
                 "upgrade_troops_at_smithy",
                 "build_troops",
                 "run_brewery_celebration",
@@ -204,7 +203,6 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
     [InlineData("construct_building", QueueGroup.Construction)]
     [InlineData("hero_manage", QueueGroup.Hero)]
     [InlineData("spend_hero_attribute_points", QueueGroup.Hero)]
-    [InlineData("hero_set_hide_mode", QueueGroup.Hero)]
     [InlineData("upgrade_troops_at_smithy", QueueGroup.Troops)]
     [InlineData("build_troops", QueueGroup.TroopTraining)]
     [InlineData("run_brewery_celebration", QueueGroup.BreweryCelebration)]
@@ -319,7 +317,6 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
             [BotOptionPayloadKeys.HeroAutoUseOintments] = "true",
             [BotOptionPayloadKeys.HeroStatPriority] = "resources,fighting_strength",
             [BotOptionPayloadKeys.HeroAdventurePickOrder] = "top",
-            [BotOptionPayloadKeys.HeroHideMode] = "fight",
         };
 
         Assert.True(HeroPayload.TryFromDictionary(payload, out var parsed));
@@ -330,11 +327,11 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
         Assert.True(parsed.AutoUseOintments);
         Assert.Equal("top", parsed.AdventurePickOrder);
         var serialized = parsed.ToDictionary();
-        Assert.Equal(7, serialized.Count);
+        Assert.Equal(6, serialized.Count);
         Assert.Equal("60", serialized[BotOptionPayloadKeys.HeroMinHpForAdventure]);
         Assert.Equal("true", serialized[BotOptionPayloadKeys.HeroAutoRevive]);
         Assert.Equal("false", serialized[BotOptionPayloadKeys.HeroAutoAssignPoints]);
-        Assert.Equal("fight", serialized[BotOptionPayloadKeys.HeroHideMode]);
+        Assert.Equal("top", serialized[BotOptionPayloadKeys.HeroAdventurePickOrder]);
     }
 
     [Theory]
@@ -503,7 +500,7 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
         Assert.False(parsed.Barracks.CheckIron);
         Assert.Equal(60, parsed.FallbackCooldownSeconds);
         var serialized = parsed.ToDictionary();
-        Assert.Equal(37, serialized.Count);
+        Assert.Equal(43, serialized.Count);
         Assert.Equal("true", serialized[BotOptionPayloadKeys.TroopTrainingBarracksEnabled]);
         Assert.Equal("Clubswinger", serialized[BotOptionPayloadKeys.TroopTrainingBarracksTroopType]);
         Assert.Equal("100", serialized[BotOptionPayloadKeys.TroopTrainingBarracksKeepResourcesPercent]);

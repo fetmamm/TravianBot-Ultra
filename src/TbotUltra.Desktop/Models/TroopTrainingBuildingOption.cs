@@ -14,9 +14,11 @@ public sealed class TroopTrainingBuildingOption : INotifyPropertyChanged
     private string _maxQueueMode = "no_limit";
     private string _amountMode = "maximum";
     private int _keepResourcesPercent = 10;
-    private string _runMode = "resource_percent";
+    private string _runMode = "timed";
     private int _minimumTroops = 1;
     private int _minimumResourcesPercent = 50;
+    private int _timedMinMinutes = 30;
+    private int _timedMaxMinutes = 120;
     private bool _checkWood = true;
     private bool _checkClay = true;
     private bool _checkIron = true;
@@ -118,7 +120,7 @@ public sealed class TroopTrainingBuildingOption : INotifyPropertyChanged
         {
             var normalized = string.Equals(value, "resource_percent", StringComparison.OrdinalIgnoreCase)
                 ? "resource_percent"
-                : "min_troops";
+                : "timed";
             if (string.Equals(_runMode, normalized, StringComparison.OrdinalIgnoreCase))
             {
                 return;
@@ -126,9 +128,9 @@ public sealed class TroopTrainingBuildingOption : INotifyPropertyChanged
 
             _runMode = normalized;
             OnPropertyChanged();
-            OnPropertyChanged(nameof(UsesMinimumTroopsMode));
+            OnPropertyChanged(nameof(UsesTimedMode));
             OnPropertyChanged(nameof(UsesResourcePercentMode));
-            OnPropertyChanged(nameof(IsMinimumTroopsMode));
+            OnPropertyChanged(nameof(IsTimedMode));
             OnPropertyChanged(nameof(IsResourcePercentMode));
         }
     }
@@ -177,6 +179,75 @@ public sealed class TroopTrainingBuildingOption : INotifyPropertyChanged
 
             _minimumResourcesPercent = normalized;
             OnPropertyChanged();
+        }
+    }
+
+    public int TimedMinMinutes
+    {
+        get => _timedMinMinutes;
+        set
+        {
+            var normalized = Math.Max(1, value);
+            if (_timedMinMinutes == normalized)
+            {
+                return;
+            }
+
+            _timedMinMinutes = normalized;
+            if (_timedMaxMinutes < normalized)
+            {
+                _timedMaxMinutes = normalized;
+                OnPropertyChanged(nameof(TimedMaxMinutes));
+                OnPropertyChanged(nameof(TimedMaxMinutesText));
+            }
+
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(TimedMinMinutesText));
+        }
+    }
+
+    public string TimedMinMinutesText
+    {
+        get => TimedMinMinutes.ToString();
+        set
+        {
+            if (!int.TryParse(value?.Trim(), out var parsed))
+            {
+                return;
+            }
+
+            TimedMinMinutes = parsed;
+        }
+    }
+
+    public int TimedMaxMinutes
+    {
+        get => _timedMaxMinutes;
+        set
+        {
+            var normalized = Math.Max(Math.Max(1, _timedMinMinutes), value);
+            if (_timedMaxMinutes == normalized)
+            {
+                return;
+            }
+
+            _timedMaxMinutes = normalized;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(TimedMaxMinutesText));
+        }
+    }
+
+    public string TimedMaxMinutesText
+    {
+        get => TimedMaxMinutes.ToString();
+        set
+        {
+            if (!int.TryParse(value?.Trim(), out var parsed))
+            {
+                return;
+            }
+
+            TimedMaxMinutes = parsed;
         }
     }
 
@@ -296,17 +367,17 @@ public sealed class TroopTrainingBuildingOption : INotifyPropertyChanged
     }
 
     public bool UsesKeepResourcesMode => string.Equals(AmountMode, "keep_resources", StringComparison.OrdinalIgnoreCase);
-    public bool UsesMinimumTroopsMode => string.Equals(RunMode, "min_troops", StringComparison.OrdinalIgnoreCase);
+    public bool UsesTimedMode => string.Equals(RunMode, "timed", StringComparison.OrdinalIgnoreCase);
     public bool UsesResourcePercentMode => string.Equals(RunMode, "resource_percent", StringComparison.OrdinalIgnoreCase);
 
-    public bool IsMinimumTroopsMode
+    public bool IsTimedMode
     {
-        get => UsesMinimumTroopsMode;
+        get => UsesTimedMode;
         set
         {
             if (value)
             {
-                RunMode = "min_troops";
+                RunMode = "timed";
             }
         }
     }

@@ -288,7 +288,14 @@ public sealed partial class TravianClient
                 .map(node => normalize(node.textContent || ''))
                 .find(text => /celebration is in progress/i.test(text) || /underway/i.test(text)) || '';
               const startLink = document.querySelector('.build_details td.act a.research, .build_details td.act a[href*="pivo"]');
-              const startButton = document.querySelector('.build_details td.act button');
+              const startButton = document.querySelector('.build_details td.act button:not([disabled])')
+                || Array.from(document.querySelectorAll('button')).find(node => {
+                  if (!node || node.disabled) return false;
+                  const click = (node.getAttribute('onclick') || '').toLowerCase();
+                  const value = (node.getAttribute('value') || '').trim().toLowerCase();
+                  const label = (node.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                  return click.includes('action=celebration') || value === 'celebrate' || label === 'celebrate';
+                });
               const canStart = (!!startLink) || (!!startButton && !startButton.disabled);
               const actText = normalize(document.querySelector('.build_details td.act')?.textContent || '');
               const celebrationRunning = !!runningTimer || /celebration is in progress/i.test(inProgressLabel);
@@ -346,8 +353,26 @@ public sealed partial class TravianClient
               if (link) {
                 return { kind: 'link', href: link.getAttribute('href') || '' };
               }
-              const button = document.querySelector('.build_details td.act button');
+              // The start control can also be a plain button whose onclick navigates to
+              // build.php?...action=celebration (dynamic id, localized label), not just the legacy
+              // td.act button. Match by that action, its value/text, or the legacy selector.
+              const isCelebrate = (node) => {
+                if (!node || node.disabled) return false;
+                const onclick = (node.getAttribute('onclick') || '').toLowerCase();
+                const value = (node.getAttribute('value') || '').trim().toLowerCase();
+                const text = (node.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                return onclick.includes('action=celebration') || value === 'celebrate' || text === 'celebrate';
+              };
+              const button = document.querySelector('.build_details td.act button:not([disabled])')
+                || Array.from(document.querySelectorAll('button')).find(isCelebrate);
               if (button && !button.disabled) {
+                // Prefer the celebration URL the button encodes — navigating to it is more reliable than
+                // hoping a synthetic click fires the inline onclick's location change.
+                const onclick = button.getAttribute('onclick') || '';
+                const match = onclick.match(/['"]([^'"]*action=celebration[^'"]*)['"]/i);
+                if (match) {
+                  return { kind: 'link', href: match[1] };
+                }
                 button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
                 return { kind: 'button', href: '' };
               }

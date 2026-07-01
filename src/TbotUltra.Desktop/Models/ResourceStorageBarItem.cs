@@ -12,6 +12,7 @@ public sealed class ResourceStorageBarItem : BaseViewModel
     private string _timeUntilFullText = "-";
     private string _tooltipText = "No data loaded.";
     private bool _isFull;
+    private bool _isNegativeProduction;
     private Brush _statusBrush = Brushes.Black;
 
     public string ResourceKey { get; init; } = string.Empty;
@@ -59,6 +60,12 @@ public sealed class ResourceStorageBarItem : BaseViewModel
     {
         get => _isFull;
         set => SetProperty(ref _isFull, value);
+    }
+
+    public bool IsNegativeProduction
+    {
+        get => _isNegativeProduction;
+        set => SetProperty(ref _isNegativeProduction, value);
     }
 
     public Brush StatusBrush

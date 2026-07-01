@@ -14,11 +14,6 @@ public sealed partial class TravianClient
         CancellationToken cancellationToken = default)
     {
         LogFunctionStarted();
-        if (_config.IsPrivateServer)
-        {
-            throw new InvalidOperationException("Create Farmlists is currently available on official servers only.");
-        }
-
         var names = request.Names
             .Select(name => name.Trim())
             .Where(name => !string.IsNullOrWhiteSpace(name))
@@ -204,13 +199,16 @@ public sealed partial class TravianClient
             }).WaitAsync(cancellationToken);
 
             await ApplyActionDelayAsync(cancellationToken); // Action pacing "Task" delay
-            await form.Locator("input[name='listName']").First.FillAsync(name).WaitAsync(cancellationToken);
+            // Type the list name with real per-character keystrokes (same as the Add-farms flow) instead of
+            // an instant FillAsync, so it looks human.
+            await TypeHumanlyAsync(form.Locator("input[name='listName']").First, name, cancellationToken);
+            // Click-pacing delay after the name is entered, before the village is selected.
+            await DelayBeforeClickAsync(cancellationToken, "create farm list: select village");
 
             var villageValue = await ResolveOfficialCreateFarmListVillageValueAsync(
                 villageName,
                 villageId,
                 cancellationToken);
-            await ApplyActionDelayAsync(cancellationToken); // Action pacing "Task" delay
             await form.Locator("select[name='villageId']").First
                 .SelectOptionAsync(villageValue)
                 .WaitAsync(cancellationToken);
@@ -218,6 +216,8 @@ public sealed partial class TravianClient
                 "value => document.querySelector('#createFarmListForm select[name=\"villageId\"]')?.value === value",
                 villageValue,
                 new PageWaitForFunctionOptions { Timeout = 5000 }).WaitAsync(cancellationToken);
+            // Click-pacing delay after the village is selected, before the troop amounts are entered.
+            await DelayBeforeClickAsync(cancellationToken, "create farm list: enter troops");
 
             var troopInputs = await form.Locator("input.unitAmount[name^='t']").CountAsync();
             if (troopInputs == 0)
@@ -227,12 +227,20 @@ public sealed partial class TravianClient
 
             for (var unit = 1; unit <= troopInputs; unit++)
             {
-                var value = unit == troopIndex
-                    ? troopCount.ToString(System.Globalization.CultureInfo.InvariantCulture)
-                    : "0";
-                await form.Locator($"input.unitAmount[name='t{unit}']").First
-                    .FillAsync(value)
-                    .WaitAsync(cancellationToken);
+                var input = form.Locator($"input.unitAmount[name='t{unit}']").First;
+                if (unit == troopIndex)
+                {
+                    // Type the chosen troop count human-like, mirroring the Add-farms troop input.
+                    await TypeHumanlyAsync(
+                        input,
+                        troopCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        cancellationToken);
+                }
+                else
+                {
+                    // Non-selected units are just reset to 0 — a plain fill is fine (nothing to "type").
+                    await input.FillAsync("0").WaitAsync(cancellationToken);
+                }
             }
         }
         catch (OperationCanceledException)

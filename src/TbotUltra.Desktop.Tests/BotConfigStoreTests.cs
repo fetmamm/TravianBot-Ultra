@@ -49,6 +49,7 @@ public sealed class BotConfigStoreTests : IDisposable
             BotOptionPayloadKeys.SessionPacingRuntimeDate,
             BotOptionPayloadKeys.SessionPacingRuntimeSeconds,
             BotOptionPayloadKeys.SessionPacingDailyHistory,
+            BotOptionPayloadKeys.SessionActivityHistory,
             BotOptionPayloadKeys.ActionPacingEnabled,
             BotOptionPayloadKeys.ActionPacingTaskMinSeconds,
             BotOptionPayloadKeys.ActionPacingTaskMaxSeconds,
@@ -105,9 +106,6 @@ public sealed class BotConfigStoreTests : IDisposable
                 ["server_name"] = "Global",
                 ["base_url"] = "https://example.com",
                 [BotOptionPayloadKeys.HeroMinHpForAdventure] = 60,
-                ["server_flavor"] = "ss_travi",
-                ["login_path"] = "/login.php",
-                ["village_overview_path"] = "/dorf1.php",
             });
         var store = CreateStore();
         var config = store.Load();
@@ -118,9 +116,6 @@ public sealed class BotConfigStoreTests : IDisposable
         var global = JsonNode.Parse(File.ReadAllText(_configPath))!.AsObject();
         Assert.Equal("Global", global["server_name"]!.GetValue<string>());
         Assert.False(global.ContainsKey(BotOptionPayloadKeys.HeroMinHpForAdventure));
-        Assert.False(global.ContainsKey("server_flavor"));
-        Assert.False(global.ContainsKey("login_path"));
-        Assert.False(global.ContainsKey("village_overview_path"));
 
         var account = JsonNode.Parse(File.ReadAllText(AccountStoragePaths.AccountSettingsPath(_root, "alice")))!.AsObject();
         Assert.Equal(35, account[BotOptionPayloadKeys.HeroMinHpForAdventure]!.GetValue<int>());

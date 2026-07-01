@@ -1,11 +1,9 @@
 using System.Diagnostics;
-using TbotUltra.Core.Configuration;
 using TbotUltra.Worker.Infrastructure;
 
 namespace TbotUltra.Desktop;
 
-// Background warmups kicked off at startup / lazily at login: Chromium install
-// warmup (and orphan cleanup) and the SS-Travi captcha-solver warmup. Extracted
+// Background warmups kicked off at startup: Chromium install warmup and orphan cleanup. Extracted
 // verbatim from MainWindow.xaml.cs to keep that file focused; same class, so this
 // is a pure relocation with no behavior change.
 public partial class MainWindow
@@ -19,10 +17,6 @@ public partial class MainWindow
 
     private async Task RunBackgroundWarmupsAsync(CancellationToken cancellationToken)
     {
-        // Captcha warmup is intentionally NOT done here — that captcha only exists on SS-Travi,
-        // so warming it at startup just slows the program for official servers. It is triggered
-        // lazily at login instead (see ExecuteLoginFlowAsync), where RunCaptchaWarmupAsync gates
-        // on IsPrivateServer + CaptchaAutoSolveEnabled.
         await RunChromiumWarmupAsync(cancellationToken);
     }
 
@@ -67,53 +61,4 @@ public partial class MainWindow
         }
     }
 
-    private async Task RunCaptchaWarmupAsync(CancellationToken cancellationToken)
-    {
-        BotOptions options;
-        try
-        {
-            options = LoadBotOptions();
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Captcha warmup skipped: could not load config ({ex.Message}).");
-            return;
-        }
-
-        if (!options.IsPrivateServer)
-        {
-            AppendLog("Captcha warmup skipped: not an SS-Travi server.");
-            return;
-        }
-
-        if (!options.CaptchaAutoSolveEnabled)
-        {
-            AppendLog("Captcha warmup skipped: captcha auto-solve is disabled.");
-            return;
-        }
-
-        var sw = Stopwatch.StartNew();
-        AppendLog("Captcha warmup started.");
-        try
-        {
-            var warmed = await _captchaAutoSolver.WarmupAsync(cancellationToken);
-            sw.Stop();
-            if (!warmed)
-            {
-                AppendLog("Captcha warmup skipped: dependencies missing or warmup already completed.");
-                return;
-            }
-
-            AppendLog($"Captcha warmup completed in {sw.Elapsed.TotalSeconds:F1}s.");
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            sw.Stop();
-        }
-        catch (Exception ex)
-        {
-            sw.Stop();
-            AppendLog($"Captcha warmup skipped: {ex.Message}");
-        }
-    }
 }

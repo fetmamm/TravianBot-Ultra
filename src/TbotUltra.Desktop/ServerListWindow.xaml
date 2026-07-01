@@ -27,7 +27,6 @@
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Server name" Binding="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Width="200" />
                 <DataGridTextColumn Header="URL" Binding="{Binding BaseUrl, UpdateSourceTrigger=PropertyChanged}" Width="*" />
-                <DataGridTextColumn Header="Type" Binding="{Binding ServerTypeLabel}" Width="80" IsReadOnly="True" />
                 <DataGridTemplateColumn Header="" Width="110">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>

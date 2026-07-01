@@ -4,9 +4,6 @@
   "headless": false,
   "timeout_ms": 15000,
   "manual_login_timeout_seconds": 180,
-  "captcha_auto_solve_enabled": false,
-  "captcha_solver_timeout_seconds": 60,
-  "captcha_solver_max_attempts": 3,
   "loop_interval_seconds": 60,
   "loop_tasks": [
     "status"

@@ -76,7 +76,13 @@ internal static class AtomicFile
             {
                 return action();
             }
-            catch (IOException) when (attempt < maxAttempts)
+            // The temp→final File.Move can fail with a sharing violation (IOException) OR with
+            // UnauthorizedAccessException (Windows ERROR_ACCESS_DENIED) when OneDrive/antivirus/the search
+            // indexer briefly holds the destination file. The project lives under OneDrive Documents, where
+            // this happens regularly, so retry both the same way — otherwise a transient lock aborts the
+            // whole settings/cache/queue save (was surfacing as "[resource-refresh]/[OP0001] FAIL Access to
+            // the path is denied." at startup). Mirrors BrowserSession.ReplaceStorageStateWithRetryAsync.
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && attempt < maxAttempts)
             {
                 Thread.Sleep(40 * attempt);
             }

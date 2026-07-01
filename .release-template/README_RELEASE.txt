@@ -22,5 +22,3 @@ Notes:
 - Use a folder the app can write to (logs, queue data, config updates).
 - If .env or config files already exist from an older copy, they are kept.
 - Chromium and the Playwright driver are bundled in the portable folder.
-- The captcha solver runtime is included.
-- Captcha auto-solve is disabled in the release template until you enable it in config.

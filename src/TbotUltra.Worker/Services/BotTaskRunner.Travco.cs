@@ -18,11 +18,6 @@ public sealed partial class BotTaskRunner
         Action<string> log,
         CancellationToken cancellationToken)
     {
-        if (options.IsPrivateServer)
-        {
-            throw new InvalidOperationException("Travco inactive search supports official Travian servers only.");
-        }
-
         if (options.Headless)
         {
             throw new InvalidOperationException("Travco inactive search requires the visible browser session.");

@@ -15,7 +15,6 @@ public sealed partial class BotTaskRunner
         string? accountName = null,
         CancellationToken cancellationToken = default)
     {
-        EnsureBulkMessagesSupported(options);
         var account = _accountProvider.LoadAccount(accountName);
         progress?.Report(new BulkMessageProgress("Analyzing players", 0, 0));
 
@@ -42,7 +41,6 @@ public sealed partial class BotTaskRunner
         string? accountName = null,
         CancellationToken cancellationToken = default)
     {
-        EnsureBulkMessagesSupported(options);
         ValidateBulkMessageRequest(request);
 
         var account = _accountProvider.LoadAccount(accountName);
@@ -60,6 +58,7 @@ public sealed partial class BotTaskRunner
 
         var targets = analysis.Players
             .Take(Math.Max(0, request.MaxRecipients))
+            .Where(player => !MapSqlPlayerParser.IsProtectedPlayerName(player.Name))
             .ToList();
 
         if (targets.Count == 0)
@@ -105,9 +104,9 @@ public sealed partial class BotTaskRunner
                         batches.Count,
                         currentPlayers));
 
-                    await client.SendBulkMessageBatchAsync(batch, request.Subject, request.Message, cancellationToken);
-                    _bulkMessageSentCacheStore.AddSentPlayers(account.Name, options.BaseUrl, batch, DateTimeOffset.UtcNow);
-                    sentCount += batch.Count;
+                    var sentBatch = await client.SendBulkMessageBatchAsync(batch, request.Subject, request.Message, cancellationToken);
+                    _bulkMessageSentCacheStore.AddSentPlayers(account.Name, options.BaseUrl, sentBatch, DateTimeOffset.UtcNow);
+                    sentCount += sentBatch.Count;
                     progress?.Report(new BulkMessageProgress(
                         "Sending messages",
                         sentCount,
@@ -115,15 +114,6 @@ public sealed partial class BotTaskRunner
                         batchNumber,
                         batches.Count,
                         currentPlayers));
-
-                    if (batchIndex < batches.Count - 1)
-                    {
-                        await new ActionPacer(enabled: true, log).DelayAsync(
-                            4,
-                            9,
-                            cancellationToken,
-                            "bulk messages between batches");
-                    }
                 }
             });
 
@@ -141,7 +131,6 @@ public sealed partial class BotTaskRunner
         Action<string> log,
         string? accountName = null)
     {
-        EnsureBulkMessagesSupported(options);
         var account = _accountProvider.LoadAccount(accountName);
         _bulkMessageSentCacheStore.Clear(account.Name, options.BaseUrl);
         log($"[bulk-messages] sent-player cache cleared for account '{account.Name}' server '{options.BaseUrl.TrimEnd('/')}'.");
@@ -174,14 +163,6 @@ public sealed partial class BotTaskRunner
         };
         client.DefaultRequestHeaders.UserAgent.ParseAdd("TbotUltra/1.0");
         return client;
-    }
-
-    private static void EnsureBulkMessagesSupported(BotOptions options)
-    {
-        if (options.IsPrivateServer)
-        {
-            throw new NotSupportedException("Bulk messages currently supports Official servers only.");
-        }
     }
 
     private static void ValidateBulkMessageRequest(BulkMessageRequest request)

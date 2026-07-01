@@ -6,9 +6,6 @@ public static class BotOptionsPayloadApplier
     {
         var targetVillageName = source.TargetVillageName;
         var targetVillageUrl = source.TargetVillageUrl;
-        var captchaAutoSolveEnabled = source.CaptchaAutoSolveEnabled;
-        var captchaSolverTimeoutSeconds = source.CaptchaSolverTimeoutSeconds;
-        var captchaSolverMaxAttempts = source.CaptchaSolverMaxAttempts;
         var resourceUpgradeSlotId = source.ResourceUpgradeSlotId;
         var resourceUpgradeTargetLevel = source.ResourceUpgradeTargetLevel;
         var resourceUpgradeMaxAttempts = source.ResourceUpgradeMaxAttempts;
@@ -28,8 +25,6 @@ public static class BotOptionsPayloadApplier
         var heroAutoUseOintments = source.HeroAutoUseOintments;
         var heroStatPriority = source.HeroStatPriority;
         var heroAdventurePickOrder = source.HeroAdventurePickOrder;
-        var heroHideModeEnabled = source.HeroHideModeEnabled;
-        var heroHideMode = source.HeroHideMode;
         var heroContinuousAdventures = source.HeroContinuousAdventures;
         var increaseAdventuresToHard = source.IncreaseAdventuresToHard;
         var reduceAdventureTime = source.ReduceAdventureTime;
@@ -45,7 +40,6 @@ public static class BotOptionsPayloadApplier
         var heroResourceUseBrewery = source.HeroResourceUseBrewery;
         var heroResourceUseTownHall = source.HeroResourceUseTownHall;
         var upgradeSelectorProfile = source.UpgradeSelectorProfile;
-        var natarVillageSelection = source.NatarVillageSelection;
         var continuousFarmListNames = source.ContinuousFarmListNames;
         var continuousFarmListIds = source.ContinuousFarmListIds;
         var continuousFarmDispatchDelayMinutes = source.ContinuousFarmDispatchDelayMinutes;
@@ -70,6 +64,8 @@ public static class BotOptionsPayloadApplier
         var troopTrainingBarracksRunMode = source.TroopTrainingBarracksRunMode;
         var troopTrainingBarracksMinimumTroops = source.TroopTrainingBarracksMinimumTroops;
         var troopTrainingBarracksMinimumResourcesPercent = source.TroopTrainingBarracksMinimumResourcesPercent;
+        var troopTrainingBarracksTimedMinMinutes = source.TroopTrainingBarracksTimedMinMinutes;
+        var troopTrainingBarracksTimedMaxMinutes = source.TroopTrainingBarracksTimedMaxMinutes;
         var troopTrainingBarracksCheckWood = source.TroopTrainingBarracksCheckWood;
         var troopTrainingBarracksCheckClay = source.TroopTrainingBarracksCheckClay;
         var troopTrainingBarracksCheckIron = source.TroopTrainingBarracksCheckIron;
@@ -82,6 +78,8 @@ public static class BotOptionsPayloadApplier
         var troopTrainingStableRunMode = source.TroopTrainingStableRunMode;
         var troopTrainingStableMinimumTroops = source.TroopTrainingStableMinimumTroops;
         var troopTrainingStableMinimumResourcesPercent = source.TroopTrainingStableMinimumResourcesPercent;
+        var troopTrainingStableTimedMinMinutes = source.TroopTrainingStableTimedMinMinutes;
+        var troopTrainingStableTimedMaxMinutes = source.TroopTrainingStableTimedMaxMinutes;
         var troopTrainingStableCheckWood = source.TroopTrainingStableCheckWood;
         var troopTrainingStableCheckClay = source.TroopTrainingStableCheckClay;
         var troopTrainingStableCheckIron = source.TroopTrainingStableCheckIron;
@@ -94,6 +92,8 @@ public static class BotOptionsPayloadApplier
         var troopTrainingWorkshopRunMode = source.TroopTrainingWorkshopRunMode;
         var troopTrainingWorkshopMinimumTroops = source.TroopTrainingWorkshopMinimumTroops;
         var troopTrainingWorkshopMinimumResourcesPercent = source.TroopTrainingWorkshopMinimumResourcesPercent;
+        var troopTrainingWorkshopTimedMinMinutes = source.TroopTrainingWorkshopTimedMinMinutes;
+        var troopTrainingWorkshopTimedMaxMinutes = source.TroopTrainingWorkshopTimedMaxMinutes;
         var troopTrainingWorkshopCheckWood = source.TroopTrainingWorkshopCheckWood;
         var troopTrainingWorkshopCheckClay = source.TroopTrainingWorkshopCheckClay;
         var troopTrainingWorkshopCheckIron = source.TroopTrainingWorkshopCheckIron;
@@ -157,24 +157,6 @@ public static class BotOptionsPayloadApplier
                 if (key.Equals(BotOptionPayloadKeys.TargetVillageUrl, StringComparison.OrdinalIgnoreCase))
                 {
                     targetVillageUrl = value;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.CaptchaAutoSolveEnabled, StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var autoSolve))
-                {
-                    captchaAutoSolveEnabled = autoSolve;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.CaptchaSolverTimeoutSeconds, StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out var timeoutSeconds))
-                {
-                    captchaSolverTimeoutSeconds = timeoutSeconds;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.CaptchaSolverMaxAttempts, StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out var maxAttempts))
-                {
-                    captchaSolverMaxAttempts = maxAttempts;
                     continue;
                 }
 
@@ -289,20 +271,6 @@ public static class BotOptionsPayloadApplier
                 if (key.Equals(BotOptionPayloadKeys.HeroAdventurePickOrder, StringComparison.OrdinalIgnoreCase))
                 {
                     heroAdventurePickOrder = value;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.HeroHideMode, StringComparison.OrdinalIgnoreCase))
-                {
-                    var normalized = value.Equals("fight", StringComparison.OrdinalIgnoreCase) ? "fight" : "hide";
-                    heroHideMode = normalized;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.HeroHideModeEnabled, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var hideModeEnabled))
-                {
-                    heroHideModeEnabled = hideModeEnabled;
                     continue;
                 }
 
@@ -559,7 +527,7 @@ public static class BotOptionsPayloadApplier
 
                 if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksRunMode, StringComparison.OrdinalIgnoreCase))
                 {
-                    troopTrainingBarracksRunMode = value;
+                    troopTrainingBarracksRunMode = NormalizeTroopTrainingRunMode(value);
                     continue;
                 }
 
@@ -574,6 +542,20 @@ public static class BotOptionsPayloadApplier
                     && int.TryParse(value, out var barracksMinimumResourcesPercent))
                 {
                     troopTrainingBarracksMinimumResourcesPercent = Math.Clamp(barracksMinimumResourcesPercent, 0, 100);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksTimedMinMinutes, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var barracksTimedMinMinutes))
+                {
+                    troopTrainingBarracksTimedMinMinutes = Math.Max(1, barracksTimedMinMinutes);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksTimedMaxMinutes, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var barracksTimedMaxMinutes))
+                {
+                    troopTrainingBarracksTimedMaxMinutes = Math.Max(1, barracksTimedMaxMinutes);
                     continue;
                 }
 
@@ -639,7 +621,7 @@ public static class BotOptionsPayloadApplier
 
                 if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableRunMode, StringComparison.OrdinalIgnoreCase))
                 {
-                    troopTrainingStableRunMode = value;
+                    troopTrainingStableRunMode = NormalizeTroopTrainingRunMode(value);
                     continue;
                 }
 
@@ -654,6 +636,20 @@ public static class BotOptionsPayloadApplier
                     && int.TryParse(value, out var stableMinimumResourcesPercent))
                 {
                     troopTrainingStableMinimumResourcesPercent = Math.Clamp(stableMinimumResourcesPercent, 0, 100);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableTimedMinMinutes, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var stableTimedMinMinutes))
+                {
+                    troopTrainingStableTimedMinMinutes = Math.Max(1, stableTimedMinMinutes);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableTimedMaxMinutes, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var stableTimedMaxMinutes))
+                {
+                    troopTrainingStableTimedMaxMinutes = Math.Max(1, stableTimedMaxMinutes);
                     continue;
                 }
 
@@ -719,7 +715,7 @@ public static class BotOptionsPayloadApplier
 
                 if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopRunMode, StringComparison.OrdinalIgnoreCase))
                 {
-                    troopTrainingWorkshopRunMode = value;
+                    troopTrainingWorkshopRunMode = NormalizeTroopTrainingRunMode(value);
                     continue;
                 }
 
@@ -734,6 +730,20 @@ public static class BotOptionsPayloadApplier
                     && int.TryParse(value, out var workshopMinimumResourcesPercent))
                 {
                     troopTrainingWorkshopMinimumResourcesPercent = Math.Clamp(workshopMinimumResourcesPercent, 0, 100);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopTimedMinMinutes, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var workshopTimedMinMinutes))
+                {
+                    troopTrainingWorkshopTimedMinMinutes = Math.Max(1, workshopTimedMinMinutes);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopTimedMaxMinutes, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var workshopTimedMaxMinutes))
+                {
+                    troopTrainingWorkshopTimedMaxMinutes = Math.Max(1, workshopTimedMaxMinutes);
                     continue;
                 }
 
@@ -1047,14 +1057,9 @@ public static class BotOptionsPayloadApplier
         {
             ServerName = source.ServerName,
             BaseUrl = source.BaseUrl,
-            LoginPath = source.LoginPath,
-            VillageOverviewPath = source.VillageOverviewPath,
             Headless = source.Headless,
             TimeoutMs = source.TimeoutMs,
             ManualLoginTimeoutSeconds = source.ManualLoginTimeoutSeconds,
-            CaptchaAutoSolveEnabled = captchaAutoSolveEnabled,
-            CaptchaSolverTimeoutSeconds = captchaSolverTimeoutSeconds,
-            CaptchaSolverMaxAttempts = captchaSolverMaxAttempts,
             LoopIntervalSeconds = source.LoopIntervalSeconds,
             LoopTasks = source.LoopTasks,
             ContinuousLoopGroups = source.ContinuousLoopGroups,
@@ -1082,6 +1087,8 @@ public static class BotOptionsPayloadApplier
             TroopTrainingBarracksRunMode = troopTrainingBarracksRunMode,
             TroopTrainingBarracksMinimumTroops = troopTrainingBarracksMinimumTroops,
             TroopTrainingBarracksMinimumResourcesPercent = troopTrainingBarracksMinimumResourcesPercent,
+            TroopTrainingBarracksTimedMinMinutes = troopTrainingBarracksTimedMinMinutes,
+            TroopTrainingBarracksTimedMaxMinutes = troopTrainingBarracksTimedMaxMinutes,
             TroopTrainingBarracksCheckWood = troopTrainingBarracksCheckWood,
             TroopTrainingBarracksCheckClay = troopTrainingBarracksCheckClay,
             TroopTrainingBarracksCheckIron = troopTrainingBarracksCheckIron,
@@ -1094,6 +1101,8 @@ public static class BotOptionsPayloadApplier
             TroopTrainingStableRunMode = troopTrainingStableRunMode,
             TroopTrainingStableMinimumTroops = troopTrainingStableMinimumTroops,
             TroopTrainingStableMinimumResourcesPercent = troopTrainingStableMinimumResourcesPercent,
+            TroopTrainingStableTimedMinMinutes = troopTrainingStableTimedMinMinutes,
+            TroopTrainingStableTimedMaxMinutes = troopTrainingStableTimedMaxMinutes,
             TroopTrainingStableCheckWood = troopTrainingStableCheckWood,
             TroopTrainingStableCheckClay = troopTrainingStableCheckClay,
             TroopTrainingStableCheckIron = troopTrainingStableCheckIron,
@@ -1106,6 +1115,8 @@ public static class BotOptionsPayloadApplier
             TroopTrainingWorkshopRunMode = troopTrainingWorkshopRunMode,
             TroopTrainingWorkshopMinimumTroops = troopTrainingWorkshopMinimumTroops,
             TroopTrainingWorkshopMinimumResourcesPercent = troopTrainingWorkshopMinimumResourcesPercent,
+            TroopTrainingWorkshopTimedMinMinutes = troopTrainingWorkshopTimedMinMinutes,
+            TroopTrainingWorkshopTimedMaxMinutes = troopTrainingWorkshopTimedMaxMinutes,
             TroopTrainingWorkshopCheckWood = troopTrainingWorkshopCheckWood,
             TroopTrainingWorkshopCheckClay = troopTrainingWorkshopCheckClay,
             TroopTrainingWorkshopCheckIron = troopTrainingWorkshopCheckIron,
@@ -1176,8 +1187,6 @@ public static class BotOptionsPayloadApplier
             HeroAutoUseOintments = heroAutoUseOintments,
             HeroStatPriority = heroStatPriority,
             HeroAdventurePickOrder = heroAdventurePickOrder,
-            HeroHideModeEnabled = heroHideModeEnabled,
-            HeroHideMode = heroHideMode,
             HeroContinuousAdventures = heroContinuousAdventures,
             IncreaseAdventuresToHard = increaseAdventuresToHard,
             ReduceAdventureTime = reduceAdventureTime,
@@ -1193,7 +1202,6 @@ public static class BotOptionsPayloadApplier
             HeroResourceUseBrewery = heroResourceUseBrewery,
             HeroResourceUseTownHall = heroResourceUseTownHall,
             UpgradeSelectorProfile = upgradeSelectorProfile,
-            NatarVillageSelection = natarVillageSelection,
         };
     }
 
@@ -1226,4 +1234,9 @@ public static class BotOptionsPayloadApplier
 
         return Math.Clamp(value, 0, 3600);
     }
+
+    private static string NormalizeTroopTrainingRunMode(string? value)
+        => string.Equals(value, "resource_percent", StringComparison.OrdinalIgnoreCase)
+            ? "resource_percent"
+            : "timed";
 }

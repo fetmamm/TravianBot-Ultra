@@ -3,7 +3,7 @@
 Navigation map for the solution: **where each feature lives**, plus the file/folder
 conventions. Goal: find the right file fast (human or AI) without reading whole classes.
 
-Read `docs/ENGINEERING_NOTES.md` first for rules, Official/SS-Travi behavior, and pitfalls.
+Read `docs/ENGINEERING_NOTES.md` first for rules, Official-only behavior, and pitfalls.
 This file is a map only — no behavior rules. Keep it current when structure changes.
 
 ---
@@ -12,7 +12,7 @@ This file is a map only — no behavior rules. Keep it current when structure ch
 
 | Project | Responsibility | Depends on |
 |---|---|---|
-| `TbotUltra.Core` | Config (`BotOptions`, `ServerFlavor`), task payloads, catalogs. No browser/UI. | — |
+| `TbotUltra.Core` | Config (`BotOptions`), task payloads, catalogs. No browser/UI. | — |
 | `TbotUltra.Worker` | Game automation via Playwright. `TravianClient` owns server interaction, `BotTaskRunner` runs tasks. | Core |
 | `TbotUltra.Desktop` | WPF UI: `MainWindow` partials + ViewModels. | Worker, Core |
 
@@ -33,8 +33,8 @@ These are contracts only — no logic was extracted out of the facade.
 
 | Folder | What | Key files |
 |---|---|---|
-| `Automation/Core/` | Client plumbing: login, navigation, session, captcha/manual-gate, account snapshot, villages, selectors, retry, page-tasks, capital cache | `TravianClient.cs` (state+ctor), `.Login`, `.Navigation`, `.UiSync`, `.ManualVerification`, `.CaptchaAutoSolve`, `.AccountSnapshot`, `.Villages`, `.Selectors`, `.RetryPolicy`, `.Tasks`, `.CapitalCache`; helpers `TravianSessionCache`, `TravianUrls`, `TravianParsing`, `CapitalCacheKey` |
-| `Automation/Farming/` | Farm lists, list creation, Natar farming | `TravianClient.FarmLists`, `.FarmListCreation`, `.NatarFarming`; `FarmListLossStateClassifier` |
+| `Automation/Core/` | Client plumbing: login, navigation, session, manual verification, account snapshot, villages, selectors, retry, page-tasks, capital cache | `TravianClient.cs` (state+ctor), `.Login`, `.Navigation`, `.UiSync`, `.ManualVerification`, `.AccountSnapshot`, `.Villages`, `.Selectors`, `.RetryPolicy`, `.Tasks`, `.CapitalCache`; helpers `TravianSessionCache`, `TravianUrls`, `TravianParsing`, `CapitalCacheKey` |
+| `Automation/Farming/` | Farm lists, list creation, Official Add Farms | `TravianClient.FarmLists`, `.FarmListCreation`, `.FarmAdd`; `FarmListLossStateClassifier` |
 | `Automation/Buildings/` | Construction & upgrades | `TravianClient.Buildings`, `.Upgrade`; `BuildingDomParser`, `BuildingNames`, `ConstructionSlots`, `BuildQueueFingerprints`, `UpgradeMath` |
 | `Automation/Hero/` | Hero, adventures, hero resources | `TravianClient.Hero`, `.HeroResourceTransfer`, `.AdventureDanger`; `HeroCalc` |
 | `Automation/Resources/` | Resource read/transfer, NPC trade | `TravianClient.Resources`, `.ResourceTransfer`, `.NpcTrade`; `ResourceCapacitySnapshot` |
@@ -53,7 +53,7 @@ One `partial class BotTaskRunner` in `Services/`, split by concern:
 |---|---|
 | `BotTaskRunner.cs` | Core: handler registry (`TaskHandlers`), fields, ctor, `ExecuteOnceAsync`, client-lease lifecycle, shutdown, map-oasis scan, shared records |
 | `BotTaskRunner.Session.cs` | Login/logout, post-login snapshot, stable account signals |
-| `BotTaskRunner.Farming.cs` | Farm-list / Natar public API |
+| `BotTaskRunner.Farming.cs` | Farm-list public API |
 | `BotTaskRunner.Combat.cs` | Catapult-wave reads & start |
 | `BotTaskRunner.VillageReads.cs` | Village / resource / buildings / page reads |
 | `BotTaskRunner.Hero.cs` | Hero adventure, revive, attributes, inventory |
@@ -62,10 +62,10 @@ One `partial class BotTaskRunner` in `Services/`, split by concern:
 | `BotTaskRunner.TaskHandlers.cs` | The static `Execute*` task handlers + snapshot writers + result classification |
 
 ### Other Worker services
-- `Services/Accounts/` — account provider, analysis store, hero/Natar caches.
+- `Services/Accounts/` — account provider, analysis store, hero caches.
 - `Services/Queue/` — queue store, scheduler, executor, group catalog.
 - `Services/Catalogs/` — building & task catalogs.
-- `Services/` (root) — `CaptchaAutoSolver`, `BrowserFailureClassifier`.
+- `Services/` (root) — `BrowserFailureClassifier`.
 - `Infrastructure/BrowserSession.cs` — Playwright browser lifecycle (partial; bonus-video,
   warmup/install and storage-state filtering live in `BrowserSession.<Area>.cs`).
 - `Domain/` — Worker DTOs (`TravianModels`, `MapOasisModels`, `TravcoModels`, queue types, exceptions).
@@ -74,7 +74,7 @@ One `partial class BotTaskRunner` in `Services/`, split by concern:
 
 ## 4. Core
 
-- `Configuration/` — `BotOptions`, `BotOptionsFactory`, `BotOptionsPayloadApplier`, `ServerFlavor`, defaults, `ActionPacer`.
+- `Configuration/` — `BotOptions`, `BotOptionsFactory`, `BotOptionsPayloadApplier`, defaults, `ActionPacer`.
 - `Tasks/` — task payloads (`*Payload.cs`), `TaskCatalog`, `TaskDescriptor`, `TaskGroup`.
 - `Travian/` — `SmithyPageParser`, `TroopCatalog`, troop types.
 - `Accounts/` — key normalizer, storage paths, analysis constants.
