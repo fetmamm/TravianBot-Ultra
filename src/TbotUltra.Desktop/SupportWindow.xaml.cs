@@ -19,12 +19,14 @@ public partial class SupportWindow : Window
     private readonly IReadOnlyList<string> _terminalEntries;
     private readonly string _currentVersion;
     private readonly UpdateChecker.UpdateStatus? _updateStatus;
+    private readonly bool _muteUpdateNotifications;
 
     public SupportWindow(
         string projectRoot,
         IReadOnlyList<string> terminalEntries,
         string currentVersion,
-        UpdateChecker.UpdateStatus? updateStatus)
+        UpdateChecker.UpdateStatus? updateStatus,
+        bool muteUpdateNotifications = false)
     {
         InitializeComponent();
         ThemeChrome.EnableEarlyDarkTitleBar(this);
@@ -32,6 +34,7 @@ public partial class SupportWindow : Window
         _terminalEntries = terminalEntries;
         _currentVersion = string.IsNullOrWhiteSpace(currentVersion) ? "dev" : currentVersion;
         _updateStatus = updateStatus;
+        _muteUpdateNotifications = muteUpdateNotifications;
         ApplyVersionButtonState();
     }
 
@@ -41,7 +44,7 @@ public partial class SupportWindow : Window
     // exists, neutral grey otherwise — so the user clearly sees an update is available.
     private void ApplyVersionButtonState()
     {
-        var updateAvailable = _updateStatus?.UpdateAvailable == true;
+        var updateAvailable = _updateStatus?.UpdateAvailable == true && !_muteUpdateNotifications;
         if (updateAvailable)
         {
             VersionButton.BorderBrush = (Brush)FindResource("WarningBorderBrush");

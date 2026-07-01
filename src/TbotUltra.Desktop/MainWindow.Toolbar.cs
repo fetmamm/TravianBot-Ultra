@@ -121,6 +121,7 @@ public partial class MainWindow
         var saved = window.ShowDialog() == true;
         LoadConfigToUi();
         ConfigureSessionPacerFromConfig();
+        RefreshUpdateNotificationState();
         if (saved)
         {
             LogConservativeAutomationWarnings(LoadBotOptions());

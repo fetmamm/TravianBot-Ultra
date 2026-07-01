@@ -739,9 +739,9 @@ public partial class MainWindow : Window
     }
 
     // Best-effort background check against GitHub's latest release. Runs at startup and then hourly while
-    // the app is open. On a newer version, the Support (message) button breathes gold so the user notices;
-    // the Version button inside Support shows the details. Never blocks startup and never alarms —
-    // offline/rate-limited leaves the latest known status unchanged.
+    // the app is open. On a newer version, the Support (message) button breathes gold unless update
+    // notifications are muted in settings. Never blocks startup and never alarms — offline/rate-limited
+    // leaves the latest known status unchanged.
     private async Task CheckForUpdatesAsync()
     {
         if (_updateCheckRunning)
@@ -762,12 +762,16 @@ public partial class MainWindow : Window
             _updateStatus = status;
             if (status.UpdateAvailable && status.Release is not null)
             {
-                ApplySupportButtonUpdatePulse(true);
-                SupportButton.ToolTip = $"Update available: v{status.Release.LatestVersion} — open Support";
-                if (!string.Equals(
-                    _announcedUpdateVersion,
-                    status.Release.LatestVersion,
-                    StringComparison.OrdinalIgnoreCase))
+                var muted = AreNewVersionNotificationsMuted();
+                ApplySupportButtonUpdatePulse(!muted);
+                SupportButton.ToolTip = muted
+                    ? "Support"
+                    : $"Update available: v{status.Release.LatestVersion} — open Support";
+                if (!muted
+                    && !string.Equals(
+                        _announcedUpdateVersion,
+                        status.Release.LatestVersion,
+                        StringComparison.OrdinalIgnoreCase))
                 {
                     _announcedUpdateVersion = status.Release.LatestVersion;
                     AppendLog($"Update available: v{status.Release.LatestVersion} (current v{_currentVersion}).");
@@ -788,6 +792,28 @@ public partial class MainWindow : Window
         {
             _updateCheckRunning = false;
         }
+    }
+
+    private bool AreNewVersionNotificationsMuted()
+    {
+        try
+        {
+            return _botConfigStore.Load()[BotOptionPayloadKeys.DontNotifyNewVersion]?.GetValue<bool>() ?? false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private void RefreshUpdateNotificationState()
+    {
+        var muted = AreNewVersionNotificationsMuted();
+        var updateAvailable = _updateStatus?.UpdateAvailable == true && _updateStatus.Release is not null;
+        ApplySupportButtonUpdatePulse(updateAvailable && !muted);
+        SupportButton.ToolTip = updateAvailable && !muted
+            ? $"Update available: v{_updateStatus!.Release!.LatestVersion} — open Support"
+            : "Support";
     }
 
     private void EnqueueQuickTask(string taskName, string description, Dictionary<string, string>? payload = null)
@@ -1520,7 +1546,8 @@ public partial class MainWindow : Window
             _projectRoot,
             _terminalEntries.Select(entry => entry.Text).ToList(),
             _currentVersion,
-            _updateStatus)
+            _updateStatus,
+            AreNewVersionNotificationsMuted())
         {
             Owner = this,
         };

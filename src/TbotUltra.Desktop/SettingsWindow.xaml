@@ -39,6 +39,9 @@
                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                        Margin="0,0,0,10" />
                             <CheckBox x:Name="HeadlessCheckBox" Margin="0,0,0,8" Content="Headless" IsEnabled="False" />
+                            <CheckBox x:Name="DontNotifyNewVersionCheckBox"
+                                      Margin="0,0,0,8"
+                                      Content="Dont notify for new version" />
                         </StackPanel>
                     </Border>
 
