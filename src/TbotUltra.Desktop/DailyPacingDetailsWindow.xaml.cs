@@ -11,6 +11,7 @@ namespace TbotUltra.Desktop;
 public sealed record DailyPacingDayRow(
     string Date,
     string Online,
+    string Waiting,
     string Limit,
     string Usage);
 
@@ -19,6 +20,13 @@ public sealed record DailyPacingTaskRow(
     int Runs,
     string LastRun,
     string PeakHour);
+
+public sealed record DailyPacingTimelineRow(
+    string Date,
+    string Time,
+    string State,
+    string Duration,
+    string Details);
 
 /// <summary>One day on the runtime graph: online hours, and the day's daily-max (limit) hours if set.</summary>
 public sealed record DailyPacingChartPoint(
@@ -32,22 +40,26 @@ public partial class DailyPacingDetailsWindow : Window
 
     public DailyPacingDetailsWindow(
         string onlineToday,
+        string waitingToday,
         string timeLeft,
         string dailyLimit,
         string weekTotal,
         string accountTotal,
         IReadOnlyList<DailyPacingDayRow> dayRows,
         IReadOnlyList<DailyPacingTaskRow> taskRows,
+        IReadOnlyList<DailyPacingTimelineRow> timelineRows,
         IReadOnlyList<DailyPacingChartPoint> chartPoints)
     {
         InitializeComponent();
         OnlineTodayTextBlock.Text = onlineToday;
+        WaitingTodayTextBlock.Text = waitingToday;
         TimeLeftTextBlock.Text = timeLeft;
         DailyLimitTextBlock.Text = dailyLimit;
         WeekTotalTextBlock.Text = weekTotal;
         AccountTotalTextBlock.Text = accountTotal;
         WeekDataGrid.ItemsSource = dayRows;
         TaskDataGrid.ItemsSource = taskRows;
+        TimelineDataGrid.ItemsSource = timelineRows;
         _chartPoints = chartPoints;
     }
 

@@ -22,9 +22,9 @@ Here you can ask questions, report bugs and come with suggestions for new featur
 ---
 
 ## TBot Ultra - Advanced Travian Bot
-Advanced open-source `Travian Bot` for Travian Legends with automation, farming, building management, resource optimization and `multi-village support`.
+Advanced open-source `Travian Bot` for official Travian Legends servers with automation, farming, building management, resource optimization and `multi-village support`.
 
-The project goal forward is official Travian Legends servers. SS-Travi remains legacy-only.
+The project target is official Travian Legends servers.
 
 ## Howto use
 The program is very easy to use and to install. No need to host own servers etc.
@@ -66,11 +66,9 @@ Compatible with:
 
 - `Official Travian` — Travian Legends 4.6+ — Official servers
 
-- `SS-Travi` — T4.4 — legacy private-server support only
-
 `NOTE:` It is important that the language is set to `English` in the travian browser settings page.
 
-`Way forward:` new development focuses on official servers.
+`Way forward:` new development targets official servers only.
 
 ## Features:
 
@@ -296,7 +294,7 @@ cache/                     capital-state, manual-farming prefs
 ## Disclaimer
 
 This project is provided for educational purposes. Automating gameplay may
-violate the terms of service of Travian and/or private servers, and can lead
+violate the terms of service of Travian servers, and can lead
 to account bans. Use it at your own risk — the authors take no responsibility
 for any consequences of using this software.
 

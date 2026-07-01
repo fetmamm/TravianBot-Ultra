@@ -197,6 +197,7 @@ public static class BotOptionPayloadKeys
     public const string SessionPacingRuntimeDate = "session_pacing_runtime_date";
     public const string SessionPacingRuntimeSeconds = "session_pacing_runtime_seconds";
     public const string SessionPacingDailyHistory = "session_pacing_daily_history";
+    public const string SessionActivityHistory = "session_activity_history";
 
     public const string ActionPacingEnabled = "action_pacing_enabled";
     public const string ActionPacingTaskMinSeconds = "action_pacing_task_min_seconds";

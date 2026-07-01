@@ -13,21 +13,6 @@ public sealed class BotOptions
     [Required]
     public string BaseUrl { get; init; } = string.Empty;
 
-    /// <summary>
-    /// Which kind of Travian server this is. Controls any remaining server-specific behavior.
-    /// Always derived from the <see cref="BaseUrl"/> host — the
-    /// authoritative signal (e.g. *.ss-travi.com => SsTravi). It is deliberately NOT bound from
-    /// config, so a stale <c>server_flavor</c> value left over from a previous server can never
-    /// mis-detect the flavor (regardless of how this BotOptions instance was constructed).
-    /// </summary>
-    public ServerFlavor ServerFlavor => ServerFlavorDetector.FromBaseUrl(BaseUrl);
-
-    /// <summary>
-    /// True when connected to the SS-Travi private server. Use this only for
-    /// remaining legacy server-specific behaviour.
-    /// </summary>
-    public bool IsPrivateServer => ServerFlavor == ServerFlavor.SsTravi;
-
     [ConfigurationKeyName("login_path")]
     [Required]
     public string LoginPath { get; init; } = "/login.php";

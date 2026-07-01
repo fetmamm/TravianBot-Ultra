@@ -209,7 +209,7 @@ Follow `AGENTS.md` and `docs/ENGINEERING_NOTES.md` before implementation. Change
 
 - Test every account switch and settings window save/reset path.
 - Test dashboard toggles and village-scoped overlays.
-- Preserve the rule that `ServerFlavor` is derived from `BaseUrl`, never persisted.
+- Preserve the rule that server behavior targets official Travian only; do not reintroduce persisted server variants.
 
 ## 8. Reusable Headless Browser Session
 

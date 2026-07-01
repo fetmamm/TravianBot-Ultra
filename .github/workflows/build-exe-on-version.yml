@@ -25,11 +25,6 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-
       - name: Read version
         id: version
         shell: pwsh
@@ -51,7 +46,12 @@ jobs:
         run: dotnet build TbotUltra.sln -c Release --no-restore
 
       - name: Test
-        run: dotnet test TbotUltra.sln -c Release --no-build
+        shell: pwsh
+        run: |
+          dotnet test src/TbotUltra.Worker.Tests/TbotUltra.Worker.Tests.csproj -c Release --no-build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet test src/TbotUltra.Desktop.Tests/TbotUltra.Desktop.Tests.csproj -c Release --no-build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Restore desktop publish dependencies
         run: dotnet restore src/TbotUltra.Desktop/TbotUltra.Desktop.csproj -r win-x64
@@ -84,46 +84,6 @@ jobs:
             throw "Playwright Chromium install failed with exit code $LASTEXITCODE."
           }
 
-      - name: Build captcha runtime
-        shell: pwsh
-        run: |
-          $runtimeRoot = Join-Path $PWD "temp_build_out\captcha-runtime"
-          $pythonHome = Join-Path $runtimeRoot "python-home"
-
-          if (Test-Path $runtimeRoot) {
-            Remove-Item $runtimeRoot -Recurse -Force
-          }
-
-          New-Item -ItemType Directory -Path $runtimeRoot -Force | Out-Null
-
-          $basePythonRoot = python -c "import sys; print(sys.base_prefix)"
-          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($basePythonRoot)) {
-            throw "Could not resolve base Python installation path."
-          }
-
-          Copy-Item $basePythonRoot $pythonHome -Recurse -Force
-          & "$pythonHome\python.exe" -m pip install --upgrade pip
-          & "$pythonHome\python.exe" -m pip install -r "Captcha_solver\math_ai\requirements-runtime.txt"
-          if ($LASTEXITCODE -ne 0) {
-            throw "Captcha runtime dependency install failed with exit code $LASTEXITCODE."
-          }
-
-          $pathsToRemove = @(
-            (Join-Path $pythonHome "Include"),
-            (Join-Path $pythonHome "Lib\ensurepip"),
-            (Join-Path $pythonHome "Lib\site-packages\tensorflow\include"),
-            (Join-Path $pythonHome "Lib\site-packages\pip"),
-            (Join-Path $pythonHome "Lib\site-packages\pip-*.dist-info"),
-            (Join-Path $pythonHome "Lib\site-packages\setuptools"),
-            (Join-Path $pythonHome "Lib\site-packages\setuptools-*.dist-info"),
-            (Join-Path $pythonHome "Lib\site-packages\wheel"),
-            (Join-Path $pythonHome "Lib\site-packages\wheel-*.dist-info")
-          )
-
-          foreach ($path in $pathsToRemove) {
-            Get-Item $path -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-          }
-
       - name: Assemble release bundle
         env:
           VERSION_NUMBER: ${{ steps.version.outputs.version }}
@@ -135,7 +95,6 @@ jobs:
           $publishRoot = Join-Path $PWD "temp_build_out\publish"
           $templateRoot = Join-Path $PWD ".release-template"
           $browserRoot = Join-Path $PWD "temp_build_out\playwright-browsers"
-          $captchaRuntimeRoot = Join-Path $PWD "temp_build_out\captcha-runtime"
 
           if (Test-Path $stageRoot) {
             Remove-Item $stageRoot -Recurse -Force
@@ -151,10 +110,6 @@ jobs:
 
           if (-not (Test-Path $browserRoot)) {
             throw "Bundled Chromium folder is missing: $browserRoot"
-          }
-
-          if (-not (Test-Path $captchaRuntimeRoot)) {
-            throw "Captcha runtime folder is missing: $captchaRuntimeRoot"
           }
 
           New-Item -ItemType Directory -Path $packageRoot | Out-Null
@@ -173,6 +128,9 @@ jobs:
           Get-ChildItem $packageRoot -Directory | Where-Object {
             $_.Name -in @("cs", "de", "es", "fr", "it", "ja", "ko", "pl", "pt-BR", "ru", "tr", "zh-Hans", "zh-Hant")
           } | Remove-Item -Recurse -Force
+          Get-ChildItem $packageRoot -Directory | Where-Object {
+            $_.Name -in @("bin", "obj", "temp_build_out", "Captcha_solver", "__pycache__", ".venv")
+          } | Remove-Item -Recurse -Force
 
           Copy-Item $browserRoot (Join-Path $packageRoot "ms-playwright") -Recurse -Force
 
@@ -189,17 +147,6 @@ jobs:
             Remove-Item $packagedDriverRoot -Recurse -Force
           }
           Copy-Item $driverRoot $packagedDriverRoot -Recurse -Force
-
-          $captchaRoot = Join-Path $packageRoot "Captcha_solver\math_ai"
-          New-Item -ItemType Directory -Path $captchaRoot -Force | Out-Null
-          Copy-Item (Join-Path $PWD "Captcha_solver\math_ai\solve_runtime.py") (Join-Path $captchaRoot "solve_runtime.py") -Force
-          Copy-Item (Join-Path $PWD "Captcha_solver\math_ai\captcha_solver.py") (Join-Path $captchaRoot "captcha_solver.py") -Force
-          Copy-Item (Join-Path $PWD "Captcha_solver\math_ai\classes.txt") (Join-Path $captchaRoot "classes.txt") -Force
-          Copy-Item (Join-Path $PWD "Captcha_solver\math_ai\model.keras") (Join-Path $captchaRoot "model.keras") -Force
-          Copy-Item (Join-Path $PWD "Captcha_solver\math_ai\requirements-runtime.txt") (Join-Path $captchaRoot "requirements-runtime.txt") -Force
-          Copy-Item $captchaRuntimeRoot (Join-Path $captchaRoot ".venv") -Recurse -Force
-          New-Item -ItemType Directory -Path (Join-Path $captchaRoot "debug_output") -Force | Out-Null
-          New-Item -ItemType Directory -Path (Join-Path $captchaRoot "review_dataset") -Force | Out-Null
 
           $envTemplatePath = Join-Path $templateRoot "env.template"
           $readmeTemplatePath = Join-Path $templateRoot "README_RELEASE.txt"
@@ -225,22 +172,6 @@ jobs:
           New-Item -ItemType Directory -Path (Join-Path $packageRoot "config\account-analysis") -Force | Out-Null
           New-Item -ItemType Directory -Path (Join-Path $packageRoot "config\cache\natar-farms") -Force | Out-Null
 
-      - name: Verify packaged runtime
-        env:
-          PACKAGE_NAME: ${{ steps.version.outputs.package_name }}
-        shell: pwsh
-        run: |
-          $packageRoot = Join-Path $PWD ("temp_build_out\release\" + $env:PACKAGE_NAME)
-          Copy-Item (Join-Path $PWD "Captcha_solver\math_ai\test.png") (Join-Path $packageRoot "test.png") -Force
-          $env:PYTHONHOME = Join-Path $packageRoot "Captcha_solver\math_ai\.venv\python-home"
-          $env:PYTHONPATH = Join-Path $env:PYTHONHOME "Lib\site-packages"
-          & "$env:PYTHONHOME\python.exe" `
-            "$packageRoot\Captcha_solver\math_ai\solve_runtime.py" `
-            --image "$packageRoot\test.png"
-          if ($LASTEXITCODE -ne 0) {
-            throw "Packaged captcha runtime verification failed with exit code $LASTEXITCODE."
-          }
-
       - name: Create portable zip
         env:
           PACKAGE_NAME: ${{ steps.version.outputs.package_name }}
@@ -255,8 +186,6 @@ jobs:
             throw "Portable source folder is missing: $packageRoot"
           }
 
-          # Drop the verification test image so it does not ship in the portable build.
-          Remove-Item (Join-Path $packageRoot "test.png") -ErrorAction SilentlyContinue
           Remove-Item (Join-Path $packageRoot "playwright.ps1") -ErrorAction SilentlyContinue
 
           $appExe = Join-Path $packageRoot "Tbot Ultra.exe"
@@ -273,6 +202,14 @@ jobs:
           if ($unexpectedRootFiles) {
             $names = ($unexpectedRootFiles | Select-Object -ExpandProperty Name) -join ", "
             throw "Portable package root contains runtime files that should be bundled or moved: $names"
+          }
+
+          $unexpectedDirectories = Get-ChildItem $packageRoot -Directory -Recurse | Where-Object {
+            $_.Name -in @("temp_build_out", "Captcha_solver", "__pycache__", ".venv")
+          }
+          if ($unexpectedDirectories) {
+            $names = ($unexpectedDirectories | Select-Object -ExpandProperty FullName) -join ", "
+            throw "Portable package contains build or captcha directories that should not ship: $names"
           }
 
           New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null

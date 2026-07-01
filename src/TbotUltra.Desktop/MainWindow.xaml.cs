@@ -440,6 +440,7 @@ public partial class MainWindow : Window
                 var serverNow = GetServerNow();
                 var dashboardTabSelected = IsMainTabSelected(DashboardTabItem);
 
+                UpdateSessionActivityState();
                 UpdateClockText(serverNow);
                 UpdateSessionPacingUi();
                 HandleBrowserClosedSignal();
@@ -714,6 +715,7 @@ public partial class MainWindow : Window
                 ? null
                 : displayName;
             UpdateExecutionStateIndicator();
+            UpdateSessionActivityState(forcePersist: true);
         }
 
         if (Dispatcher.CheckAccess())

@@ -3,7 +3,7 @@
 Navigation map for the solution: **where each feature lives**, plus the file/folder
 conventions. Goal: find the right file fast (human or AI) without reading whole classes.
 
-Read `docs/ENGINEERING_NOTES.md` first for rules, Official-first behavior, remaining legacy branches, and pitfalls.
+Read `docs/ENGINEERING_NOTES.md` first for rules, Official-only behavior, and pitfalls.
 This file is a map only — no behavior rules. Keep it current when structure changes.
 
 ---
@@ -12,7 +12,7 @@ This file is a map only — no behavior rules. Keep it current when structure ch
 
 | Project | Responsibility | Depends on |
 |---|---|---|
-| `TbotUltra.Core` | Config (`BotOptions`, `ServerFlavor`), task payloads, catalogs. No browser/UI. | — |
+| `TbotUltra.Core` | Config (`BotOptions`), task payloads, catalogs. No browser/UI. | — |
 | `TbotUltra.Worker` | Game automation via Playwright. `TravianClient` owns server interaction, `BotTaskRunner` runs tasks. | Core |
 | `TbotUltra.Desktop` | WPF UI: `MainWindow` partials + ViewModels. | Worker, Core |
 
@@ -74,7 +74,7 @@ One `partial class BotTaskRunner` in `Services/`, split by concern:
 
 ## 4. Core
 
-- `Configuration/` — `BotOptions`, `BotOptionsFactory`, `BotOptionsPayloadApplier`, `ServerFlavor`, defaults, `ActionPacer`.
+- `Configuration/` — `BotOptions`, `BotOptionsFactory`, `BotOptionsPayloadApplier`, defaults, `ActionPacer`.
 - `Tasks/` — task payloads (`*Payload.cs`), `TaskCatalog`, `TaskDescriptor`, `TaskGroup`.
 - `Travian/` — `SmithyPageParser`, `TroopCatalog`, troop types.
 - `Accounts/` — key normalizer, storage paths, analysis constants.

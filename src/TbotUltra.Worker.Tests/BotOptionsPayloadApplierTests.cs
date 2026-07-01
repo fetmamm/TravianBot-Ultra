@@ -315,27 +315,6 @@ public sealed class BotOptionsPayloadApplierTests
     }
 
     [Fact]
-    public void FromConfiguration_UsesResourcesFirstHeroPriorityOnPrivateServerByDefault()
-    {
-        var values = new Dictionary<string, string?>
-        {
-            ["server_name"] = "SS",
-            ["base_url"] = "https://mga.ss-travi.com",
-        };
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(values)
-            .Build();
-
-        var options = BotOptionsFactory.FromConfiguration(configuration);
-
-        Assert.True(options.NpcTradeEnabled);
-        Assert.True(options.NpcTradeConstructionEnabled);
-        Assert.False(options.AllowGoldSpending);
-        Assert.Equal(800, options.GoldLimit);
-        Assert.Equal("resources,fighting_strength,offence_bonus,defence_bonus", options.HeroStatPriority);
-    }
-
-    [Fact]
     public void FromConfiguration_ExplicitGoldAndNpcSettingsOverrideOfficialDefaults()
     {
         var values = new Dictionary<string, string?>

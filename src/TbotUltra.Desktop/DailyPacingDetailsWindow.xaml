@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Background="{DynamicResource AppBackgroundBrush}"
         Title="Daily details"
-        Width="640"
+        Width="780"
         Height="520"
-        MinWidth="560"
+        MinWidth="680"
         MinHeight="420"
         ResizeMode="CanResize"
         WindowStartupLocation="CenterOwner">
@@ -30,6 +30,7 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0">
@@ -37,18 +38,22 @@
                     <TextBlock x:Name="OnlineTodayTextBlock" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="16" FontWeight="SemiBold" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                    <TextBlock Text="Waiting today" Foreground="{DynamicResource TextSubtleBrush}" FontSize="11" />
+                    <TextBlock x:Name="WaitingTodayTextBlock" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="16" FontWeight="SemiBold" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Margin="12,0,0,0">
                     <TextBlock Text="Time left" Foreground="{DynamicResource TextSubtleBrush}" FontSize="11" />
                     <TextBlock x:Name="TimeLeftTextBlock" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="16" FontWeight="SemiBold" />
                 </StackPanel>
-                <StackPanel Grid.Column="2" Margin="12,0,0,0">
+                <StackPanel Grid.Column="3" Margin="12,0,0,0">
                     <TextBlock Text="Daily limit" Foreground="{DynamicResource TextSubtleBrush}" FontSize="11" />
                     <TextBlock x:Name="DailyLimitTextBlock" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="16" FontWeight="SemiBold" />
                 </StackPanel>
-                <StackPanel Grid.Column="3" Margin="12,0,0,0">
+                <StackPanel Grid.Column="4" Margin="12,0,0,0">
                     <TextBlock Text="Week total" Foreground="{DynamicResource TextSubtleBrush}" FontSize="11" />
                     <TextBlock x:Name="WeekTotalTextBlock" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="16" FontWeight="SemiBold" />
                 </StackPanel>
-                <StackPanel Grid.Column="4" Margin="12,0,0,0">
+                <StackPanel Grid.Column="5" Margin="12,0,0,0">
                     <TextBlock Text="Account total" Foreground="{DynamicResource TextSubtleBrush}" FontSize="11" />
                     <TextBlock x:Name="AccountTotalTextBlock" Foreground="{DynamicResource SuccessTextBrush}" FontSize="16" FontWeight="SemiBold" />
                 </StackPanel>
@@ -68,6 +73,7 @@
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Date" Binding="{Binding Date}" Width="*" />
                         <DataGridTextColumn Header="Online" Binding="{Binding Online}" Width="*" />
+                        <DataGridTextColumn Header="Waiting" Binding="{Binding Waiting}" Width="*" />
                         <DataGridTextColumn Header="Limit" Binding="{Binding Limit}" Width="*" />
                         <DataGridTextColumn Header="Usage" Binding="{Binding Usage}" Width="1.4*" />
                     </DataGrid.Columns>
@@ -102,6 +108,25 @@
                         <DataGridTextColumn Header="Runs" Binding="{Binding Runs}" Width="*" />
                         <DataGridTextColumn Header="Last run" Binding="{Binding LastRun}" Width="1.4*" />
                         <DataGridTextColumn Header="Peak hour" Binding="{Binding PeakHour}" Width="*" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+
+            <TabItem Header="Timeline">
+                <DataGrid x:Name="TimelineDataGrid"
+                          AutoGenerateColumns="False"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          IsReadOnly="True"
+                          HeadersVisibility="Column"
+                          GridLinesVisibility="None"
+                          Margin="0">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Date" Binding="{Binding Date}" Width="*" />
+                        <DataGridTextColumn Header="Time" Binding="{Binding Time}" Width="1.4*" />
+                        <DataGridTextColumn Header="State" Binding="{Binding State}" Width="*" />
+                        <DataGridTextColumn Header="Duration" Binding="{Binding Duration}" Width="*" />
+                        <DataGridTextColumn Header="Details" Binding="{Binding Details}" Width="2*" />
                     </DataGrid.Columns>
                 </DataGrid>
             </TabItem>

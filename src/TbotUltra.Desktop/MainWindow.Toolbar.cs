@@ -155,6 +155,7 @@ public partial class MainWindow
             _loopController.MarkClosing();
             _inboxAutoEnabled = false;
             _clockTimer.Stop();
+            CloseCurrentSessionActivityInterval(DateTimeOffset.UtcNow);
             NotifySessionPacingOnlineStopped();
             ResetSessionPacing();
             _copyFeedbackTimer.Stop();

@@ -49,6 +49,7 @@ public sealed class BotConfigStoreTests : IDisposable
             BotOptionPayloadKeys.SessionPacingRuntimeDate,
             BotOptionPayloadKeys.SessionPacingRuntimeSeconds,
             BotOptionPayloadKeys.SessionPacingDailyHistory,
+            BotOptionPayloadKeys.SessionActivityHistory,
             BotOptionPayloadKeys.ActionPacingEnabled,
             BotOptionPayloadKeys.ActionPacingTaskMinSeconds,
             BotOptionPayloadKeys.ActionPacingTaskMaxSeconds,
@@ -105,7 +106,7 @@ public sealed class BotConfigStoreTests : IDisposable
                 ["server_name"] = "Global",
                 ["base_url"] = "https://example.com",
                 [BotOptionPayloadKeys.HeroMinHpForAdventure] = 60,
-                ["server_flavor"] = "ss_travi",
+                ["server_flavor"] = "legacy_value",
                 ["login_path"] = "/login.php",
                 ["village_overview_path"] = "/dorf1.php",
             });

@@ -1167,10 +1167,10 @@ public sealed partial class TravianClient
         return true;
     }
 
-    // Resolves the training form's amount-input NAME for a troop, robust across both server variants.
+    // Resolves the training form's amount-input NAME for a troop.
     // Travian keys these inputs by the tribe-relative slot (t1..t10 on Official); the global unit id is
-    // only used to find the troop's row by its icon. Tries, in order: the slot name, the input inside the
-    // row carrying the u{unitId} icon, then the legacy unit-id name (older SS markup). Returns "" if none.
+    // only used to find the troop's row by its icon. Tries the slot name first, then the input inside the
+    // row carrying the u{unitId} icon. Returns "" if none.
     private async Task<string?> ResolveTroopTrainingInputNameAsync(int troopUnitId, int? troopSlot)
     {
         var resolved = await _page.EvaluateAsync<string>(
@@ -1192,8 +1192,6 @@ public sealed partial class TravianClient
                   const inRow = row && row.querySelector('input[name^="t"], input[id^="t"]');
                   if (inRow) return pick(inRow);
                 }
-                const byUnit = document.querySelector(`input[name="t${unitId}"], input[id="t${unitId}"]`);
-                if (byUnit) return pick(byUnit);
               }
 
               return '';
@@ -1222,7 +1220,7 @@ public sealed partial class TravianClient
               const links = Array.from(action.querySelectorAll('a[href="#"], a'));
               for (const link of links) {
                 const onclick = link.getAttribute('onclick') || '';
-                // SS markup: "t7.value=123"; Official markup: "...find('input').val(123)" or "...value=123".
+                // Official markup can set the max through either jQuery .val(...) or direct .value assignment.
                 const onclickMatch = onclick.match(/(?:\.value\s*=\s*|\.val\(\s*)(\d+)/);
                 if (onclickMatch && onclickMatch[1]) {
                   return onclickMatch[1];

@@ -122,12 +122,14 @@ public partial class MainWindow
     {
         ConfigureSessionPacerFromConfig();
         _sessionPacer.NotifyOnlineSessionStarted();
+        UpdateSessionActivityState(forcePersist: true);
         UpdateSessionPacingUi();
     }
 
     private void NotifySessionPacingOnlineStopped()
     {
         _sessionPacer.NotifyOnlineSessionStopped();
+        UpdateSessionActivityState(forcePersist: true);
         UpdateSessionPacingUi();
     }
 
@@ -203,6 +205,7 @@ public partial class MainWindow
 
             ConfigureSessionPacerFromConfig();
             _sessionPacer.BeginSleep(manual);
+            UpdateSessionActivityState(forcePersist: true);
         }
         finally
         {
@@ -342,29 +345,41 @@ public partial class MainWindow
         }
 
         var progress = _sessionPacer.GetDailyProgress();
+        var activityToday = GetSessionActivityDaySummary(progress.Date);
         DailyOnlineTextBlock.Text = FormatDailyProgressDuration(progress.OnlineToday);
+        DailyWaitingTextBlock.Text = FormatDailyProgressDuration(activityToday.Waiting);
         DailyLeftTextBlock.Text = progress.TimeLeft is null
             ? "-"
             : FormatDailyProgressDuration(progress.TimeLeft.Value);
 
         DailyPacingBorder.ToolTip = progress.Limit is null
-            ? "Daily max is disabled."
-            : $"Configured daily max: {progress.ConfiguredDailyMaxHours}h\nActual limit today: {FormatDailyProgressDuration(progress.Limit.Value)}\nOnline today: {FormatDailyProgressDuration(progress.OnlineToday)}";
+            ? $"Daily max is disabled.\nWaiting today: {FormatDailyProgressDuration(activityToday.Waiting)}"
+            : $"Configured daily max: {progress.ConfiguredDailyMaxHours}h\nActual limit today: {FormatDailyProgressDuration(progress.Limit.Value)}\nOnline today: {FormatDailyProgressDuration(progress.OnlineToday)}\nWaiting today: {FormatDailyProgressDuration(activityToday.Waiting)}";
     }
 
     private void DailyPacingDetailsButton_Click(object sender, RoutedEventArgs e)
     {
+        UpdateSessionActivityState(forcePersist: true);
         var progress = _sessionPacer.GetDailyProgress();
-        var dayRows = BuildDailyPacingDayRows(progress, out var weekTotalText, out var accountTotalText, out var chartPoints);
+        var activityToday = GetSessionActivityDaySummary(progress.Date);
+        var dayRows = BuildDailyPacingDayRows(
+            progress,
+            out var weekTotalText,
+            out var accountTotalText,
+            out var chartPoints,
+            out var firstTimelineDate);
         var taskRows = BuildDailyPacingTaskRows();
+        var timelineRows = BuildDailyPacingTimelineRows(firstTimelineDate, progress.Date);
         var window = new DailyPacingDetailsWindow(
             FormatDailyDetailsDuration(progress.OnlineToday),
+            FormatDailyDetailsDuration(activityToday.Waiting),
             progress.TimeLeft is null ? "Off" : FormatDailyDetailsDuration(progress.TimeLeft.Value),
             progress.Limit is null ? "Off" : FormatDailyDetailsDuration(progress.Limit.Value),
             weekTotalText,
             accountTotalText,
             dayRows,
             taskRows,
+            timelineRows,
             chartPoints)
         {
             Owner = this,
@@ -378,7 +393,8 @@ public partial class MainWindow
         SessionPacerDailyProgress progress,
         out string weekTotalText,
         out string accountTotalText,
-        out IReadOnlyList<DailyPacingChartPoint> chartPoints)
+        out IReadOnlyList<DailyPacingChartPoint> chartPoints,
+        out DateOnly firstTimelineDate)
     {
         var history = ReadDailyPacingHistory()
             .ToDictionary(entry => entry.Date);
@@ -391,6 +407,8 @@ public partial class MainWindow
         var totalOnline = TimeSpan.Zero;
         var weekOnline = TimeSpan.Zero;
         var weekCutoff = progress.Date.AddDays(-6);
+        var activitySummaries = BuildSessionActivityDaySummaries(earliest, progress.Date, DateTimeOffset.UtcNow);
+        firstTimelineDate = earliest;
 
         for (var date = earliest; date <= progress.Date; date = date.AddDays(1))
         {
@@ -410,6 +428,9 @@ public partial class MainWindow
                 limit = progress.Limit;
             }
 
+            var activity = activitySummaries.TryGetValue(date, out var summary)
+                ? summary
+                : new SessionActivityDaySummary(date, TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero);
             totalOnline += online;
             if (date >= weekCutoff)
             {
@@ -419,6 +440,7 @@ public partial class MainWindow
             rows.Add(new DailyPacingDayRow(
                 date.ToString("yyyy-MM-dd"),
                 FormatDailyDetailsDuration(online),
+                FormatDailyDetailsDuration(activity.Waiting),
                 limit is null ? "Off" : FormatDailyDetailsDuration(limit.Value),
                 FormatDailyUsage(online, limit)));
 

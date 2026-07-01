@@ -10,7 +10,7 @@ Djupa mekanismdetaljer ligger i `docs/adr/` och historiken i `docs/history/`.
 
 | Projekt | Ansvar |
 |---|---|
-| `TbotUltra.Core` | Konfiguration (`BotOptions`, `ServerFlavor`), task-payloads och kataloger. Ingen browser eller UI. |
+| `TbotUltra.Core` | Konfiguration (`BotOptions`), task-payloads och kataloger. Ingen browser eller UI. |
 | `TbotUltra.Worker` | Spelautomation via Playwright. `TravianClient` ager serverinteraktion och `BotTaskRunner` kor tasks. |
 | `TbotUltra.Desktop` | WPF-UI med `MainWindow`-partials och ViewModels. `LoadBotOptions()` laser config via `BotOptionsFactory`. |
 
@@ -21,21 +21,13 @@ dotnet build TbotUltra.sln
 .\scripts\Run-Tests.ps1
 ```
 
-## 2. Official och kvarvarande legacy-serverkod
+## 2. Official-only
 
-Official ar huvudmalet. Kvarvarande SS-Travi/legacy-flavor finns endast for
-inte annu borttagna selectors/config-delar och ska minska stegvis.
+Official Travian Legends ar enda malet framåt. Lagg inte tillbaka alternativa
+servervarianter, runtime-switchar for servertyp eller selectorfallbacks for andra servertyper.
 
-### ServerFlavor
-
-1. `ServerFlavor` harleds alltid fran `BaseUrl`-host.
-2. `*.ss-travi.com` ar `SsTravi`; allt annat ar `Official`.
-3. Flavor far inte bindas fran config eller cachas separat.
-4. Lagg inte tillbaka `[ConfigurationKeyName("server_flavor")]`.
-5. Lagg inte tillbaka SS-only floden utan separat beslut.
-6. Kontrollera `[flavor]`-loggen vid misstankt fel serverbeteende.
-
-Detaljer: [ADR 2026-06-01](adr/2026-06-01-server-flavor.md).
+`server_flavor` ar endast en deprecated config-nyckel som rensas bort av config-store.
+Den far inte anvandas for runtime-beteende eller laggas tillbaka i `BotOptions`.
 
 ### Sokvagar
 
@@ -75,7 +67,7 @@ document.querySelector('#stockBarWarehouse, .warehouse .capacity .value')
 
 ## 3. Konfiguration och konto-state
 
-- `bot.json` innehaller endast verkligt globala program-/servervarden. `ServerFlavor` ar aldrig en sparad setting.
+- `bot.json` innehaller endast verkligt globala program-/servervarden. Servervariant ar ingen sparad setting.
 - Konto-/byspecifika val sparas i `config/accounts/<account>/settings.json`. Konto-overlay appliceras ovanpa
   global config; saknad overlay betyder defaults, aldrig ett annat kontos varden.
 - Aldre konto-scopeade varden i `bot.json` migreras en gang till kontots `settings.json` och tas bort globalt.

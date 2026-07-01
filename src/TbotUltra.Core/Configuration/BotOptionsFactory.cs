@@ -29,8 +29,6 @@ public static class BotOptionsFactory
         var queueWaitThresholdMode = configuration[BotOptionPayloadKeys.QueueWaitThresholdMode] ?? "smart";
 
         var baseUrl = (configuration["base_url"] ?? string.Empty).TrimEnd('/');
-        var serverFlavor = ServerFlavorDetector.FromBaseUrl(baseUrl);
-        var isOfficialServer = serverFlavor == ServerFlavor.Official;
         var heroStatPriority = string.IsNullOrWhiteSpace(configuration[BotOptionPayloadKeys.HeroStatPriority])
             ? DefaultHeroStatPriority
             : configuration[BotOptionPayloadKeys.HeroStatPriority]!;
@@ -43,7 +41,6 @@ public static class BotOptionsFactory
         {
             ServerName = configuration["server_name"] ?? string.Empty,
             BaseUrl = baseUrl,
-            // ServerFlavor is a computed property derived from BaseUrl — no assignment needed.
             LoginPath = configuration["login_path"] ?? "/login.php",
             VillageOverviewPath = configuration["village_overview_path"] ?? "/dorf1.php",
             Headless = configuration.GetValue("headless", false),
@@ -110,8 +107,8 @@ public static class BotOptionsFactory
             TroopTrainingWorkshopCheckIron = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopCheckIron, true),
             TroopTrainingWorkshopCheckCrop = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopCheckCrop, true),
             TroopTrainingFallbackCooldownSeconds = ClampTroopTrainingFallbackCooldownSeconds(configuration.GetValue(BotOptionPayloadKeys.TroopTrainingFallbackCooldownSeconds, 120)),
-            NpcTradeEnabled = GetValueOrDefault(configuration, BotOptionPayloadKeys.NpcTradeEnabled, defaultValue: !isOfficialServer),
-            NpcTradeConstructionEnabled = GetValueOrDefault(configuration, BotOptionPayloadKeys.NpcTradeConstructionEnabled, defaultValue: !isOfficialServer),
+            NpcTradeEnabled = GetValueOrDefault(configuration, BotOptionPayloadKeys.NpcTradeEnabled, defaultValue: false),
+            NpcTradeConstructionEnabled = GetValueOrDefault(configuration, BotOptionPayloadKeys.NpcTradeConstructionEnabled, defaultValue: false),
             NpcTradeThresholdPercent = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.NpcTradeThresholdPercent, 90), 1, 100),
             NpcTradeAnalyzeWood = configuration.GetValue(BotOptionPayloadKeys.NpcTradeAnalyzeWood, true),
             NpcTradeAnalyzeClay = configuration.GetValue(BotOptionPayloadKeys.NpcTradeAnalyzeClay, true),
@@ -153,7 +150,7 @@ public static class BotOptionsFactory
             TargetVillageUrl = configuration[BotOptionPayloadKeys.TargetVillageUrl] ?? string.Empty,
             AllowGoldSpending = GetValueOrDefault(configuration, BotOptionPayloadKeys.AllowGoldSpending, defaultValue: false),
             AllowSilverSpending = configuration.GetValue("allow_silver_spending", false),
-            GoldLimit = configuration.GetValue(BotOptionPayloadKeys.GoldLimit, isOfficialServer ? 300 : 800),
+            GoldLimit = configuration.GetValue(BotOptionPayloadKeys.GoldLimit, 300),
             SilverLimit = configuration.GetValue("silver_limit", 100),
             ResourceUpgradeSlotId = configuration.GetValue<int?>(BotOptionPayloadKeys.ResourceUpgradeSlotId),
             ResourceUpgradeTargetLevel = configuration.GetValue<int?>(BotOptionPayloadKeys.ResourceUpgradeTargetLevel),

@@ -708,7 +708,7 @@ public sealed class TravianClientHelperTests
     }
 
     [Fact]
-    public void BuildTroopInputSelectors_IncludesOfficialAndLegacyRallyPointNames()
+    public void BuildTroopInputSelectors_IncludesOfficialRallyPointNames()
     {
         var selectors = TravianClient.BuildTroopInputSelectors("t2");
 

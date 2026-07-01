@@ -339,7 +339,7 @@
                         </StackPanel>
                     </Border>
 
-                    <Border x:Name="DailyPacingBorder" Style="{StaticResource MetricCard}" Width="156">
+                    <Border x:Name="DailyPacingBorder" Style="{StaticResource MetricCard}" Width="168">
                         <StackPanel>
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -347,6 +347,7 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
@@ -366,8 +367,10 @@
                                             Click="DailyPacingDetailsButton_Click" />
                                 </StackPanel>
                                 <TextBlock x:Name="DailyOnlineTextBlock" Grid.Row="0" Grid.Column="1" Text="00:00" Style="{StaticResource DailyMetricValue}" Margin="6,0,0,0" />
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Time left" Style="{StaticResource DailyMetricLabel}" />
-                                <TextBlock x:Name="DailyLeftTextBlock" Grid.Row="1" Grid.Column="1" Text="-" Style="{StaticResource DailyMetricValue}" Margin="6,0,0,0" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Waiting" Style="{StaticResource DailyMetricLabel}" />
+                                <TextBlock x:Name="DailyWaitingTextBlock" Grid.Row="1" Grid.Column="1" Text="00:00" Style="{StaticResource DailyMetricValue}" Margin="6,0,0,0" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Time left" Style="{StaticResource DailyMetricLabel}" />
+                                <TextBlock x:Name="DailyLeftTextBlock" Grid.Row="2" Grid.Column="1" Text="-" Style="{StaticResource DailyMetricValue}" Margin="6,0,0,0" />
                             </Grid>
                         </StackPanel>
                     </Border>
