@@ -1676,7 +1676,7 @@ public partial class MainWindow
     private static bool IsHeroLowHpCooldown(QueueItem item, Exception ex)
     {
         return string.Equals(item.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase)
-               && ex.Message.Contains("adventure_skipped_hp_too_low", StringComparison.OrdinalIgnoreCase);
+               && ex is TaskWaitException { ReasonCode: TaskWaitReasons.HeroHpTooLow };
     }
 
     private async Task ApplyHeroLowHpCooldownUiAsync(TimeSpan cooldown)

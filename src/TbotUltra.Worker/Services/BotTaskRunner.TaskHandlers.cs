@@ -357,7 +357,7 @@ public sealed partial class BotTaskRunner
 
         var nextIndex = (currentIndex + 1) % matchingLists.Count;
         LogContinuousFarmNextSchedule(context, dispatchDelaySeconds, nextIndex);
-        throw BuildContinuousFarmDefer("Continuous farming cooldown active.", dispatchDelaySeconds, nextIndex);
+        throw BuildContinuousFarmDefer("Continuous farming cooldown active.", dispatchDelaySeconds, nextIndex, TaskWaitReasons.WorkQueued);
     }
 
     private static async Task ExecuteSendAllFarmlistsAsync(TaskExecutionContext context, int dispatchDelaySeconds)
@@ -370,7 +370,7 @@ public sealed partial class BotTaskRunner
         var refreshedOverview = await context.Client.ReadFarmListsOverviewAsync(context.CancellationToken);
         await WriteFarmListsSnapshotAsync(context, refreshedOverview);
         LogContinuousFarmNextSchedule(context, dispatchDelaySeconds, 0);
-        throw BuildContinuousFarmDefer("Continuous farming cooldown active.", dispatchDelaySeconds, 0);
+        throw BuildContinuousFarmDefer("Continuous farming cooldown active.", dispatchDelaySeconds, 0, TaskWaitReasons.WorkQueued);
     }
 
     private static async Task RunFarmListLossDeactivationIfEnabledAsync(TaskExecutionContext context)
@@ -395,10 +395,16 @@ public sealed partial class BotTaskRunner
         context.Log($"Continuous farming next scheduled send time={nextTime:yyyy-MM-dd HH:mm:ss zzz}; nextListIndex={nextIndex}; wait={waitSeconds}s.");
     }
 
-    private static InvalidOperationException BuildContinuousFarmDefer(string message, int waitSeconds, int nextIndex)
+    // Farm-send deferrals are normal control flow (cooldown after a send, list not ready, renamed
+    // lists), so they throw TaskWaitException and log as DEFERRED — not FAILED — and never consume
+    // retries. The message keeps the queue_wait_seconds / next-list-index tokens the desktop's
+    // payload extractor reads.
+    private static TaskWaitException BuildContinuousFarmDefer(string message, int waitSeconds, int nextIndex, string? reasonCode = null)
     {
-        return new InvalidOperationException(
-            $"{message} queue_wait_seconds={Math.Max(1, waitSeconds)} {BotOptionPayloadKeys.ContinuousFarmNextListIndex}={Math.Max(0, nextIndex)}");
+        return new TaskWaitException(
+            Math.Max(1, waitSeconds),
+            $"{message} queue_wait_seconds={Math.Max(1, waitSeconds)} {BotOptionPayloadKeys.ContinuousFarmNextListIndex}={Math.Max(0, nextIndex)}",
+            reasonCode);
     }
 
     private static async Task ExecuteSendResourcesBetweenVillagesAsync(TaskExecutionContext context)
@@ -481,14 +487,22 @@ public sealed partial class BotTaskRunner
     // sniffing message text, so a reworded message only needs updating here.
     private static string? DeriveTaskWaitReason(string result)
     {
-        if (result.Contains("queued", StringComparison.OrdinalIgnoreCase))
-        {
-            return TaskWaitReasons.WorkQueued;
-        }
-
         if (result.Contains("hero_reviving", StringComparison.OrdinalIgnoreCase))
         {
             return TaskWaitReasons.HeroReviving;
+        }
+
+        // Both forms: the action token (in "Actions: ..." summaries) and the dedicated hp-too-low
+        // defer message ("Hero HP too low to send."), which does not carry the action token.
+        if (result.Contains("adventure_skipped_hp_too_low", StringComparison.OrdinalIgnoreCase)
+            || result.Contains("Hero HP too low", StringComparison.OrdinalIgnoreCase))
+        {
+            return TaskWaitReasons.HeroHpTooLow;
+        }
+
+        if (result.Contains("queued", StringComparison.OrdinalIgnoreCase))
+        {
+            return TaskWaitReasons.WorkQueued;
         }
 
         return null;

@@ -105,7 +105,10 @@ document.querySelector('.warehouse .capacity .value')
   ar borttagna och ignoreras; Daily max behaller sin egen variation. Schema-granser ar exakta hela timmar.
 - Defer-orsaker ska konsumeras typat: `TaskWaitException.ReasonCode` (`TaskWaitReasons.*`), harledd pa ETT
   stalle (`BotTaskRunner.TaskHandlers.DeriveTaskWaitReason`). Sniffa inte `ex.Message` i Desktop for nya
-  fall — lagg till en reason-kod i stallet.
+  fall — lagg till en reason-kod i stallet. Farm-send-deferrals (cooldown/not ready/renamed) kastar
+  `TaskWaitException` direkt via `BuildContinuousFarmDefer` (loggas DEFERRED, aldrig FAILED, ingen retry-burn);
+  meddelandet behaller `queue_wait_seconds`/`continuous_farm_next_list_index`-tokens som Desktop laser.
+  `troops_blocked=<key>`-tokens ar avsiktligt maskinprotokoll och far inte omformuleras.
 - Items som recovras fran Running vid start defereras ~120s (`JsonQueueStore.RecoveredRunningItemDefer`):
   kraschen kan ha skett efter browser-aktionen men fore defer-persist, sa direkt re-run riskerar dubbelkorning.
 - Interaktiva vantloopar (captcha/manuell login) ar tidsbegransade av `ManualInteractiveWaitMaxDuration`
