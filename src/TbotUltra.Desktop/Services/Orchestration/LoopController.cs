@@ -247,6 +247,49 @@ public sealed class LoopController : IDisposable
         _villageSwitchCts = null;
     }
 
+    // --- Session-scoped CTS ---
+
+    private CancellationTokenSource _sessionScopeCts = new();
+    private readonly object _sessionScopeSync = new();
+
+    /// <summary>
+    /// Token for background/UI refreshes that used to run with <c>CancellationToken.None</c>
+    /// (post-task refreshes, manual status reads). Canceled by <see cref="CancelSessionScope"/>
+    /// when all automation is stopped (stop button, account switch, window close) so those
+    /// refreshes cannot keep holding the worker session gate. Re-arms lazily: the first caller
+    /// after a cancel gets a fresh token. The old CTS is intentionally not disposed — in-flight
+    /// operations may still observe its (canceled) token.
+    /// </summary>
+    public CancellationToken AcquireSessionScopeToken()
+    {
+        lock (_sessionScopeSync)
+        {
+            if (_sessionScopeCts.IsCancellationRequested)
+            {
+                _sessionScopeCts = new CancellationTokenSource();
+                Logger.Invoke("[loop] Session scope re-armed.");
+            }
+
+            return _sessionScopeCts.Token;
+        }
+    }
+
+    /// <summary>Cancels all session-scoped refreshes. Idempotent.</summary>
+    public void CancelSessionScope()
+    {
+        lock (_sessionScopeSync)
+        {
+            if (_sessionScopeCts.IsCancellationRequested)
+            {
+                return;
+            }
+
+            _sessionScopeCts.Cancel();
+        }
+
+        Logger.Invoke("[loop] Session scope canceled.");
+    }
+
     // --- Queue auto-run CTS (long-lived root + per-run linked child) ---
 
     private readonly CancellationTokenSource _queueAutoRunCts = new();
@@ -287,7 +330,7 @@ public sealed class LoopController : IDisposable
 
         _disposed = true;
 
-        foreach (var cts in new[] { _operationCts, _loopCts, _villageSwitchCts, _autoQueueRunCts, _queueAutoRunCts })
+        foreach (var cts in new[] { _operationCts, _loopCts, _villageSwitchCts, _autoQueueRunCts, _queueAutoRunCts, _sessionScopeCts })
         {
             try
             {

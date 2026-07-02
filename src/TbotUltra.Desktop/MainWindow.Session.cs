@@ -526,6 +526,9 @@ public partial class MainWindow
         _loopController.CancelAutoQueueRun();
         _loopController.CancelLoop();
         _loopController.CancelVillageSwitch();
+        // Also abort session-scoped refreshes (post-task/manual status reads) that previously ran
+        // with CancellationToken.None and could outlive the drain below while holding the session gate.
+        _loopController.CancelSessionScope();
 
         var stopDeadline = DateTime.UtcNow.AddSeconds(8);
         while (DateTime.UtcNow < stopDeadline)
@@ -728,7 +731,10 @@ public partial class MainWindow
         {
             try
             {
-                await _botService.ExecuteLogoutAsync(previousOptions, AppendLog, CancellationToken.None);
+                // Time-boxed: if a stuck operation still holds the session gate, the logout must not
+                // hang the whole account switch — ShutdownAsync below force-closes the browser anyway.
+                using var logoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                await _botService.ExecuteLogoutAsync(previousOptions, AppendLog, logoutCts.Token);
             }
             catch (Exception ex)
             {

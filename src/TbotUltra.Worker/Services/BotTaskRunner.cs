@@ -220,7 +220,16 @@ public sealed partial class BotTaskRunner
 
     public async Task ShutdownAsync(Action<string>? log = null)
     {
-        await _sessionGate.WaitAsync();
+        // A stuck operation (unsolved captcha pause, hung navigation) can hold the session gate for
+        // a long time. Shutdown/account switch must not hang behind it: after the timeout we close
+        // the browser anyway, which makes the stuck operation fail fast with a target-closed error
+        // and release the gate on its own.
+        var gateAcquired = await _sessionGate.WaitAsync(TimeSpan.FromSeconds(15));
+        if (!gateAcquired)
+        {
+            log?.Invoke("[browser-session] shutdown: session gate still held after 15s — force-closing the browser to unblock the running operation.");
+        }
+
         try
         {
             if (_travcoPage is not null)
@@ -263,7 +272,10 @@ public sealed partial class BotTaskRunner
         }
         finally
         {
-            _sessionGate.Release();
+            if (gateAcquired)
+            {
+                _sessionGate.Release();
+            }
         }
     }
 

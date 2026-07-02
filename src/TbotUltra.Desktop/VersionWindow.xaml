@@ -4,9 +4,9 @@
         Background="{DynamicResource AppBackgroundBrush}"
         Title="Update"
         Height="340"
-        Width="560"
+        Width="440"
         MinHeight="300"
-        MinWidth="520"
+        MinWidth="420"
         WindowStartupLocation="CenterOwner">
     <Grid Margin="20">
         <Grid.RowDefinitions>
@@ -61,6 +61,7 @@
         <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
             <Button x:Name="UpdateRestartButton" Content="Update &amp; restart" Width="124" Height="32" Margin="0,0,8,0"
                     Visibility="Collapsed"
+                    ToolTipService.ShowOnDisabled="True"
                     Background="{DynamicResource AccentBrush}"
                     BorderBrush="{DynamicResource AccentBrush}"
                     Foreground="{DynamicResource OnAccentBrush}"

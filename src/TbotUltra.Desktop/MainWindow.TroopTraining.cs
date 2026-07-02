@@ -683,7 +683,7 @@ public partial class MainWindow
                 ? _lastBuildingStatus
                 : ResolveCapitalBreweryStatusSeed(capital);
             AppendLog($"[{operationId}] Manual celebration check requested.");
-            await RefreshBreweryCelebrationStatusAsync(options, status, CancellationToken.None);
+            await RefreshBreweryCelebrationStatusAsync(options, status, _loopController.AcquireSessionScopeToken());
             _troopTrainingViewModel.InfoText = "Celebration status refreshed.";
             CompleteOperation(operationId, sw, "Celebration check completed.");
         }
@@ -1092,7 +1092,7 @@ public partial class MainWindow
         {
             await EnsureChromiumInstalledAsync();
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
-            await RefreshTroopTrainingQueuesAsync(options, CancellationToken.None, _lastBuildingStatus?.Buildings, refreshBuildingsBeforeRead: true);
+            await RefreshTroopTrainingQueuesAsync(options, _loopController.AcquireSessionScopeToken(), _lastBuildingStatus?.Buildings, refreshBuildingsBeforeRead: true);
             _troopTrainingViewModel.InfoText = "Troop training queues refreshed.";
             AppendLog($"[{operationId}] Troop training queues refreshed.");
         }

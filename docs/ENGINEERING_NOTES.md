@@ -92,6 +92,12 @@ document.querySelector('.warehouse .capacity .value')
   `JsonQueueStore.RetryFileIo` och `BrowserSession.ReplaceStorageStateWithRetryAsync`.
 - Korrupt `queue.json` kastas inte langre for evigt: `JsonQueueStore.LoadMutable` karantaniserar filen
   (`queue.json.corrupt-<stamp>`), loggar och fortsatter med tom ko.
+- Anvand aldrig `CancellationToken.None` for operationer som tar worker-session-gaten (post-task/manuella
+  refreshes): ta token fran metodens parameter eller `LoopController.AcquireSessionScopeToken()` (cancellas
+  av stop/kontobyte, ater-armas lazily for nasta operation).
+- Interaktiva vantloopar (captcha/manuell login) ar tidsbegransade av `ManualInteractiveWaitMaxDuration`
+  (30 min) — de haller session-gaten och far aldrig vara obegransade. `BotTaskRunner.ShutdownAsync` vantar
+  max 15s pa gaten och force-stanger sedan browsern (fast operation far target-closed och slapper gaten sjalv).
 
 For en ny dashboard-bool ska hela configkedjan uppdateras:
 `BotOptionPayloadKeys` -> `BotOptions` -> `BotOptionsFactory` ->

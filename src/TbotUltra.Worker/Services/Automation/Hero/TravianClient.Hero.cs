@@ -2492,17 +2492,20 @@ public sealed partial class TravianClient : IHeroClient
                   if (isDisabled(node)) return false;
                   const text = ((node.textContent || '') + ' ' + (node.getAttribute('value') || '') + ' ' + (node.getAttribute('title') || '')).toLowerCase();
                   const href = (node.getAttribute('href') || '').toLowerCase();
+                  // Href match must require an adventure id: the bare '/hero/adventures' also matches
+                  // the sidebar navigation link, which was picked (and clicked) whenever the real
+                  // Explore buttons were disabled or not rendered yet.
                   return text.includes('to the adventure')
                     || text.includes('to adventure')
                     || text.includes('start adventure')
                     || text.includes('explore')
-                    || href.includes('/hero/adventures');
+                    || /\/hero\/adventures\/\d+/.test(href);
                 });
               if (candidates.length === 0) return JSON.stringify({ ok: false });
 
               const entries = candidates.map(node => {
                 const row = node.closest('tr');
-                const moveCell = row?.querySelector('td.moveTime');
+                const moveCell = row?.querySelector('td.moveTime, td.duration');
                 const duration = parseDuration(moveCell?.textContent || row?.textContent || '');
                 return { node, duration };
               });
@@ -2510,13 +2513,27 @@ public sealed partial class TravianClient : IHeroClient
               if (order === 'shortest') entries.sort((a, b) => a.duration - b.duration);
               const chosen = entries[0];
               chosen.node.click();
-              return JSON.stringify({ ok: true, durationSeconds: chosen.duration, returnSeconds: 0 });
+              // Unknown duration is MAX_SAFE_INTEGER (parseDuration's sort sentinel) — send null
+              // instead: it does not fit the C# int? and the value only feeds logging/ETA fallback.
+              const duration = chosen.duration === Number.MAX_SAFE_INTEGER ? null : chosen.duration;
+              return JSON.stringify({ ok: true, durationSeconds: duration, returnSeconds: 0 });
             }
             """);
 
-        var picked = string.IsNullOrWhiteSpace(pickedJson)
-            ? null
-            : JsonSerializer.Deserialize<AdventurePickJs>(pickedJson);
+        AdventurePickJs? picked = null;
+        if (!string.IsNullOrWhiteSpace(pickedJson))
+        {
+            try
+            {
+                picked = JsonSerializer.Deserialize<AdventurePickJs>(pickedJson);
+            }
+            catch (JsonException ex)
+            {
+                // A malformed payload must not fail the whole hero_manage task (the pick JS runs
+                // against a live, server-variant DOM). Log and treat as "not sent" — the queue retries.
+                Notify($"[adventure] could not parse adventure pick payload '{pickedJson}': {ex.Message}");
+            }
+        }
 
         if (picked is null || !picked.Ok)
         {
@@ -2713,9 +2730,21 @@ public sealed partial class TravianClient : IHeroClient
             }
             """);
 
-        return string.IsNullOrWhiteSpace(raw)
-            ? null
-            : JsonSerializer.Deserialize<AdventureSelectionPreviewJs>(raw);
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<AdventureSelectionPreviewJs>(raw);
+        }
+        catch (JsonException ex)
+        {
+            // Degrade to "could not read selection" instead of failing hero_manage on a DOM/payload quirk.
+            Notify($"[hero] could not parse adventure preview payload '{raw}': {ex.Message}");
+            return null;
+        }
     }
 
     private async Task<int?> ReadAdventureReturnSecondsAsync(CancellationToken cancellationToken)

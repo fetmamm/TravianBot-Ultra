@@ -423,7 +423,7 @@ public partial class MainWindow
                 {
                     try
                     {
-                        await RefreshConstructionStatusAsync(CancellationToken.None);
+                        await RefreshConstructionStatusAsync(_loopController.AcquireSessionScopeToken());
                     }
                     catch (Exception refreshEx)
                     {
@@ -441,7 +441,7 @@ public partial class MainWindow
                 {
                     try
                     {
-                        await RefreshTroopTrainingUiAfterBuildAsync(item, LoadBotOptions(), CancellationToken.None);
+                        await RefreshTroopTrainingUiAfterBuildAsync(item, LoadBotOptions(), _loopController.AcquireSessionScopeToken());
                     }
                     catch (Exception refreshEx)
                     {

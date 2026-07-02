@@ -771,6 +771,10 @@ public sealed partial class TravianClient : ISessionClient
     {
         var timeoutSeconds = Math.Max(10, _config.ManualLoginTimeoutSeconds);
         var deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
+        // Interactive waits extend the deadline in 10s steps so the user can finish a manual
+        // login/captcha — but never past this cap: the wait holds the worker session gate, so a
+        // forgotten login window must not block the queue and account switching forever.
+        var hardDeadline = DateTime.UtcNow.Add(ManualInteractiveWaitMaxDuration);
         var manualMessageShown = false;
         var pollCount = 0;
         Notify($"[login:verbose] waiting for login confirmation (timeout={timeoutSeconds}s, interactive={_interactive}, browserVisible={_browserVisible})");
@@ -784,6 +788,12 @@ public sealed partial class TravianClient : ISessionClient
                 {
                     Notify($"[login] timeout: login not confirmed after {timeoutSeconds}s (polls={pollCount}, headless/non-interactive)");
                     throw new InvalidOperationException("Login was not confirmed before timeout.");
+                }
+
+                if (DateTime.UtcNow >= hardDeadline)
+                {
+                    Notify($"[login] login/captcha was not completed within {ManualInteractiveWaitMaxDuration.TotalMinutes:F0} minutes — giving up so the bot is not blocked forever.");
+                    throw new InvalidOperationException($"Login was not confirmed within {ManualInteractiveWaitMaxDuration.TotalMinutes:F0} minutes.");
                 }
 
                 if (!manualMessageShown)
