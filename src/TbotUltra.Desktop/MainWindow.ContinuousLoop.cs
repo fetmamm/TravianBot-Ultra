@@ -279,14 +279,40 @@ public partial class MainWindow
         var troopTrainingAccount = _accountStore.ActiveAccountName();
         foreach (var village in automationVillages)
         {
-            if (!IsGroupEnabledForVillage(GetVillageKey(village), QueueGroup.TroopTraining)
-                || HasActiveTaskForVillage("build_troops", village.Name))
+            if (!IsGroupEnabledForVillage(GetVillageKey(village), QueueGroup.TroopTraining))
             {
                 continue;
             }
 
             var trainingPayload = BuildVillageRuntimePayload(village);
             var villageTraining = TroopTrainingSettingsStore.Load(_projectRoot, troopTrainingAccount, GetVillageKey(village));
+            if (villageTraining is not null)
+            {
+                foreach (var pair in villageTraining.ToDictionary())
+                {
+                    trainingPayload[pair.Key] = pair.Value;
+                }
+            }
+
+            if (HasActiveTaskForVillage("build_troops", village.Name))
+            {
+                // The runtime item can stay deferred for hours between runs. Keep its payload snapshot
+                // in sync with the village's current troop settings — otherwise edits (e.g. a new timed
+                // range) never take effect because the item is recreated only after it disappears.
+                var existingPending = activeItems.FirstOrDefault(existing =>
+                    string.Equals(existing.TaskName, "build_troops", StringComparison.OrdinalIgnoreCase)
+                    && existing.Status == QueueStatus.Pending
+                    && string.Equals(GetQueueItemVillageName(existing) ?? string.Empty, village.Name, StringComparison.OrdinalIgnoreCase));
+                if (existingPending is not null
+                    && !QueuePayloadEquals(existingPending.Payload, trainingPayload)
+                    && _botService.UpdateDeferredQueueItem(existingPending.Id, trainingPayload))
+                {
+                    AppendLog($"[troops] refreshed deferred build_troops payload for '{village.Name}' with updated troop settings.");
+                }
+
+                continue;
+            }
+
             var trainingOptions = villageTraining is null
                 ? options
                 : BotOptionsPayloadApplier.Apply(options, villageTraining.ToDictionary());
@@ -305,14 +331,6 @@ public partial class MainWindow
                     $"[troops:verbose] skipped build_troops enqueue for '{village.Name}' — enabled training queue still active for {FormatSmithyDuration(activeQueueWaitSeconds.Value)}.",
                     $"troops:active-queue:{GetVillageKey(village)}");
                 continue;
-            }
-
-            if (villageTraining is not null)
-            {
-                foreach (var pair in villageTraining.ToDictionary())
-                {
-                    trainingPayload[pair.Key] = pair.Value;
-                }
             }
 
             _botService.EnqueueRuntime("build_troops", "Build troops", trainingPayload, priority: -50, maxRetries: 0);
@@ -490,16 +508,16 @@ public partial class MainWindow
             TargetVillageName: options.ReinforcementsTargetVillageName,
             SourceVillageNames: selectedSources,
             TroopRules: BuildReinforcementRulesForRun()).ToDictionary();
-        payload[BotOptionPayloadKeys.ReinforcementsSendIntervalHours] = options.ReinforcementsSendIntervalHours.ToString();
-        payload[BotOptionPayloadKeys.ReinforcementsSendVariationPercent] = options.ReinforcementsSendVariationPercent.ToString();
+        payload[BotOptionPayloadKeys.ReinforcementsSendMinMinutes] = options.ReinforcementsSendMinMinutes.ToString();
+        payload[BotOptionPayloadKeys.ReinforcementsSendMaxMinutes] = options.ReinforcementsSendMaxMinutes.ToString();
         return payload;
     }
 
     private TimeSpan CalculateNextReinforcementAutomaticSendDelay(BotOptions options)
     {
-        var intervalHours = ReinforcementSendDefaults.NormalizeIntervalHours(options.ReinforcementsSendIntervalHours);
-        var variationPercent = ReinforcementSendDefaults.NormalizeVariationPercent(options.ReinforcementsSendVariationPercent);
-        return ReinforcementSendDefaults.CalculateSendDelay(intervalHours, variationPercent);
+        return ReinforcementSendDefaults.CalculateSendDelay(
+            options.ReinforcementsSendMinMinutes,
+            options.ReinforcementsSendMaxMinutes);
     }
 
     private bool ScheduleAutomaticReinforcementSend(Dictionary<string, string> payload, TimeSpan delay, BotOptions options)
@@ -517,12 +535,10 @@ public partial class MainWindow
             return false;
         }
 
-        var variationLabel = options.ReinforcementsSendVariationPercent <= 0
-            ? "No variation"
-            : $"{options.ReinforcementsSendVariationPercent}%";
         AppendLog(
             $"Reinforcements: next automatic send scheduled in {FormatCountdown((int)Math.Ceiling(delay.TotalSeconds))} "
-            + $"(interval={options.ReinforcementsSendIntervalHours}h, variation={variationLabel}).");
+            + $"(range={ReinforcementSendDefaults.NormalizeSendMinMinutes(options.ReinforcementsSendMinMinutes)}-"
+            + $"{ReinforcementSendDefaults.NormalizeSendMaxMinutes(options.ReinforcementsSendMaxMinutes)}m).");
         RequestQueueUiRefresh();
         return true;
     }
@@ -565,8 +581,8 @@ public partial class MainWindow
             return TimeSpan.Zero;
         }
 
-        var intervalHours = ReinforcementSendDefaults.NormalizeIntervalHours(options.ReinforcementsSendIntervalHours);
-        var variationPercent = ReinforcementSendDefaults.NormalizeVariationPercent(options.ReinforcementsSendVariationPercent);
+        var intervalHours = ReinforcementSendDefaults.NormalizeSendMinMinutes(options.ReinforcementsSendMinMinutes);
+        var variationPercent = ReinforcementSendDefaults.NormalizeSendMaxMinutes(options.ReinforcementsSendMaxMinutes);
         var nextSendAt = lastSucceeded.Value.Add(ReinforcementSendDefaults.CalculateSendDelay(intervalHours, variationPercent));
         var remaining = nextSendAt - DateTimeOffset.UtcNow;
         return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
@@ -990,6 +1006,27 @@ public partial class MainWindow
 
     // Tags a runtime item with its target village so the worker switches there before executing, and
     // gates NPC trade per village (master AND per-village both on).
+    // True when two runtime payload snapshots carry identical keys/values. Used to skip queue writes
+    // when a deferred item's payload already matches the current per-village settings.
+    private static bool QueuePayloadEquals(IReadOnlyDictionary<string, string> current, Dictionary<string, string> updated)
+    {
+        if (current.Count != updated.Count)
+        {
+            return false;
+        }
+
+        foreach (var pair in updated)
+        {
+            if (!current.TryGetValue(pair.Key, out var existingValue)
+                || !string.Equals(existingValue, pair.Value, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private Dictionary<string, string> BuildVillageRuntimePayload(VillageSelectionItem village)
     {
         var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -1857,9 +1894,9 @@ public partial class MainWindow
             warnings.Add($"[conservative] could not verify session daily max: {ex.Message}");
         }
 
-        if (options.ContinuousFarmDispatchDelayMinutes < 10)
+        if (options.ContinuousFarmDispatchDelayMinMinutes < 10)
         {
-            warnings.Add($"[conservative] farming dispatch delay is {options.ContinuousFarmDispatchDelayMinutes}m; recommended minimum is 10m.");
+            warnings.Add($"[conservative] farming dispatch delay is {options.ContinuousFarmDispatchDelayMinMinutes}m; recommended minimum is 10m.");
         }
 
         if (string.Equals(options.ContinuousFarmSendMode, FarmingDefaults.SendModeAllAtOnce, StringComparison.Ordinal))

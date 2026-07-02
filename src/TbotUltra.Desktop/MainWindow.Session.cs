@@ -703,7 +703,7 @@ public partial class MainWindow
         var recovered = _botService.ResetOrphanedRunningQueueItems();
         if (recovered > 0)
         {
-            AppendLog($"Recovered {recovered} queue item(s) for '{_accountStore.ActiveAccountName()}' from Running to Pending.");
+            AppendLog($"Recovered {recovered} queue item(s) for '{_accountStore.ActiveAccountName()}' from Running to Pending (first retry in ~2 minutes).");
         }
 
         RefreshQueueUi();
@@ -774,8 +774,8 @@ public partial class MainWindow
             BotOptionPayloadKeys.TargetVillageUrl,
             BotOptionPayloadKeys.ReinforcementsTargetVillageName,
             BotOptionPayloadKeys.ReinforcementsSourceVillageNames,
-            BotOptionPayloadKeys.ReinforcementsSendIntervalHours,
-            BotOptionPayloadKeys.ReinforcementsSendVariationPercent,
+            BotOptionPayloadKeys.ReinforcementsSendMinMinutes,
+            BotOptionPayloadKeys.ReinforcementsSendMaxMinutes,
             BotOptionPayloadKeys.ResourceTransferTargetVillageName,
             BotOptionPayloadKeys.ResourceTransferSourceVillageNames,
             BotOptionPayloadKeys.ContinuousFarmListNames,

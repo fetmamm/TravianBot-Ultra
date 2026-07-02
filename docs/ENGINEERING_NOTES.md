@@ -97,6 +97,17 @@ document.querySelector('.warehouse .capacity .value')
 - Anvand aldrig `CancellationToken.None` for operationer som tar worker-session-gaten (post-task/manuella
   refreshes): ta token fran metodens parameter eller `LoopController.AcquireSessionScopeToken()` (cancellas
   av stop/kontobyte, ater-armas lazily for nasta operation).
+- Tidsintervall styrs med min/max-minuter (inte bas+variation%): farm-dispatch
+  (`continuous_farm_dispatch_delay_min/max_minutes`, default 30-90), reinforcements-send
+  (`reinforcements_send_min/max_minutes`, default 60-120), session pacing run/sleep
+  (`session_pacing_run_min/max_minutes` 40-100, `session_pacing_sleep_min/max_minutes` 20-60).
+  Gamla nycklar (`*_variation_percent`, `session_pacing_max_run_minutes`, `reinforcements_send_interval_hours`)
+  ar borttagna och ignoreras; Daily max behaller sin egen variation. Schema-granser ar exakta hela timmar.
+- Defer-orsaker ska konsumeras typat: `TaskWaitException.ReasonCode` (`TaskWaitReasons.*`), harledd pa ETT
+  stalle (`BotTaskRunner.TaskHandlers.DeriveTaskWaitReason`). Sniffa inte `ex.Message` i Desktop for nya
+  fall — lagg till en reason-kod i stallet.
+- Items som recovras fran Running vid start defereras ~120s (`JsonQueueStore.RecoveredRunningItemDefer`):
+  kraschen kan ha skett efter browser-aktionen men fore defer-persist, sa direkt re-run riskerar dubbelkorning.
 - Interaktiva vantloopar (captcha/manuell login) ar tidsbegransade av `ManualInteractiveWaitMaxDuration`
   (30 min) — de haller session-gaten och far aldrig vara obegransade. `BotTaskRunner.ShutdownAsync` vantar
   max 15s pa gaten och force-stanger sedan browsern (fast operation far target-closed och slapper gaten sjalv).

@@ -428,7 +428,7 @@ public partial class MainWindow : Window
             var recovered = _botService.ResetOrphanedRunningQueueItems();
             if (recovered > 0)
             {
-                AppendLog($"Recovered {recovered} queue item(s) stuck in Running from a previous session; reset to Pending.");
+                AppendLog($"Recovered {recovered} queue item(s) stuck in Running from a previous session; reset to Pending (first retry in ~2 minutes).");
             }
         }
 

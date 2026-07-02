@@ -41,9 +41,10 @@ public sealed class BotConfigStoreTests : IDisposable
             BotOptionPayloadKeys.PostLoginAnalyzeBrewery,
             BotOptionPayloadKeys.PostLoginAnalyzeNewVillages,
             BotOptionPayloadKeys.SessionPacingEnabled,
-            BotOptionPayloadKeys.SessionPacingMaxRunMinutes,
-            BotOptionPayloadKeys.SessionPacingSleepMinutes,
-            BotOptionPayloadKeys.SessionPacingVariationPercent,
+            BotOptionPayloadKeys.SessionPacingRunMinMinutes,
+            BotOptionPayloadKeys.SessionPacingRunMaxMinutes,
+            BotOptionPayloadKeys.SessionPacingSleepMinMinutes,
+            BotOptionPayloadKeys.SessionPacingSleepMaxMinutes,
             BotOptionPayloadKeys.SessionPacingAllowedHours,
             BotOptionPayloadKeys.SessionPacingDailyMaxHours,
             BotOptionPayloadKeys.SessionPacingRuntimeDate,
@@ -238,8 +239,8 @@ public sealed class BotConfigStoreTests : IDisposable
         config[BotOptionPayloadKeys.CollectStepDelayMaxSeconds] = 900;
         config[BotOptionPayloadKeys.AllowGoldSpending] = true;
         config[BotOptionPayloadKeys.GoldLimit] = 500;
-        config[BotOptionPayloadKeys.ReinforcementsSendIntervalHours] = 8;
-        config[BotOptionPayloadKeys.ReinforcementsSendVariationPercent] = 25;
+        config[BotOptionPayloadKeys.ReinforcementsSendMinMinutes] = 8;
+        config[BotOptionPayloadKeys.ReinforcementsSendMaxMinutes] = 25;
         config["allow_silver_spending"] = true;
         config["silver_limit"] = 250;
         config["loop_interval_seconds"] = 90;
@@ -250,8 +251,8 @@ public sealed class BotConfigStoreTests : IDisposable
         Assert.False(global.ContainsKey(BotOptionPayloadKeys.HeroResourceMaxUseEnabled));
         Assert.False(global.ContainsKey(BotOptionPayloadKeys.CollectStepDelayMaxSeconds));
         Assert.False(global.ContainsKey(BotOptionPayloadKeys.AllowGoldSpending));
-        Assert.False(global.ContainsKey(BotOptionPayloadKeys.ReinforcementsSendIntervalHours));
-        Assert.False(global.ContainsKey(BotOptionPayloadKeys.ReinforcementsSendVariationPercent));
+        Assert.False(global.ContainsKey(BotOptionPayloadKeys.ReinforcementsSendMinMinutes));
+        Assert.False(global.ContainsKey(BotOptionPayloadKeys.ReinforcementsSendMaxMinutes));
         Assert.False(global.ContainsKey("allow_silver_spending"));
         Assert.False(global.ContainsKey("loop_interval_seconds"));
 
@@ -260,8 +261,8 @@ public sealed class BotConfigStoreTests : IDisposable
         Assert.Equal(3000, account[BotOptionPayloadKeys.HeroResourceMaxUsePerResource]!.GetValue<int>());
         Assert.Equal(900, account[BotOptionPayloadKeys.CollectStepDelayMaxSeconds]!.GetValue<int>());
         Assert.Equal(500, account[BotOptionPayloadKeys.GoldLimit]!.GetValue<int>());
-        Assert.Equal(8, account[BotOptionPayloadKeys.ReinforcementsSendIntervalHours]!.GetValue<int>());
-        Assert.Equal(25, account[BotOptionPayloadKeys.ReinforcementsSendVariationPercent]!.GetValue<int>());
+        Assert.Equal(8, account[BotOptionPayloadKeys.ReinforcementsSendMinMinutes]!.GetValue<int>());
+        Assert.Equal(25, account[BotOptionPayloadKeys.ReinforcementsSendMaxMinutes]!.GetValue<int>());
         Assert.Equal(250, account["silver_limit"]!.GetValue<int>());
         Assert.Equal(90, account["loop_interval_seconds"]!.GetValue<int>());
     }
@@ -328,8 +329,8 @@ public sealed class BotConfigStoreTests : IDisposable
             });
         var store = CreateStore();
         var config = store.Load();
-        config[BotOptionPayloadKeys.SessionPacingSleepMinutes] = 45;
-        config[BotOptionPayloadKeys.SessionPacingVariationPercent] = 30;
+        config[BotOptionPayloadKeys.SessionPacingSleepMinMinutes] = 45;
+        config[BotOptionPayloadKeys.SessionPacingSleepMaxMinutes] = 90;
         config[BotOptionPayloadKeys.SessionPacingAllowedHours] = new JsonArray(0, 1, 2);
         config[BotOptionPayloadKeys.SessionPacingDailyMaxHours] = 12;
         config[BotOptionPayloadKeys.SessionPacingRuntimeDate] = "2026-06-14";
@@ -347,16 +348,16 @@ public sealed class BotConfigStoreTests : IDisposable
         store.Save(config);
 
         var global = JsonNode.Parse(File.ReadAllText(_configPath))!.AsObject();
-        Assert.False(global.ContainsKey(BotOptionPayloadKeys.SessionPacingSleepMinutes));
-        Assert.False(global.ContainsKey(BotOptionPayloadKeys.SessionPacingVariationPercent));
+        Assert.False(global.ContainsKey(BotOptionPayloadKeys.SessionPacingSleepMinMinutes));
+        Assert.False(global.ContainsKey(BotOptionPayloadKeys.SessionPacingSleepMaxMinutes));
         Assert.False(global.ContainsKey(BotOptionPayloadKeys.SessionPacingAllowedHours));
         Assert.False(global.ContainsKey(BotOptionPayloadKeys.SessionPacingDailyMaxHours));
         Assert.False(global.ContainsKey(BotOptionPayloadKeys.SessionPacingDailyHistory));
         Assert.False(global.ContainsKey(BotOptionPayloadKeys.ActionPacingTaskMinSeconds));
 
         var account = JsonNode.Parse(File.ReadAllText(AccountStoragePaths.AccountSettingsPath(_root, "alice")))!.AsObject();
-        Assert.Equal(45, account[BotOptionPayloadKeys.SessionPacingSleepMinutes]!.GetValue<int>());
-        Assert.Equal(30, account[BotOptionPayloadKeys.SessionPacingVariationPercent]!.GetValue<int>());
+        Assert.Equal(45, account[BotOptionPayloadKeys.SessionPacingSleepMinMinutes]!.GetValue<int>());
+        Assert.Equal(90, account[BotOptionPayloadKeys.SessionPacingSleepMaxMinutes]!.GetValue<int>());
         Assert.Equal(12, account[BotOptionPayloadKeys.SessionPacingDailyMaxHours]!.GetValue<int>());
         Assert.Equal("2026-06-14", account[BotOptionPayloadKeys.SessionPacingRuntimeDate]!.GetValue<string>());
         Assert.Equal(3600, account[BotOptionPayloadKeys.SessionPacingRuntimeSeconds]!.GetValue<int>());

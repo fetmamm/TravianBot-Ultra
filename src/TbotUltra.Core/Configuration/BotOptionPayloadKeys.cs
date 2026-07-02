@@ -97,8 +97,8 @@ public static class BotOptionPayloadKeys
     // Stable Travian farm-list ids (lid) for the selected lists. Persisted alongside the names so
     // the selection survives a village/list rename: the name changes on Travian but the lid does not.
     public const string ContinuousFarmListIds = "continuous_farm_list_ids";
-    public const string ContinuousFarmDispatchDelayMinutes = "continuous_farm_dispatch_delay_minutes";
-    public const string ContinuousFarmDispatchDelayVariationPercent = "continuous_farm_dispatch_delay_variation_percent";
+    public const string ContinuousFarmDispatchDelayMinMinutes = "continuous_farm_dispatch_delay_min_minutes";
+    public const string ContinuousFarmDispatchDelayMaxMinutes = "continuous_farm_dispatch_delay_max_minutes";
     public const string ContinuousFarmSendMode = "continuous_farm_send_mode";
     public const string TownHallCelebrationMode = "town_hall_celebration_mode";
     public const string ContinuousFarmDeactivateLosses = "continuous_farm_deactivate_losses";
@@ -182,15 +182,16 @@ public static class BotOptionPayloadKeys
     public const string ReinforcementsTargetVillageName = "reinforcements_target_village_name";
     public const string ReinforcementsSourceVillageNames = "reinforcements_source_village_names";
     public const string ReinforcementsTroopRules = "reinforcements_troop_rules";
-    public const string ReinforcementsSendIntervalHours = "reinforcements_send_interval_hours";
-    public const string ReinforcementsSendVariationPercent = "reinforcements_send_variation_percent";
+    public const string ReinforcementsSendMinMinutes = "reinforcements_send_min_minutes";
+    public const string ReinforcementsSendMaxMinutes = "reinforcements_send_max_minutes";
 
     public const string UpgradeSelectorProfile = "upgrade_selector_profile";
 
     public const string SessionPacingEnabled = "session_pacing_enabled";
-    public const string SessionPacingMaxRunMinutes = "session_pacing_max_run_minutes";
-    public const string SessionPacingSleepMinutes = "session_pacing_sleep_minutes";
-    public const string SessionPacingVariationPercent = "session_pacing_variation_percent";
+    public const string SessionPacingRunMinMinutes = "session_pacing_run_min_minutes";
+    public const string SessionPacingRunMaxMinutes = "session_pacing_run_max_minutes";
+    public const string SessionPacingSleepMinMinutes = "session_pacing_sleep_min_minutes";
+    public const string SessionPacingSleepMaxMinutes = "session_pacing_sleep_max_minutes";
     public const string SessionPacingAllowedHours = "session_pacing_allowed_hours";
     public const string SessionPacingDailyMaxHours = "session_pacing_daily_max_hours";
     public const string SessionPacingDailyMaxVariationPercent = "session_pacing_daily_max_variation_percent";

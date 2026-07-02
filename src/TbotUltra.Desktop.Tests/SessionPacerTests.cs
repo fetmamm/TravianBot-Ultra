@@ -10,9 +10,10 @@ public sealed class SessionPacerTests
     public void PacingDefaults_UseConservativeSessionDefaults()
     {
         Assert.True(PacingDefaults.SessionPacingEnabled);
-        Assert.Equal(90, PacingDefaults.SessionPacingMaxRunMinutes);
-        Assert.Equal(45, PacingDefaults.SessionPacingSleepMinutes);
-        Assert.Equal(40, PacingDefaults.SessionPacingVariationPercent);
+        Assert.Equal(40, PacingDefaults.SessionPacingRunMinMinutes);
+        Assert.Equal(100, PacingDefaults.SessionPacingRunMaxMinutes);
+        Assert.Equal(20, PacingDefaults.SessionPacingSleepMinMinutes);
+        Assert.Equal(60, PacingDefaults.SessionPacingSleepMaxMinutes);
         Assert.Equal(18, PacingDefaults.SessionPacingDailyMaxHours);
         Assert.Equal(10, PacingDefaults.SessionPacingDailyMaxVariationPercent);
     }
@@ -21,7 +22,7 @@ public sealed class SessionPacerTests
     public void SleepingStatusText_ShowsResumeCountdown()
     {
         var pacer = new SessionPacer();
-        pacer.Configure(new SessionPacerSettings(true, 120, 30, 0));
+        pacer.Configure(new SessionPacerSettings(true, 120, 120, 30, 30));
 
         pacer.BeginSleep();
 
@@ -33,11 +34,11 @@ public sealed class SessionPacerTests
     public void Configure_DoesNotChangeActiveRunDeadline()
     {
         var pacer = new SessionPacer();
-        pacer.Configure(new SessionPacerSettings(true, 120, 30, 0));
+        pacer.Configure(new SessionPacerSettings(true, 120, 120, 30, 30));
         pacer.NotifyAutomationStarted();
         var before = pacer.TimeUntilSleep!.Value;
 
-        pacer.Configure(new SessionPacerSettings(true, 60, 30, 0));
+        pacer.Configure(new SessionPacerSettings(true, 60, 60, 30, 30));
         var after = pacer.TimeUntilSleep!.Value;
 
         Assert.InRange(Math.Abs((before - after).TotalSeconds), 0, 2);
@@ -47,23 +48,23 @@ public sealed class SessionPacerTests
     public void BeginSleep_UsesLatestSleepSettingsAndClampsMinimum()
     {
         var pacer = new SessionPacer();
-        pacer.Configure(new SessionPacerSettings(true, 120, 10, 0));
+        pacer.Configure(new SessionPacerSettings(true, 120, 120, 10, 10));
 
         pacer.BeginSleep();
 
         Assert.Equal(SessionPacerPhase.Sleeping, pacer.Phase);
         Assert.NotNull(pacer.ActiveSleepDuration);
-        Assert.True(pacer.ActiveSleepDuration.Value >= TimeSpan.FromMinutes(30));
+        Assert.True(pacer.ActiveSleepDuration.Value >= TimeSpan.FromMinutes(10));
     }
 
     [Fact]
     public void Configure_WhileSleepingDoesNotEndSleep()
     {
         var pacer = new SessionPacer();
-        pacer.Configure(new SessionPacerSettings(true, 120, 30, 0));
+        pacer.Configure(new SessionPacerSettings(true, 120, 120, 30, 30));
         pacer.BeginSleep();
 
-        pacer.Configure(new SessionPacerSettings(false, 120, 30, 0));
+        pacer.Configure(new SessionPacerSettings(false, 120, 120, 30, 30));
 
         Assert.Equal(SessionPacerPhase.Sleeping, pacer.Phase);
     }
@@ -72,7 +73,7 @@ public sealed class SessionPacerTests
     public void PauseAndResume_PreservesRemainingRunTime()
     {
         var pacer = new SessionPacer();
-        pacer.Configure(new SessionPacerSettings(true, 120, 30, 0));
+        pacer.Configure(new SessionPacerSettings(true, 120, 120, 30, 30));
         pacer.NotifyAutomationStarted();
         var beforePause = pacer.TimeUntilSleep!.Value;
 
@@ -90,7 +91,7 @@ public sealed class SessionPacerTests
     public void Reset_AfterPause_StartsANewRun()
     {
         var pacer = new SessionPacer();
-        pacer.Configure(new SessionPacerSettings(true, 120, 30, 0));
+        pacer.Configure(new SessionPacerSettings(true, 120, 120, 30, 30));
         pacer.NotifyAutomationStarted();
         pacer.NotifyAutomationStopped();
 
@@ -109,8 +110,9 @@ public sealed class SessionPacerTests
         pacer.Configure(new SessionPacerSettings(
             true,
             120,
+            120,
             30,
-            0,
+            30,
             Enumerable.Range(0, 24).Except([2, 3, 4]).ToArray()));
         pacer.SleepStarting += (_, _) => pacer.BeginSleep();
 
@@ -131,8 +133,9 @@ public sealed class SessionPacerTests
         pacer.Configure(new SessionPacerSettings(
             true,
             120,
+            120,
             30,
-            0,
+            30,
             Enumerable.Range(0, 24).Except([2, 3, 4]).ToArray()));
         pacer.SleepStarting += (_, _) => pacer.BeginSleep();
 
@@ -157,8 +160,9 @@ public sealed class SessionPacerTests
         pacer.Configure(new SessionPacerSettings(
             true,
             120,
+            120,
             30,
-            0,
+            30,
             Enumerable.Range(0, 24).Except([2]).ToArray()));
 
         pacer.NotifyAutomationStarted();
@@ -174,8 +178,9 @@ public sealed class SessionPacerTests
         pacer.Configure(new SessionPacerSettings(
             true,
             120,
+            120,
             30,
-            0,
+            30,
             Enumerable.Range(0, 24).ToArray(),
             DailyMaxHours: 12,
             RuntimeDate: new DateOnly(2026, 6, 14),
@@ -197,8 +202,9 @@ public sealed class SessionPacerTests
         pacer.Configure(new SessionPacerSettings(
             true,
             120,
+            120,
             30,
-            0,
+            30,
             Enumerable.Range(0, 24).ToArray(),
             DailyMaxHours: 12,
             RuntimeDate: new DateOnly(2026, 6, 14),
@@ -221,8 +227,9 @@ public sealed class SessionPacerTests
         pacer.Configure(new SessionPacerSettings(
             true,
             120,
+            120,
             30,
-            0,
+            30,
             Enumerable.Range(0, 24).ToArray(),
             DailyMaxHours: 12));
 
@@ -245,8 +252,9 @@ public sealed class SessionPacerTests
         pacer.Configure(new SessionPacerSettings(
             true,
             120,
+            120,
             30,
-            0,
+            30,
             Enumerable.Range(0, 24).ToArray(),
             DailyMaxHours: 12,
             RuntimeDate: new DateOnly(2026, 6, 13),
@@ -266,8 +274,9 @@ public sealed class SessionPacerTests
         pacer.Configure(new SessionPacerSettings(
             true,
             120,
+            120,
             30,
-            0,
+            30,
             Enumerable.Range(0, 24).ToArray(),
             DailyMaxHours: 12,
             RuntimeDate: new DateOnly(2026, 6, 14),
@@ -277,8 +286,9 @@ public sealed class SessionPacerTests
             new SessionPacerSettings(
                 true,
                 120,
+                120,
                 30,
-                0,
+                30,
                 Enumerable.Range(0, 24).ToArray(),
                 DailyMaxHours: 12,
                 RuntimeDate: new DateOnly(2026, 6, 14),
@@ -296,8 +306,9 @@ public sealed class SessionPacerTests
         pacer.Configure(new SessionPacerSettings(
             true,
             120,
+            120,
             30,
-            0,
+            30,
             Enumerable.Range(0, 24).ToArray(),
             DailyMaxHours: 1,
             RuntimeDate: new DateOnly(2026, 6, 14),
@@ -327,8 +338,9 @@ public sealed class SessionPacerTests
             pacer.Configure(new SessionPacerSettings(
                 true,
                 120,
+                120,
                 30,
-                0,
+                30,
                 Enumerable.Range(0, 24).ToArray(),
                 DailyMaxHours: 16,
                 DailyMaxVariationPercent: 40));
@@ -342,25 +354,26 @@ public sealed class SessionPacerTests
     }
 
     [Fact]
-    public void DailyLimit_IgnoresRunSleepVariationPercent()
+    public void DailyLimit_IgnoresRunSleepRange()
     {
         var now = new DateTimeOffset(2026, 6, 14, 12, 0, 0, TimeSpan.Zero);
 
-        TimeSpan LimitWithRunSleepVariation(int runSleepVariationPercent)
+        TimeSpan LimitWithRunRange(int runMaxMinutes)
         {
             var pacer = new SessionPacer(() => now);
             pacer.Configure(new SessionPacerSettings(
                 true,
                 120,
+                runMaxMinutes,
                 30,
-                runSleepVariationPercent,
+                30,
                 Enumerable.Range(0, 24).ToArray(),
                 DailyMaxHours: 16,
                 DailyMaxVariationPercent: 20));
             return pacer.GetDailyProgress().Limit!.Value;
         }
 
-        // The run/sleep "Variation" must not move the daily-max limit — only DailyMaxVariationPercent does.
-        Assert.Equal(LimitWithRunSleepVariation(0), LimitWithRunSleepVariation(100));
+        // The run/sleep min/max range must not move the daily-max limit — only DailyMaxVariationPercent does.
+        Assert.Equal(LimitWithRunRange(120), LimitWithRunRange(600));
     }
 }

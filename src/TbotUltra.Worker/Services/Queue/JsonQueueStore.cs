@@ -362,6 +362,13 @@ public sealed class JsonQueueStore : IQueueStore
         });
     }
 
+    // Recovered items are deferred briefly instead of retried immediately: the crash may have hit
+    // AFTER the browser action (troops queued, attack sent) but BEFORE the defer was persisted, so a
+    // state-changing task could otherwise run twice back-to-back. The delay lets the post-login
+    // status reads land first, and tasks that verify live state (build_troops queue scan,
+    // construction queue read) then see the already-applied work and defer normally.
+    private static readonly TimeSpan RecoveredRunningItemDefer = TimeSpan.FromSeconds(120);
+
     // Resets items stranded in Running (e.g. the process crashed mid-execution) back to Pending so
     // they are retried instead of stuck forever. Only safe to call at startup, before any execution
     // begins — a Running item found then necessarily belongs to a previous, dead session.
@@ -375,7 +382,7 @@ public sealed class JsonQueueStore : IQueueStore
             foreach (var item in items.Where(item => item.Status == QueueStatus.Running))
             {
                 item.Status = QueueStatus.Pending;
-                item.NextAttemptAt = now;
+                item.NextAttemptAt = now.Add(RecoveredRunningItemDefer);
                 item.UpdatedAt = now;
                 resetCount += 1;
             }
