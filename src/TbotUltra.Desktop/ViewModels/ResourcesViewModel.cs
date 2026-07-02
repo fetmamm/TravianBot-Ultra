@@ -158,7 +158,7 @@ public sealed class ResourcesViewModel : BaseViewModel
     {
         var newRows = rows.ToList();
 
-        // The ~16s background resource refresh calls this every tick, almost always with IDENTICAL
+        // The ~20s background resource refresh calls this every tick, almost always with IDENTICAL
         // field data (levels rarely change). RebuildFieldGroups() does Clear()+Add() on the four
         // bound column collections, so re-applying identical data makes the resource panel visibly
         // blip every refresh. Skip the rebuild when nothing actually changed.

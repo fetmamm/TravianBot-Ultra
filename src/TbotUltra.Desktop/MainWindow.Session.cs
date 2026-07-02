@@ -717,7 +717,7 @@ public partial class MainWindow
     private async Task ResetForAccountSwitchAsync(BotOptions previousOptions, bool previousLoggedIn)
     {
         // Disable all background session work BEFORE anything else. While _isLoggedIn /
-        // _browserSessionLikelyOpen are still true, the ~16s resource-refresh tick (and inbox checks)
+        // _browserSessionLikelyOpen are still true, the ~20s resource-refresh tick (and inbox checks)
         // can slip onto the session gate right after logout and silently log the OLD account back in.
         // Flipping these first makes ShouldRunBackgroundResourceSnapshotRefresh() bail; the wait below
         // then drains anything already in flight.
@@ -726,6 +726,12 @@ public partial class MainWindow
         _inboxAutoEnabled = false;
         NotifySessionPacingOnlineStopped();
         await StopAllAutomationAndWaitAsync();
+
+        // bot.json is global, so the previous account's village/farm-list pointers would otherwise leak
+        // into the next account and make its first login navigate to a non-existent village. Strip them
+        // FIRST — a crash/kill during the logout/shutdown below must not leave them behind for the next
+        // start. The old account's logout uses previousOptions (already captured), so this is safe here.
+        ClearPersistedAccountScopedConfig();
 
         if (previousLoggedIn)
         {
@@ -754,11 +760,6 @@ public partial class MainWindow
         // Account switching must clear only in-memory/UI state. Each account's queue.json is preserved
         // and becomes visible again when that account is selected later in the same app session.
         ClearAccountScopedUiState(clearQueue: false);
-
-        // bot.json is global, so the previous account's village/farm-list pointers would otherwise leak
-        // into the next account and make its first login navigate to a non-existent village. Strip them
-        // here; the new account's own settings.json overlay re-supplies its values on the next load.
-        ClearPersistedAccountScopedConfig();
     }
 
     // bot.json is shared across accounts, but a handful of settings point at specific villages or

@@ -208,7 +208,7 @@ public sealed partial class TravianClient
 
     // Session-level cache for the villages list. Spieler.php is expensive to load, but the
     // prefer-cache path only re-reads the lightweight current-page sidebar (no navigation), so a
-    // short TTL lets the ~16s background refresh pick up renamed/new villages promptly while still
+    // short TTL lets the ~20s background refresh pick up renamed/new villages promptly while still
     // sharing one read across rapid successive calls.
     private static readonly TimeSpan VillagesCacheTtl = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan EnsureLoggedInMinInterval = TimeSpan.FromSeconds(16);

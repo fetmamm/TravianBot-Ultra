@@ -494,7 +494,7 @@ public partial class MainWindow : Window
         _buildQueueCountdownTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _buildQueueCountdownTimer.Tick += (_, _) => TickBuildQueueCountdown();
         _buildQueueCountdownTimer.Start();
-        _resourceSnapshotRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(16) };
+        _resourceSnapshotRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
         _resourceSnapshotRefreshTimer.Tick += async (_, _) => await HandleResourceSnapshotRefreshTickAsync();
         _resourceSnapshotRefreshTimer.Start();
         _troopTrainingDeferredRefreshDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };

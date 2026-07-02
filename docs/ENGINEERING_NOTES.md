@@ -82,7 +82,9 @@ document.querySelector('.warehouse .capacity .value')
   Post-build-refreshen kor ocksa `refreshBuildingsBeforeRead: false` — trupptraning andrar inte byggnadslistan.
 - Kontobyte ar full UI/cache-reset, men respektive kontos separata ko och settings ska bevaras, och
   `bot.json`:s konto-scopeade pekare (by-/farmlist-namn/ids) rensas via `ClearPersistedAccountScopedConfig`
-  sa de inte lacker till nasta konto.
+  sa de inte lacker till nasta konto. Rensningen kors FORST i `ResetForAccountSwitchAsync` (fore
+  logout/shutdown) sa en krasch mitt i bytet inte lamnar kvar pekarna. Bakgrunds-ticken (20s) bail:ar
+  pa `_accountSwitchInProgress` sa den aldrig loggar in gamla kontot under bytet.
 - Borttagning av ett inaktivt konto far inte blockeras av det aktiva kontots ko; aktivt konto skyddas medan dess ko har arbete.
 - All ko- och slotbaserad UI-harledning filtreras till vald by eller uttryckligen globala items.
 - Settings-fonstret far inte skriva konto-scopeade overlay-varden tillbaka till global config.

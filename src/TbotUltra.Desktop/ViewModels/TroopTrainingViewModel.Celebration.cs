@@ -110,7 +110,7 @@ public sealed partial class TroopTrainingViewModel
     /// Updates the celebration status text without wiping the cached remaining-seconds
     /// timer or CanStart flag. Used by periodic local refreshes that re-confirm the
     /// brewery exists but don't have a fresh authoritative reading to publish — we don't
-    /// want a 16s status-refresh to clear a running celebration's countdown.
+    /// want a 20s status-refresh to clear a running celebration's countdown.
     /// </summary>
     public void UpdateBreweryStatusTextOnly(string statusText)
     {

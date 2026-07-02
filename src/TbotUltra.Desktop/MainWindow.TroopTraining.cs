@@ -432,7 +432,7 @@ public partial class MainWindow
         // troops-tab Y/N indicator so it doesn't lag behind the dashboard knowledge.
         _troopTrainingViewModel.MarkBreweryExists(true);
 
-        // Don't wipe the running countdown here — local refreshes fire every ~16s while
+        // Don't wipe the running countdown here — local refreshes fire every ~20s while
         // idle and would otherwise erase a running celebration's RemainingSeconds before
         // the next remote read can repopulate it. We just update the status text; the
         // 1Hz TickCountdowns keeps the cached seconds in sync until a remote read

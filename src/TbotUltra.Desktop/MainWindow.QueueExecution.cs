@@ -449,7 +449,7 @@ public partial class MainWindow
                     }
                 }
 
-                // hero_manage deferred for the full revive time. Tag the item so the periodic 16s refresh
+                // hero_manage deferred for the full revive time. Tag the item so the periodic 20s refresh
                 // can release it early if the user revives the hero sooner (e.g. with a bucket) — otherwise
                 // adventures would idle until the original revive countdown elapsed.
                 if (string.Equals(item.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase)
