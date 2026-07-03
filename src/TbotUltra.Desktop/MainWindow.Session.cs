@@ -353,10 +353,23 @@ public partial class MainWindow
         var previousLoggedIn = _isLoggedIn;
         var defaultServers = await FetchDefaultServerOptionsAsync(options);
         var servers = FetchEffectiveServerOptions(defaultServers);
-        var window = new AccountsWindow(_accountStore, _accountDeletionService, _serverCatalogStore, options.ServerName, options.BaseUrl, servers, defaultServers)
+        AccountsWindow window;
+        try
         {
-            Owner = this,
-        };
+            window = new AccountsWindow(_accountStore, _accountDeletionService, _serverCatalogStore, options.ServerName, options.BaseUrl, servers, defaultServers)
+            {
+                Owner = this,
+            };
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"[ui] Accounts window could not initialize normally: {ex.Message}");
+            window = new AccountsWindow(_accountStore, _accountDeletionService, _serverCatalogStore, options.ServerName, options.BaseUrl, Array.Empty<ServerOption>(), Array.Empty<ServerOption>())
+            {
+                Owner = this,
+            };
+        }
+
         window.ShowDialog();
         var activeAccountAfterDialog = _accountStore.ActiveAccountName();
         if (!string.Equals(previouslyActiveAccount, activeAccountAfterDialog, StringComparison.OrdinalIgnoreCase)

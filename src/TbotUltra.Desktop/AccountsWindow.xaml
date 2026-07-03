@@ -155,11 +155,74 @@
                     <CheckBox x:Name="UseProxyCheckBox" Content="Use proxy" VerticalAlignment="Center"
                               Checked="UseProxyCheckBox_Changed" Unchecked="UseProxyCheckBox_Changed" />
                     <ContentControl Style="{DynamicResource InfoTooltipIconStyle}" Margin="6,0,0,0"
-                                    ToolTip="Routes this account's browser traffic through your proxy so it uses a different IP.&#10;Format: host:port or scheme://host:port. With auth: user:pass@host:port.&#10;Examples: 1.2.3.4:8080, socks5://1.2.3.4:1080.&#10;Applies on next bot start." />
+                                    ToolTip="Routes this account's browser traffic through your proxy so it uses a different IP.&#10;Choose proxy type, then enter host/IP and port separately.&#10;Examples: SOCKS5 1.2.3.4 1080, HTTP 1.2.3.4 8080.&#10;Applies on next bot start." />
                 </StackPanel>
-                <TextBox x:Name="ProxyServerTextBox" Grid.Row="4" Grid.Column="1" Margin="0,0,0,8"
-                         IsEnabled="False" TextChanged="EditorField_Changed"
-                         ToolTip="host:port or scheme://host:port. Auth: user:pass@host:port" />
+                <Grid Grid.Row="4" Grid.Column="1" Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="105" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="90" />
+                        <ColumnDefinition Width="105" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0"
+                               Grid.Column="0"
+                               Text="TYPE"
+                               FontSize="10"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource SlateTextBrush}"
+                               Margin="0,0,8,2" />
+                    <TextBlock Grid.Row="0"
+                               Grid.Column="1"
+                               Text="IP"
+                               FontSize="10"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource SlateTextBrush}"
+                               Margin="0,0,8,2" />
+                    <TextBlock Grid.Row="0"
+                               Grid.Column="2"
+                               Text="PORT"
+                               FontSize="10"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource SlateTextBrush}"
+                               Margin="0,0,0,2" />
+
+                    <ComboBox x:Name="ProxySchemeComboBox"
+                              Grid.Row="1"
+                              Grid.Column="0"
+                              Margin="0,0,8,0"
+                              IsEnabled="False"
+                              SelectedValuePath="Tag"
+                              SelectionChanged="ProxySchemeComboBox_SelectionChanged">
+                        <ComboBoxItem Content="SOCKS5" Tag="socks5" />
+                        <ComboBoxItem Content="SOCKS4" Tag="socks4" />
+                        <ComboBoxItem Content="HTTP" Tag="http" />
+                    </ComboBox>
+                    <TextBox x:Name="ProxyHostTextBox"
+                             Grid.Row="1"
+                             Grid.Column="1"
+                             Margin="0,0,8,0"
+                             IsEnabled="False"
+                             TextChanged="EditorField_Changed"
+                             ToolTip="Proxy host or IP, for example 45.61.129.165" />
+                    <TextBox x:Name="ProxyPortTextBox"
+                             Grid.Row="1"
+                             Grid.Column="2"
+                             Margin="0,0,8,0"
+                             IsEnabled="False"
+                             TextChanged="EditorField_Changed"
+                             ToolTip="Proxy port, for example 9050" />
+                    <Button x:Name="CheckProxyButton"
+                            Grid.Row="1"
+                            Grid.Column="3"
+                            Content="Check proxy"
+                            IsEnabled="False"
+                            Click="CheckProxyButton_Click" />
+                </Grid>
 
                 <Border Grid.Row="6"
                         Grid.ColumnSpan="2"

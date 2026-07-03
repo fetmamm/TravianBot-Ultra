@@ -1,9 +1,13 @@
 using System.ComponentModel;
+using System.Diagnostics;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Data;
+using Microsoft.Playwright;
 using TbotUltra.Core.Accounts;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
+using TbotUltra.Worker.Infrastructure;
 
 namespace TbotUltra.Desktop;
 
@@ -53,6 +57,7 @@ public partial class AccountsWindow : Window
         _defaultServerUrl = defaultServerUrl;
         _serverOptions = serverOptions.ToList();
         _defaultServerOptions = defaultServerOptions.ToList();
+        SafeRunAccountEditorAction(() => SelectProxyScheme("socks5"), "initialize proxy type");
         Reload();
     }
 
@@ -127,8 +132,11 @@ public partial class AccountsWindow : Window
         // Set the proxy fields before the InfoTextBlock assignment below so the checkbox handler's
         // hint does not overwrite the "Editing existing account" message.
         UseProxyCheckBox.IsChecked = selected.ProxyEnabled;
-        ProxyServerTextBox.Text = selected.ProxyServer;
-        ProxyServerTextBox.IsEnabled = selected.ProxyEnabled;
+        SafeRunAccountEditorAction(() =>
+        {
+            LoadProxyFields(selected.ProxyServer);
+            SetProxyFieldsEnabled(selected.ProxyEnabled);
+        }, "load proxy fields");
         var serverName = string.IsNullOrWhiteSpace(selected.ServerName) ? _defaultServerName : selected.ServerName;
         var serverUrl = string.IsNullOrWhiteSpace(selected.ServerUrl) ? _defaultServerUrl : selected.ServerUrl;
         SelectServer(serverName, serverUrl);
@@ -378,10 +386,20 @@ public partial class AccountsWindow : Window
         UpdateActionButtons();
     }
 
+    private void ProxySchemeComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (!IsInitialized)
+        {
+            return;
+        }
+
+        UpdateActionButtons();
+    }
+
     private void UseProxyCheckBox_Changed(object sender, RoutedEventArgs e)
     {
         var enabled = UseProxyCheckBox.IsChecked == true;
-        ProxyServerTextBox.IsEnabled = enabled;
+        SafeRunAccountEditorAction(() => SetProxyFieldsEnabled(enabled), "toggle proxy fields");
         if (enabled)
         {
             InfoTextBlock.Text = "Proxy applies on next bot start. Enabling a proxy on an already "
@@ -389,6 +407,37 @@ public partial class AccountsWindow : Window
         }
 
         UpdateActionButtons();
+    }
+
+    private async void CheckProxyButton_Click(object sender, RoutedEventArgs e)
+    {
+        var previousText = CheckProxyButton.Content;
+        CheckProxyButton.IsEnabled = false;
+        CheckProxyButton.Content = "Checking...";
+        InfoTextBlock.Text = "Checking proxy...";
+
+        try
+        {
+            var proxyServer = ValidateCurrentProxyFields();
+            if (!ProxyParser.TryBuild(proxyServer, out var proxy, out var proxyWarning) || proxy is null)
+            {
+                InfoTextBlock.Text = "Proxy check failed: invalid proxy settings.";
+                return;
+            }
+
+            var result = await CheckProxyAsync(proxyServer, proxy);
+            var warningText = string.IsNullOrWhiteSpace(proxyWarning) ? string.Empty : $" Warning: {proxyWarning}";
+            InfoTextBlock.Text = result + warningText;
+        }
+        catch (Exception ex)
+        {
+            InfoTextBlock.Text = $"Proxy check failed: {ex.Message}";
+        }
+        finally
+        {
+            CheckProxyButton.Content = previousText;
+            CheckProxyButton.IsEnabled = UseProxyCheckBox.IsChecked == true;
+        }
     }
 
     private void ServerListButton_Click(object sender, RoutedEventArgs e)
@@ -508,17 +557,24 @@ public partial class AccountsWindow : Window
         var serverUrl = selectedServer?.BaseUrl ?? _defaultServerUrl;
 
         var proxyEnabled = UseProxyCheckBox.IsChecked == true;
-        var proxyServer = ProxyServerTextBox.Text.Trim();
+        var proxyServer = BuildProxyServerString();
         if (proxyEnabled)
         {
-            if (proxyServer.Length == 0)
+            var proxyHost = ProxyHostTextBox.Text.Trim();
+            var proxyPort = ProxyPortTextBox.Text.Trim();
+            if (proxyHost.Length == 0 || proxyPort.Length == 0)
             {
-                throw new InvalidOperationException("Proxy server is required when 'Use proxy' is on.");
+                throw new InvalidOperationException("Proxy host/IP and port are required when 'Use proxy' is on.");
             }
 
-            if (proxyServer.Any(char.IsWhiteSpace))
+            if (proxyHost.Any(char.IsWhiteSpace) || proxyHost.Contains("://", StringComparison.Ordinal) || proxyHost.Contains(':'))
             {
-                throw new InvalidOperationException("Proxy server cannot contain spaces. Use host:port or scheme://host:port.");
+                throw new InvalidOperationException("Proxy host/IP must not contain spaces, scheme, or port. Use the separate type and port fields.");
+            }
+
+            if (!int.TryParse(proxyPort, out var parsedPort) || parsedPort is < 1 or > 65535)
+            {
+                throw new InvalidOperationException("Proxy port must be a number between 1 and 65535.");
             }
         }
 
@@ -560,8 +616,11 @@ public partial class AccountsWindow : Window
         PasswordTextBox.Visibility = Visibility.Collapsed;
         TogglePasswordButton.Content = "Show";
         UseProxyCheckBox.IsChecked = false;
-        ProxyServerTextBox.Text = string.Empty;
-        ProxyServerTextBox.IsEnabled = false;
+        SafeRunAccountEditorAction(() =>
+        {
+            LoadProxyFields(string.Empty);
+            SetProxyFieldsEnabled(false);
+        }, "clear proxy fields");
         SelectServer(_defaultServerName, _defaultServerUrl);
         ServerComboBox.IsEnabled = true;
         CaptureBaseline();
@@ -634,7 +693,7 @@ public partial class AccountsWindow : Window
         _baselinePassword = (_showPassword ? PasswordTextBox.Text : PasswordBox.Password) ?? string.Empty;
         _baselineServerUrl = (ServerComboBox.SelectedItem as ServerOption)?.BaseUrl?.Trim() ?? string.Empty;
         _baselineProxyEnabled = UseProxyCheckBox.IsChecked == true;
-        _baselineProxyServer = ProxyServerTextBox.Text.Trim();
+        _baselineProxyServer = BuildProxyServerString();
     }
 
     private bool HasUnsavedChanges()
@@ -643,13 +702,218 @@ public partial class AccountsWindow : Window
         var currentPassword = (_showPassword ? PasswordTextBox.Text : PasswordBox.Password) ?? string.Empty;
         var currentServerUrl = (ServerComboBox.SelectedItem as ServerOption)?.BaseUrl?.Trim() ?? string.Empty;
         var currentProxyEnabled = UseProxyCheckBox.IsChecked == true;
-        var currentProxyServer = ProxyServerTextBox.Text.Trim();
+        var currentProxyServer = BuildProxyServerString();
 
         return !string.Equals(currentUsername, _baselineUsername, StringComparison.Ordinal)
             || !string.Equals(currentPassword, _baselinePassword, StringComparison.Ordinal)
             || !string.Equals(currentServerUrl, _baselineServerUrl, StringComparison.OrdinalIgnoreCase)
             || currentProxyEnabled != _baselineProxyEnabled
             || !string.Equals(currentProxyServer, _baselineProxyServer, StringComparison.Ordinal);
+    }
+
+    private void SetProxyFieldsEnabled(bool enabled)
+    {
+        if (ProxySchemeComboBox is not null)
+        {
+            ProxySchemeComboBox.IsEnabled = enabled;
+        }
+
+        if (ProxyHostTextBox is not null)
+        {
+            ProxyHostTextBox.IsEnabled = enabled;
+        }
+
+        if (ProxyPortTextBox is not null)
+        {
+            ProxyPortTextBox.IsEnabled = enabled;
+        }
+
+        if (CheckProxyButton is not null)
+        {
+            CheckProxyButton.IsEnabled = enabled;
+        }
+    }
+
+    private void LoadProxyFields(string? proxyServer)
+    {
+        var value = proxyServer?.Trim() ?? string.Empty;
+        var scheme = "socks5";
+        var rest = value;
+        var schemeIndex = value.IndexOf("://", StringComparison.Ordinal);
+        if (schemeIndex >= 0)
+        {
+            scheme = value[..schemeIndex].ToLowerInvariant();
+            rest = value[(schemeIndex + 3)..];
+        }
+
+        var atIndex = rest.LastIndexOf('@');
+        if (atIndex >= 0)
+        {
+            rest = rest[(atIndex + 1)..];
+        }
+
+        var host = rest;
+        var port = string.Empty;
+        var colonIndex = rest.LastIndexOf(':');
+        if (colonIndex > 0 && colonIndex < rest.Length - 1)
+        {
+            host = rest[..colonIndex];
+            port = rest[(colonIndex + 1)..];
+        }
+
+        SelectProxyScheme(scheme);
+        if (ProxyHostTextBox is not null)
+        {
+            ProxyHostTextBox.Text = host;
+        }
+
+        if (ProxyPortTextBox is not null)
+        {
+            ProxyPortTextBox.Text = port;
+        }
+    }
+
+    private void SelectProxyScheme(string scheme)
+    {
+        if (ProxySchemeComboBox is null)
+        {
+            return;
+        }
+
+        var normalized = scheme.Equals("socks4", StringComparison.OrdinalIgnoreCase)
+            ? "socks4"
+            : scheme.Equals("http", StringComparison.OrdinalIgnoreCase)
+                ? "http"
+                : "socks5";
+
+        foreach (var item in ProxySchemeComboBox.Items.OfType<System.Windows.Controls.ComboBoxItem>())
+        {
+            if (string.Equals(item.Tag?.ToString(), normalized, StringComparison.OrdinalIgnoreCase))
+            {
+                ProxySchemeComboBox.SelectedItem = item;
+                return;
+            }
+        }
+    }
+
+    private string BuildProxyServerString()
+    {
+        var scheme = (ProxySchemeComboBox?.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag?.ToString();
+        if (string.IsNullOrWhiteSpace(scheme))
+        {
+            scheme = "socks5";
+        }
+
+        var host = ProxyHostTextBox?.Text.Trim() ?? string.Empty;
+        var port = ProxyPortTextBox?.Text.Trim() ?? string.Empty;
+        if (host.Length == 0 && port.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        return $"{scheme}://{host}:{port}";
+    }
+
+    private string ValidateCurrentProxyFields()
+    {
+        var proxyServer = BuildProxyServerString();
+        var proxyHost = ProxyHostTextBox?.Text.Trim() ?? string.Empty;
+        var proxyPort = ProxyPortTextBox?.Text.Trim() ?? string.Empty;
+        if (proxyHost.Length == 0 || proxyPort.Length == 0)
+        {
+            throw new InvalidOperationException("Enter proxy IP and port first.");
+        }
+
+        if (proxyHost.Any(char.IsWhiteSpace) || proxyHost.Contains("://", StringComparison.Ordinal) || proxyHost.Contains(':'))
+        {
+            throw new InvalidOperationException("Proxy IP must not contain spaces, scheme, or port.");
+        }
+
+        if (!int.TryParse(proxyPort, out var parsedPort) || parsedPort is < 1 or > 65535)
+        {
+            throw new InvalidOperationException("Proxy port must be a number between 1 and 65535.");
+        }
+
+        return proxyServer;
+    }
+
+    private static async Task<string> CheckProxyAsync(string proxyServer, Proxy proxy)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        using var playwright = await Playwright.CreateAsync();
+        await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+        {
+            Headless = true,
+            Proxy = proxy,
+            Timeout = 20000,
+        });
+
+        var page = await browser.NewPageAsync();
+        await page.GotoAsync(
+            "https://ipwho.is/",
+            new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 20000 });
+        timeout.Token.ThrowIfCancellationRequested();
+        var raw = await page.Locator("body").InnerTextAsync(new LocatorInnerTextOptions { Timeout = 5000 });
+        stopwatch.Stop();
+
+        var info = ParseProxyCheckResponse(raw);
+        var maskedProxy = ProxyParser.MaskForLog(proxyServer);
+        return $"Proxy works. IP={info.Ip}; Location={info.Location}; ISP={info.Isp}; Type={maskedProxy}; Latency={stopwatch.ElapsedMilliseconds} ms.";
+    }
+
+    private static ProxyCheckInfo ParseProxyCheckResponse(string raw)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(raw);
+            var root = document.RootElement;
+            var success = !root.TryGetProperty("success", out var successNode) || successNode.GetBoolean();
+            if (!success)
+            {
+                var message = TryGetJsonString(root, "message");
+                throw new InvalidOperationException(string.IsNullOrWhiteSpace(message) ? "IP lookup failed." : message);
+            }
+
+            var ip = TryGetJsonString(root, "ip");
+            var country = TryGetJsonString(root, "country");
+            var region = TryGetJsonString(root, "region");
+            var city = TryGetJsonString(root, "city");
+            var isp = TryGetJsonString(root, "isp");
+            var location = string.Join(", ", new[] { city, region, country }.Where(item => !string.IsNullOrWhiteSpace(item)));
+            return new ProxyCheckInfo(
+                string.IsNullOrWhiteSpace(ip) ? "unknown" : ip,
+                string.IsNullOrWhiteSpace(location) ? "unknown" : location,
+                string.IsNullOrWhiteSpace(isp) ? "unknown" : isp);
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidOperationException($"IP lookup returned invalid data: {ex.Message}");
+        }
+    }
+
+    private static string TryGetJsonString(JsonElement root, string propertyName)
+    {
+        return root.TryGetProperty(propertyName, out var node) && node.ValueKind == JsonValueKind.String
+            ? node.GetString() ?? string.Empty
+            : string.Empty;
+    }
+
+    private sealed record ProxyCheckInfo(string Ip, string Location, string Isp);
+
+    private void SafeRunAccountEditorAction(Action action, string actionName)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception ex)
+        {
+            if (InfoTextBlock is not null)
+            {
+                InfoTextBlock.Text = $"Could not {actionName}: {ex.Message}";
+            }
+        }
     }
 
     private bool PromptToSaveUnsavedChanges()
