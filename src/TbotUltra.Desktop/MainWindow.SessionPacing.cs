@@ -109,27 +109,29 @@ public partial class MainWindow
 
     private void NotifySessionPacingAutomationStarted()
     {
-        // Session pacing follows the Travian browser login state. Automation start/stop no longer
-        // controls daily runtime, because manual online time should count too.
+        ConfigureSessionPacerFromConfig();
+        _sessionPacer.NotifyAutomationStarted();
+        UpdateSessionActivityState(forcePersist: true);
+        UpdateSessionPacingUi();
     }
 
     private void NotifySessionPacingAutomationStopped()
     {
-        // Session pacing follows the Travian browser login state. Logging out/stopping the browser
-        // pauses the timer; stopping only the automation loop does not.
+        _sessionPacer.NotifyAutomationStopped();
+        UpdateSessionActivityState(forcePersist: true);
+        UpdateSessionPacingUi();
     }
 
     private void NotifySessionPacingOnlineStarted()
     {
         ConfigureSessionPacerFromConfig();
-        _sessionPacer.NotifyOnlineSessionStarted();
         UpdateSessionActivityState(forcePersist: true);
         UpdateSessionPacingUi();
     }
 
     private void NotifySessionPacingOnlineStopped()
     {
-        _sessionPacer.NotifyOnlineSessionStopped();
+        _sessionPacer.NotifyAutomationStopped();
         UpdateSessionActivityState(forcePersist: true);
         UpdateSessionPacingUi();
     }
@@ -214,41 +216,6 @@ public partial class MainWindow
         }
     }
 
-    // When the user presses Login during a planned off-hours / daily-limit window, skip the full login and
-    // go straight into the pacing sleep instead of logging in only to immediately log back out. Records
-    // "was logged in" as the pre-sleep state so the Run-now (play) button performs a normal login on
-    // override. Returns true when a planned sleep was entered (the caller should then stop the login).
-    private bool TryEnterPlannedSleepInsteadOfLogin()
-    {
-        if (_loginInProgress || _accountSwitchInProgress || _sessionPacingSleepInProgress)
-        {
-            return false;
-        }
-
-        // Use the latest pacing settings/runtime so the off-hours/daily-limit check is accurate.
-        ConfigureSessionPacerFromConfig();
-        if (!_sessionPacer.ShouldSleepNow())
-        {
-            return false;
-        }
-
-        // Run-now after this sleep should log in (the user asked to be online); it just isn't worth doing
-        // right now during the planned window. Nothing was running, so don't resume a loop on wake.
-        _wasLoggedInBeforeSleep = true;
-        _wasContinuousLoopRunningBeforeSleep = false;
-        _wasQueueAutoRunningBeforeSleep = false;
-
-        if (!_sessionPacer.BeginScheduledSleepNow())
-        {
-            return false;
-        }
-
-        AppendLog("[login] planned sleep window is active — entering sleep instead of logging in. "
-            + "Press the session pacing Run-now button to log in anyway.");
-        UpdateSessionPacingUi();
-        return true;
-    }
-
     private async Task HandleSessionPacingWakeRequestedAsync()
     {
         if (_sessionPacingWakeInProgress)
@@ -298,6 +265,36 @@ public partial class MainWindow
         {
             _sessionPacingWakeInProgress = false;
         }
+    }
+
+    // Login should respect planned off-hours / daily-limit windows, but manual in-session actions
+    // must not start the normal run/sleep timer.
+    private bool TryEnterPlannedSleepInsteadOfLogin()
+    {
+        if (_loginInProgress || _accountSwitchInProgress || _sessionPacingSleepInProgress)
+        {
+            return false;
+        }
+
+        ConfigureSessionPacerFromConfig();
+        if (!_sessionPacer.ShouldSleepNow())
+        {
+            return false;
+        }
+
+        _wasLoggedInBeforeSleep = true;
+        _wasContinuousLoopRunningBeforeSleep = false;
+        _wasQueueAutoRunningBeforeSleep = false;
+
+        if (!_sessionPacer.BeginScheduledSleepNow())
+        {
+            return false;
+        }
+
+        AppendLog("[login] planned sleep window is active — entering sleep instead of logging in. "
+            + "Press the session pacing Run-now button to log in anyway.");
+        UpdateSessionPacingUi();
+        return true;
     }
 
     private async Task SafeSessionPacingInvokeAsync(Func<Task> action)

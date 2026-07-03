@@ -111,6 +111,9 @@ document.querySelector('.warehouse .capacity .value')
   (`session_pacing_run_min/max_minutes` 40-100, `session_pacing_sleep_min/max_minutes` 20-60).
   Gamla nycklar (`*_variation_percent`, `session_pacing_max_run_minutes`, `reinforcements_send_interval_hours`)
   ar borttagna och ignoreras; Daily max behaller sin egen variation. Schema-granser ar exakta hela timmar.
+- Session pacing run/sleep-timern far bara startas av aktiv automation (`Start bot`). Login kan fortfarande
+  ga direkt till planned sleep vid schema/daily-limit; open browser och manuella funktioner som bulk messages
+  far inte starta pacing/sleep-timern.
 - Defer-orsaker ska konsumeras typat: `TaskWaitException.ReasonCode` (`TaskWaitReasons.*`), harledd pa ETT
   stalle (`BotTaskRunner.TaskHandlers.DeriveTaskWaitReason`). Sniffa inte `ex.Message` i Desktop for nya
   fall — lagg till en reason-kod i stallet. Farm-send-deferrals (cooldown/not ready/renamed) kastar
