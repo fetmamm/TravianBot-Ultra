@@ -309,12 +309,12 @@ public sealed partial class TravianClient : IBuildingClient
                     if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByQueue)
                     {
                         var waitSeconds = UpgradeMath.ClampResourceWaitSeconds(actionability.QueueWaitSeconds);
-                        if (ShouldDeferLongWait(waitSeconds))
+                        // Always defer queue waits (release the browser; the queue retries the item).
+                        // A zero wait means the queue should already be free — retry in place.
+                        if (waitSeconds > 0)
                         {
                             return $"Slot {slotId} blocked by queue. queue_wait_seconds={waitSeconds}";
                         }
-                        Notify($"Slot {slotId} blocked by queue. Waiting {waitSeconds}s. queue_wait_seconds={waitSeconds}");
-                        await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
                         continue;
                     }
                     var candidateSummary = string.IsNullOrWhiteSpace(actionability.DebugSummary) ? "none" : actionability.DebugSummary;
@@ -1362,12 +1362,12 @@ public sealed partial class TravianClient : IBuildingClient
                     if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByQueue)
                     {
                         var waitSeconds = UpgradeMath.ClampResourceWaitSeconds(actionability.QueueWaitSeconds);
-                        if (ShouldDeferLongWait(waitSeconds))
+                        // Always defer queue waits (release the browser; the queue retries the item).
+                        // A zero wait means the queue should already be free — retry in place.
+                        if (waitSeconds > 0)
                         {
                             return $"Slot {slotId} blocked by queue. queue_wait_seconds={waitSeconds}";
                         }
-                        Notify($"Slot {slotId} blocked by queue. Waiting {waitSeconds}s. queue_wait_seconds={waitSeconds}");
-                        await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
                         continue;
                     }
                     var candidateSummary = string.IsNullOrWhiteSpace(actionability.DebugSummary) ? "none" : actionability.DebugSummary;
@@ -2211,16 +2211,8 @@ public sealed partial class TravianClient : IBuildingClient
                     : !anyResearchInProgress && anyWaitingForResources
                         ? "waiting for resources"
                         : "queue busy / waiting for resources";
-                if (ShouldDeferLongWait(waitSec))
-                {
-                    Notify($"Smithy: {reasonText}, deferring {waitSec}s for {pending.Count} pending troop(s).");
-                    return $"Smithy: improved {improved}, skipped {skipped}, {pending.Count} pending. queue_wait_seconds={waitSec}";
-                }
-
-                Notify($"Smithy: {reasonText}, waiting {waitSec}s. queue_wait_seconds={waitSec}");
-                await Task.Delay(TimeSpan.FromSeconds(waitSec), cancellationToken);
-                await TryReloadSmithyAsync(cancellationToken);
-                continue;
+                Notify($"Smithy: {reasonText}, deferring {waitSec}s for {pending.Count} pending troop(s).");
+                return $"Smithy: improved {improved}, skipped {skipped}, {pending.Count} pending. queue_wait_seconds={waitSec}";
             }
 
             // Nothing clickable and nothing waiting for the remaining targets — avoid an infinite loop.
@@ -2737,27 +2729,6 @@ public sealed partial class TravianClient : IBuildingClient
         }
 
         return null;
-    }
-
-    private bool ShouldDeferLongWait(int waitSeconds)
-    {
-        if (waitSeconds <= 0)
-        {
-            return false;
-        }
-
-        var mode = _config.QueueWaitThresholdMode?.Trim();
-        if (string.Equals(mode, "smart", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (!int.TryParse(mode, out var thresholdSeconds) || thresholdSeconds < 0)
-        {
-            thresholdSeconds = 10;
-        }
-
-        return waitSeconds > thresholdSeconds;
     }
 
     private static Building? ResolveTargetBuilding(VillageStatus status, string targetBuildingSlotOrName)

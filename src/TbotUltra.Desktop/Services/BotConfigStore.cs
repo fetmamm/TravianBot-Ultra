@@ -60,7 +60,6 @@ public sealed class BotConfigStore
         BotOptionPayloadKeys.TownHallCelebrationMode,
         BotOptionPayloadKeys.ContinuousFarmDeactivateLosses,
         BotOptionPayloadKeys.ContinuousFarmDeactivateOasisLosses,
-        BotOptionPayloadKeys.QueueWaitThresholdMode,
         BotOptionPayloadKeys.PostLoginAnalyzeFarmlists,
         BotOptionPayloadKeys.PostLoginAnalyzeHero,
         BotOptionPayloadKeys.PostLoginAnalyzeHeroInventory,

@@ -35,7 +35,6 @@ public partial class SettingsWindow : Window
         QuickReloginCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginQuickReloginEnabled]?.GetValue<bool>() ?? true;
         AllowSilverSpendingCheckBox.IsChecked = _config["allow_silver_spending"]?.GetValue<bool>() ?? false;
         LoadPacingConfigToUi();
-        SelectQueueWaitThresholdMode(_config[BotOptionPayloadKeys.QueueWaitThresholdMode]?.GetValue<string>() ?? "smart");
         PostLoginAnalyzeFarmlistsCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginAnalyzeFarmlists]?.GetValue<bool>() ?? false;
         PostLoginAnalyzeHeroCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginAnalyzeHero]?.GetValue<bool>() ?? false;
         PostLoginReadTroopTrainingQueueCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginReadTroopTrainingQueue]?.GetValue<bool>() ?? false;
@@ -70,7 +69,8 @@ public partial class SettingsWindow : Window
             _config[BotOptionPayloadKeys.PostLoginQuickReloginEnabled] = QuickReloginCheckBox.IsChecked == true;
             _config["allow_silver_spending"] = AllowSilverSpendingCheckBox.IsChecked == true;
             SavePacingConfigFromUi();
-            _config[BotOptionPayloadKeys.QueueWaitThresholdMode] = GetSelectedQueueWaitThresholdMode();
+            // Queue-wait handling is always "smart" (defer); drop the removed threshold key.
+            _config.Remove("queue_wait_threshold_mode");
             _config[BotOptionPayloadKeys.PostLoginAnalyzeFarmlists] = PostLoginAnalyzeFarmlistsCheckBox.IsChecked == true;
             _config[BotOptionPayloadKeys.PostLoginAnalyzeHero] = PostLoginAnalyzeHeroCheckBox.IsChecked == true;
             _config[BotOptionPayloadKeys.PostLoginReadTroopTrainingQueue] = PostLoginReadTroopTrainingQueueCheckBox.IsChecked == true;
@@ -385,32 +385,6 @@ public partial class SettingsWindow : Window
         }
 
         SilverLimitTextBlock.Text = $"Silver limit: {(int)Math.Round(SilverLimitSlider.Value)}";
-    }
-
-    private void SelectQueueWaitThresholdMode(string mode)
-    {
-        var normalized = string.IsNullOrWhiteSpace(mode) ? "10" : mode.Trim();
-        foreach (var item in QueueWaitThresholdComboBox.Items.OfType<ComboBoxItem>())
-        {
-            if (string.Equals(item.Tag?.ToString(), normalized, StringComparison.OrdinalIgnoreCase))
-            {
-                QueueWaitThresholdComboBox.SelectedItem = item;
-                return;
-            }
-        }
-
-        QueueWaitThresholdComboBox.SelectedIndex = 2;
-    }
-
-    private string GetSelectedQueueWaitThresholdMode()
-    {
-        if (QueueWaitThresholdComboBox.SelectedItem is ComboBoxItem item
-            && !string.IsNullOrWhiteSpace(item.Tag?.ToString()))
-        {
-            return item.Tag!.ToString()!;
-        }
-
-        return "10";
     }
 
 }

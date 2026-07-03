@@ -26,7 +26,6 @@ public static class BotOptionsFactory
             configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMaxMinutes, FarmingDefaults.DefaultDispatchDelayMaxMinutes));
         var continuousFarmSendMode = FarmingDefaults.NormalizeSendMode(configuration[BotOptionPayloadKeys.ContinuousFarmSendMode]);
         var townHallCelebrationMode = TownHallCelebrationDefaults.NormalizeMode(configuration[BotOptionPayloadKeys.TownHallCelebrationMode]);
-        var queueWaitThresholdMode = configuration[BotOptionPayloadKeys.QueueWaitThresholdMode] ?? "smart";
 
         var baseUrl = (configuration["base_url"] ?? string.Empty).TrimEnd('/');
         var heroStatPriority = string.IsNullOrWhiteSpace(configuration[BotOptionPayloadKeys.HeroStatPriority])
@@ -54,7 +53,6 @@ public static class BotOptionsFactory
             TownHallCelebrationMode = townHallCelebrationMode,
             ContinuousFarmDeactivateLosses = configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDeactivateLosses, false),
             ContinuousFarmDeactivateOasisLosses = configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDeactivateOasisLosses, false),
-            QueueWaitThresholdMode = queueWaitThresholdMode,
             PostLoginAnalyzeFarmlists = configuration.GetValue(BotOptionPayloadKeys.PostLoginAnalyzeFarmlists, false),
             PostLoginAnalyzeHero = configuration.GetValue(BotOptionPayloadKeys.PostLoginAnalyzeHero, false),
             PostLoginAnalyzeHeroInventory = configuration.GetValue(BotOptionPayloadKeys.PostLoginAnalyzeHeroInventory, true),
@@ -211,7 +209,6 @@ public static class BotOptionsFactory
             ContinuousFarmDeactivateLosses = source.ContinuousFarmDeactivateLosses,
             ContinuousFarmDeactivateOasisLosses = source.ContinuousFarmDeactivateOasisLosses,
             ContinuousFarmNextListIndex = source.ContinuousFarmNextListIndex,
-            QueueWaitThresholdMode = source.QueueWaitThresholdMode,
             PostLoginAnalyzeFarmlists = source.PostLoginAnalyzeFarmlists,
             PostLoginAnalyzeHero = source.PostLoginAnalyzeHero,
             PostLoginAnalyzeHeroInventory = source.PostLoginAnalyzeHeroInventory,

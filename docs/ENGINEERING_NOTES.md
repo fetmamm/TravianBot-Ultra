@@ -177,6 +177,12 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
   fore profilnavigation och anvand profilen endast for att berika bydata.
 - Map Oasis Analyzer och kartparsning: [ADR 2026-06-20 map-oasis-scan](adr/2026-06-20-map-oasis-scan.md).
   Analyze map oasis ska visa en warning-confirmation fore scan eftersom flodet ar high-volume.
+- "Queue wait threshold" ar BORTTAGEN (2026-07-03): ko-/resursvantor deferras ALLTID (fd "smart").
+  Nyckeln `queue_wait_threshold_mode` finns inte langre (Settings-save stadar bort den);
+  `ShouldDeferLongWait` ar borta — byggnadsuppgraderingar returnerar `queue_wait_seconds=N` direkt
+  vid vantetid > 0, smithy deferrar alltid. Ateruppliva inte vanta-pa-plats (laser _sessionGate).
+  `AllowSilverSpending`/`SilverLimit` anvands INTE av nagon automation (endast lasning for display);
+  tooltipen i Settings sager det — koppla in dem eller ta bort dem om auktionsfunktioner byggs.
 - Headless-lage ar BORTTAGET (2026-07-03): ingen `BotOptions.Headless`, ingen settings-checkbox,
   ingen headless-branch i `AcquireClientLeaseAsync`. Boten kor ALLTID den delade synliga
   browsersessionen. Ateruppliva inte nyckeln "headless" i bot.json (Settings-save tar bort den).

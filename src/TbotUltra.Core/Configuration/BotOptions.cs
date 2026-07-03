@@ -58,9 +58,6 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmNextListIndex)]
     public int ContinuousFarmNextListIndex { get; init; }
 
-    [ConfigurationKeyName(BotOptionPayloadKeys.QueueWaitThresholdMode)]
-    public string QueueWaitThresholdMode { get; init; } = "smart";
-
     [ConfigurationKeyName(BotOptionPayloadKeys.PostLoginAnalyzeFarmlists)]
     public bool PostLoginAnalyzeFarmlists { get; init; }
 

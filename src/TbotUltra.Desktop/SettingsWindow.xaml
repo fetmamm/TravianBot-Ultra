@@ -184,31 +184,7 @@
                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                        Margin="0,0,0,10" />
 
-                            <Grid Margin="0,0,0,10">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="160" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" Margin="0,0,12,0">
-                                    <TextBlock Text="Queue wait threshold" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4" />
-                                    <TextBlock Text="Controls when long waits are deferred back to the smart queues."
-                                               Foreground="{DynamicResource MutedSlateBrush}"
-                                               TextWrapping="Wrap" />
-                                </StackPanel>
-                                <ComboBox x:Name="QueueWaitThresholdComboBox"
-                                          Grid.Column="1"
-                                          Width="150"
-                                          HorizontalAlignment="Left"
-                                          VerticalAlignment="Top">
-                                    <ComboBoxItem Content="2s" Tag="2" />
-                                    <ComboBoxItem Content="5s" Tag="5" />
-                                    <ComboBoxItem Content="10s" Tag="10" />
-                                    <ComboBoxItem Content="20s" Tag="20" />
-                                    <ComboBoxItem Content="Smart" Tag="smart" />
-                                </ComboBox>
-                            </Grid>
-
-                            <StackPanel Orientation="Horizontal" Margin="0,14,0,8">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                 <TextBlock Text="After login"
                                         FontWeight="SemiBold"
                                         Foreground="{DynamicResource TextPrimaryBrush}"

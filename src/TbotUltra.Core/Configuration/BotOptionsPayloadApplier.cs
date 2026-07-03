@@ -49,7 +49,6 @@ public static class BotOptionsPayloadApplier
         var continuousFarmDeactivateLosses = source.ContinuousFarmDeactivateLosses;
         var continuousFarmDeactivateOasisLosses = source.ContinuousFarmDeactivateOasisLosses;
         var continuousFarmNextListIndex = source.ContinuousFarmNextListIndex;
-        var queueWaitThresholdMode = source.QueueWaitThresholdMode;
         var postLoginAnalyzeFarmlists = source.PostLoginAnalyzeFarmlists;
         var postLoginAnalyzeHero = source.PostLoginAnalyzeHero;
         var postLoginAnalyzeHeroInventory = source.PostLoginAnalyzeHeroInventory;
@@ -442,12 +441,6 @@ public static class BotOptionsPayloadApplier
                     && int.TryParse(value, out var nextListIndex))
                 {
                     continuousFarmNextListIndex = Math.Max(0, nextListIndex);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.QueueWaitThresholdMode, StringComparison.OrdinalIgnoreCase))
-                {
-                    queueWaitThresholdMode = value;
                     continue;
                 }
 
@@ -1071,7 +1064,6 @@ public static class BotOptionsPayloadApplier
             ContinuousFarmDeactivateLosses = continuousFarmDeactivateLosses,
             ContinuousFarmDeactivateOasisLosses = continuousFarmDeactivateOasisLosses,
             ContinuousFarmNextListIndex = continuousFarmNextListIndex,
-            QueueWaitThresholdMode = queueWaitThresholdMode,
             PostLoginAnalyzeFarmlists = postLoginAnalyzeFarmlists,
             PostLoginAnalyzeHero = postLoginAnalyzeHero,
             PostLoginAnalyzeHeroInventory = postLoginAnalyzeHeroInventory,
