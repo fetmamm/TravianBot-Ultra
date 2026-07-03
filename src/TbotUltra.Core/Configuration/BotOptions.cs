@@ -13,9 +13,6 @@ public sealed class BotOptions
     [Required]
     public string BaseUrl { get; init; } = string.Empty;
 
-    [ConfigurationKeyName("headless")]
-    public bool Headless { get; init; }
-
     [ConfigurationKeyName("timeout_ms")]
     [Range(1000, int.MaxValue)]
     public int TimeoutMs { get; init; } = 15000;

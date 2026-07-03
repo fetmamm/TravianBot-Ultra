@@ -1517,7 +1517,7 @@ public partial class MainWindow
             var tickSw = Stopwatch.StartNew();
             try
             {
-                AppendLog($"[LOOP {tickId}] START interval={loopDelaySeconds}s, headless={options.Headless}");
+                AppendLog($"[LOOP {tickId}] START interval={loopDelaySeconds}s");
                 await EnsureChromiumInstalledAsync();
                 await HonorPendingVillageSwitchAsync(options, token);
                 await EnsureContinuousLoopConstructionStatusAsync(options, token);

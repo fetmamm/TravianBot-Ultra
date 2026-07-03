@@ -41,7 +41,6 @@ public static class BotOptionsFactory
         {
             ServerName = configuration["server_name"] ?? string.Empty,
             BaseUrl = baseUrl,
-            Headless = configuration.GetValue("headless", false),
             TimeoutMs = configuration.GetValue("timeout_ms", 20000),
             ManualLoginTimeoutSeconds = configuration.GetValue("manual_login_timeout_seconds", 180),
             LoopIntervalSeconds = configuration.GetValue("loop_interval_seconds", 60),
@@ -190,7 +189,6 @@ public static class BotOptionsFactory
 
     public static BotOptions CloneWithOverrides(
         BotOptions source,
-        bool? headlessOverride = null,
         int? resourceUpgradeTargetLevelOverride = null,
         string? targetVillageNameOverride = null,
         string? targetVillageUrlOverride = null)
@@ -199,7 +197,6 @@ public static class BotOptionsFactory
         {
             ServerName = source.ServerName,
             BaseUrl = source.BaseUrl,
-            Headless = headlessOverride ?? source.Headless,
             TimeoutMs = source.TimeoutMs,
             ManualLoginTimeoutSeconds = source.ManualLoginTimeoutSeconds,
             LoopIntervalSeconds = source.LoopIntervalSeconds,

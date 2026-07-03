@@ -624,15 +624,50 @@ public partial class MainWindow : Window
         // Keep the application icon from the exe when the .ico resource is not WPF-decodable.
     }
 
+    // BotOptions is immutable, so one parsed instance can be shared safely. Cached per
+    // (config-store version, active account): LoadBotOptions runs every second from the clock
+    // tick's Next-task preview, and without the cache each call read bot.json + the account
+    // settings from disk (OneDrive) and re-bound the configuration on the UI thread — the main
+    // source of intermittent UI lag. Every write through BotConfigStore bumps Version, and an
+    // account switch changes the account key, so the cache can never serve stale options.
+    private readonly object _botOptionsCacheSync = new();
+    private BotOptions? _botOptionsCache;
+    private int _botOptionsCacheVersion = -1;
+    private string _botOptionsCacheAccount = string.Empty;
+
     private BotOptions LoadBotOptions()
     {
+        var accountName = _accountStore.ActiveAccountName();
+        var version = _botConfigStore.Version;
+        lock (_botOptionsCacheSync)
+        {
+            if (_botOptionsCache is not null
+                && _botOptionsCacheVersion == version
+                && string.Equals(_botOptionsCacheAccount, accountName, StringComparison.OrdinalIgnoreCase))
+            {
+                return _botOptionsCache;
+            }
+        }
+
         var configJson = _botConfigStore.Load().ToJsonString();
         using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(configJson));
         var configuration = new ConfigurationBuilder()
             .SetBasePath(_projectRoot)
             .AddJsonStream(stream)
             .Build();
-        return BotOptionsFactory.FromConfiguration(configuration);
+        var options = BotOptionsFactory.FromConfiguration(configuration);
+
+        // Cache under the version read BEFORE the load: if a save (or Load's own legacy-key
+        // migration) bumped the version meanwhile, the next call simply rebuilds once — the cache
+        // can be conservative but never stale.
+        lock (_botOptionsCacheSync)
+        {
+            _botOptionsCache = options;
+            _botOptionsCacheVersion = version;
+            _botOptionsCacheAccount = accountName;
+        }
+
+        return options;
     }
 
     private void LoadConfigToUi()
@@ -1517,8 +1552,8 @@ public partial class MainWindow : Window
         ToggleUiBusy(true);
         try
         {
-            var options = BotOptionsFactory.CloneWithOverrides(LoadBotOptions(), headlessOverride: false);
-            AppendLog($"[{operationId}] INFO server={options.ServerName}, headless={options.Headless}");
+            var options = LoadBotOptions();
+            AppendLog($"[{operationId}] INFO server={options.ServerName}");
             await EnsureChromiumInstalledAsync();
             await _botService.ExecuteLoginAsync(
                 options,

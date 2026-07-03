@@ -186,6 +186,12 @@ public sealed class BotConfigStore
     private readonly string _configPath;
     private readonly string? _projectRoot;
     private readonly Func<string>? _activeAccountNameProvider;
+    private int _version;
+
+    // Monotonic change counter, bumped on every write through this store. Callers (e.g. the
+    // MainWindow BotOptions cache) use it to know when a cached parse of the config is stale
+    // without re-reading the files from disk.
+    public int Version => Volatile.Read(ref _version);
 
     public BotConfigStore(string configPath, string? projectRoot = null, Func<string>? activeAccountNameProvider = null)
     {
@@ -493,6 +499,7 @@ public sealed class BotConfigStore
         try
         {
             File.Delete(path);
+            Interlocked.Increment(ref _version);
         }
         catch
         {
@@ -517,7 +524,7 @@ public sealed class BotConfigStore
         }
     }
 
-    private static void SaveJson(string path, JsonObject config)
+    private void SaveJson(string path, JsonObject config)
     {
         var directory = Path.GetDirectoryName(path);
         if (!string.IsNullOrWhiteSpace(directory))
@@ -527,6 +534,7 @@ public sealed class BotConfigStore
 
         var options = new JsonSerializerOptions { WriteIndented = true };
         WriteAllTextShared(path, config.ToJsonString(options));
+        Interlocked.Increment(ref _version);
     }
 
     private static string ReadAllTextShared(string path)

@@ -38,10 +38,12 @@
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                        Margin="0,0,0,10" />
-                            <CheckBox x:Name="HeadlessCheckBox" Margin="0,0,0,8" Content="Headless" IsEnabled="False" />
-                            <CheckBox x:Name="DontNotifyNewVersionCheckBox"
-                                      Margin="0,0,0,8"
-                                      Content="Dont notify for new version" />
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <CheckBox x:Name="DontNotifyNewVersionCheckBox"
+                                          Content="Dont notify for new version" />
+                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                ToolTip="Suppresses the popup shown when a newer version is available. Updates can still be checked and installed manually from the version window." />
+                            </StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                 <CheckBox x:Name="QuickReloginCheckBox"
                                           Content="Quick re-login within 10 min" />
@@ -269,7 +271,11 @@
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                        Margin="0,0,0,10" />
-                            <CheckBox x:Name="AllowSilverSpendingCheckBox" Margin="0,0,0,12" Content="Allow silver spending" />
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                <CheckBox x:Name="AllowSilverSpendingCheckBox" Content="Allow silver spending" />
+                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                ToolTip="Not used by any automation yet — reserved for future auction/silver features. The bot only reads your silver amount for display today; nothing spends silver regardless of this setting." />
+                            </StackPanel>
 
                             <TextBlock x:Name="SilverLimitTextBlock" Text="Silver limit: 100" Margin="0,0,0,4" />
                             <Slider x:Name="SilverLimitSlider"

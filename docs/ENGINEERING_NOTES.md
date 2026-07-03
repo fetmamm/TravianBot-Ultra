@@ -177,6 +177,15 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
   fore profilnavigation och anvand profilen endast for att berika bydata.
 - Map Oasis Analyzer och kartparsning: [ADR 2026-06-20 map-oasis-scan](adr/2026-06-20-map-oasis-scan.md).
   Analyze map oasis ska visa en warning-confirmation fore scan eftersom flodet ar high-volume.
+- Headless-lage ar BORTTAGET (2026-07-03): ingen `BotOptions.Headless`, ingen settings-checkbox,
+  ingen headless-branch i `AcquireClientLeaseAsync`. Boten kor ALLTID den delade synliga
+  browsersessionen. Ateruppliva inte nyckeln "headless" i bot.json (Settings-save tar bort den).
+  Playwrights interna warmup-launch (Headless=true i BrowserSession.Warmup) ar orelaterad och kvar.
+- `LoadBotOptions` ar cachad per (`BotConfigStore.Version`, aktivt konto): varje skrivning genom
+  BotConfigStore bumpar `Version` (SaveJson/Delete). Skriv ALDRIG bot.json/account-settings forbi
+  BotConfigStore — da ser cachen inte andringen. `EnvAccountStore.ReadValues` cachar .env pa
+  timestamp+langd (invalideras av skrivningar och externa andringar). Bakgrund: Next task-previewn
+  i 1s-ticken laste config fran disk varje sekund pa UI-traden (OneDrive-lagg).
 - Tribe ar fast per konto och far ALDRIG nedgraderas fran en statuslasning: village-status kan bara
   `Tribe="Unknown"`/tom (t.ex. 20s-ticken under sleep). Bade `SetTribeText` och
   `ApplyTroopTrainingTribeState` ar skyddade — okand tribe ignoreras och nuvarande trooplistor behalls

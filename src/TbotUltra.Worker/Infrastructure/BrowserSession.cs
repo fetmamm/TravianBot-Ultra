@@ -16,7 +16,6 @@ public sealed partial class BrowserSession : IAsyncDisposable
     private static bool _warmupCompleted;
     private readonly BotOptions _config;
     private readonly AccountOptions _account;
-    private readonly bool? _headlessOverride;
     private readonly string _projectRoot;
     private readonly Action<string>? _log;
     private readonly object _transientExternalOriginsGate = new();
@@ -32,13 +31,11 @@ public sealed partial class BrowserSession : IAsyncDisposable
         BotOptions config,
         AccountOptions account,
         string projectRoot,
-        bool? headlessOverride = null,
         Action<string>? log = null)
     {
         _config = config;
         _account = account;
         _projectRoot = projectRoot;
-        _headlessOverride = headlessOverride;
         _log = log;
     }
 

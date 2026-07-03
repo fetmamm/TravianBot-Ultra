@@ -52,11 +52,7 @@ public sealed partial class BotTaskRunner
                 log($"Starting login for server {options.ServerName}.");
                 await client.LoginAsync(cancellationToken);
                 await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken, skipFeatureRefresh: true);
-                log("Login completed and browser session saved.");
-                if (!options.Headless)
-                {
-                    log("Browser stays open (headless is disabled).");
-                }
+                log("Login completed and browser session saved. Browser stays open.");
             });
     }
 
@@ -80,11 +76,7 @@ public sealed partial class BotTaskRunner
                 log($"Starting login for server {options.ServerName}.");
                 await client.LoginAsync(cancellationToken);
                 await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken, skipFeatureRefresh: true);
-                log("Login completed and browser session saved.");
-                if (!options.Headless)
-                {
-                    log("Browser stays open (headless is disabled).");
-                }
+                log("Login completed and browser session saved. Browser stays open.");
 
                 snapshot = await LoadPostLoginSnapshotAsync(client, options, log, cancellationToken);
             });

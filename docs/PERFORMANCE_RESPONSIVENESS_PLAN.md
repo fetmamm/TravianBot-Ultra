@@ -14,32 +14,38 @@ Follow `AGENTS.md` and `docs/ENGINEERING_NOTES.md` before implementation. Change
 
 | Area | Status |
 |---|---|
-| 0. Per-second `LoadBotOptions` disk reads (NEW) | Open — top priority |
+| 0. Per-second `LoadBotOptions` disk reads (NEW) | DONE (BotOptions cache + .env metadata cache) |
 | 1. Session logging | DONE (append-only writes) |
 | 2. Queue reads and UI refresh | Mostly done (store cache + 120ms UI snapshot); full-row rebuild remains |
 | 3. Playwright storage-state saves | DONE (`BrowserStateSaveMode.Skip` on read-only ops) |
 | 4. Background browser refresh | Partially done (20s tick + guards); adaptive schedule not done |
 | 5. Queue and Travco collection updates | Open |
 | 6. One-second UI timer work | Partially done (tab-gated updates); consolidation not done |
-| 7. Config reads and writes | Open (see area 0 for the acute part) |
-| 8. Reusable headless browser session | Open |
+| 7. Config reads and writes | Open (read part done via area 0; write debounce remains) |
+| 8. Reusable headless browser session | OBSOLETE — headless mode removed entirely (2026-07-03) |
 | 9. Global layout scaling and DOM observer | Open |
 
 ## Recommended Order (updated)
 
 | Priority | Area | Expected reward | Risk |
 |---|---|---|---|
-| 1 | 0. Cache `LoadBotOptions` / stop per-second disk reads | Very high | Low-Medium |
-| 2 | 7. Debounce config writes (remaining part) | Medium | Medium |
-| 3 | 5. Incremental queue and Travco UI updates | Medium-High | Medium |
-| 4 | 8. Reusable headless browser session | Very high in headless mode | High |
-| 5 | 4. Adaptive background refresh (remaining part) | Medium | Medium |
-| 6 | 6. Timer consolidation (remaining part) | Medium | Low |
-| 7 | 9. Global layout scaling and DOM observer | Uncertain-Medium | Medium-High |
+| 1 | 7. Debounce config writes (remaining part) | Medium | Medium |
+| 2 | 5. Incremental queue and Travco UI updates | Medium-High | Medium |
+| 3 | 4. Adaptive background refresh (remaining part) | Medium | Medium |
+| 4 | 6. Timer consolidation (remaining part) | Medium | Low |
+| 5 | 9. Global layout scaling and DOM observer | Uncertain-Medium | Medium-High |
 
-## 0. Per-Second Config Reads on the UI Thread (NEW — top priority)
+## 0. Per-Second Config Reads on the UI Thread — DONE (2026-07-03)
 
-### Evidence
+Implemented: `MainWindow.LoadBotOptions` caches the parsed immutable `BotOptions` keyed on
+(`BotConfigStore.Version`, active account); every write through `BotConfigStore` bumps `Version`.
+`EnvAccountStore.ReadValues` caches the parsed .env keyed on file timestamp+length, so
+`ActiveAccountName()` no longer reads the file content per call. Idle seconds now do zero config
+disk reads. External hand-edits to bot.json while the app runs are no longer picked up within 1s
+(accepted tradeoff; the app owns the file — .env hand-edits ARE still picked up via the metadata
+check).
+
+### Original evidence
 
 - The 1s clock tick calls `UpdateNextTaskUi()` every second (`MainWindow.xaml.cs`).
 - That calls `SelectNextQueueItemForContinuousLoop(preview: true)`, which calls `LoadBotOptions()`
@@ -175,30 +181,13 @@ assigning unchanged text/brush values.
 - Test every account switch and settings window save/reset path.
 - Test dashboard toggles and village-scoped overlays.
 
-## 8. Reusable Headless Browser Session — OPEN
+## 8. Reusable Headless Browser Session — OBSOLETE (headless removed 2026-07-03)
 
-### Evidence
-
-- In headless mode, `BotTaskRunner.AcquireClientLeaseAsync` still creates a new `BrowserSession` per
-  operation and disposes it in finalization; repeated tasks repeatedly start Playwright and Chromium.
-  (The visible browser already has a shared session with crash invalidation.)
-
-### Recommended implementation
-
-- Reuse one headless browser context per account/server, similar to the visible shared session.
-- Add explicit health checks, bounded recovery, and cleanup.
-- Reset the session on account/server change, logout, unrecoverable page failure, and shutdown.
-
-### Risks
-
-- Highest lifecycle risk in this plan.
-- Stale pages, memory growth, stuck browser state, and cross-account leakage are possible.
-
-### Verification
-
-- Implement only after the lower-risk I/O and UI improvements.
-- Run long-duration tests with account switching, browser crashes, cancellation, and repeated tasks.
-- Monitor browser memory and page count.
+Headless mode was removed entirely: `BotOptions.Headless`, the disabled Settings checkbox, the
+`headless` config key, the per-operation headless `BrowserSession` branch in
+`AcquireClientLeaseAsync`, and `BrowserSession`'s `headlessOverride` are all gone. The bot always
+runs the shared visible browser session. (Playwright's internal warmup launch still uses a headless
+Chromium — that is unrelated to the removed user-facing mode.)
 
 ## 9. Layout Scaling and Browser DOM Observer — OPEN
 
@@ -229,7 +218,7 @@ assigning unchanged text/brush values.
 1. ~~Append normal log lines instead of rewriting the complete session log.~~ DONE
 2. ~~Reuse one queue snapshot during each UI refresh.~~ DONE
 3. ~~Stop saving Playwright storage state after known read-only operations.~~ DONE
-4. Cache `LoadBotOptions` for the Next-task preview (area 0).
+4. ~~Cache `LoadBotOptions` for the Next-task preview (area 0).~~ DONE
 5. Skip expensive one-second updates for hidden panels (partially done; construction timer remains).
 6. Debounce Travco checkbox persistence.
 

@@ -31,8 +31,6 @@ public partial class SettingsWindow : Window
     private void LoadConfig()
     {
         _config = _store.Load();
-        // Headless is forced off and the checkbox is disabled so the bot can never start headless.
-        HeadlessCheckBox.IsChecked = false;
         DontNotifyNewVersionCheckBox.IsChecked = _config[BotOptionPayloadKeys.DontNotifyNewVersion]?.GetValue<bool>() ?? false;
         QuickReloginCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginQuickReloginEnabled]?.GetValue<bool>() ?? true;
         AllowSilverSpendingCheckBox.IsChecked = _config["allow_silver_spending"]?.GetValue<bool>() ?? false;
@@ -66,7 +64,8 @@ public partial class SettingsWindow : Window
     {
         try
         {
-            _config["headless"] = false; // Forced false: the bot must not run headless. Checkbox is disabled in the UI.
+            // The browser always runs visible; headless mode has been removed entirely.
+            _config.Remove("headless");
             _config[BotOptionPayloadKeys.DontNotifyNewVersion] = DontNotifyNewVersionCheckBox.IsChecked == true;
             _config[BotOptionPayloadKeys.PostLoginQuickReloginEnabled] = QuickReloginCheckBox.IsChecked == true;
             _config["allow_silver_spending"] = AllowSilverSpendingCheckBox.IsChecked == true;

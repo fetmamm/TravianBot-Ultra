@@ -323,18 +323,6 @@ public sealed partial class BotTaskRunner
         bool interactive,
         CancellationToken cancellationToken)
     {
-        if (options.Headless)
-        {
-            var session = new BrowserSession(options, account, _projectContext.RootPath, log: log);
-            var page = await session.OpenPageAsync(cancellationToken);
-            var sessionCache = CreateSeededSessionCache(account, options, log);
-            var client = CreateClient(page, options, account, interactive, log, sessionCache,
-                setConsentDomainsAllowed: allowed => session.ConsentDomainsAllowed = allowed,
-                cleanupAfterBonusVideoAsync: session.CleanupAfterBonusVideoAsync,
-                runInIsolatedBonusVideoBrowserAsync: (action, ct) => session.RunInIsolatedBonusVideoBrowserAsync(action, ct));
-            return new ClientLease(session, client, false);
-        }
-
         var desiredBaseUrl = options.BaseUrl.TrimEnd('/');
         var replaceReasons = new List<string>();
         if (_sharedVisibleSession is null)
@@ -394,7 +382,7 @@ public sealed partial class BotTaskRunner
                 }
             }
 
-            var session = new BrowserSession(options, account, _projectContext.RootPath, headlessOverride: false, log: log);
+            var session = new BrowserSession(options, account, _projectContext.RootPath, log: log);
             var page = await session.OpenPageAsync(cancellationToken);
             _sharedVisibleSession = session;
             _sharedVisiblePage = page;
@@ -450,7 +438,7 @@ public sealed partial class BotTaskRunner
             options,
             account,
             interactive: interactive,
-            browserVisible: !options.Headless,
+            browserVisible: true,
             projectRoot: _projectContext.RootPath,
             statusCallback: log,
             sessionCache: sessionCache,

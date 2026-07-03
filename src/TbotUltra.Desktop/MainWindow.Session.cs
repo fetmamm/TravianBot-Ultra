@@ -57,7 +57,7 @@ public partial class MainWindow
             // navigate away from the landing village to the capital/selected one. The dropdown is synced
             // to the real landing village after the snapshot; use "Switch village" to move on purpose.
             var options = LoadBotOptions();
-            AppendLog($"[{operationId}] INFO server={options.ServerName}, headless={options.Headless}");
+            AppendLog($"[{operationId}] INFO server={options.ServerName}");
             BrowserInfoTextBlock.Text = "Browser: starting";
 
             await EnsureChromiumInstalledAsync();
@@ -67,7 +67,7 @@ public partial class MainWindow
             // _browserSessionLikelyOpen here: that flag also gates background refresh and village-selection
             // operations, and turning it on before post-login analysis finishes lets those ops race the
             // login on the shared page (tab flicker). The finally block clears this flag.
-            _visibleBrowserLoginInProgress = !options.Headless;
+            _visibleBrowserLoginInProgress = true;
 
             // Quick re-login: the full post-login stack (snapshot + analyzes) was completed for this
             // account only minutes ago, and nothing meaningful changes server-side that fast. Log in,
@@ -75,7 +75,7 @@ public partial class MainWindow
             if (IsQuickReloginWindowActive(out var minutesSinceFullLogin))
             {
                 AppendLog($"[{operationId}] Quick re-login: full post-login stack ran {minutesSinceFullLogin:F0} min ago (<{QuickReloginWindowMinutes} min) — logging in without analyzes.");
-                await _botService.ExecuteLoginAsync(options, AppendLog, keepBrowserOpenAfterLogin: !options.Headless, operationToken);
+                await _botService.ExecuteLoginAsync(options, AppendLog, keepBrowserOpenAfterLogin: true, operationToken);
 
                 BrowserInfoTextBlock.Text = "Browser: idle";
                 StatusTextBlock.Text = "Login completed (quick re-login).";
@@ -106,7 +106,7 @@ public partial class MainWindow
                     AppendLog($"Quick re-login UI refresh failed (continuing): {ex.Message}");
                 }
 
-                _browserSessionLikelyOpen = !options.Headless;
+                _browserSessionLikelyOpen = true;
                 NotifySessionPacingOnlineStarted();
                 CompleteOperation(operationId, operationSw, "Login completed (quick re-login).");
                 return;
@@ -115,7 +115,7 @@ public partial class MainWindow
             var snapshot = await _botService.ExecuteLoginAndLoadPostLoginSnapshotAsync(
                 options,
                 AppendLog,
-                keepBrowserOpenAfterLogin: !options.Headless,
+                keepBrowserOpenAfterLogin: true,
                 cancellationToken: operationToken);
 
             BrowserInfoTextBlock.Text = "Browser: idle";
@@ -213,7 +213,7 @@ public partial class MainWindow
                     GetSelectedVillageName());
             }
 
-            _browserSessionLikelyOpen = !options.Headless;
+            _browserSessionLikelyOpen = true;
             NotifySessionPacingOnlineStarted();
             // Anchor for the quick re-login window: only a COMPLETED full stack counts.
             PersistLastFullPostLoginTimestamp();
@@ -310,7 +310,7 @@ public partial class MainWindow
     private async Task LogoutCoreAsync(string operationId, CancellationToken operationToken, bool clearSavedSession)
     {
         var options = ApplySelectedVillageToOptions(LoadBotOptions());
-        AppendLog($"[{operationId}] INFO server={options.ServerName}, headless={options.Headless}");
+        AppendLog($"[{operationId}] INFO server={options.ServerName}");
         await EnsureChromiumInstalledAsync();
         await _botService.ExecuteLogoutAsync(options, AppendLog, operationToken);
 
