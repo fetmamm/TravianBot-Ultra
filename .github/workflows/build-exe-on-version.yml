@@ -225,6 +225,7 @@ jobs:
           }
 
       - name: Create GitHub release
+        id: create_release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ steps.version.outputs.tag }}
@@ -255,3 +256,39 @@ jobs:
             --target $env:GITHUB_SHA `
             --title "Tbot Ultra $env:VERSION_NUMBER" `
             --notes $notes
+
+          $releaseUrl = gh release view $env:TAG_NAME --repo $env:GITHUB_REPOSITORY --json url -q ".url"
+          if ([string]::IsNullOrWhiteSpace($releaseUrl)) {
+            throw "Release was created, but release URL could not be resolved."
+          }
+
+          "release_url=$releaseUrl" >> $env:GITHUB_OUTPUT
+
+      - name: Announce release in Discord
+        env:
+          DISCORD_ANNOUNCEMENT_WEBHOOK_URL: ${{ secrets.DISCORD_ANNOUNCEMENT_WEBHOOK_URL }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          VERSION_NUMBER: ${{ steps.version.outputs.version }}
+          PORTABLE_NAME: ${{ steps.version.outputs.portable_name }}
+          RELEASE_URL: ${{ steps.create_release.outputs.release_url }}
+          COMMIT_SHA: ${{ github.sha }}
+        shell: pwsh
+        run: |
+          $webhookUrl = $env:DISCORD_ANNOUNCEMENT_WEBHOOK_URL
+          if ([string]::IsNullOrWhiteSpace($webhookUrl)) {
+            $webhookUrl = $env:DISCORD_WEBHOOK_URL
+          }
+          if ([string]::IsNullOrWhiteSpace($webhookUrl)) {
+            throw "Missing GitHub secret: DISCORD_ANNOUNCEMENT_WEBHOOK_URL"
+          }
+
+          $shortSha = $env:COMMIT_SHA.Substring(0, 7)
+          $content = @(
+            "**Tbot Ultra $env:VERSION_NUMBER is released**",
+            "Portable: ``$env:PORTABLE_NAME``",
+            "Commit: ``$shortSha``",
+            "Download: $env:RELEASE_URL"
+          ) -join "`n"
+
+          $payload = @{ content = $content } | ConvertTo-Json -Depth 4
+          Invoke-RestMethod -Uri $webhookUrl -Method Post -ContentType "application/json" -Body $payload | Out-Null
