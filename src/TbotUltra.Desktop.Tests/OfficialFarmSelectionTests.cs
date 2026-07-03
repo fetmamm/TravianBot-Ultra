@@ -167,7 +167,7 @@ public sealed class OfficialFarmSelectionTests
     {
         var rows = new[]
         {
-            OasisRow("1|1", "Wood", occupied: false),
+            OasisRow("1|1", "Wood", occupied: true),
         };
 
         var result = OfficialFarmSelection.Filter(
@@ -184,6 +184,7 @@ public sealed class OfficialFarmSelectionTests
             requireUnoccupiedOasis: true);
 
         var coordinate = Assert.Single(result);
+        Assert.Equal((1, 1), (coordinate.X, coordinate.Y));
         Assert.True(coordinate.RequireUnoccupiedOasis);
     }
 

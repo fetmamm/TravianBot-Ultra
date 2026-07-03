@@ -13,7 +13,8 @@ public static class OfficialFarmSelection
     //   This makes "nearest first" correct for oasis lists (no stored distance) and lets the user change
     //   the reference village without rescraping. When null, the stored row.Distance is used (legacy).
     // oasisTypes: when supplied, only rows whose OasisType is in the set are kept (oasis source lists).
-    // includeOccupied: when false, rows flagged IsOccupied are dropped (oasis source lists).
+    // includeOccupied: when false, rows flagged IsOccupied are dropped unless requireUnoccupiedOasis
+    //   is true. In that mode stale saved occupancy is ignored and the Add-target form live-checks owner.
     // requireUnoccupiedOasis: marks returned coordinates for a live Add-target owner check before Save.
     public static IReadOnlyList<FarmCoordinate> Filter(
         IEnumerable<TravcoListStore.TravcoSavedRow> sourceRows,
@@ -50,7 +51,7 @@ public static class OfficialFarmSelection
                 continue;
             }
 
-            if (!includeOccupied && row.IsOccupied == true)
+            if (!includeOccupied && !requireUnoccupiedOasis && row.IsOccupied == true)
             {
                 continue;
             }

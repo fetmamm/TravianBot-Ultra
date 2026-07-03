@@ -547,6 +547,7 @@ public partial class MainWindow
                 var duplicates = 0;
                 var failed = 0;
                 var notFound = 0;
+                var occupiedSkipped = 0;
                 var invalidCoordinates = new List<FarmCoordinate>();
 
                 foreach (var plan in plans)
@@ -555,6 +556,7 @@ public partial class MainWindow
                     var processedBeforeList = processed;
                     var addedBeforeList = added;
                     var notFoundBeforeList = notFound;
+                    var occupiedBeforeList = occupiedSkipped;
                     var aggregateProgress = new Progress<FarmAddProgress>(value =>
                     {
                         progress.Report(new FarmAddProgress(
@@ -563,7 +565,8 @@ public partial class MainWindow
                             requested,
                             addedBeforeList + value.AddedCount,
                             notFoundBeforeList + value.NotFoundCount,
-                            value.InvalidCoordinate));
+                            value.InvalidCoordinate,
+                            occupiedBeforeList + value.OccupiedOasisSkippedCount));
                     });
 
                     AppendLog(
@@ -586,11 +589,12 @@ public partial class MainWindow
                     duplicates += result.AlreadyInListCount;
                     failed += result.FailedCount;
                     notFound += result.NotFoundCount;
+                    occupiedSkipped += result.OccupiedOasisSkippedCount;
                     invalidCoordinates.AddRange(result.InvalidCoordinates ?? []);
                     AppendLog(
                         $"Finished '{plan.TargetName}': added={result.AddedCount}, " +
                         $"duplicates={result.AlreadyInListCount}, invalid={result.NotFoundCount}, " +
-                        $"failed={result.FailedCount}.");
+                        $"occupiedSkipped={result.OccupiedOasisSkippedCount}, failed={result.FailedCount}.");
                 }
 
                 return new OfficialFarmAddRunResult(
@@ -600,7 +604,8 @@ public partial class MainWindow
                     failed,
                     invalidCoordinates
                         .Distinct()
-                        .ToList());
+                        .ToList(),
+                    OccupiedSkipped: occupiedSkipped);
             }
 
             var villageOptions = GetFarmListCreationVillages()
@@ -670,7 +675,7 @@ public partial class MainWindow
             CompleteOperation(
                 operationId,
                 operationSw,
-                $"Added {runResult.Added}; duplicates {runResult.Duplicates}; failed {runResult.Failed}.");
+                $"Added {runResult.Added}; duplicates {runResult.Duplicates}; occupied skipped {runResult.OccupiedSkipped}; failed {runResult.Failed}.");
 
             return;
         }

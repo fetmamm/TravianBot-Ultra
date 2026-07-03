@@ -51,18 +51,14 @@ public sealed partial class TravianClient
             mode = TownHallCelebrationDefaults.Small;
         }
 
-        if (string.Equals(mode, TownHallCelebrationDefaults.Big, StringComparison.Ordinal))
-        {
-            Notify("[town-hall] big celebration requested but its start selector is not verified yet.");
-            return "Town Hall celebration: big celebration start selector not verified yet. queue_wait_seconds=600";
-        }
-
         Notify($"[town-hall] attempting to start {mode} celebration at slot {townHallSlotId.Value}");
         var startAttempt = await TryStartTownHallCelebrationFromCurrentPageAsync(mode, cancellationToken);
         if (!startAttempt.Started)
         {
             if (await TryHeroResourceTransferForTownHallAsync(
-                    $"Town Hall {mode} celebration (slot {townHallSlotId.Value})", cancellationToken))
+                    $"Town Hall {mode} celebration (slot {townHallSlotId.Value})",
+                    mode,
+                    cancellationToken))
             {
                 Notify("[town-hall] topped up from the hero inventory; retrying start.");
                 startAttempt = await TryStartTownHallCelebrationFromCurrentPageAsync(mode, cancellationToken);
@@ -352,7 +348,8 @@ public sealed partial class TravianClient
 
         var shortfall = await ReadUpgradeShortfallOnBuildPageAsync(
             cancellationToken,
-            preferTownHallCelebration: true);
+            preferTownHallCelebration: true,
+            townHallCelebrationMode: mode);
         if (shortfall is null
             || (shortfall.Wood <= 0 && shortfall.Clay <= 0 && shortfall.Iron <= 0 && shortfall.Crop <= 0))
         {

@@ -319,7 +319,6 @@ public partial class MainWindow : Window
     private bool _suppressAutomationLoopConfigWrite;
     private bool _suppressFarmListUiRefresh;
     private bool _suppressFarmingSettingsConfigWrite;
-    private bool _suppressTownHallCelebrationModeConfigWrite;
     private bool _farmingOperationBusy;
     private DateTimeOffset _lastFarmListsAnalysisAt = DateTimeOffset.MinValue;
     private VillageStatus? _lastBuildingStatus;
@@ -701,7 +700,6 @@ public partial class MainWindow : Window
         ApplyResourceTransferConfigToUi(options);
         ApplyReinforcementConfigToUi(options);
         ApplyFarmingSettingsToUi(options);
-        ApplyTownHallCelebrationModeToUi(options);
         ApplyAutoCollectTasksConfigToUi(options);
         ApplyAutoCollectDailyQuestsConfigToUi(options);
         ApplyHeroResourceTransferConfigToUi(options);

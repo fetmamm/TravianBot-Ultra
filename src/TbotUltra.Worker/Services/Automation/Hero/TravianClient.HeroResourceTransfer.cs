@@ -54,6 +54,7 @@ public sealed partial class TravianClient
     // Gated separately so the user can opt Town Hall in without changing construction/brewery behavior.
     private async Task<bool> TryHeroResourceTransferForTownHallAsync(
         string label,
+        string mode,
         CancellationToken cancellationToken)
     {
         if (!_config.HeroResourceUseTownHall)
@@ -64,7 +65,8 @@ public sealed partial class TravianClient
         return await TryHeroResourceTransferOnCurrentBuildPageAsync(
             label,
             cancellationToken,
-            preferTownHallCelebration: true);
+            preferTownHallCelebration: true,
+            townHallCelebrationMode: mode);
     }
 
     // Generic build-page hero top-up: probes for a transfer icon, applies the per-resource use
@@ -73,7 +75,8 @@ public sealed partial class TravianClient
     private async Task<bool> TryHeroResourceTransferOnCurrentBuildPageAsync(
         string label,
         CancellationToken cancellationToken,
-        bool preferTownHallCelebration = false)
+        bool preferTownHallCelebration = false,
+        string? townHallCelebrationMode = null)
     {
         _heroTransferOverLimitWaitSeconds = null;
 
@@ -88,18 +91,22 @@ public sealed partial class TravianClient
         {
             transferAvailable = await _page.EvaluateAsync<bool>(
                 """
-                (preferTownHallCelebration) => {
+                (args) => {
                   const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
                   const findTownHallCelebrationScope = () => {
                     const root = document.querySelector('.build_details') || document;
                     const rows = Array.from(root.querySelectorAll('.research, tr, li, .row, .information'));
-                    return rows.find(row => /small\s+celebration/i.test(normalize(row.textContent || ''))) || root;
+                    const mode = String(args.townHallCelebrationMode || '').toLowerCase();
+                    const pattern = mode === 'big'
+                      ? /(big|great|large)\s+celebration/i
+                      : /small\s+celebration/i;
+                    return rows.find(row => pattern.test(normalize(row.textContent || ''))) || root;
                   };
-                  const root = preferTownHallCelebration ? findTownHallCelebrationScope() : document;
+                  const root = args.preferTownHallCelebration ? findTownHallCelebrationScope() : document;
                   return !!root?.querySelector('.inlineIcon.resource.transfer');
                 }
                 """,
-                preferTownHallCelebration);
+                new { preferTownHallCelebration, townHallCelebrationMode });
         }
         catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
         {
@@ -117,7 +124,8 @@ public sealed partial class TravianClient
         // the hero-use limit gate and the cached-inventory cover check below.
         var shortfall = await ReadUpgradeShortfallOnBuildPageAsync(
             cancellationToken,
-            preferTownHallCelebration);
+            preferTownHallCelebration,
+            townHallCelebrationMode);
 
         // Hero-use limit gate: if covering any single resource from the hero would pull more than the
         // configured per-resource limit, skip the transfer and defer until the village has produced
@@ -162,6 +170,7 @@ public sealed partial class TravianClient
         {
             var opened = await TryClickHeroResourceTransferIconAsync(
                 preferTownHallCelebration,
+                townHallCelebrationMode,
                 cancellationToken);
             if (!opened)
             {
@@ -394,13 +403,14 @@ public sealed partial class TravianClient
 
     private async Task<bool> TryClickHeroResourceTransferIconAsync(
         bool preferTownHallCelebration,
+        string? townHallCelebrationMode,
         CancellationToken cancellationToken)
     {
         await DelayBeforeClickAsync(cancellationToken, "open hero resource transfer");
 
         return await _page.EvaluateAsync<bool>(
             """
-            (preferTownHallCelebration) => {
+            (args) => {
               const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
               const isVisible = (node) => {
                 if (!node || !(node instanceof Element)) return false;
@@ -412,10 +422,14 @@ public sealed partial class TravianClient
               const findTownHallCelebrationScope = () => {
                 const root = document.querySelector('.build_details') || document;
                 const rows = Array.from(root.querySelectorAll('.research, tr, li, .row, .information'));
-                return rows.find(row => /small\s+celebration/i.test(normalize(row.textContent || ''))) || root;
+                const mode = String(args.townHallCelebrationMode || '').toLowerCase();
+                const pattern = mode === 'big'
+                  ? /(big|great|large)\s+celebration/i
+                  : /small\s+celebration/i;
+                return rows.find(row => pattern.test(normalize(row.textContent || ''))) || root;
               };
-              const root = preferTownHallCelebration ? findTownHallCelebrationScope() : document;
-              const selectors = preferTownHallCelebration
+              const root = args.preferTownHallCelebration ? findTownHallCelebrationScope() : document;
+              const selectors = args.preferTownHallCelebration
                 ? ['.inlineIcon.resource.transfer.fillUp', '.inlineIcon.resource.transfer[onclick]', '.inlineIcon.resource.transfer']
                 : ['.upgradeBlocked .inlineIcon.resource.transfer.fillUp', '.inlineIcon.resource.transfer.fillUp', '.inlineIcon.resource.transfer'];
 
@@ -431,7 +445,7 @@ public sealed partial class TravianClient
               return false;
             }
             """,
-            preferTownHallCelebration);
+            new { preferTownHallCelebration, townHallCelebrationMode });
     }
 
     private async Task<bool> TryConfirmHeroResourceTransferDialogAsync(
@@ -742,7 +756,8 @@ public sealed partial class TravianClient
 
     private async Task<HeroInventoryResources?> ReadUpgradeShortfallOnBuildPageAsync(
         CancellationToken cancellationToken,
-        bool preferTownHallCelebration)
+        bool preferTownHallCelebration,
+        string? townHallCelebrationMode = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -751,14 +766,18 @@ public sealed partial class TravianClient
         {
             json = await _page.EvaluateAsync<string>(
                 """
-                (preferTownHallCelebration) => {
+                (args) => {
                   const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
                   const findTownHallCelebrationScope = () => {
                     const root = document.querySelector('.build_details') || document;
                     const rows = Array.from(root.querySelectorAll('.research, tr, li, .row, .information'));
-                    return rows.find(row => /small\s+celebration/i.test(normalize(row.textContent || ''))) || root;
+                    const mode = String(args.townHallCelebrationMode || '').toLowerCase();
+                    const pattern = mode === 'big'
+                      ? /(big|great|large)\s+celebration/i
+                      : /small\s+celebration/i;
+                    return rows.find(row => pattern.test(normalize(row.textContent || ''))) || root;
                   };
-                  const root = preferTownHallCelebration ? findTownHallCelebrationScope() : document;
+                  const root = args.preferTownHallCelebration ? findTownHallCelebrationScope() : document;
                   const icon = root?.querySelector('.inlineIcon.resource.transfer[onclick]');
                   if (!icon) return '';
                   const onclick = icon.getAttribute('onclick') || '';
@@ -777,7 +796,7 @@ public sealed partial class TravianClient
                   return JSON.stringify({ wood: short('wood'), clay: short('clay'), iron: short('iron'), crop: short('crop') });
                 }
                 """,
-                preferTownHallCelebration);
+                new { preferTownHallCelebration, townHallCelebrationMode });
         }
         catch (PlaywrightException)
         {

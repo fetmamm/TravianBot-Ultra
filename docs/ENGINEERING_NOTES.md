@@ -147,10 +147,9 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
   (`.toast.toastError .text` = "There are no resources to transfer from the Hero Inventory.").
   Dialog-vantan race:ar dialog mot toasten, cachar tomt inventory och skippar — ingen full timeout.
 - Town Hall celebration ar `gid 24`, alla stammar, per-by `QueueGroup.TownHallCelebration`.
-  Mode ar account-default `small`/`big` med per-by override; `big` faller tillbaka till `small` under
-  Town Hall level 10. Big-start-selector ska live-verifieras forst nar en level 10 Town Hall finns.
-  Small-start logic ska vara scope:ad till `.build_details` och small-celebration-raden; verifiera Official
-  live innan selectorandringar markeras som bekraftade.
+  Mode ar account-default `small`/`big` med per-by override; UI visar `big` som "Great" enligt Travian.
+  `big` faller tillbaka till `small` under Town Hall level 10. Start-/resource-scope ska ligga i
+  `.build_details` och matcha small- eller Great-celebration-raden.
 
 ### Desktop
 
@@ -311,7 +310,8 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
 - Official Add target ska fylla X och Y som separata Playwright-interaktioner. Vid Default troops ska
   koordinatfaltet blur:as och en neutral yta klickas innan flodet vantar pa aktiv Save. Stegen anvander
   konto-scopead `farm_list_step_delay_*_seconds` (default 1.5-4 s, under Action pacing/Loop). Owner-varde
-  `-` i Add target betyder fri oas och far inte klassas som occupied.
+  `-` i Add target betyder fri oas och far inte klassas som occupied. Efter Save ska success verifieras
+  mot ratt `lid`/koordinat eller okat listantal; duplicate-confirmation ska cancelleras, inte OK:as.
 - Add Farms-progress visar lyckade tillagg separat fran kontrollerade/saknade koordinater. Mal ar antal
   lyckade tillagg, inte forsok: invalid/duplicate forbrukar nasta kandidat tills malet nas, listan blir
   full eller kallistan tar slut. Official live-count kontrolleras fore varje forsok for max 100.

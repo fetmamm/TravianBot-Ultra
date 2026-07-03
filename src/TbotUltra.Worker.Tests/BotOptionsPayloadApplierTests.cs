@@ -520,6 +520,13 @@ public sealed class BotOptionsPayloadApplierTests
     }
 
     [Fact]
+    public void TownHallCelebrationMode_NormalizesGreatAliasToBig()
+    {
+        Assert.Equal(TownHallCelebrationDefaults.Big, TownHallCelebrationDefaults.NormalizeMode("great"));
+        Assert.Equal(TownHallCelebrationDefaults.Big, TownHallCelebrationDefaults.NormalizeMode("Great"));
+    }
+
+    [Fact]
     public void ReinforcementSendDefaults_NormalizesChoices()
     {
         Assert.Equal(60, ReinforcementSendDefaults.NormalizeSendMinMinutes(0));

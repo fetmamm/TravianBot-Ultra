@@ -533,6 +533,15 @@ public sealed partial class TravianClient
         public bool Disabled { get; init; }
     }
 
+    private sealed class FarmListTargetStateJs
+    {
+        [JsonPropertyName("count")]
+        public int? Count { get; init; }
+
+        [JsonPropertyName("hasCoordinate")]
+        public bool HasCoordinate { get; init; }
+    }
+
     private sealed class ActiveVillageCoordJs
     {
         [JsonPropertyName("x")]

@@ -2844,18 +2844,7 @@
                                         <ContentControl Style="{StaticResource SettingInfoIconStyle}"
                                                         Margin="8,2,0,0"
                                                         VerticalAlignment="Center"
-                                                        ToolTip="Default celebration mode for villages without their own Town Hall override. Big falls back to small until Town Hall level 10." />
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                                        <RadioButton x:Name="TownHallCelebrationSmallRadioButton"
-                                                     Content="Small"
-                                                     GroupName="TownHallCelebrationMode"
-                                                     Margin="0,0,16,0"
-                                                     Checked="TownHallCelebrationMode_Changed" />
-                                        <RadioButton x:Name="TownHallCelebrationBigRadioButton"
-                                                     Content="Big"
-                                                     GroupName="TownHallCelebrationMode"
-                                                     Checked="TownHallCelebrationMode_Changed" />
+                                                        ToolTip="Configure Town Hall celebrations per village in the overview." />
                                     </StackPanel>
                                     <Button x:Name="TownHallSettingsButton"
                                             Content="Town Hall overview"

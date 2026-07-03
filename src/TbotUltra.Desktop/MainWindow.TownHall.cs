@@ -12,53 +12,6 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
-    private void ApplyTownHallCelebrationModeToUi(BotOptions options)
-    {
-        _suppressTownHallCelebrationModeConfigWrite = true;
-        try
-        {
-            var mode = TownHallCelebrationDefaults.NormalizeMode(options.TownHallCelebrationMode);
-            if (TownHallCelebrationSmallRadioButton is not null)
-            {
-                TownHallCelebrationSmallRadioButton.IsChecked =
-                    string.Equals(mode, TownHallCelebrationDefaults.Small, StringComparison.Ordinal);
-            }
-
-            if (TownHallCelebrationBigRadioButton is not null)
-            {
-                TownHallCelebrationBigRadioButton.IsChecked =
-                    string.Equals(mode, TownHallCelebrationDefaults.Big, StringComparison.Ordinal);
-            }
-        }
-        finally
-        {
-            _suppressTownHallCelebrationModeConfigWrite = false;
-        }
-    }
-
-    private void TownHallCelebrationMode_Changed(object sender, RoutedEventArgs e)
-    {
-        if (_suppressTownHallCelebrationModeConfigWrite)
-        {
-            return;
-        }
-
-        try
-        {
-            var mode = TownHallCelebrationBigRadioButton?.IsChecked == true
-                ? TownHallCelebrationDefaults.Big
-                : TownHallCelebrationDefaults.Small;
-            var config = _botConfigStore.Load();
-            config[BotOptionPayloadKeys.TownHallCelebrationMode] = mode;
-            _botConfigStore.Save(config);
-            AppendLog($"[town-hall] default celebration mode={mode}.");
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Could not save Town Hall celebration mode: {ex.Message}");
-        }
-    }
-
     private void TownHallSettingsButton_Click(object sender, RoutedEventArgs e)
     {
         _ = sender;
