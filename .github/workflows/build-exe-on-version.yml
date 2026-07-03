@@ -272,6 +272,7 @@ jobs:
           PORTABLE_NAME: ${{ steps.version.outputs.portable_name }}
           RELEASE_URL: ${{ steps.create_release.outputs.release_url }}
           COMMIT_SHA: ${{ github.sha }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         shell: pwsh
         run: |
           $webhookUrl = $env:DISCORD_ANNOUNCEMENT_WEBHOOK_URL
@@ -283,11 +284,25 @@ jobs:
           }
 
           $shortSha = $env:COMMIT_SHA.Substring(0, 7)
+          $commitMessage = ($env:COMMIT_MESSAGE -replace "`r", "").Trim()
+          if ([string]::IsNullOrWhiteSpace($commitMessage)) {
+            $commitMessage = "No commit message."
+          }
+          $commitMessage = $commitMessage -replace "```", "'''"
+          if ($commitMessage.Length -gt 900) {
+            $commitMessage = $commitMessage.Substring(0, 897) + "..."
+          }
+
           $content = @(
             "**Tbot Ultra $env:VERSION_NUMBER is released**",
             "Portable: ``$env:PORTABLE_NAME``",
             "Commit: ``$shortSha``",
-            "Download: $env:RELEASE_URL"
+            "",
+            "**Version notes**",
+            "```text",
+            $commitMessage,
+            "```",
+            "Download: <$env:RELEASE_URL>"
           ) -join "`n"
 
           $payload = @{ content = $content } | ConvertTo-Json -Depth 4
