@@ -12,12 +12,19 @@
         Closing="ServerListWindow_Closing">
     <Grid Margin="12">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
+        <TextBlock Grid.Row="0"
+                   Margin="0,0,0,8"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource SlateTextBrush}"
+                   Text="Your custom servers. Official Travian servers are built into the server picker and are not listed here." />
+
         <DataGrid x:Name="ServerDataGrid"
-                  Grid.Row="0"
+                  Grid.Row="1"
                   AutoGenerateColumns="False"
                   IsReadOnly="False"
                   CanUserAddRows="False"
@@ -43,7 +50,7 @@
             </DataGrid.Columns>
         </DataGrid>
 
-        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
             <Button Width="100" Margin="0,0,8,0" Content="Add server" Click="AddServerButton_Click" />
             <Button Width="100" Margin="0,0,8,0" Content="Reset" Click="ResetButton_Click" />
             <Button Width="100" Margin="0,0,8,0" Content="Save" Click="SaveButton_Click" />

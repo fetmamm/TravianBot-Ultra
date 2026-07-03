@@ -410,6 +410,56 @@ public partial class MainWindow
         await Dispatcher.InvokeAsync(() => RefreshQueueUi());
     }
 
+    // Post-defer construction refresh: the build task just reloaded dorf2, so read storage + build
+    // queue from the CURRENT page (no navigation) and merge the construction data into the caches.
+    // The old full-status refresh navigated dorf1+dorf2 for data a building mutation never changes
+    // (resource fields/production). Falls back to the full read only when the quick read fails.
+    private async Task RefreshConstructionStatusAfterDeferAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var options = AutomationExecutionOptions.WithoutImplicitVillageTarget(LoadBotOptions());
+            var status = await _botService.ReadCurrentPageStorageStatusAsync(options, AppendLog, cancellationToken);
+            await Dispatcher.InvokeAsync(() =>
+            {
+                ApplyStorageStatusToUi(status, "construction_defer_quick");
+                // Keep the per-village cache's construction data fresh so the dashboard icons paint
+                // the just-started build (green) instead of stale idle slots.
+                UpdateCachedTimerStatus(status.ActiveVillage, cached => cached with
+                {
+                    BuildQueue = status.BuildQueue,
+                    IsBuildingInProgress = status.IsBuildingInProgress,
+                    ActiveBuildCount = status.ActiveBuildCount,
+                    BuildQueueRemainingSeconds = status.BuildQueueRemainingSeconds,
+                    BuildQueueRemainingText = status.BuildQueueRemainingText,
+                    BuildQueueFinish = status.BuildQueueFinish,
+                    ActiveConstructions = status.ActiveConstructions,
+                });
+                if (_lastBuildingStatus is not null && IsStatusForSelectedVillage(status))
+                {
+                    _lastBuildingStatus = _lastBuildingStatus with
+                    {
+                        BuildQueue = status.BuildQueue,
+                        IsBuildingInProgress = status.IsBuildingInProgress,
+                        ActiveBuildCount = status.ActiveBuildCount,
+                        BuildQueueRemainingSeconds = status.BuildQueueRemainingSeconds,
+                        BuildQueueRemainingText = status.BuildQueueRemainingText,
+                        BuildQueueFinish = status.BuildQueueFinish,
+                        ActiveConstructions = status.ActiveConstructions,
+                    };
+                }
+
+                RefreshVillageActivityIndicatorsOnDashboard();
+            });
+            AppendLog("[construction-refresh] current-page refresh used for deferred construction; skipped full dorf1+dorf2 read.");
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"[construction-refresh] current-page defer refresh failed ({ex.Message}); falling back to full construction status.");
+            await RefreshConstructionStatusAsync(cancellationToken);
+        }
+    }
+
     private async Task RefreshConstructionStatusAsync(CancellationToken cancellationToken)
     {
         var options = AutomationExecutionOptions.WithoutImplicitVillageTarget(LoadBotOptions());

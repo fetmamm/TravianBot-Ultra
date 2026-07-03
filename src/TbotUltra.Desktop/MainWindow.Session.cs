@@ -68,6 +68,50 @@ public partial class MainWindow
             // operations, and turning it on before post-login analysis finishes lets those ops race the
             // login on the shared page (tab flicker). The finally block clears this flag.
             _visibleBrowserLoginInProgress = !options.Headless;
+
+            // Quick re-login: the full post-login stack (snapshot + analyzes) was completed for this
+            // account only minutes ago, and nothing meaningful changes server-side that fast. Log in,
+            // confirm the session, restore the persisted caches — done.
+            if (IsQuickReloginWindowActive(out var minutesSinceFullLogin))
+            {
+                AppendLog($"[{operationId}] Quick re-login: full post-login stack ran {minutesSinceFullLogin:F0} min ago (<{QuickReloginWindowMinutes} min) — logging in without analyzes.");
+                await _botService.ExecuteLoginAsync(options, AppendLog, keepBrowserOpenAfterLogin: !options.Headless, operationToken);
+
+                BrowserInfoTextBlock.Text = "Browser: idle";
+                StatusTextBlock.Text = "Login completed (quick re-login).";
+                UpdateLoginButtonsVisual(true);
+                _isLoggedIn = true;
+                _inboxAutoEnabled = true;
+                LoadVillageCacheForActiveAccount();
+                LoadHeroHomeVillageForActiveAccount();
+
+                // Fill the dashboard (resources, villages, adventure count) from the landing page
+                // BEFORE the busy overlay closes, so the UI is not half-empty when it appears. Cheap:
+                // current-page read on official, no extra navigation beyond the login landing.
+                try
+                {
+                    var quickOfficialServer = IsOfficialTravianServer(options);
+                    await RefreshResourceSnapshotForUiAsync(
+                        options,
+                        operationToken,
+                        forceCurrentVillage: !quickOfficialServer,
+                        currentPageOnly: quickOfficialServer);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    AppendLog($"Quick re-login UI refresh failed (continuing): {ex.Message}");
+                }
+
+                _browserSessionLikelyOpen = !options.Headless;
+                NotifySessionPacingOnlineStarted();
+                CompleteOperation(operationId, operationSw, "Login completed (quick re-login).");
+                return;
+            }
+
             var snapshot = await _botService.ExecuteLoginAndLoadPostLoginSnapshotAsync(
                 options,
                 AppendLog,
@@ -171,6 +215,8 @@ public partial class MainWindow
 
             _browserSessionLikelyOpen = !options.Headless;
             NotifySessionPacingOnlineStarted();
+            // Anchor for the quick re-login window: only a COMPLETED full stack counts.
+            PersistLastFullPostLoginTimestamp();
             CompleteOperation(operationId, operationSw, "Login completed.");
         }
         catch (OperationCanceledException)
@@ -696,6 +742,54 @@ public partial class MainWindow
 
         RefreshQueueUi();
         UpdateExecutionStateIndicator();
+    }
+
+    // Quick re-login: when enabled (Settings > General) and the last FULL post-login stack for this
+    // account finished under 10 minutes ago, login only confirms the session — the snapshot/analyze
+    // stack is skipped since nothing meaningful changes server-side that fast. The timestamp is
+    // account-scoped, so switching account always runs the full stack.
+    private const int QuickReloginWindowMinutes = 10;
+
+    private bool IsQuickReloginWindowActive(out double minutesSinceFullLogin)
+    {
+        minutesSinceFullLogin = 0;
+        try
+        {
+            var config = _botConfigStore.Load();
+            // Default ON when the setting has never been saved.
+            if (!(config[BotOptionPayloadKeys.PostLoginQuickReloginEnabled]?.GetValue<bool>() ?? true))
+            {
+                return false;
+            }
+
+            var raw = config[BotOptionPayloadKeys.PostLoginLastFullLoginAt]?.GetValue<string>();
+            if (!DateTimeOffset.TryParse(raw, null, System.Globalization.DateTimeStyles.RoundtripKind, out var lastFullLogin))
+            {
+                return false;
+            }
+
+            minutesSinceFullLogin = (DateTimeOffset.UtcNow - lastFullLogin).TotalMinutes;
+            return minutesSinceFullLogin >= 0 && minutesSinceFullLogin < QuickReloginWindowMinutes;
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"[login] quick re-login check failed ({ex.Message}); running the full post-login stack.");
+            return false;
+        }
+    }
+
+    private void PersistLastFullPostLoginTimestamp()
+    {
+        try
+        {
+            var config = _botConfigStore.Load();
+            config[BotOptionPayloadKeys.PostLoginLastFullLoginAt] = DateTimeOffset.UtcNow.ToString("O");
+            _botConfigStore.Save(config);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Could not persist the full-login timestamp: {ex.Message}");
+        }
     }
 
     private void RecoverAndRefreshActiveAccountQueue()

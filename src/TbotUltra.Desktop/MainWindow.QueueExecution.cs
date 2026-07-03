@@ -437,7 +437,7 @@ public partial class MainWindow
                 {
                     try
                     {
-                        await RefreshConstructionStatusAsync(_loopController.AcquireSessionScopeToken());
+                        await RefreshConstructionStatusAfterDeferAsync(_loopController.AcquireSessionScopeToken());
                     }
                     catch (Exception refreshEx)
                     {

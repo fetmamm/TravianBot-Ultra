@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Data;
 using TbotUltra.Core.Accounts;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
@@ -17,6 +18,9 @@ public partial class AccountsWindow : Window
     private readonly List<ServerOption> _defaultServerOptions;
 
     private List<AccountEntry> _accounts = [];
+    // Custom servers + built-in official servers, in combo display order. The combo's
+    // ItemsSource is a grouped view over this list, so selection lookups go through it.
+    private List<ServerOption> _comboServers = [];
     private string _activeAccountName = string.Empty;
     private bool _showPassword;
     private bool _editingExistingAccount;
@@ -566,27 +570,49 @@ public partial class AccountsWindow : Window
 
     private void EnsureServerListContainsDefaults()
     {
-        if (_serverOptions.Count == 0)
+        var officialServers = OfficialServerCatalog.GetOfficialServers();
+
+        // Only add the configured default server as a custom entry when neither the
+        // custom list nor the built-in official catalog already covers its URL.
+        var defaultUrlKnown = string.IsNullOrWhiteSpace(_defaultServerUrl)
+            || _serverOptions.Concat(officialServers).Any(option =>
+                string.Equals(NormalizeServerUrl(option.BaseUrl), NormalizeServerUrl(_defaultServerUrl), StringComparison.OrdinalIgnoreCase));
+        if (!defaultUrlKnown)
         {
             _serverOptions.Add(new ServerOption { Name = _defaultServerName, BaseUrl = _defaultServerUrl });
         }
 
-        if (!_serverOptions.Any(option => string.Equals(option.BaseUrl, _defaultServerUrl, StringComparison.OrdinalIgnoreCase)))
+        RebuildServerComboItems(officialServers);
+    }
+
+    // Custom servers first (the user's own entries, e.g. SS-Travi, stay on top and their
+    // names win over an official preset with the same URL), then the official catalog
+    // grouped by region.
+    private void RebuildServerComboItems(List<ServerOption> officialServers)
+    {
+        var combined = new List<ServerOption>();
+        foreach (var option in _serverOptions.OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase))
         {
-            _serverOptions.Add(new ServerOption { Name = _defaultServerName, BaseUrl = _defaultServerUrl });
+            option.Group = OfficialServerCatalog.CustomGroupName;
+            combined.Add(option);
         }
 
-        ServerComboBox.ItemsSource = null;
-        ServerComboBox.ItemsSource = _serverOptions
-            .OrderBy(option => option.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var knownUrls = new HashSet<string>(
+            combined.Select(option => NormalizeServerUrl(option.BaseUrl)),
+            StringComparer.OrdinalIgnoreCase);
+        combined.AddRange(officialServers.Where(option => knownUrls.Add(NormalizeServerUrl(option.BaseUrl))));
+
+        _comboServers = combined;
+        var view = new ListCollectionView(combined);
+        view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(ServerOption.Group)));
+        ServerComboBox.ItemsSource = view;
     }
 
     private void SelectServer(string serverName, string serverUrl)
     {
-        var match = _serverOptions.FirstOrDefault(option =>
+        var match = _comboServers.FirstOrDefault(option =>
             string.Equals(option.BaseUrl, serverUrl, StringComparison.OrdinalIgnoreCase))
-            ?? _serverOptions.FirstOrDefault(option =>
+            ?? _comboServers.FirstOrDefault(option =>
                 string.Equals(option.Name, serverName, StringComparison.OrdinalIgnoreCase));
 
         if (match is null)

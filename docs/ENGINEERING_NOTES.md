@@ -88,12 +88,19 @@ document.querySelector('.warehouse .capacity .value')
 - Borttagning av ett inaktivt konto far inte blockeras av det aktiva kontots ko; aktivt konto skyddas medan dess ko har arbete.
 - All ko- och slotbaserad UI-harledning filtreras till vald by eller uttryckligen globala items.
 - Settings-fonstret far inte skriva konto-scopeade overlay-varden tillbaka till global config.
+- Quick re-login (Settings > General, `post_login_quick_relogin_enabled`, per konto): login <10 min efter
+  senast SLUTFORDA fulla post-login-stacken (`post_login_last_full_login_at`, skrivs fore CompleteOperation)
+  hoppar over snapshot+analyzes och bekraftar bara sessionen + laddar persisterade cacher. Kontobyte
+  paverkas inte (timestampen ar account-scoped).
 - Config-/cache-stores skriver via `AtomicFile.WriteAllText` (temp-fil + `File.Move`); nya stores ska folja samma monster.
 - All fil-IO under OneDrive-synkade Documents ska retry:a bade `IOException` och `UnauthorizedAccessException`
   (transient ERROR_ACCESS_DENIED fran OneDrive/antivirus). Finns i `AtomicFile.RetryFileIo`,
   `JsonQueueStore.RetryFileIo` och `BrowserSession.ReplaceStorageStateWithRetryAsync`.
 - Korrupt `queue.json` kastas inte langre for evigt: `JsonQueueStore.LoadMutable` karantaniserar filen
   (`queue.json.corrupt-<stamp>`), loggar och fortsatter med tom ko.
+- Post-defer construction-refresh (`RefreshConstructionStatusAfterDeferAsync`) laser byggko+storage fran
+  AKTUELL sida (tasken har precis reload:at dorf2) och merge:ar in i village-cachen — ingen dorf1+dorf2-runda.
+  Full lasning (`RefreshConstructionStatusAsync`) ar bara fallback vid fel.
 - Anvand aldrig `CancellationToken.None` for operationer som tar worker-session-gaten (post-task/manuella
   refreshes): ta token fran metodens parameter eller `LoopController.AcquireSessionScopeToken()` (cancellas
   av stop/kontobyte, ater-armas lazily for nasta operation).
@@ -136,6 +143,9 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
   `TryHeroResourceTransferOnCurrentBuildPageAsync`; construction/brewery anropar via tunna gated wrappers,
   town hall anropar via egen tunn wrapper, smithy har egen per-trupp-DOM (`TryHeroResourceTransferForSmithyTroopAsync`). Nybyggnation ska prova
   hero-transfer direkt pa construct-sidan innan en queue-kontroll navigerar till `dorf2`.
+  Tomt hero-inventory: Official oppnar INGEN dialog utan visar en 5s rod toast
+  (`.toast.toastError .text` = "There are no resources to transfer from the Hero Inventory.").
+  Dialog-vantan race:ar dialog mot toasten, cachar tomt inventory och skippar — ingen full timeout.
 - Town Hall celebration ar `gid 24`, alla stammar, per-by `QueueGroup.TownHallCelebration`.
   Mode ar account-default `small`/`big` med per-by override; `big` faller tillbaka till `small` under
   Town Hall level 10. Big-start-selector ska live-verifieras forst nar en level 10 Town Hall finns.
@@ -167,6 +177,12 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
   fore profilnavigation och anvand profilen endast for att berika bydata.
 - Map Oasis Analyzer och kartparsning: [ADR 2026-06-20 map-oasis-scan](adr/2026-06-20-map-oasis-scan.md).
   Analyze map oasis ska visa en warning-confirmation fore scan eftersom flodet ar high-volume.
+- Server-pickern i Accounts kombinerar `OfficialServerCatalog` (inbyggda officiella varldar, grupperade per
+  region: America/Arabia/Asia/Europe/International, varldar 1-6=1x, 20=2x, 30=3x, 50=5x, 100=10x enligt
+  `ts{N}.x{speed}.{region}.travian.com`) med anvandarens custom-lista ("Custom"-gruppen overst; custom-namn
+  vinner vid samma URL). `ServerCatalogStore`/ServerListWindow hanterar ENDAST custom-servrar; officiella
+  presets ligger i kod. Servernamn ska ha hastigheten inom parentes ("America 100 (10x)") sa att
+  speed-parsning (`ResolveServerSpeed`/`ServerSpeedLabel`) traffar hastigheten och inte varldsnumret.
 - Travco-tabben ar seg: `SetDefaultTimeout(30000)`. "Save all pages" kor `ScrapePageWithRetryAsync`
   (3 forsok med reload + backoff) och `ResolveTotalPagesAsync` vantar in resultattabellen fore sidantalet
   lases, sa en seg sida inte tyst kapar listan till sida 1. Se [ADR 2026-06-09](adr/2026-06-09-farmlists-and-travco.md).

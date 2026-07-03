@@ -42,6 +42,12 @@
                             <CheckBox x:Name="DontNotifyNewVersionCheckBox"
                                       Margin="0,0,0,8"
                                       Content="Dont notify for new version" />
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <CheckBox x:Name="QuickReloginCheckBox"
+                                          Content="Quick re-login within 10 min" />
+                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                ToolTip="When logging in less than 10 minutes after the last full login, skip the post-login analyzes (villages, hero, farm lists, brewery) and only confirm the session. Saved per account." />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 

@@ -175,13 +175,32 @@ public sealed partial class TravianClient
             return false;
         }
 
-        // Wait for the React-rendered dialog. A timeout means the hero has nothing to transfer
-        // (or the dialog failed to open) — fall back to the caller's other handling.
+        // Wait for the React-rendered dialog — or the error toast Travian shows INSTEAD of a dialog
+        // when the hero inventory is empty ("There are no resources to transfer from the Hero
+        // Inventory."). Racing both avoids sitting out the full dialog timeout on the toast path.
         try
         {
             await _page.WaitForSelectorAsync(
-                "div.resourceTransferDialog, #dialogContent",
+                "div.resourceTransferDialog, #dialogContent, .toast.toastError",
                 new PageWaitForSelectorOptions { Timeout = 8000 });
+
+            var toastText = await TryReadErrorToastTextAsync();
+            if (toastText is not null)
+            {
+                if (toastText.Contains("no resources to transfer", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Cache the empty inventory so the proactive gate above skips the next attempts
+                    // without clicking, until a real inventory read refreshes the cache.
+                    Notify($"[hero-transfer] hero inventory is empty at {label} (server: '{toastText}'); caching empty inventory and skipping.");
+                    UpdateHeroInventoryCache(new HeroInventoryResources(0, 0, 0, 0));
+                }
+                else
+                {
+                    Notify($"[hero-transfer] transfer rejected at {label} (server: '{toastText}'); skipping.");
+                }
+
+                return false;
+            }
             await _page.WaitForFunctionAsync(
                 """
                 () => {
@@ -841,6 +860,21 @@ public sealed partial class TravianClient
     }
 
     private string BuildHeroInventoryCacheKey() => $"{AccountName}|{ServerUrl}";
+
+    // Reads the visible error toast's text, or null when no error toast is shown. Used to tell the
+    // "hero inventory empty" toast apart from a dialog that is still rendering.
+    private async Task<string?> TryReadErrorToastTextAsync()
+    {
+        try
+        {
+            return await _page.EvaluateAsync<string?>(
+                "() => document.querySelector('.toast.toastError .text')?.textContent?.trim() || null");
+        }
+        catch (PlaywrightException)
+        {
+            return null;
+        }
+    }
 
     /// <summary>Returns the last known hero inventory for this account, or null if never read.</summary>
     public HeroInventoryResources? TryGetCachedHeroInventory()
