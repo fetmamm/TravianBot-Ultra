@@ -154,11 +154,8 @@
                                            TextAlignment="Center" />
                             </Border>
                         </Grid>
-                        <CheckBox Content="Auto celebration (Teutons only)"
-                                  VerticalAlignment="Center"
-                                  Margin="0,0,0,8"
-                                  IsChecked="{Binding AutoCelebrationEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                  IsEnabled="{Binding IsAutoCelebrationCheckboxEnabled}" />
+                        <!-- Auto celebration is controlled by the Brewery group toggle on the dashboard's
+                             automation card; enabling that group force-syncs AutoCelebrationEnabled. -->
                         <Button x:Name="CheckCelebrationButton"
                                 Content="Check celebration"
                                 Width="150"

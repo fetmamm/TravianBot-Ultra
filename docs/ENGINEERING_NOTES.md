@@ -177,6 +177,20 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
   fore profilnavigation och anvand profilen endast for att berika bydata.
 - Map Oasis Analyzer och kartparsning: [ADR 2026-06-20 map-oasis-scan](adr/2026-06-20-map-oasis-scan.md).
   Analyze map oasis ska visa en warning-confirmation fore scan eftersom flodet ar high-volume.
+- Tribe ar fast per konto och far ALDRIG nedgraderas fran en statuslasning: village-status kan bara
+  `Tribe="Unknown"`/tom (t.ex. 20s-ticken under sleep). Bade `SetTribeText` och
+  `ApplyTroopTrainingTribeState` ar skyddade — okand tribe ignoreras och nuvarande trooplistor behalls
+  (annars byts dropdowns till generiska fallback-listan OCH fallback-namn persisteras i by-overrides).
+  Anvand `TroopCatalog.IsKnownTribe` for kontrollen; skriv aldrig "Unknown" som Tribe i
+  account-analysis-snapshots (`ResolveTribeForSnapshotWrite`). Fallback-listan (7 poster) har egen
+  byggnadssplit i `ResolveTroopTypesForTribe` (3/2/2) sa Ram inte hamnar i Stable.
+- "Troop settings"-popupen (TroopTrainingOptionsWindow) har expanderbara byrader: kompakt rad
+  (enable + troop per byggnad) + chevron som visar ALLA settings for byn (max queue, amount, keep %,
+  run trigger, timed min/max, resurscheckar, fallback wait). Cellerna ateranvander
+  `TroopTrainingBuildingOption` (samma normalisering/binding som Troops-tabben); en by expanderad at
+  gangen (fönstrets code-behind kollapsar ovriga). Auto celebration styrs ENDAST av Brewery-gruppens
+  toggle pa dashboardens automation-kort (gruppen force-syncar `AutoCelebrationEnabled`); checkboxen
+  pa Troops-tabben ar borttagen.
 - Server-pickern i Accounts kombinerar `OfficialServerCatalog` (inbyggda officiella varldar, grupperade per
   region: America/Arabia/Asia/Europe/International, varldar 1-9=1x, 20=2x, 30/31=3x, 50=5x, 100=10x enligt
   `ts{N}.x{speed}.{region}.travian.com`) med anvandarens custom-lista ("Custom"-gruppen overst). Officiella

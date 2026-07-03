@@ -4,11 +4,6 @@ using TbotUltra.Core.Travian;
 
 namespace TbotUltra.Desktop.Services;
 
-public sealed record TroopTrainingQuickBuildingSelection(
-    TroopTrainingBuildingType BuildingType,
-    bool Enabled,
-    string TroopType);
-
 public static class TroopTrainingQuickSettings
 {
     public static TroopTrainingPayload FromOptions(BotOptions options)
@@ -60,39 +55,6 @@ public static class TroopTrainingQuickSettings
                 options.TroopTrainingWorkshopCheckIron,
                 options.TroopTrainingWorkshopCheckCrop),
             options.TroopTrainingFallbackCooldownSeconds);
-    }
-
-    public static TroopTrainingPayload ApplySelections(
-        TroopTrainingPayload source,
-        IEnumerable<TroopTrainingQuickBuildingSelection> selections)
-    {
-        var barracks = source.Barracks;
-        var stable = source.Stable;
-        var workshop = source.Workshop;
-
-        foreach (var selection in selections)
-        {
-            var troopType = selection.TroopType?.Trim() ?? string.Empty;
-            switch (selection.BuildingType)
-            {
-                case TroopTrainingBuildingType.Barracks:
-                    barracks = barracks with { Enabled = selection.Enabled, TroopType = troopType };
-                    break;
-                case TroopTrainingBuildingType.Stable:
-                    stable = stable with { Enabled = selection.Enabled, TroopType = troopType };
-                    break;
-                case TroopTrainingBuildingType.Workshop:
-                    workshop = workshop with { Enabled = selection.Enabled, TroopType = troopType };
-                    break;
-            }
-        }
-
-        return source with
-        {
-            Barracks = barracks,
-            Stable = stable,
-            Workshop = workshop,
-        };
     }
 
     public static TroopTrainingBuildingPayload BuildingPayloadFor(

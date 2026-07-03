@@ -1,62 +1,85 @@
 using TbotUltra.Core.Tasks;
-using TbotUltra.Core.Travian;
-using TbotUltra.Desktop.Services;
+using TbotUltra.Desktop.ViewModels;
 using Xunit;
 
 namespace TbotUltra.Desktop.Tests;
 
 public sealed class TroopTrainingQuickSettingsTests
 {
-    [Fact]
-    public void ApplySelections_OnlyChangesBuildingEnabledAndTroopType()
+    private static TroopTrainingPayload BuildSourcePayload()
     {
         var barracks = new TroopTrainingBuildingPayload(
-            false, "Legionnaire", "10", "keep_resources", 25, "timed", 40, 80, 20, 40, true, false, true, false);
+            false, "Clubswinger", "10", "keep_resources", 25, "timed", 40, 80, 20, 40, true, true, true, true);
         var stable = new TroopTrainingBuildingPayload(
-            true, "Equites Legati", "20", "maximum", 0, "resource_percent", 5, 65, 30, 180, false, true, false, true);
+            true, "Paladin", "20", "maximum", 0, "resource_percent", 5, 65, 30, 180, true, true, true, true);
         var workshop = new TroopTrainingBuildingPayload(
-            true, "Fire Catapult", "no_limit", "maximum", 10, "resource_percent", 1, 50, 60, 240, true, true, true, true);
-        var source = new TroopTrainingPayload(barracks, stable, workshop, 600);
+            true, "Ram", "no_limit", "maximum", 10, "resource_percent", 1, 50, 60, 240, true, true, true, true);
+        return new TroopTrainingPayload(barracks, stable, workshop, 600);
+    }
 
-        var result = TroopTrainingQuickSettings.ApplySelections(
-            source,
-            new[]
-            {
-                new TroopTrainingQuickBuildingSelection(TroopTrainingBuildingType.Barracks, true, " Imperian "),
-                new TroopTrainingQuickBuildingSelection(TroopTrainingBuildingType.Stable, false, "Equites Imperatoris"),
-            });
+    [Fact]
+    public void BuildPayload_WithoutEdits_RoundTripsSourceSettings()
+    {
+        var source = BuildSourcePayload();
+        var row = new TroopTrainingQuickVillageRow("v1", "Village 1", true, source, "Teutons");
+
+        var result = row.BuildPayload();
+
+        Assert.Equal(source, result);
+    }
+
+    [Fact]
+    public void BuildPayload_AppliesAllEditedSettings()
+    {
+        var source = BuildSourcePayload();
+        var row = new TroopTrainingQuickVillageRow("v1", "Village 1", true, source, "Teutons");
+
+        row.Barracks.IsEnabled = true;
+        row.Barracks.SelectedTroop = "Spearman";
+        row.Barracks.MaxQueueMode = "5";
+        row.Barracks.AmountMode = "maximum";
+        row.Barracks.RunMode = "resource_percent";
+        row.Barracks.MinimumResourcesPercent = 70;
+        row.Stable.TimedMinMinutes = 15;
+        row.Stable.TimedMaxMinutes = 45;
+        row.Workshop.IsEnabled = false;
+        row.CheckWood = false;
+        row.CheckCrop = false;
+        row.FallbackCooldownSeconds = 120;
+
+        var result = row.BuildPayload();
 
         Assert.True(result.Barracks.Enabled);
-        Assert.Equal("Imperian", result.Barracks.TroopType);
-        Assert.Equal(barracks.MaxQueueHours, result.Barracks.MaxQueueHours);
-        Assert.Equal(barracks.AmountMode, result.Barracks.AmountMode);
-        Assert.Equal(barracks.KeepResourcesPercent, result.Barracks.KeepResourcesPercent);
-        Assert.Equal(barracks.RunMode, result.Barracks.RunMode);
-        Assert.Equal(barracks.MinimumTroops, result.Barracks.MinimumTroops);
-        Assert.Equal(barracks.MinimumResourcesPercent, result.Barracks.MinimumResourcesPercent);
-        Assert.Equal(barracks.TimedMinMinutes, result.Barracks.TimedMinMinutes);
-        Assert.Equal(barracks.TimedMaxMinutes, result.Barracks.TimedMaxMinutes);
-        Assert.Equal(barracks.CheckWood, result.Barracks.CheckWood);
-        Assert.Equal(barracks.CheckClay, result.Barracks.CheckClay);
-        Assert.Equal(barracks.CheckIron, result.Barracks.CheckIron);
-        Assert.Equal(barracks.CheckCrop, result.Barracks.CheckCrop);
+        Assert.Equal("Spearman", result.Barracks.TroopType);
+        Assert.Equal("5", result.Barracks.MaxQueueHours);
+        Assert.Equal("maximum", result.Barracks.AmountMode);
+        Assert.Equal("resource_percent", result.Barracks.RunMode);
+        Assert.Equal(70, result.Barracks.MinimumResourcesPercent);
+        // MinimumTroops has no UI and must be preserved from the source payload.
+        Assert.Equal(source.Barracks.MinimumTroops, result.Barracks.MinimumTroops);
 
-        Assert.False(result.Stable.Enabled);
-        Assert.Equal("Equites Imperatoris", result.Stable.TroopType);
-        Assert.Equal(stable.MaxQueueHours, result.Stable.MaxQueueHours);
-        Assert.Equal(stable.AmountMode, result.Stable.AmountMode);
-        Assert.Equal(stable.KeepResourcesPercent, result.Stable.KeepResourcesPercent);
-        Assert.Equal(stable.RunMode, result.Stable.RunMode);
-        Assert.Equal(stable.MinimumTroops, result.Stable.MinimumTroops);
-        Assert.Equal(stable.MinimumResourcesPercent, result.Stable.MinimumResourcesPercent);
-        Assert.Equal(stable.TimedMinMinutes, result.Stable.TimedMinMinutes);
-        Assert.Equal(stable.TimedMaxMinutes, result.Stable.TimedMaxMinutes);
-        Assert.Equal(stable.CheckWood, result.Stable.CheckWood);
-        Assert.Equal(stable.CheckClay, result.Stable.CheckClay);
-        Assert.Equal(stable.CheckIron, result.Stable.CheckIron);
-        Assert.Equal(stable.CheckCrop, result.Stable.CheckCrop);
+        Assert.Equal(15, result.Stable.TimedMinMinutes);
+        Assert.Equal(45, result.Stable.TimedMaxMinutes);
+        Assert.False(result.Workshop.Enabled);
 
-        Assert.Equal(workshop, result.Workshop);
-        Assert.Equal(600, result.FallbackCooldownSeconds);
+        // Resource checks are village-level in the popup and written to all three buildings.
+        foreach (var building in new[] { result.Barracks, result.Stable, result.Workshop })
+        {
+            Assert.False(building.CheckWood);
+            Assert.True(building.CheckClay);
+            Assert.True(building.CheckIron);
+            Assert.False(building.CheckCrop);
+        }
+
+        Assert.Equal(120, result.FallbackCooldownSeconds);
+    }
+
+    [Fact]
+    public void FallbackCooldown_NormalizesUnknownValuesTo30()
+    {
+        var source = BuildSourcePayload() with { FallbackCooldownSeconds = 77 };
+        var row = new TroopTrainingQuickVillageRow("v1", "Village 1", true, source, "Teutons");
+
+        Assert.Equal(30, row.FallbackCooldownSeconds);
     }
 }

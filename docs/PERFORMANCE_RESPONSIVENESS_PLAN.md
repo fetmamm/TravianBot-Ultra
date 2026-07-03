@@ -1,6 +1,8 @@
 # Performance and Responsiveness Plan
 
-Status: Analysis and future implementation plan only. No fixes from this plan have been implemented.
+Status: Re-audited 2026-07-03 against the current code. Several original areas are already done
+(marked below). The top finding is NEW area 0 — per-second config file reads on the UI thread.
+No fixes from the remaining areas have been implemented.
 
 ## Goal
 
@@ -8,136 +10,111 @@ Improve normal-use responsiveness without changing automation behavior, server b
 
 Follow `AGENTS.md` and `docs/ENGINEERING_NOTES.md` before implementation. Changes should be small, measurable, and introduced one area at a time.
 
-## Recommended Order
+## Status Overview (2026-07-03 audit)
+
+| Area | Status |
+|---|---|
+| 0. Per-second `LoadBotOptions` disk reads (NEW) | Open — top priority |
+| 1. Session logging | DONE (append-only writes) |
+| 2. Queue reads and UI refresh | Mostly done (store cache + 120ms UI snapshot); full-row rebuild remains |
+| 3. Playwright storage-state saves | DONE (`BrowserStateSaveMode.Skip` on read-only ops) |
+| 4. Background browser refresh | Partially done (20s tick + guards); adaptive schedule not done |
+| 5. Queue and Travco collection updates | Open |
+| 6. One-second UI timer work | Partially done (tab-gated updates); consolidation not done |
+| 7. Config reads and writes | Open (see area 0 for the acute part) |
+| 8. Reusable headless browser session | Open |
+| 9. Global layout scaling and DOM observer | Open |
+
+## Recommended Order (updated)
 
 | Priority | Area | Expected reward | Risk |
 |---|---|---|---|
-| 1 | Session logging | Very high | Low |
-| 2 | Queue reads and UI refresh | High | Medium |
-| 3 | Playwright storage-state saves | High | Low-Medium |
-| 4 | Background browser refresh | High | Medium |
-| 5 | Queue and Travco collection updates | Medium-High | Medium |
-| 6 | One-second UI timer work | Medium-High | Low |
-| 7 | Config reads and writes | Medium | Medium |
-| 8 | Reusable headless browser session | Very high in headless mode | High |
-| 9 | Global layout scaling and DOM observer | Uncertain-Medium | Medium-High |
+| 1 | 0. Cache `LoadBotOptions` / stop per-second disk reads | Very high | Low-Medium |
+| 2 | 7. Debounce config writes (remaining part) | Medium | Medium |
+| 3 | 5. Incremental queue and Travco UI updates | Medium-High | Medium |
+| 4 | 8. Reusable headless browser session | Very high in headless mode | High |
+| 5 | 4. Adaptive background refresh (remaining part) | Medium | Medium |
+| 6 | 6. Timer consolidation (remaining part) | Medium | Low |
+| 7 | 9. Global layout scaling and DOM observer | Uncertain-Medium | Medium-High |
 
-## 1. Session Logging
+## 0. Per-Second Config Reads on the UI Thread (NEW — top priority)
 
 ### Evidence
 
-- `MainWindow.Logging.Stream.cs` processes log batches on the WPF dispatcher.
-- `TryAppendSessionLogLines` retains all session lines in memory, rebuilds the complete output, and calls `File.WriteAllLines` after each flush.
-- Work and allocations increase throughout a long-running session.
+- The 1s clock tick calls `UpdateNextTaskUi()` every second (`MainWindow.xaml.cs`).
+- That calls `SelectNextQueueItemForContinuousLoop(preview: true)`, which calls `LoadBotOptions()`
+  (`MainWindow.ContinuousLoop.cs:783`).
+- `LoadBotOptions()` reads bot.json AND the account config from disk, JSON-parses both, builds a new
+  `ConfigurationBuilder` and binds `BotOptions` via reflection — synchronously on the dispatcher thread,
+  every second.
+- The tick comment says "queue reads now come from the in-memory cache" — true for the queue, but NOT
+  for the options read.
+- The repo lives under OneDrive: transient file locks/sync stalls make these reads intermittently block
+  the UI thread for tens to hundreds of milliseconds. This matches the observed intermittent lag.
 
 ### Recommended implementation
 
-- Replace complete-file rewrites with buffered append-only writes.
-- Keep alarm presentation separate from physical log-file layout where possible.
-- Flush immediately for alarms and shutdown; batch normal diagnostic messages.
-- Cap retained in-memory history independently from the file log.
+- Cache the parsed `BotOptions` (and/or the merged `JsonObject`) for the active account.
+- Invalidate on: config save (`BotConfigStore.Save`/`SaveGlobal`/account-scoped saves), account switch,
+  and settings-window save. All writes go through `BotConfigStore`, so invalidation can live there.
+- Alternative minimal fix: let the Next-task preview reuse the most recently loaded options snapshot
+  instead of loading fresh ones per tick.
 
 ### Risks
 
-- Buffered messages can be lost during an abrupt process termination.
-- Existing support tooling may depend on the current alarm/log section layout.
-- Concurrent append and shutdown flushing require explicit synchronization.
+- Cache invalidation bugs could run the preview (or the loop) with stale settings. Keep the cache
+  inside `BotConfigStore` so every write path invalidates it automatically.
+- External edits to bot.json while the app runs would no longer be picked up between saves (today they
+  are picked up within 1s by accident). This is acceptable; the app owns the file.
 
 ### Verification
 
-- Preserve visible terminal behavior and Clean-mode filtering.
-- Verify alarms remain available in diagnostics.
-- Stress test sustained verbose logging and compare UI dispatcher latency and file-write volume.
+- Settings save → next tick uses new values (add a log line on cache invalidation).
+- Account switch → cache cleared (must not leak options across accounts).
+- Measure: zero bot.json/account-config disk reads per idle second (today: ≥2 per second).
 
-## 2. Queue Reads and Queue UI Refresh
+## 1. Session Logging — DONE
 
-### Evidence
+Implemented: `TryAppendSessionLogLines` appends batches with `File.AppendAllLines` (no complete-file
+rewrite). Alarm/log sections are written as batched blocks. No further action planned.
 
-- `JsonQueueStore` reads and deserializes the complete queue file for every query.
-- Every mutation rereads and rewrites the complete queue.
-- `UpdateNextTaskUi` runs from the dispatcher every third one-second tick and may read the queue multiple times.
-- `RefreshQueueUi` rebuilds all rows, estimates, and grid item sources, then repopulates building UI.
+## 2. Queue Reads and Queue UI Refresh — MOSTLY DONE
 
-### Recommended implementation
+Implemented: `JsonQueueStore` keeps an in-memory cache of the queue (disk read only on first load /
+path change; writes update the cache). The Desktop UI uses `GetQueueSnapshotForUi()` with a 120ms
+snapshot so one refresh pass reuses one read.
 
-- Introduce an account-scoped in-memory queue snapshot owned by the queue store.
-- Persist after mutations while keeping existing file locking and crash recovery.
-- Publish one queue-changed notification so UI updates become event-driven.
-- Compute one immutable queue snapshot per UI refresh and reuse it throughout that refresh.
-- Keep account switching as a full queue-cache invalidation boundary.
+Remaining (folded into area 5): `RefreshQueueUi` still rebuilds all rows, estimates, and item sources
+on every call (~30 call sites).
 
-### Risks
+## 3. Playwright Storage-State Persistence — DONE
 
-- Stale cache state or lost updates if multiple writers are not coordinated.
-- Incorrect cache invalidation could leak one account's queue into another.
-- A crash between memory mutation and persistence could lose a recent change.
+Implemented: `FinalizeLeaseAsync` takes `BrowserStateSaveMode`; all read-only operations (hero reads,
+village/status reads — including the background refresh) pass `Skip`. State is saved after operations
+that can change the session (login, actions). No further action planned.
 
-### Verification
+## 4. Background Browser Refresh — PARTIALLY DONE
 
-- Extend queue store/scheduler tests for concurrent reads, account switching, recovery, ordering, and persistence failures.
-- Confirm queue operations remain atomic and per-account.
-- Measure queue file reads during idle UI operation; the target is zero polling reads.
+Implemented: interval is 20s (was 16s); refresh is skipped while another snapshot refresh runs
+(`_resourceSnapshotRefreshRunning`), during account switch (`_accountSwitchInProgress`), and uses the
+session-scope token so it dies on stop/switch.
 
-## 3. Playwright Storage-State Persistence
+Remaining: adaptive stale-data scheduling, skipping when data is fresh or the relevant UI is hidden,
+combining compatible DOM reads into one evaluation, and prioritizing user actions over background
+reads on `_sessionGate`.
 
-### Evidence
+### Risks / verification (unchanged from original)
 
-- `BotTaskRunner.FinalizeLeaseAsync` calls `BrowserSession.SaveStateAsync` after every serialized browser operation.
-- Saving requests the complete Playwright storage state, parses/filters JSON, writes a temporary file, replaces the target, and removes the temporary file.
-- The 16-second background refresh therefore also causes repeated storage-state persistence.
+- Indicators may update later; incorrect gating could suppress refresh indefinitely.
+- Test sleeping, paused, busy, login, village-switch states. Background work must never wake a
+  sleeping session.
 
-### Recommended implementation
-
-- Track whether an operation can change authentication or storage state.
-- Save immediately after login, logout, account/server changes, captcha/manual verification, and other confirmed session changes.
-- Debounce or skip saves after read-only DOM operations.
-- Force a final save during orderly shutdown when the state is dirty.
-
-### Risks
-
-- A newly changed session may not survive an abrupt crash if incorrectly classified as read-only.
-- Some sites may update storage during apparently read-only navigation.
-
-### Verification
-
-- Restart after login and verify the session is restored.
-- Verify Official. Check legacy branches only when intentionally touched.
-- Record save frequency before and after the change.
-
-## 4. Background Browser Refresh
-
-### Evidence
-
-- A dispatcher timer starts resource/browser refresh work every 16 seconds.
-- Official refreshes may also inspect tasks and daily quests.
-- Other servers may run hero-revive and inbox checks.
-- All browser operations share one `_sessionGate`, so background reads queue behind or ahead of user actions and automation.
-
-### Recommended implementation
-
-- Use an adaptive stale-data schedule instead of a fixed 16-second interval.
-- Skip refreshes when browser work is queued/running, the relevant UI is hidden, or data is still fresh.
-- Combine compatible current-page DOM reads into one Playwright evaluation.
-- Prioritize explicit user actions and active automation over background status refresh.
-
-### Risks
-
-- Resource, inbox, hero, task, or quest indicators may update later.
-- Incorrect gating could suppress an important refresh indefinitely.
-- Combining DOM reads increases parser/test surface.
-
-### Verification
-
-- Define maximum acceptable staleness per indicator.
-- Test sleeping, paused, busy, login, village-switch, and Official states.
-- Confirm background work never wakes a sleeping session.
-
-## 5. Incremental Queue and Travco UI Updates
+## 5. Incremental Queue and Travco UI Updates — OPEN
 
 ### Evidence
 
 - Queue refresh recreates complete row lists and replaces DataGrid item sources.
-- Travco `ApplyRows` clears and adds every row individually.
+- Travco `ApplyRows` (TravcoToolsWindow) clears and adds every row individually.
 - Changing one saved Travco row rebuilds, saves, reloads, and reapplies the complete list.
 - Large saved or scanned lists can produce many collection and binding notifications.
 
@@ -159,49 +136,37 @@ Follow `AGENTS.md` and `docs/ENGINEERING_NOTES.md` before implementation. Change
 - Test large queue histories and large Travco/oasis lists.
 - Verify selected rows, sort order, scroll position, editing, save, and account isolation.
 
-## 6. One-Second UI Timer Work
+## 6. One-Second UI Timer Work — PARTIALLY DONE
+
+Implemented: automation-loop countdowns, NPC forecasts, reinforcement status, and farming state are
+already gated on the visible tab (`IsMainTabSelected`).
+
+Remaining: consolidate the separate 1s construction-countdown timer under the main clock timer, derive
+countdown text from stored finish timestamps instead of mutating every countdown each second, and skip
+assigning unchanged text/brush values.
+
+### Risks / verification (unchanged from original)
+
+- Countdown display may be less visually precise; visibility-aware updates can show stale values
+  briefly when opening a panel.
+- Check timer transitions at zero, pause/resume, sleep/wake, and village changes.
+
+## 7. Configuration Reads and Writes — OPEN (acute read part moved to area 0)
 
 ### Evidence
 
-- The main dispatcher timer updates clock, pacing, farm-list timers, automation timers, queue selection preview, troop timers, Smithy timers, resource forecasts, reinforcement status, and execution state.
-- A separate one-second dispatcher timer updates the construction queue countdown.
-- Many updates raise multiple binding notifications even when their panel is hidden.
-
-### Recommended implementation
-
-- Consolidate one-second countdown work under one timer.
-- Update hidden panels less frequently or only when they become visible.
-- Store finish timestamps and derive display text rather than mutating every countdown every second.
-- Avoid assigning unchanged text, brushes, or enabled states.
-
-### Risks
-
-- Countdown display may be less visually precise.
-- Visibility-aware updates can show stale values briefly when opening a panel.
-
-### Verification
-
-- Check all timer transitions at zero, pause/resume, sleep/wake, and village changes.
-- Measure dispatcher work while idle on each main tab.
-
-## 7. Configuration Reads and Writes
-
-### Evidence
-
-- `LoadBotOptions` synchronously reads/parses global and account JSON, creates a memory stream, builds a new configuration, and constructs options.
+- `LoadBotOptions` synchronously reads/parses global and account JSON per call (see area 0 for the
+  per-second call site).
 - UI event handlers can save the full global and account configuration immediately.
 - File retries use `Thread.Sleep`, sometimes while holding a shared I/O lock.
 
 ### Recommended implementation
 
-- Maintain an immutable active-account `BotOptions` snapshot.
-- Invalidate it only when relevant config, account, server, or village settings change.
-- Debounce high-frequency UI setting writes.
-- Flush pending writes on window close and before account switching.
+- Area 0 covers the read cache. Additionally: debounce high-frequency UI setting writes and flush
+  pending writes on window close and before account switching.
 
 ### Risks
 
-- Cache invalidation bugs can run automation with stale settings.
 - A sudden process termination may lose recently edited debounced values.
 - Account-scoped and global settings must remain strictly separated.
 
@@ -209,15 +174,14 @@ Follow `AGENTS.md` and `docs/ENGINEERING_NOTES.md` before implementation. Change
 
 - Test every account switch and settings window save/reset path.
 - Test dashboard toggles and village-scoped overlays.
-- Preserve the rule that server behavior targets official Travian only; do not reintroduce persisted server variants.
 
-## 8. Reusable Headless Browser Session
+## 8. Reusable Headless Browser Session — OPEN
 
 ### Evidence
 
-- In headless mode, `BotTaskRunner.AcquireClientLeaseAsync` creates a new `BrowserSession`.
-- Finalization disposes that session after the operation.
-- Repeated tasks therefore repeatedly start Playwright and Chromium.
+- In headless mode, `BotTaskRunner.AcquireClientLeaseAsync` still creates a new `BrowserSession` per
+  operation and disposes it in finalization; repeated tasks repeatedly start Playwright and Chromium.
+  (The visible browser already has a shared session with crash invalidation.)
 
 ### Recommended implementation
 
@@ -229,7 +193,6 @@ Follow `AGENTS.md` and `docs/ENGINEERING_NOTES.md` before implementation. Change
 
 - Highest lifecycle risk in this plan.
 - Stale pages, memory growth, stuck browser state, and cross-account leakage are possible.
-- Recovery logic becomes more complex.
 
 ### Verification
 
@@ -237,12 +200,13 @@ Follow `AGENTS.md` and `docs/ENGINEERING_NOTES.md` before implementation. Change
 - Run long-duration tests with account switching, browser crashes, cancellation, and repeated tasks.
 - Monitor browser memory and page count.
 
-## 9. Layout Scaling and Browser DOM Observer
+## 9. Layout Scaling and Browser DOM Observer — OPEN
 
 ### Evidence
 
 - `MainWindow.xaml` applies a `LayoutTransform` to the complete visual tree.
-- `BrowserSession` injects a `MutationObserver` that can run a full-document `querySelectorAll` after frequent React DOM mutations.
+- `BrowserSession` injects a `MutationObserver` that can run a full-document `querySelectorAll` after
+  frequent React DOM mutations.
 
 ### Recommended implementation
 
@@ -260,13 +224,13 @@ Follow `AGENTS.md` and `docs/ENGINEERING_NOTES.md` before implementation. Change
 - Visually verify supported resolutions and Windows scaling levels.
 - Regression-test popup blocking on Official.
 
-## Quick Wins
+## Quick Wins (updated)
 
-1. Append normal log lines instead of rewriting the complete session log.
-2. Reuse one queue snapshot during each UI refresh.
-3. Stop saving Playwright storage state after known read-only operations.
-4. Skip expensive one-second updates for hidden panels.
-5. Increase background refresh intervals while another browser operation is active.
+1. ~~Append normal log lines instead of rewriting the complete session log.~~ DONE
+2. ~~Reuse one queue snapshot during each UI refresh.~~ DONE
+3. ~~Stop saving Playwright storage state after known read-only operations.~~ DONE
+4. Cache `LoadBotOptions` for the Next-task preview (area 0).
+5. Skip expensive one-second updates for hidden panels (partially done; construction timer remains).
 6. Debounce Travco checkbox persistence.
 
 ## Implementation Rules

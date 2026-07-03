@@ -270,7 +270,7 @@ public partial class DailyPacingDetailsWindow : Window
         const double topPad = 38;
         const double rowHeight = 28;
         const double barHeight = 14;
-        const double bottomPad = 28;
+        const double bottomPad = 12;
         var plotW = Math.Max(40, width - leftPad - rightPad);
         canvas.Height = topPad + dates.Count * rowHeight + bottomPad;
 
@@ -346,35 +346,6 @@ public partial class DailyPacingDetailsWindow : Window
                 canvas.Children.Add(rect);
             }
         }
-
-        AddTimelineLegend(canvas, leftPad, canvas.Height - 20, taskBrush, waitingBrush, sleepingBrush, offlineBrush, labelBrush);
-    }
-
-    private static void AddTimelineLegend(
-        Canvas canvas,
-        double x,
-        double y,
-        Brush task,
-        Brush waiting,
-        Brush sleeping,
-        Brush offline,
-        Brush label)
-    {
-        var cursor = x;
-        void Item(Brush swatch, string text, double opacity = 1)
-        {
-            var rect = new Rectangle { Width = 10, Height = 10, Fill = swatch, Opacity = opacity, RadiusX = 2, RadiusY = 2 };
-            Canvas.SetLeft(rect, cursor);
-            Canvas.SetTop(rect, y + 2);
-            canvas.Children.Add(rect);
-            AddText(canvas, text, cursor + 14, y, label, 10);
-            cursor += 14 + text.Length * 6.5 + 14;
-        }
-
-        Item(task, "Task");
-        Item(waiting, "Waiting");
-        Item(sleeping, "Sleeping");
-        Item(offline, "Offline", 0.45);
     }
 
     private static string FormatTimelineHour(double hour)
