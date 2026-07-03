@@ -114,6 +114,8 @@ document.querySelector('.warehouse .capacity .value')
 - Session pacing run/sleep-timern far bara startas av aktiv automation (`Start bot`). Login kan fortfarande
   ga direkt till planned sleep vid schema/daily-limit; open browser och manuella funktioner som bulk messages
   far inte starta pacing/sleep-timern.
+- Automatisk session pacing sleep far inte avbryta en aktiv manuell operation; den ska skjutas upp tills
+  operationen ar klar. Detta galler bl.a. bulk messages, Travco, map oasis scan och Add farms to list.
 - Defer-orsaker ska konsumeras typat: `TaskWaitException.ReasonCode` (`TaskWaitReasons.*`), harledd pa ETT
   stalle (`BotTaskRunner.TaskHandlers.DeriveTaskWaitReason`). Sniffa inte `ex.Message` i Desktop for nya
   fall — lagg till en reason-kod i stallet. Farm-send-deferrals (cooldown/not ready/renamed) kastar

@@ -14,6 +14,7 @@ public partial class MainWindow
 {
     private bool _sessionPacingSleepInProgress;
     private bool _sessionPacingWakeInProgress;
+    private bool _sessionPacingSleepDeferredForManualOperation;
     private string _sessionPacingAccountName = string.Empty;
 
     // Visual state of the pacing box. Animated background pulse is (re)started only on state changes so
@@ -162,6 +163,17 @@ public partial class MainWindow
             return;
         }
 
+        if (!manual && _loopController.HasActiveOperation)
+        {
+            if (!_sessionPacingSleepDeferredForManualOperation)
+            {
+                AppendLog("[pacing] automatic sleep delayed until the active manual operation finishes.");
+            }
+
+            _sessionPacingSleepDeferredForManualOperation = true;
+            return;
+        }
+
         _sessionPacingSleepInProgress = true;
         try
         {
@@ -214,6 +226,23 @@ public partial class MainWindow
         {
             _sessionPacingSleepInProgress = false;
         }
+    }
+
+    private void TryStartDeferredSessionPacingSleepAfterOperation()
+    {
+        if (!_sessionPacingSleepDeferredForManualOperation)
+        {
+            return;
+        }
+
+        _sessionPacingSleepDeferredForManualOperation = false;
+        if (IsSessionSleeping || _sessionPacingSleepInProgress || _loopController.HasActiveOperation)
+        {
+            return;
+        }
+
+        AppendLog("[pacing] delayed automatic sleep starting after manual operation completed.");
+        _backgroundTasks.Track(SafeSessionPacingInvokeAsync(() => HandleSessionPacingSleepStartingAsync()));
     }
 
     private async Task HandleSessionPacingWakeRequestedAsync()

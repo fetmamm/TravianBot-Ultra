@@ -51,9 +51,15 @@ public partial class MainWindow
             Owner = this,
             SearchRequested = RunTravcoSearchAsync,
             ScrapePageRequested = cancellationToken =>
-                _botService.ScrapeTravcoPageAsync(AppendLog, cancellationToken),
+                RunManualOperationAsync(
+                    "Save Travco Page",
+                    token => _botService.ScrapeTravcoPageAsync(AppendLog, token),
+                    cancellationToken),
             ScrapeAllPagesRequested = (progress, cancellationToken) =>
-                _botService.ScrapeAllTravcoPagesAsync(AppendLog, progress, cancellationToken),
+                RunManualOperationAsync(
+                    "Save All Travco Pages",
+                    token => _botService.ScrapeAllTravcoPagesAsync(AppendLog, progress, token),
+                    cancellationToken),
             MapOasisScanRequested = RunMapOasisScanAsync,
             CloseRequested = () => _botService.CloseTravcoTabAsync(AppendLog),
         };
@@ -77,8 +83,47 @@ public partial class MainWindow
             await PauseAutomationForTravcoAsync();
         }
 
-        await _botService.OpenTravcoAndSearchAsync(options, request, AppendLog, cancellationToken);
-        return await _botService.ScrapeTravcoPageAsync(AppendLog, cancellationToken);
+        return await RunManualOperationAsync(
+            "Analyze Travco",
+            async token =>
+            {
+                await _botService.OpenTravcoAndSearchAsync(options, request, AppendLog, token);
+                return await _botService.ScrapeTravcoPageAsync(AppendLog, token);
+            },
+            cancellationToken);
+    }
+
+    private async Task<T> RunManualOperationAsync<T>(
+        string operationName,
+        Func<CancellationToken, Task<T>> action,
+        CancellationToken cancellationToken)
+    {
+        var operationId = BeginOperation(operationName);
+        var operationSw = System.Diagnostics.Stopwatch.StartNew();
+        var operationToken = _loopController.StartOperation("operation");
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(operationToken, cancellationToken);
+        try
+        {
+            var result = await action(linkedCts.Token);
+            CompleteOperation(operationId, operationSw, $"{operationName} completed.");
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
+            SetManualExecutionOutcome(operationId, ManualExecutionOutcome.Canceled);
+            _operationNamesById.Remove(operationId);
+            AppendLog($"[{operationId}] [CANCELED] {operationSw.Elapsed.TotalSeconds:F1}s | {operationName} canceled.");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            FailOperation(operationId, operationSw, ex);
+            throw;
+        }
+        finally
+        {
+            DisposeOperationCts();
+        }
     }
 
     private async Task PauseAutomationForTravcoAsync()

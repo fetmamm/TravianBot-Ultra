@@ -13,25 +13,31 @@ public partial class MainWindow
         IProgress<MapOasisScanProgress> progress,
         CancellationToken cancellationToken)
     {
-        var options = LoadBotOptions();
-        var entries = await _botService.ScanMapOasesAsync(
-            options,
-            includeOccupied: true,
-            MapOasisAllTypes,
-            AppendLog,
-            progress,
+        return await RunManualOperationAsync(
+            "Analyze Map Oasis",
+            async token =>
+            {
+                var options = LoadBotOptions();
+                var entries = await _botService.ScanMapOasesAsync(
+                    options,
+                    includeOccupied: true,
+                    MapOasisAllTypes,
+                    AppendLog,
+                    progress,
+                    token);
+                return entries.Select(entry => new OasisInfo
+                {
+                    X = entry.X,
+                    Y = entry.Y,
+                    Landscape = 0,
+                    IsOccupied = entry.IsOccupied,
+                    OasisType = entry.OasisType,
+                    Animals = entry.Animals,
+                    OwnerPlayer = entry.OwnerPlayer,
+                    OwnerAlliance = entry.OwnerAlliance,
+                }).ToList();
+            },
             cancellationToken);
-        return entries.Select(entry => new OasisInfo
-        {
-            X = entry.X,
-            Y = entry.Y,
-            Landscape = 0,
-            IsOccupied = entry.IsOccupied,
-            OasisType = entry.OasisType,
-            Animals = entry.Animals,
-            OwnerPlayer = entry.OwnerPlayer,
-            OwnerAlliance = entry.OwnerAlliance,
-        }).ToList();
     }
 
     // Every oasis bonus type the parser recognizes; passing all of them makes the scan return every

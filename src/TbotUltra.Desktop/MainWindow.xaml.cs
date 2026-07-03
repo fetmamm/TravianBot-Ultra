@@ -1104,7 +1104,15 @@ public partial class MainWindow : Window
     /// safe to call from finally blocks even when no operation is running.
     /// Centralizes the dispose/null pattern previously duplicated across panels.
     /// </summary>
-    private void DisposeOperationCts() => _loopController.DisposeOperation();
+    private void DisposeOperationCts()
+    {
+        var hadActiveOperation = _loopController.HasActiveOperation;
+        _loopController.DisposeOperation();
+        if (hadActiveOperation)
+        {
+            TryStartDeferredSessionPacingSleepAfterOperation();
+        }
+    }
 
     private void CompleteOperation(string operationId, Stopwatch sw, string summary)
     {
