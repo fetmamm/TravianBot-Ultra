@@ -285,6 +285,7 @@ public sealed partial class BotTaskRunner
         context.Log(
             $"Continuous farming mode={mode}; delayRange={minDelaySeconds}-{maxDelaySeconds}s; " +
             $"selectedDelay={dispatchDelaySeconds}s; " +
+            $"targetVillage='{(string.IsNullOrWhiteSpace(context.Options.TargetVillageName) ? "(default)" : context.Options.TargetVillageName)}'; " +
             $"deactivateLosses={context.Options.ContinuousFarmDeactivateLosses}; " +
             $"deactivateOasis={context.Options.ContinuousFarmDeactivateOasisLosses}.");
 

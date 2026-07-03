@@ -189,9 +189,10 @@ public partial class MainWindow
     private async Task EnsureContinuousLoopRuntimeItemsAsync(BotOptions options)
     {
         var enabledGroups = GetContinuousLoopEnabledGroupsInOrder();
-        // Troop-training, smithy and brewery are generated PER VILLAGE (see below), so the loop must keep
-        // running when only a non-selected village has those groups on. Hero/farming/transfer/reinforcements
-        // stay account-global and keep gating on the selected village's toggles via `enabledGroups`.
+        // Troop-training, smithy, brewery and farming are generated PER VILLAGE (see below), so the loop
+        // must keep running when only a non-selected village has those groups on. Hero/transfer/
+        // reinforcements stay account-global and keep gating on the selected village's toggles via
+        // `enabledGroups`.
         var consideredGroups = GetContinuousLoopConsideredGroupsInOrder();
         // Hero is global (one hero). Poll/queue adventures when Hero is on for ANY enabled village (the
         // considered/union set), not just the selected one — otherwise Hero never runs while a village that
@@ -214,7 +215,7 @@ public partial class MainWindow
         }
 
         // Per-village variant: an item only counts as active for a village when its payload targets that
-        // same village (by name). Lets each enabled village get its own troop-training/smithy task.
+        // same village (by name). Lets each enabled village get its own troop-training/smithy/farming task.
         bool HasActiveTaskForVillage(string taskName, string villageName)
         {
             return activeItems.Any(item =>
@@ -390,7 +391,7 @@ public partial class MainWindow
             _botService.EnqueueRuntime("run_town_hall_celebration", "Town Hall celebration", payload, priority: -50, maxRetries: 0);
         }
 
-        if (enabledGroups.Contains(QueueGroup.Farming) && !IsFarmingGroupBlocked() && !HasActiveTask("send_farmlists"))
+        if (consideredGroups.Contains(QueueGroup.Farming) && !IsFarmingGroupBlocked())
         {
             var goldClubEnabled = await _botService.ReadAndPersistGoldClubStatusAsync(options, AppendLog, CancellationToken.None);
             UpdateGoldClubInfo(goldClubEnabled);
@@ -437,23 +438,25 @@ public partial class MainWindow
 
                 if (selectedFarmLists.Count > 0 || (sendsAllListsAtOnce && availableFarmListCount > 0))
                 {
-                    var payload = new FarmingPayload(selectedFarmLists, selectedSnapshot.Ids).ToDictionary();
-                    // Run farming FROM the village the Farming group is toggled on (e.g. 940) instead of
-                    // wherever the previous task left the browser: tag the task with that village so
-                    // BotTaskRunner switches there first. The farm-list overview is account-wide, so every
-                    // selected list still gets sent from that village's rally point.
-                    var farmingVillage = automationVillages
-                        .FirstOrDefault(v => IsGroupEnabledForVillage(GetVillageKey(v), QueueGroup.Farming));
-                    if (farmingVillage is not null)
+                    var farmingPayload = new FarmingPayload(selectedFarmLists, selectedSnapshot.Ids).ToDictionary();
+                    foreach (var farmingVillage in automationVillages)
                     {
+                        if (!IsGroupEnabledForVillage(GetVillageKey(farmingVillage), QueueGroup.Farming)
+                            || HasActiveTaskForVillage("send_farmlists", farmingVillage.Name))
+                        {
+                            continue;
+                        }
+
+                        var payload = new Dictionary<string, string>(farmingPayload, StringComparer.OrdinalIgnoreCase);
                         foreach (var pair in BuildVillageRuntimePayload(farmingVillage))
                         {
                             payload[pair.Key] = pair.Value;
                         }
-                    }
 
-                    var displayName = sendsAllListsAtOnce ? "Send all farmlists" : "Send selected farmlists";
-                    _botService.EnqueueRuntime("send_farmlists", displayName, payload, priority: -50, maxRetries: 0);
+                        var displayName = sendsAllListsAtOnce ? "Send all farmlists" : "Send selected farmlists";
+                        _botService.EnqueueRuntime("send_farmlists", displayName, payload, priority: -50, maxRetries: 0);
+                        AppendLog($"Continuous farming queued for village '{farmingVillage.Name}'.");
+                    }
                 }
             }
             else
@@ -886,10 +889,10 @@ public partial class MainWindow
                 continue;
             }
 
-            // Rotate non-construction groups across villages too: troop-training/smithy items are now
+            // Rotate non-construction groups across villages too: troop-training/smithy/farming items are
             // tagged per village, so a village whose head item is waiting must not block another village's
-            // ready item. For global/village-less groups (hero, farming, …) all items share one village
-            // key, so this collapses to the original strict in-order head selection.
+            // ready item. For truly global/village-less groups (hero, …) all items share one village key,
+            // so this collapses to the original strict in-order head selection.
             var groupRotationKey = GetContinuousGroupRotationVillageKey(group);
             var candidate = QueueVillageRotation.SelectByVillageRotation(
                 orderedGroupItems,
@@ -941,6 +944,13 @@ public partial class MainWindow
     // is off, or the task's group is off for that village, the item stays queued but is ignored.
     private bool IsQueueItemAllowedByAutomationSettings(QueueItem item)
     {
+        if (string.Equals(item.TaskName, "send_farmlists", StringComparison.OrdinalIgnoreCase)
+            && string.IsNullOrWhiteSpace(GetQueueItemVillageKey(item))
+            && string.IsNullOrWhiteSpace(GetQueueItemVillageName(item)))
+        {
+            return false;
+        }
+
         return IsQueueItemVillageEnabled(item) && IsQueueItemGroupEnabledForItsVillage(item);
     }
 
