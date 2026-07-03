@@ -719,7 +719,7 @@ public partial class MainWindow
 
         // A "full" read brings buildings (or resource fields); a lightweight resource refresh does not.
         // Persist only on full reads so the durable structure is saved without thrashing the file every
-        // 16s; lighter refreshes still update memory.
+        // 20s; lighter refreshes still update memory.
         var isFullRead = status.Buildings is { Count: > 0 } || status.ResourceFields is { Count: > 0 };
 
         if (_villageStatusCacheByName.TryGetValue(name, out var existing))

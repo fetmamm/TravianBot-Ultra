@@ -93,9 +93,12 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
         Assert.Equal(1, resetCount);
         var recovered = store.GetAll().Single(entry => entry.Id == running.Id);
         Assert.Equal(QueueStatus.Pending, recovered.Status);
+        // Recovered items defer briefly (the crash may have happened after the browser action but
+        // before the defer persisted) — so the recovered head is pending but not immediately due.
+        Assert.True(recovered.NextAttemptAt > DateTimeOffset.UtcNow.AddSeconds(30));
         var untouched = store.GetAll().Single(entry => entry.Id == pending.Id);
         Assert.Equal(QueueStatus.Pending, untouched.Status);
-        Assert.NotNull(scheduler.SelectNext(store.GetAll()));
+        Assert.Null(scheduler.SelectNext(store.GetAll()));
     }
 
     [Fact]

@@ -94,9 +94,10 @@ public sealed partial class TravianClient
         var alreadyInList = 0;
         var failed = 0;
         var notFound = 0;
+        var occupiedSkipped = 0;
         var attempted = 0;
         var invalidCoordinates = new List<FarmCoordinate>();
-        // When a coordinate has no village the Add-target form is left open (see TryFillAddRaidFormAndSaveAsync),
+        // When a coordinate is skipped before Save the Add-target form is left open (see TryFillAddRaidFormAndSaveAsync),
         // so the next coordinate is typed straight into it instead of closing + reopening the dialog every miss.
         var reuseOpenForm = false;
         for (var i = 0; i < coordinates.Count && added < targetAddedCount; i++)
@@ -140,23 +141,23 @@ public sealed partial class TravianClient
                 coordinate.RequireUnoccupiedOasis,
                 cancellationToken);
 
-            // Every outcome closes the form (saved or dismissed) except an invalid coordinate, which leaves it
-            // open for the next attempt. Reset here and only re-arm reuse on the invalid branch below.
+            // Saved/already/failed outcomes close or abandon the form. Pre-save skips keep it open for the next attempt.
             reuseOpenForm = false;
 
             if (saveOutcome == AddRaidSaveOutcome.Added)
             {
                 added++;
                 Notify($"{stepPrefix} Added farm ({coordinate.X}|{coordinate.Y}) to '{farmListName}'.");
-                progress?.Report(new FarmAddProgress(farmListName, attempted, targetAddedCount, added, notFound));
+                progress?.Report(new FarmAddProgress(farmListName, attempted, targetAddedCount, added, notFound, OccupiedOasisSkippedCount: occupiedSkipped));
                 continue;
             }
 
-            if (saveOutcome == AddRaidSaveOutcome.AlreadyInList)
+            if (saveOutcome is AddRaidSaveOutcome.AlreadyInList or AddRaidSaveOutcome.AlreadyInListFormOpen)
             {
                 alreadyInList++;
                 Notify($"{stepPrefix} Farm ({coordinate.X}|{coordinate.Y}) is already in '{farmListName}' (This village is already in the selected farm list.).");
-                progress?.Report(new FarmAddProgress(farmListName, attempted, targetAddedCount, added, notFound));
+                progress?.Report(new FarmAddProgress(farmListName, attempted, targetAddedCount, added, notFound, OccupiedOasisSkippedCount: occupiedSkipped));
+                reuseOpenForm = saveOutcome == AddRaidSaveOutcome.AlreadyInListFormOpen;
                 continue;
             }
 
@@ -166,7 +167,7 @@ public sealed partial class TravianClient
                 notFound++;
                 invalidCoordinates.Add(coordinate);
                 Notify($"{stepPrefix} Skipped ({coordinate.X}|{coordinate.Y}): there is no village at these coordinates.");
-                progress?.Report(new FarmAddProgress(farmListName, attempted, targetAddedCount, added, notFound, coordinate));
+                progress?.Report(new FarmAddProgress(farmListName, attempted, targetAddedCount, added, notFound, coordinate, occupiedSkipped));
                 // Keep the open form and type the next coordinate straight into it.
                 reuseOpenForm = true;
                 continue;
@@ -174,14 +175,23 @@ public sealed partial class TravianClient
 
             if (saveOutcome == AddRaidSaveOutcome.OccupiedOasisSkipped)
             {
+                occupiedSkipped++;
                 Notify($"{stepPrefix} Skipped occupied oasis ({coordinate.X}|{coordinate.Y}) for '{farmListName}'.");
-                progress?.Report(new FarmAddProgress(farmListName, attempted, targetAddedCount, added, notFound));
+                progress?.Report(new FarmAddProgress(farmListName, attempted, targetAddedCount, added, notFound, OccupiedOasisSkippedCount: occupiedSkipped));
+                // Keep the open form and type the next coordinate straight into it.
+                reuseOpenForm = true;
                 continue;
             }
 
             failed++;
             Notify($"{stepPrefix} Failed to save farm ({coordinate.X}|{coordinate.Y}) in '{farmListName}'.");
-            progress?.Report(new FarmAddProgress(farmListName, attempted, targetAddedCount, added, notFound));
+            progress?.Report(new FarmAddProgress(farmListName, attempted, targetAddedCount, added, notFound, OccupiedOasisSkippedCount: occupiedSkipped));
+            await DismissAddTargetDialogAsync($"failed save for ({coordinate.X}|{coordinate.Y})");
+        }
+
+        if (reuseOpenForm)
+        {
+            await DismissAddTargetDialogAsync("finishing add farms batch");
         }
 
         await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
@@ -193,7 +203,8 @@ public sealed partial class TravianClient
             alreadyInList,
             failed,
             notFound,
-            invalidCoordinates);
+            invalidCoordinates,
+            occupiedSkipped);
     }
 
     private async Task OpenAddRaidFormAsync(string lid, CancellationToken cancellationToken)
@@ -451,22 +462,24 @@ public sealed partial class TravianClient
                 """
                 () => {
                   const form = document.querySelector('#farmListTargetForm');
-                  const owner = form?.querySelector(
-                    '.targetSelectionResultWrapper .targetWrapper .player a[href*="/profile"], ' +
-                    '.targetSelectionResultWrapper .targetWrapper .player a[href*="spieler.php"], ' +
-                    '.targetSelectionResultWrapper .targetWrapper .player');
-                  const text = (owner?.textContent || '').replace(/\s+/g, ' ').trim();
-                  return text.length > 0 ? text.replace(/^Player:\s*/i, '').trim() : null;
+                  const player = form?.querySelector('.targetSelectionResultWrapper .targetWrapper .player');
+                  const owner =
+                    player?.querySelector('a[href*="/profile"], a[href*="spieler.php"]') ||
+                    player?.querySelector('.value') ||
+                    player;
+                  const text = (owner?.textContent || '').replace(/\s+/g, ' ').trim().replace(/^Player:\s*/i, '').trim();
+                  if (!text || text === '-' || text === '–' || text === '—') return null;
+                  return text;
                 }
                 """);
             if (!string.IsNullOrWhiteSpace(ownerText))
             {
                 Notify($"[farm-list] Occupied oasis ({x}|{y}) owned by '{ownerText}' skipped before Save.");
-                await DismissAddTargetDialogAsync($"skipping occupied oasis ({x}|{y})");
                 return AddRaidSaveOutcome.OccupiedOasisSkipped;
             }
         }
 
+        var stateBeforeSave = await ReadFarmListTargetStateAsync(lid, x, y, cancellationToken);
         await DelayBeforeClickAsync(cancellationToken, "add farm: save target");
         var clicked = await _page.EvaluateAsync<bool>(
             """
@@ -488,14 +501,57 @@ public sealed partial class TravianClient
         {
             await _page.WaitForFunctionAsync(
                 """
-                () => {
-                  const body = (document.body?.innerText || '').replace(/\s+/g, ' ').trim().toLowerCase();
-                  if (body.includes('already in the selected farm list')) return true;
-                  return !document.querySelector('#farmListTargetForm');
+                (args) => {
+                  const clean = (value) => (value || '')
+                    .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+                  const readWrapper = () => Array.from(document.querySelectorAll('#rallyPointFarmList .farmListWrapper'))
+                    .find(node => node.querySelector('.dragAndDrop[data-list]')?.getAttribute('data-list') === String(args.lid));
+                  const readCount = (wrapper) => {
+                    const match = clean(wrapper?.querySelector('td.addTarget')?.textContent).match(/(\d+)\s*\/\s*(\d+)/);
+                    return match ? Number(match[1]) : null;
+                  };
+                  const hasCoordinate = (wrapper) => {
+                    if (!wrapper) return false;
+                    for (const link of wrapper.querySelectorAll('tbody tr.slot td.target a[href*="karte.php"]')) {
+                      const href = link.getAttribute('href') || '';
+                      try {
+                        const url = new URL(href, document.baseURI);
+                        if (Number(url.searchParams.get('x')) === Number(args.x) &&
+                            Number(url.searchParams.get('y')) === Number(args.y)) {
+                          return true;
+                        }
+                      } catch (_) {
+                        const match = href.match(/[?&]x=(-?\d+).*?[?&]y=(-?\d+)/i);
+                        if (match && Number(match[1]) === Number(args.x) && Number(match[2]) === Number(args.y)) {
+                          return true;
+                        }
+                      }
+                    }
+                    return false;
+                  };
+                  const bodyText = clean(document.body?.innerText).toLowerCase();
+                  const duplicateDialog = Array.from(document.querySelectorAll('.confirmationDialog, #dialogContent, .dialogWrapper'))
+                    .some(node => clean(node.textContent).toLowerCase().includes('already on the farm list'));
+                  if (duplicateDialog ||
+                      bodyText.includes('already on the farm list') ||
+                      bodyText.includes('already in the selected farm list')) return true;
+
+                  const form = document.querySelector('#farmListTargetForm');
+                  const targetError = form?.querySelector(
+                    '.targetSelectionResultWrapper.hasError .targetSelectionValidation.show, ' +
+                    '.targetSelectionResultWrapper.hasError .customValidationRenderElement');
+                  if (targetError && clean(targetError.textContent).length > 0) return true;
+
+                  const wrapper = readWrapper();
+                  const count = readCount(wrapper);
+                  return !form && ((!args.beforeHasCoordinate && hasCoordinate(wrapper)) ||
+                    (count !== null && args.beforeCount !== null && count > Number(args.beforeCount)));
                 }
                 """,
-                null,
-                new PageWaitForFunctionOptions { Timeout = 5000 });
+                new { lid, x, y, beforeCount = stateBeforeSave.Count, beforeHasCoordinate = stateBeforeSave.HasCoordinate },
+                new PageWaitForFunctionOptions { Timeout = 7000 });
         }
         catch (TimeoutException)
         {
@@ -506,33 +562,186 @@ public sealed partial class TravianClient
         await PauseForManualStepIfVisibleAsync("Manual verification appeared after saving new target.", cancellationToken);
         await EnsureLoggedInAsync();
 
-        var saveState = await _page.EvaluateAsync<string>(
-            """
-            () => {
-              const text = (document.body?.innerText || '').replace(/\s+/g, ' ').trim();
-              if (text.includes('This village is already in the selected farm list.')) return 'already';
-              if (text.toLowerCase().includes('success') || text.toLowerCase().includes('saved')) return 'saved';
-              return 'unknown';
-            }
-            """);
+        var saveState = await ReadAddTargetSaveStateAsync(lid, x, y, stateBeforeSave, cancellationToken);
 
-        if (string.Equals(saveState, "already", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(saveState, "duplicate", StringComparison.OrdinalIgnoreCase))
         {
-            return AddRaidSaveOutcome.AlreadyInList;
+            var formStillOpen = await DismissDuplicateConfirmationAsync(cancellationToken);
+            return formStillOpen
+                ? AddRaidSaveOutcome.AlreadyInListFormOpen
+                : AddRaidSaveOutcome.AlreadyInList;
         }
 
-        return AddRaidSaveOutcome.Added;
+        if (string.Equals(saveState, "saved", StringComparison.OrdinalIgnoreCase))
+        {
+            return AddRaidSaveOutcome.Added;
+        }
+
+        Notify($"[farm-list] Add target save ended in unexpected state '{saveState}' for ({x}|{y}) in '{farmListName}'.");
+        return AddRaidSaveOutcome.Failed;
+    }
+
+    private async Task<FarmListTargetStateJs> ReadFarmListTargetStateAsync(string lid, int x, int y, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return await _page.EvaluateAsync<FarmListTargetStateJs>(
+            """
+            (args) => {
+              const clean = (value) => (value || '')
+                .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+              const wrapper = Array.from(document.querySelectorAll('#rallyPointFarmList .farmListWrapper'))
+                .find(node => node.querySelector('.dragAndDrop[data-list]')?.getAttribute('data-list') === String(args.lid));
+              const match = clean(wrapper?.querySelector('td.addTarget')?.textContent).match(/(\d+)\s*\/\s*(\d+)/);
+              let hasCoordinate = false;
+              if (wrapper) {
+                for (const link of wrapper.querySelectorAll('tbody tr.slot td.target a[href*="karte.php"]')) {
+                  const href = link.getAttribute('href') || '';
+                  try {
+                    const url = new URL(href, document.baseURI);
+                    hasCoordinate = Number(url.searchParams.get('x')) === Number(args.x) &&
+                      Number(url.searchParams.get('y')) === Number(args.y);
+                  } catch (_) {
+                    const hrefMatch = href.match(/[?&]x=(-?\d+).*?[?&]y=(-?\d+)/i);
+                    hasCoordinate = !!hrefMatch &&
+                      Number(hrefMatch[1]) === Number(args.x) &&
+                      Number(hrefMatch[2]) === Number(args.y);
+                  }
+
+                  if (hasCoordinate) break;
+                }
+              }
+
+              return {
+                count: match ? Number(match[1]) : null,
+                hasCoordinate
+              };
+            }
+            """,
+            new { lid, x, y }).WaitAsync(cancellationToken);
+    }
+
+    private async Task<string> ReadAddTargetSaveStateAsync(string lid, int x, int y, FarmListTargetStateJs beforeState, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return await _page.EvaluateAsync<string>(
+            """
+            (args) => {
+              const clean = (value) => (value || '')
+                .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+              const wrapper = Array.from(document.querySelectorAll('#rallyPointFarmList .farmListWrapper'))
+                .find(node => node.querySelector('.dragAndDrop[data-list]')?.getAttribute('data-list') === String(args.lid));
+              const countMatch = clean(wrapper?.querySelector('td.addTarget')?.textContent).match(/(\d+)\s*\/\s*(\d+)/);
+              const count = countMatch ? Number(countMatch[1]) : null;
+              const hasCoordinate = (() => {
+                if (!wrapper) return false;
+                for (const link of wrapper.querySelectorAll('tbody tr.slot td.target a[href*="karte.php"]')) {
+                  const href = link.getAttribute('href') || '';
+                  try {
+                    const url = new URL(href, document.baseURI);
+                    if (Number(url.searchParams.get('x')) === Number(args.x) &&
+                        Number(url.searchParams.get('y')) === Number(args.y)) {
+                      return true;
+                    }
+                  } catch (_) {
+                    const match = href.match(/[?&]x=(-?\d+).*?[?&]y=(-?\d+)/i);
+                    if (match && Number(match[1]) === Number(args.x) && Number(match[2]) === Number(args.y)) {
+                      return true;
+                    }
+                  }
+                }
+                return false;
+              })();
+              const bodyText = clean(document.body?.innerText).toLowerCase();
+              const duplicateDialog = Array.from(document.querySelectorAll('.confirmationDialog, #dialogContent, .dialogWrapper'))
+                .some(node => clean(node.textContent).toLowerCase().includes('already on the farm list'));
+              if (duplicateDialog ||
+                  bodyText.includes('already on the farm list') ||
+                  bodyText.includes('already in the selected farm list')) return 'duplicate';
+
+              const form = document.querySelector('#farmListTargetForm');
+              const targetError = form?.querySelector(
+                '.targetSelectionResultWrapper.hasError .targetSelectionValidation.show, ' +
+                '.targetSelectionResultWrapper.hasError .customValidationRenderElement');
+              if (targetError && clean(targetError.textContent).length > 0) return 'invalid';
+              if (!form && ((!args.beforeHasCoordinate && hasCoordinate) ||
+                  (count !== null && args.beforeCount !== null && count > Number(args.beforeCount)))) return 'saved';
+              if (!form) return 'closed_unknown';
+              return 'pending';
+            }
+            """,
+            new { lid, x, y, beforeCount = beforeState.Count, beforeHasCoordinate = beforeState.HasCoordinate }).WaitAsync(cancellationToken);
+    }
+
+    private async Task<bool> DismissDuplicateConfirmationAsync(CancellationToken cancellationToken)
+    {
+        var clicked = await _page.EvaluateAsync<bool>(
+            """
+            () => {
+              const clean = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+              const dialogs = Array.from(document.querySelectorAll('.confirmationDialog, #dialogContent, .dialogWrapper'));
+              const dialog = dialogs.find(node => clean(node.textContent).includes('already on the farm list'));
+              const cancel = Array.from(dialog?.querySelectorAll('button, .dialogCancelButton') || [])
+                .find(node => clean(node.textContent) === 'cancel' || clean(node.getAttribute('class')).includes('cancel'));
+              if (!cancel) return false;
+              cancel.click();
+              return true;
+            }
+            """).WaitAsync(cancellationToken);
+
+        if (clicked)
+        {
+            Notify("[farm-list] Duplicate Add target confirmation cancelled; keeping Add target form for next coordinate.");
+            try
+            {
+                await _page.WaitForFunctionAsync(
+                    """
+                    () => !Array.from(document.querySelectorAll('.confirmationDialog, #dialogContent, .dialogWrapper'))
+                      .some(node => (node.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase().includes('already on the farm list'))
+                    """,
+                    null,
+                    new PageWaitForFunctionOptions { Timeout = 3000 });
+            }
+            catch (TimeoutException)
+            {
+                Notify("[farm-list] Duplicate Add target confirmation remained open after Cancel.");
+            }
+        }
+
+        return await IsAddTargetFormOpenAsync(cancellationToken);
+    }
+
+    private async Task<bool> IsAddTargetFormOpenAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return await _page.EvaluateAsync<bool>(
+            "() => !!document.querySelector('#farmListTargetForm')").WaitAsync(cancellationToken);
     }
 
     private async Task DismissAddTargetDialogAsync(string reason)
     {
-        await _page.EvaluateAsync(
+        await _page.EvaluateAsync<bool>(
             """
             () => {
+              const clean = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+              const duplicateDialog = Array.from(document.querySelectorAll('.confirmationDialog, #dialogContent, .dialogWrapper'))
+                .find(node => clean(node.textContent).includes('already on the farm list'));
+              const duplicateCancel = Array.from(duplicateDialog?.querySelectorAll('button, .dialogCancelButton') || [])
+                .find(node => clean(node.textContent) === 'cancel' || clean(node.getAttribute('class')).includes('cancel'));
+              if (duplicateCancel) {
+                duplicateCancel.click();
+                return true;
+              }
+
               const form = document.querySelector('#farmListTargetForm');
               const cancel = form?.querySelector('.actionButtons button.cancel')
                 || document.querySelector('.dialogCancelButton');
-              if (cancel) cancel.click();
+              if (!cancel) return false;
+              cancel.click();
+              return true;
             }
             """);
         try
@@ -555,5 +764,6 @@ public sealed partial class TravianClient
         AlreadyInList = 2,
         InvalidCoordinates = 3,
         OccupiedOasisSkipped = 4,
+        AlreadyInListFormOpen = 5,
     }
 }

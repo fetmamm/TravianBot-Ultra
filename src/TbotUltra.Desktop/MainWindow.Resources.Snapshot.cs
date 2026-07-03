@@ -430,6 +430,13 @@ public partial class MainWindow
             return false;
         }
 
+        // During an account switch the tick must never take the session gate: right after logout it
+        // would silently log the OLD account back in before the new account is applied.
+        if (_accountSwitchInProgress)
+        {
+            return false;
+        }
+
         if (!_isLoggedIn || !_browserSessionLikelyOpen || _resourceSnapshotRefreshRunning)
         {
             return false;
@@ -440,10 +447,10 @@ public partial class MainWindow
 
     private bool _heroReviveCheckRunning;
 
-    // 16s refresher function
+    // 20s refresher function
     private async Task HandleResourceSnapshotRefreshTickAsync()
     {
-        AppendLog("[HandleResourceSnapshotRefreshTickAsync] 16s tick");
+        AppendLog("[HandleResourceSnapshotRefreshTickAsync] 20s tick");
         if (!ShouldRunBackgroundResourceSnapshotRefresh())
         {
             return;
@@ -455,7 +462,9 @@ public partial class MainWindow
         VillageStatus? refreshedStatus = null;
         try
         {
-            refreshedStatus = await RefreshResourceSnapshotForUiAsync(options, CancellationToken.None, currentPageOnly: true);
+            // Session-scoped token: stop/account switch aborts an in-flight background refresh
+            // instead of letting it sit on the worker session gate.
+            refreshedStatus = await RefreshResourceSnapshotForUiAsync(options, _loopController.AcquireSessionScopeToken(), currentPageOnly: true);
         }
         catch (Exception ex)
         {

@@ -21,6 +21,22 @@ public static class TroopCatalog
         FallbackTroops,
     ];
 
+    /// <summary>
+    /// True when the value maps to a specific tribe's troop list. Unknown/empty values fall back
+    /// to the generic list in <see cref="ResolveTroopTypesForTribe(string?)"/> — callers that would
+    /// overwrite real troop data should check this first instead of trusting the fallback.
+    /// </summary>
+    public static bool IsKnownTribe(string? tribe)
+    {
+        var value = (tribe ?? string.Empty).Trim().ToLowerInvariant();
+        return value.Contains("roman")
+            || value.Contains("gaul")
+            || value.Contains("teuton")
+            || value.Contains("hun")
+            || value.Contains("egypt")
+            || value.Contains("spartan");
+    }
+
     public static IReadOnlyList<string> ResolveTroopTypesForTribe(string? tribe)
     {
         var value = (tribe ?? string.Empty).Trim().ToLowerInvariant();
@@ -61,6 +77,19 @@ public static class TroopCatalog
     {
         var allTroops = ResolveTroopTypesForTribe(tribe);
         var value = (tribe ?? string.Empty).Trim().ToLowerInvariant();
+        if (!IsKnownTribe(tribe))
+        {
+            // The 7-item fallback list has its own layout (no chief/settler tail), so the generic
+            // 3/3/2 split below would put Ram in the Stable and leave the Workshop with only Catapult.
+            return buildingType switch
+            {
+                TroopTrainingBuildingType.Barracks => allTroops.Take(3).ToList(),
+                TroopTrainingBuildingType.Stable => allTroops.Skip(3).Take(2).ToList(),
+                TroopTrainingBuildingType.Workshop => allTroops.Skip(5).Take(2).ToList(),
+                _ => [],
+            };
+        }
+
         if (value.Contains("teuton"))
         {
             return buildingType switch

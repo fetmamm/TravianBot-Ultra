@@ -76,13 +76,51 @@ document.querySelector('.warehouse .capacity .value')
   tillbaka till global/default troop-training config (t.ex. 50% resources) i stallet for konto+by-overriden.
 - Build troops `timed` ar per-by/per-byggnad: efter lyckad training defer:as samma queue item med
   slumpad `timed_min_minutes`-`timed_max_minutes` delay. Default ar 30-180 min.
+- `build_troops` sparar sina ko-avlasningar (scan + efter submit) i `TravianSessionCache.TroopQueueSnapshot*`
+  per by/byggnadstyp. `ReadTroopTrainingQueuesAsync` ateranvander snapshoten (max 90s, samma aktiva by)
+  sa post-build UI-refreshen inte navigerar om till dorf2 + barracks/stable/workshop som tasken nyss besokte.
+  Post-build-refreshen kor ocksa `refreshBuildingsBeforeRead: false` — trupptraning andrar inte byggnadslistan.
 - Kontobyte ar full UI/cache-reset, men respektive kontos separata ko och settings ska bevaras, och
   `bot.json`:s konto-scopeade pekare (by-/farmlist-namn/ids) rensas via `ClearPersistedAccountScopedConfig`
-  sa de inte lacker till nasta konto.
+  sa de inte lacker till nasta konto. Rensningen kors FORST i `ResetForAccountSwitchAsync` (fore
+  logout/shutdown) sa en krasch mitt i bytet inte lamnar kvar pekarna. Bakgrunds-ticken (20s) bail:ar
+  pa `_accountSwitchInProgress` sa den aldrig loggar in gamla kontot under bytet.
 - Borttagning av ett inaktivt konto far inte blockeras av det aktiva kontots ko; aktivt konto skyddas medan dess ko har arbete.
 - All ko- och slotbaserad UI-harledning filtreras till vald by eller uttryckligen globala items.
 - Settings-fonstret far inte skriva konto-scopeade overlay-varden tillbaka till global config.
+- Quick re-login (Settings > General, `post_login_quick_relogin_enabled`, per konto): login <10 min efter
+  senast SLUTFORDA fulla post-login-stacken (`post_login_last_full_login_at`, skrivs fore CompleteOperation)
+  hoppar over snapshot+analyzes och bekraftar bara sessionen + laddar persisterade cacher. Kontobyte
+  paverkas inte (timestampen ar account-scoped).
 - Config-/cache-stores skriver via `AtomicFile.WriteAllText` (temp-fil + `File.Move`); nya stores ska folja samma monster.
+- All fil-IO under OneDrive-synkade Documents ska retry:a bade `IOException` och `UnauthorizedAccessException`
+  (transient ERROR_ACCESS_DENIED fran OneDrive/antivirus). Finns i `AtomicFile.RetryFileIo`,
+  `JsonQueueStore.RetryFileIo` och `BrowserSession.ReplaceStorageStateWithRetryAsync`.
+- Korrupt `queue.json` kastas inte langre for evigt: `JsonQueueStore.LoadMutable` karantaniserar filen
+  (`queue.json.corrupt-<stamp>`), loggar och fortsatter med tom ko.
+- Post-defer construction-refresh (`RefreshConstructionStatusAfterDeferAsync`) laser byggko+storage fran
+  AKTUELL sida (tasken har precis reload:at dorf2) och merge:ar in i village-cachen — ingen dorf1+dorf2-runda.
+  Full lasning (`RefreshConstructionStatusAsync`) ar bara fallback vid fel.
+- Anvand aldrig `CancellationToken.None` for operationer som tar worker-session-gaten (post-task/manuella
+  refreshes): ta token fran metodens parameter eller `LoopController.AcquireSessionScopeToken()` (cancellas
+  av stop/kontobyte, ater-armas lazily for nasta operation).
+- Tidsintervall styrs med min/max-minuter (inte bas+variation%): farm-dispatch
+  (`continuous_farm_dispatch_delay_min/max_minutes`, default 30-90), reinforcements-send
+  (`reinforcements_send_min/max_minutes`, default 60-120), session pacing run/sleep
+  (`session_pacing_run_min/max_minutes` 40-100, `session_pacing_sleep_min/max_minutes` 20-60).
+  Gamla nycklar (`*_variation_percent`, `session_pacing_max_run_minutes`, `reinforcements_send_interval_hours`)
+  ar borttagna och ignoreras; Daily max behaller sin egen variation. Schema-granser ar exakta hela timmar.
+- Defer-orsaker ska konsumeras typat: `TaskWaitException.ReasonCode` (`TaskWaitReasons.*`), harledd pa ETT
+  stalle (`BotTaskRunner.TaskHandlers.DeriveTaskWaitReason`). Sniffa inte `ex.Message` i Desktop for nya
+  fall — lagg till en reason-kod i stallet. Farm-send-deferrals (cooldown/not ready/renamed) kastar
+  `TaskWaitException` direkt via `BuildContinuousFarmDefer` (loggas DEFERRED, aldrig FAILED, ingen retry-burn);
+  meddelandet behaller `queue_wait_seconds`/`continuous_farm_next_list_index`-tokens som Desktop laser.
+  `troops_blocked=<key>`-tokens ar avsiktligt maskinprotokoll och far inte omformuleras.
+- Items som recovras fran Running vid start defereras ~120s (`JsonQueueStore.RecoveredRunningItemDefer`):
+  kraschen kan ha skett efter browser-aktionen men fore defer-persist, sa direkt re-run riskerar dubbelkorning.
+- Interaktiva vantloopar (captcha/manuell login) ar tidsbegransade av `ManualInteractiveWaitMaxDuration`
+  (30 min) — de haller session-gaten och far aldrig vara obegransade. `BotTaskRunner.ShutdownAsync` vantar
+  max 15s pa gaten och force-stanger sedan browsern (fast operation far target-closed och slapper gaten sjalv).
 
 For en ny dashboard-bool ska hela configkedjan uppdateras:
 `BotOptionPayloadKeys` -> `BotOptions` -> `BotOptionsFactory` ->
@@ -105,11 +143,13 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
   `TryHeroResourceTransferOnCurrentBuildPageAsync`; construction/brewery anropar via tunna gated wrappers,
   town hall anropar via egen tunn wrapper, smithy har egen per-trupp-DOM (`TryHeroResourceTransferForSmithyTroopAsync`). Nybyggnation ska prova
   hero-transfer direkt pa construct-sidan innan en queue-kontroll navigerar till `dorf2`.
+  Tomt hero-inventory: Official oppnar INGEN dialog utan visar en 5s rod toast
+  (`.toast.toastError .text` = "There are no resources to transfer from the Hero Inventory.").
+  Dialog-vantan race:ar dialog mot toasten, cachar tomt inventory och skippar — ingen full timeout.
 - Town Hall celebration ar `gid 24`, alla stammar, per-by `QueueGroup.TownHallCelebration`.
-  Mode ar account-default `small`/`big` med per-by override; `big` faller tillbaka till `small` under
-  Town Hall level 10. Big-start-selector ska live-verifieras forst nar en level 10 Town Hall finns.
-  Small-start logic ska vara scope:ad till `.build_details` och small-celebration-raden; verifiera Official
-  live innan selectorandringar markeras som bekraftade.
+  Mode ar account-default `small`/`big` med per-by override; UI visar `big` som "Great" enligt Travian.
+  `big` faller tillbaka till `small` under Town Hall level 10. Start-/resource-scope ska ligga i
+  `.build_details` och matcha small- eller Great-celebration-raden.
 
 ### Desktop
 
@@ -136,6 +176,45 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
   fore profilnavigation och anvand profilen endast for att berika bydata.
 - Map Oasis Analyzer och kartparsning: [ADR 2026-06-20 map-oasis-scan](adr/2026-06-20-map-oasis-scan.md).
   Analyze map oasis ska visa en warning-confirmation fore scan eftersom flodet ar high-volume.
+- "Queue wait threshold" ar BORTTAGEN (2026-07-03): ko-/resursvantor deferras ALLTID (fd "smart").
+  Nyckeln `queue_wait_threshold_mode` finns inte langre (Settings-save stadar bort den);
+  `ShouldDeferLongWait` ar borta — byggnadsuppgraderingar returnerar `queue_wait_seconds=N` direkt
+  vid vantetid > 0, smithy deferrar alltid. Ateruppliva inte vanta-pa-plats (laser _sessionGate).
+  `AllowSilverSpending`/`SilverLimit` anvands INTE av nagon automation (endast lasning for display);
+  tooltipen i Settings sager det — koppla in dem eller ta bort dem om auktionsfunktioner byggs.
+- Headless-lage ar BORTTAGET (2026-07-03): ingen `BotOptions.Headless`, ingen settings-checkbox,
+  ingen headless-branch i `AcquireClientLeaseAsync`. Boten kor ALLTID den delade synliga
+  browsersessionen. Ateruppliva inte nyckeln "headless" i bot.json (Settings-save tar bort den).
+  Playwrights interna warmup-launch (Headless=true i BrowserSession.Warmup) ar orelaterad och kvar.
+- `LoadBotOptions` ar cachad per (`BotConfigStore.Version`, aktivt konto): varje skrivning genom
+  BotConfigStore bumpar `Version` (SaveJson/Delete). Skriv ALDRIG bot.json/account-settings forbi
+  BotConfigStore — da ser cachen inte andringen. `EnvAccountStore.ReadValues` cachar .env pa
+  timestamp+langd (invalideras av skrivningar och externa andringar). Bakgrund: Next task-previewn
+  i 1s-ticken laste config fran disk varje sekund pa UI-traden (OneDrive-lagg).
+- Tribe ar fast per konto och far ALDRIG nedgraderas fran en statuslasning: village-status kan bara
+  `Tribe="Unknown"`/tom (t.ex. 20s-ticken under sleep). Bade `SetTribeText` och
+  `ApplyTroopTrainingTribeState` ar skyddade — okand tribe ignoreras och nuvarande trooplistor behalls
+  (annars byts dropdowns till generiska fallback-listan OCH fallback-namn persisteras i by-overrides).
+  Anvand `TroopCatalog.IsKnownTribe` for kontrollen; skriv aldrig "Unknown" som Tribe i
+  account-analysis-snapshots (`ResolveTribeForSnapshotWrite`). Fallback-listan (7 poster) har egen
+  byggnadssplit i `ResolveTroopTypesForTribe` (3/2/2) sa Ram inte hamnar i Stable.
+- "Troop settings"-popupen (TroopTrainingOptionsWindow) har expanderbara byrader: kompakt rad
+  (enable + troop per byggnad) + chevron som visar ALLA settings for byn (max queue, amount, keep %,
+  run trigger, timed min/max, resurscheckar, fallback wait). Cellerna ateranvander
+  `TroopTrainingBuildingOption` (samma normalisering/binding som Troops-tabben); en by expanderad at
+  gangen (fönstrets code-behind kollapsar ovriga). Auto celebration styrs ENDAST av Brewery-gruppens
+  toggle pa dashboardens automation-kort (gruppen force-syncar `AutoCelebrationEnabled`); checkboxen
+  pa Troops-tabben ar borttagen.
+- Server-pickern i Accounts kombinerar `OfficialServerCatalog` (inbyggda officiella varldar, grupperade per
+  region: America/Arabia/Asia/Europe/International, varldar 1-9=1x, 20=2x, 30/31=3x, 50=5x, 100=10x enligt
+  `ts{N}.x{speed}.{region}.travian.com`) med anvandarens custom-lista ("Custom"-gruppen overst). Officiella
+  presets visas ALLTID, aven om en custom-post har samma URL (URL-val traffar custom forst i listordningen).
+  Letterkodade specialvarldar (nys/ttq/rof) och regioner med oregelbundna namn (Nordics/Balkans) hanteras
+  via custom-listan. `ServerCatalogStore`/ServerListWindow hanterar ENDAST custom-servrar; officiella
+  presets ligger i kod. Servernamn ska ha hastigheten inom parentes ("America 100 (10x)") sa att
+  speed-parsning (`ResolveServerSpeed`/`ServerSpeedLabel`) traffar hastigheten och inte varldsnumret.
+  Dropdown anvander `ScrollViewer.CanContentScroll="False"` for pixelscroll — item-scroll ar hackig med
+  grupprubriker.
 - Travco-tabben ar seg: `SetDefaultTimeout(30000)`. "Save all pages" kor `ScrapePageWithRetryAsync`
   (3 forsok med reload + backoff) och `ResolveTotalPagesAsync` vantar in resultattabellen fore sidantalet
   lases, sa en seg sida inte tyst kapar listan till sida 1. Se [ADR 2026-06-09](adr/2026-06-09-farmlists-and-travco.md).
@@ -230,7 +309,9 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
 - Noll adventures ska inte automatiskt stanga av anvandarens Hero-toggle.
 - Official Add target ska fylla X och Y som separata Playwright-interaktioner. Vid Default troops ska
   koordinatfaltet blur:as och en neutral yta klickas innan flodet vantar pa aktiv Save. Stegen anvander
-  konto-scopead `farm_list_step_delay_*_seconds` (default 1.5-4 s, under Action pacing/Loop).
+  konto-scopead `farm_list_step_delay_*_seconds` (default 1.5-4 s, under Action pacing/Loop). Owner-varde
+  `-` i Add target betyder fri oas och far inte klassas som occupied. Efter Save ska success verifieras
+  mot ratt `lid`/koordinat eller okat listantal; duplicate-confirmation ska cancelleras, inte OK:as.
 - Add Farms-progress visar lyckade tillagg separat fran kontrollerade/saknade koordinater. Mal ar antal
   lyckade tillagg, inte forsok: invalid/duplicate forbrukar nasta kandidat tills malet nas, listan blir
   full eller kallistan tar slut. Official live-count kontrolleras fore varje forsok for max 100.

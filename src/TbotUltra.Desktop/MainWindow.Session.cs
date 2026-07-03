@@ -57,7 +57,7 @@ public partial class MainWindow
             // navigate away from the landing village to the capital/selected one. The dropdown is synced
             // to the real landing village after the snapshot; use "Switch village" to move on purpose.
             var options = LoadBotOptions();
-            AppendLog($"[{operationId}] INFO server={options.ServerName}, headless={options.Headless}");
+            AppendLog($"[{operationId}] INFO server={options.ServerName}");
             BrowserInfoTextBlock.Text = "Browser: starting";
 
             await EnsureChromiumInstalledAsync();
@@ -67,11 +67,55 @@ public partial class MainWindow
             // _browserSessionLikelyOpen here: that flag also gates background refresh and village-selection
             // operations, and turning it on before post-login analysis finishes lets those ops race the
             // login on the shared page (tab flicker). The finally block clears this flag.
-            _visibleBrowserLoginInProgress = !options.Headless;
+            _visibleBrowserLoginInProgress = true;
+
+            // Quick re-login: the full post-login stack (snapshot + analyzes) was completed for this
+            // account only minutes ago, and nothing meaningful changes server-side that fast. Log in,
+            // confirm the session, restore the persisted caches — done.
+            if (IsQuickReloginWindowActive(out var minutesSinceFullLogin))
+            {
+                AppendLog($"[{operationId}] Quick re-login: full post-login stack ran {minutesSinceFullLogin:F0} min ago (<{QuickReloginWindowMinutes} min) — logging in without analyzes.");
+                await _botService.ExecuteLoginAsync(options, AppendLog, keepBrowserOpenAfterLogin: true, operationToken);
+
+                BrowserInfoTextBlock.Text = "Browser: idle";
+                StatusTextBlock.Text = "Login completed (quick re-login).";
+                UpdateLoginButtonsVisual(true);
+                _isLoggedIn = true;
+                _inboxAutoEnabled = true;
+                LoadVillageCacheForActiveAccount();
+                LoadHeroHomeVillageForActiveAccount();
+
+                // Fill the dashboard (resources, villages, adventure count) from the landing page
+                // BEFORE the busy overlay closes, so the UI is not half-empty when it appears. Cheap:
+                // current-page read on official, no extra navigation beyond the login landing.
+                try
+                {
+                    var quickOfficialServer = IsOfficialTravianServer(options);
+                    await RefreshResourceSnapshotForUiAsync(
+                        options,
+                        operationToken,
+                        forceCurrentVillage: !quickOfficialServer,
+                        currentPageOnly: quickOfficialServer);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    AppendLog($"Quick re-login UI refresh failed (continuing): {ex.Message}");
+                }
+
+                _browserSessionLikelyOpen = true;
+                NotifySessionPacingOnlineStarted();
+                CompleteOperation(operationId, operationSw, "Login completed (quick re-login).");
+                return;
+            }
+
             var snapshot = await _botService.ExecuteLoginAndLoadPostLoginSnapshotAsync(
                 options,
                 AppendLog,
-                keepBrowserOpenAfterLogin: !options.Headless,
+                keepBrowserOpenAfterLogin: true,
                 cancellationToken: operationToken);
 
             BrowserInfoTextBlock.Text = "Browser: idle";
@@ -169,8 +213,10 @@ public partial class MainWindow
                     GetSelectedVillageName());
             }
 
-            _browserSessionLikelyOpen = !options.Headless;
+            _browserSessionLikelyOpen = true;
             NotifySessionPacingOnlineStarted();
+            // Anchor for the quick re-login window: only a COMPLETED full stack counts.
+            PersistLastFullPostLoginTimestamp();
             CompleteOperation(operationId, operationSw, "Login completed.");
         }
         catch (OperationCanceledException)
@@ -264,7 +310,7 @@ public partial class MainWindow
     private async Task LogoutCoreAsync(string operationId, CancellationToken operationToken, bool clearSavedSession)
     {
         var options = ApplySelectedVillageToOptions(LoadBotOptions());
-        AppendLog($"[{operationId}] INFO server={options.ServerName}, headless={options.Headless}");
+        AppendLog($"[{operationId}] INFO server={options.ServerName}");
         await EnsureChromiumInstalledAsync();
         await _botService.ExecuteLogoutAsync(options, AppendLog, operationToken);
 
@@ -526,6 +572,9 @@ public partial class MainWindow
         _loopController.CancelAutoQueueRun();
         _loopController.CancelLoop();
         _loopController.CancelVillageSwitch();
+        // Also abort session-scoped refreshes (post-task/manual status reads) that previously ran
+        // with CancellationToken.None and could outlive the drain below while holding the session gate.
+        _loopController.CancelSessionScope();
 
         var stopDeadline = DateTime.UtcNow.AddSeconds(8);
         while (DateTime.UtcNow < stopDeadline)
@@ -695,12 +744,60 @@ public partial class MainWindow
         UpdateExecutionStateIndicator();
     }
 
+    // Quick re-login: when enabled (Settings > General) and the last FULL post-login stack for this
+    // account finished under 10 minutes ago, login only confirms the session — the snapshot/analyze
+    // stack is skipped since nothing meaningful changes server-side that fast. The timestamp is
+    // account-scoped, so switching account always runs the full stack.
+    private const int QuickReloginWindowMinutes = 10;
+
+    private bool IsQuickReloginWindowActive(out double minutesSinceFullLogin)
+    {
+        minutesSinceFullLogin = 0;
+        try
+        {
+            var config = _botConfigStore.Load();
+            // Default ON when the setting has never been saved.
+            if (!(config[BotOptionPayloadKeys.PostLoginQuickReloginEnabled]?.GetValue<bool>() ?? true))
+            {
+                return false;
+            }
+
+            var raw = config[BotOptionPayloadKeys.PostLoginLastFullLoginAt]?.GetValue<string>();
+            if (!DateTimeOffset.TryParse(raw, null, System.Globalization.DateTimeStyles.RoundtripKind, out var lastFullLogin))
+            {
+                return false;
+            }
+
+            minutesSinceFullLogin = (DateTimeOffset.UtcNow - lastFullLogin).TotalMinutes;
+            return minutesSinceFullLogin >= 0 && minutesSinceFullLogin < QuickReloginWindowMinutes;
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"[login] quick re-login check failed ({ex.Message}); running the full post-login stack.");
+            return false;
+        }
+    }
+
+    private void PersistLastFullPostLoginTimestamp()
+    {
+        try
+        {
+            var config = _botConfigStore.Load();
+            config[BotOptionPayloadKeys.PostLoginLastFullLoginAt] = DateTimeOffset.UtcNow.ToString("O");
+            _botConfigStore.Save(config);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Could not persist the full-login timestamp: {ex.Message}");
+        }
+    }
+
     private void RecoverAndRefreshActiveAccountQueue()
     {
         var recovered = _botService.ResetOrphanedRunningQueueItems();
         if (recovered > 0)
         {
-            AppendLog($"Recovered {recovered} queue item(s) for '{_accountStore.ActiveAccountName()}' from Running to Pending.");
+            AppendLog($"Recovered {recovered} queue item(s) for '{_accountStore.ActiveAccountName()}' from Running to Pending (first retry in ~2 minutes).");
         }
 
         RefreshQueueUi();
@@ -714,7 +811,7 @@ public partial class MainWindow
     private async Task ResetForAccountSwitchAsync(BotOptions previousOptions, bool previousLoggedIn)
     {
         // Disable all background session work BEFORE anything else. While _isLoggedIn /
-        // _browserSessionLikelyOpen are still true, the ~16s resource-refresh tick (and inbox checks)
+        // _browserSessionLikelyOpen are still true, the ~20s resource-refresh tick (and inbox checks)
         // can slip onto the session gate right after logout and silently log the OLD account back in.
         // Flipping these first makes ShouldRunBackgroundResourceSnapshotRefresh() bail; the wait below
         // then drains anything already in flight.
@@ -724,11 +821,20 @@ public partial class MainWindow
         NotifySessionPacingOnlineStopped();
         await StopAllAutomationAndWaitAsync();
 
+        // bot.json is global, so the previous account's village/farm-list pointers would otherwise leak
+        // into the next account and make its first login navigate to a non-existent village. Strip them
+        // FIRST — a crash/kill during the logout/shutdown below must not leave them behind for the next
+        // start. The old account's logout uses previousOptions (already captured), so this is safe here.
+        ClearPersistedAccountScopedConfig();
+
         if (previousLoggedIn)
         {
             try
             {
-                await _botService.ExecuteLogoutAsync(previousOptions, AppendLog, CancellationToken.None);
+                // Time-boxed: if a stuck operation still holds the session gate, the logout must not
+                // hang the whole account switch — ShutdownAsync below force-closes the browser anyway.
+                using var logoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                await _botService.ExecuteLogoutAsync(previousOptions, AppendLog, logoutCts.Token);
             }
             catch (Exception ex)
             {
@@ -748,11 +854,6 @@ public partial class MainWindow
         // Account switching must clear only in-memory/UI state. Each account's queue.json is preserved
         // and becomes visible again when that account is selected later in the same app session.
         ClearAccountScopedUiState(clearQueue: false);
-
-        // bot.json is global, so the previous account's village/farm-list pointers would otherwise leak
-        // into the next account and make its first login navigate to a non-existent village. Strip them
-        // here; the new account's own settings.json overlay re-supplies its values on the next load.
-        ClearPersistedAccountScopedConfig();
     }
 
     // bot.json is shared across accounts, but a handful of settings point at specific villages or
@@ -767,8 +868,8 @@ public partial class MainWindow
             BotOptionPayloadKeys.TargetVillageUrl,
             BotOptionPayloadKeys.ReinforcementsTargetVillageName,
             BotOptionPayloadKeys.ReinforcementsSourceVillageNames,
-            BotOptionPayloadKeys.ReinforcementsSendIntervalHours,
-            BotOptionPayloadKeys.ReinforcementsSendVariationPercent,
+            BotOptionPayloadKeys.ReinforcementsSendMinMinutes,
+            BotOptionPayloadKeys.ReinforcementsSendMaxMinutes,
             BotOptionPayloadKeys.ResourceTransferTargetVillageName,
             BotOptionPayloadKeys.ResourceTransferSourceVillageNames,
             BotOptionPayloadKeys.ContinuousFarmListNames,

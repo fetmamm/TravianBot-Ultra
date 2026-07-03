@@ -54,6 +54,7 @@ public sealed partial class TravianClient
     // Gated separately so the user can opt Town Hall in without changing construction/brewery behavior.
     private async Task<bool> TryHeroResourceTransferForTownHallAsync(
         string label,
+        string mode,
         CancellationToken cancellationToken)
     {
         if (!_config.HeroResourceUseTownHall)
@@ -64,7 +65,8 @@ public sealed partial class TravianClient
         return await TryHeroResourceTransferOnCurrentBuildPageAsync(
             label,
             cancellationToken,
-            preferTownHallCelebration: true);
+            preferTownHallCelebration: true,
+            townHallCelebrationMode: mode);
     }
 
     // Generic build-page hero top-up: probes for a transfer icon, applies the per-resource use
@@ -73,7 +75,8 @@ public sealed partial class TravianClient
     private async Task<bool> TryHeroResourceTransferOnCurrentBuildPageAsync(
         string label,
         CancellationToken cancellationToken,
-        bool preferTownHallCelebration = false)
+        bool preferTownHallCelebration = false,
+        string? townHallCelebrationMode = null)
     {
         _heroTransferOverLimitWaitSeconds = null;
 
@@ -88,18 +91,22 @@ public sealed partial class TravianClient
         {
             transferAvailable = await _page.EvaluateAsync<bool>(
                 """
-                (preferTownHallCelebration) => {
+                (args) => {
                   const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
                   const findTownHallCelebrationScope = () => {
                     const root = document.querySelector('.build_details') || document;
                     const rows = Array.from(root.querySelectorAll('.research, tr, li, .row, .information'));
-                    return rows.find(row => /small\s+celebration/i.test(normalize(row.textContent || ''))) || root;
+                    const mode = String(args.townHallCelebrationMode || '').toLowerCase();
+                    const pattern = mode === 'big'
+                      ? /(big|great|large)\s+celebration/i
+                      : /small\s+celebration/i;
+                    return rows.find(row => pattern.test(normalize(row.textContent || ''))) || root;
                   };
-                  const root = preferTownHallCelebration ? findTownHallCelebrationScope() : document;
+                  const root = args.preferTownHallCelebration ? findTownHallCelebrationScope() : document;
                   return !!root?.querySelector('.inlineIcon.resource.transfer');
                 }
                 """,
-                preferTownHallCelebration);
+                new { preferTownHallCelebration, townHallCelebrationMode });
         }
         catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
         {
@@ -117,7 +124,8 @@ public sealed partial class TravianClient
         // the hero-use limit gate and the cached-inventory cover check below.
         var shortfall = await ReadUpgradeShortfallOnBuildPageAsync(
             cancellationToken,
-            preferTownHallCelebration);
+            preferTownHallCelebration,
+            townHallCelebrationMode);
 
         // Hero-use limit gate: if covering any single resource from the hero would pull more than the
         // configured per-resource limit, skip the transfer and defer until the village has produced
@@ -162,6 +170,7 @@ public sealed partial class TravianClient
         {
             var opened = await TryClickHeroResourceTransferIconAsync(
                 preferTownHallCelebration,
+                townHallCelebrationMode,
                 cancellationToken);
             if (!opened)
             {
@@ -175,13 +184,32 @@ public sealed partial class TravianClient
             return false;
         }
 
-        // Wait for the React-rendered dialog. A timeout means the hero has nothing to transfer
-        // (or the dialog failed to open) — fall back to the caller's other handling.
+        // Wait for the React-rendered dialog — or the error toast Travian shows INSTEAD of a dialog
+        // when the hero inventory is empty ("There are no resources to transfer from the Hero
+        // Inventory."). Racing both avoids sitting out the full dialog timeout on the toast path.
         try
         {
             await _page.WaitForSelectorAsync(
-                "div.resourceTransferDialog, #dialogContent",
+                "div.resourceTransferDialog, #dialogContent, .toast.toastError",
                 new PageWaitForSelectorOptions { Timeout = 8000 });
+
+            var toastText = await TryReadErrorToastTextAsync();
+            if (toastText is not null)
+            {
+                if (toastText.Contains("no resources to transfer", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Cache the empty inventory so the proactive gate above skips the next attempts
+                    // without clicking, until a real inventory read refreshes the cache.
+                    Notify($"[hero-transfer] hero inventory is empty at {label} (server: '{toastText}'); caching empty inventory and skipping.");
+                    UpdateHeroInventoryCache(new HeroInventoryResources(0, 0, 0, 0));
+                }
+                else
+                {
+                    Notify($"[hero-transfer] transfer rejected at {label} (server: '{toastText}'); skipping.");
+                }
+
+                return false;
+            }
             await _page.WaitForFunctionAsync(
                 """
                 () => {
@@ -375,13 +403,14 @@ public sealed partial class TravianClient
 
     private async Task<bool> TryClickHeroResourceTransferIconAsync(
         bool preferTownHallCelebration,
+        string? townHallCelebrationMode,
         CancellationToken cancellationToken)
     {
         await DelayBeforeClickAsync(cancellationToken, "open hero resource transfer");
 
         return await _page.EvaluateAsync<bool>(
             """
-            (preferTownHallCelebration) => {
+            (args) => {
               const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
               const isVisible = (node) => {
                 if (!node || !(node instanceof Element)) return false;
@@ -393,10 +422,14 @@ public sealed partial class TravianClient
               const findTownHallCelebrationScope = () => {
                 const root = document.querySelector('.build_details') || document;
                 const rows = Array.from(root.querySelectorAll('.research, tr, li, .row, .information'));
-                return rows.find(row => /small\s+celebration/i.test(normalize(row.textContent || ''))) || root;
+                const mode = String(args.townHallCelebrationMode || '').toLowerCase();
+                const pattern = mode === 'big'
+                  ? /(big|great|large)\s+celebration/i
+                  : /small\s+celebration/i;
+                return rows.find(row => pattern.test(normalize(row.textContent || ''))) || root;
               };
-              const root = preferTownHallCelebration ? findTownHallCelebrationScope() : document;
-              const selectors = preferTownHallCelebration
+              const root = args.preferTownHallCelebration ? findTownHallCelebrationScope() : document;
+              const selectors = args.preferTownHallCelebration
                 ? ['.inlineIcon.resource.transfer.fillUp', '.inlineIcon.resource.transfer[onclick]', '.inlineIcon.resource.transfer']
                 : ['.upgradeBlocked .inlineIcon.resource.transfer.fillUp', '.inlineIcon.resource.transfer.fillUp', '.inlineIcon.resource.transfer'];
 
@@ -412,7 +445,7 @@ public sealed partial class TravianClient
               return false;
             }
             """,
-            preferTownHallCelebration);
+            new { preferTownHallCelebration, townHallCelebrationMode });
     }
 
     private async Task<bool> TryConfirmHeroResourceTransferDialogAsync(
@@ -723,7 +756,8 @@ public sealed partial class TravianClient
 
     private async Task<HeroInventoryResources?> ReadUpgradeShortfallOnBuildPageAsync(
         CancellationToken cancellationToken,
-        bool preferTownHallCelebration)
+        bool preferTownHallCelebration,
+        string? townHallCelebrationMode = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -732,14 +766,18 @@ public sealed partial class TravianClient
         {
             json = await _page.EvaluateAsync<string>(
                 """
-                (preferTownHallCelebration) => {
+                (args) => {
                   const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
                   const findTownHallCelebrationScope = () => {
                     const root = document.querySelector('.build_details') || document;
                     const rows = Array.from(root.querySelectorAll('.research, tr, li, .row, .information'));
-                    return rows.find(row => /small\s+celebration/i.test(normalize(row.textContent || ''))) || root;
+                    const mode = String(args.townHallCelebrationMode || '').toLowerCase();
+                    const pattern = mode === 'big'
+                      ? /(big|great|large)\s+celebration/i
+                      : /small\s+celebration/i;
+                    return rows.find(row => pattern.test(normalize(row.textContent || ''))) || root;
                   };
-                  const root = preferTownHallCelebration ? findTownHallCelebrationScope() : document;
+                  const root = args.preferTownHallCelebration ? findTownHallCelebrationScope() : document;
                   const icon = root?.querySelector('.inlineIcon.resource.transfer[onclick]');
                   if (!icon) return '';
                   const onclick = icon.getAttribute('onclick') || '';
@@ -758,7 +796,7 @@ public sealed partial class TravianClient
                   return JSON.stringify({ wood: short('wood'), clay: short('clay'), iron: short('iron'), crop: short('crop') });
                 }
                 """,
-                preferTownHallCelebration);
+                new { preferTownHallCelebration, townHallCelebrationMode });
         }
         catch (PlaywrightException)
         {
@@ -841,6 +879,21 @@ public sealed partial class TravianClient
     }
 
     private string BuildHeroInventoryCacheKey() => $"{AccountName}|{ServerUrl}";
+
+    // Reads the visible error toast's text, or null when no error toast is shown. Used to tell the
+    // "hero inventory empty" toast apart from a dialog that is still rendering.
+    private async Task<string?> TryReadErrorToastTextAsync()
+    {
+        try
+        {
+            return await _page.EvaluateAsync<string?>(
+                "() => document.querySelector('.toast.toastError .text')?.textContent?.trim() || null");
+        }
+        catch (PlaywrightException)
+        {
+            return null;
+        }
+    }
 
     /// <summary>Returns the last known hero inventory for this account, or null if never read.</summary>
     public HeroInventoryResources? TryGetCachedHeroInventory()

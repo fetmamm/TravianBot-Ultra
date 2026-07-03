@@ -10,12 +10,19 @@
         ResizeMode="CanResize"
         WindowStartupLocation="CenterOwner">
     <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
         <Style x:Key="TroopSettingsComboBoxStyle"
                TargetType="{x:Type ComboBox}"
                BasedOn="{StaticResource {x:Type ComboBox}}">
             <Setter Property="MinWidth" Value="140" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="HorizontalContentAlignment" Value="Left" />
+        </Style>
+        <Style x:Key="DetailLabelStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
     </Window.Resources>
 
@@ -36,7 +43,7 @@
                            VerticalAlignment="Center" />
                 <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
                                 Margin="8,2,0,0"
-                                ToolTip="Quick per-village overview: toggle which training buildings are active and pick the troop each one builds. When to build and other advanced settings stay on the Troops tab and are preserved on save." />
+                                ToolTip="Per-village troop training. The compact row toggles which training buildings are active and picks the troop each one builds. Click the arrow on a row to edit all settings for that village (max queue, amount mode, run trigger, timed min/max, resource checks, fallback wait)." />
             </StackPanel>
             <TextBlock x:Name="SubtitleTextBlock"
                        Foreground="{DynamicResource TextSubtleBrush}"
@@ -68,6 +75,7 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="34" />
                         </Grid.ColumnDefinitions>
 
                         <TextBlock Text="ON"
@@ -106,88 +114,333 @@
                                 <Border BorderBrush="{DynamicResource BorderSubtleBrush}"
                                         BorderThickness="0,0,0,1"
                                         Padding="10,12">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="52" />
-                                            <ColumnDefinition Width="126" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <!-- Compact row: on/off, village, per-building toggle + troop -->
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="52" />
+                                                <ColumnDefinition Width="126" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="34" />
+                                            </Grid.ColumnDefinitions>
 
-                                    <CheckBox Style="{DynamicResource ToggleSwitchBlueStyle}"
-                                              HorizontalAlignment="Left"
-                                              VerticalAlignment="Center"
-                                              ToolTip="Enable Build troops for this village."
-                                              IsChecked="{Binding IsBuildTroopsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            <CheckBox Style="{DynamicResource ToggleSwitchBlueStyle}"
+                                                      HorizontalAlignment="Left"
+                                                      VerticalAlignment="Center"
+                                                      ToolTip="Enable Build troops for this village."
+                                                      IsChecked="{Binding IsBuildTroopsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
-                                    <TextBlock Grid.Column="1"
-                                               Text="{Binding VillageName}"
-                                               VerticalAlignment="Center"
-                                               TextTrimming="CharacterEllipsis"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextPrimaryBrush}"
-                                               Margin="0,0,12,0" />
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding VillageName}"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                                       Margin="0,0,12,0" />
 
-                                    <Grid Grid.Column="2"
-                                          VerticalAlignment="Center"
-                                          Margin="0,0,8,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-
-                                        <CheckBox Style="{DynamicResource ToggleSwitchStyle}"
+                                            <Grid Grid.Column="2"
                                                   VerticalAlignment="Center"
-                                                  Margin="0,0,6,0"
-                                                  ToolTip="Enable Barracks training for this village."
-                                                  IsChecked="{Binding Barracks.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        <ComboBox Grid.Column="1"
-                                                  Style="{StaticResource TroopSettingsComboBoxStyle}"
-                                                  ItemsSource="{Binding Barracks.TroopOptions}"
-                                                  SelectedItem="{Binding Barracks.SelectedTroop, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    </Grid>
+                                                  Margin="0,0,8,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
 
-                                    <Grid Grid.Column="3"
-                                          VerticalAlignment="Center"
-                                          Margin="0,0,8,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
+                                                <CheckBox Style="{DynamicResource ToggleSwitchStyle}"
+                                                          VerticalAlignment="Center"
+                                                          Margin="0,0,6,0"
+                                                          ToolTip="Enable Barracks training for this village."
+                                                          IsChecked="{Binding Barracks.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                <ComboBox Grid.Column="1"
+                                                          Style="{StaticResource TroopSettingsComboBoxStyle}"
+                                                          ItemsSource="{Binding Barracks.TroopOptions}"
+                                                          SelectedItem="{Binding Barracks.SelectedTroop, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            </Grid>
 
-                                        <CheckBox Style="{DynamicResource ToggleSwitchStyle}"
+                                            <Grid Grid.Column="3"
                                                   VerticalAlignment="Center"
-                                                  Margin="0,0,6,0"
-                                                  ToolTip="Enable Stable training for this village."
-                                                  IsChecked="{Binding Stable.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        <ComboBox Grid.Column="1"
-                                                  Style="{StaticResource TroopSettingsComboBoxStyle}"
-                                                  ItemsSource="{Binding Stable.TroopOptions}"
-                                                  SelectedItem="{Binding Stable.SelectedTroop, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    </Grid>
+                                                  Margin="0,0,8,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
 
-                                    <Grid Grid.Column="4"
-                                          VerticalAlignment="Center">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
+                                                <CheckBox Style="{DynamicResource ToggleSwitchStyle}"
+                                                          VerticalAlignment="Center"
+                                                          Margin="0,0,6,0"
+                                                          ToolTip="Enable Stable training for this village."
+                                                          IsChecked="{Binding Stable.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                <ComboBox Grid.Column="1"
+                                                          Style="{StaticResource TroopSettingsComboBoxStyle}"
+                                                          ItemsSource="{Binding Stable.TroopOptions}"
+                                                          SelectedItem="{Binding Stable.SelectedTroop, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            </Grid>
 
-                                        <CheckBox Style="{DynamicResource ToggleSwitchStyle}"
-                                                  VerticalAlignment="Center"
-                                                  Margin="0,0,6,0"
-                                                  ToolTip="Enable Workshop training for this village."
-                                                  IsChecked="{Binding Workshop.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        <ComboBox Grid.Column="1"
-                                                  Style="{StaticResource TroopSettingsComboBoxStyle}"
-                                                  ItemsSource="{Binding Workshop.TroopOptions}"
-                                                  SelectedItem="{Binding Workshop.SelectedTroop, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    </Grid>
-                                </Grid>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
+                                            <Grid Grid.Column="4"
+                                                  VerticalAlignment="Center">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <CheckBox Style="{DynamicResource ToggleSwitchStyle}"
+                                                          VerticalAlignment="Center"
+                                                          Margin="0,0,6,0"
+                                                          ToolTip="Enable Workshop training for this village."
+                                                          IsChecked="{Binding Workshop.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                <ComboBox Grid.Column="1"
+                                                          Style="{StaticResource TroopSettingsComboBoxStyle}"
+                                                          ItemsSource="{Binding Workshop.TroopOptions}"
+                                                          SelectedItem="{Binding Workshop.SelectedTroop, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            </Grid>
+
+                                            <ToggleButton Grid.Column="5"
+                                                          Width="26"
+                                                          Height="22"
+                                                          HorizontalAlignment="Right"
+                                                          VerticalAlignment="Center"
+                                                          ToolTip="Show all settings for this village."
+                                                          IsChecked="{Binding IsExpanded, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                <ToggleButton.Style>
+                                                    <Style TargetType="{x:Type ToggleButton}">
+                                                        <Setter Property="Content" Value="&#x25B8;" />
+                                                        <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+                                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+                                                        <Style.Triggers>
+                                                            <Trigger Property="IsChecked" Value="True">
+                                                                <Setter Property="Content" Value="&#x25BE;" />
+                                                            </Trigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </ToggleButton.Style>
+                                            </ToggleButton>
+                                        </Grid>
+
+                                        <!-- Expanded detail: all settings for this village -->
+                                        <Border Margin="52,10,0,0"
+                                                Padding="12,10"
+                                                CornerRadius="6"
+                                                Background="{DynamicResource ControlBackgroundBrush}"
+                                                BorderBrush="{DynamicResource BorderSubtleBrush}"
+                                                BorderThickness="1"
+                                                Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <StackPanel>
+                                                <!-- Village-level: resource checks + fallback wait -->
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                                    <TextBlock Text="Check for % resources:"
+                                                               Style="{StaticResource DetailLabelStyle}"
+                                                               Margin="0,0,10,0"
+                                                               ToolTipService.InitialShowDelay="100"
+                                                               ToolTip="Only selected resources are checked when Run trigger is set to % resources." />
+                                                    <CheckBox Content="Wood" Margin="0,0,12,0" VerticalAlignment="Center"
+                                                              IsChecked="{Binding CheckWood, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <CheckBox Content="Clay" Margin="0,0,12,0" VerticalAlignment="Center"
+                                                              IsChecked="{Binding CheckClay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <CheckBox Content="Iron" Margin="0,0,12,0" VerticalAlignment="Center"
+                                                              IsChecked="{Binding CheckIron, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <CheckBox Content="Crop" Margin="0,0,24,0" VerticalAlignment="Center"
+                                                              IsChecked="{Binding CheckCrop, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <TextBlock Text="Fallback wait:"
+                                                               Style="{StaticResource DetailLabelStyle}"
+                                                               Margin="0,0,8,0"
+                                                               ToolTipService.InitialShowDelay="100"
+                                                               ToolTip="Used when the bot cannot read an exact troop queue ETA. It waits this long before checking again." />
+                                                    <ComboBox Width="90"
+                                                              SelectedValuePath="Tag"
+                                                              SelectedValue="{Binding FallbackCooldownSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                        <ComboBoxItem Content="10s" Tag="10" />
+                                                        <ComboBoxItem Content="30s" Tag="30" />
+                                                        <ComboBoxItem Content="1 min" Tag="60" />
+                                                        <ComboBoxItem Content="2 min" Tag="120" />
+                                                        <ComboBoxItem Content="5 min" Tag="300" />
+                                                        <ComboBoxItem Content="10 min" Tag="600" />
+                                                    </ComboBox>
+                                                </StackPanel>
+
+                                                <!-- Per-building mini table -->
+                                                <Grid Margin="0,0,0,4">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="86" />
+                                                        <ColumnDefinition Width="92" />
+                                                        <ColumnDefinition Width="128" />
+                                                        <ColumnDefinition Width="86" />
+                                                        <ColumnDefinition Width="168" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="BUILDING" Style="{StaticResource DetailLabelStyle}" />
+                                                    <TextBlock Grid.Column="1" Text="MAX QUEUE" Style="{StaticResource DetailLabelStyle}"
+                                                               ToolTipService.InitialShowDelay="100"
+                                                               ToolTip="Limits how much training time may already be queued for this troop building before the bot skips adding more troops." />
+                                                    <TextBlock Grid.Column="2" Text="AMOUNT" Style="{StaticResource DetailLabelStyle}"
+                                                               ToolTipService.InitialShowDelay="100"
+                                                               ToolTip="Maximum spends available resources on as many troops as possible. Keep resources reserves the selected percent before training." />
+                                                    <TextBlock Grid.Column="3" Text="KEEP %" Style="{StaticResource DetailLabelStyle}"
+                                                               ToolTipService.InitialShowDelay="100"
+                                                               ToolTip="Only used when Amount is set to Keep resources. The bot keeps this percent of each resource in storage and only spends the remainder." />
+                                                    <TextBlock Grid.Column="4" Text="RUN TRIGGER" Style="{StaticResource DetailLabelStyle}"
+                                                               ToolTipService.InitialShowDelay="100"
+                                                               ToolTip="Timed starts training, then waits a random delay between the min and max minutes before trying again. % resources starts training when available resources reach the selected percent threshold." />
+                                                    <TextBlock Grid.Column="5" Text="TIMING" Style="{StaticResource DetailLabelStyle}"
+                                                               ToolTipService.InitialShowDelay="100"
+                                                               ToolTip="Timed: random wait between Min and Max minutes. % resources: the resource threshold." />
+                                                </Grid>
+
+                                                <ItemsControl ItemsSource="{Binding BuildingCells}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Grid Margin="0,4,0,4">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="86" />
+                                                                    <ColumnDefinition Width="92" />
+                                                                    <ColumnDefinition Width="128" />
+                                                                    <ColumnDefinition Width="86" />
+                                                                    <ColumnDefinition Width="168" />
+                                                                    <ColumnDefinition Width="*" />
+                                                                </Grid.ColumnDefinitions>
+
+                                                                <TextBlock Text="{Binding Title}"
+                                                                           VerticalAlignment="Center"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+
+                                                                <ComboBox Grid.Column="1"
+                                                                          Width="80"
+                                                                          HorizontalAlignment="Left"
+                                                                          HorizontalContentAlignment="Left"
+                                                                          SelectedValuePath="Tag"
+                                                                          SelectedValue="{Binding MaxQueueMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                                    <ComboBoxItem Content="1h" Tag="1" />
+                                                                    <ComboBoxItem Content="2h" Tag="2" />
+                                                                    <ComboBoxItem Content="3h" Tag="3" />
+                                                                    <ComboBoxItem Content="5h" Tag="5" />
+                                                                    <ComboBoxItem Content="10h" Tag="10" />
+                                                                    <ComboBoxItem Content="20h" Tag="20" />
+                                                                    <ComboBoxItem Content="50h" Tag="50" />
+                                                                    <ComboBoxItem Content="100h" Tag="100" />
+                                                                    <ComboBoxItem Content="No limit" Tag="no_limit" />
+                                                                </ComboBox>
+
+                                                                <ComboBox Grid.Column="2"
+                                                                          Width="116"
+                                                                          HorizontalAlignment="Left"
+                                                                          HorizontalContentAlignment="Left"
+                                                                          SelectedValuePath="Tag"
+                                                                          SelectedValue="{Binding AmountMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                                    <ComboBoxItem Content="Maximum" Tag="maximum" />
+                                                                    <ComboBoxItem Content="Keep resources" Tag="keep_resources" />
+                                                                </ComboBox>
+
+                                                                <ComboBox Grid.Column="3"
+                                                                          Width="74"
+                                                                          HorizontalAlignment="Left"
+                                                                          HorizontalContentAlignment="Left"
+                                                                          SelectedValuePath="Tag"
+                                                                          SelectedValue="{Binding KeepResourcesPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                          IsEnabled="{Binding UsesKeepResourcesMode}">
+                                                                    <ComboBoxItem Content="0%" Tag="0" />
+                                                                    <ComboBoxItem Content="5%" Tag="5" />
+                                                                    <ComboBoxItem Content="10%" Tag="10" />
+                                                                    <ComboBoxItem Content="15%" Tag="15" />
+                                                                    <ComboBoxItem Content="20%" Tag="20" />
+                                                                    <ComboBoxItem Content="25%" Tag="25" />
+                                                                    <ComboBoxItem Content="30%" Tag="30" />
+                                                                    <ComboBoxItem Content="40%" Tag="40" />
+                                                                    <ComboBoxItem Content="50%" Tag="50" />
+                                                                    <ComboBoxItem Content="60%" Tag="60" />
+                                                                    <ComboBoxItem Content="70%" Tag="70" />
+                                                                    <ComboBoxItem Content="80%" Tag="80" />
+                                                                    <ComboBoxItem Content="90%" Tag="90" />
+                                                                </ComboBox>
+
+                                                                <StackPanel Grid.Column="4"
+                                                                            Orientation="Horizontal"
+                                                                            VerticalAlignment="Center">
+                                                                    <RadioButton Content="Timed"
+                                                                                 Margin="0,0,10,0"
+                                                                                 VerticalAlignment="Center"
+                                                                                 IsChecked="{Binding IsTimedMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                                    <RadioButton Content="% resources"
+                                                                                 VerticalAlignment="Center"
+                                                                                 IsChecked="{Binding IsResourcePercentMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                                </StackPanel>
+
+                                                                <Grid Grid.Column="5">
+                                                                    <StackPanel Orientation="Horizontal"
+                                                                                VerticalAlignment="Center">
+                                                                        <StackPanel.Style>
+                                                                            <Style TargetType="StackPanel">
+                                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding UsesTimedMode}" Value="True">
+                                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </StackPanel.Style>
+                                                                        <TextBlock Text="Min"
+                                                                                   VerticalAlignment="Center"
+                                                                                   Margin="0,0,6,0"
+                                                                                   Foreground="{DynamicResource TextSubtleBrush}" />
+                                                                        <TextBox Width="52"
+                                                                                 Height="26"
+                                                                                 VerticalAlignment="Center"
+                                                                                 TextAlignment="Center"
+                                                                                 VerticalContentAlignment="Center"
+                                                                                 Text="{Binding TimedMinMinutesText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                                                        <TextBlock Text="Max"
+                                                                                   VerticalAlignment="Center"
+                                                                                   Margin="8,0,6,0"
+                                                                                   Foreground="{DynamicResource TextSubtleBrush}" />
+                                                                        <TextBox Width="52"
+                                                                                 Height="26"
+                                                                                 VerticalAlignment="Center"
+                                                                                 TextAlignment="Center"
+                                                                                 VerticalContentAlignment="Center"
+                                                                                 Text="{Binding TimedMaxMinutesText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                                                        <TextBlock Text="min"
+                                                                                   Margin="6,0,0,0"
+                                                                                   VerticalAlignment="Center"
+                                                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                                    </StackPanel>
+                                                                    <StackPanel Orientation="Horizontal"
+                                                                                VerticalAlignment="Center">
+                                                                        <StackPanel.Style>
+                                                                            <Style TargetType="StackPanel">
+                                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding UsesResourcePercentMode}" Value="True">
+                                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </StackPanel.Style>
+                                                                        <Slider Width="130"
+                                                                                VerticalAlignment="Center"
+                                                                                Minimum="0"
+                                                                                Maximum="100"
+                                                                                TickFrequency="1"
+                                                                                IsSnapToTickEnabled="True"
+                                                                                Value="{Binding MinimumResourcesPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                                        <TextBlock Text="{Binding MinimumResourcesPercent, StringFormat={}{0}%}"
+                                                                                   Margin="8,0,0,0"
+                                                                                   VerticalAlignment="Center"
+                                                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                                                   FontWeight="SemiBold" />
+                                                                    </StackPanel>
+                                                                </Grid>
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </ScrollViewer>
             </Grid>

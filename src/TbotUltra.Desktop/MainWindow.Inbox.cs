@@ -164,7 +164,7 @@ public partial class MainWindow
         await RefreshInboxIndicatorsAsync(logErrors: false);
     }
 
-    // Lightweight read-only check used by the ~16s background tick: only reads the
+    // Lightweight read-only check used by the ~20s background tick: only reads the
     // unread counters from the current page and updates the UI. Heavy auto-read
     // (which may navigate) stays on the dedicated 5-minute timer.
     private async Task RefreshInboxIndicatorsQuickAsync()

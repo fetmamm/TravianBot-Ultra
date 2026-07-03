@@ -46,10 +46,12 @@ public partial class MainWindow
         try
         {
             var accountName = _accountStore.ActiveAccountName();
+            // Only trust a stored tribe that maps to a real tribe — a snapshot written while the
+            // tribe was unresolved can carry "Unknown", which must not poison the dropdowns.
             if (!string.IsNullOrWhiteSpace(accountName)
                 && _accountAnalysisStore.TryLoad(accountName, out var analysis, GetActiveAccountServerUrl())
                 && analysis is not null
-                && !string.IsNullOrWhiteSpace(analysis.Tribe))
+                && TroopCatalog.IsKnownTribe(analysis.Tribe))
             {
                 return analysis.Tribe;
             }
@@ -100,7 +102,7 @@ public partial class MainWindow
                 AnalyzedAtUtc: DateTimeOffset.UtcNow,
                 AccountName: string.IsNullOrWhiteSpace(existing?.AccountName) ? accountName : existing.AccountName,
                 ServerUrl: string.IsNullOrWhiteSpace(existing?.ServerUrl) ? serverUrl ?? string.Empty : existing.ServerUrl,
-                Tribe: string.IsNullOrWhiteSpace(existing?.Tribe) ? ResolveStoredTroopTrainingTribe() : existing.Tribe,
+                Tribe: ResolveTribeForSnapshotWrite(existing?.Tribe),
                 GoldClubEnabled: existing?.GoldClubEnabled ?? false,
                 BuildingCatalog: existing?.BuildingCatalog ?? [],
                 AutoCelebrationEnabled: enabled,
@@ -114,8 +116,52 @@ public partial class MainWindow
         }
     }
 
+    private bool _troopTribeUnknownSkipLogged;
+
+    // Tribe value to write into an account-analysis snapshot: keep a known existing tribe, otherwise
+    // only write a freshly resolved tribe when it is real — never persist "Unknown", which would
+    // poison later dropdown rebuilds with the generic fallback troop list.
+    private string ResolveTribeForSnapshotWrite(string? existingTribe)
+    {
+        if (TroopCatalog.IsKnownTribe(existingTribe))
+        {
+            return existingTribe!;
+        }
+
+        var resolved = ResolveStoredTroopTrainingTribe();
+        return TroopCatalog.IsKnownTribe(resolved) ? resolved : string.Empty;
+    }
+
     private void ApplyTroopTrainingTribeState(string? tribe)
     {
+        // Village-status reads sometimes carry Tribe="Unknown"/empty (same reason SetTribeText is
+        // hardened). Rebuilding from an unknown tribe swaps the dropdowns to the generic fallback
+        // list AND persists fallback troop names into the village override — so re-resolve from the
+        // stored analysis, and keep the current lists when no real tribe is known. The lists are
+        // only empty before the very first apply; in that case fall through so a fresh install
+        // still gets the generic list.
+        if (!TroopCatalog.IsKnownTribe(tribe))
+        {
+            var storedTribe = ResolveStoredTroopTrainingTribe();
+            if (!TroopCatalog.IsKnownTribe(storedTribe)
+                && _troopTrainingViewModel.Buildings.Any(option => option.TroopOptions.Count > 0))
+            {
+                if (!_troopTribeUnknownSkipLogged)
+                {
+                    _troopTribeUnknownSkipLogged = true;
+                    AppendLog($"[troops] ignored unknown tribe '{tribe}' from status read — kept current troop options.");
+                }
+
+                return;
+            }
+
+            tribe = storedTribe;
+        }
+        else
+        {
+            _troopTribeUnknownSkipLogged = false;
+        }
+
         var troopOptionsChanged = _troopTrainingViewModel.UpdateTroopOptions(tribe);
         var celebrationChanged = _troopTrainingViewModel.UpdateAutoCelebrationAvailability(tribe);
         RefreshReinforcementTroopRules(tribe);
@@ -432,7 +478,7 @@ public partial class MainWindow
         // troops-tab Y/N indicator so it doesn't lag behind the dashboard knowledge.
         _troopTrainingViewModel.MarkBreweryExists(true);
 
-        // Don't wipe the running countdown here — local refreshes fire every ~16s while
+        // Don't wipe the running countdown here — local refreshes fire every ~20s while
         // idle and would otherwise erase a running celebration's RemainingSeconds before
         // the next remote read can repopulate it. We just update the status text; the
         // 1Hz TickCountdowns keeps the cached seconds in sync until a remote read
@@ -543,15 +589,24 @@ public partial class MainWindow
 
     private async Task RefreshBreweryCelebrationStatusAsync(BotOptions options, VillageStatus? status, CancellationToken cancellationToken)
     {
+        // This method runs on background threads too (queue-loop refreshes), so all viewmodel/UI
+        // updates must go through the dispatcher — direct calls threw
+        // "The calling thread cannot access this object because a different thread owns it".
         if (status is null)
         {
-            _troopTrainingViewModel.ResetBreweryCelebrationStatus();
-            UpdateAutomationLoopRunningIndicators();
+            await Dispatcher.InvokeAsync(() =>
+            {
+                _troopTrainingViewModel.ResetBreweryCelebrationStatus();
+                UpdateAutomationLoopRunningIndicators();
+            });
             return;
         }
 
-        ApplyLocalBreweryCelebrationStatus(status);
-        UpdateAutomationLoopRunningIndicators();
+        await Dispatcher.InvokeAsync(() =>
+        {
+            ApplyLocalBreweryCelebrationStatus(status);
+            UpdateAutomationLoopRunningIndicators();
+        });
 
         // Bail only when we can be certain a remote read is pointless.
         // Crucially, do NOT skip just because the local buildings scan missed gid=35 —
@@ -674,7 +729,7 @@ public partial class MainWindow
                 ? _lastBuildingStatus
                 : ResolveCapitalBreweryStatusSeed(capital);
             AppendLog($"[{operationId}] Manual celebration check requested.");
-            await RefreshBreweryCelebrationStatusAsync(options, status, CancellationToken.None);
+            await RefreshBreweryCelebrationStatusAsync(options, status, _loopController.AcquireSessionScopeToken());
             _troopTrainingViewModel.InfoText = "Celebration status refreshed.";
             CompleteOperation(operationId, sw, "Celebration check completed.");
         }
@@ -1083,7 +1138,7 @@ public partial class MainWindow
         {
             await EnsureChromiumInstalledAsync();
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
-            await RefreshTroopTrainingQueuesAsync(options, CancellationToken.None, _lastBuildingStatus?.Buildings, refreshBuildingsBeforeRead: true);
+            await RefreshTroopTrainingQueuesAsync(options, _loopController.AcquireSessionScopeToken(), _lastBuildingStatus?.Buildings, refreshBuildingsBeforeRead: true);
             _troopTrainingViewModel.InfoText = "Troop training queues refreshed.";
             AppendLog($"[{operationId}] Troop training queues refreshed.");
         }
@@ -1211,11 +1266,13 @@ public partial class MainWindow
         var itemOptions = ApplyHeroResourceSettingsForQueueItem(
             BotOptionsPayloadApplier.Apply(options, item.Payload),
             item);
+        // No dorf2 buildings re-read here: build_troops doesn't change the building list, and the queue
+        // read below reuses the statuses the task just read (session snapshot) instead of re-navigating.
         await RefreshTroopTrainingQueuesAsync(
             itemOptions,
             cancellationToken,
             _lastBuildingStatus?.Buildings,
-            refreshBuildingsBeforeRead: true,
+            refreshBuildingsBeforeRead: false,
             includeSmithyStatus: false);
 
         try

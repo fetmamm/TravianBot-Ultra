@@ -547,6 +547,7 @@ public partial class MainWindow
                 var duplicates = 0;
                 var failed = 0;
                 var notFound = 0;
+                var occupiedSkipped = 0;
                 var invalidCoordinates = new List<FarmCoordinate>();
 
                 foreach (var plan in plans)
@@ -555,6 +556,7 @@ public partial class MainWindow
                     var processedBeforeList = processed;
                     var addedBeforeList = added;
                     var notFoundBeforeList = notFound;
+                    var occupiedBeforeList = occupiedSkipped;
                     var aggregateProgress = new Progress<FarmAddProgress>(value =>
                     {
                         progress.Report(new FarmAddProgress(
@@ -563,7 +565,8 @@ public partial class MainWindow
                             requested,
                             addedBeforeList + value.AddedCount,
                             notFoundBeforeList + value.NotFoundCount,
-                            value.InvalidCoordinate));
+                            value.InvalidCoordinate,
+                            occupiedBeforeList + value.OccupiedOasisSkippedCount));
                     });
 
                     AppendLog(
@@ -586,11 +589,12 @@ public partial class MainWindow
                     duplicates += result.AlreadyInListCount;
                     failed += result.FailedCount;
                     notFound += result.NotFoundCount;
+                    occupiedSkipped += result.OccupiedOasisSkippedCount;
                     invalidCoordinates.AddRange(result.InvalidCoordinates ?? []);
                     AppendLog(
                         $"Finished '{plan.TargetName}': added={result.AddedCount}, " +
                         $"duplicates={result.AlreadyInListCount}, invalid={result.NotFoundCount}, " +
-                        $"failed={result.FailedCount}.");
+                        $"occupiedSkipped={result.OccupiedOasisSkippedCount}, failed={result.FailedCount}.");
                 }
 
                 return new OfficialFarmAddRunResult(
@@ -600,7 +604,8 @@ public partial class MainWindow
                     failed,
                     invalidCoordinates
                         .Distinct()
-                        .ToList());
+                        .ToList(),
+                    OccupiedSkipped: occupiedSkipped);
             }
 
             var villageOptions = GetFarmListCreationVillages()
@@ -670,7 +675,7 @@ public partial class MainWindow
             CompleteOperation(
                 operationId,
                 operationSw,
-                $"Added {runResult.Added}; duplicates {runResult.Duplicates}; failed {runResult.Failed}.");
+                $"Added {runResult.Added}; duplicates {runResult.Duplicates}; occupied skipped {runResult.OccupiedSkipped}; failed {runResult.Failed}.");
 
             return;
         }
@@ -1051,8 +1056,8 @@ public partial class MainWindow
                 FarmSendAllAtOnceRadioButton.IsChecked = string.Equals(mode, FarmingDefaults.SendModeAllAtOnce, StringComparison.Ordinal);
             }
 
-            SelectFarmDispatchDelayMinutes(options.ContinuousFarmDispatchDelayMinutes);
-            SelectFarmDispatchDelayVariationPercent(options.ContinuousFarmDispatchDelayVariationPercent);
+            SelectFarmDispatchDelayMinMinutes(options.ContinuousFarmDispatchDelayMinMinutes);
+            SelectFarmDispatchDelayMaxMinutes(options.ContinuousFarmDispatchDelayMaxMinutes);
 
             if (DeactivateFarmLossesCheckBox is not null)
             {
@@ -1083,15 +1088,15 @@ public partial class MainWindow
             var mode = FarmSendAllAtOnceRadioButton?.IsChecked == true
                 ? FarmingDefaults.SendModeAllAtOnce
                 : FarmingDefaults.SendModeListPerList;
-            var delayMinutes = GetSelectedFarmDispatchDelayMinutes();
-            var delayVariationPercent = GetSelectedFarmDispatchDelayVariationPercent();
+            var delayMinMinutes = GetSelectedFarmDispatchDelayMinMinutes();
+            var delayMaxMinutes = GetSelectedFarmDispatchDelayMaxMinutes();
             config[BotOptionPayloadKeys.ContinuousFarmSendMode] = mode;
-            config[BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes] = delayMinutes;
-            config[BotOptionPayloadKeys.ContinuousFarmDispatchDelayVariationPercent] = delayVariationPercent;
+            config[BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinMinutes] = delayMinMinutes;
+            config[BotOptionPayloadKeys.ContinuousFarmDispatchDelayMaxMinutes] = delayMaxMinutes;
             config[BotOptionPayloadKeys.ContinuousFarmDeactivateLosses] = DeactivateFarmLossesCheckBox?.IsChecked == true;
             config[BotOptionPayloadKeys.ContinuousFarmDeactivateOasisLosses] = DeactivateFarmOasisLossesCheckBox?.IsChecked == true;
             _botConfigStore.Save(config);
-            AppendLog($"[farm-settings] mode={mode}; delay={delayMinutes}m; variation={delayVariationPercent}%; deactivateLosses={DeactivateFarmLossesCheckBox?.IsChecked == true}; deactivateOasis={DeactivateFarmOasisLossesCheckBox?.IsChecked == true}");
+            AppendLog($"[farm-settings] mode={mode}; delay={delayMinMinutes}-{delayMaxMinutes}m; deactivateLosses={DeactivateFarmLossesCheckBox?.IsChecked == true}; deactivateOasis={DeactivateFarmOasisLossesCheckBox?.IsChecked == true}");
             UpdateAutomationLoopRunningIndicators();
         }
         catch (Exception ex)
@@ -1100,66 +1105,33 @@ public partial class MainWindow
         }
     }
 
-    private void SelectFarmDispatchDelayMinutes(int minutes)
+    private void SelectFarmDispatchDelayMinMinutes(int minutes)
     {
-        if (FarmDispatchDelayComboBox is null)
+        if (FarmDispatchDelayMinTextBox is not null)
         {
-            return;
+            FarmDispatchDelayMinTextBox.Text = FarmingDefaults.NormalizeDispatchDelayMinMinutes(minutes).ToString();
         }
-
-        var normalized = FarmingDefaults.NormalizeDispatchDelayMinutes(minutes).ToString();
-        foreach (var item in FarmDispatchDelayComboBox.Items.OfType<ComboBoxItem>())
-        {
-            if (string.Equals(item.Tag?.ToString(), normalized, StringComparison.OrdinalIgnoreCase))
-            {
-                FarmDispatchDelayComboBox.SelectedItem = item;
-                return;
-            }
-        }
-
-        FarmDispatchDelayComboBox.SelectedIndex = 6;
     }
 
-    private int GetSelectedFarmDispatchDelayMinutes()
+    private int GetSelectedFarmDispatchDelayMinMinutes()
     {
-        if (FarmDispatchDelayComboBox?.SelectedItem is ComboBoxItem item
-            && int.TryParse(item.Tag?.ToString(), out var minutes))
-        {
-            return FarmingDefaults.NormalizeDispatchDelayMinutes(minutes);
-        }
-
-        return FarmingDefaults.DefaultDispatchDelayMinutes;
+        return FarmingDefaults.NormalizeDispatchDelayMinMinutes(
+            int.TryParse(FarmDispatchDelayMinTextBox?.Text?.Trim(), out var minutes) ? minutes : 0);
     }
 
-    private void SelectFarmDispatchDelayVariationPercent(int percent)
+    private void SelectFarmDispatchDelayMaxMinutes(int minutes)
     {
-        if (FarmDispatchDelayVariationComboBox is null)
+        if (FarmDispatchDelayMaxTextBox is not null)
         {
-            return;
+            FarmDispatchDelayMaxTextBox.Text = FarmingDefaults.NormalizeDispatchDelayMaxMinutes(minutes).ToString();
         }
-
-        var normalized = FarmingDefaults.NormalizeDispatchDelayVariationPercent(percent).ToString();
-        foreach (var item in FarmDispatchDelayVariationComboBox.Items.OfType<ComboBoxItem>())
-        {
-            if (string.Equals(item.Tag?.ToString(), normalized, StringComparison.OrdinalIgnoreCase))
-            {
-                FarmDispatchDelayVariationComboBox.SelectedItem = item;
-                return;
-            }
-        }
-
-        FarmDispatchDelayVariationComboBox.SelectedIndex = 3;
     }
 
-    private int GetSelectedFarmDispatchDelayVariationPercent()
+    private int GetSelectedFarmDispatchDelayMaxMinutes()
     {
-        if (FarmDispatchDelayVariationComboBox?.SelectedItem is ComboBoxItem item
-            && int.TryParse(item.Tag?.ToString(), out var percent))
-        {
-            return FarmingDefaults.NormalizeDispatchDelayVariationPercent(percent);
-        }
-
-        return FarmingDefaults.DefaultDispatchDelayVariationPercent;
+        var max = FarmingDefaults.NormalizeDispatchDelayMaxMinutes(
+            int.TryParse(FarmDispatchDelayMaxTextBox?.Text?.Trim(), out var minutes) ? minutes : 0);
+        return Math.Max(GetSelectedFarmDispatchDelayMinMinutes(), max);
     }
 
     private const string AddFarmsTroopCountConfigKey = "addFarmsTroopCount";

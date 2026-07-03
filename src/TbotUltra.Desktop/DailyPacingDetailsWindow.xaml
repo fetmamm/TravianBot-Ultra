@@ -39,7 +39,7 @@
                 </StackPanel>
                 <StackPanel Grid.Column="1" Margin="12,0,0,0">
                     <TextBlock Text="Waiting today" Foreground="{DynamicResource TextSubtleBrush}" FontSize="11" />
-                    <TextBlock x:Name="WaitingTodayTextBlock" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock x:Name="WaitingTodayTextBlock" Foreground="{DynamicResource WarningBrush}" FontSize="16" FontWeight="SemiBold" />
                 </StackPanel>
                 <StackPanel Grid.Column="2" Margin="12,0,0,0">
                     <TextBlock Text="Time left" Foreground="{DynamicResource TextSubtleBrush}" FontSize="11" />
@@ -119,13 +119,36 @@
                         CornerRadius="6"
                         Padding="8"
                         Margin="0,4,0,0">
-                    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
-                                  VerticalScrollBarVisibility="Auto">
-                        <Canvas x:Name="TimelineCanvas"
-                                Background="Transparent"
-                                ClipToBounds="True"
-                                SizeChanged="TimelineCanvas_SizeChanged" />
-                    </ScrollViewer>
+                    <DockPanel>
+                        <!-- Legend pinned outside the scroll area so it is always visible without scrolling. -->
+                        <StackPanel DockPanel.Dock="Bottom"
+                                    Orientation="Horizontal"
+                                    Margin="4,8,0,0">
+                            <Rectangle Width="10" Height="10" RadiusX="2" RadiusY="2"
+                                       Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="Task" Foreground="{DynamicResource TextSubtleBrush}"
+                                       FontSize="10" Margin="5,0,16,0" VerticalAlignment="Center" />
+                            <Rectangle Width="10" Height="10" RadiusX="2" RadiusY="2"
+                                       Fill="{DynamicResource WarningBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="Waiting" Foreground="{DynamicResource TextSubtleBrush}"
+                                       FontSize="10" Margin="5,0,16,0" VerticalAlignment="Center" />
+                            <Rectangle Width="10" Height="10" RadiusX="2" RadiusY="2"
+                                       Fill="{DynamicResource InfoBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="Sleeping" Foreground="{DynamicResource TextSubtleBrush}"
+                                       FontSize="10" Margin="5,0,16,0" VerticalAlignment="Center" />
+                            <Rectangle Width="10" Height="10" RadiusX="2" RadiusY="2" Opacity="0.45"
+                                       Fill="{DynamicResource BorderBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="Offline" Foreground="{DynamicResource TextSubtleBrush}"
+                                       FontSize="10" Margin="5,0,16,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                      VerticalScrollBarVisibility="Auto">
+                            <Canvas x:Name="TimelineCanvas"
+                                    Background="Transparent"
+                                    ClipToBounds="True"
+                                    SizeChanged="TimelineCanvas_SizeChanged" />
+                        </ScrollViewer>
+                    </DockPanel>
                 </Border>
             </TabItem>
         </TabControl>

@@ -267,7 +267,21 @@ public partial class MainWindow
             return false;
         }
 
-        if (TryExtractQueueWaitDelay(ex.Message, out var queueWaitDelay))
+        // Prefer the typed defer signal (TaskWaitException.DelaySeconds) over parsing the message;
+        // message parsing remains as a fallback for exceptions that carry the wait hint only as text.
+        TimeSpan queueWaitDelay;
+        bool hasQueueWait;
+        if (ex is TaskWaitException typedWait)
+        {
+            queueWaitDelay = TimeSpan.FromSeconds(typedWait.DelaySeconds);
+            hasQueueWait = true;
+        }
+        else
+        {
+            hasQueueWait = TryExtractQueueWaitDelay(ex.Message, out queueWaitDelay);
+        }
+
+        if (hasQueueWait)
         {
             if (IsConstructionQueueTask(item.TaskName))
             {
@@ -423,7 +437,7 @@ public partial class MainWindow
                 {
                     try
                     {
-                        await RefreshConstructionStatusAsync(CancellationToken.None);
+                        await RefreshConstructionStatusAfterDeferAsync(_loopController.AcquireSessionScopeToken());
                     }
                     catch (Exception refreshEx)
                     {
@@ -437,11 +451,11 @@ public partial class MainWindow
                 // a training queue is now active. Re-read the village's queues when troops were actually
                 // queued, so the icon turns green and the state is cached (and thus persisted across restart).
                 if (string.Equals(item.TaskName, "build_troops", StringComparison.OrdinalIgnoreCase)
-                    && ex.Message.Contains("queued", StringComparison.OrdinalIgnoreCase))
+                    && ex is TaskWaitException { ReasonCode: TaskWaitReasons.WorkQueued })
                 {
                     try
                     {
-                        await RefreshTroopTrainingUiAfterBuildAsync(item, LoadBotOptions(), CancellationToken.None);
+                        await RefreshTroopTrainingUiAfterBuildAsync(item, LoadBotOptions(), _loopController.AcquireSessionScopeToken());
                     }
                     catch (Exception refreshEx)
                     {
@@ -449,11 +463,11 @@ public partial class MainWindow
                     }
                 }
 
-                // hero_manage deferred for the full revive time. Tag the item so the periodic 16s refresh
+                // hero_manage deferred for the full revive time. Tag the item so the periodic 20s refresh
                 // can release it early if the user revives the hero sooner (e.g. with a bucket) — otherwise
                 // adventures would idle until the original revive countdown elapsed.
                 if (string.Equals(item.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase)
-                    && ex.Message.Contains("hero_reviving", StringComparison.OrdinalIgnoreCase))
+                    && ex is TaskWaitException { ReasonCode: TaskWaitReasons.HeroReviving })
                 {
                     var revivingPayload = new Dictionary<string, string>(item.Payload, StringComparer.OrdinalIgnoreCase)
                     {

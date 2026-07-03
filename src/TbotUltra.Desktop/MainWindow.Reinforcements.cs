@@ -19,22 +19,14 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
-    private sealed record ReinforcementSendOption(string Label, int Value);
-
     private void InitializeReinforcementSendSettings()
     {
         var wasSuppressed = _suppressReinforcementConfigWrite;
         _suppressReinforcementConfigWrite = true;
         try
         {
-            ReinforcementSendIntervalComboBox.ItemsSource = ReinforcementSendDefaults.IntervalHourChoices
-                .Select(hours => new ReinforcementSendOption($"{hours}h", hours))
-                .ToList();
-            ReinforcementSendVariationComboBox.ItemsSource = ReinforcementSendDefaults.VariationPercentChoices
-                .Select(percent => new ReinforcementSendOption(percent == 0 ? "No variation" : $"{percent} %", percent))
-                .ToList();
-            SelectReinforcementSendOption(ReinforcementSendIntervalComboBox, ReinforcementSendDefaults.DefaultIntervalHours);
-            SelectReinforcementSendOption(ReinforcementSendVariationComboBox, ReinforcementSendDefaults.DefaultVariationPercent);
+            ReinforcementSendMinMinutesTextBox.Text = ReinforcementSendDefaults.DefaultSendMinMinutes.ToString();
+            ReinforcementSendMaxMinutesTextBox.Text = ReinforcementSendDefaults.DefaultSendMaxMinutes.ToString();
         }
         finally
         {
@@ -56,12 +48,8 @@ public partial class MainWindow
             var options = LoadBotOptions();
             var targetName = options.ReinforcementsTargetVillageName;
             var selectedSources = options.ReinforcementsSourceVillageNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
-            SelectReinforcementSendOption(
-                ReinforcementSendIntervalComboBox,
-                ReinforcementSendDefaults.NormalizeIntervalHours(options.ReinforcementsSendIntervalHours));
-            SelectReinforcementSendOption(
-                ReinforcementSendVariationComboBox,
-                ReinforcementSendDefaults.NormalizeVariationPercent(options.ReinforcementsSendVariationPercent));
+            ReinforcementSendMinMinutesTextBox.Text = ReinforcementSendDefaults.NormalizeSendMinMinutes(options.ReinforcementsSendMinMinutes).ToString();
+            ReinforcementSendMaxMinutesTextBox.Text = ReinforcementSendDefaults.NormalizeSendMaxMinutes(options.ReinforcementsSendMaxMinutes).ToString();
 
             foreach (var existing in _reinforcementVillages)
             {
@@ -128,12 +116,8 @@ public partial class MainWindow
                 ReinforcementTargetVillageComboBox.SelectedItem = target;
             }
 
-            SelectReinforcementSendOption(
-                ReinforcementSendIntervalComboBox,
-                ReinforcementSendDefaults.NormalizeIntervalHours(options.ReinforcementsSendIntervalHours));
-            SelectReinforcementSendOption(
-                ReinforcementSendVariationComboBox,
-                ReinforcementSendDefaults.NormalizeVariationPercent(options.ReinforcementsSendVariationPercent));
+            ReinforcementSendMinMinutesTextBox.Text = ReinforcementSendDefaults.NormalizeSendMinMinutes(options.ReinforcementsSendMinMinutes).ToString();
+            ReinforcementSendMaxMinutesTextBox.Text = ReinforcementSendDefaults.NormalizeSendMaxMinutes(options.ReinforcementsSendMaxMinutes).ToString();
 
             var selectedSources = options.ReinforcementsSourceVillageNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
             foreach (var village in _reinforcementVillages)
@@ -234,35 +218,17 @@ public partial class MainWindow
         return _reinforcementVillages.FirstOrDefault();
     }
 
-    private static void SelectReinforcementSendOption(ComboBox comboBox, int value)
+    private int ResolveReinforcementSendMinMinutes()
     {
-        foreach (var option in comboBox.Items.OfType<ReinforcementSendOption>())
-        {
-            if (option.Value == value)
-            {
-                comboBox.SelectedItem = option;
-                return;
-            }
-        }
+        return ReinforcementSendDefaults.NormalizeSendMinMinutes(
+            int.TryParse(ReinforcementSendMinMinutesTextBox.Text?.Trim(), out var minutes) ? minutes : 0);
     }
 
-    private static int ReadReinforcementSendOption(ComboBox comboBox, int fallback)
+    private int ResolveReinforcementSendMaxMinutes()
     {
-        return comboBox.SelectedItem is ReinforcementSendOption option
-            ? option.Value
-            : fallback;
-    }
-
-    private int ResolveReinforcementSendIntervalHours()
-    {
-        return ReinforcementSendDefaults.NormalizeIntervalHours(
-            ReadReinforcementSendOption(ReinforcementSendIntervalComboBox, ReinforcementSendDefaults.DefaultIntervalHours));
-    }
-
-    private int ResolveReinforcementSendVariationPercent()
-    {
-        return ReinforcementSendDefaults.NormalizeVariationPercent(
-            ReadReinforcementSendOption(ReinforcementSendVariationComboBox, ReinforcementSendDefaults.DefaultVariationPercent));
+        var max = ReinforcementSendDefaults.NormalizeSendMaxMinutes(
+            int.TryParse(ReinforcementSendMaxMinutesTextBox.Text?.Trim(), out var minutes) ? minutes : 0);
+        return Math.Max(ResolveReinforcementSendMinMinutes(), max);
     }
 
     private Dictionary<string, string> BuildReinforcementPayload()
@@ -281,8 +247,8 @@ public partial class MainWindow
             TargetVillageName: target?.Name ?? string.Empty,
             SourceVillageNames: sourceNames,
             TroopRules: rules).ToDictionary();
-        payload[BotOptionPayloadKeys.ReinforcementsSendIntervalHours] = ResolveReinforcementSendIntervalHours().ToString();
-        payload[BotOptionPayloadKeys.ReinforcementsSendVariationPercent] = ResolveReinforcementSendVariationPercent().ToString();
+        payload[BotOptionPayloadKeys.ReinforcementsSendMinMinutes] = ResolveReinforcementSendMinMinutes().ToString();
+        payload[BotOptionPayloadKeys.ReinforcementsSendMaxMinutes] = ResolveReinforcementSendMaxMinutes().ToString();
         return payload;
     }
 
@@ -296,8 +262,8 @@ public partial class MainWindow
         var payload = BuildReinforcementPayload();
         var config = _botConfigStore.Load();
         var rules = BuildReinforcementRulesForSave();
-        config[BotOptionPayloadKeys.ReinforcementsSendIntervalHours] = ResolveReinforcementSendIntervalHours();
-        config[BotOptionPayloadKeys.ReinforcementsSendVariationPercent] = ResolveReinforcementSendVariationPercent();
+        config[BotOptionPayloadKeys.ReinforcementsSendMinMinutes] = ResolveReinforcementSendMinMinutes();
+        config[BotOptionPayloadKeys.ReinforcementsSendMaxMinutes] = ResolveReinforcementSendMaxMinutes();
         if (_reinforcementVillages.Count > 0)
         {
             config[BotOptionPayloadKeys.ReinforcementsTargetVillageName] = payload[BotOptionPayloadKeys.ReinforcementsTargetVillageName];
@@ -335,6 +301,18 @@ public partial class MainWindow
         if (ReferenceEquals(sender, ReinforcementTargetVillageComboBox))
         {
             UpdateReinforcementTargetSourceState(persist: true);
+            return;
+        }
+
+        PersistReinforcementSettings();
+        UpdateReinforcementStatus();
+    }
+
+    // LostFocus handler for the min/max send-delay textboxes.
+    private void ReinforcementSetting_TextChanged(object sender, RoutedEventArgs e)
+    {
+        if (_suppressReinforcementConfigWrite)
+        {
             return;
         }
 

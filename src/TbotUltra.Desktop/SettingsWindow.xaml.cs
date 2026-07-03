@@ -31,12 +31,10 @@ public partial class SettingsWindow : Window
     private void LoadConfig()
     {
         _config = _store.Load();
-        // Headless is forced off and the checkbox is disabled so the bot can never start headless.
-        HeadlessCheckBox.IsChecked = false;
         DontNotifyNewVersionCheckBox.IsChecked = _config[BotOptionPayloadKeys.DontNotifyNewVersion]?.GetValue<bool>() ?? false;
+        QuickReloginCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginQuickReloginEnabled]?.GetValue<bool>() ?? true;
         AllowSilverSpendingCheckBox.IsChecked = _config["allow_silver_spending"]?.GetValue<bool>() ?? false;
         LoadPacingConfigToUi();
-        SelectQueueWaitThresholdMode(_config[BotOptionPayloadKeys.QueueWaitThresholdMode]?.GetValue<string>() ?? "smart");
         PostLoginAnalyzeFarmlistsCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginAnalyzeFarmlists]?.GetValue<bool>() ?? false;
         PostLoginAnalyzeHeroCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginAnalyzeHero]?.GetValue<bool>() ?? false;
         PostLoginReadTroopTrainingQueueCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginReadTroopTrainingQueue]?.GetValue<bool>() ?? false;
@@ -65,11 +63,14 @@ public partial class SettingsWindow : Window
     {
         try
         {
-            _config["headless"] = false; // Forced false: the bot must not run headless. Checkbox is disabled in the UI.
+            // The browser always runs visible; headless mode has been removed entirely.
+            _config.Remove("headless");
             _config[BotOptionPayloadKeys.DontNotifyNewVersion] = DontNotifyNewVersionCheckBox.IsChecked == true;
+            _config[BotOptionPayloadKeys.PostLoginQuickReloginEnabled] = QuickReloginCheckBox.IsChecked == true;
             _config["allow_silver_spending"] = AllowSilverSpendingCheckBox.IsChecked == true;
             SavePacingConfigFromUi();
-            _config[BotOptionPayloadKeys.QueueWaitThresholdMode] = GetSelectedQueueWaitThresholdMode();
+            // Queue-wait handling is always "smart" (defer); drop the removed threshold key.
+            _config.Remove("queue_wait_threshold_mode");
             _config[BotOptionPayloadKeys.PostLoginAnalyzeFarmlists] = PostLoginAnalyzeFarmlistsCheckBox.IsChecked == true;
             _config[BotOptionPayloadKeys.PostLoginAnalyzeHero] = PostLoginAnalyzeHeroCheckBox.IsChecked == true;
             _config[BotOptionPayloadKeys.PostLoginReadTroopTrainingQueue] = PostLoginReadTroopTrainingQueueCheckBox.IsChecked == true;
@@ -166,9 +167,10 @@ public partial class SettingsWindow : Window
     private void LoadPacingConfigToUi()
     {
         SessionPacingEnabledCheckBox.IsChecked = ReadBool(BotOptionPayloadKeys.SessionPacingEnabled, PacingDefaults.SessionPacingEnabled);
-        SessionMaxRunMinutesTextBox.Text = ReadInt(BotOptionPayloadKeys.SessionPacingMaxRunMinutes, PacingDefaults.SessionPacingMaxRunMinutes).ToString();
-        SessionSleepMinutesTextBox.Text = Math.Max(30, ReadInt(BotOptionPayloadKeys.SessionPacingSleepMinutes, PacingDefaults.SessionPacingSleepMinutes)).ToString();
-        SelectVariationPercent(ReadInt(BotOptionPayloadKeys.SessionPacingVariationPercent, PacingDefaults.SessionPacingVariationPercent));
+        SessionRunMinMinutesTextBox.Text = ReadInt(BotOptionPayloadKeys.SessionPacingRunMinMinutes, PacingDefaults.SessionPacingRunMinMinutes).ToString();
+        SessionRunMaxMinutesTextBox.Text = ReadInt(BotOptionPayloadKeys.SessionPacingRunMaxMinutes, PacingDefaults.SessionPacingRunMaxMinutes).ToString();
+        SessionSleepMinMinutesTextBox.Text = ReadInt(BotOptionPayloadKeys.SessionPacingSleepMinMinutes, PacingDefaults.SessionPacingSleepMinMinutes).ToString();
+        SessionSleepMaxMinutesTextBox.Text = ReadInt(BotOptionPayloadKeys.SessionPacingSleepMaxMinutes, PacingDefaults.SessionPacingSleepMaxMinutes).ToString();
         SelectDailyMaxHours(ReadInt(BotOptionPayloadKeys.SessionPacingDailyMaxHours, PacingDefaults.SessionPacingDailyMaxHours));
         SelectDailyMaxVariationPercent(ReadInt(BotOptionPayloadKeys.SessionPacingDailyMaxVariationPercent, PacingDefaults.SessionPacingDailyMaxVariationPercent));
         var allowedHours = ReadAllowedHours();
@@ -196,9 +198,10 @@ public partial class SettingsWindow : Window
     private void SavePacingConfigFromUi()
     {
         _config[BotOptionPayloadKeys.SessionPacingEnabled] = SessionPacingEnabledCheckBox.IsChecked == true;
-        _config[BotOptionPayloadKeys.SessionPacingMaxRunMinutes] = ReadIntText(SessionMaxRunMinutesTextBox, PacingDefaults.SessionPacingMaxRunMinutes, 1, 10080);
-        _config[BotOptionPayloadKeys.SessionPacingSleepMinutes] = ReadIntText(SessionSleepMinutesTextBox, PacingDefaults.SessionPacingSleepMinutes, 30, 10080);
-        _config[BotOptionPayloadKeys.SessionPacingVariationPercent] = GetSelectedVariationPercent();
+        _config[BotOptionPayloadKeys.SessionPacingRunMinMinutes] = ReadIntText(SessionRunMinMinutesTextBox, PacingDefaults.SessionPacingRunMinMinutes, 1, 10080);
+        _config[BotOptionPayloadKeys.SessionPacingRunMaxMinutes] = ReadIntText(SessionRunMaxMinutesTextBox, PacingDefaults.SessionPacingRunMaxMinutes, 1, 10080);
+        _config[BotOptionPayloadKeys.SessionPacingSleepMinMinutes] = ReadIntText(SessionSleepMinMinutesTextBox, PacingDefaults.SessionPacingSleepMinMinutes, 5, 10080);
+        _config[BotOptionPayloadKeys.SessionPacingSleepMaxMinutes] = ReadIntText(SessionSleepMaxMinutesTextBox, PacingDefaults.SessionPacingSleepMaxMinutes, 5, 10080);
         _config[BotOptionPayloadKeys.SessionPacingDailyMaxHours] = GetSelectedDailyMaxHours();
         _config[BotOptionPayloadKeys.SessionPacingDailyMaxVariationPercent] = GetSelectedDailyMaxVariationPercent();
         _config[BotOptionPayloadKeys.SessionPacingAllowedHours] = new JsonArray(
@@ -233,9 +236,10 @@ public partial class SettingsWindow : Window
     private void ApplyPacingDefaultsToUi()
     {
         SessionPacingEnabledCheckBox.IsChecked = PacingDefaults.SessionPacingEnabled;
-        SessionMaxRunMinutesTextBox.Text = PacingDefaults.SessionPacingMaxRunMinutes.ToString();
-        SessionSleepMinutesTextBox.Text = PacingDefaults.SessionPacingSleepMinutes.ToString();
-        SelectVariationPercent(PacingDefaults.SessionPacingVariationPercent);
+        SessionRunMinMinutesTextBox.Text = PacingDefaults.SessionPacingRunMinMinutes.ToString();
+        SessionRunMaxMinutesTextBox.Text = PacingDefaults.SessionPacingRunMaxMinutes.ToString();
+        SessionSleepMinMinutesTextBox.Text = PacingDefaults.SessionPacingSleepMinMinutes.ToString();
+        SessionSleepMaxMinutesTextBox.Text = PacingDefaults.SessionPacingSleepMaxMinutes.ToString();
         SelectDailyMaxHours(PacingDefaults.SessionPacingDailyMaxHours);
         SelectDailyMaxVariationPercent(PacingDefaults.SessionPacingDailyMaxVariationPercent);
         foreach (var checkBox in SessionAllowedHoursGrid.Children.OfType<CheckBox>())
@@ -263,29 +267,8 @@ public partial class SettingsWindow : Window
 
     private double ReadDouble(string key, double defaultValue) => _config[key]?.GetValue<double>() ?? defaultValue;
 
-    // Fixed variation choices offered in the Sleep/Run "Variation" dropdown.
-    private static readonly (string Label, int Percent)[] VariationPercentChoices =
-    {
-        ("No variation", 0),
-        ("10%", 10),
-        ("20%", 20),
-        ("30%", 30),
-        ("40%", 40),
-        ("50%", 50),
-        ("90%", 90),
-    };
-
     private void InitializeSessionPacingChoices()
     {
-        foreach (var (label, percent) in VariationPercentChoices)
-        {
-            SessionVariationPercentComboBox.Items.Add(new ComboBoxItem
-            {
-                Content = label,
-                Tag = percent.ToString(CultureInfo.InvariantCulture),
-            });
-        }
-
         SessionDailyMaxHoursComboBox.Items.Add(new ComboBoxItem { Content = "No limit", Tag = "0" });
         for (var hour = 1; hour <= 24; hour++)
         {
@@ -329,25 +312,6 @@ public partial class SettingsWindow : Window
             .Select(node => node?.GetValue<int>() ?? -1)
             .Where(hour => hour is >= 0 and <= 23)
             .ToHashSet();
-    }
-
-    private void SelectVariationPercent(int percent)
-    {
-        var items = SessionVariationPercentComboBox.Items.OfType<ComboBoxItem>().ToList();
-        // Snap a stored/legacy value that isn't an exact option to the nearest available choice so the
-        // dropdown always shows a valid selection.
-        var match = items.FirstOrDefault(item =>
-                string.Equals(item.Tag?.ToString(), percent.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal))
-            ?? items.OrderBy(item => Math.Abs(ParseTag(item) - percent)).FirstOrDefault();
-        SessionVariationPercentComboBox.SelectedItem = match;
-    }
-
-    private int GetSelectedVariationPercent()
-    {
-        return SessionVariationPercentComboBox.SelectedItem is ComboBoxItem item
-            && int.TryParse(item.Tag?.ToString(), out var percent)
-                ? Math.Clamp(percent, 0, 100)
-                : PacingDefaults.SessionPacingVariationPercent;
     }
 
     private static int ParseTag(ComboBoxItem item)
@@ -421,32 +385,6 @@ public partial class SettingsWindow : Window
         }
 
         SilverLimitTextBlock.Text = $"Silver limit: {(int)Math.Round(SilverLimitSlider.Value)}";
-    }
-
-    private void SelectQueueWaitThresholdMode(string mode)
-    {
-        var normalized = string.IsNullOrWhiteSpace(mode) ? "10" : mode.Trim();
-        foreach (var item in QueueWaitThresholdComboBox.Items.OfType<ComboBoxItem>())
-        {
-            if (string.Equals(item.Tag?.ToString(), normalized, StringComparison.OrdinalIgnoreCase))
-            {
-                QueueWaitThresholdComboBox.SelectedItem = item;
-                return;
-            }
-        }
-
-        QueueWaitThresholdComboBox.SelectedIndex = 2;
-    }
-
-    private string GetSelectedQueueWaitThresholdMode()
-    {
-        if (QueueWaitThresholdComboBox.SelectedItem is ComboBoxItem item
-            && !string.IsNullOrWhiteSpace(item.Tag?.ToString()))
-        {
-            return item.Tag!.ToString()!;
-        }
-
-        return "10";
     }
 
 }

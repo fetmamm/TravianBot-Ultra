@@ -32,7 +32,7 @@ public partial class MainWindow
         try
         {
             var options = LoadBotOptions();
-            AppendLog($"[{operationId}] INFO server={options.ServerName}, headless={options.Headless}");
+            AppendLog($"[{operationId}] INFO server={options.ServerName}");
             await EnsureChromiumInstalledAsync();
             var status = await ReadVillageStatusWithRetryAsync(options, operationToken, resourceOnly: true, forceCurrentVillage: true);
             _resourcesViewModel.ClearPendingTargets();

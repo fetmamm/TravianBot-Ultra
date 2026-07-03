@@ -275,8 +275,15 @@ public sealed partial class TravianClient
         await WaitForManualVerificationToClearAsync(cancellationToken);
     }
 
+    // Upper bound for interactive "wait for the user" pauses (captcha/manual login). These waits run
+    // while the worker session gate is held, so an unattended captcha must not block the queue, UI
+    // reads and account switching forever. On expiry the task fails with an alarm and the queue
+    // retries it later — the pause simply restarts when someone is around to solve it.
+    private static readonly TimeSpan ManualInteractiveWaitMaxDuration = TimeSpan.FromMinutes(30);
+
     private async Task WaitForManualVerificationToClearAsync(CancellationToken cancellationToken)
     {
+        var deadline = DateTime.UtcNow.Add(ManualInteractiveWaitMaxDuration);
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -284,6 +291,13 @@ public sealed partial class TravianClient
             {
                 Notify("Manual verification cleared. Continuing.");
                 return;
+            }
+
+            if (DateTime.UtcNow >= deadline)
+            {
+                Notify($"Manual verification was not solved within {ManualInteractiveWaitMaxDuration.TotalMinutes:F0} minutes — giving up so the bot is not blocked forever.");
+                throw new ManualVerificationRequiredException(
+                    $"Manual verification was not solved within {ManualInteractiveWaitMaxDuration.TotalMinutes:F0} minutes.");
             }
 
             await Task.Delay(Random.Shared.Next(500, 600), cancellationToken); // Random wait

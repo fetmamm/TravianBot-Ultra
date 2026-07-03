@@ -125,10 +125,26 @@
                               Grid.Column="0"
                               Margin="0,0,8,0"
                               DisplayMemberPath="Name"
-                              SelectionChanged="ServerComboBox_SelectionChanged" />
+                              MaxDropDownHeight="420"
+                              ScrollViewer.CanContentScroll="False"
+                              SelectionChanged="ServerComboBox_SelectionChanged">
+                        <ComboBox.GroupStyle>
+                            <GroupStyle>
+                                <GroupStyle.HeaderTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource SlateTextBrush}"
+                                                   Margin="4,6,0,2" />
+                                    </DataTemplate>
+                                </GroupStyle.HeaderTemplate>
+                            </GroupStyle>
+                        </ComboBox.GroupStyle>
+                    </ComboBox>
                     <Button x:Name="ServerListButton"
                             Grid.Column="1"
-                            Content="Server list"
+                            Content="Custom servers"
                             Click="ServerListButton_Click" />
                 </Grid>
 

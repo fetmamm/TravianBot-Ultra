@@ -132,7 +132,7 @@ public partial class MainWindow
                 AnalyzedAtUtc: DateTimeOffset.UtcNow,
                 AccountName: string.IsNullOrWhiteSpace(existing?.AccountName) ? accountName : existing.AccountName,
                 ServerUrl: string.IsNullOrWhiteSpace(existing?.ServerUrl) ? serverUrl ?? string.Empty : existing.ServerUrl,
-                Tribe: string.IsNullOrWhiteSpace(existing?.Tribe) ? ResolveStoredTroopTrainingTribe() : existing.Tribe,
+                Tribe: ResolveTribeForSnapshotWrite(existing?.Tribe),
                 GoldClubEnabled: existing?.GoldClubEnabled ?? false,
                 BuildingCatalog: existing?.BuildingCatalog ?? [],
                 AutoCelebrationEnabled: existing?.AutoCelebrationEnabled,

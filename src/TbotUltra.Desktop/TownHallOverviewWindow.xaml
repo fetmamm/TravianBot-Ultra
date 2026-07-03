@@ -24,7 +24,7 @@
                            VerticalAlignment="Center" />
                 <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
                                 Margin="8,2,0,0"
-                                ToolTip="Enable Town Hall celebrations per village and choose whether that village should prefer small or big celebrations. Big falls back to small until the Town Hall is level 10." />
+                                ToolTip="Enable Town Hall celebrations per village and choose whether that village should prefer small or Great celebrations. Great falls back to small until the Town Hall is level 10." />
             </StackPanel>
             <TextBlock x:Name="SubtitleTextBlock"
                        Foreground="{DynamicResource TextSubtleBrush}"
@@ -107,7 +107,7 @@
                                             <RadioButton Content="Small"
                                                          Margin="0,0,16,0"
                                                          IsChecked="{Binding IsSmall, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                            <RadioButton Content="Big"
+                                            <RadioButton Content="Great"
                                                          IsChecked="{Binding IsBig, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                         </StackPanel>
                                     </Grid>

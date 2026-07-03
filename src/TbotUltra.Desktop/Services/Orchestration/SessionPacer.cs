@@ -22,9 +22,10 @@ public enum SessionSleepReason
 
 public sealed record SessionPacerSettings(
     bool Enabled,
-    int MaxRunMinutes,
-    int SleepMinutes,
-    int VariationPercent,
+    int RunMinMinutes,
+    int RunMaxMinutes,
+    int SleepMinMinutes,
+    int SleepMaxMinutes,
     IReadOnlyList<int>? AllowedHours = null,
     int DailyMaxHours = 0,
     DateOnly? RuntimeDate = null,
@@ -46,9 +47,10 @@ public sealed class SessionPacer
     private readonly Func<DateTimeOffset> _now;
     private SessionPacerSettings _settings = new(
         PacingDefaults.SessionPacingEnabled,
-        PacingDefaults.SessionPacingMaxRunMinutes,
-        PacingDefaults.SessionPacingSleepMinutes,
-        PacingDefaults.SessionPacingVariationPercent,
+        PacingDefaults.SessionPacingRunMinMinutes,
+        PacingDefaults.SessionPacingRunMaxMinutes,
+        PacingDefaults.SessionPacingSleepMinMinutes,
+        PacingDefaults.SessionPacingSleepMaxMinutes,
         DailyMaxHours: PacingDefaults.SessionPacingDailyMaxHours);
     private HashSet<int> _allowedHours = Enumerable.Range(0, 24).ToHashSet();
     private DateTimeOffset? _runStartedAt;
@@ -301,7 +303,7 @@ public sealed class SessionPacer
         }
         else
         {
-            _activeSleepDuration = TimeSpan.FromMinutes(ApplyVariation(_settings.SleepMinutes));
+            _activeSleepDuration = TimeSpan.FromMinutes(RandomMinutesInRange(_settings.SleepMinMinutes, _settings.SleepMaxMinutes));
             _wakeAt = now.Add(_activeSleepDuration.Value);
         }
 
@@ -375,7 +377,7 @@ public sealed class SessionPacer
         Phase = SessionPacerPhase.Running;
         SleepReason = SessionSleepReason.None;
         _runStartedAt = now;
-        _activeRunDuration = TimeSpan.FromMinutes(ApplyVariation(_settings.MaxRunMinutes));
+        _activeRunDuration = TimeSpan.FromMinutes(RandomMinutesInRange(_settings.RunMinMinutes, _settings.RunMaxMinutes));
         _runDeadline = Earliest(now.Add(_activeRunDuration.Value), GetNextRestrictionAt(now));
         _pausedRunRemaining = null;
         _wakeAt = null;
@@ -489,7 +491,7 @@ public sealed class SessionPacer
             candidate = candidate is null || candidate < nextMidnight ? nextMidnight : candidate;
         }
 
-        return candidate ?? now.AddMinutes(Math.Max(30, _settings.SleepMinutes));
+        return candidate ?? now.AddMinutes(Math.Max(30, _settings.SleepMinMinutes));
     }
 
     private DateTimeOffset? GetNextRestrictionAt(DateTimeOffset now)
@@ -550,10 +552,10 @@ public sealed class SessionPacer
                     continue;
                 }
 
+                // Exact hour boundaries: the old run/sleep variation percent (which also jittered these)
+                // is gone — the randomized run/sleep durations already vary when the bot goes on/offline.
                 var boundary = WallTime(day, hour, from.Offset);
-                var offsetMinutes = DeterministicSignedFraction($"schedule:{day:yyyyMMdd}:{hour}")
-                    * Math.Min(_settings.VariationPercent, 49) / 100.0 * 60;
-                transitions.Add(new ScheduleTransition(boundary.AddMinutes(offsetMinutes), allowed));
+                transitions.Add(new ScheduleTransition(boundary, allowed));
             }
         }
 
@@ -628,36 +630,15 @@ public sealed class SessionPacer
         RaiseTick();
     }
 
-    private double ApplyVariation(int minutes)
+    // Fresh random pick in [min, max] minutes each time a run/sleep actually starts. Safe to
+    // randomize here because the result is pinned to the wake/run deadline once and never recomputed
+    // during the phase. Schedule boundaries and the daily limit deliberately keep the deterministic
+    // fractions since those are recomputed repeatedly and must stay stable.
+    private static double RandomMinutesInRange(int minMinutes, int maxMinutes)
     {
-        var baseMinutes = Math.Max(1, minutes);
-        var variation = Math.Clamp(_settings.VariationPercent, 0, 100);
-        if (variation <= 0)
-        {
-            return baseMinutes;
-        }
-
-        // Pick a fresh random offset each time a sleep/run actually starts so the duration genuinely
-        // varies across base +/- variation% (e.g. 40 min @ 40% -> anywhere in 24..56 min). The previous
-        // deterministic per-hour value could land on almost no change, which made the variation look
-        // broken. Randomizing here is safe because the result is pinned to the wake/run deadline once and
-        // never recomputed during the phase. Schedule boundaries and the daily limit deliberately keep
-        // DeterministicSignedFraction since those are recomputed repeatedly and must stay stable.
-        var fraction = (Random.Shared.NextDouble() * 2) - 1; // [-1, 1]
-        var spread = baseMinutes * variation / 100.0;
-        return Math.Max(1.0 / 60.0, baseMinutes + (fraction * spread));
-    }
-
-    private static double DeterministicSignedFraction(string value)
-    {
-        uint hash = 2166136261;
-        foreach (var character in value)
-        {
-            hash ^= character;
-            hash *= 16777619;
-        }
-
-        return (hash / (double)uint.MaxValue * 2) - 1;
+        var min = Math.Max(1, minMinutes);
+        var max = Math.Max(min, maxMinutes);
+        return min + (Random.Shared.NextDouble() * (max - min));
     }
 
     // Well-distributed signed fraction in [-1, 1] for a calendar day. Uses the splitmix64 finalizer on the
@@ -706,9 +687,10 @@ public sealed class SessionPacer
     {
         return settings with
         {
-            MaxRunMinutes = Math.Max(1, settings.MaxRunMinutes),
-            SleepMinutes = Math.Max(30, settings.SleepMinutes),
-            VariationPercent = Math.Clamp(settings.VariationPercent, 0, 100),
+            RunMinMinutes = Math.Max(1, settings.RunMinMinutes),
+            RunMaxMinutes = Math.Max(Math.Max(1, settings.RunMinMinutes), settings.RunMaxMinutes),
+            SleepMinMinutes = Math.Max(5, settings.SleepMinMinutes),
+            SleepMaxMinutes = Math.Max(Math.Max(5, settings.SleepMinMinutes), settings.SleepMaxMinutes),
             DailyMaxHours = Math.Clamp(settings.DailyMaxHours, 0, 24),
             DailyMaxVariationPercent = Math.Clamp(settings.DailyMaxVariationPercent, 0, 50),
             RuntimeSeconds = Math.Max(0, settings.RuntimeSeconds),

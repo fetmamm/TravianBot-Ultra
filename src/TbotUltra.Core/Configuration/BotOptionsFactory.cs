@@ -16,17 +16,16 @@ public static class BotOptionsFactory
         var reinforcementSourceVillageNames = configuration.GetSection(BotOptionPayloadKeys.ReinforcementsSourceVillageNames).Get<List<string>>() ?? [];
         var reinforcementTroopRules = NormalizeReinforcementTroopRules(
             configuration.GetSection(BotOptionPayloadKeys.ReinforcementsTroopRules).Get<List<ReinforcementTroopRule>>() ?? []);
-        var reinforcementsSendIntervalHours = ReinforcementSendDefaults.NormalizeIntervalHours(
-            configuration.GetValue(BotOptionPayloadKeys.ReinforcementsSendIntervalHours, ReinforcementSendDefaults.DefaultIntervalHours));
-        var reinforcementsSendVariationPercent = ReinforcementSendDefaults.NormalizeVariationPercent(
-            configuration.GetValue(BotOptionPayloadKeys.ReinforcementsSendVariationPercent, ReinforcementSendDefaults.DefaultVariationPercent));
-        var continuousFarmDispatchDelayMinutes = FarmingDefaults.NormalizeDispatchDelayMinutes(
-            configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes, FarmingDefaults.DefaultDispatchDelayMinutes));
-        var continuousFarmDispatchDelayVariationPercent = FarmingDefaults.NormalizeDispatchDelayVariationPercent(
-            configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDispatchDelayVariationPercent, FarmingDefaults.DefaultDispatchDelayVariationPercent));
+        var reinforcementsSendIntervalHours = ReinforcementSendDefaults.NormalizeSendMinMinutes(
+            configuration.GetValue(BotOptionPayloadKeys.ReinforcementsSendMinMinutes, ReinforcementSendDefaults.DefaultSendMinMinutes));
+        var reinforcementsSendVariationPercent = ReinforcementSendDefaults.NormalizeSendMaxMinutes(
+            configuration.GetValue(BotOptionPayloadKeys.ReinforcementsSendMaxMinutes, ReinforcementSendDefaults.DefaultSendMaxMinutes));
+        var continuousFarmDispatchDelayMinutes = FarmingDefaults.NormalizeDispatchDelayMinMinutes(
+            configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinMinutes, FarmingDefaults.DefaultDispatchDelayMinMinutes));
+        var continuousFarmDispatchDelayVariationPercent = FarmingDefaults.NormalizeDispatchDelayMaxMinutes(
+            configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMaxMinutes, FarmingDefaults.DefaultDispatchDelayMaxMinutes));
         var continuousFarmSendMode = FarmingDefaults.NormalizeSendMode(configuration[BotOptionPayloadKeys.ContinuousFarmSendMode]);
         var townHallCelebrationMode = TownHallCelebrationDefaults.NormalizeMode(configuration[BotOptionPayloadKeys.TownHallCelebrationMode]);
-        var queueWaitThresholdMode = configuration[BotOptionPayloadKeys.QueueWaitThresholdMode] ?? "smart";
 
         var baseUrl = (configuration["base_url"] ?? string.Empty).TrimEnd('/');
         var heroStatPriority = string.IsNullOrWhiteSpace(configuration[BotOptionPayloadKeys.HeroStatPriority])
@@ -41,7 +40,6 @@ public static class BotOptionsFactory
         {
             ServerName = configuration["server_name"] ?? string.Empty,
             BaseUrl = baseUrl,
-            Headless = configuration.GetValue("headless", false),
             TimeoutMs = configuration.GetValue("timeout_ms", 20000),
             ManualLoginTimeoutSeconds = configuration.GetValue("manual_login_timeout_seconds", 180),
             LoopIntervalSeconds = configuration.GetValue("loop_interval_seconds", 60),
@@ -49,13 +47,12 @@ public static class BotOptionsFactory
             ContinuousLoopGroups = continuousLoopGroups,
             ContinuousFarmListNames = continuousFarmListNames,
             ContinuousFarmListIds = continuousFarmListIds,
-            ContinuousFarmDispatchDelayMinutes = continuousFarmDispatchDelayMinutes,
-            ContinuousFarmDispatchDelayVariationPercent = continuousFarmDispatchDelayVariationPercent,
+            ContinuousFarmDispatchDelayMinMinutes = continuousFarmDispatchDelayMinutes,
+            ContinuousFarmDispatchDelayMaxMinutes = continuousFarmDispatchDelayVariationPercent,
             ContinuousFarmSendMode = continuousFarmSendMode,
             TownHallCelebrationMode = townHallCelebrationMode,
             ContinuousFarmDeactivateLosses = configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDeactivateLosses, false),
             ContinuousFarmDeactivateOasisLosses = configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDeactivateOasisLosses, false),
-            QueueWaitThresholdMode = queueWaitThresholdMode,
             PostLoginAnalyzeFarmlists = configuration.GetValue(BotOptionPayloadKeys.PostLoginAnalyzeFarmlists, false),
             PostLoginAnalyzeHero = configuration.GetValue(BotOptionPayloadKeys.PostLoginAnalyzeHero, false),
             PostLoginAnalyzeHeroInventory = configuration.GetValue(BotOptionPayloadKeys.PostLoginAnalyzeHeroInventory, true),
@@ -126,8 +123,8 @@ public static class BotOptionsFactory
             ReinforcementsTargetVillageName = configuration[BotOptionPayloadKeys.ReinforcementsTargetVillageName] ?? string.Empty,
             ReinforcementsSourceVillageNames = reinforcementSourceVillageNames,
             ReinforcementsTroopRules = reinforcementTroopRules,
-            ReinforcementsSendIntervalHours = reinforcementsSendIntervalHours,
-            ReinforcementsSendVariationPercent = reinforcementsSendVariationPercent,
+            ReinforcementsSendMinMinutes = reinforcementsSendIntervalHours,
+            ReinforcementsSendMaxMinutes = reinforcementsSendVariationPercent,
             GithubReleasesUrl = configuration["github_releases_url"] ?? string.Empty,
             HumanLikeEnabled = legacyHumanLikeEnabled,
             HumanLikeSpeed = legacyHumanLikeSpeed,
@@ -190,7 +187,6 @@ public static class BotOptionsFactory
 
     public static BotOptions CloneWithOverrides(
         BotOptions source,
-        bool? headlessOverride = null,
         int? resourceUpgradeTargetLevelOverride = null,
         string? targetVillageNameOverride = null,
         string? targetVillageUrlOverride = null)
@@ -199,7 +195,6 @@ public static class BotOptionsFactory
         {
             ServerName = source.ServerName,
             BaseUrl = source.BaseUrl,
-            Headless = headlessOverride ?? source.Headless,
             TimeoutMs = source.TimeoutMs,
             ManualLoginTimeoutSeconds = source.ManualLoginTimeoutSeconds,
             LoopIntervalSeconds = source.LoopIntervalSeconds,
@@ -207,14 +202,13 @@ public static class BotOptionsFactory
             ContinuousLoopGroups = source.ContinuousLoopGroups,
             ContinuousFarmListNames = source.ContinuousFarmListNames,
             ContinuousFarmListIds = source.ContinuousFarmListIds,
-            ContinuousFarmDispatchDelayMinutes = source.ContinuousFarmDispatchDelayMinutes,
-            ContinuousFarmDispatchDelayVariationPercent = source.ContinuousFarmDispatchDelayVariationPercent,
+            ContinuousFarmDispatchDelayMinMinutes = source.ContinuousFarmDispatchDelayMinMinutes,
+            ContinuousFarmDispatchDelayMaxMinutes = source.ContinuousFarmDispatchDelayMaxMinutes,
             ContinuousFarmSendMode = source.ContinuousFarmSendMode,
             TownHallCelebrationMode = source.TownHallCelebrationMode,
             ContinuousFarmDeactivateLosses = source.ContinuousFarmDeactivateLosses,
             ContinuousFarmDeactivateOasisLosses = source.ContinuousFarmDeactivateOasisLosses,
             ContinuousFarmNextListIndex = source.ContinuousFarmNextListIndex,
-            QueueWaitThresholdMode = source.QueueWaitThresholdMode,
             PostLoginAnalyzeFarmlists = source.PostLoginAnalyzeFarmlists,
             PostLoginAnalyzeHero = source.PostLoginAnalyzeHero,
             PostLoginAnalyzeHeroInventory = source.PostLoginAnalyzeHeroInventory,
@@ -286,8 +280,8 @@ public static class BotOptionsFactory
             ReinforcementsTargetVillageName = source.ReinforcementsTargetVillageName,
             ReinforcementsSourceVillageNames = source.ReinforcementsSourceVillageNames,
             ReinforcementsTroopRules = source.ReinforcementsTroopRules,
-            ReinforcementsSendIntervalHours = source.ReinforcementsSendIntervalHours,
-            ReinforcementsSendVariationPercent = source.ReinforcementsSendVariationPercent,
+            ReinforcementsSendMinMinutes = source.ReinforcementsSendMinMinutes,
+            ReinforcementsSendMaxMinutes = source.ReinforcementsSendMaxMinutes,
             GithubReleasesUrl = source.GithubReleasesUrl,
             HumanLikeEnabled = source.HumanLikeEnabled,
             HumanLikeSpeed = source.HumanLikeSpeed,

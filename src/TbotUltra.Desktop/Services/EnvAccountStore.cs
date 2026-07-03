@@ -9,6 +9,15 @@ public sealed class EnvAccountStore
 {
     private readonly string _envPath;
 
+    // Parsed-file cache keyed on the .env file's timestamp+length, so per-second callers
+    // (ActiveAccountName via the options cache and the account picker) don't hit the disk.
+    // Any change to the file (in-app write or external edit) changes the metadata and
+    // invalidates the cache automatically.
+    private readonly object _cacheSync = new();
+    private Dictionary<string, string>? _cachedValues;
+    private DateTime _cachedWriteTimeUtc;
+    private long _cachedLength;
+
     public EnvAccountStore(string envPath)
     {
         _envPath = envPath;
@@ -131,7 +140,29 @@ public sealed class EnvAccountStore
 
     private Dictionary<string, string> ReadValues()
     {
-        return EnvFileParser.ReadValues(_envPath);
+        lock (_cacheSync)
+        {
+            var info = new FileInfo(_envPath);
+            if (!info.Exists)
+            {
+                _cachedValues = null;
+                return EnvFileParser.ReadValues(_envPath);
+            }
+
+            if (_cachedValues is not null
+                && info.LastWriteTimeUtc == _cachedWriteTimeUtc
+                && info.Length == _cachedLength)
+            {
+                // Copy: callers mutate the returned dictionary before writing it back.
+                return new Dictionary<string, string>(_cachedValues, _cachedValues.Comparer);
+            }
+
+            var values = EnvFileParser.ReadValues(_envPath);
+            _cachedValues = new Dictionary<string, string>(values, values.Comparer);
+            _cachedWriteTimeUtc = info.LastWriteTimeUtc;
+            _cachedLength = info.Length;
+            return values;
+        }
     }
 
     private void WriteValues(Dictionary<string, string> values)
@@ -165,6 +196,10 @@ public sealed class EnvAccountStore
         }
 
         File.WriteAllText(_envPath, string.Join(Environment.NewLine, lines));
+        lock (_cacheSync)
+        {
+            _cachedValues = null;
+        }
     }
 
     private static List<string> ParseAccountNames(Dictionary<string, string> values)

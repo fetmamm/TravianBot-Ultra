@@ -274,7 +274,8 @@ public sealed record FarmAddProgress(
     int NotFoundCount,
     // Carries the coordinate of a target that had no village, so a cancelled run can still offer to
     // remove the dead coordinates found so far. Null for every other progress report.
-    FarmCoordinate? InvalidCoordinate = null);
+    FarmCoordinate? InvalidCoordinate = null,
+    int OccupiedOasisSkippedCount = 0);
 
 public sealed record FarmAddResult(
     string FarmListName,
@@ -291,7 +292,8 @@ public sealed record FarmAddBatchResult(
     int AlreadyInListCount,
     int FailedCount,
     int NotFoundCount = 0,
-    IReadOnlyList<FarmCoordinate>? InvalidCoordinates = null);
+    IReadOnlyList<FarmCoordinate>? InvalidCoordinates = null,
+    int OccupiedOasisSkippedCount = 0);
 
 public sealed record FarmListCreateRequest(
     IReadOnlyList<string> Names,

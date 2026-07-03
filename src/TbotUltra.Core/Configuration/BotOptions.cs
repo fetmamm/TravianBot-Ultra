@@ -13,9 +13,6 @@ public sealed class BotOptions
     [Required]
     public string BaseUrl { get; init; } = string.Empty;
 
-    [ConfigurationKeyName("headless")]
-    public bool Headless { get; init; }
-
     [ConfigurationKeyName("timeout_ms")]
     [Range(1000, int.MaxValue)]
     public int TimeoutMs { get; init; } = 15000;
@@ -40,11 +37,11 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmListIds)]
     public List<string> ContinuousFarmListIds { get; init; } = [];
 
-    [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes)]
-    public int ContinuousFarmDispatchDelayMinutes { get; init; } = FarmingDefaults.DefaultDispatchDelayMinutes;
+    [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinMinutes)]
+    public int ContinuousFarmDispatchDelayMinMinutes { get; init; } = FarmingDefaults.DefaultDispatchDelayMinMinutes;
 
-    [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmDispatchDelayVariationPercent)]
-    public int ContinuousFarmDispatchDelayVariationPercent { get; init; } = FarmingDefaults.DefaultDispatchDelayVariationPercent;
+    [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMaxMinutes)]
+    public int ContinuousFarmDispatchDelayMaxMinutes { get; init; } = FarmingDefaults.DefaultDispatchDelayMaxMinutes;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmSendMode)]
     public string ContinuousFarmSendMode { get; init; } = FarmingDefaults.SendModeListPerList;
@@ -60,9 +57,6 @@ public sealed class BotOptions
 
     [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmNextListIndex)]
     public int ContinuousFarmNextListIndex { get; init; }
-
-    [ConfigurationKeyName(BotOptionPayloadKeys.QueueWaitThresholdMode)]
-    public string QueueWaitThresholdMode { get; init; } = "smart";
 
     [ConfigurationKeyName(BotOptionPayloadKeys.PostLoginAnalyzeFarmlists)]
     public bool PostLoginAnalyzeFarmlists { get; init; }
@@ -283,11 +277,11 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.ReinforcementsTroopRules)]
     public List<ReinforcementTroopRule> ReinforcementsTroopRules { get; init; } = [];
 
-    [ConfigurationKeyName(BotOptionPayloadKeys.ReinforcementsSendIntervalHours)]
-    public int ReinforcementsSendIntervalHours { get; init; } = ReinforcementSendDefaults.DefaultIntervalHours;
+    [ConfigurationKeyName(BotOptionPayloadKeys.ReinforcementsSendMinMinutes)]
+    public int ReinforcementsSendMinMinutes { get; init; } = ReinforcementSendDefaults.DefaultSendMinMinutes;
 
-    [ConfigurationKeyName(BotOptionPayloadKeys.ReinforcementsSendVariationPercent)]
-    public int ReinforcementsSendVariationPercent { get; init; } = ReinforcementSendDefaults.DefaultVariationPercent;
+    [ConfigurationKeyName(BotOptionPayloadKeys.ReinforcementsSendMaxMinutes)]
+    public int ReinforcementsSendMaxMinutes { get; init; } = ReinforcementSendDefaults.DefaultSendMaxMinutes;
 
     [ConfigurationKeyName("github_releases_url")]
     public string GithubReleasesUrl { get; init; } = string.Empty;

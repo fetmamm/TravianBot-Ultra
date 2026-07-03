@@ -75,9 +75,10 @@ public partial class MainWindow
         _sessionPacingAccountName = accountName;
         _sessionPacer.Configure(new SessionPacerSettings(
             ReadBool(config, BotOptionPayloadKeys.SessionPacingEnabled, PacingDefaults.SessionPacingEnabled),
-            ReadInt(config, BotOptionPayloadKeys.SessionPacingMaxRunMinutes, PacingDefaults.SessionPacingMaxRunMinutes, 1, 10080),
-            ReadInt(config, BotOptionPayloadKeys.SessionPacingSleepMinutes, PacingDefaults.SessionPacingSleepMinutes, 30, 10080),
-            ReadInt(config, BotOptionPayloadKeys.SessionPacingVariationPercent, PacingDefaults.SessionPacingVariationPercent, 0, 100),
+            ReadInt(config, BotOptionPayloadKeys.SessionPacingRunMinMinutes, PacingDefaults.SessionPacingRunMinMinutes, 1, 10080),
+            ReadInt(config, BotOptionPayloadKeys.SessionPacingRunMaxMinutes, PacingDefaults.SessionPacingRunMaxMinutes, 1, 10080),
+            ReadInt(config, BotOptionPayloadKeys.SessionPacingSleepMinMinutes, PacingDefaults.SessionPacingSleepMinMinutes, 5, 10080),
+            ReadInt(config, BotOptionPayloadKeys.SessionPacingSleepMaxMinutes, PacingDefaults.SessionPacingSleepMaxMinutes, 5, 10080),
             ReadAllowedHours(config),
             ReadInt(config, BotOptionPayloadKeys.SessionPacingDailyMaxHours, PacingDefaults.SessionPacingDailyMaxHours, 0, 24),
             ReadRuntimeDate(config),
@@ -177,7 +178,7 @@ public partial class MainWindow
             _loopController.CancelLoop();
 
             // Disable background session work BEFORE logout (mirrors ResetForAccountSwitchAsync). While
-            // these stay true, the ~16s resource-refresh tick can slip onto the session gate during/after
+            // these stay true, the ~20s resource-refresh tick can slip onto the session gate during/after
             // logout and silently log the account back in — especially if logout throws before
             // LogoutCoreAsync clears them. Flipping them here makes the background ticks bail immediately.
             _isLoggedIn = false;

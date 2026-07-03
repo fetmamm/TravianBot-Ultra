@@ -18,6 +18,7 @@ public sealed class JsonQueueStore : IQueueStore
     // Assumes a single process owns the file (true for the Desktop app); an external editor changing
     // queue.json while the app runs would not be observed until the next account switch.
     private readonly Func<string> _queuePathProvider;
+    private readonly Action<string>? _log;
     private readonly object _sync = new();
     private List<QueueItem>? _cache;
     private string? _cachePath;
@@ -33,14 +34,15 @@ public sealed class JsonQueueStore : IQueueStore
     };
 
     // Fixed-path constructor (Worker DI, tests). Delegates to the provider form.
-    public JsonQueueStore(string queuePath)
-        : this(() => queuePath)
+    public JsonQueueStore(string queuePath, Action<string>? log = null)
+        : this(() => queuePath, log)
     {
     }
 
-    public JsonQueueStore(Func<string> queuePathProvider)
+    public JsonQueueStore(Func<string> queuePathProvider, Action<string>? log = null)
     {
         _queuePathProvider = queuePathProvider ?? throw new ArgumentNullException(nameof(queuePathProvider));
+        _log = log;
     }
 
     public IReadOnlyList<QueueItem> GetAll()
@@ -360,6 +362,13 @@ public sealed class JsonQueueStore : IQueueStore
         });
     }
 
+    // Recovered items are deferred briefly instead of retried immediately: the crash may have hit
+    // AFTER the browser action (troops queued, attack sent) but BEFORE the defer was persisted, so a
+    // state-changing task could otherwise run twice back-to-back. The delay lets the post-login
+    // status reads land first, and tasks that verify live state (build_troops queue scan,
+    // construction queue read) then see the already-applied work and defer normally.
+    private static readonly TimeSpan RecoveredRunningItemDefer = TimeSpan.FromSeconds(120);
+
     // Resets items stranded in Running (e.g. the process crashed mid-execution) back to Pending so
     // they are retried instead of stuck forever. Only safe to call at startup, before any execution
     // begins — a Running item found then necessarily belongs to a previous, dead session.
@@ -373,7 +382,7 @@ public sealed class JsonQueueStore : IQueueStore
             foreach (var item in items.Where(item => item.Status == QueueStatus.Running))
             {
                 item.Status = QueueStatus.Pending;
-                item.NextAttemptAt = now;
+                item.NextAttemptAt = now.Add(RecoveredRunningItemDefer);
                 item.UpdatedAt = now;
                 resetCount += 1;
             }
@@ -420,7 +429,7 @@ public sealed class JsonQueueStore : IQueueStore
         EnsureFileExists();
         var loaded = WithFileLock(() =>
         {
-            var raw = File.ReadAllText(_queuePath);
+            var raw = RetryFileIo(() => File.ReadAllText(_queuePath));
             if (string.IsNullOrWhiteSpace(raw))
             {
                 return new List<QueueItem>();
@@ -438,9 +447,18 @@ public sealed class JsonQueueStore : IQueueStore
             }
             catch (JsonException ex)
             {
-                throw new InvalidOperationException(
-                    $"Queue file '{_queuePath}' is invalid JSON. Fix or reset the file.",
-                    ex);
+                // Corrupt queue file (crash mid-external-edit or an OneDrive sync conflict). Throwing here
+                // used to block every queue operation forever; instead quarantine the broken file for
+                // inspection and continue with an empty queue so automation can keep running.
+                var quarantinePath = $"{_queuePath}.corrupt-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmssfff}";
+                _log?.Invoke($"[queue] Queue file '{_queuePath}' is invalid JSON ({ex.Message}). Quarantined to '{quarantinePath}'; starting with an empty queue.");
+                RetryFileIo(() =>
+                {
+                    File.Move(_queuePath, quarantinePath, overwrite: true);
+                    File.WriteAllText(_queuePath, "[]");
+                    return true;
+                });
+                return new List<QueueItem>();
             }
         });
 
@@ -461,24 +479,21 @@ public sealed class JsonQueueStore : IQueueStore
         var tempPath = Path.Combine(directory, $"{Path.GetFileName(_queuePath)}.tmp");
         WithFileLock(() =>
         {
-            if (File.Exists(tempPath))
+            RetryFileIo(() =>
             {
-                try
+                if (File.Exists(tempPath))
                 {
                     File.Delete(tempPath);
                 }
-                catch (Exception ex)
+
+                using (var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
                 {
-                    throw new InvalidOperationException($"Could not remove stale queue temp file '{tempPath}'.", ex);
+                    JsonSerializer.Serialize(stream, items, JsonOptions);
                 }
-            }
 
-            using (var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
-            {
-                JsonSerializer.Serialize(stream, items, JsonOptions);
-            }
-
-            File.Move(tempPath, _queuePath, overwrite: true);
+                File.Move(tempPath, _queuePath, overwrite: true);
+                return true;
+            });
         });
 
         // Refresh the read cache from what we just persisted so subsequent GetAll calls stay off disk.
@@ -497,24 +512,48 @@ public sealed class JsonQueueStore : IQueueStore
         Directory.CreateDirectory(directory);
         if (!File.Exists(_queuePath))
         {
-            File.WriteAllText(_queuePath, "[]");
+            RetryFileIo(() =>
+            {
+                File.WriteAllText(_queuePath, "[]");
+                return true;
+            });
         }
         if (!File.Exists(_lockPath))
         {
-            using var _ = new FileStream(_lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
+            using var _ = RetryFileIo(() => new FileStream(_lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite));
         }
     }
 
     private T WithFileLock<T>(Func<T> action)
     {
-        using var lockStream = new FileStream(_lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+        using var lockStream = RetryFileIo(() => new FileStream(_lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None));
         return action();
     }
 
     private void WithFileLock(Action action)
     {
-        using var lockStream = new FileStream(_lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+        using var lockStream = RetryFileIo(() => new FileStream(_lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None));
         action();
+    }
+
+    // Transient-lock retry for all queue file I/O. The project lives under OneDrive-synced Documents,
+    // where File.Move/opens intermittently fail with UnauthorizedAccessException (ERROR_ACCESS_DENIED)
+    // or a sharing-violation IOException while OneDrive/antivirus briefly holds the file. Mirrors
+    // AtomicFile.RetryFileIo (Desktop) and BrowserSession.ReplaceStorageStateWithRetryAsync.
+    private static T RetryFileIo<T>(Func<T> action)
+    {
+        const int maxAttempts = 5;
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return action();
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && attempt < maxAttempts)
+            {
+                Thread.Sleep(40 * attempt);
+            }
+        }
     }
 
     private static QueueItem Clone(QueueItem source)

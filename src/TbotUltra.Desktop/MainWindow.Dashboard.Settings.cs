@@ -42,7 +42,7 @@ public partial class MainWindow
         _botConfigStore.Save(config);
 
         // Checked while the loop is already running → check/queue immediately instead of waiting
-        // for the next 16s refresh.
+        // for the next 20s refresh.
         if (AutoCollectTasksCheckBox.IsChecked == true)
         {
             TriggerImmediateIfLoopRunning(options => TryQueueAutoCollectTasksAsync(options));
@@ -137,7 +137,7 @@ public partial class MainWindow
     }
 
     // Fire the given immediate check only while the continuous loop is actually running and the
-    // browser session is usable. The action (the same one the 16s refresh runs) self-guards and
+    // browser session is usable. The action (the same one the 20s refresh runs) self-guards and
     // de-duplicates, so this won't double-queue.
     private void TriggerImmediateIfLoopRunning(Func<BotOptions, Task> action)
     {

@@ -23,7 +23,8 @@ public sealed record OfficialFarmAddRunResult(
     int Failed,
     IReadOnlyList<FarmCoordinate> InvalidCoordinates,
     Guid SourceListId = default,
-    string SourceListName = "");
+    string SourceListName = "",
+    int OccupiedSkipped = 0);
 public sealed record OfficialAddFarmsLoadResult(
     bool Ok,
     string? Message,
@@ -347,14 +348,15 @@ public partial class OfficialAddFarmsWindow : Window
         var total = plans.Sum(plan => plan.DesiredCount);
         LoadingOverlay.Show(
             "Adding farms",
-            $"Added villages: 0/{total}\nCurrent list: -\nChecked: 0\nInvalid: 0");
+            $"Added villages: 0/{total}\nCurrent list: -\nChecked: 0\nInvalid: 0\nOccupied skipped: 0");
         var progress = new Progress<FarmAddProgress>(value =>
         {
             LoadingOverlay.Text =
                 $"Added villages: {value.AddedCount}/{value.TotalCount}\n" +
                 $"Current list: {value.FarmListName}\n" +
                 $"Checked: {value.ProcessedCount}\n" +
-                $"Invalid: {value.NotFoundCount}";
+                $"Invalid: {value.NotFoundCount}\n" +
+                $"Occupied skipped: {value.OccupiedOasisSkippedCount}";
             _lastAddedCount = value.AddedCount;
             if (value.InvalidCoordinate is { } invalid && !_invalidCoordinatesSoFar.Contains(invalid))
             {

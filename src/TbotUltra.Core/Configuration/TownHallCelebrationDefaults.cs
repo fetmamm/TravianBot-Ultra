@@ -7,7 +7,9 @@ public static class TownHallCelebrationDefaults
 
     public static string NormalizeMode(string? value)
     {
-        return string.Equals(value?.Trim(), Big, StringComparison.OrdinalIgnoreCase)
+        var normalized = value?.Trim();
+        return string.Equals(normalized, Big, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalized, "great", StringComparison.OrdinalIgnoreCase)
             ? Big
             : Small;
     }

@@ -275,18 +275,15 @@ public sealed partial class BotTaskRunner
     private static async Task ExecuteSendFarmlistsAsync(TaskExecutionContext context)
     {
         var mode = FarmingDefaults.NormalizeSendMode(context.Options.ContinuousFarmSendMode);
-        var baseDispatchDelaySeconds = ResolveContinuousFarmDispatchDelaySeconds(context.Options);
-        var dispatchDelayVariationPercent = FarmingDefaults.NormalizeDispatchDelayVariationPercent(
-            context.Options.ContinuousFarmDispatchDelayVariationPercent);
-        var dispatchDelaySeconds = ResolveContinuousFarmDispatchDelaySecondsWithVariation(
-            baseDispatchDelaySeconds,
-            dispatchDelayVariationPercent);
-        var (minDelaySeconds, maxDelaySeconds) = ResolveContinuousFarmDispatchDelayRangeSeconds(
-            baseDispatchDelaySeconds,
-            dispatchDelayVariationPercent);
+        var minDelaySeconds = FarmingDefaults.NormalizeDispatchDelayMinMinutes(context.Options.ContinuousFarmDispatchDelayMinMinutes) * 60;
+        var maxDelaySeconds = Math.Max(
+            minDelaySeconds,
+            FarmingDefaults.NormalizeDispatchDelayMaxMinutes(context.Options.ContinuousFarmDispatchDelayMaxMinutes) * 60);
+        var dispatchDelaySeconds = FarmingDefaults.CalculateDispatchDelaySeconds(
+            context.Options.ContinuousFarmDispatchDelayMinMinutes,
+            context.Options.ContinuousFarmDispatchDelayMaxMinutes);
         context.Log(
-            $"Continuous farming mode={mode}; baseDelay={baseDispatchDelaySeconds}s; " +
-            $"variation={dispatchDelayVariationPercent}%; delayRange={minDelaySeconds}-{maxDelaySeconds}s; " +
+            $"Continuous farming mode={mode}; delayRange={minDelaySeconds}-{maxDelaySeconds}s; " +
             $"selectedDelay={dispatchDelaySeconds}s; " +
             $"deactivateLosses={context.Options.ContinuousFarmDeactivateLosses}; " +
             $"deactivateOasis={context.Options.ContinuousFarmDeactivateOasisLosses}.");
@@ -360,7 +357,7 @@ public sealed partial class BotTaskRunner
 
         var nextIndex = (currentIndex + 1) % matchingLists.Count;
         LogContinuousFarmNextSchedule(context, dispatchDelaySeconds, nextIndex);
-        throw BuildContinuousFarmDefer("Continuous farming cooldown active.", dispatchDelaySeconds, nextIndex);
+        throw BuildContinuousFarmDefer("Continuous farming cooldown active.", dispatchDelaySeconds, nextIndex, TaskWaitReasons.WorkQueued);
     }
 
     private static async Task ExecuteSendAllFarmlistsAsync(TaskExecutionContext context, int dispatchDelaySeconds)
@@ -373,7 +370,7 @@ public sealed partial class BotTaskRunner
         var refreshedOverview = await context.Client.ReadFarmListsOverviewAsync(context.CancellationToken);
         await WriteFarmListsSnapshotAsync(context, refreshedOverview);
         LogContinuousFarmNextSchedule(context, dispatchDelaySeconds, 0);
-        throw BuildContinuousFarmDefer("Continuous farming cooldown active.", dispatchDelaySeconds, 0);
+        throw BuildContinuousFarmDefer("Continuous farming cooldown active.", dispatchDelaySeconds, 0, TaskWaitReasons.WorkQueued);
     }
 
     private static async Task RunFarmListLossDeactivationIfEnabledAsync(TaskExecutionContext context)
@@ -392,50 +389,22 @@ public sealed partial class BotTaskRunner
             $"found={result.RowsFound}, deactivated={result.RowsDeactivated}, skippedOasis={result.SkippedOasisRows}.");
     }
 
-    private static int ResolveContinuousFarmDispatchDelaySeconds(BotOptions options)
-    {
-        return FarmingDefaults.NormalizeDispatchDelayMinutes(options.ContinuousFarmDispatchDelayMinutes) * 60;
-    }
-
-    private static (int MinSeconds, int MaxSeconds) ResolveContinuousFarmDispatchDelayRangeSeconds(
-        int baseDelaySeconds,
-        int variationPercent)
-    {
-        var safeBaseDelaySeconds = Math.Max(1, baseDelaySeconds);
-        var normalizedPercent = FarmingDefaults.NormalizeDispatchDelayVariationPercent(variationPercent);
-        if (normalizedPercent <= 0)
-        {
-            return (safeBaseDelaySeconds, safeBaseDelaySeconds);
-        }
-
-        var deltaSeconds = (int)Math.Round(
-            safeBaseDelaySeconds * (normalizedPercent / 100d),
-            MidpointRounding.AwayFromZero);
-        var minSeconds = Math.Max(1, safeBaseDelaySeconds - deltaSeconds);
-        var maxSeconds = Math.Max(minSeconds, safeBaseDelaySeconds + deltaSeconds);
-        return (minSeconds, maxSeconds);
-    }
-
-    private static int ResolveContinuousFarmDispatchDelaySecondsWithVariation(
-        int baseDelaySeconds,
-        int variationPercent)
-    {
-        var (minSeconds, maxSeconds) = ResolveContinuousFarmDispatchDelayRangeSeconds(baseDelaySeconds, variationPercent);
-        return minSeconds == maxSeconds
-            ? minSeconds
-            : Random.Shared.Next(minSeconds, maxSeconds + 1);
-    }
-
     private static void LogContinuousFarmNextSchedule(TaskExecutionContext context, int waitSeconds, int nextIndex)
     {
         var nextTime = DateTimeOffset.Now.AddSeconds(Math.Max(1, waitSeconds));
         context.Log($"Continuous farming next scheduled send time={nextTime:yyyy-MM-dd HH:mm:ss zzz}; nextListIndex={nextIndex}; wait={waitSeconds}s.");
     }
 
-    private static InvalidOperationException BuildContinuousFarmDefer(string message, int waitSeconds, int nextIndex)
+    // Farm-send deferrals are normal control flow (cooldown after a send, list not ready, renamed
+    // lists), so they throw TaskWaitException and log as DEFERRED — not FAILED — and never consume
+    // retries. The message keeps the queue_wait_seconds / next-list-index tokens the desktop's
+    // payload extractor reads.
+    private static TaskWaitException BuildContinuousFarmDefer(string message, int waitSeconds, int nextIndex, string? reasonCode = null)
     {
-        return new InvalidOperationException(
-            $"{message} queue_wait_seconds={Math.Max(1, waitSeconds)} {BotOptionPayloadKeys.ContinuousFarmNextListIndex}={Math.Max(0, nextIndex)}");
+        return new TaskWaitException(
+            Math.Max(1, waitSeconds),
+            $"{message} queue_wait_seconds={Math.Max(1, waitSeconds)} {BotOptionPayloadKeys.ContinuousFarmNextListIndex}={Math.Max(0, nextIndex)}",
+            reasonCode);
     }
 
     private static async Task ExecuteSendResourcesBetweenVillagesAsync(TaskExecutionContext context)
@@ -506,11 +475,37 @@ public sealed partial class BotTaskRunner
         // Transient blocks with an explicit wait hint → defer without consuming retries.
         if (TryExtractQueueWaitSeconds(result, out var waitSeconds))
         {
-            throw new TaskWaitException(waitSeconds, $"Task '{taskName}' waiting: {result}");
+            throw new TaskWaitException(waitSeconds, $"Task '{taskName}' waiting: {result}", DeriveTaskWaitReason(result));
         }
 
         // Blocked but no wait hint — fall back to old behavior (counts toward MaxRetries).
         throw new InvalidOperationException($"Task '{taskName}' could not execute successfully: {result}");
+    }
+
+    // Single place that maps the clients' free-text result messages onto typed wait reasons
+    // (TaskWaitReasons). Downstream consumers (Desktop queue handling) read ReasonCode instead of
+    // sniffing message text, so a reworded message only needs updating here.
+    private static string? DeriveTaskWaitReason(string result)
+    {
+        if (result.Contains("hero_reviving", StringComparison.OrdinalIgnoreCase))
+        {
+            return TaskWaitReasons.HeroReviving;
+        }
+
+        // Both forms: the action token (in "Actions: ..." summaries) and the dedicated hp-too-low
+        // defer message ("Hero HP too low to send."), which does not carry the action token.
+        if (result.Contains("adventure_skipped_hp_too_low", StringComparison.OrdinalIgnoreCase)
+            || result.Contains("Hero HP too low", StringComparison.OrdinalIgnoreCase))
+        {
+            return TaskWaitReasons.HeroHpTooLow;
+        }
+
+        if (result.Contains("queued", StringComparison.OrdinalIgnoreCase))
+        {
+            return TaskWaitReasons.WorkQueued;
+        }
+
+        return null;
     }
 
     internal static ConstructionTaskOutcome ClassifyConstructionTaskResult(string taskName, string? result)

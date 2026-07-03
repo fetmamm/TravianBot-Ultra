@@ -4,52 +4,33 @@ public static class FarmingDefaults
 {
     public const string SendModeListPerList = "list_per_list";
     public const string SendModeAllAtOnce = "all_at_once";
-    public const int DefaultDispatchDelayMinutes = 20;
-    public const int DefaultDispatchDelayVariationPercent = 20;
 
-    public static readonly int[] DispatchDelayMinuteChoices = [1, 2, 3, 5, 10, 15, 20, 30, 45, 60, 90];
-    public static readonly int[] DispatchDelayVariationPercentChoices = [0, 5, 10, 20, 50];
+    // Delay between farm sends is a random pick in [min, max] minutes.
+    public const int DefaultDispatchDelayMinMinutes = 30;
+    public const int DefaultDispatchDelayMaxMinutes = 90;
+
+    public static int NormalizeDispatchDelayMinMinutes(int value)
+    {
+        return value > 0 ? value : DefaultDispatchDelayMinMinutes;
+    }
+
+    public static int NormalizeDispatchDelayMaxMinutes(int value)
+    {
+        return value > 0 ? value : DefaultDispatchDelayMaxMinutes;
+    }
+
+    // Random dispatch delay in whole seconds within [min, max] minutes. Max below min collapses to min.
+    public static int CalculateDispatchDelaySeconds(int minMinutes, int maxMinutes)
+    {
+        var minSeconds = NormalizeDispatchDelayMinMinutes(minMinutes) * 60;
+        var maxSeconds = Math.Max(minSeconds, NormalizeDispatchDelayMaxMinutes(maxMinutes) * 60);
+        return Random.Shared.Next(minSeconds, maxSeconds + 1);
+    }
 
     public static string NormalizeSendMode(string? value)
     {
         return string.Equals(value?.Trim(), SendModeAllAtOnce, StringComparison.OrdinalIgnoreCase)
             ? SendModeAllAtOnce
             : SendModeListPerList;
-    }
-
-    public static int NormalizeDispatchDelayMinutes(int value)
-    {
-        if (DispatchDelayMinuteChoices.Contains(value))
-        {
-            return value;
-        }
-
-        if (value <= 0)
-        {
-            return DefaultDispatchDelayMinutes;
-        }
-
-        return DispatchDelayMinuteChoices
-            .OrderBy(option => Math.Abs((long)option - value))
-            .ThenBy(option => option)
-            .First();
-    }
-
-    public static int NormalizeDispatchDelayVariationPercent(int value)
-    {
-        if (DispatchDelayVariationPercentChoices.Contains(value))
-        {
-            return value;
-        }
-
-        if (value <= 0)
-        {
-            return DefaultDispatchDelayVariationPercent;
-        }
-
-        return DispatchDelayVariationPercentChoices
-            .OrderBy(option => Math.Abs(option - value))
-            .ThenBy(option => option)
-            .First();
     }
 }

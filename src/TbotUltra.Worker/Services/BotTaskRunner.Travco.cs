@@ -18,11 +18,6 @@ public sealed partial class BotTaskRunner
         Action<string> log,
         CancellationToken cancellationToken)
     {
-        if (options.Headless)
-        {
-            throw new InvalidOperationException("Travco inactive search requires the visible browser session.");
-        }
-
         var account = _accountProvider.LoadAccount();
         log("[travco] waiting for browser session.");
         if (!await _sessionGate.WaitAsync(TimeSpan.FromSeconds(45), cancellationToken))

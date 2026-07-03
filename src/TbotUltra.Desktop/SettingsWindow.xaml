@@ -38,10 +38,18 @@
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                        Margin="0,0,0,10" />
-                            <CheckBox x:Name="HeadlessCheckBox" Margin="0,0,0,8" Content="Headless" IsEnabled="False" />
-                            <CheckBox x:Name="DontNotifyNewVersionCheckBox"
-                                      Margin="0,0,0,8"
-                                      Content="Dont notify for new version" />
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <CheckBox x:Name="DontNotifyNewVersionCheckBox"
+                                          Content="Dont notify for new version" />
+                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                ToolTip="Suppresses the popup shown when a newer version is available. Updates can still be checked and installed manually from the version window." />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <CheckBox x:Name="QuickReloginCheckBox"
+                                          Content="Quick re-login within 10 min" />
+                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                ToolTip="When logging in less than 10 minutes after the last full login, skip the post-login analyzes (villages, hero, farm lists, brewery) and only confirm the session. Saved per account." />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 
@@ -82,12 +90,14 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Max run (min)" VerticalAlignment="Center" Margin="0,2" />
-                                <TextBox x:Name="SessionMaxRunMinutesTextBox" Grid.Row="0" Grid.Column="1" Height="24" Margin="0,2" />
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Sleep (min)" VerticalAlignment="Center" Margin="0,2" />
-                                <TextBox x:Name="SessionSleepMinutesTextBox" Grid.Row="1" Grid.Column="1" Height="24" Margin="0,2" />
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Variation" VerticalAlignment="Center" Margin="0,2" />
-                                <ComboBox x:Name="SessionVariationPercentComboBox" Grid.Row="2" Grid.Column="1" Height="24" Margin="0,2" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="Min" FontWeight="SemiBold" Margin="0,2" />
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="Max" FontWeight="SemiBold" Margin="6,2,0,2" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Run (min)" VerticalAlignment="Center" Margin="0,2" />
+                                <TextBox x:Name="SessionRunMinMinutesTextBox" Grid.Row="1" Grid.Column="1" Height="24" Margin="0,2" />
+                                <TextBox x:Name="SessionRunMaxMinutesTextBox" Grid.Row="1" Grid.Column="2" Height="24" Margin="6,2,0,2" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Sleep (min)" VerticalAlignment="Center" Margin="0,2" />
+                                <TextBox x:Name="SessionSleepMinMinutesTextBox" Grid.Row="2" Grid.Column="1" Height="24" Margin="0,2" />
+                                <TextBox x:Name="SessionSleepMaxMinutesTextBox" Grid.Row="2" Grid.Column="2" Height="24" Margin="6,2,0,2" />
                                 <TextBlock Grid.Row="3" Grid.Column="0" Text="Daily max" VerticalAlignment="Center" Margin="0,2" />
                                 <ComboBox x:Name="SessionDailyMaxHoursComboBox" Grid.Row="3" Grid.Column="1" Height="24" Margin="0,2" />
                                 <ComboBox x:Name="SessionDailyMaxVariationComboBox" Grid.Row="3" Grid.Column="2" Height="24" Margin="6,2,0,2"
@@ -97,7 +107,7 @@
                             <StackPanel Orientation="Horizontal" Margin="18,0,0,6">
                                 <TextBlock Text="Allowed hours" FontWeight="SemiBold" VerticalAlignment="Center" />
                                 <ContentControl Style="{StaticResource SettingInfoIconStyle}"
-                                                ToolTip="Checked hours may run. Unchecked hours log out and stay stopped until the next checked hour. Schedule boundaries use the configured variation." />
+                                                ToolTip="Checked hours may run. Unchecked hours log out and stay stopped until the next checked hour." />
                             </StackPanel>
                             <local:VerticalFirstUniformGrid x:Name="SessionAllowedHoursGrid"
                                                             Columns="6"
@@ -174,31 +184,7 @@
                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                        Margin="0,0,0,10" />
 
-                            <Grid Margin="0,0,0,10">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="160" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" Margin="0,0,12,0">
-                                    <TextBlock Text="Queue wait threshold" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4" />
-                                    <TextBlock Text="Controls when long waits are deferred back to the smart queues."
-                                               Foreground="{DynamicResource MutedSlateBrush}"
-                                               TextWrapping="Wrap" />
-                                </StackPanel>
-                                <ComboBox x:Name="QueueWaitThresholdComboBox"
-                                          Grid.Column="1"
-                                          Width="150"
-                                          HorizontalAlignment="Left"
-                                          VerticalAlignment="Top">
-                                    <ComboBoxItem Content="2s" Tag="2" />
-                                    <ComboBoxItem Content="5s" Tag="5" />
-                                    <ComboBoxItem Content="10s" Tag="10" />
-                                    <ComboBoxItem Content="20s" Tag="20" />
-                                    <ComboBoxItem Content="Smart" Tag="smart" />
-                                </ComboBox>
-                            </Grid>
-
-                            <StackPanel Orientation="Horizontal" Margin="0,14,0,8">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                 <TextBlock Text="After login"
                                         FontWeight="SemiBold"
                                         Foreground="{DynamicResource TextPrimaryBrush}"
@@ -261,7 +247,11 @@
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                        Margin="0,0,0,10" />
-                            <CheckBox x:Name="AllowSilverSpendingCheckBox" Margin="0,0,0,12" Content="Allow silver spending" />
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                <CheckBox x:Name="AllowSilverSpendingCheckBox" Content="Allow silver spending" />
+                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                ToolTip="Not used by any automation yet — reserved for future auction/silver features. The bot only reads your silver amount for display today; nothing spends silver regardless of this setting." />
+                            </StackPanel>
 
                             <TextBlock x:Name="SilverLimitTextBlock" Text="Silver limit: 100" Margin="0,0,0,4" />
                             <Slider x:Name="SilverLimitSlider"

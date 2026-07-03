@@ -4,7 +4,7 @@
         Background="{DynamicResource AppBackgroundBrush}"
         Title="Village settings"
         Height="460"
-        Width="1180"
+        SizeToContent="Width"
         MinHeight="320"
         MinWidth="820"
         ResizeMode="CanResize"
@@ -36,8 +36,11 @@
                 <DataGridTemplateColumn Width="Auto">
                     <DataGridTemplateColumn.Header>
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Auto" VerticalAlignment="Center" />
-                            <ContentControl Style="{DynamicResource InfoTooltipIconStyle}" Margin="5,0,0,0"
+                            <TextBlock Text="Auto" FontSize="11" VerticalAlignment="Center"
+                                       ToolTipService.InitialShowDelay="100"
+                                       ToolTip="Turns the village on/off for the bot. Off = the village is skipped entirely." />
+                            <ContentControl Style="{DynamicResource InfoTooltipIconStyle}" Margin="4,0,0,0"
+                                            ToolTipService.InitialShowDelay="100"
                                             ToolTip="Turns the village on/off for the bot. Off = the village is skipped entirely." />
                         </StackPanel>
                     </DataGridTemplateColumn.Header>
@@ -47,7 +50,7 @@
                                       IsChecked="{Binding IsEnabledForAutomation, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
                                       HorizontalAlignment="Center"
                                       VerticalAlignment="Center"
-                                      Margin="6,2" />
+                                      Margin="2,0" />
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
@@ -63,21 +66,19 @@
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                     <DataGridTextColumn.Header>
-                        <TextBlock Text="Village" VerticalAlignment="Center" />
+                        <TextBlock Text="Village" FontSize="11" VerticalAlignment="Center" />
                     </DataGridTextColumn.Header>
                 </DataGridTextColumn>
                 <DataGridTextColumn Binding="{Binding PopText}" Width="Auto" IsReadOnly="True">
                     <DataGridTextColumn.Header>
-                        <TextBlock Text="Pop" VerticalAlignment="Center" />
+                        <TextBlock Text="Pop" FontSize="11" VerticalAlignment="Center" />
                     </DataGridTextColumn.Header>
                 </DataGridTextColumn>
                 <DataGridTemplateColumn x:Name="NpcTradeColumn" Width="Auto">
                     <DataGridTemplateColumn.Header>
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="NPC" VerticalAlignment="Center" />
-                            <ContentControl Style="{DynamicResource InfoTooltipIconStyle}" Margin="5,0,0,0"
-                                            ToolTip="Selects which villages NPC trade may run in. The NPC trade master toggle in Auto settings must also be on for it to run." />
-                        </StackPanel>
+                        <TextBlock Text="NPC" FontSize="11" VerticalAlignment="Center"
+                                   ToolTipService.InitialShowDelay="100"
+                                   ToolTip="Selects which villages NPC trade may run in. The NPC trade master toggle in Auto settings must also be on for it to run." />
                     </DataGridTemplateColumn.Header>
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
@@ -85,7 +86,7 @@
                                       IsChecked="{Binding NpcTrade, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
                                       HorizontalAlignment="Center"
                                       VerticalAlignment="Center"
-                                      Margin="6,2" />
+                                      Margin="2,0" />
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>

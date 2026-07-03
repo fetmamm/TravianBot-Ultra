@@ -2,60 +2,25 @@ namespace TbotUltra.Core.Configuration;
 
 public static class ReinforcementSendDefaults
 {
-    public const int DefaultIntervalHours = 5;
-    public const int DefaultVariationPercent = 25;
+    // Automatic reinforcement sends are scheduled a random pick in [min, max] minutes apart.
+    public const int DefaultSendMinMinutes = 60;
+    public const int DefaultSendMaxMinutes = 120;
 
-    public static readonly int[] IntervalHourChoices = [1, 2, 5, 8, 12, 24];
-    public static readonly int[] VariationPercentChoices = [0, 10, 25, 50, 90];
-
-    public static int NormalizeIntervalHours(int value)
+    public static int NormalizeSendMinMinutes(int value)
     {
-        if (IntervalHourChoices.Contains(value))
-        {
-            return value;
-        }
-
-        if (value <= 0)
-        {
-            return DefaultIntervalHours;
-        }
-
-        return IntervalHourChoices
-            .OrderBy(option => Math.Abs((long)option - value))
-            .ThenBy(option => option)
-            .First();
+        return value > 0 ? value : DefaultSendMinMinutes;
     }
 
-    public static int NormalizeVariationPercent(int value)
+    public static int NormalizeSendMaxMinutes(int value)
     {
-        if (VariationPercentChoices.Contains(value))
-        {
-            return value;
-        }
-
-        if (value <= 0)
-        {
-            return DefaultVariationPercent;
-        }
-
-        return VariationPercentChoices
-            .OrderBy(option => Math.Abs(option - value))
-            .ThenBy(option => option)
-            .First();
+        return value > 0 ? value : DefaultSendMaxMinutes;
     }
 
-    public static TimeSpan CalculateSendDelay(int intervalHours, int variationPercent)
+    // Random send delay within [min, max] minutes. Max below min collapses to min.
+    public static TimeSpan CalculateSendDelay(int minMinutes, int maxMinutes)
     {
-        var normalizedHours = NormalizeIntervalHours(intervalHours);
-        var normalizedVariation = NormalizeVariationPercent(variationPercent);
-        var baseSeconds = TimeSpan.FromHours(normalizedHours).TotalSeconds;
-        if (normalizedVariation <= 0)
-        {
-            return TimeSpan.FromSeconds(baseSeconds);
-        }
-
-        var variationSeconds = baseSeconds * normalizedVariation / 100d;
-        var randomOffset = ((Random.Shared.NextDouble() * 2d) - 1d) * variationSeconds;
-        return TimeSpan.FromSeconds(Math.Max(1d, baseSeconds + randomOffset));
+        var minSeconds = NormalizeSendMinMinutes(minMinutes) * 60;
+        var maxSeconds = Math.Max(minSeconds, NormalizeSendMaxMinutes(maxMinutes) * 60);
+        return TimeSpan.FromSeconds(Random.Shared.Next(minSeconds, maxSeconds + 1));
     }
 }

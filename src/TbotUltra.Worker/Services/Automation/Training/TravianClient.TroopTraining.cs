@@ -64,8 +64,6 @@ public sealed partial class TravianClient
         LogFunctionStarted();
         await EnsureLoggedInAsync();
 
-        IReadOnlyList<Building> buildings = knownBuildings ?? (await ReadBuildingsStatusAsync(cancellationToken)).Buildings;
-        Notify($"[troops:verbose] queue scan:using {buildings.Count} known building(s).");
         var statuses = new List<TroopTrainingQueueStatus>();
         var enabledBuildingTypes = new List<TroopTrainingBuildingType>(3);
         if (_config.TroopTrainingBarracksEnabled)
@@ -84,15 +82,67 @@ public sealed partial class TravianClient
         }
 
         Notify($"[troops:verbose] queue scan limited to {enabledBuildingTypes.Count} enabled building(s).");
+
+        // Reuse the queue statuses build_troops just read on this village (it already visited each
+        // enabled troop building), so the post-build refresh doesn't re-navigate to the same pages.
+        Dictionary<TroopTrainingBuildingType, TroopTrainingQueueStatus>? recentSnapshot = null;
+        if (_session.TroopQueueSnapshotByBuilding is { Count: > 0 }
+            && DateTimeOffset.UtcNow - _session.TroopQueueSnapshotAt <= TroopTrainingQueueSnapshotMaxAge)
+        {
+            var activeVillage = await TryReadActiveVillageNameSafeAsync(cancellationToken);
+            if (!string.IsNullOrWhiteSpace(activeVillage)
+                && string.Equals(activeVillage, _session.TroopQueueSnapshotVillage, StringComparison.OrdinalIgnoreCase))
+            {
+                recentSnapshot = _session.TroopQueueSnapshotByBuilding;
+            }
+        }
+
+        IReadOnlyList<Building>? buildings = knownBuildings;
         foreach (var buildingType in enabledBuildingTypes)
         {
+            if (recentSnapshot is not null && recentSnapshot.TryGetValue(buildingType, out var recentStatus))
+            {
+                var snapshotAgeSeconds = (int)(DateTimeOffset.UtcNow - _session.TroopQueueSnapshotAt).TotalSeconds;
+                Notify($"[troops:verbose] queue scan:reusing {recentStatus.BuildingName} queue from build_troops read {snapshotAgeSeconds}s ago.");
+                statuses.Add(recentStatus);
+                continue;
+            }
+
             Notify($"[troops:verbose] queue scan:reading {buildingType}.");
+            if (buildings is null)
+            {
+                buildings = (await ReadBuildingsStatusAsync(cancellationToken)).Buildings;
+                Notify($"[troops:verbose] queue scan:using {buildings.Count} known building(s).");
+            }
+
             var queueStatus = await ReadTroopTrainingQueueStatusAsync(buildings, buildingType, cancellationToken);
             statuses.Add(queueStatus);
             Notify($"[troops:verbose] queue scan:{queueStatus.BuildingName} exists={queueStatus.Exists}, remaining={(queueStatus.RemainingSeconds is > 0 ? queueStatus.RemainingText : "Ready")}.");
         }
 
         return statuses;
+    }
+
+    private static readonly TimeSpan TroopTrainingQueueSnapshotMaxAge = TimeSpan.FromSeconds(90);
+
+    // Called wherever build_troops reads a troop building's queue (candidate scan + after submit) so the
+    // post-build refresh can reuse the data instead of navigating back to the same building pages.
+    private void SaveTroopTrainingQueueSnapshot(string villageName, TroopTrainingQueueStatus queueStatus)
+    {
+        if (string.IsNullOrWhiteSpace(villageName))
+        {
+            return;
+        }
+
+        if (_session.TroopQueueSnapshotByBuilding is null
+            || !string.Equals(_session.TroopQueueSnapshotVillage, villageName, StringComparison.OrdinalIgnoreCase))
+        {
+            _session.TroopQueueSnapshotVillage = villageName;
+            _session.TroopQueueSnapshotByBuilding = new Dictionary<TroopTrainingBuildingType, TroopTrainingQueueStatus>();
+        }
+
+        _session.TroopQueueSnapshotByBuilding[queueStatus.BuildingType] = queueStatus;
+        _session.TroopQueueSnapshotAt = DateTimeOffset.UtcNow;
     }
 
     public async Task<string> BuildTroopsAsync(CancellationToken cancellationToken = default)
@@ -164,6 +214,7 @@ public sealed partial class TravianClient
         {
             var queueStatus = await ReadTroopTrainingQueueStatusAsync(status.Buildings, request.BuildingType, cancellationToken);
             queueStatuses.Add(queueStatus);
+            SaveTroopTrainingQueueSnapshot(status.ActiveVillage, queueStatus);
         }
 
         var candidates = requestsToScan
@@ -545,6 +596,15 @@ public sealed partial class TravianClient
         var queueSeconds = TroopTrainingCalculator.ResolveTroopTrainingQueueRemainingSeconds(queueItems);
         var queueText = queueSeconds > 0 ? TravianParsing.FormatDuration(queueSeconds) : "Ready";
         Notify($"[troops:verbose]queue after submit items={queueItems.Count}, remaining='{queueText}'.");
+        SaveTroopTrainingQueueSnapshot(status.ActiveVillage, new TroopTrainingQueueStatus(
+            candidate.Request.BuildingType,
+            candidate.Request.BuildingName,
+            true,
+            candidate.QueueStatus.SlotId,
+            queueItems,
+            queueSeconds > 0 ? queueSeconds : null,
+            queueText,
+            queueSeconds > 0 ? TimerSnapshot.FromRemaining(queueSeconds, _serverTimeUtc) : null));
         if (string.Equals(candidate.Request.RunMode, "timed", StringComparison.OrdinalIgnoreCase))
         {
             var timedWaitSeconds = ResolveTimedTrainingWaitSeconds(candidate.Request);

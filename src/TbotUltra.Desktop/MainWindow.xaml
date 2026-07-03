@@ -1853,36 +1853,24 @@
                                                                VerticalAlignment="Center"
                                                                Foreground="{DynamicResource TextPrimaryBrush}"
                                                                Margin="0,0,8,0" />
-                                                    <ComboBox x:Name="FarmDispatchDelayComboBox"
-                                                              Width="92"
-                                                              Height="26"
-                                                              SelectionChanged="FarmingSettings_Changed">
-                                                        <ComboBoxItem Content="1 min" Tag="1" />
-                                                        <ComboBoxItem Content="2 min" Tag="2" />
-                                                        <ComboBoxItem Content="3 min" Tag="3" />
-                                                        <ComboBoxItem Content="5 min" Tag="5" />
-                                                        <ComboBoxItem Content="10 min" Tag="10" />
-                                                        <ComboBoxItem Content="15 min" Tag="15" />
-                                                        <ComboBoxItem Content="20 min" Tag="20" />
-                                                        <ComboBoxItem Content="30 min" Tag="30" />
-                                                        <ComboBoxItem Content="45 min" Tag="45" />
-                                                        <ComboBoxItem Content="60 min" Tag="60" />
-                                                        <ComboBoxItem Content="90 min" Tag="90" />
-                                                    </ComboBox>
-                                                    <ComboBox x:Name="FarmDispatchDelayVariationComboBox"
-                                                              Width="70"
-                                                              Height="26"
-                                                              Margin="8,0,8,0"
-                                                              SelectionChanged="FarmingSettings_Changed">
-                                                        <ComboBoxItem Content="0%" Tag="0" />
-                                                        <ComboBoxItem Content="5%" Tag="5" />
-                                                        <ComboBoxItem Content="10%" Tag="10" />
-                                                        <ComboBoxItem Content="20%" Tag="20" />
-                                                        <ComboBoxItem Content="50%" Tag="50" />
-                                                    </ComboBox>
+                                                    <TextBlock Text="Min" VerticalAlignment="Center" Margin="0,0,4,0"
+                                                               Foreground="{DynamicResource TextSubtleBrush}" />
+                                                    <TextBox x:Name="FarmDispatchDelayMinTextBox"
+                                                             Width="52"
+                                                             Height="26"
+                                                             VerticalContentAlignment="Center"
+                                                             LostFocus="FarmingSettings_Changed" />
+                                                    <TextBlock Text="Max" VerticalAlignment="Center" Margin="8,0,4,0"
+                                                               Foreground="{DynamicResource TextSubtleBrush}" />
+                                                    <TextBox x:Name="FarmDispatchDelayMaxTextBox"
+                                                             Width="52"
+                                                             Height="26"
+                                                             Margin="0,0,8,0"
+                                                             VerticalContentAlignment="Center"
+                                                             LostFocus="FarmingSettings_Changed" />
                                                     <ContentControl Style="{StaticResource SettingInfoIconStyle}"
                                                                     VerticalAlignment="Center"
-                                                                    ToolTip="Adds random variation around the delay between farm sends. Example: 20 min with 20% becomes a random wait from 16 to 24 min." />
+                                                                    ToolTip="Delay between farm sends: a random wait between Min and Max minutes is picked for every send." />
                                                 </StackPanel>
                                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                                                     <CheckBox x:Name="DeactivateFarmLossesCheckBox"
@@ -2098,28 +2086,28 @@
                                         </Grid.RowDefinitions>
                                         <TextBlock Grid.Row="0"
                                                    Grid.Column="0"
-                                                   Text="Interval"
+                                                   Text="Min (min)"
                                                    Foreground="{DynamicResource TextSubtleBrush}"
                                                    FontSize="12"
                                                    Margin="0,0,0,4" />
-                                        <ComboBox Grid.Row="1"
-                                                  Grid.Column="0"
-                                                  x:Name="ReinforcementSendIntervalComboBox"
-                                                  Height="28"
-                                                  DisplayMemberPath="Label"
-                                                  SelectionChanged="ReinforcementSetting_SelectionChanged" />
+                                        <TextBox Grid.Row="1"
+                                                 Grid.Column="0"
+                                                 x:Name="ReinforcementSendMinMinutesTextBox"
+                                                 Height="28"
+                                                 VerticalContentAlignment="Center"
+                                                 LostFocus="ReinforcementSetting_TextChanged" />
                                         <TextBlock Grid.Row="0"
                                                    Grid.Column="2"
-                                                   Text="Variation"
+                                                   Text="Max (min)"
                                                    Foreground="{DynamicResource TextSubtleBrush}"
                                                    FontSize="12"
                                                    Margin="0,0,0,4" />
-                                        <ComboBox Grid.Row="1"
-                                                  Grid.Column="2"
-                                                  x:Name="ReinforcementSendVariationComboBox"
-                                                  Height="28"
-                                                  DisplayMemberPath="Label"
-                                                  SelectionChanged="ReinforcementSetting_SelectionChanged" />
+                                        <TextBox Grid.Row="1"
+                                                 Grid.Column="2"
+                                                 x:Name="ReinforcementSendMaxMinutesTextBox"
+                                                 Height="28"
+                                                 VerticalContentAlignment="Center"
+                                                 LostFocus="ReinforcementSetting_TextChanged" />
                                     </Grid>
                                     <TextBlock x:Name="ReinforcementTroopsDetailTextBlock"
                                                Text=""
@@ -2856,18 +2844,7 @@
                                         <ContentControl Style="{StaticResource SettingInfoIconStyle}"
                                                         Margin="8,2,0,0"
                                                         VerticalAlignment="Center"
-                                                        ToolTip="Default celebration mode for villages without their own Town Hall override. Big falls back to small until Town Hall level 10." />
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                                        <RadioButton x:Name="TownHallCelebrationSmallRadioButton"
-                                                     Content="Small"
-                                                     GroupName="TownHallCelebrationMode"
-                                                     Margin="0,0,16,0"
-                                                     Checked="TownHallCelebrationMode_Changed" />
-                                        <RadioButton x:Name="TownHallCelebrationBigRadioButton"
-                                                     Content="Big"
-                                                     GroupName="TownHallCelebrationMode"
-                                                     Checked="TownHallCelebrationMode_Changed" />
+                                                        ToolTip="Configure Town Hall celebrations per village in the overview." />
                                     </StackPanel>
                                     <Button x:Name="TownHallSettingsButton"
                                             Content="Town Hall overview"

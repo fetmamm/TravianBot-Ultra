@@ -42,14 +42,13 @@ public static class BotOptionsPayloadApplier
         var upgradeSelectorProfile = source.UpgradeSelectorProfile;
         var continuousFarmListNames = source.ContinuousFarmListNames;
         var continuousFarmListIds = source.ContinuousFarmListIds;
-        var continuousFarmDispatchDelayMinutes = source.ContinuousFarmDispatchDelayMinutes;
-        var continuousFarmDispatchDelayVariationPercent = source.ContinuousFarmDispatchDelayVariationPercent;
+        var continuousFarmDispatchDelayMinutes = source.ContinuousFarmDispatchDelayMinMinutes;
+        var continuousFarmDispatchDelayVariationPercent = source.ContinuousFarmDispatchDelayMaxMinutes;
         var continuousFarmSendMode = source.ContinuousFarmSendMode;
         var townHallCelebrationMode = source.TownHallCelebrationMode;
         var continuousFarmDeactivateLosses = source.ContinuousFarmDeactivateLosses;
         var continuousFarmDeactivateOasisLosses = source.ContinuousFarmDeactivateOasisLosses;
         var continuousFarmNextListIndex = source.ContinuousFarmNextListIndex;
-        var queueWaitThresholdMode = source.QueueWaitThresholdMode;
         var postLoginAnalyzeFarmlists = source.PostLoginAnalyzeFarmlists;
         var postLoginAnalyzeHero = source.PostLoginAnalyzeHero;
         var postLoginAnalyzeHeroInventory = source.PostLoginAnalyzeHeroInventory;
@@ -123,8 +122,8 @@ public static class BotOptionsPayloadApplier
         var reinforcementsTargetVillageName = source.ReinforcementsTargetVillageName;
         var reinforcementsSourceVillageNames = source.ReinforcementsSourceVillageNames;
         var reinforcementsTroopRules = source.ReinforcementsTroopRules;
-        var reinforcementsSendIntervalHours = source.ReinforcementsSendIntervalHours;
-        var reinforcementsSendVariationPercent = source.ReinforcementsSendVariationPercent;
+        var reinforcementsSendIntervalHours = source.ReinforcementsSendMinMinutes;
+        var reinforcementsSendVariationPercent = source.ReinforcementsSendMaxMinutes;
         var actionPacingEnabled = source.ActionPacingEnabled;
         var actionPacingTaskMinSeconds = source.ActionPacingTaskMinSeconds;
         var actionPacingTaskMaxSeconds = source.ActionPacingTaskMaxSeconds;
@@ -398,17 +397,17 @@ public static class BotOptionsPayloadApplier
                     continue;
                 }
 
-                if (key.Equals(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinutes, StringComparison.OrdinalIgnoreCase)
+                if (key.Equals(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinMinutes, StringComparison.OrdinalIgnoreCase)
                     && int.TryParse(value, out var dispatchDelayMinutes))
                 {
-                    continuousFarmDispatchDelayMinutes = FarmingDefaults.NormalizeDispatchDelayMinutes(dispatchDelayMinutes);
+                    continuousFarmDispatchDelayMinutes = FarmingDefaults.NormalizeDispatchDelayMinMinutes(dispatchDelayMinutes);
                     continue;
                 }
 
-                if (key.Equals(BotOptionPayloadKeys.ContinuousFarmDispatchDelayVariationPercent, StringComparison.OrdinalIgnoreCase)
+                if (key.Equals(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMaxMinutes, StringComparison.OrdinalIgnoreCase)
                     && int.TryParse(value, out var dispatchDelayVariationPercent))
                 {
-                    continuousFarmDispatchDelayVariationPercent = FarmingDefaults.NormalizeDispatchDelayVariationPercent(dispatchDelayVariationPercent);
+                    continuousFarmDispatchDelayVariationPercent = FarmingDefaults.NormalizeDispatchDelayMaxMinutes(dispatchDelayVariationPercent);
                     continue;
                 }
 
@@ -442,12 +441,6 @@ public static class BotOptionsPayloadApplier
                     && int.TryParse(value, out var nextListIndex))
                 {
                     continuousFarmNextListIndex = Math.Max(0, nextListIndex);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.QueueWaitThresholdMode, StringComparison.OrdinalIgnoreCase))
-                {
-                    queueWaitThresholdMode = value;
                     continue;
                 }
 
@@ -961,17 +954,17 @@ public static class BotOptionsPayloadApplier
                     continue;
                 }
 
-                if (key.Equals(BotOptionPayloadKeys.ReinforcementsSendIntervalHours, StringComparison.OrdinalIgnoreCase)
+                if (key.Equals(BotOptionPayloadKeys.ReinforcementsSendMinMinutes, StringComparison.OrdinalIgnoreCase)
                     && int.TryParse(value, out var reinforcementIntervalHours))
                 {
-                    reinforcementsSendIntervalHours = ReinforcementSendDefaults.NormalizeIntervalHours(reinforcementIntervalHours);
+                    reinforcementsSendIntervalHours = ReinforcementSendDefaults.NormalizeSendMinMinutes(reinforcementIntervalHours);
                     continue;
                 }
 
-                if (key.Equals(BotOptionPayloadKeys.ReinforcementsSendVariationPercent, StringComparison.OrdinalIgnoreCase)
+                if (key.Equals(BotOptionPayloadKeys.ReinforcementsSendMaxMinutes, StringComparison.OrdinalIgnoreCase)
                     && int.TryParse(value, out var reinforcementVariationPercent))
                 {
-                    reinforcementsSendVariationPercent = ReinforcementSendDefaults.NormalizeVariationPercent(reinforcementVariationPercent);
+                    reinforcementsSendVariationPercent = ReinforcementSendDefaults.NormalizeSendMaxMinutes(reinforcementVariationPercent);
                     continue;
                 }
 
@@ -1057,7 +1050,6 @@ public static class BotOptionsPayloadApplier
         {
             ServerName = source.ServerName,
             BaseUrl = source.BaseUrl,
-            Headless = source.Headless,
             TimeoutMs = source.TimeoutMs,
             ManualLoginTimeoutSeconds = source.ManualLoginTimeoutSeconds,
             LoopIntervalSeconds = source.LoopIntervalSeconds,
@@ -1065,14 +1057,13 @@ public static class BotOptionsPayloadApplier
             ContinuousLoopGroups = source.ContinuousLoopGroups,
             ContinuousFarmListNames = continuousFarmListNames,
             ContinuousFarmListIds = continuousFarmListIds,
-            ContinuousFarmDispatchDelayMinutes = continuousFarmDispatchDelayMinutes,
-            ContinuousFarmDispatchDelayVariationPercent = continuousFarmDispatchDelayVariationPercent,
+            ContinuousFarmDispatchDelayMinMinutes = continuousFarmDispatchDelayMinutes,
+            ContinuousFarmDispatchDelayMaxMinutes = continuousFarmDispatchDelayVariationPercent,
             ContinuousFarmSendMode = continuousFarmSendMode,
             TownHallCelebrationMode = townHallCelebrationMode,
             ContinuousFarmDeactivateLosses = continuousFarmDeactivateLosses,
             ContinuousFarmDeactivateOasisLosses = continuousFarmDeactivateOasisLosses,
             ContinuousFarmNextListIndex = continuousFarmNextListIndex,
-            QueueWaitThresholdMode = queueWaitThresholdMode,
             PostLoginAnalyzeFarmlists = postLoginAnalyzeFarmlists,
             PostLoginAnalyzeHero = postLoginAnalyzeHero,
             PostLoginAnalyzeHeroInventory = postLoginAnalyzeHeroInventory,
@@ -1146,8 +1137,8 @@ public static class BotOptionsPayloadApplier
             ReinforcementsTargetVillageName = reinforcementsTargetVillageName,
             ReinforcementsSourceVillageNames = reinforcementsSourceVillageNames,
             ReinforcementsTroopRules = reinforcementsTroopRules,
-            ReinforcementsSendIntervalHours = reinforcementsSendIntervalHours,
-            ReinforcementsSendVariationPercent = reinforcementsSendVariationPercent,
+            ReinforcementsSendMinMinutes = reinforcementsSendIntervalHours,
+            ReinforcementsSendMaxMinutes = reinforcementsSendVariationPercent,
             GithubReleasesUrl = source.GithubReleasesUrl,
             HumanLikeEnabled = source.HumanLikeEnabled,
             HumanLikeSpeed = source.HumanLikeSpeed,
