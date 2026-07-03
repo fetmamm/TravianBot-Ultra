@@ -151,18 +151,26 @@
                 <TextBlock Grid.Row="3" Grid.Column="0" Text="Selected URL" Margin="0,0,8,8" VerticalAlignment="Center" />
                 <TextBlock x:Name="ServerUrlTextBlock" Grid.Row="3" Grid.Column="1" Margin="0,0,0,8" VerticalAlignment="Center" Foreground="{DynamicResource SlateTextBrush}" />
 
-                <StackPanel Grid.Row="4" Grid.Column="0" Orientation="Horizontal" Margin="0,0,8,8" VerticalAlignment="Center">
-                    <CheckBox x:Name="UseProxyCheckBox" Content="Use proxy" VerticalAlignment="Center"
-                              Checked="UseProxyCheckBox_Changed" Unchecked="UseProxyCheckBox_Changed" />
-                    <ContentControl Style="{DynamicResource InfoTooltipIconStyle}" Margin="6,0,0,0"
-                                    ToolTip="Routes this account's browser traffic through your proxy so it uses a different IP.&#10;Choose proxy type, then enter host/IP and port separately.&#10;Examples: SOCKS5 1.2.3.4 1080, HTTP 1.2.3.4 8080.&#10;Applies on next bot start." />
+                <StackPanel Grid.Row="4" Grid.Column="0" Margin="0,0,8,8" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <CheckBox x:Name="UseProxyCheckBox" Content="Use proxy" VerticalAlignment="Center"
+                                  Checked="UseProxyCheckBox_Changed" Unchecked="UseProxyCheckBox_Changed" />
+                        <ContentControl Style="{DynamicResource InfoTooltipIconStyle}" Margin="6,0,0,0"
+                                        ToolTip="Routes this account's browser traffic through your proxy so it uses a different IP.&#10;Choose proxy type, then enter host/IP and port separately.&#10;Examples: SOCKS5 1.2.3.4 1080, HTTP 1.2.3.4 8080.&#10;Applies on next bot start." />
+                    </StackPanel>
+                    <Button x:Name="CheckProxyButton"
+                            Content="Check proxy"
+                            Margin="0,6,0,0"
+                            MinWidth="105"
+                            HorizontalAlignment="Left"
+                            IsEnabled="False"
+                            Click="CheckProxyButton_Click" />
                 </StackPanel>
                 <Grid Grid.Row="4" Grid.Column="1" Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="105" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="90" />
-                        <ColumnDefinition Width="105" />
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -212,16 +220,9 @@
                     <TextBox x:Name="ProxyPortTextBox"
                              Grid.Row="1"
                              Grid.Column="2"
-                             Margin="0,0,8,0"
                              IsEnabled="False"
                              TextChanged="EditorField_Changed"
                              ToolTip="Proxy port, for example 9050" />
-                    <Button x:Name="CheckProxyButton"
-                            Grid.Row="1"
-                            Grid.Column="3"
-                            Content="Check proxy"
-                            IsEnabled="False"
-                            Click="CheckProxyButton_Click" />
                 </Grid>
 
                 <Border Grid.Row="6"
@@ -259,5 +260,41 @@
                 <Button x:Name="CloseButtonControl" Content="Close" Width="90" Click="CloseButton_Click" />
             </StackPanel>
         </DockPanel>
+
+        <Border x:Name="ProxyCheckOverlay"
+                Grid.RowSpan="2"
+                Grid.ColumnSpan="3"
+                Background="#B0000000"
+                Visibility="Collapsed">
+            <Border Width="440"
+                    Padding="18"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6">
+                <StackPanel>
+                    <TextBlock Text="Proxy check"
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               Margin="0,0,0,12" />
+                    <TextBlock x:Name="ProxyCheckStatusTextBlock"
+                               TextWrapping="Wrap"
+                               MinHeight="90"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                    <Button x:Name="ProxyCheckOverlayButton"
+                            Content="Cancel"
+                            Width="120"
+                            Margin="0,16,0,0"
+                            HorizontalAlignment="Right"
+                            Background="{DynamicResource DangerBgBrush}"
+                            BorderBrush="{DynamicResource DangerBorderBrush}"
+                            Foreground="{DynamicResource DangerTextBrush}"
+                            Click="ProxyCheckOverlayButton_Click" />
+                </StackPanel>
+            </Border>
+        </Border>
     </Grid>
 </Window>

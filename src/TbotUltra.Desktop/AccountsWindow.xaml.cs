@@ -38,6 +38,8 @@ public partial class AccountsWindow : Window
     private string _baselineProxyServer = string.Empty;
     private bool _suppressSelectionChanged;
     private bool _isClosing;
+    private CancellationTokenSource? _proxyCheckCts;
+    private bool _proxyCheckCompleted;
 
     public AccountsWindow(
         EnvAccountStore store,
@@ -411,33 +413,50 @@ public partial class AccountsWindow : Window
 
     private async void CheckProxyButton_Click(object sender, RoutedEventArgs e)
     {
-        var previousText = CheckProxyButton.Content;
         CheckProxyButton.IsEnabled = false;
-        CheckProxyButton.Content = "Checking...";
-        InfoTextBlock.Text = "Checking proxy...";
+        _proxyCheckCompleted = false;
+        _proxyCheckCts?.Dispose();
+        _proxyCheckCts = new CancellationTokenSource();
+        ShowProxyCheckOverlay("Preparing proxy check...", completed: false);
 
         try
         {
             var proxyServer = ValidateCurrentProxyFields();
             if (!ProxyParser.TryBuild(proxyServer, out var proxy, out var proxyWarning) || proxy is null)
             {
-                InfoTextBlock.Text = "Proxy check failed: invalid proxy settings.";
+                CompleteProxyCheckOverlay("Proxy check failed: invalid proxy settings.", success: false);
                 return;
             }
 
-            var result = await CheckProxyAsync(proxyServer, proxy);
+            var result = await CheckProxyAsync(proxyServer, proxy, UpdateProxyCheckStatus, _proxyCheckCts.Token);
             var warningText = string.IsNullOrWhiteSpace(proxyWarning) ? string.Empty : $" Warning: {proxyWarning}";
-            InfoTextBlock.Text = result + warningText;
+            CompleteProxyCheckOverlay(result + warningText, success: true);
+        }
+        catch (OperationCanceledException)
+        {
+            CompleteProxyCheckOverlay("Proxy check cancelled.", success: false);
         }
         catch (Exception ex)
         {
-            InfoTextBlock.Text = $"Proxy check failed: {ex.Message}";
+            CompleteProxyCheckOverlay($"Proxy check failed: {ex.Message}", success: false);
         }
         finally
         {
-            CheckProxyButton.Content = previousText;
             CheckProxyButton.IsEnabled = UseProxyCheckBox.IsChecked == true;
         }
+    }
+
+    private void ProxyCheckOverlayButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_proxyCheckCompleted)
+        {
+            ProxyCheckOverlay.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        ProxyCheckOverlayButton.IsEnabled = false;
+        UpdateProxyCheckStatus("Cancelling proxy check...");
+        _proxyCheckCts?.Cancel();
     }
 
     private void ServerListButton_Click(object sender, RoutedEventArgs e)
@@ -837,29 +856,104 @@ public partial class AccountsWindow : Window
         return proxyServer;
     }
 
-    private static async Task<string> CheckProxyAsync(string proxyServer, Proxy proxy)
+    private static async Task<string> CheckProxyAsync(
+        string proxyServer,
+        Proxy proxy,
+        Action<string> status,
+        CancellationToken cancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        status("Starting temporary browser...");
+        cancellationToken.ThrowIfCancellationRequested();
         using var playwright = await Playwright.CreateAsync();
-        await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+        IBrowser? browser = null;
+        using var registration = cancellationToken.Register(() =>
         {
-            Headless = true,
-            Proxy = proxy,
-            Timeout = 20000,
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    if (browser is not null)
+                    {
+                        await browser.CloseAsync();
+                    }
+                }
+                catch
+                {
+                    // Browser may already be closing.
+                }
+            });
         });
 
-        var page = await browser.NewPageAsync();
-        await page.GotoAsync(
-            "https://ipwho.is/",
-            new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 20000 });
-        timeout.Token.ThrowIfCancellationRequested();
-        var raw = await page.Locator("body").InnerTextAsync(new LocatorInnerTextOptions { Timeout = 5000 });
-        stopwatch.Stop();
+        try
+        {
+            status("Launching browser through proxy...");
+            browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+            {
+                Headless = true,
+                Proxy = proxy,
+                Timeout = 20000,
+            });
 
-        var info = ParseProxyCheckResponse(raw);
-        var maskedProxy = ProxyParser.MaskForLog(proxyServer);
-        return $"Proxy works. IP={info.Ip}; Location={info.Location}; ISP={info.Isp}; Type={maskedProxy}; Latency={stopwatch.ElapsedMilliseconds} ms.";
+            cancellationToken.ThrowIfCancellationRequested();
+            status("Requesting public IP...");
+            var page = await browser.NewPageAsync();
+            await page.GotoAsync(
+                "https://ipwho.is/",
+                new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 20000 });
+            cancellationToken.ThrowIfCancellationRequested();
+
+            status("Reading proxy details...");
+            var raw = await page.Locator("body").InnerTextAsync(new LocatorInnerTextOptions { Timeout = 5000 });
+            stopwatch.Stop();
+
+            var info = ParseProxyCheckResponse(raw);
+            var maskedProxy = ProxyParser.MaskForLog(proxyServer);
+            return $"Proxy works. IP={info.Ip}; Location={info.Location}; ISP={info.Isp}; Type={maskedProxy}; Latency={stopwatch.ElapsedMilliseconds} ms.";
+        }
+        finally
+        {
+            if (browser is not null)
+            {
+                try
+                {
+                    await browser.CloseAsync();
+                }
+                catch
+                {
+                    // Browser may already have been closed by cancellation.
+                }
+            }
+        }
+    }
+
+    private void ShowProxyCheckOverlay(string status, bool completed)
+    {
+        ProxyCheckOverlay.Visibility = Visibility.Visible;
+        _proxyCheckCompleted = completed;
+        ProxyCheckStatusTextBlock.Text = status;
+        ProxyCheckOverlayButton.IsEnabled = true;
+        ProxyCheckOverlayButton.Content = completed ? "Continue" : "Cancel";
+        ProxyCheckOverlayButton.Background = completed
+            ? FindResource("PrimaryButtonBrush") as System.Windows.Media.Brush
+            : FindResource("DangerBgBrush") as System.Windows.Media.Brush;
+        ProxyCheckOverlayButton.BorderBrush = completed
+            ? FindResource("PrimaryButtonBrush") as System.Windows.Media.Brush
+            : FindResource("DangerBorderBrush") as System.Windows.Media.Brush;
+        ProxyCheckOverlayButton.Foreground = completed
+            ? FindResource("TooltipForegroundBrush") as System.Windows.Media.Brush
+            : FindResource("DangerTextBrush") as System.Windows.Media.Brush;
+    }
+
+    private void UpdateProxyCheckStatus(string status)
+    {
+        ProxyCheckStatusTextBlock.Text = status;
+    }
+
+    private void CompleteProxyCheckOverlay(string status, bool success)
+    {
+        ShowProxyCheckOverlay(status, completed: true);
+        InfoTextBlock.Text = success ? "Proxy check completed." : "Proxy check did not complete successfully.";
     }
 
     private static ProxyCheckInfo ParseProxyCheckResponse(string raw)
