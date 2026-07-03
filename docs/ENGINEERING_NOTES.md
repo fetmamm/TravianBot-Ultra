@@ -310,7 +310,8 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
 - Noll adventures ska inte automatiskt stanga av anvandarens Hero-toggle.
 - Official Add target ska fylla X och Y som separata Playwright-interaktioner. Vid Default troops ska
   koordinatfaltet blur:as och en neutral yta klickas innan flodet vantar pa aktiv Save. Stegen anvander
-  konto-scopead `farm_list_step_delay_*_seconds` (default 1.5-4 s, under Action pacing/Loop).
+  konto-scopead `farm_list_step_delay_*_seconds` (default 1.5-4 s, under Action pacing/Loop). Owner-varde
+  `-` i Add target betyder fri oas och far inte klassas som occupied.
 - Add Farms-progress visar lyckade tillagg separat fran kontrollerade/saknade koordinater. Mal ar antal
   lyckade tillagg, inte forsok: invalid/duplicate forbrukar nasta kandidat tills malet nas, listan blir
   full eller kallistan tar slut. Official live-count kontrolleras fore varje forsok for max 100.

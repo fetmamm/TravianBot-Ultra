@@ -96,7 +96,7 @@ public sealed partial class TravianClient
         var notFound = 0;
         var attempted = 0;
         var invalidCoordinates = new List<FarmCoordinate>();
-        // When a coordinate has no village the Add-target form is left open (see TryFillAddRaidFormAndSaveAsync),
+        // When a coordinate is skipped before Save the Add-target form is left open (see TryFillAddRaidFormAndSaveAsync),
         // so the next coordinate is typed straight into it instead of closing + reopening the dialog every miss.
         var reuseOpenForm = false;
         for (var i = 0; i < coordinates.Count && added < targetAddedCount; i++)
@@ -140,8 +140,7 @@ public sealed partial class TravianClient
                 coordinate.RequireUnoccupiedOasis,
                 cancellationToken);
 
-            // Every outcome closes the form (saved or dismissed) except an invalid coordinate, which leaves it
-            // open for the next attempt. Reset here and only re-arm reuse on the invalid branch below.
+            // Saved/already/failed outcomes close or abandon the form. Pre-save skips keep it open for the next attempt.
             reuseOpenForm = false;
 
             if (saveOutcome == AddRaidSaveOutcome.Added)
@@ -176,6 +175,8 @@ public sealed partial class TravianClient
             {
                 Notify($"{stepPrefix} Skipped occupied oasis ({coordinate.X}|{coordinate.Y}) for '{farmListName}'.");
                 progress?.Report(new FarmAddProgress(farmListName, attempted, targetAddedCount, added, notFound));
+                // Keep the open form and type the next coordinate straight into it.
+                reuseOpenForm = true;
                 continue;
             }
 
@@ -451,18 +452,19 @@ public sealed partial class TravianClient
                 """
                 () => {
                   const form = document.querySelector('#farmListTargetForm');
-                  const owner = form?.querySelector(
-                    '.targetSelectionResultWrapper .targetWrapper .player a[href*="/profile"], ' +
-                    '.targetSelectionResultWrapper .targetWrapper .player a[href*="spieler.php"], ' +
-                    '.targetSelectionResultWrapper .targetWrapper .player');
-                  const text = (owner?.textContent || '').replace(/\s+/g, ' ').trim();
-                  return text.length > 0 ? text.replace(/^Player:\s*/i, '').trim() : null;
+                  const player = form?.querySelector('.targetSelectionResultWrapper .targetWrapper .player');
+                  const owner =
+                    player?.querySelector('a[href*="/profile"], a[href*="spieler.php"]') ||
+                    player?.querySelector('.value') ||
+                    player;
+                  const text = (owner?.textContent || '').replace(/\s+/g, ' ').trim().replace(/^Player:\s*/i, '').trim();
+                  if (!text || text === '-' || text === '–' || text === '—') return null;
+                  return text;
                 }
                 """);
             if (!string.IsNullOrWhiteSpace(ownerText))
             {
                 Notify($"[farm-list] Occupied oasis ({x}|{y}) owned by '{ownerText}' skipped before Save.");
-                await DismissAddTargetDialogAsync($"skipping occupied oasis ({x}|{y})");
                 return AddRaidSaveOutcome.OccupiedOasisSkipped;
             }
         }
