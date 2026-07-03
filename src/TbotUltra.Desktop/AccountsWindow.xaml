@@ -126,6 +126,7 @@
                               Margin="0,0,8,0"
                               DisplayMemberPath="Name"
                               MaxDropDownHeight="420"
+                              ScrollViewer.CanContentScroll="False"
                               SelectionChanged="ServerComboBox_SelectionChanged">
                         <ComboBox.GroupStyle>
                             <GroupStyle>

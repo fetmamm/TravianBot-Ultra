@@ -22,12 +22,13 @@ public static class OfficialServerCatalog
     ];
 
     // (world number, speed). World numbers encode the speed tier on official servers:
-    // 1-6 are the regular 1x worlds, 20 = 2x, 30 = 3x, 50 = 5x, 100 = 10x.
+    // 1-9 are the regular 1x worlds, 20 = 2x, 30/31 = 3x, 50 = 5x, 100 = 10x. Letter-coded
+    // specials (nys, ttq, rof, ...) rotate during the year and are left to the custom list.
     private static readonly (int World, int Speed)[] Worlds =
     [
-        (1, 1), (2, 1), (3, 1), (4, 1), (5, 1), (6, 1),
+        (1, 1), (2, 1), (3, 1), (4, 1), (5, 1), (6, 1), (7, 1), (8, 1), (9, 1),
         (20, 2),
-        (30, 3),
+        (30, 3), (31, 3),
         (50, 5),
         (100, 10),
     ];

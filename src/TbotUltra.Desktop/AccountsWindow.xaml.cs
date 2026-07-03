@@ -585,9 +585,10 @@ public partial class AccountsWindow : Window
         RebuildServerComboItems(officialServers);
     }
 
-    // Custom servers first (the user's own entries, e.g. SS-Travi, stay on top and their
-    // names win over an official preset with the same URL), then the official catalog
-    // grouped by region.
+    // Custom servers first (the user's own entries, e.g. SS-Travi, stay on top), then the
+    // full official catalog grouped by region. Officials are always shown even when a custom
+    // entry has the same URL, so every region group is complete; URL-based selection matches
+    // the custom entry first since it comes earlier in the list.
     private void RebuildServerComboItems(List<ServerOption> officialServers)
     {
         var combined = new List<ServerOption>();
@@ -597,10 +598,7 @@ public partial class AccountsWindow : Window
             combined.Add(option);
         }
 
-        var knownUrls = new HashSet<string>(
-            combined.Select(option => NormalizeServerUrl(option.BaseUrl)),
-            StringComparer.OrdinalIgnoreCase);
-        combined.AddRange(officialServers.Where(option => knownUrls.Add(NormalizeServerUrl(option.BaseUrl))));
+        combined.AddRange(officialServers);
 
         _comboServers = combined;
         var view = new ListCollectionView(combined);

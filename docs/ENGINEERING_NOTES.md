@@ -178,11 +178,15 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
 - Map Oasis Analyzer och kartparsning: [ADR 2026-06-20 map-oasis-scan](adr/2026-06-20-map-oasis-scan.md).
   Analyze map oasis ska visa en warning-confirmation fore scan eftersom flodet ar high-volume.
 - Server-pickern i Accounts kombinerar `OfficialServerCatalog` (inbyggda officiella varldar, grupperade per
-  region: America/Arabia/Asia/Europe/International, varldar 1-6=1x, 20=2x, 30=3x, 50=5x, 100=10x enligt
-  `ts{N}.x{speed}.{region}.travian.com`) med anvandarens custom-lista ("Custom"-gruppen overst; custom-namn
-  vinner vid samma URL). `ServerCatalogStore`/ServerListWindow hanterar ENDAST custom-servrar; officiella
+  region: America/Arabia/Asia/Europe/International, varldar 1-9=1x, 20=2x, 30/31=3x, 50=5x, 100=10x enligt
+  `ts{N}.x{speed}.{region}.travian.com`) med anvandarens custom-lista ("Custom"-gruppen overst). Officiella
+  presets visas ALLTID, aven om en custom-post har samma URL (URL-val traffar custom forst i listordningen).
+  Letterkodade specialvarldar (nys/ttq/rof) och regioner med oregelbundna namn (Nordics/Balkans) hanteras
+  via custom-listan. `ServerCatalogStore`/ServerListWindow hanterar ENDAST custom-servrar; officiella
   presets ligger i kod. Servernamn ska ha hastigheten inom parentes ("America 100 (10x)") sa att
   speed-parsning (`ResolveServerSpeed`/`ServerSpeedLabel`) traffar hastigheten och inte varldsnumret.
+  Dropdown anvander `ScrollViewer.CanContentScroll="False"` for pixelscroll — item-scroll ar hackig med
+  grupprubriker.
 - Travco-tabben ar seg: `SetDefaultTimeout(30000)`. "Save all pages" kor `ScrapePageWithRetryAsync`
   (3 forsok med reload + backoff) och `ResolveTotalPagesAsync` vantar in resultattabellen fore sidantalet
   lases, sa en seg sida inte tyst kapar listan till sida 1. Se [ADR 2026-06-09](adr/2026-06-09-farmlists-and-travco.md).
