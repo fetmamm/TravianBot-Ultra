@@ -414,35 +414,84 @@ public partial class AccountsWindow : Window
     private async void CheckProxyButton_Click(object sender, RoutedEventArgs e)
     {
         CheckProxyButton.IsEnabled = false;
+        CheckMyIpButton.IsEnabled = false;
         _proxyCheckCompleted = false;
         _proxyCheckCts?.Dispose();
         _proxyCheckCts = new CancellationTokenSource();
-        ShowProxyCheckOverlay("Preparing proxy check...", completed: false);
+        ShowProxyCheckOverlay("Proxy check", "Preparing proxy check...", completed: false);
 
         try
         {
             var proxyServer = ValidateCurrentProxyFields();
             if (!ProxyParser.TryBuild(proxyServer, out var proxy, out var proxyWarning) || proxy is null)
             {
-                CompleteProxyCheckOverlay("Proxy check failed: invalid proxy settings.", success: false);
+                CompleteProxyCheckOverlay("Proxy check", BuildProxyCheckFailure("Invalid proxy settings.", proxyServer), string.Empty, success: false);
                 return;
             }
 
-            var result = await CheckProxyAsync(proxyServer, proxy, UpdateProxyCheckStatus, _proxyCheckCts.Token);
+            var result = await CheckIpAsync("Proxy", proxyServer, proxy, UpdateProxyCheckStatus, _proxyCheckCts.Token);
             var warningText = string.IsNullOrWhiteSpace(proxyWarning) ? string.Empty : $" Warning: {proxyWarning}";
-            CompleteProxyCheckOverlay(result + warningText, success: true);
+            CompleteProxyCheckOverlay("Proxy check", result, warningText, success: true);
         }
         catch (OperationCanceledException)
         {
-            CompleteProxyCheckOverlay("Proxy check cancelled.", success: false);
+            CompleteProxyCheckOverlay("Proxy check", "Proxy check cancelled.", string.Empty, success: false);
         }
         catch (Exception ex)
         {
-            CompleteProxyCheckOverlay($"Proxy check failed: {ex.Message}", success: false);
+            CompleteProxyCheckOverlay("Proxy check", BuildProxyCheckFailure(SummarizeProxyCheckError(ex.Message), TryBuildProxyServerStringForDisplay()), string.Empty, success: false);
         }
         finally
         {
             CheckProxyButton.IsEnabled = UseProxyCheckBox.IsChecked == true;
+            CheckMyIpButton.IsEnabled = true;
+        }
+    }
+
+    private async void CheckMyIpButton_Click(object sender, RoutedEventArgs e)
+    {
+        CheckProxyButton.IsEnabled = false;
+        CheckMyIpButton.IsEnabled = false;
+        _proxyCheckCompleted = false;
+        _proxyCheckCts?.Dispose();
+        _proxyCheckCts = new CancellationTokenSource();
+        ShowProxyCheckOverlay("Check IP adress", "Preparing IP check...", completed: false);
+
+        try
+        {
+            Proxy? proxy = null;
+            string? proxyServer = null;
+            var mode = "Direct";
+            string? proxyWarning = null;
+
+            if (UseProxyCheckBox.IsChecked == true)
+            {
+                proxyServer = ValidateCurrentProxyFields();
+                if (!ProxyParser.TryBuild(proxyServer, out proxy, out proxyWarning) || proxy is null)
+                {
+                    CompleteProxyCheckOverlay("Check IP adress", BuildProxyCheckFailure("Invalid proxy settings.", proxyServer), string.Empty, success: false);
+                    return;
+                }
+
+                mode = "Proxy";
+            }
+
+            var result = await CheckIpAsync(mode, proxyServer, proxy, UpdateProxyCheckStatus, _proxyCheckCts.Token);
+            var warningText = string.IsNullOrWhiteSpace(proxyWarning) ? string.Empty : $" Warning: {proxyWarning}";
+            CompleteProxyCheckOverlay("Check IP adress", result, warningText, success: true);
+        }
+        catch (OperationCanceledException)
+        {
+            CompleteProxyCheckOverlay("Check IP adress", "IP check cancelled.", string.Empty, success: false);
+        }
+        catch (Exception ex)
+        {
+            CompleteProxyCheckOverlay("Check IP adress", BuildProxyCheckFailure(SummarizeProxyCheckError(ex.Message), TryBuildProxyServerStringForDisplay()), string.Empty, success: false);
+        }
+        finally
+        {
+            CheckProxyButton.IsEnabled = UseProxyCheckBox.IsChecked == true;
+            CheckMyIpButton.IsEnabled = true;
         }
     }
 
@@ -856,9 +905,10 @@ public partial class AccountsWindow : Window
         return proxyServer;
     }
 
-    private static async Task<string> CheckProxyAsync(
-        string proxyServer,
-        Proxy proxy,
+    private static async Task<string> CheckIpAsync(
+        string mode,
+        string? proxyServer,
+        Proxy? proxy,
         Action<string> status,
         CancellationToken cancellationToken)
     {
@@ -887,13 +937,18 @@ public partial class AccountsWindow : Window
 
         try
         {
-            status("Launching browser through proxy...");
-            browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+            status(proxy is null ? "Launching browser..." : "Launching browser through proxy...");
+            var launchOptions = new BrowserTypeLaunchOptions
             {
                 Headless = true,
-                Proxy = proxy,
                 Timeout = 20000,
-            });
+            };
+            if (proxy is not null)
+            {
+                launchOptions.Proxy = proxy;
+            }
+
+            browser = await playwright.Chromium.LaunchAsync(launchOptions);
 
             cancellationToken.ThrowIfCancellationRequested();
             status("Requesting public IP...");
@@ -908,8 +963,15 @@ public partial class AccountsWindow : Window
             stopwatch.Stop();
 
             var info = ParseProxyCheckResponse(raw);
-            var maskedProxy = ProxyParser.MaskForLog(proxyServer);
-            return $"Proxy works. IP={info.Ip}; Location={info.Location}; ISP={info.Isp}; Type={maskedProxy}; Latency={stopwatch.ElapsedMilliseconds} ms.";
+            var route = string.IsNullOrWhiteSpace(proxyServer)
+                ? mode
+                : $"{mode} ({ProxyParser.MaskForLog(proxyServer)})";
+            return JsonSerializer.Serialize(new ProxyCheckResult(
+                info.Ip,
+                info.Location,
+                info.Isp,
+                route,
+                $"{stopwatch.ElapsedMilliseconds} ms"));
         }
         finally
         {
@@ -927,11 +989,13 @@ public partial class AccountsWindow : Window
         }
     }
 
-    private void ShowProxyCheckOverlay(string status, bool completed)
+    private void ShowProxyCheckOverlay(string title, string status, bool completed)
     {
         ProxyCheckOverlay.Visibility = Visibility.Visible;
         _proxyCheckCompleted = completed;
+        ProxyCheckTitleTextBlock.Text = title;
         ProxyCheckStatusTextBlock.Text = status;
+        ProxyCheckResultGrid.Visibility = Visibility.Collapsed;
         ProxyCheckOverlayButton.IsEnabled = true;
         ProxyCheckOverlayButton.Content = completed ? "Continue" : "Cancel";
         ProxyCheckOverlayButton.Background = completed
@@ -950,10 +1014,93 @@ public partial class AccountsWindow : Window
         ProxyCheckStatusTextBlock.Text = status;
     }
 
-    private void CompleteProxyCheckOverlay(string status, bool success)
+    private void CompleteProxyCheckOverlay(string title, string status, string warning, bool success)
     {
-        ShowProxyCheckOverlay(status, completed: true);
+        ShowProxyCheckOverlay(title, success ? "Your IP is:" : status, completed: true);
+        if (success && TryParseProxyCheckResult(status, out var result))
+        {
+            ProxyCheckResultGrid.Visibility = Visibility.Visible;
+            SetProxyCheckResultLabels("IP", "Location", "ISP", "Route", "Latency", null);
+            ProxyCheckIpTextBlock.Text = result.Ip;
+            ProxyCheckLocationTextBlock.Text = result.Location;
+            ProxyCheckIspTextBlock.Text = result.Isp;
+            ProxyCheckRouteTextBlock.Text = result.Route;
+            ProxyCheckLatencyTextBlock.Text = result.Latency + warning;
+        }
+        else if (!success && TryParseProxyCheckFailure(status, out var failure))
+        {
+            ProxyCheckStatusTextBlock.Text = "Proxy check did not complete.";
+            ProxyCheckResultGrid.Visibility = Visibility.Visible;
+            SetProxyCheckResultLabels("Status", "Error", "Route", "Target", null, null);
+            ProxyCheckIpTextBlock.Text = "Failed";
+            ProxyCheckLocationTextBlock.Text = failure.Error;
+            ProxyCheckIspTextBlock.Text = failure.Route;
+            ProxyCheckRouteTextBlock.Text = failure.Target;
+            ProxyCheckLatencyTextBlock.Text = string.Empty;
+            ProxyCheckTargetTextBlock.Text = string.Empty;
+        }
+
         InfoTextBlock.Text = success ? "Proxy check completed." : "Proxy check did not complete successfully.";
+    }
+
+    private void SetProxyCheckResultLabels(string row0, string row1, string row2, string row3, string? row4, string? row5)
+    {
+        ProxyCheckRow0LabelTextBlock.Text = row0;
+        ProxyCheckRow1LabelTextBlock.Text = row1;
+        ProxyCheckRow2LabelTextBlock.Text = row2;
+        ProxyCheckRow3LabelTextBlock.Text = row3;
+        ProxyCheckRow4LabelTextBlock.Text = row4 ?? string.Empty;
+        ProxyCheckRow5LabelTextBlock.Text = row5 ?? string.Empty;
+        var row4Visible = row4 is not null;
+        ProxyCheckRow4LabelTextBlock.Visibility = row4Visible ? Visibility.Visible : Visibility.Collapsed;
+        ProxyCheckLatencyTextBlock.Visibility = row4Visible ? Visibility.Visible : Visibility.Collapsed;
+        var row5Visible = row5 is not null;
+        ProxyCheckRow5LabelTextBlock.Visibility = row5Visible ? Visibility.Visible : Visibility.Collapsed;
+        ProxyCheckTargetTextBlock.Visibility = row5Visible ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private static bool TryParseProxyCheckResult(string raw, out ProxyCheckResult result)
+    {
+        try
+        {
+            result = JsonSerializer.Deserialize<ProxyCheckResult>(raw) ?? new ProxyCheckResult("unknown", "unknown", "unknown", "unknown", "unknown");
+            return true;
+        }
+        catch
+        {
+            result = new ProxyCheckResult("unknown", "unknown", "unknown", "unknown", "unknown");
+            return false;
+        }
+    }
+
+    private static bool TryParseProxyCheckFailure(string raw, out ProxyCheckFailure failure)
+    {
+        try
+        {
+            failure = JsonSerializer.Deserialize<ProxyCheckFailure>(raw) ?? new ProxyCheckFailure("unknown", "unknown", "https://ipwho.is/");
+            return true;
+        }
+        catch
+        {
+            failure = new ProxyCheckFailure(raw, "unknown", "https://ipwho.is/");
+            return false;
+        }
+    }
+
+    private string TryBuildProxyServerStringForDisplay()
+    {
+        var proxyServer = BuildProxyServerString();
+        return string.IsNullOrWhiteSpace(proxyServer) ? "Direct" : ProxyParser.MaskForLog(proxyServer);
+    }
+
+    private static string BuildProxyCheckFailure(string error, string route)
+        => JsonSerializer.Serialize(new ProxyCheckFailure(error, route, "https://ipwho.is/"));
+
+    private static string SummarizeProxyCheckError(string? message)
+    {
+        var value = message ?? string.Empty;
+        var firstLine = value.Replace("\r", string.Empty).Split('\n').FirstOrDefault() ?? string.Empty;
+        return firstLine.Length == 0 ? "Unknown error." : firstLine;
     }
 
     private static ProxyCheckInfo ParseProxyCheckResponse(string raw)
@@ -994,6 +1141,8 @@ public partial class AccountsWindow : Window
     }
 
     private sealed record ProxyCheckInfo(string Ip, string Location, string Isp);
+    private sealed record ProxyCheckResult(string Ip, string Location, string Isp, string Route, string Latency);
+    private sealed record ProxyCheckFailure(string Error, string Route, string Target);
 
     private void SafeRunAccountEditorAction(Action action, string actionName)
     {

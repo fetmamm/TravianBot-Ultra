@@ -165,6 +165,12 @@
                             HorizontalAlignment="Left"
                             IsEnabled="False"
                             Click="CheckProxyButton_Click" />
+                    <Button x:Name="CheckMyIpButton"
+                            Content="Check my IP address"
+                            Margin="0,6,0,0"
+                            MinWidth="130"
+                            HorizontalAlignment="Left"
+                            Click="CheckMyIpButton_Click" />
                 </StackPanel>
                 <Grid Grid.Row="4" Grid.Column="1" Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>
@@ -275,15 +281,45 @@
                     BorderThickness="1"
                     CornerRadius="6">
                 <StackPanel>
-                    <TextBlock Text="Proxy check"
+                    <TextBlock x:Name="ProxyCheckTitleTextBlock"
+                               Text="Proxy check"
                                FontSize="18"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource TextPrimaryBrush}"
-                               Margin="0,0,0,12" />
+                               Margin="0,0,0,8" />
                     <TextBlock x:Name="ProxyCheckStatusTextBlock"
                                TextWrapping="Wrap"
-                               MinHeight="90"
-                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                               Foreground="{DynamicResource SlateTextBrush}"
+                               Margin="0,0,0,12" />
+                    <Grid x:Name="ProxyCheckResultGrid"
+                          Visibility="Collapsed"
+                          Margin="0,0,0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="92" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock x:Name="ProxyCheckRow0LabelTextBlock" Grid.Row="0" Grid.Column="0" Text="IP" FontWeight="SemiBold" Foreground="{DynamicResource SlateTextBrush}" Margin="0,0,12,7" />
+                        <TextBlock x:Name="ProxyCheckIpTextBlock" Grid.Row="0" Grid.Column="1" Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" Margin="0,0,0,7" />
+                        <TextBlock x:Name="ProxyCheckRow1LabelTextBlock" Grid.Row="1" Grid.Column="0" Text="Location" FontWeight="SemiBold" Foreground="{DynamicResource SlateTextBrush}" Margin="0,0,12,7" />
+                        <TextBlock x:Name="ProxyCheckLocationTextBlock" Grid.Row="1" Grid.Column="1" Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" Margin="0,0,0,7" />
+                        <TextBlock x:Name="ProxyCheckRow2LabelTextBlock" Grid.Row="2" Grid.Column="0" Text="ISP" FontWeight="SemiBold" Foreground="{DynamicResource SlateTextBrush}" Margin="0,0,12,7" />
+                        <TextBlock x:Name="ProxyCheckIspTextBlock" Grid.Row="2" Grid.Column="1" Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" Margin="0,0,0,7" />
+                        <TextBlock x:Name="ProxyCheckRow3LabelTextBlock" Grid.Row="3" Grid.Column="0" Text="Route" FontWeight="SemiBold" Foreground="{DynamicResource SlateTextBrush}" Margin="0,0,12,7" />
+                        <TextBlock x:Name="ProxyCheckRouteTextBlock" Grid.Row="3" Grid.Column="1" Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" Margin="0,0,0,7" />
+                        <TextBlock x:Name="ProxyCheckRow4LabelTextBlock" Grid.Row="4" Grid.Column="0" Text="Latency" FontWeight="SemiBold" Foreground="{DynamicResource SlateTextBrush}" Margin="0,0,12,7" />
+                        <TextBlock x:Name="ProxyCheckLatencyTextBlock" Grid.Row="4" Grid.Column="1" Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" Margin="0,0,0,7" />
+                        <TextBlock x:Name="ProxyCheckRow5LabelTextBlock" Grid.Row="5" Grid.Column="0" Text="Target" FontWeight="SemiBold" Foreground="{DynamicResource SlateTextBrush}" Margin="0,0,12,0" Visibility="Collapsed" />
+                        <TextBlock x:Name="ProxyCheckTargetTextBlock" Grid.Row="5" Grid.Column="1" Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" Visibility="Collapsed" />
+                    </Grid>
                     <Button x:Name="ProxyCheckOverlayButton"
                             Content="Cancel"
                             Width="120"
