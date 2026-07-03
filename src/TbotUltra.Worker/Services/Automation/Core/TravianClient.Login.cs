@@ -326,6 +326,14 @@ public sealed partial class TravianClient : ISessionClient
             // covers the in-feature drop case (and the keep-alive idle path). Other non-logged-in
             // states (captcha, manual_step, unknown) still need human attention, so keep throwing.
             var state = await LoginStateAsync();
+            if (state == "unknown")
+            {
+                Notify("[ensure-logged-in] state unknown; retrying login-state check before failing.");
+                await Task.Delay(Random.Shared.Next(800, 1400), cancellationToken);
+                state = await LoginStateAsync();
+                Notify($"[ensure-logged-in] retry state={state} url='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
+            }
+
             if (state == "logged_in")
             {
                 _lastEnsureLoggedInAt = DateTimeOffset.UtcNow;

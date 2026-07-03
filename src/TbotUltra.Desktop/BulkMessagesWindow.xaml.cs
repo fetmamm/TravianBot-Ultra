@@ -7,6 +7,8 @@ namespace TbotUltra.Desktop;
 
 public partial class BulkMessagesWindow : Window
 {
+    private const int FallbackMaxRecipients = 5000;
+
     private readonly Func<BulkMessageAnalyzeRequest, IProgress<BulkMessageProgress>, CancellationToken, Task<BulkMessageAnalyzeResult>> _analyzer;
     private readonly Func<BulkMessageRequest, IProgress<BulkMessageProgress>, CancellationToken, Task<BulkMessageSendResult>> _sender;
     private readonly Func<CancellationToken, Task> _clearCache;
@@ -67,6 +69,9 @@ public partial class BulkMessagesWindow : Window
         try
         {
             _lastAnalyzeResult = await _analyzer(BuildAnalyzeRequest(), progress, cts.Token);
+            MaxRecipientsTextBox.Text = (_lastAnalyzeResult.PlayersAnalyzed > 0
+                ? _lastAnalyzeResult.PlayersAnalyzed
+                : FallbackMaxRecipients).ToString(CultureInfo.InvariantCulture);
             PlayersTextBlock.Text = BuildPlayersText(_lastAnalyzeResult);
             ValidationTextBlock.Text = _lastAnalyzeResult.EligiblePlayers > 0
                 ? string.Empty

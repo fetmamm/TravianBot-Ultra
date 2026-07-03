@@ -75,7 +75,7 @@
                                      Width="120"
                                      Margin="12,8,0,0"
                                      HorizontalAlignment="Left"
-                                     Text="25"
+                                     Text="5000"
                                      TextChanged="InputChanged" />
 
                             <TextBlock Grid.Row="1"
