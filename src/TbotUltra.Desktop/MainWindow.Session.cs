@@ -106,6 +106,19 @@ public partial class MainWindow
                     AppendLog($"Quick re-login UI refresh failed (continuing): {ex.Message}");
                 }
 
+                // Quick re-login skips the full analyze stack, so the overview cards render from the
+                // persisted per-village cache. Re-apply the indicators explicitly so expired timers
+                // (constructions/trainings finished while the app was closed) are dropped right away.
+                RefreshVillageActivityIndicatorsOnDashboard();
+
+                // Apply the selected village's cached state to all detail panels — the same routine a
+                // manual village re-selection runs. Without it the panels stay on startup defaults
+                // until the user pokes the village picker.
+                if (VillageComboBox.SelectedItem is VillageSelectionItem quickSelectedVillage)
+                {
+                    ShowSelectedVillageFromCache(quickSelectedVillage);
+                }
+
                 _browserSessionLikelyOpen = true;
                 NotifySessionPacingOnlineStarted();
                 CompleteOperation(operationId, operationSw, "Login completed (quick re-login).");

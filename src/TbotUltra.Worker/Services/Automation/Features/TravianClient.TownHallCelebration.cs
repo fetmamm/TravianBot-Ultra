@@ -393,7 +393,11 @@ public sealed partial class TravianClient
                     ? /(big|great|large)\s+celebration/i
                     : /small\s+celebration/i;
                   const rows = Array.from(root.querySelectorAll('.research, tr, li, .row, .information'));
-                  const row = rows.find(candidate => rowPattern.test(normalize(candidate.textContent || ''))) || root;
+                  // Never fall back to the whole page: the building's own upgrade block has a .timer
+                  // ("Enough resources on ...") that would be misread as the celebration's wait.
+                  const row = rows.find(candidate => rowPattern.test(normalize(candidate.textContent || '')))
+                    || document.querySelector('.researches')
+                    || root;
                   const timer = row.querySelector('.errorMessage .timer, .timer');
                   const raw = timer?.getAttribute('value') || timer?.getAttribute('data-value') || '';
                   const parsed = raw ? parseInt(raw, 10) : NaN;

@@ -430,10 +430,13 @@ public partial class MainWindow
 
         var queues = status?.TroopTrainingQueues;
         var slots = new List<VillageActivitySlot>(defs.Length);
+        var now = DateTimeOffset.UtcNow;
         foreach (var (type, letter, label) in defs)
         {
             var queue = queues?.FirstOrDefault(q => q.BuildingType == type);
-            var isActive = queue is { RemainingSeconds: > 0 };
+            // Judge by the absolute finish time so cached queues expire while the app is closed;
+            // raw RemainingSeconds is only a fallback for legacy entries without a Finish snapshot.
+            var isActive = TroopTrainingQueueState.HasUnfinishedQueue(queue, now);
             var exists = queue is { Exists: true };
             // Amber waiting only on a built-but-idle building when a build_troops task is deferred here.
             var isWaiting = exists && !isActive && hasDeferredWork;

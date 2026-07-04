@@ -107,7 +107,11 @@ public sealed partial class TravianClient
                     const pattern = mode === 'big'
                       ? /(big|great|large)\s+celebration/i
                       : /small\s+celebration/i;
-                    return rows.find(row => pattern.test(normalize(row.textContent || ''))) || root;
+                    // Never fall back to the whole page: the build page also shows the building's own
+                    // upgrade costs, whose transfer icon would then be picked over the celebration's.
+                    return rows.find(row => pattern.test(normalize(row.textContent || '')))
+                      || document.querySelector('.researches')
+                      || root;
                   };
                   const findBreweryCelebrationScope = () => {
                     const rows = Array.from(document.querySelectorAll('.researches .research'));
@@ -444,7 +448,11 @@ public sealed partial class TravianClient
                 const pattern = mode === 'big'
                   ? /(big|great|large)\s+celebration/i
                   : /small\s+celebration/i;
-                return rows.find(row => pattern.test(normalize(row.textContent || ''))) || root;
+                // Never fall back to the whole page: the build page also shows the building's own
+                // upgrade costs, whose transfer icon would then be picked over the celebration's.
+                return rows.find(row => pattern.test(normalize(row.textContent || '')))
+                  || document.querySelector('.researches')
+                  || root;
               };
               const findBreweryCelebrationScope = () => {
                 const rows = Array.from(document.querySelectorAll('.researches .research'));
@@ -802,7 +810,11 @@ public sealed partial class TravianClient
                     const pattern = mode === 'big'
                       ? /(big|great|large)\s+celebration/i
                       : /small\s+celebration/i;
-                    return rows.find(row => pattern.test(normalize(row.textContent || ''))) || root;
+                    // Never fall back to the whole page: the build page also shows the building's own
+                    // upgrade costs, whose transfer icon would then be picked over the celebration's.
+                    return rows.find(row => pattern.test(normalize(row.textContent || '')))
+                      || document.querySelector('.researches')
+                      || root;
                   };
                   const findBreweryCelebrationScope = () => {
                     const rows = Array.from(document.querySelectorAll('.researches .research'));

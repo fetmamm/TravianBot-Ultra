@@ -62,7 +62,10 @@ public static class TroopTrainingQueueState
         };
     }
 
-    private static bool HasUnfinishedQueue(TroopTrainingQueueStatus? status, DateTimeOffset now)
+    // Public: the dashboard activity indicator must judge "training?" by the absolute finish time,
+    // not the RemainingSeconds captured at scan time — a persisted cache restored after a restart
+    // would otherwise show queues that finished while the app was closed.
+    public static bool HasUnfinishedQueue(TroopTrainingQueueStatus? status, DateTimeOffset now)
     {
         if (status is null)
         {
