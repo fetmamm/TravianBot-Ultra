@@ -1300,7 +1300,9 @@ public partial class MainWindow : Window
                 return;
             }
 
-            AppendLog($"ALARM: task '{latest.TaskName}' failed after {latest.Retries}/{latest.MaxRetries} retries. Last error: {errorMessage}");
+            var villageName = GetQueueItemVillageName(latest);
+            var villagePart = string.IsNullOrWhiteSpace(villageName) ? string.Empty : $" village='{villageName}'";
+            AppendLog($"ALARM: task '{latest.TaskName}'{villagePart} failed after {latest.Retries}/{latest.MaxRetries} retries. Last error: {errorMessage}");
         }
         catch (Exception ex)
         {

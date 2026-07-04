@@ -1495,6 +1495,45 @@ public sealed partial class TravianClient : IBuildingClient
                 return $"Construct skipped: {buildingName} already exists at slot {slotId} (confirmed '{built.Name}' level {built.Level}). Removing from queue.";
             }
 
+            // Server-appended gid guard: on Official, build.php?id=N for an OCCUPIED slot redirects to
+            // ...&gid=<existing building>. The bot never puts gid= in the construct url itself, so a
+            // matching gid here proves the slot already holds this building — typically level 0 because
+            // an earlier click landed but its confirmation was missed, so the level>=1 guard above does
+            // not fire. The construct-choice page will never load in that state; defer until the
+            // construction completes instead of burning retries into an ALARM.
+            if (existingBuilding is null)
+            {
+                var slotOccupiedByRequestedGid = false;
+                try
+                {
+                    slotOccupiedByRequestedGid = await _page.EvaluateAsync<bool>(
+                        """
+                        ({ slotId, gid }) => {
+                          const url = window.location.href;
+                          if (!/build\.php/i.test(url)) return false;
+                          const idMatch = url.match(/[?&]id=(\d+)/);
+                          if (!idMatch || Number(idMatch[1]) !== slotId) return false;
+                          const gidMatch = url.match(/[?&]gid=(\d+)/);
+                          if (!gidMatch || Number(gidMatch[1]) !== gid) return false;
+                          // A construct-choice page offers contracts; an occupied slot's page does not.
+                          return !document.querySelector('[id^="contract_building"], #contract_building');
+                        }
+                        """,
+                        new { slotId, gid });
+                }
+                catch (Exception ex) when (IsTransientExecutionContextException(ex))
+                {
+                    Notify($"[construct] slot {slotId} occupied-gid check hit transient navigation: {ex.Message}");
+                }
+
+                if (slotOccupiedByRequestedGid)
+                {
+                    var waitSeconds = await ReadQueuedBuildingWaitSecondsAsync(buildingName, 60, cancellationToken);
+                    Notify($"[construct] slot {slotId} already holds gid {gid} ({buildingName}), still under construction — deferring {waitSeconds}s until it completes.");
+                    return $"Slot {slotId}: {buildingName} construction already in progress (slot already holds gid {gid}). queue_wait_seconds={waitSeconds}";
+                }
+            }
+
             await EnsureExpectedConstructChoicePageAsync(slotId, gid, url, "construct", cancellationToken);
 
             // Step 2: read build page state, duration and population from one page analysis.

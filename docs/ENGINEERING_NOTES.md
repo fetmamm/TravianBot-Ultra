@@ -297,6 +297,10 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
   build-sida live (`TryReadExistingBuildingOnSlotBuildPageAsync`); bekraftad befintlig byggnad (level >= 1, ingen
   `#contract_building*`) -> returnera "already exists at slot" som klassas `ConstructionTaskOutcome.AlreadyExists`
   och desktop TAR BORT posten ur kon (`HandleQueueItemSucceededAsync`). Maste vara live-bekraftat fore borttagning.
+- Official appendar `&gid=<befintlig byggnad>` till `build.php?id=N` nar sloten ar UPPTAGEN (boten skickar aldrig
+  `gid=` sjalv i construct-url:en). Matchar server-gid det efterfragade gid:et men level >= 1 inte kan bekraftas
+  (nykonstruktion pagar, level 0), ska `ConstructBuildingAsync` defer:a med `queue_wait_seconds` tills bygget ar
+  klart — inte faila mot saknad construct-choice-DOM.
 - `gid 13` ar Smithy (ingen separat Armoury pa `gid 12`). Smithy/trupptraning anvander browserbekraftade
   SOT-koer (`SmithyUpgradeStatus` / traningskon) och unit-id-ikon for truppidentitet.
 

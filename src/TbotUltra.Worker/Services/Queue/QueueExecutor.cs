@@ -25,7 +25,12 @@ public sealed class QueueExecutor
         }
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        log($"[queue] EXEC id={item.Id} group={item.Group} task='{item.TaskName}' priority={item.Priority} retries={item.Retries}/{item.MaxRetries}");
+        // Village tag so queue log lines can be attributed to a village; empty for global tasks.
+        var village = item.Payload.TryGetValue(BotOptionPayloadKeys.TargetVillageName, out var villageName)
+            && !string.IsNullOrWhiteSpace(villageName)
+            ? $" village='{villageName.Trim()}'"
+            : string.Empty;
+        log($"[queue] EXEC id={item.Id} group={item.Group} task='{item.TaskName}'{village} priority={item.Priority} retries={item.Retries}/{item.MaxRetries}");
         try
         {
             var options = BotOptionsPayloadApplier.Apply(baseOptions, item.Payload);
@@ -35,34 +40,34 @@ public sealed class QueueExecutor
                 tasksOverride: [item.TaskName],
                 accountName: null,
                 cancellationToken: cancellationToken);
-            log($"[queue] DONE id={item.Id} task='{item.TaskName}' in {sw.Elapsed.TotalSeconds:F1}s");
+            log($"[queue] DONE id={item.Id} task='{item.TaskName}'{village} in {sw.Elapsed.TotalSeconds:F1}s");
             return result;
         }
         catch (OperationCanceledException)
         {
-            log($"[queue] CANCELED id={item.Id} task='{item.TaskName}' after {sw.Elapsed.TotalSeconds:F1}s");
+            log($"[queue] CANCELED id={item.Id} task='{item.TaskName}'{village} after {sw.Elapsed.TotalSeconds:F1}s");
             throw;
         }
         catch (TaskWaitException waitEx)
         {
             // Normal "retry later" control flow — the scheduler re-defers this item. Not a failure.
-            log($"[queue] DEFER id={item.Id} task='{item.TaskName}' after {sw.Elapsed.TotalSeconds:F1}s — wait {waitEx.DelaySeconds}s");
+            log($"[queue] DEFER id={item.Id} task='{item.TaskName}'{village} after {sw.Elapsed.TotalSeconds:F1}s — wait {waitEx.DelaySeconds}s");
             throw;
         }
         catch (TaskBlockedPermanentlyException blockedEx)
         {
-            log($"[queue] BLOCKED id={item.Id} task='{item.TaskName}' after {sw.Elapsed.TotalSeconds:F1}s: {blockedEx.Message}");
+            log($"[queue] BLOCKED id={item.Id} task='{item.TaskName}'{village} after {sw.Elapsed.TotalSeconds:F1}s: {blockedEx.Message}");
             throw;
         }
         catch (Exception ex)
         {
             if (BrowserFailureClassifier.IsTargetCrash(ex))
             {
-                log($"[queue] DEFER id={item.Id} task='{item.TaskName}' after {sw.Elapsed.TotalSeconds:F1}s — Chromium target crashed");
+                log($"[queue] DEFER id={item.Id} task='{item.TaskName}'{village} after {sw.Elapsed.TotalSeconds:F1}s — Chromium target crashed");
             }
             else
             {
-                log($"[queue] FAIL id={item.Id} task='{item.TaskName}' after {sw.Elapsed.TotalSeconds:F1}s: {ex.GetType().Name}: {ex.Message}");
+                log($"[queue] FAIL id={item.Id} task='{item.TaskName}'{village} after {sw.Elapsed.TotalSeconds:F1}s: {ex.GetType().Name}: {ex.Message}");
             }
 
             throw;

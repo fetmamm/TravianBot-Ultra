@@ -75,6 +75,9 @@ public sealed partial class BotTaskRunner
     private IPage? _travcoPage;
     private string? _sharedVisibleAccountName;
     private string? _sharedVisibleBaseUrl;
+    // Proxy settings the shared browser was LAUNCHED with. Playwright proxy is a launch option and
+    // cannot change on a running browser, so a proxy toggle must force a new session.
+    private string? _sharedVisibleProxyFingerprint;
     // Session-scoped cache shared by every TravianClient created for the shared visible browser, so
     // feature signals (Plus/GoldClub/tribe) and the logged-in throttle survive across operations.
     private TravianSessionCache _sharedVisibleSessionCache = new();
@@ -267,6 +270,7 @@ public sealed partial class BotTaskRunner
                 _sharedVisiblePage = null;
                 _sharedVisibleAccountName = null;
                 _sharedVisibleBaseUrl = null;
+                _sharedVisibleProxyFingerprint = null;
                 _sharedVisibleSessionCache = new TravianSessionCache();
             }
         }
@@ -324,6 +328,7 @@ public sealed partial class BotTaskRunner
         CancellationToken cancellationToken)
     {
         var desiredBaseUrl = options.BaseUrl.TrimEnd('/');
+        var desiredProxyFingerprint = account.ProxyEnabled ? $"on|{account.ProxyServer.Trim()}" : "off";
         var replaceReasons = new List<string>();
         if (_sharedVisibleSession is null)
         {
@@ -349,12 +354,20 @@ public sealed partial class BotTaskRunner
             replaceReasons.Add($"baseUrl='{_sharedVisibleBaseUrl ?? "-"}'->'{desiredBaseUrl}'");
         }
 
+        if (_sharedVisibleSession is not null
+            && !string.Equals(_sharedVisibleProxyFingerprint, desiredProxyFingerprint, StringComparison.OrdinalIgnoreCase))
+        {
+            // Mask inline proxy credentials before logging.
+            replaceReasons.Add($"proxy='{MaskProxyFingerprint(_sharedVisibleProxyFingerprint)}'->'{MaskProxyFingerprint(desiredProxyFingerprint)}'");
+        }
+
         var mustReplaceSession =
             _sharedVisibleSession is null ||
             _sharedVisiblePage is null ||
             _sharedVisiblePage.IsClosed ||
             !string.Equals(_sharedVisibleAccountName, account.Name, StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(_sharedVisibleBaseUrl, desiredBaseUrl, StringComparison.OrdinalIgnoreCase);
+            !string.Equals(_sharedVisibleBaseUrl, desiredBaseUrl, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(_sharedVisibleProxyFingerprint, desiredProxyFingerprint, StringComparison.OrdinalIgnoreCase);
 
         if (mustReplaceSession)
         {
@@ -388,6 +401,7 @@ public sealed partial class BotTaskRunner
             _sharedVisiblePage = page;
             _sharedVisibleAccountName = account.Name;
             _sharedVisibleBaseUrl = desiredBaseUrl;
+            _sharedVisibleProxyFingerprint = desiredProxyFingerprint;
             // Fresh browser/account => start a clean session cache so no stale signals carry over.
             _sharedVisibleSessionCache = CreateSeededSessionCache(account, options, log);
             log("Opened shared browser window.");
@@ -415,6 +429,19 @@ public sealed partial class BotTaskRunner
         {
             return -1;
         }
+    }
+
+    // Fingerprint format is "off" or "on|<server>"; the server part may carry inline credentials.
+    private static string MaskProxyFingerprint(string? fingerprint)
+    {
+        if (string.IsNullOrEmpty(fingerprint))
+        {
+            return "-";
+        }
+
+        return fingerprint.StartsWith("on|", StringComparison.OrdinalIgnoreCase)
+            ? $"on|{ProxyParser.MaskForLog(fingerprint[3..])}"
+            : fingerprint;
     }
 
     public bool ConsumeBrowserClosedByUserSignal()
@@ -524,6 +551,7 @@ public sealed partial class BotTaskRunner
                 _sharedVisiblePage = null;
                 _sharedVisibleAccountName = null;
                 _sharedVisibleBaseUrl = null;
+                _sharedVisibleProxyFingerprint = null;
                 _travcoPage = null;
                 _sharedVisibleSessionCache = new TravianSessionCache();
             }

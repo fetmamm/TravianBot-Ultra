@@ -290,8 +290,10 @@ public partial class MainWindow
     private void PauseStorageCapacityParent(QueueItem item, string reason)
     {
         _botService.PauseQueueItem(item.Id);
+        var villageName = GetQueueItemVillageName(item);
+        var villagePart = string.IsNullOrWhiteSpace(villageName) ? string.Empty : $" village='{villageName}'";
         AppendLog(
-            $"ALARM: task '{item.TaskName}' paused: {reason}.");
+            $"ALARM: task '{item.TaskName}'{villagePart} paused: {reason}.");
         RequestQueueUiRefresh(selectId: item.Id);
     }
 
