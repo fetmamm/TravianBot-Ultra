@@ -42,6 +42,10 @@ public partial class MainWindow
         var relatedItems = _botService.GetQueueItemsForDisplay()
             .Where(item => string.Equals(item.TaskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase))
             .Where(item => IsActiveQueueStatus(item.Status))
+            // Same-village only: slot ids repeat across villages, so without this filter another
+            // village's queued upgrade for the same slot both blocks this enqueue as a "duplicate"
+            // and gets removed by the coalescing below. Mirrors the construction coalescing.
+            .Where(IsQueueItemForSelectedVillageOrGlobal)
             .Select(item =>
             {
                 var parsed = TryReadResourceUpgradePayload(item.Payload, out var parsedSlotId, out var parsedTargetLevel);
