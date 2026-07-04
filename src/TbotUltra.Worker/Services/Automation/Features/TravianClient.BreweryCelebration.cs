@@ -224,6 +224,7 @@ public sealed partial class TravianClient
             // No start button usually means the celebration's resources aren't covered. If the user enabled
             // hero resources for brewery, top up from the hero inventory once (Official-only, best-effort)
             // and retry the start on the reloaded page.
+            _heroTransferOverLimitWaitSeconds = null; // never reuse a wait computed by an earlier task
             if (await TryHeroResourceTransferForBreweryAsync(
                     $"Brewery celebration (slot {status.BrewerySlotId.Value})", cancellationToken))
             {
@@ -235,7 +236,33 @@ public sealed partial class TravianClient
         if (!startAttempt.Started)
         {
             Notify($"[brewery] start failed — {startAttempt.Message}");
-            return $"{startAttempt.Message} queue_wait_seconds={BreweryCelebrationRetrySeconds}";
+            // Resource-based defer instead of a blind 60s retry: use the wait the hero-transfer gate
+            // computed (over-limit / hero cannot cover), or estimate from the celebration's own
+            // shortfall vs cached production when the transfer was disabled or offered nothing.
+            var waitSeconds = _heroTransferOverLimitWaitSeconds;
+            if (waitSeconds is null)
+            {
+                var shortfall = await ReadUpgradeShortfallOnBuildPageAsync(
+                    cancellationToken,
+                    preferTownHallCelebration: false,
+                    preferBreweryCelebration: true);
+                if (shortfall is not null
+                    && (shortfall.Wood > 0 || shortfall.Clay > 0 || shortfall.Iron > 0 || shortfall.Crop > 0))
+                {
+                    waitSeconds = await ComputeAccumulationWaitSecondsAsync(
+                        shortfall.Wood,
+                        shortfall.Clay,
+                        shortfall.Iron,
+                        shortfall.Crop,
+                        cancellationToken);
+                    Notify($"[brewery] celebration blocked by resources "
+                        + $"(missing wood={shortfall.Wood} clay={shortfall.Clay} iron={shortfall.Iron} crop={shortfall.Crop}); "
+                        + $"deferring ~{waitSeconds}s until they accumulate.");
+                }
+            }
+
+            var deferSeconds = Math.Max(BreweryCelebrationRetrySeconds, waitSeconds ?? BreweryCelebrationRetrySeconds);
+            return $"{startAttempt.Message} queue_wait_seconds={deferSeconds}";
         }
 
         var startHref = ResolveUrl(startAttempt.Href);

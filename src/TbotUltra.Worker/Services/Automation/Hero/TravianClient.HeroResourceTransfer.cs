@@ -47,7 +47,13 @@ public sealed partial class TravianClient
             return false;
         }
 
-        return await TryHeroResourceTransferOnCurrentBuildPageAsync(label, cancellationToken);
+        // Scope to the "Hold celebration" research row: the brewery build page ALSO shows the
+        // building's own upgrade costs, whose transfer icon comes first in the DOM — unscoped,
+        // the shortfall/click would target the upgrade instead of the celebration.
+        return await TryHeroResourceTransferOnCurrentBuildPageAsync(
+            label,
+            cancellationToken,
+            preferBreweryCelebration: true);
     }
 
     // Best-effort hero top-up for Town Hall celebrations on the current Town Hall build page.
@@ -76,7 +82,8 @@ public sealed partial class TravianClient
         string label,
         CancellationToken cancellationToken,
         bool preferTownHallCelebration = false,
-        string? townHallCelebrationMode = null)
+        string? townHallCelebrationMode = null,
+        bool preferBreweryCelebration = false)
     {
         _heroTransferOverLimitWaitSeconds = null;
 
@@ -102,11 +109,19 @@ public sealed partial class TravianClient
                       : /small\s+celebration/i;
                     return rows.find(row => pattern.test(normalize(row.textContent || ''))) || root;
                   };
-                  const root = args.preferTownHallCelebration ? findTownHallCelebrationScope() : document;
+                  const findBreweryCelebrationScope = () => {
+                    const rows = Array.from(document.querySelectorAll('.researches .research'));
+                    return rows.find(row => /hold\s+celebration/i.test(normalize(row.textContent || '')))
+                      || document.querySelector('.researches')
+                      || document;
+                  };
+                  const root = args.preferBreweryCelebration
+                    ? findBreweryCelebrationScope()
+                    : args.preferTownHallCelebration ? findTownHallCelebrationScope() : document;
                   return !!root?.querySelector('.inlineIcon.resource.transfer');
                 }
                 """,
-                new { preferTownHallCelebration, townHallCelebrationMode });
+                new { preferTownHallCelebration, townHallCelebrationMode, preferBreweryCelebration });
         }
         catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
         {
@@ -125,7 +140,8 @@ public sealed partial class TravianClient
         var shortfall = await ReadUpgradeShortfallOnBuildPageAsync(
             cancellationToken,
             preferTownHallCelebration,
-            townHallCelebrationMode);
+            townHallCelebrationMode,
+            preferBreweryCelebration);
 
         // Hero-use limit gate: if covering any single resource from the hero would pull more than the
         // configured per-resource limit, skip the transfer and defer until the village has produced
@@ -171,6 +187,7 @@ public sealed partial class TravianClient
             var opened = await TryClickHeroResourceTransferIconAsync(
                 preferTownHallCelebration,
                 townHallCelebrationMode,
+                preferBreweryCelebration,
                 cancellationToken);
             if (!opened)
             {
@@ -404,6 +421,7 @@ public sealed partial class TravianClient
     private async Task<bool> TryClickHeroResourceTransferIconAsync(
         bool preferTownHallCelebration,
         string? townHallCelebrationMode,
+        bool preferBreweryCelebration,
         CancellationToken cancellationToken)
     {
         await DelayBeforeClickAsync(cancellationToken, "open hero resource transfer");
@@ -428,8 +446,16 @@ public sealed partial class TravianClient
                   : /small\s+celebration/i;
                 return rows.find(row => pattern.test(normalize(row.textContent || ''))) || root;
               };
-              const root = args.preferTownHallCelebration ? findTownHallCelebrationScope() : document;
-              const selectors = args.preferTownHallCelebration
+              const findBreweryCelebrationScope = () => {
+                const rows = Array.from(document.querySelectorAll('.researches .research'));
+                return rows.find(row => /hold\s+celebration/i.test(normalize(row.textContent || '')))
+                  || document.querySelector('.researches')
+                  || document;
+              };
+              const root = args.preferBreweryCelebration
+                ? findBreweryCelebrationScope()
+                : args.preferTownHallCelebration ? findTownHallCelebrationScope() : document;
+              const selectors = (args.preferTownHallCelebration || args.preferBreweryCelebration)
                 ? ['.inlineIcon.resource.transfer.fillUp', '.inlineIcon.resource.transfer[onclick]', '.inlineIcon.resource.transfer']
                 : ['.upgradeBlocked .inlineIcon.resource.transfer.fillUp', '.inlineIcon.resource.transfer.fillUp', '.inlineIcon.resource.transfer'];
 
@@ -445,7 +471,7 @@ public sealed partial class TravianClient
               return false;
             }
             """,
-            new { preferTownHallCelebration, townHallCelebrationMode });
+            new { preferTownHallCelebration, townHallCelebrationMode, preferBreweryCelebration });
     }
 
     private async Task<bool> TryConfirmHeroResourceTransferDialogAsync(
@@ -757,7 +783,8 @@ public sealed partial class TravianClient
     private async Task<HeroInventoryResources?> ReadUpgradeShortfallOnBuildPageAsync(
         CancellationToken cancellationToken,
         bool preferTownHallCelebration,
-        string? townHallCelebrationMode = null)
+        string? townHallCelebrationMode = null,
+        bool preferBreweryCelebration = false)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -777,7 +804,15 @@ public sealed partial class TravianClient
                       : /small\s+celebration/i;
                     return rows.find(row => pattern.test(normalize(row.textContent || ''))) || root;
                   };
-                  const root = args.preferTownHallCelebration ? findTownHallCelebrationScope() : document;
+                  const findBreweryCelebrationScope = () => {
+                    const rows = Array.from(document.querySelectorAll('.researches .research'));
+                    return rows.find(row => /hold\s+celebration/i.test(normalize(row.textContent || '')))
+                      || document.querySelector('.researches')
+                      || document;
+                  };
+                  const root = args.preferBreweryCelebration
+                    ? findBreweryCelebrationScope()
+                    : args.preferTownHallCelebration ? findTownHallCelebrationScope() : document;
                   const icon = root?.querySelector('.inlineIcon.resource.transfer[onclick]');
                   if (!icon) return '';
                   const onclick = icon.getAttribute('onclick') || '';
@@ -796,7 +831,7 @@ public sealed partial class TravianClient
                   return JSON.stringify({ wood: short('wood'), clay: short('clay'), iron: short('iron'), crop: short('crop') });
                 }
                 """,
-                new { preferTownHallCelebration, townHallCelebrationMode });
+                new { preferTownHallCelebration, townHallCelebrationMode, preferBreweryCelebration });
         }
         catch (PlaywrightException)
         {

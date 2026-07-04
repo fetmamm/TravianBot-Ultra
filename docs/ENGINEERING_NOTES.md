@@ -319,6 +319,10 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
 - Resource transfer-dialogen kan renderas i `#dialogContent` utan wrapper, ibland lamna inputs pa 0 och
   anvanda CSS-klassen `disabled`; fyll exakt shortfall manuellt vid behov, klicka Official icon/confirm via
   paced JS nar React-element ar instabila, och stang alltid aktivt sa kvarvarande `#dialogOverlay` inte blockerar senare klick. Efter transfer: invanta hydrerad DOM/reload.
+- Hero-transfer pa brewery-sidan MASTE scope:as till "Hold celebration"-raden (`.researches .research`):
+  sidan visar aven byggnadens egen uppgraderingskostnad forst i DOM, sa oscopad shortfall/klick traffar
+  uppgraderingen (fel belopp, fel dialog). Vid utebliven start defer:as med berknad ackumuleringstid
+  fran celebrationens shortfall, inte fast 60s-retry.
 - Noll adventures ska inte automatiskt stanga av anvandarens Hero-toggle.
 - Official Add target ska fylla X och Y som separata Playwright-interaktioner. Vid Default troops ska
   koordinatfaltet blur:as och en neutral yta klickas innan flodet vantar pa aktiv Save. Stegen anvander
