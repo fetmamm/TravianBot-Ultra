@@ -325,7 +325,9 @@ public partial class MainWindow
                 continue;
             }
 
-            var activeQueueWaitSeconds = ResolveActiveTroopTrainingQueueWaitSeconds(village, trainingOptions);
+            var activeQueueWaitSeconds = ShouldGateTroopTrainingEnqueueOnActiveQueue(trainingOptions)
+                ? ResolveActiveTroopTrainingQueueWaitSeconds(village, trainingOptions)
+                : null;
             if (activeQueueWaitSeconds is > 0)
             {
                 AppendLoopPickVerbose(
@@ -1068,6 +1070,24 @@ public partial class MainWindow
         return options.TroopTrainingBarracksEnabled
             || options.TroopTrainingStableEnabled
             || options.TroopTrainingWorkshopEnabled;
+    }
+
+    internal static bool ShouldGateTroopTrainingEnqueueOnActiveQueue(BotOptions options)
+    {
+        return (options.TroopTrainingBarracksEnabled && HasTroopTrainingQueueLimit(options.TroopTrainingBarracksMaxQueueHours))
+            || (options.TroopTrainingStableEnabled && HasTroopTrainingQueueLimit(options.TroopTrainingStableMaxQueueHours))
+            || (options.TroopTrainingWorkshopEnabled && HasTroopTrainingQueueLimit(options.TroopTrainingWorkshopMaxQueueHours));
+    }
+
+    private static bool HasTroopTrainingQueueLimit(string? maxQueueHours)
+    {
+        if (string.IsNullOrWhiteSpace(maxQueueHours)
+            || string.Equals(maxQueueHours.Trim(), "no_limit", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return int.TryParse(maxQueueHours.Trim(), out var hours) && hours > 0;
     }
 
     private int? ResolveActiveTroopTrainingQueueWaitSeconds(VillageSelectionItem village, BotOptions trainingOptions)
