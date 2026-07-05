@@ -379,6 +379,18 @@ public sealed class BotOptions
     [ConfigurationKeyName("building_construct_name")]
     public string BuildingConstructName { get; init; } = string.Empty;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.ConstructFasterEnabled)]
+    public bool ConstructFasterEnabled { get; init; }
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ConstructFasterMinBuildMinutes)]
+    public int ConstructFasterMinBuildMinutes { get; init; } = 30;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ConstructFasterRandomEnabled)]
+    public bool ConstructFasterRandomEnabled { get; init; }
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ConstructFasterRandomChancePercent)]
+    public int ConstructFasterRandomChancePercent { get; init; } = 50;
+
     [ConfigurationKeyName("target_building_slot_or_name")]
     public string TargetBuildingSlotOrName { get; init; } = string.Empty;
 

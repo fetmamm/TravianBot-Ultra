@@ -99,6 +99,7 @@ public sealed partial class VillageSettingsStore
                     IsEnabled = enabled,
                     EnabledGroups = CreateDefaultEnabledGroups(),
                     NpcTrade = false,
+                    ConstructFasterEnabled = false,
                     HeroResourcesEnabled = true,
                     LastSeenUtc = DateTimeOffset.UtcNow,
                 };
@@ -229,12 +230,89 @@ public sealed partial class VillageSettingsStore
                     IsEnabled = false,
                     EnabledGroups = CreateDefaultEnabledGroups(),
                     NpcTrade = enabled,
+                    ConstructFasterEnabled = false,
                     HeroResourcesEnabled = true,
                     LastSeenUtc = DateTimeOffset.UtcNow,
                 };
             }
 
             Save();
+        }
+    }
+
+    public bool IsConstructFasterEnabledByKey(string? key, bool defaultIfUnknown)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return defaultIfUnknown;
+        }
+
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+            return _cache.TryGetValue(NormalizeKey(key), out var existing)
+                ? existing.ConstructFasterEnabled ?? false
+                : defaultIfUnknown;
+        }
+    }
+
+    public bool GetConstructFaster(VillageKeyInfo village)
+    {
+        if (village is null || string.IsNullOrWhiteSpace(village.Key))
+        {
+            return false;
+        }
+
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+            return FindRecordByVillage(village)?.ConstructFasterEnabled ?? false;
+        }
+    }
+
+    public void SetConstructFaster(VillageKeyInfo village, bool enabled)
+    {
+        if (village is null || string.IsNullOrWhiteSpace(village.Key))
+        {
+            return;
+        }
+
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+            var record = FindRecordByVillage(village);
+            if (record is not null)
+            {
+                if ((record.ConstructFasterEnabled ?? false) == enabled)
+                {
+                    return;
+                }
+
+                record.ConstructFasterEnabled = enabled;
+                record.Name = village.Name;
+                record.LastSeenUtc = DateTimeOffset.UtcNow;
+            }
+            else
+            {
+                var key = CanonicalKey(village);
+                _cache[key] = new VillageSettingRecord
+                {
+                    Key = key,
+                    Name = village.Name,
+                    CoordX = village.CoordX,
+                    CoordY = village.CoordY,
+                    IsCapital = village.IsCapital,
+                    IsEnabled = false,
+                    EnabledGroups = CreateDefaultEnabledGroups(),
+                    NpcTrade = false,
+                    ConstructFasterEnabled = enabled,
+                    HeroResourcesEnabled = true,
+                    LastSeenUtc = DateTimeOffset.UtcNow,
+                };
+            }
+
+            Save();
+            _log?.Invoke($"Village '{village.Name}' construct-faster video set to {(enabled ? "enabled" : "disabled")}.");
         }
     }
 
@@ -280,6 +358,7 @@ public sealed partial class VillageSettingsStore
                     IsEnabled = false,
                     EnabledGroups = list,
                     NpcTrade = false,
+                    ConstructFasterEnabled = false,
                     LastSeenUtc = DateTimeOffset.UtcNow,
                 };
             }

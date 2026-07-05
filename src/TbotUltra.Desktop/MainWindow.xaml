@@ -832,107 +832,145 @@
                                 <StackPanel>
                                     <TextBlock Text="Auto settings" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,6" />
                                     <!-- Each setting gets a trailing "i" info icon (SettingInfoIconStyle) describing it. -->
-                                    <StackPanel Orientation="Horizontal">
-                                        <CheckBox x:Name="AutoCollectTasksCheckBox" Content="Collect tasks"
-                                                  Style="{StaticResource ToggleSwitchStyle}"
-                                                  Foreground="{DynamicResource TextSecondaryBrush}"
-                                                  Checked="AutoCollectTasksSetting_Changed" Unchecked="AutoCollectTasksSetting_Changed" />
-                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}">
-                                            <ContentControl.ToolTip>
-                                                <ToolTip MaxWidth="320">
-                                                    <TextBlock TextWrapping="Wrap"
-                                                               Text="Official servers only. When the Questmaster has claimable task rewards, the bot opens the Tasks page, collects the rewards on both the village and general tabs, and returns to the village." />
-                                                </ToolTip>
-                                            </ContentControl.ToolTip>
-                                        </ContentControl>
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                        <CheckBox x:Name="AutoCollectDailyQuestsCheckBox" Content="Collect daily quests"
-                                                  Style="{StaticResource ToggleSwitchStyle}"
-                                                  Foreground="{DynamicResource TextSecondaryBrush}"
-                                                  Checked="AutoCollectDailyQuestsSetting_Changed" Unchecked="AutoCollectDailyQuestsSetting_Changed" />
-                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}">
-                                            <ContentControl.ToolTip>
-                                                <ToolTip MaxWidth="320">
-                                                    <TextBlock TextWrapping="Wrap"
-                                                               Text="Official servers only. When the daily quests icon shows an exclamation mark, the bot opens the dialog and collects available daily rewards." />
-                                                </ToolTip>
-                                            </ContentControl.ToolTip>
-                                        </ContentControl>
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                        <CheckBox x:Name="HeroResourceTransferCheckBox" Content="Use hero resources"
-                                                  Style="{StaticResource ToggleSwitchStyle}"
-                                                  Foreground="{DynamicResource TextSecondaryBrush}"
-                                                  VerticalAlignment="Center"
-                                                  Checked="HeroResourceTransferSetting_Changed" Unchecked="HeroResourceTransferSetting_Changed" />
-                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}">
-                                            <ContentControl.ToolTip>
-                                                <ToolTip MaxWidth="320">
-                                                    <TextBlock TextWrapping="Wrap"
-                                                               Text="For the selected village. When enabled, allowed features may pull missing wood/clay/iron/crop from the hero's inventory." />
-                                                </ToolTip>
-                                            </ContentControl.ToolTip>
-                                        </ContentControl>
-                                        <Button x:Name="HeroInventorySettingsButton"
-                                                Content="&#xE713;"
-                                                FontFamily="Segoe MDL2 Assets"
-                                                FontSize="13"
-                                                Width="26"
-                                                Height="22"
-                                                Padding="0"
-                                                Margin="6,0,0,0"
-                                                VerticalAlignment="Center"
-                                                Background="{DynamicResource SurfaceBrush}"
-                                                BorderBrush="{DynamicResource BorderBrush}"
-                                                ToolTip="Open per-village Hero resource settings"
-                                                Click="HeroInventorySettingsButton_Click" />
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                        <CheckBox Content="Allow gold spending"
-                                                  Style="{StaticResource ToggleSwitchStyle}"
-                                                  Foreground="{DynamicResource TextSecondaryBrush}"
-                                                  VerticalAlignment="Center"
-                                                  IsChecked="{Binding TroopTrainingVm.AllowGoldSpending, ElementName=RootWindow, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}">
-                                            <ContentControl.ToolTip>
-                                                <ToolTip MaxWidth="320">
-                                                    <TextBlock TextWrapping="Wrap"
-                                                               Text="Allows gold-spending features such as NPC trade. Spending still respects the gold limit configured on the NPC / Trade tab." />
-                                                </ToolTip>
-                                            </ContentControl.ToolTip>
-                                        </ContentControl>
-                                    </StackPanel>
-                                    <!-- NPC trade master on/off. Detailed per-feature toggles and thresholds
-                                         stay on the NPC / Trade tab, reachable via the gear button. -->
-                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                        <CheckBox Content="NPC trade"
-                                                  Style="{StaticResource ToggleSwitchStyle}"
-                                                  Foreground="{DynamicResource TextSecondaryBrush}"
-                                                  VerticalAlignment="Center"
-                                                  IsChecked="{Binding TroopTrainingVm.NpcTradeMasterEnabled, ElementName=RootWindow, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}">
-                                            <ContentControl.ToolTip>
-                                                <ToolTip MaxWidth="320">
-                                                    <TextBlock TextWrapping="Wrap"
-                                                               Text="Enables NPC trade for both troop training and building/resource-field upgrades. Each NPC trade costs 3 gold and requires Allow gold spending. Open the settings for per-feature toggles, resources, and thresholds." />
-                                                </ToolTip>
-                                            </ContentControl.ToolTip>
-                                        </ContentControl>
-                                        <Button x:Name="GoldSpendingSettingsButton"
-                                                Content="&#xE713;"
-                                                FontFamily="Segoe MDL2 Assets"
-                                                FontSize="13"
-                                                Width="26"
-                                                Height="22"
-                                                Padding="0"
-                                                Margin="6,0,0,0"
-                                                VerticalAlignment="Center"
-                                                Background="{DynamicResource SurfaceBrush}"
-                                                BorderBrush="{DynamicResource BorderBrush}"
-                                                ToolTip="Open NPC trade settings"
-                                                Click="GoldSpendingSettingsButton_Click" />
-                                    </StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <CheckBox x:Name="AutoCollectTasksCheckBox" Content="Collect tasks"
+                                                          Style="{StaticResource ToggleSwitchStyle}"
+                                                          Foreground="{DynamicResource TextSecondaryBrush}"
+                                                          Checked="AutoCollectTasksSetting_Changed" Unchecked="AutoCollectTasksSetting_Changed" />
+                                                <ContentControl Style="{StaticResource SettingInfoIconStyle}">
+                                                    <ContentControl.ToolTip>
+                                                        <ToolTip MaxWidth="320">
+                                                            <TextBlock TextWrapping="Wrap"
+                                                                       Text="Official servers only. When the Questmaster has claimable task rewards, the bot opens the Tasks page, collects the rewards on both the village and general tabs, and returns to the village." />
+                                                        </ToolTip>
+                                                    </ContentControl.ToolTip>
+                                                </ContentControl>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                                <CheckBox x:Name="AutoCollectDailyQuestsCheckBox" Content="Collect daily quests"
+                                                          Style="{StaticResource ToggleSwitchStyle}"
+                                                          Foreground="{DynamicResource TextSecondaryBrush}"
+                                                          Checked="AutoCollectDailyQuestsSetting_Changed" Unchecked="AutoCollectDailyQuestsSetting_Changed" />
+                                                <ContentControl Style="{StaticResource SettingInfoIconStyle}">
+                                                    <ContentControl.ToolTip>
+                                                        <ToolTip MaxWidth="320">
+                                                            <TextBlock TextWrapping="Wrap"
+                                                                       Text="Official servers only. When the daily quests icon shows an exclamation mark, the bot opens the dialog and collects available daily rewards." />
+                                                        </ToolTip>
+                                                    </ContentControl.ToolTip>
+                                                </ContentControl>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                                <CheckBox x:Name="HeroResourceTransferCheckBox" Content="Use hero resources"
+                                                          Style="{StaticResource ToggleSwitchStyle}"
+                                                          Foreground="{DynamicResource TextSecondaryBrush}"
+                                                          VerticalAlignment="Center"
+                                                          Checked="HeroResourceTransferSetting_Changed" Unchecked="HeroResourceTransferSetting_Changed" />
+                                                <ContentControl Style="{StaticResource SettingInfoIconStyle}">
+                                                    <ContentControl.ToolTip>
+                                                        <ToolTip MaxWidth="320">
+                                                            <TextBlock TextWrapping="Wrap"
+                                                                       Text="For the selected village. When enabled, allowed features may pull missing wood/clay/iron/crop from the hero's inventory." />
+                                                        </ToolTip>
+                                                    </ContentControl.ToolTip>
+                                                </ContentControl>
+                                                <Button x:Name="HeroInventorySettingsButton"
+                                                        Content="&#xE713;"
+                                                        FontFamily="Segoe MDL2 Assets"
+                                                        FontSize="13"
+                                                        Width="26"
+                                                        Height="22"
+                                                        Padding="0"
+                                                        Margin="6,0,0,0"
+                                                        VerticalAlignment="Center"
+                                                        Background="{DynamicResource SurfaceBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
+                                                        ToolTip="Open per-village Hero resource settings"
+                                                        Click="HeroInventorySettingsButton_Click" />
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                                <CheckBox Content="Allow gold spending"
+                                                          Style="{StaticResource ToggleSwitchStyle}"
+                                                          Foreground="{DynamicResource TextSecondaryBrush}"
+                                                          VerticalAlignment="Center"
+                                                          IsChecked="{Binding TroopTrainingVm.AllowGoldSpending, ElementName=RootWindow, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                <ContentControl Style="{StaticResource SettingInfoIconStyle}">
+                                                    <ContentControl.ToolTip>
+                                                        <ToolTip MaxWidth="320">
+                                                            <TextBlock TextWrapping="Wrap"
+                                                                       Text="Allows gold-spending features such as NPC trade. Spending still respects the gold limit configured on the NPC / Trade tab." />
+                                                        </ToolTip>
+                                                    </ContentControl.ToolTip>
+                                                </ContentControl>
+                                            </StackPanel>
+                                            <!-- NPC trade master on/off. Detailed per-feature toggles and thresholds
+                                                 stay on the NPC / Trade tab, reachable via the gear button. -->
+                                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                                <CheckBox Content="NPC trade"
+                                                          Style="{StaticResource ToggleSwitchStyle}"
+                                                          Foreground="{DynamicResource TextSecondaryBrush}"
+                                                          VerticalAlignment="Center"
+                                                          IsChecked="{Binding TroopTrainingVm.NpcTradeMasterEnabled, ElementName=RootWindow, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                <ContentControl Style="{StaticResource SettingInfoIconStyle}">
+                                                    <ContentControl.ToolTip>
+                                                        <ToolTip MaxWidth="320">
+                                                            <TextBlock TextWrapping="Wrap"
+                                                                       Text="Enables NPC trade for both troop training and building/resource-field upgrades. Each NPC trade costs 3 gold and requires Allow gold spending. Open the settings for per-feature toggles, resources, and thresholds." />
+                                                        </ToolTip>
+                                                    </ContentControl.ToolTip>
+                                                </ContentControl>
+                                                <Button x:Name="GoldSpendingSettingsButton"
+                                                        Content="&#xE713;"
+                                                        FontFamily="Segoe MDL2 Assets"
+                                                        FontSize="13"
+                                                        Width="26"
+                                                        Height="22"
+                                                        Padding="0"
+                                                        Margin="6,0,0,0"
+                                                        VerticalAlignment="Center"
+                                                        Background="{DynamicResource SurfaceBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
+                                                        ToolTip="Open NPC trade settings"
+                                                        Click="GoldSpendingSettingsButton_Click" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Margin="18,0,0,0" VerticalAlignment="Top">
+                                            <StackPanel Orientation="Horizontal">
+                                                <CheckBox x:Name="ConstructFasterCheckBox" Content="Construct 25% faster"
+                                                          Style="{StaticResource ToggleSwitchStyle}"
+                                                          Foreground="{DynamicResource TextSecondaryBrush}"
+                                                          VerticalAlignment="Center"
+                                                          Checked="ConstructFasterSetting_Changed" Unchecked="ConstructFasterSetting_Changed" />
+                                                <ContentControl Style="{StaticResource SettingInfoIconStyle}">
+                                                    <ContentControl.ToolTip>
+                                                        <ToolTip MaxWidth="320">
+                                                            <TextBlock TextWrapping="Wrap"
+                                                                       Text="Master toggle for Official Travian construct-faster bonus videos. Open settings to choose villages, minimum build time, and random chance." />
+                                                        </ToolTip>
+                                                    </ContentControl.ToolTip>
+                                                </ContentControl>
+                                                <Button x:Name="ConstructFasterSettingsButton"
+                                                        Content="&#xE713;"
+                                                        FontFamily="Segoe MDL2 Assets"
+                                                        FontSize="13"
+                                                        Width="26"
+                                                        Height="22"
+                                                        Padding="0"
+                                                        Margin="6,0,0,0"
+                                                        VerticalAlignment="Center"
+                                                        Background="{DynamicResource SurfaceBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
+                                                        ToolTip="Open Construct 25% faster settings"
+                                                        Click="ConstructFasterSettingsButton_Click" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Grid>
                                 </StackPanel>
                             </Border>
 

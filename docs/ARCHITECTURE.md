@@ -35,7 +35,7 @@ These are contracts only — no logic was extracted out of the facade.
 |---|---|---|
 | `Automation/Core/` | Client plumbing: login, navigation, session, manual verification, account snapshot, villages, selectors, retry, page-tasks, capital cache | `TravianClient.cs` (state+ctor), `.Login`, `.Navigation`, `.UiSync`, `.ManualVerification`, `.AccountSnapshot`, `.Villages`, `.Selectors`, `.RetryPolicy`, `.Tasks`, `.CapitalCache`; helpers `TravianSessionCache`, `TravianUrls`, `TravianParsing`, `CapitalCacheKey` |
 | `Automation/Farming/` | Farm lists, list creation, Official Add Farms | `TravianClient.FarmLists`, `.FarmListCreation`, `.FarmAdd`; `FarmListLossStateClassifier` |
-| `Automation/Buildings/` | Construction & upgrades | `TravianClient.Buildings`, `.Upgrade`; `BuildingDomParser`, `BuildingNames`, `ConstructionSlots`, `BuildQueueFingerprints`, `UpgradeMath` |
+| `Automation/Buildings/` | Construction & upgrades | `TravianClient.Buildings`, `.Upgrade`, `.ConstructFaster`; `BuildingDomParser`, `BuildingNames`, `ConstructionSlots`, `BuildQueueFingerprints`, `UpgradeMath`, `ConstructFasterDecision` |
 | `Automation/Hero/` | Hero, adventures, hero resources | `TravianClient.Hero`, `.HeroResourceTransfer`, `.AdventureDanger`; `HeroCalc` |
 | `Automation/Resources/` | Resource read/transfer, NPC trade | `TravianClient.Resources`, `.ResourceTransfer`, `.NpcTrade`; `ResourceCapacitySnapshot` |
 | `Automation/Combat/` | Catapult waves, reinforcements, manual attack | `TravianClient.Catapults`, `.Reinforcements`, `.ManualAttack`; `CatapultWavePlanner` |
@@ -94,6 +94,7 @@ One `partial class BotTaskRunner` in `Services/`, split by concern:
   place (the scan/persist logic migrates later).
 - `Services/` — desktop-side stores & orchestration: `Orchestration/` (`LoopController`, `SessionPacer`,
   `BackgroundTaskTracker`), `*Store.cs` (per-feature persistence), queue helpers, `DesktopBotService`.
+- `*SettingsWindow.xaml` — focused popup settings such as hero resources, troop training, and construct-faster per-village options.
 - `Models/` — UI row/item models bound to the views.
 - `Views/`, `Themes/`, `Assets/` — XAML windows, theme, resources.
 

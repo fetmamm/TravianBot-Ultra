@@ -540,7 +540,9 @@ public sealed partial class TravianClient
     /// iframe; both are handled. The isolated video browser is discarded on close, so accepting leaks
     /// nothing into the main session. Returns true when an "Accept all" button was clicked.
     /// </summary>
-    private async Task<bool> AcceptConsentManagerIfPresentAsync(CancellationToken cancellationToken)
+    private async Task<bool> AcceptConsentManagerIfPresentAsync(
+        CancellationToken cancellationToken,
+        string logPrefix = "[adventure-video:verbose]")
     {
         cancellationToken.ThrowIfCancellationRequested();
         const string acceptScript =
@@ -567,7 +569,7 @@ public sealed partial class TravianClient
         {
             if (await _page.EvaluateAsync<bool>(acceptScript, null))
             {
-                Notify("[adventure-video:verbose] accepted consentmanager consent (first-party overlay).");
+                Notify($"{logPrefix} accepted consentmanager consent (first-party overlay).");
                 return true;
             }
         }
@@ -589,7 +591,7 @@ public sealed partial class TravianClient
             {
                 if (await frame.EvaluateAsync<bool>(acceptScript, null))
                 {
-                    Notify("[adventure-video:verbose] accepted consentmanager consent (iframe).");
+                    Notify($"{logPrefix} accepted consentmanager consent (iframe).");
                     return true;
                 }
             }

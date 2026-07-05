@@ -79,6 +79,7 @@ public sealed partial class VillageSettingsStore
                         IsEnabled = enableOnlyVillageByDefault,
                         EnabledGroups = CreateDefaultEnabledGroups(),
                         NpcTrade = false,
+                        ConstructFasterEnabled = false,
                         HeroResourcesEnabled = true,
                         LastSeenUtc = DateTimeOffset.UtcNow,
                     };

@@ -17,6 +17,10 @@ public static class BotOptionsPayloadApplier
         var buildingConstructSlotId = source.BuildingConstructSlotId;
         var buildingConstructGid = source.BuildingConstructGid;
         var buildingConstructName = source.BuildingConstructName;
+        var constructFasterEnabled = source.ConstructFasterEnabled;
+        var constructFasterMinBuildMinutes = source.ConstructFasterMinBuildMinutes;
+        var constructFasterRandomEnabled = source.ConstructFasterRandomEnabled;
+        var constructFasterRandomChancePercent = source.ConstructFasterRandomChancePercent;
         var targetBuildingSlotOrName = source.TargetBuildingSlotOrName;
         var targetLevel = source.TargetLevel;
         var heroMinHpForAdventure = source.HeroMinHpForAdventure;
@@ -216,6 +220,34 @@ public static class BotOptionsPayloadApplier
                 if (key.Equals(BotOptionPayloadKeys.BuildingConstructName, StringComparison.OrdinalIgnoreCase))
                 {
                     buildingConstructName = value;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ConstructFasterEnabled, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var constructFaster))
+                {
+                    constructFasterEnabled = constructFaster;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ConstructFasterMinBuildMinutes, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var constructFasterMinMinutes))
+                {
+                    constructFasterMinBuildMinutes = Math.Max(0, constructFasterMinMinutes);
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ConstructFasterRandomEnabled, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var constructFasterRandom))
+                {
+                    constructFasterRandomEnabled = constructFasterRandom;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ConstructFasterRandomChancePercent, StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(value, out var constructFasterRandomChance))
+                {
+                    constructFasterRandomChancePercent = Math.Clamp(constructFasterRandomChance, 0, 100);
                     continue;
                 }
 
@@ -1170,6 +1202,10 @@ public static class BotOptionsPayloadApplier
             BuildingConstructSlotId = buildingConstructSlotId,
             BuildingConstructGid = buildingConstructGid,
             BuildingConstructName = buildingConstructName,
+            ConstructFasterEnabled = constructFasterEnabled,
+            ConstructFasterMinBuildMinutes = constructFasterMinBuildMinutes,
+            ConstructFasterRandomEnabled = constructFasterRandomEnabled,
+            ConstructFasterRandomChancePercent = constructFasterRandomChancePercent,
             TargetBuildingSlotOrName = targetBuildingSlotOrName,
             TargetLevel = targetLevel,
             HeroMinHpForAdventure = heroMinHpForAdventure,

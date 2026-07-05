@@ -418,6 +418,8 @@ public partial class MainWindow
             payload[BotOptionPayloadKeys.TargetVillageKey] = selectedVillageKey;
         }
 
+        ApplyConstructFasterSettingsToPayload(payload, selectedVillageKey, selectedVillageName);
+
         // Gate NPC trade per village: enabled only when the account-wide master (Auto settings) AND this
         // village's choice are both on. The worker honors this per-task override (BotOptionsPayloadApplier).
         if (!string.IsNullOrWhiteSpace(selectedVillageName) || !string.IsNullOrWhiteSpace(selectedVillageUrl))

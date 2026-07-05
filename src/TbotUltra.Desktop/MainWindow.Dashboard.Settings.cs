@@ -11,6 +11,7 @@ public partial class MainWindow
     // immediately write back to bot.json.
     private bool _suppressAutoCollectTasksConfigWrite;
     private bool _suppressAutoCollectDailyQuestsConfigWrite;
+    private bool _suppressConstructFasterConfigWrite;
 
     private void ApplyAutoCollectTasksConfigToUi(BotOptions options)
     {
@@ -87,6 +88,47 @@ public partial class MainWindow
 
     private bool _suppressHeroResourceTransferConfigWrite;
 
+    private void ApplyConstructFasterConfigToUi(BotOptions options)
+    {
+        if (ConstructFasterCheckBox is null)
+        {
+            return;
+        }
+
+        _suppressConstructFasterConfigWrite = true;
+        try
+        {
+            ConstructFasterCheckBox.IsChecked = options.ConstructFasterEnabled;
+        }
+        finally
+        {
+            _suppressConstructFasterConfigWrite = false;
+        }
+    }
+
+    private void ApplyConstructFasterConfigToUi()
+    {
+        ApplyConstructFasterConfigToUi(LoadBotOptions());
+    }
+
+    private void ConstructFasterSetting_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_suppressConstructFasterConfigWrite || _botConfigStore is null)
+        {
+            return;
+        }
+
+        var enabled = ConstructFasterCheckBox.IsChecked == true;
+        var config = _botConfigStore.Load();
+        config[BotOptionPayloadKeys.ConstructFasterEnabled] = enabled;
+        _botConfigStore.Save(config);
+
+        if (enabled)
+        {
+            ResetDeferredConstructionWaitsNow("construct-faster enabled");
+        }
+    }
+
     private void ApplyHeroResourceTransferConfigToUi(BotOptions options)
     {
         _ = options;
@@ -155,6 +197,11 @@ public partial class MainWindow
     private void HeroInventorySettingsButton_Click(object sender, RoutedEventArgs e)
     {
         OpenHeroResourceSettingsFromHeroPanel();
+    }
+
+    private void ConstructFasterSettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        OpenConstructFasterSettingsWindow();
     }
 
     // Opens the NPC / Trade tab where the gold limit and NPC trade settings live.

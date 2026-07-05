@@ -50,6 +50,8 @@ public sealed partial class VillageSettingsStore
         // Whether NPC trade may run in this village. Legacy null values are migrated to disabled. The account-wide NPC
         // master toggle (Auto settings) still gates everything: NPC runs only when master AND this are on.
         public bool? NpcTrade { get; set; }
+        // Whether construct-faster bonus videos may run in this village. Account-wide master toggle still gates it.
+        public bool? ConstructFasterEnabled { get; set; }
         public bool? HeroResourcesEnabled { get; set; }
         public bool? HeroResourceUseConstruction { get; set; }
         public bool? HeroResourceUseSmithy { get; set; }
@@ -182,6 +184,12 @@ public sealed partial class VillageSettingsStore
                     migratedAnything = true;
                 }
 
+                if (record.ConstructFasterEnabled is null)
+                {
+                    record.ConstructFasterEnabled = false;
+                    migratedAnything = true;
+                }
+
                 if (record.HeroResourcesEnabled is null)
                 {
                     record.HeroResourcesEnabled = true;
@@ -235,6 +243,7 @@ public sealed partial class VillageSettingsStore
 
         winner.EnabledGroups ??= loser.EnabledGroups;
         winner.NpcTrade ??= loser.NpcTrade;
+        winner.ConstructFasterEnabled ??= loser.ConstructFasterEnabled;
         winner.HeroResourcesEnabled ??= loser.HeroResourcesEnabled;
         winner.HeroResourceUseConstruction ??= loser.HeroResourceUseConstruction;
         winner.HeroResourceUseSmithy ??= loser.HeroResourceUseSmithy;

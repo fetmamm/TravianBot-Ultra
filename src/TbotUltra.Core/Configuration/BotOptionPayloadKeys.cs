@@ -62,6 +62,10 @@ public static class BotOptionPayloadKeys
     public const string BuildingConstructSlotId = "building_construct_slot_id";
     public const string BuildingConstructGid = "building_construct_gid";
     public const string BuildingConstructName = "building_construct_name";
+    public const string ConstructFasterEnabled = "construct_faster_enabled";
+    public const string ConstructFasterMinBuildMinutes = "construct_faster_min_build_minutes";
+    public const string ConstructFasterRandomEnabled = "construct_faster_random_enabled";
+    public const string ConstructFasterRandomChancePercent = "construct_faster_random_chance_percent";
     public const string TargetBuildingSlotOrName = "target_building_slot_or_name";
     public const string TargetLevel = "target_level";
     public const string DontNotifyNewVersion = "dont_notify_new_version";

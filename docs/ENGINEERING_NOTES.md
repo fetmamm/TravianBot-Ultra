@@ -264,8 +264,8 @@ En ny formaga ska kunna enhetstestas till stor del utan browser. God-klasserna s
   Lagg ALDRIG till `Execution context was destroyed` dar — det ar en ofarlig navigerings-race som retry:as.
 - Playwrights native popup-blocker ska vara aktiv i live-sessionen; botens egna extra flikar anvander
   `NewPageAsync`. Innan `StorageStateAsync` sparas ska transienta ad/consent-origins rensas ur live-contexten.
-  Bonus-video ska koras i isolerad temp-browser utan native popup-blocker och aldrig ladda ad-stack i main context;
-  rena background-/DOM-prober ska inte spara storage state efter lasningen.
+  Bonus-video (hero adventure och construct-faster) ska koras i isolerad temp-browser utan native popup-blocker
+  och aldrig ladda ad-stack i main context; rena background-/DOM-prober ska inte spara storage state efter lasningen.
   Travco ska oppnas i isolerad browser-context, aldrig i Travian-contexten.
 - Official resource/production text kan innehalla bidi-markers och Unicode-minus (`\u2212`); DOM-number parsers
   maste strippa `\u202A-\u202E`/`\u2066-\u2069` och normalisera minus innan `Number(...)`.
@@ -290,6 +290,8 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
 - Construct/upgrade-klick: exkludera `Open shop`, verifiera ratt `build.php?id=&category=` + renderade
   `#contract_building*` fore klick, las resursbrist/krav innan ko-/progresskontroller som navigerar till
   `dorf2`, och krav success vara malspecifik (slot-level/matchande aktiv konstruktion). Saknade krav = temporar defer.
+- Construct-faster anvander Official-knappen `.upgradeButtonsContainer .section2 button.videoFeatureButton`;
+  missing/disabled/short duration/random-skip faller igenom tyst, videofel loggar ALARM och vanlig build-knapp forsoks.
 - Byggnadsuppgradering far ateranvanda aktuell `build.php?id=N` for slot snapshot endast nar sidan ar ratt slot,
   inte stale och kan lasa niva + namn/gid; annars ska flodet falla tillbaka till `dorf2`.
 - Construct mot en slot som redan har byggnaden (stale construct-task, eller fast specialslot RP=39/Wall=40 som

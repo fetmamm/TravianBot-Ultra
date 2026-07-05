@@ -1058,6 +1058,7 @@ public partial class MainWindow
             payload[BotOptionPayloadKeys.TargetVillageKey] = villageKey;
         }
 
+        ApplyConstructFasterSettingsToPayload(payload, villageKey, village.Name);
         payload[BotOptionPayloadKeys.NpcTradeEnabled] = IsNpcTradeEnabledForVillageKey(villageKey) ? "true" : "false";
         return payload;
     }

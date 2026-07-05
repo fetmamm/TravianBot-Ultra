@@ -62,6 +62,10 @@ public sealed class BotConfigStoreTests : IDisposable
             BotOptionPayloadKeys.ActionPacingLoopMaxSeconds,
             BotOptionPayloadKeys.FarmListStepDelayMinSeconds,
             BotOptionPayloadKeys.FarmListStepDelayMaxSeconds,
+            BotOptionPayloadKeys.ConstructFasterEnabled,
+            BotOptionPayloadKeys.ConstructFasterMinBuildMinutes,
+            BotOptionPayloadKeys.ConstructFasterRandomEnabled,
+            BotOptionPayloadKeys.ConstructFasterRandomChancePercent,
         };
 
         foreach (var key in requiredKeys)

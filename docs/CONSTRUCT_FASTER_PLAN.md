@@ -1,5 +1,20 @@
 # Construct 25% faster (bonus-video build) — implementation plan
 
+
+## Original prompt from User
+– implementera en funktion som kan köra build 25% faster på alla byggnader och resursfält. knappen för detta syns på sidan där upgrade to level x finns. den syns bara om tillräckligt med resurser finns. se båda DOM
+om funktionen är vald av användaren ska den köras. då ska gå till byggsidan som vanligt och klicka på upgrade 25% faster. sedan kommer popup eller så startar video direkt. detta ska ske på samma sätt som hero make adventure hard funktionen gör, när den öpnar ny browser med mer för att slippa conscent stacken. viktigt.
+när videon har spelats klart så bygga byggnaden automatiskt och användaren returneras till dorf1 eller 2. då ska funktionen checka så att vald byggnad faktiskt byggdes, sedan är den färdig.
+
+det ska finnas settings i UI på dashboard i auto settings. det är fullt i den kolumnen så gör en ny till höger. ska heta “Construct 25% faster” med tooltip icon på höger sida. ska ha toggle.
+om togglad ska funktionen köras. den ska vara disabled default. ska finnas en settings icon brevid som öppnar ny popup. denna ska vara by för by liknande village settings. så användaren ska kunna välja vlka byar detta ska köras för i construction. ska finnas en toggle knapp för att toggla alla på en gång och untoggla.
+i popupen ska finnas en inställning för lägsta byggtiden det ska köras för. ex om en byggnad tar 50min att konstruera och settings står på 60min så ska den inte köras. bara om mer än 60min.
+ska vara input fält där användaren kan skriva in min ex 60.
+default = 30min
+denna ska justera för alla byar.
+ska också finnas en random setting med toggle. ska också finnas dropdown med 0-100% med 10% intervall ex. 0,10,20 etc. om användaren togglar denna ska funktionen köras “random” för de byar där den är togglad. detta för att simulera mer mänskligt beteende och inte alltid titta på videos. default = 50%.
+så om 50% är vald och denna setting är toggled ON och det är toggle ON för en by och funktionen ska köras så ska det vara 50% chans att den körs den gången. vid nästa build 50% chans igen.
+
 ## Context
 
 Official Travian shows a purple "Upgrade/Construct 25% faster" button on build pages when resources

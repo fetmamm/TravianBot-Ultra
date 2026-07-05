@@ -702,6 +702,7 @@ public partial class MainWindow : Window
         ApplyFarmingSettingsToUi(options);
         ApplyAutoCollectTasksConfigToUi(options);
         ApplyAutoCollectDailyQuestsConfigToUi(options);
+        ApplyConstructFasterConfigToUi(options);
         ApplyHeroResourceTransferConfigToUi(options);
 
         // Account + runtime state below (account label, inbox counts, gold-club, hero snapshot) is

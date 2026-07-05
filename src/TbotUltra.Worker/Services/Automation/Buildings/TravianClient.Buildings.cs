@@ -216,7 +216,20 @@ public sealed partial class TravianClient : IBuildingClient
             var populationDelta = pageAnalysis.PopulationDelta;
 
             // Step 5: click the "Upgrade to level N" button.
-            var clicked = await ClickUpgradeToLevelButtonAsync(slotId, nextLevel, cancellationToken);
+            var clicked = await TryUseConstructFasterForBuildAsync(
+                slotId,
+                ParseGidFromBuildingCode(info.BuildingCode),
+                buildingName,
+                currentLevel,
+                queueFingerprintBefore,
+                durationSeconds,
+                null,
+                cancellationToken);
+            var usedConstructFasterVideo = clicked;
+            if (!clicked)
+            {
+                clicked = await ClickUpgradeToLevelButtonAsync(slotId, nextLevel, cancellationToken);
+            }
             if (!clicked)
             {
                 pageAnalysis = await ReadConstructionPageAnalysisAsync(
@@ -326,7 +339,8 @@ public sealed partial class TravianClient : IBuildingClient
             }
 
             upgrades += 1;
-            Notify($"[build] click ok — slot={slotId} '{buildingName}' lvl {currentLevel} → {nextLevel} queued (duration~{durationSeconds}s, pop +{populationDelta?.ToString() ?? "?"})");
+            var constructFasterResultNote = usedConstructFasterVideo ? " 25% faster (video)." : string.Empty;
+            Notify($"[build] {(usedConstructFasterVideo ? "25% faster video ok" : "click ok")} — slot={slotId} '{buildingName}' lvl {currentLevel} → {nextLevel} queued (duration~{durationSeconds}s, pop +{populationDelta?.ToString() ?? "?"})");
             if (populationDelta is int popDelta)
             {
                 await AddPopulationToActiveVillageCacheAsync(popDelta, cancellationToken);
@@ -346,7 +360,7 @@ public sealed partial class TravianClient : IBuildingClient
                     Notify($"Slot {slotId}: upgrade confirmed via dorf2 level read ({currentLevel} → {confirmedLevel}).");
                     if (confirmedLevel >= targetLevel)
                     {
-                        return $"Slot {slotId}: reached level {confirmedLevel} (target {targetLevel}). Upgrades performed: {upgrades}.";
+                        return $"Slot {slotId}: reached level {confirmedLevel} (target {targetLevel}). Upgrades performed: {upgrades}.{constructFasterResultNote}";
                     }
                     continue;
                 }
@@ -362,7 +376,7 @@ public sealed partial class TravianClient : IBuildingClient
                 Notify($"[build] level advance confirmed — slot={slotId} '{buildingName}' now lvl {nextLevel} (target {targetLevel}, upgrades this run: {upgrades})");
                 if (nextLevel >= targetLevel)
                 {
-                    return $"Slot {slotId}: reached level {nextLevel} (target {targetLevel}). Upgrades performed: {upgrades}.";
+                    return $"Slot {slotId}: reached level {nextLevel} (target {targetLevel}). Upgrades performed: {upgrades}.{constructFasterResultNote}";
                 }
 
                 continue;
@@ -373,7 +387,7 @@ public sealed partial class TravianClient : IBuildingClient
                 continue;
             }
 
-            return $"Slot {slotId}: upgrade to level {nextLevel} queued and still in progress. Target level {targetLevel}. Upgrades performed: {upgrades}. queue_wait_seconds={postClickWaitSeconds}";
+            return $"Slot {slotId}: upgrade to level {nextLevel} queued and still in progress. Target level {targetLevel}. Upgrades performed: {upgrades}.{constructFasterResultNote} queue_wait_seconds={postClickWaitSeconds}";
 
             }
             catch (Exception ex) when (IsTransientExecutionContextException(ex) && transientRetries < 6)
@@ -1269,7 +1283,20 @@ public sealed partial class TravianClient : IBuildingClient
             var populationDelta = pageAnalysis.PopulationDelta;
 
             // Step 5: click "Upgrade to level N".
-            var clicked = await ClickUpgradeToLevelButtonAsync(slotId, nextLevel, cancellationToken);
+            var clicked = await TryUseConstructFasterForBuildAsync(
+                slotId,
+                gid,
+                buildingName,
+                currentLevel,
+                queueFingerprintBefore,
+                durationSeconds,
+                null,
+                cancellationToken);
+            var usedConstructFasterVideo = clicked;
+            if (!clicked)
+            {
+                clicked = await ClickUpgradeToLevelButtonAsync(slotId, nextLevel, cancellationToken);
+            }
             if (!clicked)
             {
                 pageAnalysis = await ReadConstructionPageAnalysisAsync(
@@ -1379,7 +1406,8 @@ public sealed partial class TravianClient : IBuildingClient
             }
 
             upgrades += 1;
-            Notify($"[build] click ok — slot={slotId} '{buildingName}' lvl {currentLevel} → {nextLevel} queued (duration~{durationSeconds}s, pop +{populationDelta?.ToString() ?? "?"})");
+            var constructFasterResultNote = usedConstructFasterVideo ? " 25% faster (video)." : string.Empty;
+            Notify($"[build] {(usedConstructFasterVideo ? "25% faster video ok" : "click ok")} — slot={slotId} '{buildingName}' lvl {currentLevel} → {nextLevel} queued (duration~{durationSeconds}s, pop +{populationDelta?.ToString() ?? "?"})");
             if (populationDelta is int popDelta)
             {
                 await AddPopulationToActiveVillageCacheAsync(popDelta, cancellationToken);
@@ -1398,7 +1426,7 @@ public sealed partial class TravianClient : IBuildingClient
                     Notify($"Slot {slotId}: upgrade-to-max confirmed via dorf2 level read ({currentLevel} → {confirmedLevel}).");
                     if (confirmedLevel >= maxLevel)
                     {
-                        return $"Slot {slotId}: reached max level {maxLevel}. Upgrades performed: {upgrades}.";
+                        return $"Slot {slotId}: reached max level {maxLevel}. Upgrades performed: {upgrades}.{constructFasterResultNote}";
                     }
                     continue;
                 }
@@ -1414,7 +1442,7 @@ public sealed partial class TravianClient : IBuildingClient
                 Notify($"[build] level advance confirmed — slot={slotId} '{buildingName}' now lvl {nextLevel} (max {maxLevel}, upgrades this run: {upgrades})");
                 if (nextLevel >= maxLevel)
                 {
-                    return $"Slot {slotId}: reached max level {maxLevel}. Upgrades performed: {upgrades}.";
+                    return $"Slot {slotId}: reached max level {maxLevel}. Upgrades performed: {upgrades}.{constructFasterResultNote}";
                 }
 
                 continue;
@@ -1425,7 +1453,7 @@ public sealed partial class TravianClient : IBuildingClient
                 continue;
             }
 
-            return $"Slot {slotId}: upgrade toward max queued and still in progress (next level {nextLevel}, max {maxLevel}). Upgrades performed: {upgrades}. queue_wait_seconds={postClickWaitSeconds}";
+            return $"Slot {slotId}: upgrade toward max queued and still in progress (next level {nextLevel}, max {maxLevel}). Upgrades performed: {upgrades}.{constructFasterResultNote} queue_wait_seconds={postClickWaitSeconds}";
 
             }
             catch (Exception ex) when (IsTransientExecutionContextException(ex) && transientRetries < 6)
@@ -1547,7 +1575,20 @@ public sealed partial class TravianClient : IBuildingClient
             var populationDelta = pageAnalysis.PopulationDelta;
 
             // Step 3: click the "Construct building" button (scoped to this gid when possible).
-            var clicked = await ClickConstructBuildingButtonAsync(gid, cancellationToken);
+            var clicked = await TryUseConstructFasterForBuildAsync(
+                slotId,
+                gid,
+                buildingName,
+                0,
+                queueFingerprintBefore,
+                durationSeconds,
+                url,
+                cancellationToken);
+            var usedConstructFasterVideo = clicked;
+            if (!clicked)
+            {
+                clicked = await ClickConstructBuildingButtonAsync(gid, cancellationToken);
+            }
             if (!clicked)
             {
                 // Classify the construct page before any queue/progress check navigates to dorf2.
@@ -1646,6 +1687,7 @@ public sealed partial class TravianClient : IBuildingClient
                 await AddPopulationToActiveVillageCacheAsync(popDelta, cancellationToken);
             }
 
+            var constructFasterResultNote = usedConstructFasterVideo ? " 25% faster (video)." : string.Empty;
             var progress = await WaitForBuildingLevelAdvanceAsync(slotId, 0, buildingName, queueFingerprintBefore, cancellationToken);
             if (!progress.Advanced && !progress.QueuedOrInProgress)
             {
@@ -1654,7 +1696,7 @@ public sealed partial class TravianClient : IBuildingClient
                 var dorf2Level = await ProbeSlotLevelOnDorf2Async(slotId, cancellationToken);
                 if (dorf2Level is int confirmedLevel && confirmedLevel >= 1)
                 {
-                    return $"Constructed {buildingName} in slot {slotId} (confirmed level {confirmedLevel} on dorf2).";
+                    return $"Constructed {buildingName} in slot {slotId} (confirmed level {confirmedLevel} on dorf2).{constructFasterResultNote}";
                 }
 
                 var waitMs = ComputePostActionWaitMs(durationSeconds);
@@ -1663,7 +1705,7 @@ public sealed partial class TravianClient : IBuildingClient
                 return $"Slot {slotId}: construct click did not confirm immediately ({progress.Evidence}). queue_wait_seconds={waitSeconds}";
             }
 
-            return $"Queued {buildingName} in slot {slotId}. Evidence: {progress.Evidence}.";
+            return $"Queued {buildingName} in slot {slotId}. Evidence: {progress.Evidence}.{constructFasterResultNote}";
         }
 
         return $"Slot {slotId}: hit safety cap while trying to queue {buildingName}.";

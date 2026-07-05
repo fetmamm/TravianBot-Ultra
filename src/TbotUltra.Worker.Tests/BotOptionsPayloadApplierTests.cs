@@ -47,6 +47,10 @@ public sealed class BotOptionsPayloadApplierTests
             BuildingConstructSlotId = 5,
             BuildingConstructGid = 6,
             BuildingConstructName = "Main Building",
+            ConstructFasterEnabled = false,
+            ConstructFasterMinBuildMinutes = 30,
+            ConstructFasterRandomEnabled = false,
+            ConstructFasterRandomChancePercent = 50,
             TargetBuildingSlotOrName = "20",
             TargetLevel = 5,
             HeroMinHpForAdventure = 60,
@@ -81,6 +85,10 @@ public sealed class BotOptionsPayloadApplierTests
             [BotOptionPayloadKeys.BuildingConstructSlotId] = "13",
             [BotOptionPayloadKeys.BuildingConstructGid] = "14",
             [BotOptionPayloadKeys.BuildingConstructName] = "Barracks",
+            [BotOptionPayloadKeys.ConstructFasterEnabled] = "true",
+            [BotOptionPayloadKeys.ConstructFasterMinBuildMinutes] = "45",
+            [BotOptionPayloadKeys.ConstructFasterRandomEnabled] = "true",
+            [BotOptionPayloadKeys.ConstructFasterRandomChancePercent] = "70",
             [BotOptionPayloadKeys.TargetBuildingSlotOrName] = "Main Building",
             [BotOptionPayloadKeys.TargetLevel] = "10",
             [BotOptionPayloadKeys.HeroMinHpForAdventure] = "75",
@@ -121,6 +129,10 @@ public sealed class BotOptionsPayloadApplierTests
         Assert.Equal(13, result.BuildingConstructSlotId);
         Assert.Equal(14, result.BuildingConstructGid);
         Assert.Equal("Barracks", result.BuildingConstructName);
+        Assert.True(result.ConstructFasterEnabled);
+        Assert.Equal(45, result.ConstructFasterMinBuildMinutes);
+        Assert.True(result.ConstructFasterRandomEnabled);
+        Assert.Equal(70, result.ConstructFasterRandomChancePercent);
         Assert.Equal("Main Building", result.TargetBuildingSlotOrName);
         Assert.Equal(10, result.TargetLevel);
         Assert.Equal(75, result.HeroMinHpForAdventure);
@@ -269,6 +281,49 @@ public sealed class BotOptionsPayloadApplierTests
         Assert.False(options.NpcTradeConstructionEnabled);
         Assert.False(options.AllowGoldSpending);
         Assert.Equal(300, options.GoldLimit);
+    }
+
+    [Fact]
+    public void FromConfiguration_LoadsConstructFasterSettings()
+    {
+        var values = new Dictionary<string, string?>
+        {
+            ["server_name"] = "Official",
+            ["base_url"] = "https://ts50.x5.europe.travian.com",
+            [BotOptionPayloadKeys.ConstructFasterEnabled] = "true",
+            [BotOptionPayloadKeys.ConstructFasterMinBuildMinutes] = "-5",
+            [BotOptionPayloadKeys.ConstructFasterRandomEnabled] = "true",
+            [BotOptionPayloadKeys.ConstructFasterRandomChancePercent] = "150",
+        };
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(values)
+            .Build();
+
+        var options = BotOptionsFactory.FromConfiguration(configuration);
+
+        Assert.True(options.ConstructFasterEnabled);
+        Assert.Equal(0, options.ConstructFasterMinBuildMinutes);
+        Assert.True(options.ConstructFasterRandomEnabled);
+        Assert.Equal(100, options.ConstructFasterRandomChancePercent);
+    }
+
+    [Fact]
+    public void FromConfiguration_DefaultsConstructFasterOff()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["server_name"] = "Official",
+                ["base_url"] = "https://ts50.x5.europe.travian.com",
+            })
+            .Build();
+
+        var options = BotOptionsFactory.FromConfiguration(configuration);
+
+        Assert.False(options.ConstructFasterEnabled);
+        Assert.Equal(30, options.ConstructFasterMinBuildMinutes);
+        Assert.False(options.ConstructFasterRandomEnabled);
+        Assert.Equal(50, options.ConstructFasterRandomChancePercent);
     }
 
     [Fact]
