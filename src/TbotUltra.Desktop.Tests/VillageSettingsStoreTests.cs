@@ -390,6 +390,29 @@ public sealed class VillageSettingsStoreTests : IDisposable
         Assert.True(File.Exists(AccountStoragePaths.VillageSettingsPath(_root, "alice")));
     }
 
+    [Fact]
+    public void GetStoredName_KeyedByCoordinates_ReflectsRename()
+    {
+        var store = CreateStore();
+        store.Merge(new[] { new Info("did:42445", "New village", 171, 144, IsCapital: false) });
+
+        // Keyed by coordinates: the passed name is ignored and the STORED name is returned. This is what
+        // lets a rename be detected before Merge overwrites the cached identity.
+        var probe = new Info("did:42445", "1440", 171, 144, IsCapital: false);
+        Assert.Equal("New village", store.GetStoredName(probe));
+
+        store.Merge(new[] { probe });
+        Assert.Equal("1440", store.GetStoredName(probe));
+    }
+
+    [Fact]
+    public void GetStoredName_UnknownVillage_ReturnsNull()
+    {
+        var store = CreateStore();
+
+        Assert.Null(store.GetStoredName(new Info("did:9", "Ghost", 99, 99, IsCapital: false)));
+    }
+
     private VillageSettingsStore CreateStore()
     {
         return new VillageSettingsStore(_root, () => _activeAccount);

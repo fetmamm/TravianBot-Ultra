@@ -279,6 +279,26 @@ public sealed partial class VillageSettingsStore
         }
     }
 
+    /// <summary>
+    /// The village NAME currently stored for a village's canonical (coordinate) key, or null when the
+    /// village is unknown. Read this BEFORE <see cref="Merge"/> (which overwrites the cached identity) to
+    /// detect an in-game rename by coordinates, so callers can migrate other name-keyed state (e.g. the
+    /// village status cache) from the old name to the new one.
+    /// </summary>
+    public string? GetStoredName(VillageKeyInfo village)
+    {
+        if (village is null)
+        {
+            return null;
+        }
+
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+            return _cache.TryGetValue(CanonicalKey(village), out var record) ? record.Name : null;
+        }
+    }
+
     // The canonical storage key for a village: its coordinates when known (stable, unique, survives
     // renames and multiple newdids), otherwise the caller-provided key. Using this everywhere a record is
     // read or written keeps the in-memory key identical to the one produced on reload, so a village's

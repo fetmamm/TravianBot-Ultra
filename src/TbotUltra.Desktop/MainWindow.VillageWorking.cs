@@ -783,6 +783,53 @@ public partial class MainWindow
         }
     }
 
+    // Re-keys any cached village status whose village was renamed in-game. A rename is detected by the
+    // village's stable COORDINATE key: the settings store still holds the OLD name for that key at this
+    // point (Merge runs right after and overwrites it), so a differing fresh name means a rename. The
+    // status cache is name-keyed, so without this the renamed village would miss its cached read and show
+    // "no data" until the next Switch village.
+    private void MigrateRenamedVillageStatusCacheEntries(IReadOnlyList<VillageSettingsStore.VillageKeyInfo> keyInfos)
+    {
+        if (keyInfos is null || keyInfos.Count == 0 || _villageStatusCacheByName.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var info in keyInfos)
+        {
+            var previousName = _villageSettingsStore.GetStoredName(info);
+            if (!string.IsNullOrWhiteSpace(previousName))
+            {
+                MigrateVillageStatusCacheKey(previousName, info.Name);
+            }
+        }
+    }
+
+    private void MigrateVillageStatusCacheKey(string? oldName, string? newName)
+    {
+        var oldKey = NormalizeVillageName(oldName);
+        var newKey = NormalizeVillageName(newName);
+        if (oldKey is null || newKey is null || string.Equals(oldKey, newKey, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (!_villageStatusCacheByName.TryGetValue(oldKey, out var status))
+        {
+            return;
+        }
+
+        _villageStatusCacheByName.Remove(oldKey);
+        // Keep a fresher entry already stored under the new name; otherwise carry the cached read across.
+        if (!_villageStatusCacheByName.ContainsKey(newKey))
+        {
+            _villageStatusCacheByName[newKey] = status;
+        }
+
+        _villageCacheStore.Save(_villageStatusCacheByName);
+        AppendLog($"[village-rename] migrated cached village status '{oldName}' -> '{newName}'.");
+    }
+
     private void UpdateCachedTimerStatus(string? villageName, Func<VillageStatus, VillageStatus> update)
     {
         var name = NormalizeVillageName(villageName);

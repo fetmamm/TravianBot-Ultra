@@ -263,6 +263,12 @@ En ny formaga ska kunna enhetstestas till stor del utan browser. God-klasserna s
   fore `ReadVillagesPreferCacheAsync`) matchar aktiv by pa KOORDINATER och skriver in det farska namnet i
   cachen inom en tick. Ren logik: `ReconcileRenamedActiveVillageByCoords` (matchar pa koord, aldrig namn,
   sa tvillingnamn aldrig doper om fel by). Snabbvag: hoppar koord-DOM-lasningen nar namnet redan finns i cachen.
+- Desktopens by-status-cache (`_villageStatusCacheByName` + persisterad `VillageCacheStore`) ar NAMN-nycklad,
+  sa ett namnbyte lamnar annars en foraldrad post under gamla namnet -> den omdopta byn visar "no data" tills
+  nasta Switch village. `MigrateRenamedVillageStatusCacheEntries` (i `ApplyVillageEnabledState`, FORE
+  `VillageSettingsStore.Merge`) upptacker namnbytet via KOORDINATNYCKELN: `GetStoredName` ger det gamla namnet
+  som annu ligger kvar for koordinaten (Merge skriver over det direkt efter), och `MigrateVillageStatusCacheKey`
+  flyttar cache-posten gammalt->nytt namn + sparar. Fungerar bade live och efter omstart (settings-store persisterar namnet).
 - Koposter stamplar den stabila koordinatnyckeln (`target_village_key`) vid enqueue
   (`ApplySelectedVillageToPayload`/`BuildVillageRuntimePayload`); `GetQueueItemVillageKey` laser den FORST
   (fallback namn/url for gamla poster). Annars resolvas en ny by med ATERANVANT namn (forlorad + omgrundad)
@@ -272,6 +278,12 @@ En ny formaga ska kunna enhetstestas till stor del utan browser. God-klasserna s
   `GetVillagesConfirmedMissingSince`/`RemoveVillages` + `ConfirmedVillageQueueReconciler.RemoveItemsForVillages`).
 - Login ska anvanda action pacing och vanta pa full sidladdning. Login-state `unknown` under navigation ar
   normalt en transient ladd-race; captcha, `manual_step` och `logged_out` ar inte det.
+- Post-login-landningen (dorf1) far INTE blocka pa hela browser-`load`-eventet med `_config.TimeoutMs`:
+  Officials inloggningssida drar in tredjeparts ad/consent/video-iframes vars resurser kan hanga oandligt,
+  sa `load` fyras aldrig aven om spelet ar klart -> ~20s bortkastad vantan + falskt "timeout"-alarm pa en
+  redan laddad sida. `LoginAsync` vantar `DOMContentLoaded` (snabbt/palitligt) + kort best-effort `load`
+  (`PostLoginLoadSettleTimeoutMs`=5s); en miss loggas `[login:verbose]` (aldrig alarm — `IsAlarmMessage`
+  hoppar over `:verbose]`) eftersom `WaitUntilLoggedInAsync` redan bekraftat spel-shellen.
 - Playwright `Target crashed` ar transient: kassera shared browser-session, defer:a queue-posten kort och
   lat nasta operation skapa en frisk session. `BrowserFailureClassifier.IsTargetCrash` klassar aven
   stangd sida/kontext (`...has been closed`, `page is closed`, `Cannot navigate to closed page`) som krasch.

@@ -414,6 +414,11 @@ public partial class MainWindow
             .Select(BuildVillageKeyInfo)
             .ToList();
 
+        // Detect renames by coordinate BEFORE Merge overwrites each village's stored name, and re-key
+        // the name-keyed status cache so a renamed village keeps its cached buildings/resources instead
+        // of showing "no data" until the next switch.
+        MigrateRenamedVillageStatusCacheEntries(keyInfos);
+
         _villageSettingsStore.Merge(keyInfos);
 
         for (var i = 0; i < items.Count; i++)

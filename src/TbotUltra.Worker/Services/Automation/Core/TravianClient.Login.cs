@@ -16,6 +16,12 @@ namespace TbotUltra.Worker.Services;
 // declared on this partial to co-locate the contract with the domain it covers.
 public sealed partial class TravianClient : ISessionClient
 {
+    // Post-login the game shell is already confirmed (WaitUntilLoggedInAsync), so give the browser 'load'
+    // event only a short best-effort window to settle CSS/images. Travian's login landing page pulls in
+    // third-party ad/consent/video iframes that can stall 'load' indefinitely; blocking the full
+    // _config.TimeoutMs (~20s) here just wasted time and false-alarmed on an already-loaded page.
+    private const int PostLoginLoadSettleTimeoutMs = 5000;
+
     // Login function
     public async Task LoginAsync(CancellationToken cancellationToken = default)
     {
@@ -103,30 +109,46 @@ public sealed partial class TravianClient : ISessionClient
         {
             throw new InvalidOperationException("Login did not complete successfully.");
         }
-        // Wait for the post-login landing page (dorf1) to fully render before any task navigates
-        // away. DOMContentLoaded alone fires before stylesheets/scripts finish, which made the bot
-        // switch pages on a half-loaded page and also produced transient 'unknown' login-state reads
-        // on the next tick. Wait for the full Load state, then apply the configurable page-load pace.
+        // Settle the post-login landing page (dorf1) before any task navigates away. DOMContentLoaded
+        // fires before stylesheets/scripts finish, which made the bot switch pages half-loaded and
+        // produced transient 'unknown' login-state reads; wait for it first (fast and reliable), then
+        // give the full 'load' event only a SHORT best-effort chance to settle CSS/images.
         try
         {
             await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded, new PageWaitForLoadStateOptions
             {
                 Timeout = _config.TimeoutMs,
             });
-            await _page.WaitForLoadStateAsync(LoadState.Load, new PageWaitForLoadStateOptions
+
+            // The game is already confirmed ready (DOM parsed above + logged-in shell via
+            // WaitUntilLoggedInAsync), so a 'load' that never fires because of stalled ad/consent
+            // resources is benign — log it verbose and proceed instead of blocking + false-alarming.
+            try
             {
-                Timeout = _config.TimeoutMs,
-            });
-            Notify("[login] page successfully loaded.");
+                await _page.WaitForLoadStateAsync(LoadState.Load, new PageWaitForLoadStateOptions
+                {
+                    Timeout = PostLoginLoadSettleTimeoutMs,
+                });
+                Notify("[login] page successfully loaded.");
+            }
+            catch (PlaywrightException)
+            {
+                Notify("[login:verbose] full 'load' event did not fire within the settle window (third-party ad/consent resources still pending); DOM is ready, proceeding.");
+            }
+
             await ActionPacer.FromOptions(_config, Notify).DelayAsync(
                 _config.ActionPacingPageLoadMinSeconds,
                 _config.ActionPacingPageLoadMaxSeconds,
                 cancellationToken,
                 "login: after page load");
         }
-        catch
+        catch (OperationCanceledException)
         {
-            Notify("[login] Warning: timeout waiting for page after login.");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Notify($"[login:verbose] post-login page settle did not complete: {ex.Message}");
         }
         Notify($"[login] success ({_account.Name}) — submitted credentials and confirmed");
         await RefreshAccountFeatureSignalsAsync(cancellationToken);
