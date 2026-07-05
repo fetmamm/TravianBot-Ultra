@@ -156,7 +156,7 @@ Top-level files worth knowing:
 
 - `AGENTS.md` — coding rules for AI assistants working in this repo.
 - `VERSION` — current version string, consumed by CI.
-- `Start_Tbot.bat` / `Start_Tbot_UI.vbs` — launchers.
+- `Start_Tbot.bat` / `Start_Tbot_UI.vbs` — launchers that build/run from `temp_build_out/dev-app/`.
 - `Smoke_Check.bat` — build + run worker tests.
 
 ---
@@ -244,8 +244,8 @@ xUnit. Each test file targets one class (e.g.
 `QueueStoreAndSchedulerTests`, `BuildingCatalogServiceTests`,
 `HeroViewModelTests`, `ServerOptionTests`).
 
-Run all tests with `.\scripts\Run-Tests.ps1`. It builds into `temp_build_out/test-bin/`
-so tests can run while the desktop app is open.
+Run local verification with `.\scripts\Build-Check.ps1` and `.\scripts\Run-Tests.ps1`.
+Both use isolated output under `temp_build_out/` so they can run while the desktop app is open.
 
 ---
 

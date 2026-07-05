@@ -4,7 +4,8 @@ Set fso = CreateObject("Scripting.FileSystemObject")
 projectDir = fso.GetParentFolderName(WScript.ScriptFullName)
 dotnetExe = ResolveDotnetExe(shell, fso)
 projectPath = projectDir & "\src\TbotUltra.Desktop\TbotUltra.Desktop.csproj"
-exePath = projectDir & "\src\TbotUltra.Desktop\bin\Debug\net8.0-windows\TbotUltra.Desktop.exe"
+devOutputDir = projectDir & "\temp_build_out\dev-app"
+exePath = devOutputDir & "\TbotUltra.Desktop.exe"
 srcDesktop = projectDir & "\src\TbotUltra.Desktop"
 srcWorker = projectDir & "\src\TbotUltra.Worker"
 srcCore = projectDir & "\src\TbotUltra.Core"
@@ -16,7 +17,13 @@ ElseIf Not fso.FileExists(projectPath) Then
     MsgBox "Desktop project file is missing: " & projectPath, vbExclamation, "Tbot Ultra"
 Else
     shell.CurrentDirectory = projectDir
-    shell.Run "cmd /c taskkill /IM TbotUltra.Desktop.exe /F >nul 2>nul", 0, True
+
+    If IsAppRunning(shell) Then
+        If Not shell.AppActivate("Tbot Ultra") Then
+            MsgBox "Tbot Ultra is already running. Leaving it open; close it before rebuilding the dev app output.", vbInformation, "Tbot Ultra"
+        End If
+        WScript.Quit 0
+    End If
 
     If Not fso.FileExists(exePath) Then
         needsBuild = True
@@ -33,7 +40,7 @@ Else
     End If
 
     If needsBuild Then
-        buildExitCode = shell.Run("""" & dotnetExe & """ build """ & projectPath & """ -c Debug -nologo -m:1 -p:NuGetAudit=false", 0, True)
+        buildExitCode = shell.Run("""" & dotnetExe & """ build """ & projectPath & """ -c Debug -nologo -m:1 -o """ & devOutputDir & """ --disable-build-servers -p:NuGetAudit=false -p:UseSharedCompilation=false -p:BuildInParallel=false", 0, True)
         If buildExitCode <> 0 Then
             MsgBox "Build failed. Exit code: " & buildExitCode & ". The app was not started, so you do not accidentally run an old build.", vbExclamation, "Tbot Ultra"
         ElseIf Not fso.FileExists(exePath) Then
@@ -45,6 +52,13 @@ Else
         LaunchAndActivate shell, exePath
     End If
 End If
+
+Function IsAppRunning(shellObject)
+    On Error Resume Next
+    Dim exitCode
+    exitCode = shellObject.Run("cmd /c tasklist /FI ""IMAGENAME eq TbotUltra.Desktop.exe"" | find /I ""TbotUltra.Desktop.exe"" >nul 2>nul", 0, True)
+    IsAppRunning = (exitCode = 0)
+End Function
 
 Sub UpdateLatestModified(folderPath, ByRef latest)
     On Error Resume Next

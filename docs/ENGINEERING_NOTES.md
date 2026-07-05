@@ -17,9 +17,12 @@ Djupa mekanismdetaljer ligger i `docs/adr/` och historiken i `docs/history/`.
 Beroenden: `Desktop` -> `Worker` -> `Core`.
 
 ```powershell
-dotnet build TbotUltra.sln
+.\scripts\Build-Check.ps1
 .\scripts\Run-Tests.ps1
 ```
+
+Lokala verifieringskommandon ska anvanda isolerad output i `temp_build_out/` sa de kan koras medan
+Desktop-appen ar oppen. Kor inte raw `dotnet build TbotUltra.sln` for Codex/local verify nar appen kan vara igang.
 
 ## 2. Official-only
 
