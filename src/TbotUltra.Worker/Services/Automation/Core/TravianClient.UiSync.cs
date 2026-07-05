@@ -36,6 +36,9 @@ public sealed partial class TravianClient
         {
             var currency = await ReadCurrencyAsync(cancellationToken);
             var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
+            // If the active village was renamed in-game, refresh its cached name now (matched by
+            // coordinates) so the villages list below agrees with ActiveVillage in the same payload.
+            await ReconcileActiveVillageNameInCacheAsync(activeVillage, cancellationToken);
             var villages = await ReadVillagesPreferCacheAsync(cancellationToken);
             var payload = JsonSerializer.Serialize(new UiSyncSnapshot(
                 Gold: currency.Gold,

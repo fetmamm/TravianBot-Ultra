@@ -93,6 +93,7 @@ public sealed partial class TroopTrainingViewModel
         BreweryExists = false;
         AutoCelebrationCanStart = false;
         AutoCelebrationRemainingSeconds = null;
+        ClearBreweryLoopWait();
         AutoCelebrationStatusText = "Status not loaded.";
     }
 
@@ -166,6 +167,14 @@ public sealed partial class TroopTrainingViewModel
                 AutoCelebrationStatusText = "Ready.";
                 AutoCelebrationRemainingSeconds = null;
             }
+        }
+
+        // Keep the mirrored brewery loop-card timer counting down on tabs where the dashboard
+        // loop-card refresh does not run; the dashboard re-pushes the authoritative value when visible.
+        if (_breweryLoopWaitSeconds is > 0)
+        {
+            _breweryLoopWaitSeconds = _breweryLoopWaitSeconds.Value > 1 ? _breweryLoopWaitSeconds.Value - 1 : null;
+            RaiseCelebrationTimerChanged();
         }
     }
 

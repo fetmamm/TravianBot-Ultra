@@ -163,6 +163,56 @@ public sealed partial class TroopTrainingViewModel
             : null;
     }
 
+    /// <summary>
+    /// Mirrors the dashboard automation-loop "Brewery Celebration" row timer onto the troops-tab
+    /// celebration badge so the two panels never disagree (the row shows a deferred "next try"
+    /// countdown while the badge would otherwise sit on "Ready"). Display-only: it does not touch
+    /// CanStart / BreweryExists or the loop's own timer source, so there is no feedback into the loop.
+    /// </summary>
+    public void SyncBreweryCelebrationLoopWait(int? loopRemainingSeconds)
+    {
+        var normalized = loopRemainingSeconds is > 0 ? loopRemainingSeconds : null;
+        if (_breweryLoopWaitSeconds == normalized)
+        {
+            return;
+        }
+
+        _breweryLoopWaitSeconds = normalized;
+        RaiseCelebrationTimerChanged();
+    }
+
+    /// <summary>
+    /// Clears the mirrored loop timer (account/village switch) and refreshes the badge. Kept separate
+    /// so reset paths in other partials do not poke the field directly.
+    /// </summary>
+    private void ClearBreweryLoopWait()
+    {
+        if (_breweryLoopWaitSeconds is null)
+        {
+            return;
+        }
+
+        _breweryLoopWaitSeconds = null;
+        RaiseCelebrationTimerChanged();
+    }
+
+    private void RaiseCelebrationTimerChanged()
+    {
+        OnPropertyChanged(nameof(AutoCelebrationTimerText));
+        OnPropertyChanged(nameof(AutoCelebrationBadgeBackground));
+        OnPropertyChanged(nameof(AutoCelebrationBadgeBorderBrush));
+        OnPropertyChanged(nameof(AutoCelebrationBadgeForeground));
+    }
+
+    // Seconds actually shown on the celebration badge: a live/running celebration timer wins,
+    // otherwise the mirrored brewery loop-card wait (the deferred "next try" countdown).
+    private int? EffectiveCelebrationTimerSeconds
+        => AutoCelebrationRemainingSeconds is > 0
+            ? AutoCelebrationRemainingSeconds
+            : _breweryLoopWaitSeconds is > 0
+                ? _breweryLoopWaitSeconds
+                : null;
+
     public bool AutoCelebrationEnabled
     {
         get => _autoCelebrationEnabled;
@@ -335,9 +385,9 @@ public sealed partial class TroopTrainingViewModel
                 return "N/A";
             }
 
-            if (AutoCelebrationRemainingSeconds is > 0)
+            if (EffectiveCelebrationTimerSeconds is > 0)
             {
-                var time = TimeSpan.FromSeconds(AutoCelebrationRemainingSeconds.Value);
+                var time = TimeSpan.FromSeconds(EffectiveCelebrationTimerSeconds.Value);
                 return time.TotalHours >= 1
                     ? $"{(int)time.TotalHours:00}:{time.Minutes:00}:{time.Seconds:00}"
                     : $"{time.Minutes:00}:{time.Seconds:00}";
@@ -349,7 +399,7 @@ public sealed partial class TroopTrainingViewModel
 
     public Brush AutoCelebrationBadgeBackground => !IsAutoCelebrationAvailableForCurrentTribe
         ? ThemeColors.Brush("ControlBackgroundBrush")
-        : AutoCelebrationRemainingSeconds is > 0
+        : EffectiveCelebrationTimerSeconds is > 0
             ? ThemeColors.Brush("WarningBgBrush")
             : AutoCelebrationCanStart
                 ? ThemeColors.Brush("SuccessBgBrush")
@@ -357,7 +407,7 @@ public sealed partial class TroopTrainingViewModel
 
     public Brush AutoCelebrationBadgeBorderBrush => !IsAutoCelebrationAvailableForCurrentTribe
         ? ThemeColors.Brush("BorderMutedBrush")
-        : AutoCelebrationRemainingSeconds is > 0
+        : EffectiveCelebrationTimerSeconds is > 0
             ? ThemeColors.Brush("WarningBorderBrush")
             : AutoCelebrationCanStart
                 ? ThemeColors.Brush("SuccessBorderBrush")
@@ -365,7 +415,7 @@ public sealed partial class TroopTrainingViewModel
 
     public Brush AutoCelebrationBadgeForeground => !IsAutoCelebrationAvailableForCurrentTribe
         ? ThemeColors.Brush("TextMutedBrush")
-        : AutoCelebrationRemainingSeconds is > 0
+        : EffectiveCelebrationTimerSeconds is > 0
             ? ThemeColors.Brush("WarningTextBrush")
             : AutoCelebrationCanStart
                 ? ThemeColors.Brush("SuccessTextBrush")

@@ -54,6 +54,9 @@ public sealed partial class TroopTrainingViewModel : BaseViewModel
     private bool _isAutoCelebrationAvailableForCurrentTribe;
     private bool _autoCelebrationCanStart;
     private int? _autoCelebrationRemainingSeconds;
+    // Display-only mirror of the dashboard automation-loop Brewery Celebration row timer, so the
+    // troops-tab celebration badge shows the same countdown (e.g. a deferred "next try" wait).
+    private int? _breweryLoopWaitSeconds;
     private string _autoCelebrationStatusText = "Teutons only.";
     private bool _breweryExists;
     private bool _npcTradeEnabled = true;

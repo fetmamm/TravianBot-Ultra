@@ -866,6 +866,60 @@ public sealed class TravianClientHelperTests
         Assert.Contains("|", a);
     }
 
+    [Fact]
+    public void ReconcileRenamedActiveVillageByCoords_RefreshesNameByCoordinates()
+    {
+        var cached = new List<Village>
+        {
+            new("240", "dorf1.php?newdid=36606", CoordX: 169, CoordY: 145),
+            new("New village", "dorf1.php?newdid=42445", CoordX: 171, CoordY: 144),
+        };
+
+        var updated = TravianClient.ReconcileRenamedActiveVillageByCoords(cached, "1440", (171, 144));
+
+        Assert.NotNull(updated);
+        Assert.Equal("1440", updated!.Single(v => v.CoordX == 171 && v.CoordY == 144).Name);
+        // Unrelated village and the renamed village's identity (url/coords) are untouched.
+        Assert.Equal("240", updated.Single(v => v.CoordX == 169).Name);
+        Assert.Equal("dorf1.php?newdid=42445", updated.Single(v => v.CoordX == 171).Url);
+    }
+
+    [Fact]
+    public void ReconcileRenamedActiveVillageByCoords_ReturnsNullWhenNameAlreadyPresent()
+    {
+        var cached = new List<Village>
+        {
+            new("1440", "dorf1.php?newdid=42445", CoordX: 171, CoordY: 144),
+        };
+
+        // Already consistent — no rename to apply, so no rebuild.
+        Assert.Null(TravianClient.ReconcileRenamedActiveVillageByCoords(cached, "1440", (171, 144)));
+    }
+
+    [Fact]
+    public void ReconcileRenamedActiveVillageByCoords_ReturnsNullWithoutCoordinates()
+    {
+        var cached = new List<Village>
+        {
+            new("New village", "dorf1.php?newdid=42445", CoordX: 171, CoordY: 144),
+        };
+
+        // No active coordinates → cannot safely match; leave the cache unchanged (never rename the
+        // wrong village when two share a name).
+        Assert.Null(TravianClient.ReconcileRenamedActiveVillageByCoords(cached, "1440", (null, null)));
+    }
+
+    [Fact]
+    public void ReconcileRenamedActiveVillageByCoords_ReturnsNullWhenNoCoordinateMatch()
+    {
+        var cached = new List<Village>
+        {
+            new("New village", "dorf1.php?newdid=42445", CoordX: 171, CoordY: 144),
+        };
+
+        Assert.Null(TravianClient.ReconcileRenamedActiveVillageByCoords(cached, "1440", (99, 99)));
+    }
+
     private static VillageStatus MakeStatusWithBuildings(params Building[] buildings) =>
         new(
             ActiveVillage: "Test",

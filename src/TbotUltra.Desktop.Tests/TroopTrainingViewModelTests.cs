@@ -57,4 +57,55 @@ public sealed class TroopTrainingViewModelTests
         Assert.Equal("Queue not loaded.", vm.Buildings[0].QueueStatusText);
         Assert.Equal("00:00h", vm.Buildings[0].QueueTimerText);
     }
+
+    [Fact]
+    public void SyncBreweryCelebrationLoopWait_ShowsLoopTimerInsteadOfReady()
+    {
+        var vm = ReadyCelebrationViewModel();
+        Assert.Equal("Ready", vm.AutoCelebrationTimerText);
+
+        vm.SyncBreweryCelebrationLoopWait(53237); // 14h 47m 17s — the dashboard loop row countdown
+
+        Assert.Equal("14:47:17", vm.AutoCelebrationTimerText);
+    }
+
+    [Fact]
+    public void RunningCelebrationTimer_TakesPrecedenceOverLoopWait()
+    {
+        var vm = ReadyCelebrationViewModel();
+        vm.SyncBreweryCelebrationLoopWait(53237);
+
+        // A live/running celebration timer is the more authoritative reading and wins.
+        vm.PushBreweryCelebrationRemainingSeconds(65, "Celebration running.");
+
+        Assert.Equal("01:05", vm.AutoCelebrationTimerText);
+    }
+
+    [Fact]
+    public void ResetRuntimeState_ClearsMirroredLoopTimer()
+    {
+        var vm = ReadyCelebrationViewModel();
+        vm.SyncBreweryCelebrationLoopWait(53237);
+
+        vm.ResetRuntimeState();
+
+        Assert.Equal("N/A", vm.AutoCelebrationTimerText);
+    }
+
+    private static TroopTrainingViewModel ReadyCelebrationViewModel()
+    {
+        var vm = new TroopTrainingViewModel();
+        vm.Initialize();
+        vm.UpdateAutoCelebrationAvailability("Teutons");
+        vm.ApplyBreweryCelebrationStatus(new BreweryCelebrationStatus(
+            IsAvailableForTribe: true,
+            IsCapital: true,
+            BreweryExists: true,
+            BrewerySlotId: 35,
+            CelebrationRunning: false,
+            RemainingSeconds: null,
+            RemainingText: string.Empty,
+            StatusText: "Ready."));
+        return vm;
+    }
 }

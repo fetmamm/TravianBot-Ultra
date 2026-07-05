@@ -396,6 +396,66 @@ public sealed partial class TravianClient
         }
     }
 
+    // Reconciles a renamed ACTIVE village into the cached list within one ui-sync tick, instead of
+    // waiting for the next village switch or the cache-TTL sidebar refresh. The active village name is
+    // read fresh every tick but the villages list is served from cache, so after an in-game rename the
+    // ui-sync payload is internally inconsistent (ActiveVillage='1440' while the list still says
+    // 'New village') — which makes the dashboard village name flicker back and forth.
+    private async Task ReconcileActiveVillageNameInCacheAsync(string? activeVillageName, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(activeVillageName)
+            || _cachedVillages is not { Count: > 0 } cached
+            || cached.Any(v => IsSameVillageName(v.Name, activeVillageName)))
+        {
+            // Fast path: the active name already matches a cached village — nothing to reconcile. This
+            // avoids a coordinate DOM read on every tick; the read below only runs right after a rename.
+            return;
+        }
+
+        var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+        var updated = ReconcileRenamedActiveVillageByCoords(cached, activeVillageName!, activeCoords);
+        if (updated is not null)
+        {
+            Notify($"[village-rename] active village at ({activeCoords.X}|{activeCoords.Y}) renamed to '{activeVillageName}'; refreshed cached village name.");
+            UpdateCachedVillages(updated);
+        }
+    }
+
+    // Pure: refreshes the renamed active village's name in the cached list, matched by COORDINATES
+    // (stable and unique per village — a village never moves and keeps its coords across renames, and
+    // two villages can share a name but never coordinates). Returns null when nothing needs changing
+    // (name already present, no coords, or no coordinate match).
+    internal static IReadOnlyList<Village>? ReconcileRenamedActiveVillageByCoords(
+        IReadOnlyList<Village> cached,
+        string activeVillageName,
+        (int? X, int? Y) activeCoords)
+    {
+        if (string.IsNullOrWhiteSpace(activeVillageName)
+            || cached is not { Count: > 0 }
+            || !HasVillageCoords(activeCoords)
+            || cached.Any(v => IsSameVillageName(v.Name, activeVillageName)))
+        {
+            return null;
+        }
+
+        var changed = false;
+        var updated = cached
+            .Select(v =>
+            {
+                if (!SameVillageCoords((v.CoordX, v.CoordY), activeCoords)
+                    || IsSameVillageName(v.Name, activeVillageName))
+                {
+                    return v;
+                }
+
+                changed = true;
+                return v with { Name = activeVillageName.Trim() };
+            })
+            .ToList();
+
+        return changed ? updated : null;
+    }
+
     private static string NormalizeVillageNameForComparison(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))

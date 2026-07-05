@@ -214,6 +214,13 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
   gangen (fönstrets code-behind kollapsar ovriga). Auto celebration styrs ENDAST av Brewery-gruppens
   toggle pa dashboardens automation-kort (gruppen force-syncar `AutoCelebrationEnabled`); checkboxen
   pa Troops-tabben ar borttagen.
+- Troops-tabbens "Celebration status"-badge speglar dashboardens Brewery-gruppradstimer: `RefreshAutomationLoopCardStates`
+  pushar radens slutliga `RemainingSeconds` via `TroopTrainingViewModel.SyncBreweryCelebrationLoopWait` till
+  `_breweryLoopWaitSeconds` (display-only fält). `AutoCelebrationTimerText`/badge-brushes anvander
+  `EffectiveCelebrationTimerSeconds` = live celebration-timer forst, annars loop-speglingen (deferred "next try").
+  Pushen sker bara pa dashboard-tabben + i capital; `TickCountdowns` raknar ner spegeln pa andra tabbar,
+  och `ResetRuntimeState` nollar den. Rör INTE `AutoCelebrationRemainingSeconds`/`CanStart` (undviker feedback
+  in i loopens egen timerkalla `ResolveBreweryCelebrationGroupRemainingSeconds`).
 - Server-pickern i Accounts kombinerar `OfficialServerCatalog` (inbyggda officiella varldar, grupperade per
   region: America/Arabia/Asia/Europe/International, varldar 1-9=1x, 20=2x, 30/31=3x, 50=5x, 100=10x enligt
   `ts{N}.x{speed}.{region}.travian.com`) med anvandarens custom-lista ("Custom"-gruppen overst). Officiella
@@ -249,6 +256,13 @@ En ny formaga ska kunna enhetstestas till stor del utan browser. God-klasserna s
   tva poster. Fallback: newdid (`did:N`), sen namn (`name:..`). `VillageSettingsStore` kanoniserar via
   koordinater (`CanonicalKey`) och migrerar/slar ihop gamla `did:`-poster vid inlasning. Koobjekt bar bara
   namn/url -> namnbaserad nyckel; `NormalizeKey`/`ResolveCanonicalKey` mappar `name:..` till `xy:..`.
+- By-NAMN (visning) serveras ur `_cachedVillages` (worker, TTL 15s) och uppdateras annars bara vid
+  by-*byte*/TTL — ett in-game namnbyte syns darfor stale. `[ui-sync]` laser aktivt bynamn FARSKT varje
+  tick men bylistan ur cache, sa payloaden blir inkonsistent (ActiveVillage='1440' men listan 'New
+  village') -> UI-namnet flimrar. `ReconcileActiveVillageNameInCacheAsync` (anropas i `TryEmitUiSyncSnapshotAsync`
+  fore `ReadVillagesPreferCacheAsync`) matchar aktiv by pa KOORDINATER och skriver in det farska namnet i
+  cachen inom en tick. Ren logik: `ReconcileRenamedActiveVillageByCoords` (matchar pa koord, aldrig namn,
+  sa tvillingnamn aldrig doper om fel by). Snabbvag: hoppar koord-DOM-lasningen nar namnet redan finns i cachen.
 - Koposter stamplar den stabila koordinatnyckeln (`target_village_key`) vid enqueue
   (`ApplySelectedVillageToPayload`/`BuildVillageRuntimePayload`); `GetQueueItemVillageKey` laser den FORST
   (fallback namn/url for gamla poster). Annars resolvas en ny by med ATERANVANT namn (forlorad + omgrundad)

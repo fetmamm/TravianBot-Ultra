@@ -578,6 +578,13 @@ public partial class MainWindow
                 item.DetailText = pendingCount > 0 ? $"{pendingCount} queued." : "No queued task.";
                 item.RemainingSeconds = null;
             }
+
+            // Mirror this row's final timer onto the troops-tab celebration badge so the two panels
+            // agree. Skip outside the capital: the badge keeps its account-wide value ticking there.
+            if (group == QueueGroup.BreweryCelebration && !isBreweryGroupOutsideCapital)
+            {
+                _troopTrainingViewModel.SyncBreweryCelebrationLoopWait(item.RemainingSeconds);
+            }
         }
 
         if (disabledInvalidResourceTransfer || disabledInvalidReinforcements)
