@@ -219,6 +219,89 @@ public sealed class TravianClientHelperTests
     }
 
     [Fact]
+    public void BuildQueueFindTargetBuilding_RequiresTargetSlotWhenAvailable()
+    {
+        IReadOnlyList<BuildQueueItem> queue =
+        [
+            new BuildQueueItem("Warehouse Level 5 0:02:30", "0:02:30", SlotId: 20, Gid: 10),
+            new BuildQueueItem("Warehouse Level 7 0:03:30", "0:03:30", SlotId: 25, Gid: 10),
+        ];
+
+        var match = BuildQueueFingerprints.FindTargetBuilding(queue, "Warehouse", slotId: 25, gid: 10, targetLevel: 7);
+
+        Assert.NotNull(match);
+        Assert.Equal(25, match.SlotId);
+    }
+
+    [Fact]
+    public void BuildQueueFindTargetBuilding_RejectsWrongSlot()
+    {
+        IReadOnlyList<BuildQueueItem> queue =
+        [
+            new BuildQueueItem("Warehouse Level 5 0:02:30", "0:02:30", SlotId: 20, Gid: 10),
+        ];
+
+        Assert.Null(BuildQueueFingerprints.FindTargetBuilding(queue, "Warehouse", slotId: 25, gid: 10, targetLevel: 5));
+    }
+
+    [Fact]
+    public void BuildQueueFindTargetBuilding_RejectsLowerQueuedLevelOnSameSlot()
+    {
+        IReadOnlyList<BuildQueueItem> queue =
+        [
+            new BuildQueueItem("Warehouse Level 4 0:02:30", "0:02:30", SlotId: 20, Gid: 10),
+        ];
+
+        Assert.Null(BuildQueueFingerprints.FindTargetBuilding(queue, "Warehouse", slotId: 20, gid: 10, targetLevel: 5));
+    }
+
+    [Fact]
+    public void BuildQueueFindNewTargetBuilding_DetectsSecondQueuedLevelOnSameSlot()
+    {
+        IReadOnlyList<BuildQueueItem> before =
+        [
+            new BuildQueueItem("Warehouse Level 4 0:02:30", "0:02:30", SlotId: 20, Gid: 10),
+        ];
+        IReadOnlyList<BuildQueueItem> after =
+        [
+            new BuildQueueItem("Warehouse Level 4 0:02:20", "0:02:20", SlotId: 20, Gid: 10),
+            new BuildQueueItem("Warehouse Level 5 0:04:00", "0:04:00", SlotId: 20, Gid: 10),
+        ];
+
+        var match = BuildQueueFingerprints.FindNewTargetBuilding(before, after, "Warehouse", slotId: 20, gid: 10, targetLevel: 5);
+
+        Assert.NotNull(match);
+        Assert.Equal("Warehouse Level 5 0:04:00", match.Text);
+    }
+
+    [Fact]
+    public void BuildQueueFindNewBuildingByName_DoesNotTreatExistingRowAsNew()
+    {
+        IReadOnlyList<BuildQueueItem> before =
+        [
+            new BuildQueueItem("Warehouse Level 5 0:02:30", "0:02:30"),
+        ];
+        IReadOnlyList<BuildQueueItem> after =
+        [
+            new BuildQueueItem("Warehouse Level 5 0:02:25", "0:02:25"),
+        ];
+
+        Assert.Null(BuildQueueFingerprints.FindNewBuildingByName(before, after, "Warehouse"));
+    }
+
+    [Fact]
+    public void BuildQueueFindNewBuildingByName_DetectsAddedNameWhenSlotMissing()
+    {
+        IReadOnlyList<BuildQueueItem> before = [];
+        IReadOnlyList<BuildQueueItem> after =
+        [
+            new BuildQueueItem("Warehouse Level 5 0:02:30", "0:02:30"),
+        ];
+
+        Assert.NotNull(BuildQueueFingerprints.FindNewBuildingByName(before, after, "Warehouse"));
+    }
+
+    [Fact]
     public void ResolveTroopTrainingQueueRemainingSeconds_ReturnsLongestOrZero()
     {
         IReadOnlyList<BuildQueueItem> queue =

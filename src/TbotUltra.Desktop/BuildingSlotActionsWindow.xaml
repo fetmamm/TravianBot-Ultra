@@ -54,7 +54,7 @@
                                FontWeight="SemiBold"
                                VerticalAlignment="Center" />
                     <TextBlock x:Name="NextLevelConstructFasterTimeTextBlock"
-                               Foreground="#C084FC"
+                               Foreground="{DynamicResource ConstructFasterBrush}"
                                FontWeight="SemiBold"
                                VerticalAlignment="Center"
                                Margin="6,0,0,0" />

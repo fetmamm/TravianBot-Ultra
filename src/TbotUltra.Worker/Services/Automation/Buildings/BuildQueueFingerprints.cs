@@ -44,6 +44,46 @@ internal static class BuildQueueFingerprints
         return queue.Any(item => TextMatchesBuilding(item.Text, buildingName));
     }
 
+    internal static BuildQueueItem? FindNewTargetBuilding(
+        IReadOnlyList<BuildQueueItem> before,
+        IReadOnlyList<BuildQueueItem> after,
+        string buildingName,
+        int slotId,
+        int? gid,
+        int targetLevel)
+    {
+        var beforeCount = before.Count(item => TargetMatches(item, buildingName, slotId, gid, targetLevel));
+        return after
+            .Where(item => TargetMatches(item, buildingName, slotId, gid, targetLevel))
+            .Skip(beforeCount)
+            .FirstOrDefault();
+    }
+
+    internal static BuildQueueItem? FindTargetBuilding(
+        IReadOnlyList<BuildQueueItem> queue,
+        string buildingName,
+        int slotId,
+        int? gid,
+        int targetLevel)
+    {
+        return queue.FirstOrDefault(item => TargetMatches(item, buildingName, slotId, gid, targetLevel));
+    }
+
+    internal static BuildQueueItem? FindNewBuildingByName(
+        IReadOnlyList<BuildQueueItem> before,
+        IReadOnlyList<BuildQueueItem> after,
+        string buildingName)
+    {
+        var beforeCount = before.Count(item => TextMatchesBuilding(item.Text, buildingName));
+        var afterMatches = after
+            .Where(item => TextMatchesBuilding(item.Text, buildingName))
+            .ToList();
+
+        return afterMatches.Count > beforeCount
+            ? afterMatches.FirstOrDefault()
+            : null;
+    }
+
     internal static bool TextMatchesBuilding(string? text, string buildingName)
     {
         if (string.IsNullOrWhiteSpace(text) || string.IsNullOrWhiteSpace(buildingName))
@@ -64,6 +104,45 @@ internal static class BuildQueueFingerprints
 
         return normalizedText.Equals(normalizedName, StringComparison.OrdinalIgnoreCase)
             || normalizedText.StartsWith(normalizedName + " ", StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static int? TryReadLevel(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        var match = Regex.Match(text, @"\b(?:level|lvl)\s*(\d{1,3})\b", RegexOptions.IgnoreCase);
+        return match.Success && int.TryParse(match.Groups[1].Value, out var level)
+            ? level
+            : null;
+    }
+
+    private static bool TargetMatches(
+        BuildQueueItem item,
+        string buildingName,
+        int slotId,
+        int? gid,
+        int targetLevel)
+    {
+        if (item.SlotId != slotId)
+        {
+            return false;
+        }
+
+        if (gid is int expectedGid && item.Gid is int actualGid && actualGid != expectedGid)
+        {
+            return false;
+        }
+
+        var level = TryReadLevel(item.Text);
+        if (level is int parsedLevel)
+        {
+            return parsedLevel >= targetLevel;
+        }
+
+        return TextMatchesBuilding(item.Text, buildingName);
     }
 
     // The build-queue row text contains a live countdown timer (e.g. "0:08:12") and/or a completion

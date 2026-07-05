@@ -61,6 +61,11 @@
                                    Foreground="{DynamicResource TextPrimaryBrush}"
                                    FontWeight="SemiBold"
                                    VerticalAlignment="Center" />
+                        <TextBlock x:Name="ConstructFasterTimeTextBlock"
+                                   Foreground="{DynamicResource ConstructFasterBrush}"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center"
+                                   Margin="6,0,0,0" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
                         <TextBlock x:Name="WoodTextBlock" Text="-" Foreground="{DynamicResource WoodTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />

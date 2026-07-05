@@ -438,6 +438,15 @@ public sealed partial class TravianClient
 
         [JsonPropertyName("timeLeft")]
         public string? TimeLeft { get; init; }
+
+        [JsonPropertyName("slotId")]
+        public int? SlotId { get; init; }
+
+        [JsonPropertyName("gid")]
+        public int? Gid { get; init; }
+
+        [JsonPropertyName("href")]
+        public string? Href { get; init; }
     }
 
     private sealed class ActiveConstructionJs
@@ -456,6 +465,15 @@ public sealed partial class TravianClient
 
         [JsonPropertyName("finishAtText")]
         public string? FinishAtText { get; init; }
+
+        [JsonPropertyName("slotId")]
+        public int? SlotId { get; init; }
+
+        [JsonPropertyName("gid")]
+        public int? Gid { get; init; }
+
+        [JsonPropertyName("href")]
+        public string? Href { get; init; }
     }
 
     private sealed class FarmListRowJs

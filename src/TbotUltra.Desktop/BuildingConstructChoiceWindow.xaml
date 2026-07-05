@@ -118,6 +118,11 @@
                                Foreground="{DynamicResource TextPrimaryBrush}"
                                FontWeight="SemiBold"
                                VerticalAlignment="Center"
+                               Margin="0,0,6,0" />
+                    <TextBlock x:Name="ConstructFasterTimeTextBlock"
+                               Foreground="{DynamicResource ConstructFasterBrush}"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"
                                Margin="0,0,16,0" />
                     <TextBlock Text="Cost "
                                Foreground="{DynamicResource TextSubtleBrush}"

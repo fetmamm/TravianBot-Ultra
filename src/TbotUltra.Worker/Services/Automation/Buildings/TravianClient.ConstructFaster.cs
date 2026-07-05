@@ -1,6 +1,7 @@
 using Microsoft.Playwright;
 using System.Globalization;
 using System.Text.Json;
+using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Worker.Services;
 
@@ -22,7 +23,8 @@ public sealed partial class TravianClient
         int? gid,
         string buildingName,
         int previousLevel,
-        string queueFingerprintBefore,
+        int targetLevel,
+        IReadOnlyList<BuildQueueItem> buildQueueBefore,
         int durationSeconds,
         string? restorePath,
         CancellationToken cancellationToken)
@@ -72,7 +74,9 @@ public sealed partial class TravianClient
                 slotId,
                 previousLevel,
                 buildingName,
-                queueFingerprintBefore,
+                targetLevel,
+                buildQueueBefore,
+                gid,
                 cancellationToken);
             lastEvidence = verification.Evidence;
             if (verification.Success)
@@ -101,7 +105,9 @@ public sealed partial class TravianClient
         int slotId,
         int previousLevel,
         string buildingName,
-        string queueFingerprintBefore,
+        int targetLevel,
+        IReadOnlyList<BuildQueueItem> buildQueueBefore,
+        int? gid,
         CancellationToken cancellationToken)
     {
         try
@@ -112,7 +118,9 @@ public sealed partial class TravianClient
                 slotId,
                 previousLevel,
                 buildingName,
-                queueFingerprintBefore,
+                buildQueueBefore,
+                gid,
+                targetLevel,
                 cancellationToken);
             if (progress.Advanced || progress.QueuedOrInProgress)
             {
@@ -131,10 +139,28 @@ public sealed partial class TravianClient
         {
             throw;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (!ShouldRethrowConstructFasterVerificationFailure(ex))
         {
             return (false, $"verification failed: {ex.Message}");
         }
+    }
+
+    private static bool ShouldRethrowConstructFasterVerificationFailure(Exception ex)
+    {
+        if (BrowserFailureClassifier.IsTargetCrash(ex) || IsTransientExecutionContextException(ex))
+        {
+            return true;
+        }
+
+        for (var current = ex; current is not null; current = current.InnerException)
+        {
+            if (current is TimeoutException or PlaywrightException)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private async Task RestoreBuildPageAfterConstructFasterFallbackAsync(

@@ -191,7 +191,7 @@ public sealed partial class TravianClient : IBuildingClient
                 return $"Slot {slotId}: upgrade to level {targetLevel} already queued and still in progress. Upgrades performed: {upgrades}. queue_wait_seconds={queuedWaitSeconds}";
             }
             var nextLevel = highestKnownLevel + 1;
-            var queueFingerprintBefore = BuildQueueFingerprints.Identity(await ReadBuildQueueAsync(cancellationToken));
+            var buildQueueBefore = await ReadBuildQueueAsync(cancellationToken);
 
             // Tribe/Plus-aware slot gate: if the build queue is full, defer this task back to
             // the program queue (queue_wait_seconds) rather than blocking the worker thread.
@@ -221,7 +221,8 @@ public sealed partial class TravianClient : IBuildingClient
                 ParseGidFromBuildingCode(info.BuildingCode),
                 buildingName,
                 currentLevel,
-                queueFingerprintBefore,
+                nextLevel,
+                buildQueueBefore,
                 durationSeconds,
                 null,
                 cancellationToken);
@@ -272,17 +273,29 @@ public sealed partial class TravianClient : IBuildingClient
                     heroTransferAttempted = true;
                     if (await TryHeroResourceTransferForConstructionAsync($"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}", cancellationToken))
                     {
-                        // The transfer topped up resources and reloaded the build page — we are already on
-                        // build.php?id=slot. Wait for the controls to finish rendering, then apply the
-                        // configurable page-load pace, and click the upgrade directly. Avoids the extra
-                        // dorf2 → build.php round-trip that a plain `continue` would do (faster + cleaner).
+                        // The transfer topped up resources and reloaded the build page. Retry construct-faster
+                        // before falling back to the normal button; resource shortage can disable the video
+                        // button until this point.
                         await EnsureExpectedBuildSlotPageAsync(slotId, "upgrade after hero transfer", cancellationToken);
                         await ActionPacer.FromOptions(_config, Notify).DelayAsync(
                             _config.ActionPacingPageLoadMinSeconds,
                             _config.ActionPacingPageLoadMaxSeconds,
                             cancellationToken,
                             "after hero transfer reload");
-                        clicked = await ClickUpgradeToLevelButtonAsync(slotId, nextLevel, cancellationToken);
+                        clicked = await TryUseConstructFasterForBuildAsync(
+                            slotId,
+                            ParseGidFromBuildingCode(info.BuildingCode),
+                            buildingName,
+                            currentLevel,
+                            nextLevel,
+                            buildQueueBefore,
+                            durationSeconds,
+                            null,
+                            cancellationToken);
+                        if (!clicked)
+                        {
+                            clicked = await ClickUpgradeToLevelButtonAsync(slotId, nextLevel, cancellationToken);
+                        }
                     }
                 }
 
@@ -348,7 +361,7 @@ public sealed partial class TravianClient : IBuildingClient
             await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
             var postClickWaitSeconds = await ReadQueuedBuildingWaitSecondsAsync(buildingName, durationSeconds, cancellationToken);
             transientRetries = 0;
-            var progress = await WaitForBuildingLevelAdvanceAsync(slotId, currentLevel, buildingName, queueFingerprintBefore, cancellationToken);
+            var progress = await WaitForBuildingLevelAdvanceAsync(slotId, currentLevel, buildingName, buildQueueBefore, ParseGidFromBuildingCode(info.BuildingCode), nextLevel, cancellationToken);
             if (!progress.Advanced && !progress.QueuedOrInProgress)
             {
                 // Final dorf2 probe before deferring — instant servers complete builds before the
@@ -1262,7 +1275,7 @@ public sealed partial class TravianClient : IBuildingClient
                 return $"Slot {slotId}: upgrade toward max already queued and still in progress (max {maxLevel}). Upgrades performed: {upgrades}. queue_wait_seconds={queuedWaitSeconds}";
             }
             var nextLevel = highestKnownLevel + 1;
-            var queueFingerprintBefore = BuildQueueFingerprints.Identity(await ReadBuildQueueAsync(cancellationToken));
+            var buildQueueBefore = await ReadBuildQueueAsync(cancellationToken);
 
             // Tribe/Plus-aware slot gate: if the build queue is full, defer this task back to
             // the program queue (queue_wait_seconds) rather than blocking the worker thread.
@@ -1288,7 +1301,8 @@ public sealed partial class TravianClient : IBuildingClient
                 gid,
                 buildingName,
                 currentLevel,
-                queueFingerprintBefore,
+                nextLevel,
+                buildQueueBefore,
                 durationSeconds,
                 null,
                 cancellationToken);
@@ -1339,17 +1353,29 @@ public sealed partial class TravianClient : IBuildingClient
                     heroTransferAttempted = true;
                     if (await TryHeroResourceTransferForConstructionAsync($"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}", cancellationToken))
                     {
-                        // The transfer topped up resources and reloaded the build page — we are already on
-                        // build.php?id=slot. Wait for the controls to finish rendering, then apply the
-                        // configurable page-load pace, and click the upgrade directly. Avoids the extra
-                        // dorf2 → build.php round-trip that a plain `continue` would do (faster + cleaner).
+                        // The transfer topped up resources and reloaded the build page. Retry construct-faster
+                        // before falling back to the normal button; resource shortage can disable the video
+                        // button until this point.
                         await EnsureExpectedBuildSlotPageAsync(slotId, "upgrade after hero transfer", cancellationToken);
                         await ActionPacer.FromOptions(_config, Notify).DelayAsync(
                             _config.ActionPacingPageLoadMinSeconds,
                             _config.ActionPacingPageLoadMaxSeconds,
                             cancellationToken,
                             "after hero transfer reload");
-                        clicked = await ClickUpgradeToLevelButtonAsync(slotId, nextLevel, cancellationToken);
+                        clicked = await TryUseConstructFasterForBuildAsync(
+                            slotId,
+                            gid,
+                            buildingName,
+                            currentLevel,
+                            nextLevel,
+                            buildQueueBefore,
+                            durationSeconds,
+                            null,
+                            cancellationToken);
+                        if (!clicked)
+                        {
+                            clicked = await ClickUpgradeToLevelButtonAsync(slotId, nextLevel, cancellationToken);
+                        }
                     }
                 }
 
@@ -1415,7 +1441,7 @@ public sealed partial class TravianClient : IBuildingClient
             await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
             var postClickWaitSeconds = await ReadQueuedBuildingWaitSecondsAsync(buildingName, durationSeconds, cancellationToken);
             transientRetries = 0;
-            var progress = await WaitForBuildingLevelAdvanceAsync(slotId, currentLevel, buildingName, queueFingerprintBefore, cancellationToken);
+            var progress = await WaitForBuildingLevelAdvanceAsync(slotId, currentLevel, buildingName, buildQueueBefore, gid, nextLevel, cancellationToken);
             if (!progress.Advanced && !progress.QueuedOrInProgress)
             {
                 // Final dorf2 probe before deferring — see UpgradeBuildingToLevelAsync for rationale.
@@ -1488,7 +1514,7 @@ public sealed partial class TravianClient : IBuildingClient
         for (var attempt = 0; attempt < safetyCap; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var queueFingerprintBefore = BuildQueueFingerprints.Identity(await ReadBuildQueueAsync(cancellationToken));
+            var buildQueueBefore = await ReadBuildQueueAsync(cancellationToken);
 
             // Pre-flight queue gate: defer to program queue if no construction slot is free.
             var deferMessage = await CheckQueueOrDeferAsync(ConstructionKind.Building, slotId, attempt, cancellationToken);
@@ -1580,7 +1606,8 @@ public sealed partial class TravianClient : IBuildingClient
                 gid,
                 buildingName,
                 0,
-                queueFingerprintBefore,
+                1,
+                buildQueueBefore,
                 durationSeconds,
                 url,
                 cancellationToken);
@@ -1654,7 +1681,7 @@ public sealed partial class TravianClient : IBuildingClient
                     continue;
                 }
 
-                var existingProgress = await DetectConstructProgressAsync(slotId, gid, buildingName, queueFingerprintBefore, cancellationToken);
+                var existingProgress = await DetectConstructProgressAsync(slotId, gid, buildingName, buildQueueBefore, 1, cancellationToken);
                 if (existingProgress.Started)
                 {
                     return $"Queued {buildingName} in slot {slotId}. Evidence: {existingProgress.Evidence}.";
@@ -1688,7 +1715,7 @@ public sealed partial class TravianClient : IBuildingClient
             }
 
             var constructFasterResultNote = usedConstructFasterVideo ? " 25% faster (video)." : string.Empty;
-            var progress = await WaitForBuildingLevelAdvanceAsync(slotId, 0, buildingName, queueFingerprintBefore, cancellationToken);
+            var progress = await WaitForBuildingLevelAdvanceAsync(slotId, 0, buildingName, buildQueueBefore, gid, 1, cancellationToken);
             if (!progress.Advanced && !progress.QueuedOrInProgress)
             {
                 // Final dorf2 probe: an instant-build server can finish a level-1 construct
@@ -1715,16 +1742,26 @@ public sealed partial class TravianClient : IBuildingClient
         int slotId,
         int gid,
         string buildingName,
-        string queueFingerprintBefore,
+        IReadOnlyList<BuildQueueItem> buildQueueBefore,
+        int targetLevel,
         CancellationToken cancellationToken)
     {
         try
         {
             var queueItems = await ReadBuildQueueAsync(cancellationToken);
+            var queueFingerprintBefore = BuildQueueFingerprints.Identity(buildQueueBefore);
             var queueFingerprintAfter = BuildQueueFingerprints.Identity(queueItems);
-            if (BuildQueueFingerprints.ContainsBuilding(queueItems, buildingName))
+            var targetQueueItem = BuildQueueFingerprints.FindNewTargetBuilding(buildQueueBefore, queueItems, buildingName, slotId, gid, targetLevel)
+                ?? BuildQueueFingerprints.FindTargetBuilding(queueItems, buildingName, slotId, gid, targetLevel);
+            if (targetQueueItem is not null)
             {
-                return (true, $"build queue contains {buildingName}");
+                return (true, $"build queue contains slot {targetQueueItem.SlotId?.ToString(CultureInfo.InvariantCulture) ?? "unknown"} {buildingName}");
+            }
+
+            var newQueueItem = BuildQueueFingerprints.FindNewBuildingByName(buildQueueBefore, queueItems, buildingName);
+            if (newQueueItem is not null)
+            {
+                return (true, $"build queue added {buildingName}");
             }
 
             if (!string.Equals(queueFingerprintBefore, queueFingerprintAfter, StringComparison.Ordinal))
@@ -1735,10 +1772,10 @@ public sealed partial class TravianClient : IBuildingClient
             var activeConstructions = await ReadActiveConstructionsAsync(cancellationToken);
             var matchingActiveConstruction = activeConstructions.FirstOrDefault(item =>
                 item.Kind != ConstructionKind.Resource
-                && BuildingNames.Same(item.Name, buildingName));
+                && ActiveConstructionMatchesTarget(item, slotId, gid, targetLevel));
             if (matchingActiveConstruction is not null)
             {
-                return (true, $"active construction detected for {matchingActiveConstruction.Name}");
+                return (true, $"active construction detected for slot {matchingActiveConstruction.SlotId?.ToString(CultureInfo.InvariantCulture) ?? "unknown"} {matchingActiveConstruction.Name}");
             }
 
             await GotoAsync(Paths.Buildings, cancellationToken);
@@ -3559,6 +3596,39 @@ public sealed partial class TravianClient : IBuildingClient
         var rawJson = await _page.EvaluateAsync<string>(
             """
             () => {
+              const parseNumber = (value) => {
+                if (value == null || value === '') return null;
+                const parsed = Number(value);
+                return Number.isFinite(parsed) ? parsed : null;
+              };
+              const readUrlParam = (href, names) => {
+                if (!href) return null;
+                try {
+                  const url = new URL(href, window.location.href);
+                  for (const name of names) {
+                    const parsed = parseNumber(url.searchParams.get(name));
+                    if (parsed != null) return parsed;
+                  }
+                } catch {
+                  for (const name of names) {
+                    const match = href.match(new RegExp(`[?&]${name}=(\\d{1,2})(?:\\D|$)`, 'i'));
+                    if (match) return Number(match[1]);
+                  }
+                }
+                return null;
+              };
+              const readElementNumber = (element, attrs, regexes) => {
+                for (const attr of attrs) {
+                  const parsed = parseNumber(element.getAttribute(attr));
+                  if (parsed != null) return parsed;
+                }
+                const classText = String(element.className || '');
+                for (const regex of regexes) {
+                  const match = classText.match(regex);
+                  if (match) return Number(match[1]);
+                }
+                return null;
+              };
               const selectors = [
                 '.buildingList li',
                 '#building_contract li',
@@ -3582,7 +3652,15 @@ public sealed partial class TravianClient : IBuildingClient
                   // detail list items. Only count rows that carry actual construction identity/timing.
                   if (!timeElement && !nameElement && !durationElement) continue;
                   const timeLeft = timeElement ? (timeElement.textContent || '').trim() : null;
-                  items.push({ text, timeLeft });
+                  const link = element.querySelector('a[href*="build.php"], a[href*="dorf1.php"], a[href*="dorf2.php"]');
+                  const href = link ? (link.getAttribute('href') || '') : '';
+                  const slotId =
+                    readUrlParam(href, ['id', 'a'])
+                    ?? readElementNumber(element, ['data-aid', 'data-slot', 'data-slot-id', 'data-building-slot-id', 'data-id'], [/\baid(\d{1,2})\b/i, /\ba(\d{1,2})\b/i]);
+                  const gid =
+                    readUrlParam(href, ['gid'])
+                    ?? readElementNumber(element, ['data-gid', 'data-building-gid', 'data-type'], [/\bg(\d{1,2})\b/i]);
+                  items.push({ text, timeLeft, slotId, gid, href: href || null });
                 }
                 if (items.length) return JSON.stringify(items);
               }
@@ -3597,7 +3675,7 @@ public sealed partial class TravianClient : IBuildingClient
         raw ??= [];
         return raw
             .Where(i => !string.IsNullOrWhiteSpace(i.Text))
-            .Select(i => new BuildQueueItem(i.Text!, i.TimeLeft))
+            .Select(i => new BuildQueueItem(i.Text!, i.TimeLeft, i.SlotId, i.Gid, i.Href))
             .ToList();
     }
 
@@ -3660,7 +3738,10 @@ public sealed partial class TravianClient : IBuildingClient
                 Level: i.Level,
                 TimeLeftSeconds: remainingSeconds,
                 FinishAtText: i.FinishAtText,
-                Finish: remainingSeconds is > 0 ? TimerSnapshot.FromRemaining(remainingSeconds.Value) : null);
+                Finish: remainingSeconds is > 0 ? TimerSnapshot.FromRemaining(remainingSeconds.Value) : null,
+                SlotId: i.SlotId,
+                Gid: i.Gid,
+                Href: i.Href);
             })
             .ToList();
 
@@ -3675,6 +3756,39 @@ public sealed partial class TravianClient : IBuildingClient
             var rawJson = await _page.EvaluateAsync<string>(
             """
             () => {
+              const parseNumber = (value) => {
+                if (value == null || value === '') return null;
+                const parsed = Number(value);
+                return Number.isFinite(parsed) ? parsed : null;
+              };
+              const readUrlParam = (href, names) => {
+                if (!href) return null;
+                try {
+                  const url = new URL(href, window.location.href);
+                  for (const name of names) {
+                    const parsed = parseNumber(url.searchParams.get(name));
+                    if (parsed != null) return parsed;
+                  }
+                } catch {
+                  for (const name of names) {
+                    const match = href.match(new RegExp(`[?&]${name}=(\\d{1,2})(?:\\D|$)`, 'i'));
+                    if (match) return Number(match[1]);
+                  }
+                }
+                return null;
+              };
+              const readElementNumber = (element, attrs, regexes) => {
+                for (const attr of attrs) {
+                  const parsed = parseNumber(element.getAttribute(attr));
+                  if (parsed != null) return parsed;
+                }
+                const classText = String(element.className || '');
+                for (const regex of regexes) {
+                  const match = classText.match(regex);
+                  if (match) return Number(match[1]);
+                }
+                return null;
+              };
               const items = [];
               const lis = document.querySelectorAll('.boxes.buildingList ul li, .buildingList ul li');
               for (const li of lis) {
@@ -3702,7 +3816,16 @@ public sealed partial class TravianClient : IBuildingClient
                 if (resourceNames.test(baseName)) kind = 'Resource';
                 else if (baseName) kind = 'Building';
 
-                items.push({ kind, name: baseName, level, timeLeftSeconds: timeLeft, finishAtText: finishText });
+                const link = li.querySelector('a[href*="build.php"], a[href*="dorf1.php"], a[href*="dorf2.php"]');
+                const href = link ? (link.getAttribute('href') || '') : '';
+                const slotId =
+                  readUrlParam(href, ['id', 'a'])
+                  ?? readElementNumber(li, ['data-aid', 'data-slot', 'data-slot-id', 'data-building-slot-id', 'data-id'], [/\baid(\d{1,2})\b/i, /\ba(\d{1,2})\b/i]);
+                const gid =
+                  readUrlParam(href, ['gid'])
+                  ?? readElementNumber(li, ['data-gid', 'data-building-gid', 'data-type'], [/\bg(\d{1,2})\b/i]);
+
+                items.push({ kind, name: baseName, level, timeLeftSeconds: timeLeft, finishAtText: finishText, slotId, gid, href: href || null });
               }
               return JSON.stringify(items);
             }
@@ -4389,9 +4512,12 @@ public sealed partial class TravianClient : IBuildingClient
         int slotId,
         int previousLevel,
         string buildingName,
-        string queueFingerprintBefore,
+        IReadOnlyList<BuildQueueItem> buildQueueBefore,
+        int? gid,
+        int targetLevel,
         CancellationToken cancellationToken)
     {
+        var queueFingerprintBefore = BuildQueueFingerprints.Identity(buildQueueBefore);
         // Tight poll: most clicks register within ~250ms. Two iterations covers slow pages
         // without burning a second on the happy path. Each iteration runs three cheap reads:
         // queue, active constructions, and (NEW) the slot level itself — the latter catches
@@ -4438,9 +4564,16 @@ public sealed partial class TravianClient : IBuildingClient
 
             var queueItems = await ReadBuildQueueAsync(cancellationToken);
             var queueFingerprintAfter = BuildQueueFingerprints.Identity(queueItems);
-            if (BuildQueueFingerprints.ContainsBuilding(queueItems, buildingName))
+            var targetQueueItem = BuildQueueFingerprints.FindNewTargetBuilding(buildQueueBefore, queueItems, buildingName, slotId, gid, targetLevel);
+            if (targetQueueItem is not null)
             {
-                return new UpgradeProgressResult(false, true, $"build queue contains {buildingName}");
+                return new UpgradeProgressResult(false, true, $"build queue contains slot {targetQueueItem.SlotId?.ToString(CultureInfo.InvariantCulture) ?? "unknown"} {buildingName}");
+            }
+
+            var newQueueItem = BuildQueueFingerprints.FindNewBuildingByName(buildQueueBefore, queueItems, buildingName);
+            if (newQueueItem is not null)
+            {
+                return new UpgradeProgressResult(false, true, $"build queue added {buildingName}");
             }
 
             if (!string.Equals(queueFingerprintBefore, queueFingerprintAfter, StringComparison.Ordinal))
@@ -4451,10 +4584,10 @@ public sealed partial class TravianClient : IBuildingClient
             var activeConstructions = await ReadActiveConstructionsAsync(cancellationToken);
             var matchingActiveConstruction = activeConstructions.FirstOrDefault(item =>
                 item.Kind != ConstructionKind.Resource
-                && BuildingNames.Same(item.Name, buildingName));
+                && ActiveConstructionMatchesTarget(item, slotId, gid, targetLevel));
             if (matchingActiveConstruction is not null)
             {
-                return new UpgradeProgressResult(false, true, $"active construction detected for {matchingActiveConstruction.Name}");
+                return new UpgradeProgressResult(false, true, $"active construction detected for slot {matchingActiveConstruction.SlotId?.ToString(CultureInfo.InvariantCulture) ?? "unknown"} {matchingActiveConstruction.Name}");
             }
         }
 
@@ -4468,6 +4601,25 @@ public sealed partial class TravianClient : IBuildingClient
         }
 
         return new UpgradeProgressResult(false, false, "no queue or level change");
+    }
+
+    private static bool ActiveConstructionMatchesTarget(
+        ActiveConstruction item,
+        int slotId,
+        int? gid,
+        int targetLevel)
+    {
+        if (item.SlotId != slotId)
+        {
+            return false;
+        }
+
+        if (gid is int expectedGid && item.Gid is int actualGid && actualGid != expectedGid)
+        {
+            return false;
+        }
+
+        return item.Level is not int level || level >= targetLevel;
     }
 
     /// <summary>

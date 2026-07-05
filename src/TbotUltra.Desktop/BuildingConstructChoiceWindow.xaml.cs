@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Desktop.Services;
 
 namespace TbotUltra.Desktop;
 
@@ -222,6 +223,8 @@ public partial class BuildingConstructChoiceWindow : Window
         }
 
         TimeTextBlock.Text = estimate.TimeText;
+        ConstructFasterTimeTextBlock.Text =
+            $"(25% {QueueItemRowFactory.FormatBuildDuration(estimate.Seconds * 0.75)})";
         WoodTextBlock.Text = estimate.WoodText;
         ClayTextBlock.Text = estimate.ClayText;
         IronTextBlock.Text = estimate.IronText;

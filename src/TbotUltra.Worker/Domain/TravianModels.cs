@@ -62,7 +62,12 @@ public sealed record Building(
     string? Url,
     int? Gid = null);
 
-public sealed record BuildQueueItem(string Text, string? TimeLeft);
+public sealed record BuildQueueItem(
+    string Text,
+    string? TimeLeft,
+    int? SlotId = null,
+    int? Gid = null,
+    string? Href = null);
 
 public enum ConstructionKind { Resource, Building, Unknown }
 
@@ -100,7 +105,10 @@ public sealed record ActiveConstruction(
     int? Level,
     int? TimeLeftSeconds,
     string? FinishAtText,
-    TimerSnapshot? Finish = null);
+    TimerSnapshot? Finish = null,
+    int? SlotId = null,
+    int? Gid = null,
+    string? Href = null);
 
 public sealed record ConstructionSlotStatus(
     IReadOnlyList<ActiveConstruction> Active,

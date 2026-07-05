@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Threading;
 using TbotUltra.Core.Configuration;
@@ -33,22 +32,12 @@ public partial class MainWindow
         string? villageKey,
         string? villageName)
     {
-        var villageEnabled = !string.IsNullOrWhiteSpace(villageKey)
-            && _villageSettingsStore.IsConstructFasterEnabledByKey(villageKey, defaultIfUnknown: false);
-        if (!villageEnabled && !string.IsNullOrWhiteSpace(villageName))
-        {
-            villageEnabled = _villageSettingsStore.IsConstructFasterEnabledByKey($"name:{villageName.Trim()}", defaultIfUnknown: false);
-        }
-
-        payload[BotOptionPayloadKeys.ConstructFasterEnabled] = villageEnabled ? "true" : "false";
-        payload[BotOptionPayloadKeys.ConstructFasterMinBuildTimeEnabled] =
-            options.ConstructFasterMinBuildTimeEnabled ? "true" : "false";
-        payload[BotOptionPayloadKeys.ConstructFasterMinBuildMinutes] =
-            Math.Max(0, options.ConstructFasterMinBuildMinutes).ToString(CultureInfo.InvariantCulture);
-        payload[BotOptionPayloadKeys.ConstructFasterRandomEnabled] =
-            options.ConstructFasterRandomEnabled ? "true" : "false";
-        payload[BotOptionPayloadKeys.ConstructFasterRandomChancePercent] =
-            Math.Clamp(options.ConstructFasterRandomChancePercent, 0, 100).ToString(CultureInfo.InvariantCulture);
+        ConstructFasterPayloadRefresh.Apply(
+            payload,
+            options,
+            villageKey,
+            villageName,
+            _villageSettingsStore.IsConstructFasterEnabledByKey);
     }
 
     private void RefreshConstructFasterPayloadForExecution(QueueItem item)
