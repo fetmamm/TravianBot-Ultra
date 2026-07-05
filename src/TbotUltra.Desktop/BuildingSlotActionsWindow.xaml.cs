@@ -52,7 +52,7 @@ public partial class BuildingSlotActionsWindow : Window
             NextLevelTitleTextBlock.Text = $"Upgrade to level {nextLevel.Level}";
             NextLevelTimeTextBlock.Text = nextLevel.TimeText;
             NextLevelConstructFasterTimeTextBlock.Text =
-                $"(25% {QueueItemRowFactory.FormatBuildDuration(nextLevel.Seconds * 0.75)})";
+                $"({QueueItemRowFactory.FormatBuildDuration(nextLevel.Seconds * 0.75)})";
             NextLevelWoodTextBlock.Text = nextLevel.WoodText;
             NextLevelClayTextBlock.Text = nextLevel.ClayText;
             NextLevelIronTextBlock.Text = nextLevel.IronText;

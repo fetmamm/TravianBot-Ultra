@@ -293,6 +293,14 @@ En ny formaga ska kunna enhetstestas till stor del utan browser. God-klasserna s
   Bonus-video (hero adventure och construct-faster) ska koras i isolerad temp-browser utan native popup-blocker
   och aldrig ladda ad-stack i main context; rena background-/DOM-prober ska inte spara storage state efter lasningen.
   Travco ska oppnas i isolerad browser-context, aldrig i Travian-contexten.
+- Den isolerade bonus-video-browsern (`RunInIsolatedBonusVideoBrowserAsync`) MASTE alltid rivas ner. En frusen
+  ad/video-renderer kan hanga ett Playwright-anrop (t.ex. `EvaluateAsync` i completion-loopen) FORBI sin egen
+  timeout — 75s-deadlinen kollas bara i loop-toppen — sa `await action(...)` returnerar aldrig, `finally` kor
+  aldrig och browsern lamnas oppen medan tasken staller sig (tva browsers + "Shutdown timeout waiting for
+  background tasks"). Darfor hard-time-boxas HELA floret (`IsolatedBonusVideoMaxDuration`=120s via `WaitAsync`
+  pa en linked-CTS) sa vi slutar vanta aven om action ignorerar token; finally stanger browsern (vilket
+  avblockerar det hangande anropet) och en `TimeoutException` bubblar upp -> construct-faster bygger normalt.
+  Aven `CloseAsync` time-boxas (`IsolatedBonusVideoCloseTimeout`=10s) sa en wedgad stangning inte kan ater-stalla tasken.
 - Official resource/production text kan innehalla bidi-markers och Unicode-minus (`\u2212`); DOM-number parsers
   maste strippa `\u202A-\u202E`/`\u2066-\u2069` och normalisera minus innan `Number(...)`.
 - Session i `Sleeping` far inte vackas av refresh, login/logout, scan, test, bybyte eller auto-run.

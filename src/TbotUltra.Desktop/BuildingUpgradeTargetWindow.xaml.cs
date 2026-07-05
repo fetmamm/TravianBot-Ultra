@@ -51,7 +51,7 @@ public partial class BuildingUpgradeTargetWindow : Window
 
         TimeTextBlock.Text = estimate.TimeText;
         ConstructFasterTimeTextBlock.Text =
-            $"(25% {QueueItemRowFactory.FormatBuildDuration(estimate.Seconds * 0.75)})";
+            $"({QueueItemRowFactory.FormatBuildDuration(estimate.Seconds * 0.75)})";
         EstimateRangeTextBlock.Text = $"Total for levels {_currentLevel + 1}-{targetLevel}";
         WoodTextBlock.Text = estimate.WoodText;
         ClayTextBlock.Text = estimate.ClayText;

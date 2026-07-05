@@ -24,6 +24,10 @@ public sealed partial class BrowserSession
 
         IBrowser? videoBrowser = null;
         IBrowserContext? videoContext = null;
+        Task<T>? actionTask = null;
+        // Hard time-box the whole flow so a hung ad/video renderer can never leave this browser open.
+        using var flowTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        flowTimeout.CancelAfter(IsolatedBonusVideoMaxDuration);
         try
         {
             videoBrowser = await _playwright.Chromium.LaunchAsync(CreateChromiumLaunchOptions(keepNativePopupBlocker: false));
@@ -45,7 +49,16 @@ public sealed partial class BrowserSession
 
             var page = await videoContext.NewPageAsync();
             _log?.Invoke("[browser-video] isolated bonus-video browser opened.");
-            return await action(page, cancellationToken);
+            // Stop awaiting on the hard cap even if `action` ignores the token (a stuck Playwright call
+            // may not observe cancellation). The finally then closes the browser, which unblocks the hung
+            // call, and we surface a timeout so construct-faster falls back to a normal build.
+            actionTask = action(page, flowTimeout.Token);
+            return await actionTask.WaitAsync(flowTimeout.Token);
+        }
+        catch (OperationCanceledException) when (flowTimeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            _log?.Invoke($"[browser-video] video flow exceeded {IsolatedBonusVideoMaxDuration.TotalSeconds:0}s hard cap — aborting and closing the isolated browser.");
+            throw new TimeoutException($"Bonus-video flow exceeded {IsolatedBonusVideoMaxDuration.TotalSeconds:0}s and was aborted.");
         }
         finally
         {
@@ -53,7 +66,7 @@ public sealed partial class BrowserSession
             {
                 try
                 {
-                    await videoContext.CloseAsync();
+                    await videoContext.CloseAsync().WaitAsync(IsolatedBonusVideoCloseTimeout);
                 }
                 catch (Exception ex)
                 {
@@ -65,12 +78,20 @@ public sealed partial class BrowserSession
             {
                 try
                 {
-                    await videoBrowser.CloseAsync();
+                    await videoBrowser.CloseAsync().WaitAsync(IsolatedBonusVideoCloseTimeout);
                 }
                 catch (Exception ex)
                 {
                     _log?.Invoke($"[browser-video] browser cleanup failed: {ex.Message}");
                 }
+            }
+
+            // If we abandoned the action on the hard cap it may still be running; closing the browser
+            // above faults it with a target-closed error. Observe that so it is not an unobserved
+            // exception, without blocking cleanup on the hung call.
+            if (actionTask is not null)
+            {
+                _ = actionTask.ContinueWith(static t => { _ = t.Exception; }, TaskScheduler.Default);
             }
 
             _log?.Invoke("[browser-video] isolated bonus-video browser closed.");

@@ -11,6 +11,14 @@ public sealed partial class BrowserSession : IAsyncDisposable
     private const string LocalPlaywrightBrowsersDirectoryName = "ms-playwright";
     private const string LocalPlaywrightDriverDirectoryName = ".playwright";
     private static readonly TimeSpan BonusVideoCleanupStepTimeout = TimeSpan.FromSeconds(5);
+    // Hard cap for the WHOLE isolated bonus-video flow (setup + video + completion wait). A stuck
+    // ad/video renderer can hang a Playwright call past its own timeout; this bound guarantees the
+    // isolated browser is always torn down so it can never be left open with the task stalled. A legit
+    // run is ~95s worst case (75s completion wait + ~20s setup), so this leaves comfortable margin.
+    private static readonly TimeSpan IsolatedBonusVideoMaxDuration = TimeSpan.FromSeconds(120);
+    // Upper bound on tearing down the isolated bonus-video browser, so a wedged CloseAsync cannot itself
+    // re-stall the calling task. A leaked browser process is recoverable; an infinite stall is not.
+    private static readonly TimeSpan IsolatedBonusVideoCloseTimeout = TimeSpan.FromSeconds(10);
     private static readonly SemaphoreSlim WarmupGate = new(1, 1);
     private static readonly SemaphoreSlim StorageStateGate = new(1, 1);
     private static bool _warmupCompleted;

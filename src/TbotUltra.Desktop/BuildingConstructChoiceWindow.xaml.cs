@@ -224,7 +224,7 @@ public partial class BuildingConstructChoiceWindow : Window
 
         TimeTextBlock.Text = estimate.TimeText;
         ConstructFasterTimeTextBlock.Text =
-            $"(25% {QueueItemRowFactory.FormatBuildDuration(estimate.Seconds * 0.75)})";
+            $"({QueueItemRowFactory.FormatBuildDuration(estimate.Seconds * 0.75)})";
         WoodTextBlock.Text = estimate.WoodText;
         ClayTextBlock.Text = estimate.ClayText;
         IronTextBlock.Text = estimate.IronText;
