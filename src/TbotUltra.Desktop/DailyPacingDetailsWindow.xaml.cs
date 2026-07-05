@@ -80,7 +80,7 @@ public partial class DailyPacingDetailsWindow : Window
     }
 
     // Draws a bar-per-day runtime chart: green bars (online time), a dashed amber "Max" reference line
-    // (average daily limit), and a blue linear trend line. Re-rendered on every resize.
+    // (average daily limit), and a blue smoothed trend line. Re-rendered on every resize.
     private void RenderChart()
     {
         var canvas = ChartCanvas;
@@ -188,38 +188,72 @@ public partial class DailyPacingDetailsWindow : Window
             AddText(canvas, $"Max {avgLimit:0.#}h", leftPad + plotW - 64, y - 14, maxBrush, 10);
         }
 
-        // Linear-regression trend line of online hours over the day index.
+        // Smoothed trend line: a centered moving average of online hours with a node at every bar,
+        // drawn as a Catmull-Rom curve so it weaves nicely between the bars instead of one flat line.
         if (_chartPoints.Count >= 2)
         {
-            var n = _chartPoints.Count;
-            double sumX = 0, sumY = 0, sumXy = 0, sumXx = 0;
-            for (var i = 0; i < n; i++)
+            var trendPoints = new List<Point>(_chartPoints.Count);
+            for (var i = 0; i < _chartPoints.Count; i++)
             {
-                var value = _chartPoints[i].OnlineHours;
-                sumX += i;
-                sumY += value;
-                sumXy += i * value;
-                sumXx += (double)i * i;
+                trendPoints.Add(new Point(X(i), Y(MovingAverageOnlineHours(i))));
             }
 
-            var denom = n * sumXx - sumX * sumX;
-            if (Math.Abs(denom) > 1e-9)
-            {
-                var slope = (n * sumXy - sumX * sumY) / denom;
-                var intercept = (sumY - slope * sumX) / n;
-                var trend = new Polyline
-                {
-                    Stroke = trendBrush,
-                    StrokeThickness = 2,
-                    StrokeLineJoin = PenLineJoin.Round,
-                };
-                trend.Points.Add(new Point(X(0), Y(slope * 0 + intercept)));
-                trend.Points.Add(new Point(X(n - 1), Y(slope * (n - 1) + intercept)));
-                canvas.Children.Add(trend);
-            }
+            canvas.Children.Add(BuildSmoothLine(trendPoints, trendBrush));
         }
 
         AddLegend(canvas, leftPad, 4, barBrush, maxBrush, trendBrush, labelBrush);
+    }
+
+    // Centered moving average (window 3) of online hours, clamped at the ends. Smooths day-to-day
+    // noise so the trend line reads as a trend rather than tracing every bar top.
+    private double MovingAverageOnlineHours(int index)
+    {
+        var start = Math.Max(0, index - 1);
+        var end = Math.Min(_chartPoints.Count - 1, index + 1);
+        double sum = 0;
+        for (var i = start; i <= end; i++)
+        {
+            sum += _chartPoints[i].OnlineHours;
+        }
+
+        return sum / (end - start + 1);
+    }
+
+    // Builds a smooth curve through the points using Catmull-Rom-to-Bezier conversion so the trend
+    // line looks rounded instead of jagged. Falls back to a straight segment for just two points.
+    private static Path BuildSmoothLine(IReadOnlyList<Point> points, Brush stroke)
+    {
+        var figure = new PathFigure { StartPoint = points[0], IsClosed = false, IsFilled = false };
+        if (points.Count == 2)
+        {
+            figure.Segments.Add(new LineSegment(points[1], true));
+        }
+        else
+        {
+            for (var i = 0; i < points.Count - 1; i++)
+            {
+                var p0 = points[Math.Max(0, i - 1)];
+                var p1 = points[i];
+                var p2 = points[i + 1];
+                var p3 = points[Math.Min(points.Count - 1, i + 2)];
+
+                var c1 = new Point(p1.X + (p2.X - p0.X) / 6.0, p1.Y + (p2.Y - p0.Y) / 6.0);
+                var c2 = new Point(p2.X - (p3.X - p1.X) / 6.0, p2.Y - (p3.Y - p1.Y) / 6.0);
+                figure.Segments.Add(new BezierSegment(c1, c2, p2, true));
+            }
+        }
+
+        var geometry = new PathGeometry();
+        geometry.Figures.Add(figure);
+        return new Path
+        {
+            Data = geometry,
+            Stroke = stroke,
+            StrokeThickness = 2,
+            StrokeLineJoin = PenLineJoin.Round,
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap = PenLineCap.Round,
+        };
     }
 
     private static void AddText(Canvas canvas, string text, double x, double y, Brush brush, double fontSize)
