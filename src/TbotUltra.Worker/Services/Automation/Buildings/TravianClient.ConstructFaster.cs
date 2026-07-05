@@ -347,21 +347,35 @@ public sealed partial class TravianClient
         for (var attempt = 1; attempt <= 12; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var ready = await _page.EvaluateAsync<bool>(
+            var status = await _page.EvaluateAsync<string>(
                 """
                 () => {
                   const dlg = document.querySelector('#videoFeature');
-                  if (!dlg) return false;
-                  return !!(dlg.querySelector('.dialogButtonOk')
-                    || Array.from(dlg.querySelectorAll('button')).find(b => /watch video/i.test(b.textContent || '')));
+                  const player = document.querySelector('#videoArea, #videoFeature iframe');
+                  // 'Don't show it again' persisted on a previous run: Travian skips the info
+                  // screen and opens the player directly, so there is nothing to confirm.
+                  if ((dlg && String(dlg.className || '').includes('showVideo')) || player) return 'video';
+                  if (!dlg) return 'none';
+                  const ok = dlg.querySelector('.dialogButtonOk')
+                    || Array.from(dlg.querySelectorAll('button')).find(b => /watch video/i.test(b.textContent || ''));
+                  return ok ? 'ready' : 'pending';
                 }
                 """);
-            if (!ready)
+
+            if (status == "video")
+            {
+                Notify("[construct-faster] info dialog skipped ('don't show it again' already set); video opened directly.");
+                return true;
+            }
+
+            if (status != "ready")
             {
                 await Task.Delay(Random.Shared.Next(150, 350), cancellationToken);
                 continue;
             }
 
+            // Tick 'Don't show it again' so future runs skip this info screen (see 'video' branch above).
+            await TickConstructFasterDontShowAgainAsync(cancellationToken);
             await DelayBeforeClickAsync(cancellationToken);
             var clicked = await _page.EvaluateAsync<bool>(
                 """
@@ -386,6 +400,34 @@ public sealed partial class TravianClient
         }
 
         return false;
+    }
+
+    // Checks the info dialog's 'Don't show it again' box so Travian skips the popup on later
+    // runs and jumps straight to the video. Best-effort: a failure here must not abort the flow.
+    private async Task TickConstructFasterDontShowAgainAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        try
+        {
+            var result = await _page.EvaluateAsync<string>(
+                """
+                () => {
+                  const dlg = document.querySelector('#videoFeature');
+                  if (!dlg) return 'no-dialog';
+                  const cb = dlg.querySelector('input[type="checkbox"][name="preference"]')
+                    || dlg.querySelector('label.checkbox input[type="checkbox"]');
+                  if (!cb) return 'no-checkbox';
+                  if (cb.checked) return 'already-set';
+                  cb.click(); // native click fires React onChange so the preference persists
+                  return cb.checked ? 'set' : 'unchanged';
+                }
+                """);
+            Notify($"[construct-faster] 'don't show it again' checkbox -> {result}.");
+        }
+        catch (PlaywrightException ex)
+        {
+            Notify($"[construct-faster:verbose] could not tick 'don't show it again' checkbox: {ex.Message}");
+        }
     }
 
     private async Task<bool> StartConstructFasterVideoAsync(CancellationToken cancellationToken)
