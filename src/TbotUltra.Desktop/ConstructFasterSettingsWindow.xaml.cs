@@ -144,7 +144,7 @@ public partial class ConstructFasterSettingsWindow : Window
         if (RandomChanceComboBox.SelectedItem is ComboBoxItem item
             && int.TryParse(item.Tag?.ToString(), out var value))
         {
-            return Math.Clamp(value, 0, 100);
+            return Math.Clamp(value, 10, 90);
         }
 
         return 50;
@@ -152,7 +152,10 @@ public partial class ConstructFasterSettingsWindow : Window
 
     private void SelectChanceItem(int chancePercent)
     {
-        var normalized = Math.Clamp((chancePercent / 10) * 10, 0, 100);
+        // 0% and 100% are intentionally not offered (they equal "never"/"always", i.e. the toggle),
+        // so snap a stored value to the nearest 10 and clamp into the selectable 10-90 range. A legacy
+        // 0%/100% therefore maps to 10%/90% instead of failing to select anything.
+        var normalized = Math.Clamp((chancePercent / 10) * 10, 10, 90);
         foreach (var item in RandomChanceComboBox.Items.OfType<ComboBoxItem>())
         {
             if (int.TryParse(item.Tag?.ToString(), out var value) && value == normalized)
@@ -162,6 +165,10 @@ public partial class ConstructFasterSettingsWindow : Window
             }
         }
 
-        RandomChanceComboBox.SelectedIndex = 5;
+        // Safety fallback: the middle option, selected by value so it survives list changes.
+        RandomChanceComboBox.SelectedItem = RandomChanceComboBox.Items
+            .OfType<ComboBoxItem>()
+            .FirstOrDefault(item => item.Tag?.ToString() == "50")
+            ?? RandomChanceComboBox.Items.OfType<ComboBoxItem>().FirstOrDefault();
     }
 }

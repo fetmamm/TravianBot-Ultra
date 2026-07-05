@@ -748,7 +748,6 @@ public partial class MainWindow
     /// </summary>
     internal void OnTroopsUpgradeOptionsClicked()
     {
-        var account = _accountStore.ActiveAccountName();
         var villageInfo = GetSelectedVillageKeyInfoOrNull();
         if (villageInfo is null)
         {
@@ -757,6 +756,15 @@ public partial class MainWindow
             return;
         }
 
+        OpenSmithyUpgradeOptionsForVillage(villageInfo);
+    }
+
+    // Opens the Smithy "Upgrade options" popup for a SPECIFIC village and saves against ITS key,
+    // independent of which village the bot/UI is currently on. Used by the Troops panel button (selected
+    // village) and the Village settings per-row gear (that row's village).
+    private void OpenSmithyUpgradeOptionsForVillage(VillageSettingsStore.VillageKeyInfo villageInfo)
+    {
+        var account = _accountStore.ActiveAccountName();
         var options = BuildSmithyTroopOptions(account, villageInfo.Key);
         if (options.Count == 0)
         {
@@ -831,13 +839,17 @@ public partial class MainWindow
         OpenTroopSettingsWindow(null);
     }
 
-    // Village settings "Upgrade troops" gear: opens the same Smithy "Upgrade options" popup as the Troops
-    // panel button, for the currently selected village. Mirrors the Build troops gear so the user reaches
-    // the upgrade selection straight from Village settings.
-    private void OpenSmithyUpgradeSettingsFromVillageSettings(IReadOnlyList<VillageSettingsRow> villageSettingsRows)
+    // Village settings "Upgrade troops" gear: opens the Smithy "Upgrade options" popup for the village on
+    // the clicked ROW (the overview is per-row), regardless of which village the bot is currently on.
+    private void OpenSmithyUpgradeSettingsFromVillageSettings(VillageSettingsRow villageSettingsRow)
     {
-        _ = villageSettingsRows;
-        OnTroopsUpgradeOptionsClicked();
+        if (villageSettingsRow?.KeyInfo is null)
+        {
+            AppendLog("Smithy upgrade options: village row has no key.");
+            return;
+        }
+
+        OpenSmithyUpgradeOptionsForVillage(villageSettingsRow.KeyInfo);
     }
 
     private void OpenTroopSettingsFromVillageSettings(IReadOnlyList<VillageSettingsRow> villageSettingsRows)

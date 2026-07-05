@@ -24,7 +24,7 @@ public partial class VillageSettingsWindow : Window
     private readonly Action<VillageSettingsRow>? _onConstructFasterChanged;
     private readonly Action<VillageSettingsRow>? _onGroupsChanged;
     private readonly Action<IReadOnlyList<VillageSettingsRow>>? _onTroopSettingsRequested;
-    private readonly Action<IReadOnlyList<VillageSettingsRow>>? _onSmithyUpgradeSettingsRequested;
+    private readonly Action<VillageSettingsRow>? _onSmithyUpgradeSettingsRequested;
     private readonly Action<IReadOnlyList<VillageSettingsRow>>? _onTownHallSettingsRequested;
     private readonly Action<IReadOnlyList<VillageSettingsRow>>? _onHeroResourceSettingsRequested;
     private readonly Action<IReadOnlyList<VillageSettingsRow>>? _onConstructFasterSettingsRequested;
@@ -38,7 +38,7 @@ public partial class VillageSettingsWindow : Window
         Action<VillageSettingsRow>? onConstructFasterChanged = null,
         Action<VillageSettingsRow>? onGroupsChanged = null,
         Action<IReadOnlyList<VillageSettingsRow>>? onTroopSettingsRequested = null,
-        Action<IReadOnlyList<VillageSettingsRow>>? onSmithyUpgradeSettingsRequested = null,
+        Action<VillageSettingsRow>? onSmithyUpgradeSettingsRequested = null,
         Action<IReadOnlyList<VillageSettingsRow>>? onTownHallSettingsRequested = null,
         Action<IReadOnlyList<VillageSettingsRow>>? onHeroResourceSettingsRequested = null,
         Action<IReadOnlyList<VillageSettingsRow>>? onConstructFasterSettingsRequested = null,
@@ -252,7 +252,12 @@ public partial class VillageSettingsWindow : Window
 
     private void SmithyUpgradeSettingsButton_Click(object sender, RoutedEventArgs e)
     {
-        _onSmithyUpgradeSettingsRequested?.Invoke(_rows);
+        // The overview is per-row: open the settings for the village on the CLICKED gear's row (its
+        // DataContext), not whichever village the bot/UI is currently on.
+        if ((sender as FrameworkElement)?.DataContext is VillageSettingsRow row)
+        {
+            _onSmithyUpgradeSettingsRequested?.Invoke(row);
+        }
     }
 
     private void TownHallSettingsButton_Click(object sender, RoutedEventArgs e)

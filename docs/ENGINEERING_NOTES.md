@@ -301,6 +301,10 @@ En ny formaga ska kunna enhetstestas till stor del utan browser. God-klasserna s
   pa en linked-CTS) sa vi slutar vanta aven om action ignorerar token; finally stanger browsern (vilket
   avblockerar det hangande anropet) och en `TimeoutException` bubblar upp -> construct-faster bygger normalt.
   Aven `CloseAsync` time-boxas (`IsolatedBonusVideoCloseTimeout`=10s) sa en wedgad stangning inte kan ater-stalla tasken.
+  Teardown stanger BROWSERN direkt (`videoBrowser.CloseAsync()`), inte contexten forst: `videoContext.CloseAsync()`
+  forsoker stanga sidor gracefult och hanger pa en frusen ad/video-renderer (loggade "context cleanup failed:
+  timed out" + brande close-timeouten), medan browser-close river ner context/sidor/process pa ~1s. Inget lases
+  tillbaka fran denna browser sa inget behover flushas gracefult.
 - Official resource/production text kan innehalla bidi-markers och Unicode-minus (`\u2212`); DOM-number parsers
   maste strippa `\u202A-\u202E`/`\u2066-\u2069` och normalisera minus innan `Number(...)`.
 - Session i `Sleeping` far inte vackas av refresh, login/logout, scan, test, bybyte eller auto-run.

@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Background="{DynamicResource AppBackgroundBrush}"
         Title="Hero resource settings"
-        Width="980"
+        Width="900"
         MinHeight="300"
         Height="560"
         ResizeMode="CanResize"
@@ -15,7 +15,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+        <StackPanel Grid.Row="0" Margin="0,0,0,10">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <TextBlock Text="Hero resources by village"
                            FontSize="18"
@@ -24,12 +24,16 @@
                            VerticalAlignment="Center" />
                 <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
                                 Margin="8,2,0,0"
-                                ToolTip="Enable hero inventory resources per village, choose which features may use them, and cap max resources used per resource." />
+                                ToolTip="Enable hero inventory resources per village and choose which features may use them. The max limit is global (bottom)." />
             </StackPanel>
-            <TextBlock x:Name="SubtitleTextBlock"
-                       Foreground="{DynamicResource TextSubtleBrush}"
-                       TextWrapping="Wrap"
-                       Margin="0,4,0,0" />
+            <Button x:Name="ToggleAllEnabledButton"
+                    Content="Toggle all"
+                    HorizontalAlignment="Left"
+                    Margin="0,8,0,0"
+                    Padding="12,4"
+                    FontSize="12"
+                    Click="ToggleAllEnabled_Click"
+                    ToolTip="Turn the ON switch on or off for every village." />
         </StackPanel>
 
         <Border Grid.Row="1"
@@ -46,71 +50,103 @@
                 <Border Grid.Row="0"
                         BorderBrush="{DynamicResource BorderSubtleBrush}"
                         BorderThickness="0,0,0,1"
-                        Padding="14,12,14,10">
+                        Padding="14,8">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="54" />
-                            <ColumnDefinition Width="*" MinWidth="160" />
-                            <ColumnDefinition Width="128" />
-                            <ColumnDefinition Width="88" />
-                            <ColumnDefinition Width="92" />
-                            <ColumnDefinition Width="108" />
-                            <ColumnDefinition Width="112" />
+                            <ColumnDefinition Width="*" MinWidth="140" />
+                            <ColumnDefinition Width="130" />
+                            <ColumnDefinition Width="104" />
+                            <ColumnDefinition Width="104" />
+                            <ColumnDefinition Width="118" />
                         </Grid.ColumnDefinitions>
 
                         <TextBlock Text="ON"
+                                   VerticalAlignment="Center"
                                    FontSize="11"
                                    FontWeight="SemiBold"
                                    Foreground="{DynamicResource TextMutedBrush}" />
                         <TextBlock Grid.Column="1"
                                    Text="VILLAGE"
+                                   VerticalAlignment="Center"
                                    FontSize="11"
                                    FontWeight="SemiBold"
                                    Foreground="{DynamicResource TextMutedBrush}" />
-                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="CONSTRUCTION"
-                                       FontSize="11"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextMutedBrush}" />
-                            <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
-                                            Margin="4,0,0,0"
-                                            ToolTip="Allows hero inventory resources for building and resource-field upgrades when short on resources." />
+
+                        <StackPanel Grid.Column="2" HorizontalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <TextBlock Text="CONSTRUCTION"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextMutedBrush}" />
+                                <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
+                                                Margin="4,0,0,0"
+                                                ToolTip="Allows hero inventory resources for building and resource-field upgrades when short on resources." />
+                            </StackPanel>
+                            <Button Content="Toggle all"
+                                    FontSize="10"
+                                    Padding="6,1"
+                                    Margin="0,4,0,0"
+                                    HorizontalAlignment="Center"
+                                    Click="ToggleAllConstruction_Click"
+                                    ToolTip="Toggle Construction for every village." />
                         </StackPanel>
-                        <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="SMITHY"
-                                       FontSize="11"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextMutedBrush}" />
-                            <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
-                                            Margin="4,0,0,0"
-                                            ToolTip="Allows hero inventory resources for troop upgrades in the Smithy when short on resources." />
+
+                        <StackPanel Grid.Column="3" HorizontalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <TextBlock Text="SMITHY"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextMutedBrush}" />
+                                <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
+                                                Margin="4,0,0,0"
+                                                ToolTip="Allows hero inventory resources for troop upgrades in the Smithy when short on resources." />
+                            </StackPanel>
+                            <Button Content="Toggle all"
+                                    FontSize="10"
+                                    Padding="6,1"
+                                    Margin="0,4,0,0"
+                                    HorizontalAlignment="Center"
+                                    Click="ToggleAllSmithy_Click"
+                                    ToolTip="Toggle Smithy for every village." />
                         </StackPanel>
-                        <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="BREWERY"
-                                       FontSize="11"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextMutedBrush}" />
-                            <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
-                                            Margin="4,0,0,0"
-                                            ToolTip="Allows hero inventory resources for Brewery celebrations when short on resources." />
+
+                        <StackPanel Grid.Column="4" HorizontalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <TextBlock Text="BREWERY"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextMutedBrush}" />
+                                <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
+                                                Margin="4,0,0,0"
+                                                ToolTip="Allows hero inventory resources for Brewery celebrations when short on resources." />
+                            </StackPanel>
+                            <Button Content="Toggle all"
+                                    FontSize="10"
+                                    Padding="6,1"
+                                    Margin="0,4,0,0"
+                                    HorizontalAlignment="Center"
+                                    Click="ToggleAllBrewery_Click"
+                                    ToolTip="Toggle Brewery for every village." />
                         </StackPanel>
-                        <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="TOWN HALL"
-                                       FontSize="11"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextMutedBrush}" />
-                            <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
-                                            Margin="4,0,0,0"
-                                            ToolTip="Allows hero inventory resources for Town Hall celebrations when short on resources." />
-                        </StackPanel>
-                        <StackPanel Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="MAX LIMIT"
-                                       FontSize="11"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextMutedBrush}" />
-                            <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
-                                            Margin="4,0,0,0"
-                                            ToolTip="Maximum hero inventory resources that may be used per resource for one action in this village. Default 5000." />
+
+                        <StackPanel Grid.Column="5" HorizontalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <TextBlock Text="TOWN HALL"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextMutedBrush}" />
+                                <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
+                                                Margin="4,0,0,0"
+                                                ToolTip="Allows hero inventory resources for Town Hall celebrations when short on resources." />
+                            </StackPanel>
+                            <Button Content="Toggle all"
+                                    FontSize="10"
+                                    Padding="6,1"
+                                    Margin="0,4,0,0"
+                                    HorizontalAlignment="Center"
+                                    Click="ToggleAllTownHall_Click"
+                                    ToolTip="Toggle Town Hall for every village." />
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -123,16 +159,15 @@
                             <DataTemplate>
                                 <Border BorderBrush="{DynamicResource BorderSubtleBrush}"
                                         BorderThickness="0,0,0,1"
-                                        Padding="14,12">
+                                        Padding="14,5">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="54" />
-                                            <ColumnDefinition Width="*" MinWidth="160" />
-                                            <ColumnDefinition Width="128" />
-                                            <ColumnDefinition Width="88" />
-                                            <ColumnDefinition Width="92" />
-                                            <ColumnDefinition Width="108" />
-                                            <ColumnDefinition Width="112" />
+                                            <ColumnDefinition Width="*" MinWidth="140" />
+                                            <ColumnDefinition Width="130" />
+                                            <ColumnDefinition Width="104" />
+                                            <ColumnDefinition Width="104" />
+                                            <ColumnDefinition Width="118" />
                                         </Grid.ColumnDefinitions>
 
                                         <CheckBox Style="{DynamicResource ToggleSwitchBlueStyle}"
@@ -169,14 +204,6 @@
                                                   VerticalAlignment="Center"
                                                   ToolTip="Allow hero resources for Town Hall celebrations."
                                                   IsChecked="{Binding UseTownHall, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        <TextBox Grid.Column="6"
-                                                 Width="78"
-                                                 Padding="6,4"
-                                                 HorizontalAlignment="Left"
-                                                 VerticalAlignment="Center"
-                                                 Text="{Binding MaxUsePerResource, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                                                 ToolTip="Max hero resources used per resource for one action in this village."
-                                                 BorderBrush="{DynamicResource BorderSubtleBrush}" />
                                     </Grid>
                                 </Border>
                             </DataTemplate>
@@ -186,22 +213,42 @@
             </Grid>
         </Border>
 
-        <StackPanel Grid.Row="2"
-                    Orientation="Horizontal"
-                    HorizontalAlignment="Right"
-                    Margin="0,16,0,0">
-            <Button Width="80"
-                    Height="30"
-                    Content="Cancel"
-                    Margin="0,0,8,0"
-                    Click="CancelButton_Click" />
-            <Button Width="120"
-                    Height="30"
-                    Content="Save &amp; close"
-                    Click="SaveButton_Click"
-                    Background="{DynamicResource PrimaryButtonBrush}"
-                    BorderBrush="{DynamicResource AccentBrush}"
-                    Foreground="{DynamicResource OnAccentBrush}" />
-        </StackPanel>
+        <Grid Grid.Row="2" Margin="0,14,0,0">
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center">
+                <TextBlock Text="Max limit"
+                           VerticalAlignment="Center"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
+                                Margin="6,2,0,0"
+                                ToolTip="Global cap on hero inventory resources used per resource for one action, applied to every village. Default 5000." />
+                <TextBox x:Name="GlobalMaxLimitTextBox"
+                         Width="96"
+                         Margin="10,0,0,0"
+                         Padding="6,4"
+                         VerticalAlignment="Center"
+                         Text="{Binding GlobalMaxUsePerResource, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                         ToolTip="Global max hero resources used per resource for one action (all villages)."
+                         BorderBrush="{DynamicResource BorderSubtleBrush}" />
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right">
+                <Button Width="80"
+                        Height="30"
+                        Content="Cancel"
+                        Margin="0,0,8,0"
+                        Click="CancelButton_Click" />
+                <Button Width="120"
+                        Height="30"
+                        Content="Save &amp; close"
+                        Click="SaveButton_Click"
+                        Background="{DynamicResource PrimaryButtonBrush}"
+                        BorderBrush="{DynamicResource AccentBrush}"
+                        Foreground="{DynamicResource OnAccentBrush}" />
+            </StackPanel>
+        </Grid>
     </Grid>
 </Window>

@@ -62,22 +62,16 @@ public sealed partial class BrowserSession
         }
         finally
         {
-            if (videoContext is not null)
-            {
-                try
-                {
-                    await videoContext.CloseAsync().WaitAsync(IsolatedBonusVideoCloseTimeout);
-                }
-                catch (Exception ex)
-                {
-                    _log?.Invoke($"[browser-video] context cleanup failed: {ex.Message}");
-                }
-            }
-
             if (videoBrowser is not null)
             {
                 try
                 {
+                    // Close the disposable browser directly — its context, pages and process go with it.
+                    // We deliberately skip the graceful videoContext.CloseAsync(): it tries to close pages
+                    // cleanly and hangs on a wedged ad/video renderer (that logged a benign "context cleanup
+                    // failed: timed out" and burned the close timeout), while the browser close tears the
+                    // same thing down in ~1s. Nothing reads state back from this browser, so there is
+                    // nothing to flush. The timeout stays as a safety net against a wedged browser close.
                     await videoBrowser.CloseAsync().WaitAsync(IsolatedBonusVideoCloseTimeout);
                 }
                 catch (Exception ex)
